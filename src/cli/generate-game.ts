@@ -23,7 +23,7 @@
  *   bun run generate --verbose    (show detailed output)
  */
 
-import { GameGenerator, type GenesisGame, type GameHistory, type GeneratedGame } from '../generator/GameGenerator';
+import { GameGenerator, type GameHistory, type GeneratedGame } from '../generator/GameGenerator';
 import { writeFile, readFile, access, readdir, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { readFileSync } from 'fs';
@@ -83,9 +83,12 @@ async function loadPreviousGames(maxGames = 3): Promise<GameFile[]> {
       // Extract timestamp from filename: game-2025-10-24-153933.json
       const match = file.match(/game-(\d{4})-(\d{2})-(\d{2})-(\d{6})\.json/);
       let timestamp = new Date(game.generatedAt);
-      
-      if (match) {
-        const [, year, month, day, time] = match;
+
+      if (match && match[1] && match[2] && match[3] && match[4]) {
+        const year = match[1];
+        const month = match[2];
+        const day = match[3];
+        const time = match[4];
         const hours = time.slice(0, 2);
         const minutes = time.slice(2, 4);
         const seconds = time.slice(4, 6);
@@ -249,7 +252,11 @@ async function main() {
     const tempGenerator = new GameGenerator();
     for (let i = previousGames.length - 1; i >= 0; i--) {
       const gameFile = previousGames[i];
-      
+      if (!gameFile) {
+        console.warn(`     ⚠️  Game at index ${i} is undefined, skipping`);
+        continue;
+      }
+
       // Use existing history if available, otherwise generate it
       let gameHistory: GameHistory;
       if (gameFile.history) {
@@ -261,31 +268,51 @@ async function main() {
           gameHistory.gameNumber = previousGames.length - i;
         }
       }
-      
+
       history.push(gameHistory);
-      console.log(`     • Game #${gameHistory.gameNumber} - ${gameFile.game.setup.questions[0]?.text.slice(0, 50)}...`);
+      const firstQuestion = gameFile.game.setup.questions[0];
+      const questionPreview = firstQuestion ? firstQuestion.text.slice(0, 50) : 'No question';
+      console.log(`     • Game #${gameHistory.gameNumber} - ${questionPreview}...`);
     }
 
     // Calculate next start date: Get last game's last day, add 1 day
-    const lastGame = previousGames[0].game; // Most recent game
+    const lastGameFile = previousGames[0];
+    if (!lastGameFile) {
+      throw new Error('Previous games array is not empty but first element is undefined');
+    }
+
+    const lastGame = lastGameFile.game; // Most recent game
     const lastDayData = lastGame.timeline[lastGame.timeline.length - 1];
-    const lastDayPost = lastDayData.feedPosts?.[0];
-    
-    if (lastDayPost) {
-      const lastDate = new Date(lastDayPost.timestamp);
-      const nextDate = new Date(lastDate);
-      nextDate.setDate(nextDate.getDate() + 1); // Next day after last game
-      nextStartDate = nextDate.toISOString().split('T')[0];
+
+    if (lastDayData && lastDayData.feedPosts && lastDayData.feedPosts.length > 0) {
+      const lastDayPost = lastDayData.feedPosts[0];
+      if (lastDayPost) {
+        const lastDate = new Date(lastDayPost.timestamp);
+        const nextDate = new Date(lastDate);
+        nextDate.setDate(nextDate.getDate() + 1); // Next day after last game
+        nextStartDate = nextDate.toISOString().split('T')[0]!;
+      } else {
+        // Fallback: assume 30 days per game, calculate next month
+        const lastGameStart = new Date(lastGame.generatedAt);
+        const nextMonth = new Date(lastGameStart);
+        nextMonth.setMonth(lastGameStart.getMonth() + 1);
+        nextMonth.setDate(1);
+        nextStartDate = nextMonth.toISOString().split('T')[0]!;
+      }
     } else {
       // Fallback: assume 30 days per game, calculate next month
       const lastGameStart = new Date(lastGame.generatedAt);
       const nextMonth = new Date(lastGameStart);
       nextMonth.setMonth(lastGameStart.getMonth() + 1);
       nextMonth.setDate(1);
-      nextStartDate = nextMonth.toISOString().split('T')[0];
+      nextStartDate = nextMonth.toISOString().split('T')[0]!;
     }
-    
-    gameNumber = history[history.length - 1].gameNumber + 1;
+
+    const lastHistoryEntry = history[history.length - 1];
+    if (!lastHistoryEntry) {
+      throw new Error('History array should not be empty after processing previous games');
+    }
+    gameNumber = lastHistoryEntry.gameNumber + 1;
     
     console.log(`   ✓ Next game will be #${gameNumber} starting ${nextStartDate}\n`);
   } else {
@@ -313,7 +340,7 @@ async function main() {
   console.log(`   Total group messages: ${Object.values(game.timeline.reduce((acc, day) => {
     Object.entries(day.groupChats).forEach(([groupId, messages]) => {
       if (!acc[groupId]) acc[groupId] = [];
-      acc[groupId].push(...messages);
+      acc[groupId]!.push(...messages);
     });
     return acc;
   }, {} as Record<string, any[]>)).flat().length}`);

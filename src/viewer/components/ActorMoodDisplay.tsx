@@ -2,7 +2,7 @@
  * Actor Mood Display
  * Shows actor emotional states, luck, and relationships
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { moodToEmotion, luckToDescription } from '../../engine/EmotionSystem';
 
 export interface ActorMoodState {
@@ -106,7 +106,11 @@ export function ActorMoodDisplay({ actors, relationships = [], className = '' }:
                 {/* Luck */}
                 <div className="stat-row">
                   <span className="stat-label">Luck:</span>
-                  <span className="luck-badge" style={{ backgroundColor: getLuckColor(actor.luck) }}>
+                  <span 
+                    className="luck-badge" 
+                    style={{ backgroundColor: getLuckColor(actor.luck) }}
+                    title={luckDesc}
+                  >
                     {actor.luck.toUpperCase()}
                   </span>
                 </div>

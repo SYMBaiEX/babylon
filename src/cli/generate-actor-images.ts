@@ -34,6 +34,21 @@ interface ActorsDatabase {
   organizations: Organization[];
 }
 
+interface FalImageResult {
+  url: string;
+  width: number;
+  height: number;
+  content_type: string;
+}
+
+interface FalResponse {
+  data: {
+    images: FalImageResult[];
+    seed?: number;
+    has_nsfw_concepts?: boolean[];
+  };
+}
+
 async function fileExists(path: string): Promise<boolean> {
   return exists(path).catch(() => false);
 }
@@ -60,11 +75,21 @@ async function generateActorImage(actor: Actor): Promise<string> {
         update.logs.map((log) => log.message).forEach(console.log);
       }
     },
-  });
+  }) as FalResponse;
 
-  const imageUrl = result.data.images[0].url;
+  // Validate response has images array with at least one image
+  if (!result.data.images || result.data.images.length === 0) {
+    throw new Error(`Fal.ai API returned no images for ${actor.name}. Response: ${JSON.stringify(result.data)}`);
+  }
+
+  const firstImage = result.data.images[0];
+  if (!firstImage || !firstImage.url) {
+    throw new Error(`First image missing URL for ${actor.name}. Image data: ${JSON.stringify(firstImage)}`);
+  }
+
+  const imageUrl = firstImage.url;
   console.log(`✓ Generated image for ${actor.name}: ${imageUrl}`);
-  
+
   return imageUrl;
 }
 
@@ -87,11 +112,21 @@ async function generateOrganizationImage(org: Organization): Promise<string> {
         update.logs.map((log) => log.message).forEach(console.log);
       }
     },
-  });
+  }) as FalResponse;
 
-  const imageUrl = result.data.images[0].url;
+  // Validate response has images array with at least one image
+  if (!result.data.images || result.data.images.length === 0) {
+    throw new Error(`Fal.ai API returned no images for ${org.name}. Response: ${JSON.stringify(result.data)}`);
+  }
+
+  const firstImage = result.data.images[0];
+  if (!firstImage || !firstImage.url) {
+    throw new Error(`First image missing URL for ${org.name}. Image data: ${JSON.stringify(firstImage)}`);
+  }
+
+  const imageUrl = firstImage.url;
   console.log(`✓ Generated image for ${org.name}: ${imageUrl}`);
-  
+
   return imageUrl;
 }
 

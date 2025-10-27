@@ -2,7 +2,6 @@
  * Game Recap
  * Comprehensive summary of game history and current setup
  */
-import React from 'react';
 import { GameHistoryPanel, GameHistoryItem } from './GameHistoryPanel';
 import { WorldContextPanel, Scenario, Question, Actor } from './WorldContextPanel';
 import { ActorMoodDisplay, ActorMoodState, ActorRelationship } from './ActorMoodDisplay';

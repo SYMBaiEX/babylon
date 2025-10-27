@@ -2,7 +2,6 @@
  * Game History Panel
  * Shows previous games with key outcomes and highlights
  */
-import React from 'react';
 
 export interface GameHistoryItem {
   gameNumber: number;

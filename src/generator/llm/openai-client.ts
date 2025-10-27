@@ -86,8 +86,8 @@ export class BabylonLLMClient {
           max_tokens: maxTokens,
         });
 
-        const content = response.choices[0].message.content;
-        const finishReason = response.choices[0].finish_reason;
+        const content = response.choices[0]?.message.content;
+        const finishReason = response.choices[0]?.finish_reason;
         
         // Error if response was truncated - this should never happen with high token limits
         if (finishReason === 'length') {

@@ -34,7 +34,11 @@ import { generateActorContext } from '../engine/EmotionSystem';
  * Generate context from previous month's game
  */
 function generatePreviousMonthContext(previousHistory: GameHistory[]): string {
-  const lastGame = previousHistory[previousHistory.length - 1];
+  if (previousHistory.length === 0) {
+    return ''; // No previous history available
+  }
+  
+  const lastGame = previousHistory[previousHistory.length - 1]!;
   
   return `
 ━━━ PREVIOUS MONTH CONTEXT ━━━
@@ -102,6 +106,8 @@ function getActorGroupContext(
     
     for (let i = previousDays.length - 1; i >= Math.max(0, previousDays.length - 3); i--) {
       const dayData = previousDays[i];
+      if (!dayData) continue;
+      
       const msgs = dayData.groupChats?.[group.id] || [];
       
       msgs.slice(-3).forEach((msg: ChatMessage) => {
@@ -134,10 +140,14 @@ function shuffleArray<T>(array: T[]): T[] {
   const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    // Use temp variable to satisfy TypeScript strict mode
+    const temp = shuffled[i]!;
+    shuffled[i] = shuffled[j]!;
+    shuffled[j] = temp;
   }
   return shuffled;
 }
+
 
 export function createScenarioPrompt(mainActors: any[], organizations?: any[]) {
   const orgContext = organizations && organizations.length > 0 ? `
@@ -584,8 +594,8 @@ export class GameGenerator {
     for (let day = 1; day <= 30; day++) {
       const currentDate = new Date(gameStartDate);
       currentDate.setDate(gameStartDate.getDate() + (day - 1));
-      const dateStr = currentDate.toISOString().split('T')[0];
-      
+      const dateStr = currentDate.toISOString().split('T')[0]!;
+
       const phase = this.getPhase(day);
       process.stdout.write(`  [${dateStr}] ${phase.padEnd(12)} `);
       
@@ -681,12 +691,19 @@ export class GameGenerator {
     for (let day = 1; day <= 30; day++) {
       const currentDate = new Date(startDate);
       currentDate.setDate(startDate.getDate() + (day - 1));
-      const dateStr = currentDate.toISOString().split('T')[0];
-      
+      const dateStr = currentDate.toISOString().split('T')[0]!;
+
       process.stdout.write(`  [${dateStr}] `);
 
       // Generate baseline events (no questions, just world activity)
       const events = await this.generateGenesisEvents(day, allActors, dateStr);
+      
+      // Generate luck and mood changes based on events
+      const luckChanges = this.generateLuckChanges(day, events, allActors, luckMood);
+      const moodChanges = this.generateMoodChanges(day, events, allActors, luckMood);
+      
+      // Apply ambient mood drift with correct parameters
+      this.applyAmbientMoodDrift(allActors, luckMood);
       
       // Generate feed posts
       const feedPosts = await this.feedGenerator.generateDayFeed(
@@ -703,7 +720,7 @@ export class GameGenerator {
         true // Neutral baseline
       );
 
-      // Generate group messages
+      // Generate group messages (function signature: day, events, groupChats, allActors)
       const groupMessages = await this.generateGroupMessages(day, events, groupChats, allActors);
 
       timeline.push({
@@ -712,11 +729,11 @@ export class GameGenerator {
         events,
         groupChats: groupMessages,
         feedPosts,
-        luckChanges: [],
-        moodChanges: [],
+        luckChanges,
+        moodChanges,
       });
 
-      console.log(`✓ (${events.length} events, ${feedPosts.length} posts)`);
+      console.log(`✓ (${events.length} events, ${feedPosts.length} posts, ${luckChanges.length + moodChanges.length} state changes)`);
     }
 
     const genesis: GenesisGame = {
@@ -736,6 +753,7 @@ export class GameGenerator {
     console.log('===================');
     console.log(`Total events: ${timeline.reduce((sum, day) => sum + day.events.length, 0)}`);
     console.log(`Total posts: ${timeline.reduce((sum, day) => sum + day.feedPosts.length, 0)}`);
+    console.log(`Total state changes: ${timeline.reduce((sum, day) => sum + day.luckChanges.length + day.moodChanges.length, 0)}`);
     console.log();
 
     return genesis;
@@ -754,7 +772,7 @@ export class GameGenerator {
     const eventTypes: Array<WorldEvent['type']> = ['meeting', 'announcement', 'deal'];
 
     for (let i = 0; i < eventCount; i++) {
-      const type = eventTypes[Math.floor(Math.random() * eventTypes.length)];
+      const type = eventTypes[Math.floor(Math.random() * eventTypes.length)]!;
       const numActorsInvolved = type === 'meeting' ? 2 + Math.floor(Math.random() * 2) : 1;
       const involvedActors = shuffle(allActors).slice(0, numActorsInvolved);
 
@@ -803,7 +821,7 @@ No other text.`;
       { temperature: 0.7, maxTokens: 5000 }
     );
 
-    return response.event || `${actors[0].name} ${type}`;
+    return response.event || `${actors[0]?.name || 'Actor'} ${type}`;
   }
 
   /**
@@ -988,7 +1006,7 @@ Key outcomes: ${h.keyOutcomes.map(o => `${o.questionText} → ${o.outcome ? 'YES
     return (Math.random() - 0.5) * 2; // -1 to 1
   }
 
-  private getActorTier(id: string): string {
+  public getActorTier(id: string): string {
     const actor = actors.actors.find(a => a.id === id);
     return actor ? actor.tier : 'D_TIER';
   }
@@ -1144,7 +1162,7 @@ Return JSON with ranks:
         connections.push({
           actor1: main.id,
           actor2: supporting.id,
-          relationship: relationships[Math.floor(Math.random() * relationships.length)],
+          relationship: relationships[Math.floor(Math.random() * relationships.length)]!,
           context: `Professional relationship in ${main.domain?.[0] || 'industry'}`,
         });
       });
@@ -1169,7 +1187,7 @@ Return JSON with ranks:
         connections.push({
           actor1: supporting.id,
           actor2: other.id,
-          relationship: relationships[Math.floor(Math.random() * relationships.length)],
+          relationship: relationships[Math.floor(Math.random() * relationships.length)]!,
           context: `Peers in ${supporting.domain?.[0] || 'industry'}`,
         });
       });
@@ -1370,10 +1388,10 @@ Return ONLY this JSON:
     }> = [];
     
     for (let i = 0; i < eventCount; i++) {
-      const type = eventTypes[Math.floor(Math.random() * eventTypes.length)];
+      const type = eventTypes[Math.floor(Math.random() * eventTypes.length)]!;
       const numActorsInvolved = type === 'meeting' ? 2 + Math.floor(Math.random() * 3) : 1;
       const involvedActors = shuffle(allActors).slice(0, numActorsInvolved);
-      const questionId = questions[i % questions.length].id;
+      const questionId = questions[i % questions.length]!.id;
 
       eventRequests.push({
         eventNumber: i,
@@ -1393,15 +1411,21 @@ Return ONLY this JSON:
       connections
     );
       
+    // Determine if this day should reveal answer hints based on phase
+    const shouldReveal = this.shouldRevealAnswer(day, phase);
+
     descriptions.forEach((desc, i) => {
       const req = eventRequests[i];
+      if (!req) return; // Skip if no matching request
+
       events.push({
         id: `event-${day}-${i}`,
         type: req.type,
         actors: req.actors.map((a: SelectedActor) => a.id),
         description: desc.event,
         relatedQuestion: req.questionId,
-        pointsToward: desc.pointsToward || null,
+        // Only reveal hints if phase allows it
+        pointsToward: shouldReveal ? (desc.pointsToward || null) : null,
         visibility: req.type === 'meeting' ? 'private' : 'public',
       });
     });
@@ -1440,7 +1464,7 @@ Return ONLY this JSON:
         visibility: e.visibility,
       })),
       allActors,
-      questions[0].outcome
+      questions[0]!.outcome
     );
 
     // Generate group messages - BATCHED
@@ -1459,10 +1483,25 @@ Return ONLY this JSON:
 
     // Apply ambient mood drift for all actors (small random changes)
     this.applyAmbientMoodDrift(allActors, luckMood);
-    
+
     // Generate luck and mood changes (for actors in events - larger changes)
     const luckChanges = this.generateLuckChanges(day, events, allActors, luckMood);
     const moodChanges = this.generateMoodChanges(day, events, allActors, luckMood);
+
+    // Generate resolution events during the Resolution phase (days 27-30)
+    if (phase === 'Resolution' && day >= 28) {
+      // Generate one resolution event per question on days 28-30
+      const questionIndex = day - 28; // Day 28 = question 0, day 29 = question 1, day 30 = question 2
+      if (questionIndex < questions.length) {
+        const resolutionEvent = await this.generateResolutionEvent(
+          questions[questionIndex]!,
+          allActors,
+          day,
+          previousDays
+        );
+        events.push(resolutionEvent);
+      }
+    }
 
     return {
       day,
@@ -1550,7 +1589,7 @@ Return EXACTLY ${eventRequests.length} events.`;
   /**
    * Should this day's events reveal the answer?
    */
-  private shouldRevealAnswer(day: number, phase: string): boolean {
+  private shouldRevealAnswer(_day: number, phase: string): boolean {
     if (phase === 'Early') return Math.random() > 0.0;
     if (phase === 'Middle') return Math.random() > 0.1; // 40% chance
     if (phase === 'Late') return Math.random() > 0.6; // 60% chance
@@ -1562,44 +1601,17 @@ Return EXACTLY ${eventRequests.length} events.`;
    * Generate concrete event description using LLM
    * Events should be specific, concrete things that happened
    */
-  private async generateEventDescription(
-    type: WorldEvent['type'],
+  public async generateEventDescription(
     actors: SelectedActor[],
-    day: number,
-    pointsToward: 'YES' | 'NO' | null,
-    questionContext: string,
-    previousDays: DayTimeline[]
+    type: WorldEvent['type'],
+    _questionId: number,
+    day: number
   ): Promise<string> {
     const actorNames = actors.map(a => a.name).join(' and ');
-    const actorDescriptions = actors.map(a => `${a.name} (${a.description})`).join(', ');
-    
-    // Build summary of recent days
-    const recentDays = previousDays.slice(-3); // Last 3 days
-    const recentSummary = recentDays.length > 0
-      ? `Recent developments (Days ${recentDays[0]?.day}-${recentDays[recentDays.length - 1]?.day}): ${recentDays.map(d => 
-          d.events.slice(0, 2).map(e => e.description).join('; ')
-        ).join('. ')}`
-      : 'Start of the game';
-    
-    const prompt = `You must respond with valid JSON only. Generate a concrete event description.
-
+    const prompt = `Generate a satirical event description for day ${day}.
 Event type: ${type}
-Involved: ${actorDescriptions}
-Context: Day ${day} of 30 in a game about: ${questionContext}
-Direction: This event should ${pointsToward === 'YES' ? 'support a positive outcome' : pointsToward === 'NO' ? 'suggest problems/failure' : 'be ambiguous'}
-
-Recent: ${recentSummary}
-
-Requirements:
-- One sentence, max 120 chars
-- Be specific (not "announces news" but "announces Q4 revenue miss")
-- Build on recent history naturally
-- Satirical but plausible
-
-Respond with ONLY this JSON format:
-{"event": "your event description here"}
-
-No other text, just the JSON object.`;
+Actors: ${actorNames}
+Max 120 characters, one sentence.`;
 
     const response = await this.llm.generateJSON<{ event: string }>(
       prompt,
@@ -1607,7 +1619,7 @@ No other text, just the JSON object.`;
       { temperature: 0.9 }
     );
 
-    return response.event || `${actorNames} involved in ${type}`;
+    return response.event || `${actorNames} ${type}`;
   }
 
   /**
@@ -1725,6 +1737,8 @@ No other text.`;
           
           for (let i = previousDays.length - 1; i >= Math.max(0, previousDays.length - 3); i--) {
             const dayData = previousDays[i];
+            if (!dayData) continue;
+
             const groupMessages = dayData.groupChats?.[group.id] || [];
             
             for (const msg of groupMessages.slice(-5)) {
@@ -1763,10 +1777,50 @@ No other text.`;
     
     // Generate all messages in one batch
     const recentEvent = events.length > 0 ? events[Math.floor(Math.random() * events.length)] : null;
-    
+
+    // Build additional context from optional parameters
+    const scenarioContext = scenarios && scenarios.length > 0
+      ? `\n\nACTIVE SCENARIOS: ${scenarios.map(s => s.description).join('; ')}`
+      : '';
+
+    const questionContext = questions && questions.length > 0
+      ? `\n\nQUESTIONS TO RESOLVE: ${questions.map(q => q.text).join('; ')}`
+      : '';
+
+    // Build emotional state context for actors
+    const getEmotionalState = (actorId: string): string => {
+      if (!luckMood) return '';
+      const state = luckMood.get(actorId);
+      if (!state) return '';
+      
+      const moodDesc = state.mood > 0.3 ? 'confident' : state.mood < -0.3 ? 'pessimistic' : 'neutral';
+      const luckDesc = state.luck === 'high' ? '🍀 lucky streak' : state.luck === 'low' ? '💀 unlucky' : 'average luck';
+      return ` [${moodDesc}, ${luckDesc}]`;
+    };
+
+    // Build relationship context between group members
+    const getRelationshipContext = (groupMembers: Array<{ actorId: string; actorName: string }>): string => {
+      if (!connections || groupMembers.length < 2) return '';
+
+      const relevantConnections = connections.filter(conn =>
+        groupMembers.some(m => m.actorId === conn.actor1) &&
+        groupMembers.some(m => m.actorId === conn.actor2)
+      );
+
+      if (relevantConnections.length === 0) return '';
+
+      const connectionLines = relevantConnections.map(conn => {
+        const actor1 = groupMembers.find(m => m.actorId === conn.actor1);
+        const actor2 = groupMembers.find(m => m.actorId === conn.actor2);
+        return `   • ${actor1?.actorName} ↔️ ${actor2?.actorName}: ${conn.relationship}`;
+      }).join('\n');
+
+      return `\n   \n   RELATIONSHIPS IN THIS GROUP:\n${connectionLines}\n`;
+    };;
+
     const prompt = `You must respond with valid JSON only.
 
-${fullContext || `Day ${day} of 30`}
+${fullContext || `Day ${day} of 30`}${scenarioContext}${questionContext}
 
 ━━━ PRIVATE GROUP CHATS FOR DAY ${day} ━━━
 
@@ -1778,6 +1832,7 @@ This is PRIVATE. Members say things here they would NEVER say publicly:
 - Honest reactions vs their public persona
 
 Today's events: ${events.map(e => e.description).join('; ')}
+${recentEvent ? `\nMost talked about: ${recentEvent.description}` : ''}
 
 Generate ${groupRequests.length} private group conversations:
 
@@ -1786,8 +1841,9 @@ ${groupRequests.map((req, i) => `${i + 1}. "${req.groupName}"
    MEMBERS IN THIS CHAT (don't gossip about them):
 ${req.members.map((m, j) => {
   const actor = allActors.find(a => a.id === m.actorId);
-  return `   ${j + 1}. ${m.actorName} [${actor?.affiliations?.join(', ') || 'independent'}]`;
-}).join('\n')}
+  const emotionalState = getEmotionalState(m.actorId);
+  return `   ${j + 1}. ${m.actorName}${emotionalState} [${actor?.affiliations?.join(', ') || 'independent'}]`;
+}).join('\n')}${getRelationshipContext(req.members)}
    
    PEOPLE NOT IN THIS CHAT (you can gossip):
    ${allActors.filter(a => !req.members.find(m => m.actorId === a.id)).slice(0, 12).map(a => a.name).join(', ')}
@@ -1801,13 +1857,16 @@ ${req.previousMessages.map(pm => `   [Day ${pm.day}] ${pm.actorName}: "${pm.mess
    ✅ Gossip about outsiders
    ✅ Respond naturally to each other
    ✅ Reference scenarios/questions/events from insider perspective
+   ✅ Let emotional state influence your tone (confident/pessimistic/neutral)
+   ✅ Consider your relationships with other members
    ❌ DON'T gossip about members IN this chat
    ❌ DON'T just repeat public statements
    
    Generate ${req.members.length} messages:
 ${req.members.map((m, idx) => {
   const actor = allActors.find(a => a.id === m.actorId);
-  return `   ${idx + 1}. ${m.actorName} [${actor?.affiliations?.join(', ') || 'independent'}]:
+  const emotionalState = getEmotionalState(m.actorId);
+  return `   ${idx + 1}. ${m.actorName}${emotionalState} [${actor?.affiliations?.join(', ') || 'independent'}]:
       ${idx === 0 
         ? 'Start/continue - share insider knowledge, strategic thoughts, or private reactions'
         : 'Respond to previous - add insider perspective, gossip about outsiders, share org info'}`;
@@ -1854,6 +1913,8 @@ Return ${groupRequests.length} groups in the array. No other text.`;
         // Convert to expected format
         groups.forEach((group, i) => {
           const req = groupRequests[i];
+          if (!req) return; // Skip if no matching request
+
           messages[group.groupId] = group.messages.map((msg, j) => ({
             from: msg.actorId,
             message: msg.message,
@@ -1912,7 +1973,7 @@ Return ${groupRequests.length} groups in the array. No other text.`;
    * Generate group message content using LLM
    * Private insider information shared in groups
    */
-  private async generateGroupMessage(
+  public async generateGroupMessage(
     actor: SelectedActor, 
     events: WorldEvent[], 
     day: number,
@@ -1956,9 +2017,17 @@ Write ONLY the message text:`;
   ): LuckChange[] {
     const changes: LuckChange[] = [];
     
+    // Create a Set of valid actor IDs for efficient lookup
+    const validActorIds = new Set(actors.map(a => a.id));
+    
     // Actors involved in events may have luck changes
     events.forEach(event => {
       event.actors.forEach(actorId => {
+        // Validate that actor exists in selected actors list
+        if (!validActorIds.has(actorId)) {
+          return; // Skip actors not in the game
+        }
+        
         if (Math.random() > 0.7) { // 30% chance
           const current = luckMood.get(actorId);
           if (current) {
@@ -1982,14 +2051,14 @@ Write ONLY the message text:`;
             }
             
             const newIdx = Math.max(0, Math.min(2, currentIdx + change));
-            const newLuck = luckLevels[newIdx];
+            const newLuck = luckLevels[newIdx] as 'low' | 'medium' | 'high';
             
             if (newLuck !== current.luck) {
               changes.push({
                 actor: actorId,
                 from: current.luck,
                 to: newLuck,
-                reason: event.description,
+                reason: `Day ${day}: ${event.description}`,
               });
               current.luck = newLuck;
             }
@@ -2012,9 +2081,17 @@ Write ONLY the message text:`;
   ): MoodChange[] {
     const changes: MoodChange[] = [];
     
+    // Create a Set of valid actor IDs for efficient lookup
+    const validActorIds = new Set(actors.map(a => a.id));
+    
     // Actors involved in events may have mood changes
     events.forEach(event => {
       event.actors.forEach(actorId => {
+        // Validate that actor exists in selected actors list
+        if (!validActorIds.has(actorId)) {
+          return; // Skip actors not in the game
+        }
+        
         if (Math.random() > 0.6) { // 40% chance
           const current = luckMood.get(actorId);
           if (current) {
@@ -2041,7 +2118,7 @@ Write ONLY the message text:`;
                 actor: actorId,
                 from: current.mood,
                 to: newMood,
-                reason: event.description,
+                reason: `Day ${day}: ${event.description}`,
               });
               current.mood = newMood;
             }
@@ -2083,7 +2160,8 @@ Write ONLY the message text:`;
           // 50/50 chance to go up or down
           const change = Math.random() > 0.5 ? 1 : -1;
           const newIdx = Math.max(0, Math.min(2, currentIdx + change));
-          current.luck = luckLevels[newIdx];
+          // Type assertion safe because newIdx is clamped to [0, 2]
+          current.luck = luckLevels[newIdx] as 'low' | 'medium' | 'high';
         }
       }
     });
@@ -2136,9 +2214,9 @@ Write ONLY the message text:`;
   }
 }
 
-// Utility: Shuffle array
+// Utility: Shuffle array using Fisher-Yates algorithm (proper randomization)
 function shuffle<T>(arr: T[]): T[] {
-  return arr.sort(() => Math.random() - 0.5);
+  return shuffleArray(arr);
 }
 
 

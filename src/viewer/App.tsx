@@ -2,8 +2,7 @@
  * Babylon Game Viewer
  * Interactive timeline viewer for generated games
  */
-import React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import type { GeneratedGame } from '../generator/GameGenerator';
 import { FeedView } from './FeedView';
@@ -68,7 +67,7 @@ export function App() {
   }, []);
 
   // Calculate time range and timeline positions from all loaded games
-  const { startTime, endTime, totalDurationMs, timelineDays, gameRanges } = React.useMemo(() => {
+  const { startTime, endTime, totalDurationMs, timelineDays, gameRanges } = useMemo(() => {
     if (allGames.length === 0) return { 
       startTime: null, 
       endTime: null, 
@@ -168,13 +167,50 @@ export function App() {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [isPlaying]);
 
+  // Show loading state
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        background: '#000',
+        color: '#fff',
+        fontSize: '18px'
+      }}>
+        Loading games...
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        background: '#000',
+        color: '#ff4444',
+        fontSize: '18px',
+        padding: '40px'
+      }}>
+        <div style={{ marginBottom: '16px' }}>⚠️ Error</div>
+        <div>{error}</div>
+      </div>
+    );
+  }
+
   // Wrap with router
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Navigate to="/feed" replace />} />
-        <Route 
-          path="/feed" 
+        <Route
+          path="/feed"
           element={
             <FeedView
               allGames={allGames}
@@ -185,12 +221,15 @@ export function App() {
               speed={speed}
               setSpeed={setSpeed}
               startTime={startTime}
+              endTime={endTime}
               totalDurationMs={totalDurationMs}
+              timelineDays={timelineDays}
+              gameRanges={gameRanges}
             />
-          } 
+          }
         />
-        <Route 
-          path="/profile" 
+        <Route
+          path="/profile"
           element={
             <ProfileView
               allGames={allGames}
@@ -201,9 +240,12 @@ export function App() {
               speed={speed}
               setSpeed={setSpeed}
               startTime={startTime}
+              endTime={endTime}
               totalDurationMs={totalDurationMs}
+              timelineDays={timelineDays}
+              gameRanges={gameRanges}
             />
-          } 
+          }
         />
       </Routes>
     </BrowserRouter>
