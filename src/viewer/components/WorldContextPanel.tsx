@@ -2,7 +2,6 @@
  * World Context Panel
  * Shows current world situation and how we got here
  */
-import React from 'react';
 
 export interface Scenario {
   id: number;

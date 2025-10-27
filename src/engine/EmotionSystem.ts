@@ -77,7 +77,7 @@ export function getRelationshipModifier(relationship: string): {
     'hates': { modifier: 'deeply negative and dismissive', sentimentBonus: -0.6 },
   };
   
-  return relationshipMap[relationship.toLowerCase()] || relationshipMap['neutral'];
+  return relationshipMap[relationship.toLowerCase()] || relationshipMap['neutral']!;
 }
 
 /**

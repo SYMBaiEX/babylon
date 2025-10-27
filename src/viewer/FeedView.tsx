@@ -6,6 +6,21 @@ import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import type { GeneratedGame } from '../generator/GameGenerator';
 
+interface TimelineDay {
+  day: number;
+  timestamp: number;
+  label: string;
+  gameId: string;
+  gameName: string;
+}
+
+interface GameRange {
+  gameId: string;
+  gameName: string;
+  startTime: number;
+  endTime: number;
+}
+
 interface FeedViewProps {
   allGames: GeneratedGame[];
   currentTimeMs: number;
@@ -15,7 +30,10 @@ interface FeedViewProps {
   speed: number;
   setSpeed: (speed: number) => void;
   startTime: number | null;
+  endTime: number | null;
   totalDurationMs: number;
+  timelineDays: TimelineDay[];
+  gameRanges: GameRange[];
 }
 
 export function FeedView({
@@ -27,7 +45,10 @@ export function FeedView({
   speed,
   setSpeed,
   startTime,
-  totalDurationMs
+  endTime,
+  totalDurationMs,
+  timelineDays,
+  gameRanges
 }: FeedViewProps) {
   const [selectedTab, setSelectedTab] = useState<'feed' | 'messages'>('feed');
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
@@ -640,9 +661,86 @@ export function FeedView({
                   }}
                 />
 
-                <div style={{ fontSize: 11, color: '#71767b', textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: '#71767b', textAlign: 'center', marginBottom: 16 }}>
                   {visibleFeedPosts.length} posts visible
                 </div>
+
+                {/* Game Ranges */}
+                {gameRanges.length > 0 && (
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ fontSize: 13, color: '#71767b', marginBottom: 8 }}>Games</div>
+                    {gameRanges.map((range, idx) => (
+                      <div
+                        key={range.gameId}
+                        style={{
+                          padding: '8px 12px',
+                          background: '#16181c',
+                          border: '1px solid #2f3336',
+                          borderRadius: 6,
+                          marginBottom: 6,
+                          fontSize: 13,
+                          color: '#e7e9ea'
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, marginBottom: 2 }}>
+                          Game {idx + 1}: {range.gameName}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#71767b' }}>
+                          {new Date(range.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(range.endTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Timeline Days Quick Jump */}
+                {timelineDays.length > 0 && (
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ fontSize: 13, color: '#71767b', marginBottom: 8 }}>Jump to Day</div>
+                    <select
+                      onChange={(e) => {
+                        const selectedTimestamp = Number(e.target.value);
+                        if (startTime && selectedTimestamp > 0) {
+                          setCurrentTimeMs(selectedTimestamp - startTime);
+                          setIsPlaying(false);
+                        }
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        cursor: 'pointer',
+                        background: '#16181c',
+                        border: '1px solid #2f3336',
+                        borderRadius: 6,
+                        color: '#e7e9ea',
+                        fontSize: 13
+                      }}
+                    >
+                      <option value="">Select a day...</option>
+                      {timelineDays.map((dayInfo) => (
+                        <option key={`${dayInfo.gameId}-${dayInfo.day}`} value={dayInfo.timestamp}>
+                          Day {dayInfo.day} - {dayInfo.label} ({dayInfo.gameName})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Time Range Display */}
+                {startTime && endTime && (
+                  <div style={{
+                    marginTop: 16,
+                    padding: '8px 12px',
+                    background: '#16181c',
+                    border: '1px solid #2f3336',
+                    borderRadius: 6,
+                    fontSize: 11,
+                    color: '#71767b'
+                  }}>
+                    <div>Start: {new Date(startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                    <div>End: {new Date(endTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                  </div>
+                )}
               </div>
 
               {/* Questions */}

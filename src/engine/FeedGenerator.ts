@@ -32,6 +32,7 @@
 import { EventEmitter } from 'events';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
 import { generateActorContext } from './EmotionSystem';
+import type { WorldEvent } from './GameWorld';
 
 /**
  * Utility: Shuffle array for randomization (Fisher-Yates algorithm)
@@ -40,7 +41,10 @@ function shuffleArray<T>(array: T[]): T[] {
   const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    // Use temp variable to satisfy TypeScript strict mode
+    const temp = shuffled[i]!;
+    shuffled[i] = shuffled[j]!;
+    shuffled[j] = temp;
   }
   return shuffled;
 }
@@ -83,15 +87,8 @@ export interface FeedPost {
   pointsToward: boolean | null; // Does this hint at YES or NO?
 }
 
-export interface WorldEvent {
-  id: string;
-  day: number;
-  type: 'announcement' | 'meeting' | 'leak' | 'development' | 'scandal' | 'rumor' | 'deal' | 'conflict' | 'revelation';
-  description: string;
-  actors: string[];
-  visibility: 'public' | 'leaked' | 'secret' | 'private' | 'group';
-  pointsToward?: 'YES' | 'NO' | null;
-}
+// Export FeedEvent as an alias for FeedPost for backwards compatibility
+export type FeedEvent = FeedPost;
 
 export interface Actor {
   id: string;
@@ -197,6 +194,7 @@ export class FeedGenerator extends EventEmitter {
     // For each world event, generate cascading reactions
     for (let eventIndex = 0; eventIndex < worldEvents.length; eventIndex++) {
       const worldEvent = worldEvents[eventIndex];
+      if (!worldEvent) continue; // Skip if event doesn't exist
       const eventFeed = await this.generateEventCascade(day, worldEvent, allActors, outcome, eventIndex);
       feed.push(...eventFeed);
     }
@@ -241,7 +239,8 @@ export class FeedGenerator extends EventEmitter {
         mediaPosts.forEach((post, i) => {
           const isOrg = i < mediaOrgs.length;
           const entity = isOrg ? mediaOrgs[i] : journalists[i - mediaOrgs.length];
-          
+          if (!entity) return; // Skip if entity doesn't exist
+
           cascade.push({
             id: `${worldEvent.id}-${isOrg ? 'media' : 'news'}-${i}`,
             day,
@@ -273,6 +272,8 @@ export class FeedGenerator extends EventEmitter {
       
       reactions.forEach((reaction, i) => {
         const actor = involvedActors[i];
+        if (!actor) return; // Skip if actor doesn't exist
+
         cascade.push({
           id: `${worldEvent.id}-reaction-${actor.id}`,
           day,
@@ -286,13 +287,13 @@ export class FeedGenerator extends EventEmitter {
           clueStrength: reaction.clueStrength,
           pointsToward: reaction.pointsToward,
         });
-        
+
         // Collect company affiliations for batch processing
         if (actor.affiliations) {
-          const affiliatedCompanies = this.organizations.filter(o => 
+          const affiliatedCompanies = this.organizations.filter(o =>
             o.type === 'company' && actor.affiliations?.includes(o.id)
           ).slice(0, 1); // Usually just one company responds per actor
-          
+
           affiliatedCompanies.forEach(company => {
             companiesToRespond.push({ company, actor, index: i });
           });
@@ -354,14 +355,17 @@ export class FeedGenerator extends EventEmitter {
       const commentary = await this.generateCommentaryBatch(commentators, worldEvent, outcome);
       
       commentary.forEach((post, i) => {
+        const commentator = commentators[i];
+        if (!commentator) return; // Skip if commentator doesn't exist
+
         cascade.push({
           id: `${worldEvent.id}-expert-${i}`,
           day,
           timestamp: `${baseTime}${String((14 + baseHourOffset + i * 2) % 24).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
           type: 'reaction',
           content: post.post,
-          author: commentators[i].id,
-          authorName: commentators[i].name,
+          author: commentator.id,
+          authorName: commentator.name,
           relatedEvent: worldEvent.id,
           sentiment: post.sentiment,
           clueStrength: post.clueStrength,
@@ -424,7 +428,7 @@ export class FeedGenerator extends EventEmitter {
     }
 
     const potentialSource = allActors.find(a => worldEvent.actors.includes(a.id));
-    
+
     const prompt = `You must respond with valid JSON only.
 
 Event: ${worldEvent.description}
@@ -513,6 +517,7 @@ CRITICAL: Return EXACTLY ${mediaEntities.length} posts. Each must have post, sen
   /**
    * BATCHED: Generate reactions for multiple actors in ONE call
    * Preserves per-actor context (mood, luck, personality)
+   * Uses worldEvent.pointsToward when available, outcome for narrative coherence otherwise
    */
   private async generateReactionsBatch(
     actors: Actor[],
@@ -528,16 +533,24 @@ CRITICAL: Return EXACTLY ${mediaEntities.length} posts. Each must have post, sen
       const emotionalContext = state
         ? generateActorContext(state.mood, state.luck, undefined, this.relationships, actor.id)
         : '';
-      
+
       return {
         actor,
         emotionalContext,
       };
     });
 
+    // Use event's explicit hint if available, otherwise use outcome for coherence
+    // This ensures: explicit hints are respected, ambiguous events maintain narrative consistency
+    const eventContext = worldEvent.pointsToward
+      ? `This development suggests things are trending toward ${worldEvent.pointsToward}.`
+      : `Based on this event, the situation is ${outcome ? 'progressing positively' : 'facing setbacks'}.`;
+
     const prompt = `You must respond with valid JSON only.
 
 Event involving these actors: ${worldEvent.description}
+
+${eventContext}
 
 IMPORTANT: NO HASHTAGS OR EMOJIS IN POSTS.
 
@@ -801,8 +814,9 @@ CRITICAL: Return EXACTLY ${conspiracists.length} conspiracy posts. Each must hav
   /**
    * Generate journalist breaking news post
    * Journalists report events objectively (with slight bias)
+   * Public for external use and testing
    */
-  private async generateJournalistPost(
+  public async generateJournalistPost(
     journalist: Actor,
     event: WorldEvent,
     outcome: boolean
@@ -872,8 +886,9 @@ No other text.`;
   /**
    * Generate media organization post
    * Media breaks stories with bias, often citing anonymous sources
+   * Public for external use and testing
    */
-  private async generateMediaPost(
+  public async generateMediaPost(
     media: Organization,
     event: WorldEvent,
     allActors: Actor[],
@@ -1034,11 +1049,22 @@ No other text.`;
       throw new Error('LLM client required for feed generation');
     }
 
+    // Find key actors that government might reference (insiders, executives, experts)
+    const keyActors = allActors
+      .filter(a => a.role === 'insider' || a.role === 'executive' || a.role === 'expert')
+      .slice(0, 3)
+      .map(a => a.name);
+
+    const actorContext = keyActors.length > 0
+      ? `Key individuals involved: ${keyActors.join(', ')}. You may reference them if relevant.`
+      : '';
+
     const prompt = `You must respond with valid JSON only.
 
 You are: ${govt.name}, ${govt.description}
 Event requiring governmental response: ${event.description}
 Event type: ${event.type}
+${actorContext}
 
 Write an official government statement post (max 280 chars).
 
@@ -1096,8 +1122,10 @@ No other text.`;
   /**
    * Generate direct reaction from involved party
    * Defensive if bad, celebratory if good, motivated by self-interest
+   * Public for external use and testing
+   * Uses event.pointsToward when available, outcome for narrative coherence otherwise
    */
-  private async generateDirectReaction(
+  public async generateDirectReaction(
     actor: Actor,
     event: WorldEvent,
     outcome: boolean
@@ -1112,12 +1140,19 @@ No other text.`;
       ? generateActorContext(state.mood, state.luck, undefined, this.relationships, actor.id)
       : '';
 
+    // Use event's explicit hint if available, otherwise use outcome for coherence
+    const eventGuidance = event.pointsToward
+      ? `This event suggests things are trending toward ${event.pointsToward}. React based on how this affects YOUR interests.`
+      : `This situation is ${outcome ? 'developing in ways that could benefit some parties' : 'facing challenges that concern various stakeholders'}. React based on your role and interests.`;
+
     const prompt = `You must respond with valid JSON only.
 
 You are: ${actor.name}, ${actor.description}
 Personality: ${actor.personality}
 ${emotionalContext ? `\n${emotionalContext}\n` : ''}
 Event involving you: ${event.description}
+
+${eventGuidance}
 
 Write a post (max 280 chars) from YOUR perspective.
 Stay in character. React naturally based on your mood and circumstances - excited, defensive, angry, dismissive, etc.
@@ -1168,8 +1203,9 @@ No other text.`;
   /**
    * Generate expert/commentator analysis
    * Outsiders analyzing what happened
+   * Public for external use and testing
    */
-  private async generateCommentary(
+  public async generateCommentary(
     actor: Actor,
     event: WorldEvent,
     outcome: boolean
@@ -1240,8 +1276,9 @@ No other text.`;
   /**
    * Generate conspiracy theory / wild spin
    * These actors create alternative narratives
+   * Public for external use and testing
    */
-  private async generateConspiracyPost(
+  public async generateConspiracyPost(
     actor: Actor,
     event: WorldEvent,
     outcome: boolean
@@ -1327,14 +1364,17 @@ No other text.`;
     const posts = await this.generateAmbientPostsBatch(randomActors, day, outcome);
     
     posts.forEach((post, i) => {
+      const actor = randomActors[i];
+      if (!actor) return; // Skip if actor doesn't exist
+
       ambient.push({
-        id: `ambient-${day}-${randomActors[i].id}`,
+        id: `ambient-${day}-${actor.id}`,
         day,
         timestamp: `${baseTime}${String(18 + i * 2).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
         type: 'thread',
         content: post.post,
-        author: randomActors[i].id,
-        authorName: randomActors[i].name,
+        author: actor.id,
+        authorName: actor.name,
         sentiment: post.sentiment,
         clueStrength: post.clueStrength,
         pointsToward: post.pointsToward,
@@ -1346,11 +1386,12 @@ No other text.`;
 
   /**
    * BATCHED: Generate ambient posts for multiple actors in ONE call
+   * Uses outcome to provide subtle narrative atmosphere for coherence
    */
   private async generateAmbientPostsBatch(
     actors: Actor[],
     day: number,
-    outcome: boolean
+    outcome: boolean  // Used to create subtle atmospheric context for narrative coherence
   ): Promise<Array<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }>> {
     if (!this.llm || actors.length === 0) {
       return [];
@@ -1361,13 +1402,27 @@ No other text.`;
       const emotionalContext = state
         ? generateActorContext(state.mood, state.luck, undefined, this.relationships, actor.id)
         : '';
-      
+
       return { actor, emotionalContext };
     });
+
+    // Natural progression: early game is setup, mid-game builds tension, late game escalates
+    const progressContext = day <= 10
+      ? 'Early days - things are just getting started.'
+      : day <= 20
+        ? 'Mid-way through - developments are unfolding.'
+        : 'Late stage - tension is building, things are heating up.';
+
+    // Outcome provides subtle atmospheric context for narrative coherence
+    const atmosphereContext = outcome
+      ? 'There\'s a sense of forward momentum and positive developments underlying current events.'
+      : 'There are underlying tensions and concerns affecting the overall atmosphere.';
 
     const prompt = `You must respond with valid JSON only.
 
 Day ${day}/30
+${progressContext}
+${atmosphereContext}
 
 IMPORTANT: NO HASHTAGS OR EMOJIS IN POSTS.
 
@@ -1450,9 +1505,10 @@ CRITICAL: Return EXACTLY ${actors.length} posts. Each must have post, sentiment,
     
     // Pick a post to reply to (prefer controversial or from main actors)
     const originalPost = existingPosts[Math.floor(Math.random() * existingPosts.length)];
-    
+    if (!originalPost) return thread; // Skip if no post exists
+
     // 1-3 people reply
-    const postingActors = allActors.filter(a => 
+    const postingActors = allActors.filter(a =>
       a.canPostFeed !== false && a.id !== originalPost.author
     );
     const repliers = this.shuffle(postingActors).slice(0, 1 + Math.floor(Math.random() * 3));
@@ -1463,17 +1519,20 @@ CRITICAL: Return EXACTLY ${actors.length} posts. Each must have post, sentiment,
     const replies = await this.generateRepliesBatch(repliers, originalPost);
     
     replies.forEach((reply, i) => {
+      const replier = repliers[i];
+      if (!replier) return; // Skip if replier doesn't exist
+
       const baseTime = originalPost.timestamp.substring(0, 11);
       const hour = parseInt(originalPost.timestamp.substring(11, 13));
-      
+
       thread.push({
-        id: `${originalPost.id}-reply-${repliers[i].id}`,
+        id: `${originalPost.id}-reply-${replier.id}`,
         day,
         timestamp: `${baseTime}${String(hour + i).padStart(2, '0')}:${String(30 + i * 10).padStart(2, '0')}:00Z`,
         type: 'thread',
         content: reply.post,
-        author: repliers[i].id,
-        authorName: repliers[i].name,
+        author: replier.id,
+        authorName: replier.name,
         replyTo: originalPost.id,
         sentiment: reply.sentiment,
         clueStrength: reply.clueStrength,
@@ -1579,8 +1638,9 @@ CRITICAL: Return EXACTLY ${actors.length} replies. Each must have post, sentimen
 
   /**
    * Generate ambient post (general musing, not tied to events)
+   * Public for external use and testing
    */
-  private async generateAmbientPost(actor: Actor, day: number, outcome: boolean): Promise<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> {
+  public async generateAmbientPost(actor: Actor, day: number, outcome: boolean): Promise<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> {
     if (!this.llm) {
       throw new Error('LLM client required for feed generation');
     }
@@ -1591,12 +1651,19 @@ CRITICAL: Return EXACTLY ${actors.length} replies. Each must have post, sentimen
       ? generateActorContext(state.mood, state.luck, undefined, this.relationships, actor.id)
       : '';
 
+    // Add subtle mood influence based on outcome
+    const atmosphereNote = outcome
+      ? 'The general atmosphere feels progressive and things are developing.'
+      : 'There is subtle tension in the air, things feel uncertain.';
+
     const prompt = `You must respond with valid JSON only.
 
 You are: ${actor.name}, ${actor.description}
 Day: ${day}/30
 Domain: ${actor.domain?.join(', ')}
 ${emotionalContext ? `\n${emotionalContext}\n` : ''}${formatActorVoiceContext(actor)}
+
+${atmosphereNote}
 
 Write general thoughts post (max 280 chars).
 ${day < 15 ? 'Be vague or mysterious' : 'Hint at things heating up'}
@@ -1650,8 +1717,9 @@ No other text.`;
   /**
    * Generate reply to another post
    * React based on personality, mood, and relationship
+   * Public for external use and testing
    */
-  private async generateReply(actor: Actor, originalPost: FeedPost): Promise<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> {
+  public async generateReply(actor: Actor, originalPost: FeedPost): Promise<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> {
     if (!this.llm) {
       throw new Error('LLM client required for feed generation');
     }

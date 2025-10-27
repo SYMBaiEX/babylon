@@ -31,11 +31,20 @@ function parseArgs(): CLIOptions {
 
   args.forEach(arg => {
     if (arg.startsWith('--outcome=')) {
-      options.outcome = arg.split('=')[1] as 'YES' | 'NO';
+      const value = arg.split('=')[1];
+      if (value) {
+        options.outcome = value as 'YES' | 'NO';
+      }
     } else if (arg.startsWith('--count=')) {
-      options.count = parseInt(arg.split('=')[1]);
+      const value = arg.split('=')[1];
+      if (value) {
+        options.count = parseInt(value, 10);
+      }
     } else if (arg.startsWith('--save=')) {
-      options.save = arg.split('=')[1];
+      const value = arg.split('=')[1];
+      if (value) {
+        options.save = value;
+      }
     } else if (arg === '--fast') {
       options.fast = true;
     } else if (arg === '--verbose' || arg === '-v') {

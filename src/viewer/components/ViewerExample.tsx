@@ -1,9 +1,9 @@
 /**
  * Example Usage of GameRecap Component
- * 
+ *
  * This shows how to integrate the GameRecap into your viewer
  */
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { GameRecap } from './GameRecap';
 import { extractGameRecapData } from '../utils/gameDataExtractor';
 import type { GeneratedGame, GameHistory } from '../../generator/GameGenerator';

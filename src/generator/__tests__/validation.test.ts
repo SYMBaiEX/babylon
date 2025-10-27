@@ -1,21 +1,27 @@
 /**
  * Game Output Validation Tests
  * Ensures generated games have correct structure and content
+ *
+ * NOTE: This test suite requires LLM API keys (GROQ_API_KEY or OPENAI_API_KEY)
+ * and takes 1-5 minutes to run due to game generation.
  */
 
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect, beforeAll, setDefaultTimeout } from 'bun:test';
 import { GameGenerator } from '../GameGenerator';
 import type { GeneratedGame } from '../GameGenerator';
+
+// Set timeout to 5 minutes for LLM-based generation
+setDefaultTimeout(300000);
 
 describe('Game Output Validation', () => {
   let game: GeneratedGame;
 
-  // Generate one game for all tests (with long timeout for LLM)
-  test('generate game for validation', async () => {
+  // Generate one game before all tests
+  beforeAll(async () => {
     const generator = new GameGenerator();
     game = await generator.generateCompleteGame();
     expect(game).toBeDefined();
-  }, 120000); // 2 minute timeout for LLM generation
+  });
 
   describe('Schema Validation', () => {
     test('has all required top-level fields', () => {

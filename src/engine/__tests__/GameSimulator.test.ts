@@ -4,7 +4,7 @@
  */
 
 import { describe, test, expect, beforeEach } from 'bun:test';
-import { GameSimulator, type GameConfig } from '../GameSimulator';
+import { GameSimulator, type GameConfig, type GameResult } from '../GameSimulator';
 
 describe('GameSimulator - Standalone Engine', () => {
   let simulator: GameSimulator;
@@ -221,7 +221,7 @@ describe('GameSimulator - Standalone Engine', () => {
 
   describe('Performance', () => {
     test('runs fast enough for batch testing', async () => {
-      const games = [];
+      const games: GameResult[] = [];
       const start = Date.now();
 
       for (let i = 0; i < 10; i++) {

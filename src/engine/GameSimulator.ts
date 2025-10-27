@@ -275,7 +275,7 @@ export class GameSimulator extends EventEmitter {
       "Will TechCorp's AI breakthrough be announced?",
       "Will the climate summit reach an agreement?",
     ];
-    return topics[Math.floor(Math.random() * topics.length)];
+    return topics[Math.floor(Math.random() * topics.length)]!;
   }
 
   /**
