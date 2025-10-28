@@ -1,5 +1,17 @@
 node_modules
 .env
+.env*.local
 .DS_Store
 dist/
 images/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+prisma/migrations/
+.vscode/
+.idea/
+.serena/
+.next/
+dist/

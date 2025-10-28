@@ -1,0 +1,217 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model - represents both game-generated actors and real users
+model User {
+  id              String   @id @default(uuid())
+  walletAddress   String?  @unique  // For real users with Web3 auth
+  username        String?  @unique
+  displayName     String?
+  bio             String?
+  profileImageUrl String?
+  isActor         Boolean  @default(false)  // true = game-generated NPC
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Actor-specific fields (from actors.json)
+  personality     String?
+  postStyle       String?
+  postExample     String?
+
+  // Relationships
+  posts           Post[]
+  comments        Comment[]
+  reactions       Reaction[]
+  positions       Position[]
+  followedBy      Follow[]  @relation("following")
+  following       Follow[]  @relation("follower")
+
+  @@index([walletAddress])
+  @@index([username])
+  @@index([isActor])
+}
+
+// Post model - social media posts
+model Post {
+  id          String   @id @default(uuid())
+  content     String
+  authorId    String
+  gameId      String?
+  dayNumber   Int?
+  timestamp   DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  // Relationships
+  author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments    Comment[]
+  reactions   Reaction[]
+
+  @@index([authorId, timestamp(sort: Desc)])
+  @@index([timestamp(sort: Desc)])
+  @@index([gameId, dayNumber])
+}
+
+// Comment model - comments on posts
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  postId    String
+  authorId  String
+  createdAt DateTime @default(now())
+
+  // Relationships
+  post      Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt(sort: Desc)])
+  @@index([authorId])
+}
+
+// Reaction model - likes on posts
+model Reaction {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  type      String   @default("like")  // "like", "love", "laugh", etc.
+  createdAt DateTime @default(now())
+
+  // Relationships
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId, type])
+  @@index([postId])
+  @@index([userId])
+}
+
+// Follow model - user follows
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  // Relationships
+  follower  User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+// Market model - prediction markets
+model Market {
+  id          String   @id @default(uuid())
+  question    String
+  description String?
+  gameId      String?
+  dayNumber   Int?
+  yesShares   Decimal  @default(0)  @db.Decimal(18, 6)
+  noShares    Decimal  @default(0)  @db.Decimal(18, 6)
+  liquidity   Decimal  @db.Decimal(18, 6)
+  resolved    Boolean  @default(false)
+  resolution  Boolean? // true = YES won, false = NO won, null = not resolved
+  endDate     DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relationships
+  positions Position[]
+
+  @@index([gameId, dayNumber])
+  @@index([resolved, endDate])
+  @@index([createdAt(sort: Desc)])
+}
+
+// Position model - user positions in markets
+model Position {
+  id        String   @id @default(uuid())
+  userId    String
+  marketId  String
+  side      Boolean  // true = YES, false = NO
+  shares    Decimal  @db.Decimal(18, 6)
+  avgPrice  Decimal  @db.Decimal(18, 6)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  market Market @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([marketId])
+  @@index([userId, marketId])
+}
+
+// Chat model - group chats and DMs
+model Chat {
+  id        String   @id @default(uuid())
+  name      String?  // null for DMs
+  isGroup   Boolean  @default(false)
+  gameId    String?
+  dayNumber Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  messages      Message[]
+  participants  ChatParticipant[]
+
+  @@index([gameId, dayNumber])
+  @@index([isGroup])
+}
+
+// ChatParticipant model - users in chats
+model ChatParticipant {
+  id        String   @id @default(uuid())
+  chatId    String
+  userId    String
+  joinedAt  DateTime @default(now())
+
+  // Relationships
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, userId])
+  @@index([chatId])
+  @@index([userId])
+}
+
+// Message model - chat messages
+model Message {
+  id        String   @id @default(uuid())
+  chatId    String
+  senderId  String
+  content   String
+  createdAt DateTime @default(now())
+
+  // Relationships
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, createdAt(sort: Desc)])
+  @@index([senderId])
+}
+
+// Game model - game state tracking
+model Game {
+  id              String   @id @default(uuid())
+  currentDay      Int      @default(1)
+  isRunning       Boolean  @default(false)
+  speed           Int      @default(5000)  // milliseconds
+  startedAt       DateTime?
+  pausedAt        DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isRunning])
+}
