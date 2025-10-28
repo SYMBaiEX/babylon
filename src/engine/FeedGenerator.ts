@@ -33,98 +33,19 @@ import { EventEmitter } from 'events';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
 import { generateActorContext } from './EmotionSystem';
 import type { WorldEvent } from './GameWorld';
+import { formatActorVoiceContext, shuffleArray } from '@/shared/utils';
+import { loadPrompt } from '../prompts/loader';
+import type {
+  Actor,
+  ActorState,
+  ActorRelationship,
+  FeedPost,
+  FeedEvent,
+  Organization,
+} from '@/shared/types';
 
-/**
- * Utility: Shuffle array for randomization (Fisher-Yates algorithm)
- */
-function shuffleArray<T>(array: T[]): T[] {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    // Use temp variable to satisfy TypeScript strict mode
-    const temp = shuffled[i]!;
-    shuffled[i] = shuffled[j]!;
-    shuffled[j] = temp;
-  }
-  return shuffled;
-}
-
-/**
- * Format actor context with postStyle and randomized postExample
- */
-function formatActorVoiceContext(actor: { postStyle?: string; postExample?: string[] }): string {
-  if (!actor.postStyle && !actor.postExample) {
-    return '';
-  }
-  
-  let context = '';
-  
-  if (actor.postStyle) {
-    context += `\n   Writing Style: ${actor.postStyle}`;
-  }
-  
-  if (actor.postExample && actor.postExample.length > 0) {
-    const shuffledExamples = shuffleArray(actor.postExample);
-    const examples = shuffledExamples.slice(0, 3).map(ex => `"${ex}"`).join(', ');
-    context += `\n   Example Posts: ${examples}`;
-  }
-  
-  return context;
-}
-
-export interface FeedPost {
-  id: string;
-  day: number;
-  timestamp: string;
-  type: 'world_event' | 'reaction' | 'news' | 'thread' | 'rumor';
-  content: string;
-  author: string;
-  authorName: string;
-  replyTo?: string;
-  relatedEvent?: string;
-  sentiment: number; // -1 to 1
-  clueStrength: number; // 0-1 (how much this reveals)
-  pointsToward: boolean | null; // Does this hint at YES or NO?
-}
-
-// Export FeedEvent as an alias for FeedPost for backwards compatibility
-export type FeedEvent = FeedPost;
-
-export interface Actor {
-  id: string;
-  name: string;
-  description?: string;
-  domain?: string[];
-  personality?: string;
-  canPostFeed?: boolean;
-  canPostGroups?: boolean;
-  role?: string;
-  affiliations?: string[]; // Organization IDs
-  postStyle?: string;  // Style guide for how they write posts
-  postExample?: string[];  // Example posts demonstrating their voice
-}
-
-export interface Organization {
-  id: string;
-  name: string;
-  description: string;
-  type: 'company' | 'media' | 'government';
-  canBeInvolved: boolean;
-  postStyle?: string;  // Style guide for how they write posts
-  postExample?: string[];  // Example posts demonstrating their voice
-}
-
-export interface ActorState {
-  mood: number; // -1 to 1
-  luck: 'low' | 'medium' | 'high';
-}
-
-export interface ActorRelationship {
-  actor1: string;
-  actor2: string;
-  relationship: string;
-  context: string;
-}
+// Re-export types for backwards compatibility with external consumers
+export type { FeedPost, FeedEvent, Actor, Organization, ActorState, ActorRelationship };
 
 /**
  * Feed Generator
@@ -429,54 +350,40 @@ export class FeedGenerator extends EventEmitter {
 
     const potentialSource = allActors.find(a => worldEvent.actors.includes(a.id));
 
-    const prompt = `You must respond with valid JSON only.
-
-Event: ${worldEvent.description}
-Type: ${worldEvent.type}
-${potentialSource ? `Sources close to ${potentialSource.name} leaked information.` : ''}
-${outcome ? 'Frame with positive spin' : 'Emphasize problems and concerns'}
-
-IMPORTANT: NO HASHTAGS OR EMOJIS IN POSTS.
-
-Generate breaking news posts for these ${mediaEntities.length} media entities:
-
-${mediaEntities.map((entity, i) => {
-  const isOrg = 'type' in entity && entity.type === 'media';
-  const voiceContext = formatActorVoiceContext(entity);
-  let emotionalContext = '';
-  if (!isOrg && 'id' in entity) {
-    const state = this.actorStates.get(entity.id);
-    emotionalContext = state 
-      ? '\n   ' + generateActorContext(state.mood, state.luck, undefined, this.relationships, entity.id).replace(/\n/g, '\n   ')
+    // Format variables for prompt template
+    const sourceContext = potentialSource
+      ? `Sources close to ${potentialSource.name} leaked information.`
       : '';
-  }
-  return `${i + 1}. ${entity.name}
+
+    const outcomeFrame = outcome
+      ? 'Frame with positive spin'
+      : 'Emphasize problems and concerns';
+
+    const mediaList = mediaEntities.map((entity, i) => {
+      const isOrg = 'type' in entity && entity.type === 'media';
+      const voiceContext = formatActorVoiceContext(entity);
+      let emotionalContext = '';
+      if (!isOrg && 'id' in entity) {
+        const state = this.actorStates.get(entity.id);
+        emotionalContext = state
+          ? '\n   ' + generateActorContext(state.mood, state.luck, undefined, this.relationships, entity.id).replace(/\n/g, '\n   ')
+          : '';
+      }
+      return `${i + 1}. ${entity.name}
    About: ${entity.description}
    ${isOrg ? 'Style: Media organization - use "Breaking:", "Exclusive:", "Sources say:"' : 'Style: Journalist - more objective reporting'}${voiceContext}${emotionalContext}
    Max 280 chars, provocative and attention-grabbing. Match their writing style.
-   NO hashtags or emojis.
-`;
-}).join('\n')}
+   NO hashtags or emojis.`;
+    }).join('\n');
 
-Respond with ONLY this JSON format (example for 2 posts):
-{
-  "posts": [
-    {
-      "post": "BREAKING: Tesla to accept Dogecoin for Full Self-Driving. Analysts divided on crypto payment strategy.",
-      "sentiment": 0.2,
-      "clueStrength": 0.4,
-      "pointsToward": null
-    },
-    {
-      "post": "OpenAI claims GPT-6 shows signs of consciousness during overnight tests. Team scrambles to verify results.",
-      "sentiment": 0.1,
-      "clueStrength": 0.5,
-      "pointsToward": true
-    }
-  ]
-}
-
-CRITICAL: Return EXACTLY ${mediaEntities.length} posts. Each must have post, sentiment, clueStrength, pointsToward fields.`;
+    const prompt = loadPrompt('feed/news-posts', {
+      eventDescription: worldEvent.description,
+      eventType: worldEvent.type,
+      sourceContext,
+      outcomeFrame,
+      mediaCount: mediaEntities.length,
+      mediaList
+    });
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -546,44 +453,20 @@ CRITICAL: Return EXACTLY ${mediaEntities.length} posts. Each must have post, sen
       ? `This development suggests things are trending toward ${worldEvent.pointsToward}.`
       : `Based on this event, the situation is ${outcome ? 'progressing positively' : 'facing setbacks'}.`;
 
-    const prompt = `You must respond with valid JSON only.
-
-Event involving these actors: ${worldEvent.description}
-
-${eventContext}
-
-IMPORTANT: NO HASHTAGS OR EMOJIS IN POSTS.
-
-Generate reaction posts for each actor:
-
-${actorContexts.map((ctx, i) => `${i + 1}. You are ${ctx.actor.name}: ${ctx.actor.description}
+    const actorsList = actorContexts.map((ctx, i) => `${i + 1}. You are ${ctx.actor.name}: ${ctx.actor.description}
    Affiliated: ${ctx.actor.affiliations?.join(', ') || 'independent'}
    ${ctx.emotionalContext}${formatActorVoiceContext(ctx.actor)}
    ${this.actorGroupContexts.get(ctx.actor.id) || ''}
-   
+
    React to event. Your private group chats inform your perspective.
-   Write as YOURSELF (first person). Max 280 chars. No hashtags/emojis.
-`).join('\n')}
+   Write as YOURSELF (first person). Max 280 chars. No hashtags/emojis.`).join('\n');
 
-Respond with ONLY this JSON format (example for 2 reactions):
-{
-  "reactions": [
-    {
-      "post": "Finally! Tesla accepting Doge is exactly what crypto needs. The future is here.",
-      "sentiment": 0.7,
-      "clueStrength": 0.6,
-      "pointsToward": true
-    },
-    {
-      "post": "Another GPT consciousness claim? Cool story bro. Wake me when it actually passes a real Turing test.",
-      "sentiment": -0.4,
-      "clueStrength": 0.3,
-      "pointsToward": false
-    }
-  ]
-}
-
-CRITICAL: Return EXACTLY ${actors.length} reactions. Each must have post, sentiment, clueStrength, pointsToward fields.`;
+    const prompt = loadPrompt('feed/reactions', {
+      eventDescription: worldEvent.description,
+      eventContext,
+      actorCount: actors.length,
+      actorsList
+    });
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -638,48 +521,25 @@ CRITICAL: Return EXACTLY ${actors.length} reactions. Each must have post, sentim
       const emotionalContext = state
         ? generateActorContext(state.mood, state.luck, undefined, this.relationships, actor.id)
         : '';
-      
+
       return { actor, emotionalContext };
     });
 
-    const prompt = `You must respond with valid JSON only.
-
-News: ${worldEvent.description}
-
-IMPORTANT: NO HASHTAGS OR EMOJIS IN POSTS.
-
-Generate expert analysis posts from these ${commentators.length} commentators:
-
-${contexts.map((ctx, i) => `${i + 1}. ${ctx.actor.name}
+    const commentatorsList = contexts.map((ctx, i) => `${i + 1}. ${ctx.actor.name}
    About: ${ctx.actor.description}
    Domain: ${ctx.actor.domain?.join(', ')}
    ${ctx.emotionalContext}${formatActorVoiceContext(ctx.actor)}
-   
+
    Write analysis as outside observer (max 280 chars).
    ${outcome ? 'Lean optimistic' : 'Lean skeptical'}
    Let mood subtly influence tone. Match their writing style.
-   NO hashtags or emojis.
-`).join('\n')}
+   NO hashtags or emojis.`).join('\n');
 
-Respond with ONLY this JSON format (example for 2 commentators):
-{
-  "commentary": [
-    {
-      "post": "Interesting move by Tesla. Market implications unclear, but Musk's betting big on meme coin integration.",
-      "sentiment": 0.1,
-      "clueStrength": 0.3,
-      "pointsToward": null
-    },
-    {
-      "post": "AI consciousness claims again. Same pattern: hype cycles followed by reality checks. Still no AGI breakthrough.",
-      "sentiment": -0.2,
-      "clueStrength": 0.5,
-      "pointsToward": false
-    }
-  ]
-}
-
-CRITICAL: Return EXACTLY ${commentators.length} commentary posts. Each must have post, sentiment, clueStrength, pointsToward fields.`;
+    const prompt = loadPrompt('feed/commentary', {
+      eventDescription: worldEvent.description,
+      commentatorCount: commentators.length,
+      commentatorsList
+    });
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -729,43 +589,20 @@ CRITICAL: Return EXACTLY ${commentators.length} commentary posts. Each must have
       return [];
     }
 
-    const prompt = `You must respond with valid JSON only.
-
-Mainstream story: ${worldEvent.description}
-
-IMPORTANT: NO HASHTAGS OR EMOJIS IN POSTS.
-
-Generate conspiracy theory posts from these ${conspiracists.length} contrarians:
-
-${conspiracists.map((actor, i) => `${i + 1}. ${actor.name}
+    const conspiracistsList = conspiracists.map((actor, i) => `${i + 1}. ${actor.name}
    About: ${actor.description}${formatActorVoiceContext(actor)}
-   
+
    You don't believe the mainstream narrative.
    Write conspiracy post (max 280 chars).
    Be dramatic, suspicious. Match their writing style.
    NO hashtags or emojis.
-   ${outcome ? "Claim it's a distraction" : "Say they're hiding worse"}
-`).join('\n')}
+   ${outcome ? "Claim it's a distraction" : "Say they're hiding worse"}`).join('\n');
 
-Respond with ONLY this JSON format (example for 2 conspiracists):
-{
-  "conspiracy": [
-    {
-      "post": "Wake up! Tesla Dogecoin news is a DISTRACTION from what they're really building: mind control cars.",
-      "sentiment": -0.8,
-      "clueStrength": 0.1,
-      "pointsToward": false
-    },
-    {
-      "post": "GPT-6 'consciousness'? Perfect timing. They want you distracted while they roll out digital IDs.",
-      "sentiment": -0.9,
-      "clueStrength": 0.05,
-      "pointsToward": false
-    }
-  ]
-}
-
-CRITICAL: Return EXACTLY ${conspiracists.length} conspiracy posts. Each must have post, sentiment, clueStrength, pointsToward fields.`;
+    const prompt = loadPrompt('feed/conspiracy', {
+      eventDescription: worldEvent.description,
+      conspiracistCount: conspiracists.length,
+      conspiracistsList
+    });
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -1354,7 +1191,7 @@ No other text.`;
 
     // Random actors post general thoughts (2-4 per day to avoid spam)
     const postingActors = allActors.filter(a => a.canPostFeed !== false);
-    const randomActors = this.shuffle(postingActors).slice(0, 2 + Math.floor(Math.random() * 3));
+    const randomActors = shuffleArray(postingActors).slice(0, 2 + Math.floor(Math.random() * 3));
 
     if (randomActors.length === 0) {
       return ambient;
@@ -1418,44 +1255,21 @@ No other text.`;
       ? 'There\'s a sense of forward momentum and positive developments underlying current events.'
       : 'There are underlying tensions and concerns affecting the overall atmosphere.';
 
-    const prompt = `You must respond with valid JSON only.
-
-Day ${day}/30
-${progressContext}
-${atmosphereContext}
-
-IMPORTANT: NO HASHTAGS OR EMOJIS IN POSTS.
-
-Generate general thoughts posts for these ${actors.length} actors:
-
-${contexts.map((ctx, i) => `${i + 1}. You are ${ctx.actor.name}: ${ctx.actor.description}
+    const actorsList = contexts.map((ctx, i) => `${i + 1}. You are ${ctx.actor.name}: ${ctx.actor.description}
    Affiliated: ${ctx.actor.domain?.join(', ')}
    ${ctx.emotionalContext}${formatActorVoiceContext(ctx.actor)}
    ${this.actorGroupContexts.get(ctx.actor.id) || ''}
-   
+
    Write general thoughts. Your private group chats inform your perspective.
-   Write as YOURSELF (first person). Max 280 chars. No hashtags/emojis.
-`).join('\n')}
+   Write as YOURSELF (first person). Max 280 chars. No hashtags/emojis.`).join('\n');
 
-Respond with ONLY this JSON format (example for 2 posts):
-{
-  "posts": [
-    {
-      "post": "Been thinking about the future of payments. Crypto integration might be the key. Time will tell.",
-      "sentiment": 0.2,
-      "clueStrength": 0.1,
-      "pointsToward": null
-    },
-    {
-      "post": "AI progress moves fast. Maybe too fast? Hard to say where we'll be in a year.",
-      "sentiment": -0.1,
-      "clueStrength": 0.05,
-      "pointsToward": null
-    }
-  ]
-}
-
-CRITICAL: Return EXACTLY ${actors.length} posts. Each must have post, sentiment, clueStrength, pointsToward fields.`;
+    const prompt = loadPrompt('feed/ambient-posts', {
+      day,
+      progressContext,
+      atmosphereContext,
+      actorCount: actors.length,
+      actorsList
+    });
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -1511,7 +1325,7 @@ CRITICAL: Return EXACTLY ${actors.length} posts. Each must have post, sentiment,
     const postingActors = allActors.filter(a =>
       a.canPostFeed !== false && a.id !== originalPost.author
     );
-    const repliers = this.shuffle(postingActors).slice(0, 1 + Math.floor(Math.random() * 3));
+    const repliers = shuffleArray(postingActors).slice(0, 1 + Math.floor(Math.random() * 3));
     
     if (repliers.length === 0) return thread;
     
@@ -1563,42 +1377,21 @@ CRITICAL: Return EXACTLY ${actors.length} posts. Each must have post, sentiment,
       return { actor, emotionalContext };
     });
 
-    const prompt = `You must respond with valid JSON only.
-
-IMPORTANT: NO HASHTAGS OR EMOJIS IN POSTS.
-
-Post: @${originalPost.authorName}: "${originalPost.content}"
-
-Generate reply posts from these ${actors.length} actors:
-
-${contexts.map((ctx, i) => `${i + 1}. ${ctx.actor.name}
+    const repliersList = contexts.map((ctx, i) => `${i + 1}. ${ctx.actor.name}
    About: ${ctx.actor.description}
    ${ctx.emotionalContext}${formatActorVoiceContext(ctx.actor)}
    
    Write reply (max 280 chars).
-   ${ctx.actor.personality?.includes('contrarian') ? 'Disagree or challenge' : 'Consider your relationship and mood when responding'}
+   ${ctx.actor.personality?.includes('contrarian') ? 'Disagree or challenge' : `Consider your relationship and mood when responding`}
    Let emotional state and any relationship with ${originalPost.authorName} influence tone. Match their writing style.
-`).join('\n')}
+`).join('\n');
 
-Respond with ONLY this JSON format (example for 2 replies):
-{
-  "replies": [
-    {
-      "post": "Interesting take! I've been saying this for months. Glad others are catching on.",
-      "sentiment": 0.5,
-      "clueStrength": 0.2,
-      "pointsToward": null
-    },
-    {
-      "post": "Hard disagree. This completely ignores the technical challenges. Not happening.",
-      "sentiment": -0.6,
-      "clueStrength": 0.3,
-      "pointsToward": false
-    }
-  ]
-}
-
-CRITICAL: Return EXACTLY ${actors.length} replies. Each must have post, sentiment, clueStrength, pointsToward fields.`;
+    const prompt = loadPrompt('feed/replies', {
+      originalAuthorName: originalPost.authorName,
+      originalContent: originalPost.content,
+      replierCount: actors.length,
+      repliersList
+    });
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -1785,8 +1578,5 @@ No other text.`;
     throw new Error(`Failed to generate valid reply after ${maxRetries} attempts for ${actor.name}`);
   }
 
-  private shuffle<T>(array: T[]): T[] {
-    return array.sort(() => Math.random() - 0.5);
-  }
 }
 

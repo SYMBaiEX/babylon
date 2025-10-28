@@ -7,6 +7,7 @@ import { fal } from "@fal-ai/client";
 import { readFile, writeFile, exists } from "fs/promises";
 import { join } from "path";
 import { config } from "dotenv";
+import { loadPrompt } from "../prompts/loader.js";
 
 // Load environment variables
 config();
@@ -55,12 +56,17 @@ async function fileExists(path: string): Promise<boolean> {
 
 async function generateActorImage(actor: Actor): Promise<string> {
   console.log(`Generating image for ${actor.name}...`);
-  
+
   // Extract key satirical elements from description
   const descriptionParts = actor.description.split('.').slice(0, 3).join('. ');
-  
-  // Create a vivid, satirical prompt for the character in this bizarro universe
-  const prompt = `Satirical political cartoon portrait of "${actor.name}" - a bizarro universe parody of ${actor.realName || actor.name}. ${descriptionParts}. Hand-drawn editorial cartoon style with exaggerated features, bold ink lines, over-the-top caricature emphasizing their satirical nature. Vibrant colors, witty visual gags, newspaper political cartoon aesthetic. Make it absurdly funny and visually capture their personality: ${actor.personality || 'satirical'}.`;
+
+  // Load prompt template and render with variables
+  const prompt = loadPrompt('image/actor-portrait', {
+    actorName: actor.name,
+    realName: actor.realName || actor.name,
+    descriptionParts,
+    personality: actor.personality || 'satirical'
+  });
   
   const result = await fal.subscribe("fal-ai/flux/schnell", {
     input: {
@@ -95,9 +101,13 @@ async function generateActorImage(actor: Actor): Promise<string> {
 
 async function generateOrganizationImage(org: Organization): Promise<string> {
   console.log(`Generating image for ${org.name}...`);
-  
-  // Create a vivid, satirical prompt for the organization in this bizarro universe
-  const prompt = `Satirical political cartoon logo/mascot for "${org.name}" - a bizarro universe parody of a ${org.type}. ${org.description}. Hand-drawn editorial cartoon style with exaggerated corporate parody elements, bold ink lines, absurdist humor. Vibrant colors, witty visual satire, newspaper political cartoon aesthetic. Make it hilariously capture the organization's satirical essence as a corporate parody in this bizarro tech world.`;
+
+  // Load prompt template and render with variables
+  const prompt = loadPrompt('image/organization-logo', {
+    organizationName: org.name,
+    organizationType: org.type,
+    organizationDescription: org.description
+  });
   
   const result = await fal.subscribe("fal-ai/flux/schnell", {
     input: {

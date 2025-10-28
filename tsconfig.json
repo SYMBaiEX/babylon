@@ -40,7 +40,16 @@
 
     // Bun-specific
     "types": ["bun-types"],
-    "moduleDetection": "force"
+    "moduleDetection": "force",
+
+    // Path aliases for shared code
+    "baseUrl": ".",
+    "paths": {
+      "@/shared/constants": ["./src/shared/constants.ts"],
+      "@/shared/types": ["./src/shared/types.ts"],
+      "@/shared/utils": ["./src/shared/utils.ts"],
+      "@/*": ["./src/*"]
+    }
   },
   "include": [
     "src/**/*"

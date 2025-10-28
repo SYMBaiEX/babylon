@@ -1,15 +1,9 @@
 {
-  "name": "@babylon/game-engine",
+  "name": "babylon",
   "version": "1.0.0",
-  "description": "Pure game logic package - autonomous prediction market game engine",
+  "description": "Babylon prediction market game",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": "./dist/index.js",
-    "./cli": "./dist/cli/run-game.js",
-    "./viewer": "./dist/viewer/App.js"
-  },
+  "private": true,
   "scripts": {
     "build": "tsc",
     "test": "bun test",
