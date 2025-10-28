@@ -10,8 +10,11 @@ import { describe, test, expect, beforeAll, setDefaultTimeout } from 'bun:test';
 import { GameGenerator } from '../GameGenerator';
 import type { GeneratedGame } from '../GameGenerator';
 
-// Set timeout to 5 minutes for LLM-based generation
-setDefaultTimeout(300000);
+// Set timeout to 10 minutes for LLM-based generation
+// Retry loops when LLM returns invalid JSON can cause 6-7 minute runs
+// TODO: Optimize prompts in Phase 3 to reduce retries and improve reliability
+// This test validates game structure, not performance - timeout is acceptable
+setDefaultTimeout(600000);
 
 describe('Game Output Validation', () => {
   let game: GeneratedGame;

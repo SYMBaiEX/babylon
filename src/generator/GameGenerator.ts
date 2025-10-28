@@ -26,9 +26,32 @@
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { FeedGenerator, type FeedPost } from '../engine/FeedGenerator';
+import { FeedGenerator } from '../engine/FeedGenerator';
 import { BabylonLLMClient } from './llm/openai-client';
 import { generateActorContext } from '../engine/EmotionSystem';
+import { shuffleArray } from '@/shared/utils';
+import { loadPrompt } from '../prompts/loader';
+import type {
+  ActorTier,
+  SelectedActor,
+  ActorConnection,
+  Organization,
+  WorldEvent,
+  Scenario,
+  Question,
+  GroupChat,
+  ChatMessage,
+  DayTimeline,
+  LuckChange,
+  MoodChange,
+  GameResolution,
+  QuestionOutcome,
+  GameSetup,
+  GeneratedGame,
+  ActorsDatabase,
+  GameHistory,
+  GenesisGame,
+} from '@/shared/types';
 
 /**
  * Generate context from previous month's game
@@ -133,40 +156,24 @@ You're aware of these conversations. They inform your knowledge and perspective.
 ` : '';
 }
 
-/**
- * Utility: Shuffle array for randomization (Fisher-Yates algorithm)
- */
-function shuffleArray<T>(array: T[]): T[] {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    // Use temp variable to satisfy TypeScript strict mode
-    const temp = shuffled[i]!;
-    shuffled[i] = shuffled[j]!;
-    shuffled[j] = temp;
-  }
-  return shuffled;
-}
-
-
 export function createScenarioPrompt(mainActors: any[], organizations?: any[]) {
-  const orgContext = organizations && organizations.length > 0 ? `
+  const organizationContext = organizations && organizations.length > 0 ? `
 
 AFFILIATED ORGANIZATIONS:
 Organizations can participate in scenarios through their behavioral patterns:
 
 MEDIA ORGANIZATIONS (Break Stories):
-${organizations.filter(o => o.type === 'media').map(o => 
+${organizations.filter(o => o.type === 'media').map(o =>
   `- ${o.name}: ${o.description}`
 ).join('\n') || '(none)'}
 
 COMPANIES (Announce Products, Manage Crises):
-${organizations.filter(o => o.type === 'company').map(o => 
+${organizations.filter(o => o.type === 'company').map(o =>
   `- ${o.name}: ${o.description}`
 ).join('\n') || '(none)'}
 
 GOVERNMENT AGENCIES (Investigate, Contain):
-${organizations.filter(o => o.type === 'government').map(o => 
+${organizations.filter(o => o.type === 'government').map(o =>
   `- ${o.name}: ${o.description}`
 ).join('\n') || '(none)'}
 
@@ -176,43 +183,18 @@ Organizations should:
 - Create conflicts (e.g., The Fud investigates, company issues denial)
 ` : '';
 
-  return `Create 3 dramatic, satirical scenarios for these main actors:
+  const mainActorsList = mainActors.map(a =>
+    `- ${a.name}: ${a.description} (Domain: ${a.domain})${a.affiliations?.length ? ` [Affiliated: ${a.affiliations.join(', ')}]` : ''}`
+  ).join('\n');
 
-MAIN ACTORS:
-${mainActors.map(a => `- ${a.name}: ${a.description} (Domain: ${a.domain})${a.affiliations?.length ? ` [Affiliated: ${a.affiliations.join(', ')}]` : ''}`).join('\n')}
-${orgContext}
-Each scenario should:
-- Involve 2-3 of the main actors
-- Include their affiliated organizations when relevant
-- Be absurd yet plausible
-- Lead to interesting yes/no questions
-- Involve tech, politics, crypto, or culture wars
-- Have high stakes
-- Be satirical/darkly funny
-
-Examples:
-- "Elon's Husk announces plan to upload consciousness to Tesla, Xitter crashes from announcement traffic" 
-- "Scam Altman's AGI becomes self-aware, OpenLIE issues crisis management statement"
-- "Vitalik Uterin proposes Ethereum runs for President, MSDNC breaks exclusive interview"
-
-Return JSON:
-{
-  "scenarios": [
-    {
-      "id": 1,
-      "title": "Catchy dramatic title",
-      "description": "2-3 sentence setup of the absurd situation",
-      "mainActors": ["id1", "id2"],
-      "involvedOrganizations": ["org-id1", "org-id2"],
-      "theme": "tech/crypto/politics/culture",
-      "stakesLevel": "high/catastrophic/world-ending"
-    }
-  ]
-}`;
+  return loadPrompt('game/scenarios', {
+    mainActorsList,
+    organizationContext
+  });
 }
 
 export function createQuestionPrompt(scenarios: any[], organizations?: any[]) {
-  const orgContext = organizations && organizations.length > 0 ? `
+  const organizationContext = organizations && organizations.length > 0 ? `
 
 ORGANIZATIONS IN PLAY:
 You can create questions about organizational responses, not just actors:
@@ -223,95 +205,21 @@ You can create questions about organizational responses, not just actors:
 Available organizations: ${organizations.map(o => `${o.name} (${o.type})`).join(', ')}
 ` : '';
 
-  return `For each scenario, generate 5 yes/no questions that players can bet on.
-
-SCENARIOS:
-${scenarios.map(s => `
+  const scenariosList = scenarios.map(s => `
 Scenario ${s.id}: ${s.title}
 ${s.description}
 Actors: ${s.mainActors.join(', ')}
 ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.join(', ')}` : ''}
-`).join('\n')}
-${orgContext}
-CRITICAL: Each question must be PROVABLE and DEFINABLE:
-- Must have a clear, observable outcome (announcement, product launch, public event, measurable metric)
-- AVOID vague emotional states ("emotions stabilize", "feelings change")
-- AVOID abstract concepts ("collapse", "apocalypse" without clear definition)
-- GOOD: "Will X announce Y?" "Will X's product launch?" "Will X and Y have a public meeting?"
-- BAD: "Will X's emotions stabilize?" "Will the apocalypse occur?" "Will things collapse?"
+`).join('\n');
 
-Each question must:
-- Be a CONCRETE, OBSERVABLE yes/no prediction
-- Have a specific, measurable outcome
-- Resolve by Day 30 with clear evidence
-- Be dramatic and entertaining
-- Have real uncertainty (not obvious)
-- Be satirical
-- Reference specific actors and events
-
-Examples of GOOD questions (including organizations):
-- "Will Elon's Husk announce Tesla's brain upload feature?"
-- "Will Scam Altman's AGI pass the Turing test publicly?"
-- "Will Vitalik Uterin fork Ethereum before Day 30?"
-- "Will MSDNC break story about leaked OpenLIE documents?"
-- "Will The Fud raise interest rates in response to the crisis?"
-- "Will Xitter announce new content moderation policy?"
-
-Examples of BAD questions:
-- "Will Vitalik's emotions stabilize?" (too vague)
-- "Will the crypto apocalypse occur?" (undefined)
-- "Will the economy collapse?" (what counts as collapse?)
-
-CRITICAL FORMAT: Return a SINGLE JSON object with ALL questions from ALL scenarios in ONE flat array.
-
-Return JSON (IMPORTANT - single object, not array of objects):
-{
-  "questions": [
-    {
-      "id": 1,
-      "scenario": 1,
-      "text": "Will [specific, observable event] happen?",
-      "dramaPotential": 1-10,
-      "uncertainty": 1-10,
-      "satiricalValue": 1-10,
-      "observableOutcome": "What exact event/announcement/action would prove YES"
-    },
-    {
-      "id": 2,
-      "scenario": 1,
-      "text": "Another question for scenario 1...",
-      "dramaPotential": 1-10,
-      "uncertainty": 1-10,
-      "satiricalValue": 1-10,
-      "observableOutcome": "..."
-    },
-    {
-      "id": 6,
-      "scenario": 2,
-      "text": "First question for scenario 2...",
-      "dramaPotential": 1-10,
-      "uncertainty": 1-10,
-      "satiricalValue": 1-10,
-      "observableOutcome": "..."
-    }
-  ]
-}
-
-DO NOT return an array of objects. Return ONE object with ONE questions array containing ALL questions.`;
+  return loadPrompt('game/questions', {
+    scenariosList,
+    organizationContext
+  });
 }
 
 // Organization types
 export type OrganizationType = 'company' | 'media' | 'government';
-
-export interface Organization {
-  id: string;
-  name: string;
-  description: string;
-  type: OrganizationType;
-  canBeInvolved: boolean;
-  postStyle?: string;  // Style guide for how they write posts
-  postExample?: string[];  // Example posts demonstrating their voice
-}
 
 // Organization behavioral patterns
 export enum OrganizationBehavior {
@@ -331,184 +239,30 @@ export enum OrganizationBehavior {
   GOVT_ANNOUNCES_POLICY = 'govt_announces_policy',
 }
 
-// Actor data types
-interface ActorData {
-  id: string;
-  name: string;
-  description: string;
-  domain: string[];
-  personality: string;
-  canPostFeed: boolean;
-  canPostGroups: boolean;
-  tier: string;
-  affiliations?: string[];  // IDs of affiliated organizations
-  postStyle?: string;  // Style guide for how they write posts
-  postExample?: string[];  // Example posts demonstrating their voice
-}
-
-interface ActorsDatabase {
-  version: string;
-  description: string;
-  actors: ActorData[];
-  organizations: Organization[];
-}
+// Re-export types for backwards compatibility with external consumers
+export type {
+  GeneratedGame,
+  GameSetup,
+  SelectedActor,
+  Scenario,
+  Question,
+  GroupChat,
+  ActorConnection,
+  DayTimeline,
+  WorldEvent,
+  ChatMessage,
+  LuckChange,
+  MoodChange,
+  GameResolution,
+  QuestionOutcome,
+  GameHistory,
+  GenesisGame,
+};
 
 // Load actors database
 const actorsPath = join(process.cwd(), 'data/actors.json');
 const actorsData = JSON.parse(readFileSync(actorsPath, 'utf-8')) as ActorsDatabase;
 const actors = actorsData;
-
-export interface GeneratedGame {
-  id: string;
-  version: string;
-  generatedAt: string;
-  setup: GameSetup;
-  timeline: DayTimeline[];
-  resolution: GameResolution;
-}
-
-export interface GameSetup {
-  mainActors: SelectedActor[];
-  supportingActors: SelectedActor[];
-  extras: SelectedActor[];
-  organizations: Organization[];  // Affiliated organizations of selected actors
-  scenarios: Scenario[];
-  questions: Question[];
-  groupChats: GroupChat[];
-  connections: ActorConnection[];
-}
-
-export interface SelectedActor {
-  id: string;
-  name: string;
-  description: string;
-  tier: string;
-  role: string;
-  domain?: string[];
-  personality?: string;
-  canPostFeed?: boolean;
-  canPostGroups?: boolean;
-  affiliations?: string[];  // Organization IDs
-  postStyle?: string;  // Style guide for how they write posts
-  postExample?: string[];  // Example posts demonstrating their voice
-  initialLuck: 'low' | 'medium' | 'high';
-  initialMood: number; // -1 to 1
-}
-
-export interface Scenario {
-  id: number;
-  title: string;
-  description: string;
-  mainActors: string[];
-  involvedOrganizations?: string[];  // Organization IDs involved in scenario
-  theme: string;
-}
-
-export interface Question {
-  id: number;
-  text: string;
-  scenario: number;
-  outcome: boolean;
-  rank: number;
-}
-
-export interface GroupChat {
-  id: string;
-  name: string;
-  admin: string;
-  members: string[];
-  theme: string;
-}
-
-export interface ActorConnection {
-  actor1: string;
-  actor2: string;
-  relationship: string;
-  context: string;
-}
-
-export interface DayTimeline {
-  day: number;
-  summary: string;
-  events: WorldEvent[];
-  groupChats: Record<string, ChatMessage[]>;
-  feedPosts: FeedPost[]; // From FeedGenerator
-  luckChanges: LuckChange[];
-  moodChanges: MoodChange[];
-}
-
-export interface WorldEvent {
-  id: string;
-  type: 'meeting' | 'announcement' | 'scandal' | 'deal' | 'conflict' | 'revelation';
-  actors: string[];
-  description: string;
-  relatedQuestion: number | null;
-  pointsToward: 'YES' | 'NO' | null;
-  visibility: 'public' | 'private' | 'group';
-}
-
-export interface ChatMessage {
-  from: string;
-  message: string;
-  timestamp: string;
-  clueStrength: number; // 0-1
-}
-
-// FeedPost is imported from FeedGenerator
-// export interface FeedPost {...}
-
-export interface LuckChange {
-  actor: string;
-  from: string;
-  to: string;
-  reason: string;
-}
-
-export interface MoodChange {
-  actor: string;
-  from: number;
-  to: number;
-  reason: string;
-}
-
-export interface GameResolution {
-  day: 30;
-  outcomes: QuestionOutcome[];
-  finalNarrative: string;
-}
-
-export interface QuestionOutcome {
-  questionId: number;
-  answer: boolean;
-  explanation: string;
-  keyEvents: string[];
-}
-
-export interface GameHistory {
-  gameNumber: number;
-  completedAt: string;
-  summary: string;
-  keyOutcomes: {
-    questionText: string;
-    outcome: boolean;
-    explanation: string;
-  }[];
-  highlights: string[];
-  topMoments: string[];
-}
-
-export interface GenesisGame {
-  id: string;
-  version: string;
-  generatedAt: string;
-  dateRange: {
-    start: string; // "2025-10-24"
-    end: string;   // "2025-10-31"
-  };
-  actors: SelectedActor[];
-  timeline: DayTimeline[];
-  summary: string;
-}
 
 /**
  * Main Game Generator
@@ -552,7 +306,7 @@ export class GameGenerator {
     if (selectedActors.mains.length > 0) {
       console.log('\n  Main cast:');
       selectedActors.mains.forEach(a => {
-        console.log(`    • ${a.name} - ${a.description.substring(0, 60)}...`);
+        console.log(`    • ${a.name} - ${(a.description || '').substring(0, 60)}...`);
       });
     }
     console.log();
@@ -774,7 +528,7 @@ export class GameGenerator {
     for (let i = 0; i < eventCount; i++) {
       const type = eventTypes[Math.floor(Math.random() * eventTypes.length)]!;
       const numActorsInvolved = type === 'meeting' ? 2 + Math.floor(Math.random() * 2) : 1;
-      const involvedActors = shuffle(allActors).slice(0, numActorsInvolved);
+      const involvedActors = shuffleArray(allActors).slice(0, numActorsInvolved);
 
       const description = await this.generateBaselineEvent(type, involvedActors, dateStr);
 
@@ -899,15 +653,16 @@ Key outcomes: ${h.keyOutcomes.map(o => `${o.questionText} → ${o.outcome ? 'YES
     };
 
     // Create weighted pool for mains (heavily favor S/A tier)
-    const mainPool = allActors.flatMap(a => 
-      Array(Math.ceil(tierWeights[a.tier] || 1)).fill(a)
+    const mainPool = allActors.flatMap(a =>
+      Array(Math.ceil(tierWeights[a.tier || 'C_TIER'] || 1)).fill(a)
     );
-    const shuffledMains = mainPool.sort(() => Math.random() - 0.5);
+    const shuffledMains = shuffleArray(mainPool);
     const uniqueMains = Array.from(new Set(shuffledMains.map(a => a.id)))
       .slice(0, 3)
       .map(id => allActors.find(a => a.id === id)!)
       .map(a => ({
         ...a,
+        tier: a.tier as ActorTier, // Ensure tier is always set
         role: 'main',
         initialLuck: this.randomLuck(),
         initialMood: this.randomMood(),
@@ -923,13 +678,14 @@ Key outcomes: ${h.keyOutcomes.map(o => `${o.questionText} → ${o.outcome ? 'YES
     };
     const supportPool = allActors
       .filter(a => !uniqueMains.some(m => m.id === a.id))
-      .flatMap(a => Array(Math.ceil(supportWeights[a.tier] || 1)).fill(a));
-    const shuffledSupport = supportPool.sort(() => Math.random() - 0.5);
+      .flatMap(a => Array(Math.ceil(supportWeights[a.tier || 'C_TIER'] || 1)).fill(a));
+    const shuffledSupport = shuffleArray(supportPool);
     const uniqueSupporting = Array.from(new Set(shuffledSupport.map(a => a.id)))
       .slice(0, 15)
       .map(id => allActors.find(a => a.id === id)!)
       .map(a => ({
         ...a,
+        tier: a.tier as ActorTier, // Ensure tier is always set
         role: 'supporting',
         initialLuck: this.randomLuck(),
         initialMood: this.randomMood(),
@@ -946,13 +702,14 @@ Key outcomes: ${h.keyOutcomes.map(o => `${o.questionText} → ${o.outcome ? 'YES
     const usedIds = new Set([...uniqueMains, ...uniqueSupporting].map(a => a.id));
     const extraPool = allActors
       .filter(a => !usedIds.has(a.id))
-      .flatMap(a => Array(Math.ceil(extraWeights[a.tier] || 1)).fill(a));
-    const shuffledExtras = extraPool.sort(() => Math.random() - 0.5);
+      .flatMap(a => Array(Math.ceil(extraWeights[a.tier || 'C_TIER'] || 1)).fill(a));
+    const shuffledExtras = shuffleArray(extraPool);
     const uniqueExtras = Array.from(new Set(shuffledExtras.map(a => a.id)))
       .slice(0, 50)
       .map(id => allActors.find(a => a.id === id)!)
       .map(a => ({
         ...a,
+        tier: a.tier as ActorTier, // Ensure tier is always set
         role: 'extra',
         initialLuck: this.randomLuck(),
         initialMood: this.randomMood(),
@@ -1008,7 +765,7 @@ Key outcomes: ${h.keyOutcomes.map(o => `${o.questionText} → ${o.outcome ? 'YES
 
   public getActorTier(id: string): string {
     const actor = actors.actors.find(a => a.id === id);
-    return actor ? actor.tier : 'D_TIER';
+    return actor ? (actor.tier || 'D_TIER') : 'D_TIER';
   }
 
   /**
@@ -1106,18 +863,12 @@ Otherwise, start fresh.`;
    * Rank questions and select top 3
    */
   private async rankAndSelectQuestions(questions: Question[]): Promise<Question[]> {
-    const prompt = `
-Rank these questions by dramatic potential and entertainment value (1 = best, ${questions.length} = worst):
+    const questionsList = questions.map((q, i) => `${i + 1}. ${q.text}`).join('\n');
 
-${questions.map((q, i) => `${i + 1}. ${q.text}`).join('\n')}
-
-Return JSON with ranks:
-{
-  "rankings": [
-    { "questionId": 1, "rank": 3, "reasoning": "..." }
-  ]
-}
-`;
+    const prompt = loadPrompt('game/question-rankings', {
+      questionCount: questions.length,
+      questionsList
+    });
 
     const result = await this.llm.generateJSON<{ rankings: { questionId: number; rank: number }[] }>(prompt);
     
@@ -1155,7 +906,7 @@ Return JSON with ranks:
     // Each main has connections to 3-5 supporting actors
     selectedActors.mains.forEach((main: SelectedActor) => {
       const numConnections = 3 + Math.floor(Math.random() * 3);
-      const connected = shuffle([...selectedActors.supporting]).slice(0, numConnections);
+      const connected = shuffleArray([...selectedActors.supporting]).slice(0, numConnections);
       
       connected.forEach((supporting: SelectedActor) => {
         const relationships = ['advisor', 'source', 'critic', 'ally', 'friend'];
@@ -1180,7 +931,7 @@ Return JSON with ranks:
           )
         );
       
-      const connected = shuffle(potentials).slice(0, numConnections) as SelectedActor[];
+      const connected = shuffleArray(potentials).slice(0, numConnections) as SelectedActor[];
       
       connected.forEach((other: SelectedActor) => {
         const relationships = ['ally', 'friend', 'source', 'critic'];
@@ -1233,34 +984,13 @@ Return JSON with ranks:
       return `- ${m.name}: ${m.role || 'Notable figure'} at ${affiliations}`;
     }).join('\n');
 
-    const prompt = `Generate a funny, satirical group chat name for this private group.
-
-ADMIN (group creator): ${admin.name}
-- Role: ${admin.role || 'Notable figure'}
-- Domain: ${domain}
-- Affiliations: ${admin.affiliations?.slice(0, 3).join(', ') || 'various organizations'}
-
-MEMBERS:
-${memberDescriptions}
-
-The group chat name should:
-1. Be satirical and darkly funny (like "silicon valley trauma support" or "ponzi schemers united")
-2. Reference the domain (${domain}) or the members' shared context
-3. Feel like an inside joke between these specific people
-4. Be 2-6 words long
-5. Use lowercase
-6. Be something these wealthy, powerful, slightly dysfunctional people would ironically name their private chat
-
-Examples for inspiration (but make it unique to THIS group):
-- "billionaire brunch club"
-- "regulatory capture squad" 
-- "metaverse disasters anonymous"
-- "crypto widows & orphans"
-
-Return ONLY this JSON:
-{
-  "name": "the group chat name here"
-}`;
+    const prompt = loadPrompt('game/group-chat-name', {
+      adminName: admin.name,
+      adminRole: admin.role || 'Notable figure',
+      domain,
+      adminAffiliations: admin.affiliations?.slice(0, 3).join(', ') || 'various organizations',
+      memberDescriptions
+    });
 
     const response = await this.llm.generateJSON<{ name: string }>(prompt, {
       required: ['name']
@@ -1390,7 +1120,7 @@ Return ONLY this JSON:
     for (let i = 0; i < eventCount; i++) {
       const type = eventTypes[Math.floor(Math.random() * eventTypes.length)]!;
       const numActorsInvolved = type === 'meeting' ? 2 + Math.floor(Math.random() * 3) : 1;
-      const involvedActors = shuffle(allActors).slice(0, numActorsInvolved);
+      const involvedActors = shuffleArray(allActors).slice(0, numActorsInvolved);
       const questionId = questions[i % questions.length]!.id;
 
       eventRequests.push({
@@ -1530,24 +1260,16 @@ Return ONLY this JSON:
     luckMood: Map<string, { luck: string; mood: number }>,
     connections: ActorConnection[]
   ): Promise<Array<{ eventNumber: number; event: string; pointsToward: 'YES' | 'NO' | null }>> {
-    const prompt = `You must respond with valid JSON only.
-
-${fullContext}
-
-━━━ GENERATE DAY ${day} EVENTS ━━━
-
-Generate ${eventRequests.length} events:
-
-${eventRequests.map((req, i) => {
-  const question = questions.find(q => q.id === req.questionId);
-  const actorsWithMood = req.actors.map(a => {
-    const state = luckMood.get(a.id);
-    const emotionalContext = state
-      ? generateActorContext(state.mood, state.luck as 'low' | 'medium' | 'high', undefined, connections, a.id)
-      : '';
-    return `${a.name} (${a.description})${emotionalContext ? '\n   ' + emotionalContext.replace(/\n/g, '\n   ') : ''}`;
-  }).join('\n   ');
-  return `${i + 1}. Type: ${req.type}
+    const eventRequestsList = eventRequests.map((req, i) => {
+      const question = questions.find(q => q.id === req.questionId);
+      const actorsWithMood = req.actors.map(a => {
+        const state = luckMood.get(a.id);
+        const emotionalContext = state
+          ? generateActorContext(state.mood, state.luck as 'low' | 'medium' | 'high', undefined, connections, a.id)
+          : '';
+        return `${a.name} (${a.description})${emotionalContext ? '\n   ' + emotionalContext.replace(/\n/g, '\n   ') : ''}`;
+      }).join('\n   ');
+      return `${i + 1}. Type: ${req.type}
    Actors: 
    ${actorsWithMood}
    Related to: ${question?.text || 'General drama'}
@@ -1555,25 +1277,14 @@ ${eventRequests.map((req, i) => {
    Create event involving these actors. Build on the narrative above.
    Their mood and luck should influence the nature of the event.
    One sentence, max 120 chars, satirical but plausible.`;
-}).join('\n')}
+    }).join('\n');
 
-Return JSON with events and whether they point toward outcomes:
-{
-  "events": [
-    {
-      "eventNumber": 1,
-      "event": "OpenLIE schedules independent verification demo for next week",
-      "pointsToward": "YES"
-    },
-    {
-      "eventNumber": 2,
-      "event": "Ethereum Foundation delays security patch citing testing issues",
-      "pointsToward": "NO"
-    }
-  ]
-}
-
-Return EXACTLY ${eventRequests.length} events.`;
+    const prompt = loadPrompt('game/day-events', {
+      fullContext,
+      day,
+      eventCount: eventRequests.length,
+      eventRequestsList
+    });
 
     const response = await this.llm.generateJSON<{ 
       events: Array<{ 
@@ -1723,7 +1434,7 @@ No other text.`;
         const numMessages = 1 + Math.floor(Math.random() * 3); // 1-3 messages
         
         // Pick random members to post
-        const activeMembers = shuffle(
+        const activeMembers = shuffleArray(
           allActors.filter(a => group.members.includes(a.id))
         ).slice(0, numMessages);
         
@@ -1760,7 +1471,7 @@ No other text.`;
             members: activeMembers.map(a => ({
               actorId: a.id,
               actorName: a.name,
-              description: a.description,
+              description: a.description || '',
               personality: a.personality || '',
               role: a.role,
             })),
@@ -1818,25 +1529,7 @@ No other text.`;
       return `\n   \n   RELATIONSHIPS IN THIS GROUP:\n${connectionLines}\n`;
     };;
 
-    const prompt = `You must respond with valid JSON only.
-
-${fullContext || `Day ${day} of 30`}${scenarioContext}${questionContext}
-
-━━━ PRIVATE GROUP CHATS FOR DAY ${day} ━━━
-
-This is PRIVATE. Members say things here they would NEVER say publicly:
-- Vulnerabilities, fears, doubts
-- Real insider knowledge about their companies
-- Strategic planning and manipulation
-- Gossip about people outside the group
-- Honest reactions vs their public persona
-
-Today's events: ${events.map(e => e.description).join('; ')}
-${recentEvent ? `\nMost talked about: ${recentEvent.description}` : ''}
-
-Generate ${groupRequests.length} private group conversations:
-
-${groupRequests.map((req, i) => `${i + 1}. "${req.groupName}"
+    const groupsList = groupRequests.map((req, i) => `${i + 1}. "${req.groupName}"
    
    MEMBERS IN THIS CHAT (don't gossip about them):
 ${req.members.map((m, j) => {
@@ -1873,24 +1566,18 @@ ${req.members.map((m, idx) => {
 }).join('\n')}
    
    Max 200 chars each. PRIVATE conversation - strategic, vulnerable, gossipy.
-`).join('\n')}
+`).join('\n');
 
-Respond with ONLY this JSON:
-{
-  "groups": [
-    {
-      "groupId": "group-id",
-      "messages": [
-        {
-          "actorId": "actor-id",
-          "message": "private message here"
-        }
-      ]
-    }
-  ]
-}
-
-Return ${groupRequests.length} groups in the array. No other text.`;
+    const prompt = loadPrompt('game/group-messages', {
+      fullContext: fullContext || `Day ${day} of 30`,
+      scenarioContext,
+      questionContext,
+      day,
+      eventsList: events.map(e => e.description).join('; '),
+      recentEventContext: recentEvent ? `\nMost talked about: ${recentEvent.description}` : '',
+      groupCount: groupRequests.length,
+      groupsList
+    });
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -2213,10 +1900,4 @@ Write ONLY the message text:`;
     return 5; // Day 30 resolution (5 final events)
   }
 }
-
-// Utility: Shuffle array using Fisher-Yates algorithm (proper randomization)
-function shuffle<T>(arr: T[]): T[] {
-  return shuffleArray(arr);
-}
-
 

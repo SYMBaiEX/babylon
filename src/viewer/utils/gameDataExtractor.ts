@@ -61,10 +61,10 @@ export function extractGameRecapData(
     mainActors: game.setup.mainActors.map(a => ({
       id: a.id,
       name: a.name,
-      description: a.description,
+      description: a.description || '',
       tier: a.tier,
       role: a.role,
-      domain: a.domain,
+      domain: a.domain || [],
     })),
     scenarios: game.setup.scenarios,
     questions: game.setup.questions,
