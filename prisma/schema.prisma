@@ -28,12 +28,14 @@ model User {
   postExample     String?
 
   // Relationships
-  posts           Post[]
   comments        Comment[]
   reactions       Reaction[]
   positions       Position[]
-  followedBy      Follow[]  @relation("following")
-  following       Follow[]  @relation("follower")
+  followedBy      Follow[]     @relation("following")
+  following       Follow[]     @relation("follower")
+  favorites       Favorite[]   @relation("UserFavorites")
+  favoritedBy     Favorite[]   @relation("UserFavoritedBy")
+  shares          Share[]
 
   @@index([walletAddress])
   @@index([username])
@@ -44,16 +46,16 @@ model User {
 model Post {
   id          String   @id @default(uuid())
   content     String
-  authorId    String
+  authorId    String   // Game actor ID (not a User FK)
   gameId      String?
   dayNumber   Int?
   timestamp   DateTime @default(now())
   createdAt   DateTime @default(now())
 
   // Relationships
-  author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
   comments    Comment[]
   reactions   Reaction[]
+  shares      Share[]
 
   @@index([authorId, timestamp(sort: Desc)])
   @@index([timestamp(sort: Desc)])
@@ -62,34 +64,44 @@ model Post {
 
 // Comment model - comments on posts
 model Comment {
-  id        String   @id @default(uuid())
-  content   String
-  postId    String
-  authorId  String
-  createdAt DateTime @default(now())
+  id              String   @id @default(uuid())
+  content         String
+  postId          String
+  authorId        String
+  parentCommentId String?  // For threaded replies
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   // Relationships
-  post      Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  author    User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  post          Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author        User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parentComment Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies       Comment[] @relation("CommentReplies")
+  reactions     Reaction[]
 
   @@index([postId, createdAt(sort: Desc)])
   @@index([authorId])
+  @@index([parentCommentId])
 }
 
-// Reaction model - likes on posts
+// Reaction model - likes on posts and comments
 model Reaction {
   id        String   @id @default(uuid())
-  postId    String
+  postId    String?  // Nullable for comment reactions
+  commentId String?  // For comment reactions
   userId    String
   type      String   @default("like")  // "like", "love", "laugh", etc.
   createdAt DateTime @default(now())
 
   // Relationships
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post    Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([postId, userId, type])
+  @@unique([commentId, userId, type])
   @@index([postId])
+  @@index([commentId])
   @@index([userId])
 }
 
@@ -107,6 +119,39 @@ model Follow {
   @@unique([followerId, followingId])
   @@index([followerId])
   @@index([followingId])
+}
+
+// Favorite model - user favorites profiles
+model Favorite {
+  id           String   @id @default(uuid())
+  userId       String   // Who favorited
+  targetUserId String   // Who was favorited
+  createdAt    DateTime @default(now())
+
+  // Relationships
+  user       User @relation("UserFavorites", fields: [userId], references: [id], onDelete: Cascade)
+  targetUser User @relation("UserFavoritedBy", fields: [targetUserId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetUserId])
+  @@index([userId])
+  @@index([targetUserId])
+}
+
+// Share model - reposts/shares of posts
+model Share {
+  id        String   @id @default(uuid())
+  userId    String   // Who shared
+  postId    String   // Original post
+  createdAt DateTime @default(now())
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([userId])
+  @@index([postId])
+  @@index([createdAt(sort: Desc)])
 }
 
 // Market model - prediction markets

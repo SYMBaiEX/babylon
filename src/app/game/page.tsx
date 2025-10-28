@@ -29,7 +29,7 @@ export default function GamePage() {
     setTimelineData
   } = useGameStore()
 
-  const intervalRef = useRef<NodeJS.Timeout>()
+  const intervalRef = useRef<NodeJS.Timeout | undefined>(undefined)
 
   // Load games on mount
   useEffect(() => {
@@ -145,14 +145,14 @@ export default function GamePage() {
   useEffect(() => {
     if (isPlaying && totalDurationMs > 0) {
       intervalRef.current = setInterval(() => {
-        setCurrentTimeMs((prev) => {
-          const next = prev + 1000 * speed
-          if (next >= totalDurationMs) {
-            setIsPlaying(false)
-            return totalDurationMs
-          }
-          return next
-        })
+        const prev = currentTimeMs
+        const next = prev + 1000 * speed
+        if (next >= totalDurationMs) {
+          setIsPlaying(false)
+          setCurrentTimeMs(totalDurationMs)
+        } else {
+          setCurrentTimeMs(next)
+        }
       }, 50)
     } else {
       if (intervalRef.current) {
@@ -188,26 +188,36 @@ export default function GamePage() {
 
   return (
     <PageContainer className="overflow-y-auto pb-24 md:pb-4">
-      {/* Header */}
-      <div className="mb-4 md:mb-6">
-        <h1 className="text-xl md:text-3xl font-bold mb-2 bg-gradient-to-r from-primary to-accent-foreground bg-clip-text text-transparent">
-          Timeline Controls
-        </h1>
-        <p className="text-sm md:text-base text-muted-foreground">
-          Control game playback - posts will appear in the Feed as time progresses
-        </p>
-      </div>
+      <div className="max-w-[600px] mx-auto px-4 pt-4 space-y-4">
+        {/* Current Time Card */}
+        <div className={cn(
+          'bg-card border border-border rounded-2xl p-4',
+          'shadow-md'
+        )}>
+          <div className="text-xs text-muted-foreground mb-1 font-medium">Current Time</div>
+          <div className="text-2xl md:text-3xl font-bold" style={{ color: '#1c9cf0' }}>
+            {currentDate ? currentDate.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric'
+            }) : 'No timeline loaded'}
+          </div>
+          {currentDate && (
+            <div className="text-sm text-muted-foreground mt-1">
+              {currentDate.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </div>
+          )}
+        </div>
 
-      {/* Timeline Section */}
-      <div className={cn(
-        'bg-card border border-border rounded-2xl p-4 md:p-6',
-        'shadow-lg',
-        'transition-all duration-300'
-      )}>
-        <div className="relative">
-          <h3 className="text-base md:text-lg font-bold text-card-foreground mb-3 md:mb-4">
-            Timeline
-          </h3>
+        {/* Playback Controls Card */}
+        <div className={cn(
+          'bg-card border border-border rounded-2xl p-4',
+          'shadow-md'
+        )}>
+          <div className="text-xs text-muted-foreground mb-3 font-medium">Playback</div>
 
           {/* Playback Buttons */}
           <div className="flex gap-2 mb-3 md:mb-4">
@@ -275,18 +285,18 @@ export default function GamePage() {
             </button>
           </div>
 
-          {/* Speed Control */}
-          <div className="mb-3 md:mb-4">
-            <div className="text-xs md:text-sm text-muted-foreground mb-2 font-medium">Speed</div>
+          {/* Speed Control - Inline */}
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-muted-foreground font-medium">Speed:</div>
             <select
               value={speed}
               onChange={(e) => setSpeed(Number(e.target.value))}
               className={cn(
-                'w-full px-3 py-2',
-                'bg-input border border-border rounded-xl',
-                'text-foreground',
+                'flex-1 px-3 py-2',
+                'bg-input border border-border rounded-lg',
+                'text-sm text-foreground',
                 'cursor-pointer transition-all',
-                'focus:outline-none focus:ring-2 focus:ring-ring'
+                'focus:outline-none focus:ring-2 focus:ring-primary'
               )}
             >
               <option value={100}>100x</option>
@@ -297,27 +307,14 @@ export default function GamePage() {
               <option value={1}>1x</option>
             </select>
           </div>
+        </div>
 
-          {/* Current Time Display */}
-          <div className={cn(
-            'p-3 md:p-4 rounded-xl mb-3 md:mb-4',
-            'bg-accent border border-border'
-          )}>
-            <div className="text-xs text-muted-foreground mb-1 font-medium">Current Time</div>
-            <div className="text-base md:text-lg font-bold text-accent-foreground">
-              {currentDate ? currentDate.toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric'
-              }) : 'No timeline'}
-            </div>
-            <div className="text-xs md:text-sm text-muted-foreground mt-0.5">
-              {currentDate ? currentDate.toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit'
-              }) : ''}
-            </div>
-          </div>
+        {/* Timeline Slider Card */}
+        <div className={cn(
+          'bg-card border border-border rounded-2xl p-4',
+          'shadow-md'
+        )}>
+          <div className="text-xs text-muted-foreground mb-3 font-medium">Timeline Progress</div>
 
           {/* Timeline Slider */}
           <input
@@ -330,35 +327,85 @@ export default function GamePage() {
               setIsPlaying(false)
             }}
             disabled={!startTime}
-            className="w-full h-3 md:h-2 bg-input rounded-full appearance-none cursor-pointer accent-primary disabled:opacity-50 disabled:cursor-not-allowed mb-2 border border-border touch-pan-x"
+            style={{
+              background: startTime
+                ? `linear-gradient(to right, #1c9cf0 0%, #1c9cf0 ${((currentTimeMs / totalDurationMs) * 100)}%, rgb(var(--input)) ${((currentTimeMs / totalDurationMs) * 100)}%, rgb(var(--input)) 100%)`
+                : undefined
+            }}
+            className="w-full h-3 rounded-full appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mb-3 border border-border touch-pan-x [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-background [&::-webkit-slider-thumb]:shadow-lg"
           />
 
-          <div className="text-xs text-muted-foreground text-center mb-3 md:mb-4 font-medium">
-            {allGames.reduce((count, game) => {
-              return count + (game.timeline?.reduce((dayCount, day) => {
-                return dayCount + (day.feedPosts?.filter(post => {
-                  const postTime = new Date(post.timestamp).getTime()
-                  return startTime ? postTime <= startTime + currentTimeMs : false
-                }).length || 0)
-              }, 0) || 0)
-            }, 0)} posts visible
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <div>
+              {allGames.reduce((count, game) => {
+                return count + (game.timeline?.reduce((dayCount, day) => {
+                  return dayCount + (day.feedPosts?.filter(post => {
+                    const postTime = new Date(post.timestamp).getTime()
+                    return startTime ? postTime <= startTime + currentTimeMs : false
+                  }).length || 0)
+                }, 0) || 0)
+              }, 0)} posts visible
+            </div>
+            {startTime && endTime && (
+              <div>
+                {new Date(startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(endTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </div>
+            )}
           </div>
+        </div>
 
-          {/* Game Ranges */}
-          {gameRanges.length > 0 && (
-            <div className="mt-3 md:mt-4">
-              <div className="text-xs md:text-sm text-muted-foreground mb-2 font-medium">Games</div>
-              {gameRanges.map((range, idx) => (
+        {/* Jump to Day Card */}
+        {timelineDays.length > 0 && (
+          <div className={cn(
+            'bg-card border border-border rounded-2xl p-4',
+            'shadow-md'
+          )}>
+            <div className="text-xs text-muted-foreground mb-3 font-medium">Jump to Day</div>
+            <select
+              onChange={(e) => {
+                const selectedTimestamp = Number(e.target.value)
+                if (startTime && selectedTimestamp > 0) {
+                  setCurrentTimeMs(selectedTimestamp - startTime)
+                  setIsPlaying(false)
+                }
+              }}
+              className={cn(
+                'w-full px-3 py-2.5',
+                'bg-input border border-border rounded-lg',
+                'text-sm text-foreground',
+                'cursor-pointer transition-all',
+                'focus:outline-none focus:ring-2 focus:ring-primary'
+              )}
+            >
+              <option value="">Select a day...</option>
+              {timelineDays.map((dayInfo) => (
+                <option key={`${dayInfo.gameId}-${dayInfo.day}`} value={dayInfo.timestamp}>
+                  Day {dayInfo.day} - {dayInfo.label} ({dayInfo.gameName})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Game Ranges Card */}
+        {gameRanges.length > 0 && (
+          <div className={cn(
+            'bg-card border border-border rounded-2xl p-4',
+            'shadow-md'
+          )}>
+            <div className="text-xs text-muted-foreground mb-3 font-medium">Loaded Games</div>
+            <div className="space-y-2">
+              {gameRanges.map((range) => (
                 <div
                   key={range.gameId}
                   className={cn(
-                    'p-2.5 md:p-3 rounded-xl mb-2',
-                    'bg-card border border-border',
-                    'transition-all hover:bg-muted/50 active:scale-[0.99]'
+                    'p-3 rounded-lg',
+                    'bg-accent/50 border border-border',
+                    'transition-all hover:bg-accent/70 active:scale-[0.99]'
                   )}
                 >
-                  <div className="text-xs md:text-sm font-semibold text-card-foreground mb-0.5">
-                    Game {idx + 1}: {range.gameName}
+                  <div className="text-sm font-semibold mb-1">
+                    {range.gameName}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {new Date(range.startTime).toLocaleDateString('en-US', {
@@ -372,58 +419,8 @@ export default function GamePage() {
                 </div>
               ))}
             </div>
-          )}
-
-          {/* Jump to Day */}
-          {timelineDays.length > 0 && (
-            <div className="mt-3 md:mt-4">
-              <div className="text-xs md:text-sm text-muted-foreground mb-2 font-medium">Jump to Day</div>
-              <select
-                onChange={(e) => {
-                  const selectedTimestamp = Number(e.target.value)
-                  if (startTime && selectedTimestamp > 0) {
-                    setCurrentTimeMs(selectedTimestamp - startTime)
-                    setIsPlaying(false)
-                  }
-                }}
-                className={cn(
-                  'w-full px-3 py-2',
-                  'bg-input border border-border rounded-xl',
-                  'text-foreground',
-                  'cursor-pointer transition-all',
-                  'focus:outline-none focus:ring-2 focus:ring-ring'
-                )}
-              >
-                <option value="">Select a day...</option>
-                {timelineDays.map((dayInfo) => (
-                  <option key={`${dayInfo.gameId}-${dayInfo.day}`} value={dayInfo.timestamp}>
-                    Day {dayInfo.day} - {dayInfo.label} ({dayInfo.gameName})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Time Range Display */}
-          {startTime && endTime && (
-            <div className={cn(
-              'mt-3 md:mt-4 p-2.5 md:p-3 rounded-xl',
-              'bg-muted border border-border',
-              'text-xs text-muted-foreground'
-            )}>
-              <div>Start: {new Date(startTime).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric'
-              })}</div>
-              <div>End: {new Date(endTime).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric'
-              })}</div>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </PageContainer>
   )

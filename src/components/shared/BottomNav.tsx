@@ -45,10 +45,11 @@ export function BottomNav() {
     <nav
       className={cn(
         'fixed bottom-4 left-4 right-4 z-50 md:hidden',
-        'bg-sidebar/95 backdrop-blur-md border-2 border-border',
+        'bg-sidebar/95 backdrop-blur-md border-2',
         'rounded-2xl shadow-2xl',
         'transition-all duration-300'
       )}
+      style={{ borderColor: '#1c9cf0' }}
     >
       {/* Navigation Items */}
       <div className="relative flex justify-around items-center h-16 px-2">
@@ -61,7 +62,7 @@ export function BottomNav() {
               className={cn(
                 'group relative flex flex-col items-center justify-center flex-1 h-full',
                 'transition-all duration-300',
-                'rounded-xl',
+                'rounded-lg mx-1',
                 item.active && 'bg-sidebar-accent'
               )}
             >
@@ -80,6 +81,7 @@ export function BottomNav() {
                       ? 'text-sidebar-primary'
                       : 'text-sidebar-foreground group-hover:text-sidebar-primary'
                   )}
+                  style={item.active ? { color: '#1c9cf0' } : undefined}
                 />
               </div>
 
@@ -88,9 +90,10 @@ export function BottomNav() {
                 className={cn(
                   'text-[10px] font-medium transition-all duration-300',
                   item.active
-                    ? 'text-sidebar-primary font-semibold'
+                    ? 'font-semibold'
                     : 'text-sidebar-foreground group-hover:text-sidebar-primary'
                 )}
+                style={item.active ? { color: '#1c9cf0' } : undefined}
               >
                 {item.name}
               </span>

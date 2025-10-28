@@ -14,7 +14,7 @@ export function SearchBar({ value, onChange, placeholder = 'Search...', classNam
   return (
     <div className={cn('relative', className)}>
       <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
-        <Search className="w-4 h-4 text-muted-foreground" />
+        <Search className="w-4 h-4" style={{ color: '#1c9cf0' }} />
       </div>
       <input
         type="text"
@@ -23,11 +23,14 @@ export function SearchBar({ value, onChange, placeholder = 'Search...', classNam
         onChange={(e) => onChange(e.target.value)}
         className={cn(
           'w-full pl-11 pr-10 py-2.5 rounded-full',
-          'bg-muted/50 border border-border',
-          'focus:outline-none focus:ring-2 focus:ring-[#1c9cf0] focus:border-transparent',
+          'bg-muted/50 border-2',
+          'focus:outline-none focus:ring-2 focus:ring-[#1c9cf0]',
           'transition-all duration-200',
-          'placeholder:text-muted-foreground text-foreground'
+          'text-foreground'
         )}
+        style={{
+          borderColor: '#1c9cf0',
+        }}
       />
       {value && (
         <button
@@ -37,6 +40,12 @@ export function SearchBar({ value, onChange, placeholder = 'Search...', classNam
           <X className="w-4 h-4 text-muted-foreground" />
         </button>
       )}
+      <style jsx>{`
+        input::placeholder {
+          color: #1c9cf0;
+          opacity: 0.8;
+        }
+      `}</style>
     </div>
   )
 }

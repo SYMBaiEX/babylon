@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { LogOut, User, Copy, Check } from 'lucide-react'
+import { User as UserIcon, Copy, Check, LogOut } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -26,7 +26,7 @@ export function UserMenu() {
     <div className="bg-sidebar-accent rounded-xl p-4 space-y-4" style={{ border: '2px solid #1c9cf0' }}>
       <div className="flex items-center gap-3">
         <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-          <User className="w-6 h-6 text-primary" />
+          <UserIcon className="w-6 h-6 text-primary" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
@@ -70,6 +70,17 @@ export function UserMenu() {
           </button>
         </div>
       )}
+
+      {/* Logout Button */}
+      <div className="pt-3" style={{ borderTop: '1px solid #1c9cf0' }}>
+        <button
+          onClick={logout}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
+        >
+          <LogOut className="w-4 h-4" />
+          <span className="text-sm font-medium">Logout</span>
+        </button>
+      </div>
     </div>
   )
 }

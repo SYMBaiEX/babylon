@@ -48,6 +48,17 @@ import type {
 export type { FeedPost, FeedEvent, Actor, Organization, ActorState, ActorRelationship };
 
 /**
+ * Conspiracy post from LLM
+ */
+interface ConspiracyPost {
+  post?: string;
+  tweet?: string;
+  sentiment?: number;
+  clueStrength?: number;
+  pointsToward?: boolean | null;
+}
+
+/**
  * Feed Generator
  * 
  * Transforms world events into organic social media discourse using LLM
@@ -613,12 +624,12 @@ export class FeedGenerator extends EventEmitter {
       );
 
       // Handle both response formats
-      let conspiracy: Array<any> = [];
+      let conspiracy: ConspiracyPost[] = [];
       if ('conspiracy' in rawResponse && Array.isArray(rawResponse.conspiracy)) {
-        conspiracy = rawResponse.conspiracy;
+        conspiracy = rawResponse.conspiracy as ConspiracyPost[];
       } else if ('data' in rawResponse && Array.isArray(rawResponse.data) && rawResponse.data[0]?.conspiracy) {
         // Unwrap from { data: [{ conspiracy: [...] }] }
-        conspiracy = rawResponse.data.flatMap((d: any) => d.conspiracy || []);
+        conspiracy = rawResponse.data.flatMap((d: Record<string, unknown>) => (d.conspiracy as ConspiracyPost[]) || []);
       }
 
       const validConspiracy = conspiracy

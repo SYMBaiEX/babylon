@@ -5,6 +5,7 @@ interface User {
   id: string
   walletAddress?: string
   displayName: string
+  email?: string
 }
 
 interface Wallet {

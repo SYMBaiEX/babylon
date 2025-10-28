@@ -12,7 +12,8 @@ const selectedChain = chainId === 11155111 ? sepolia : mainnet
 export const wagmiConfig = createConfig({
   chains: [selectedChain],
   transports: {
-    [selectedChain.id]: http(rpcUrl || undefined),
+    [mainnet.id]: http(rpcUrl || undefined),
+    [sepolia.id]: http(rpcUrl || undefined),
   },
 })
 
@@ -22,8 +23,8 @@ export const privyConfig = {
   config: {
     appearance: {
       theme: 'dark' as const,
-      accentColor: '#3b82f6',
-      logo: '/logo.png',
+      accentColor: '#1c9cf0',
+      logo: '/assets/logos/logo.svg',
     },
     loginMethods: ['wallet', 'email'] as const,
     embeddedWallets: {
