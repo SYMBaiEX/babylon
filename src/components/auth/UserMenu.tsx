@@ -23,40 +23,53 @@ export function UserMenu() {
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* User Info */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-muted rounded-lg">
-        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-          <User className="w-5 h-5 text-primary" />
+    <div className="bg-sidebar-accent rounded-xl p-4 space-y-4" style={{ border: '2px solid #1c9cf0' }}>
+      <div className="flex items-center gap-3">
+        <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+          <User className="w-6 h-6 text-primary" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm truncate">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+            Account
+          </p>
+          <p className="font-semibold text-foreground truncate">
             {user?.displayName || 'Anonymous'}
           </p>
-          {wallet?.address && (
-            <button
-              onClick={handleCopyAddress}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <span>{formatAddress(wallet.address)}</span>
-              {copied ? (
-                <Check className="w-3 h-3" />
-              ) : (
-                <Copy className="w-3 h-3" />
-              )}
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Logout Button */}
-      <button
-        onClick={logout}
-        className="flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
-      >
-        <LogOut className="w-4 h-4" />
-        <span>Disconnect</span>
-      </button>
+      {/* Email Section */}
+      {user?.email && (
+        <div className="pt-3" style={{ borderTop: '1px solid #1c9cf0' }}>
+          <label className="text-xs text-muted-foreground uppercase tracking-wide block mb-1">
+            Email
+          </label>
+          <p className="text-sm text-foreground truncate">
+            {user.email}
+          </p>
+        </div>
+      )}
+
+      {/* Wallet Address Section */}
+      {wallet?.address && (
+        <div className="pt-3" style={{ borderTop: '1px solid #1c9cf0' }}>
+          <label className="text-xs text-muted-foreground uppercase tracking-wide block mb-2">
+            Wallet Address
+          </label>
+          <button
+            onClick={handleCopyAddress}
+            className="flex items-center gap-2 text-sm hover:opacity-80 transition-opacity font-mono"
+            style={{ color: '#1c9cf0' }}
+          >
+            <span>{formatAddress(wallet.address)}</span>
+            {copied ? (
+              <Check className="w-4 h-4" />
+            ) : (
+              <Copy className="w-4 h-4" />
+            )}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

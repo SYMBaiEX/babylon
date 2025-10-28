@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, TrendingUp, MessageCircle, User, PlayCircle, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Home, TrendingUp, MessageCircle, User, PlayCircle, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { LoginButton } from '@/components/auth/LoginButton'
@@ -48,13 +48,19 @@ export function Sidebar() {
       icon: User,
       active: pathname === '/profile' || pathname?.startsWith('/profile/'),
     },
+    {
+      name: 'Settings',
+      href: '/settings',
+      icon: Settings,
+      active: pathname === '/settings' || pathname?.startsWith('/settings/'),
+    },
   ]
 
   return (
     <aside
       className={cn(
         'hidden md:flex md:flex-col h-screen sticky top-0',
-        'bg-sidebar border-r border-sidebar-border',
+        'bg-sidebar',
         'transition-all duration-300',
         isCollapsed ? 'md:w-20' : 'md:w-64 lg:w-72'
       )}
@@ -82,9 +88,9 @@ export function Sidebar() {
           className={cn(
             'p-2 rounded-lg',
             'hover:bg-sidebar-accent',
-            'text-sidebar-foreground hover:text-sidebar-primary',
             'transition-all duration-300'
           )}
+          style={{ color: '#1c9cf0' }}
         >
           {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
         </button>
@@ -134,15 +140,13 @@ export function Sidebar() {
 
       {/* Bottom Section */}
       <div
-        className={cn(
-          'p-4 space-y-4',
-          'border-t border-sidebar-border'
-        )}
+        className="p-4 space-y-4"
+        style={{ borderTop: '1px solid #1c9cf0' }}
       >
         {/* Theme Toggle */}
         {!isCollapsed && (
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-sidebar-foreground">Theme</span>
+            <span className="text-sm font-medium" style={{ color: '#1c9cf0' }}>Theme</span>
             <ThemeToggle />
           </div>
         )}
@@ -169,11 +173,11 @@ export function Sidebar() {
           <div
             className={cn(
               'text-sm p-3 rounded-xl',
-              'bg-sidebar-accent',
-              'border border-sidebar-border'
+              'bg-sidebar-accent'
             )}
+            style={{ border: '2px solid #1c9cf0' }}
           >
-            <p className="font-semibold text-sidebar-foreground mb-1">Game Status</p>
+            <p className="font-semibold mb-1" style={{ color: '#1c9cf0' }}>Game Status</p>
             <p className="text-xs text-muted-foreground">
               {allGames.length > 0
                 ? (isPlaying ? '▶️ Playing' : '⏸️ Paused')

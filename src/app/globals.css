@@ -17,7 +17,7 @@
   --accent-foreground: #1e9df1;
   --destructive: #f4212e;
   --destructive-foreground: #ffffff;
-  --border: #e1eaef;
+  --border: #1c9cf0;
   --input: #f7f9fa;
   --ring: #1da1f2;
   --chart-1: #1e9df1;
@@ -72,7 +72,7 @@
   --accent-foreground: #1c9cf0;
   --destructive: #f4212e;
   --destructive-foreground: #ffffff;
-  --border: #242628;
+  --border: #1c9cf0;
   --input: #22303c;
   --ring: #1da1f2;
   --chart-1: #1e9df1;
@@ -80,13 +80,13 @@
   --chart-3: #f7b928;
   --chart-4: #17bf63;
   --chart-5: #e0245e;
-  --sidebar: #17181c;
+  --sidebar: #1e1e1e;
   --sidebar-foreground: #d9d9d9;
   --sidebar-primary: #1da1f2;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #061622;
+  --sidebar-accent: #2a2a2a;
   --sidebar-accent-foreground: #1c9cf0;
-  --sidebar-border: #38444d;
+  --sidebar-border: #1c9cf0;
   --sidebar-ring: #1da1f2;
   --font-sans: Open Sans, sans-serif;
   --font-serif: Georgia, serif;
@@ -201,6 +201,33 @@ body {
 .smooth-scroll {
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Custom Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1c9cf0;
+  border-radius: 6px;
+  border: 2px solid #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #1da1f2;
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1c9cf0 #1a1a1a;
 }
 
 /* Hide scrollbar but keep functionality */

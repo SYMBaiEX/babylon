@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState, useEffect } from 'react'
 import { privyConfig, wagmiConfig } from '@/lib/privy-config'
 import { ThemeProvider } from '@/components/shared/ThemeProvider'
+import { FontSizeProvider } from '@/contexts/FontSizeContext'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false)
@@ -36,14 +37,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
           enableSystem
           disableTransitionOnChange={false}
         >
-          <PrivyProvider
-            appId={privyConfig.appId}
-            config={privyConfig.config}
-          >
-            <QueryClientProvider client={queryClient}>
-              {children}
-            </QueryClientProvider>
-          </PrivyProvider>
+          <FontSizeProvider>
+            <PrivyProvider
+              appId={privyConfig.appId}
+              config={privyConfig.config}
+            >
+              <QueryClientProvider client={queryClient}>
+                {children}
+              </QueryClientProvider>
+            </PrivyProvider>
+          </FontSizeProvider>
         </ThemeProvider>
       </div>
     )
@@ -57,16 +60,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
         enableSystem
         disableTransitionOnChange={false}
       >
-        <PrivyProvider
-          appId={privyConfig.appId}
-          config={privyConfig.config}
-        >
-          <QueryClientProvider client={queryClient}>
-            <WagmiProvider config={wagmiConfig}>
-              {children}
-            </WagmiProvider>
-          </QueryClientProvider>
-        </PrivyProvider>
+        <FontSizeProvider>
+          <PrivyProvider
+            appId={privyConfig.appId}
+            config={privyConfig.config}
+          >
+            <QueryClientProvider client={queryClient}>
+              <WagmiProvider config={wagmiConfig}>
+                {children}
+              </WagmiProvider>
+            </QueryClientProvider>
+          </PrivyProvider>
+        </FontSizeProvider>
       </ThemeProvider>
     </div>
   )

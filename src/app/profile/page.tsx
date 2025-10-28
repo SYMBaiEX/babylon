@@ -1,19 +1,21 @@
 'use client'
 
-import { User, Calendar } from 'lucide-react'
+import { User, Calendar, Settings, LogOut } from 'lucide-react'
+import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { LoginButton } from '@/components/auth/LoginButton'
 import { UserMenu } from '@/components/auth/UserMenu'
 import { ThemeToggle } from '@/components/shared/ThemeToggle'
+import { PageContainer } from '@/components/shared/PageContainer'
 import { cn } from '@/lib/utils'
 
 export default function ProfilePage() {
-  const { ready, authenticated } = useAuth()
+  const { ready, authenticated, logout } = useAuth()
   const { user } = useAuthStore()
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <PageContainer noPadding className="flex flex-col">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background border-b border-border">
         <div className="p-4 flex items-center justify-between">
@@ -86,10 +88,32 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Account Management Section - Desktop Only */}
+          {/* Account Management Section */}
           {ready && authenticated && (
-            <div className="hidden md:block px-4 pb-4">
+            <div className="px-4 pb-4">
               <UserMenu />
+
+              {/* Action Buttons - 2x1 Grid */}
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <Link
+                  href="/settings"
+                  className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold rounded-xl transition-colors border-2 hover:bg-[#1c9cf0]/10"
+                  style={{
+                    borderColor: '#1c9cf0',
+                    color: '#1c9cf0'
+                  }}
+                >
+                  <Settings className="w-4 h-4" />
+                  <span>Settings</span>
+                </Link>
+                <button
+                  onClick={logout}
+                  className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-destructive hover:bg-destructive/10 rounded-xl transition-colors border-2 border-destructive/20"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Disconnect</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -102,6 +126,6 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
-    </div>
+    </PageContainer>
   )
 }

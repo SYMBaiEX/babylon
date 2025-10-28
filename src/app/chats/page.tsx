@@ -6,6 +6,7 @@ import { Search, X, ArrowLeft, MessageCircle } from 'lucide-react'
 import Link from 'next/link'
 import type { ChatMessage } from '@/shared/types'
 import { Avatar, GroupAvatar } from '@/components/shared/Avatar'
+import { PageContainer } from '@/components/shared/PageContainer'
 import { cn } from '@/lib/utils'
 
 export default function ChatsPage() {
@@ -176,7 +177,7 @@ export default function ChatsPage() {
   }
 
   return (
-    <div className="flex flex-col md:flex-row h-screen">
+    <PageContainer noPadding className="flex flex-col md:flex-row">
       {/* Left Column - Groups List */}
       <div className={cn(
         'w-full md:w-96 flex-col bg-background',
@@ -381,6 +382,6 @@ export default function ChatsPage() {
           </div>
         )}
       </div>
-    </div>
+    </PageContainer>
   )
 }

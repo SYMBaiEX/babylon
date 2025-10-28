@@ -16,7 +16,8 @@ export function ThemeToggle() {
   if (!mounted) {
     return (
       <button
-        className="relative inline-flex h-10 w-20 items-center rounded-full bg-muted/50 backdrop-blur-md border border-border/50"
+        className="relative inline-flex h-10 w-20 items-center rounded-full bg-muted/50 backdrop-blur-md"
+        style={{ border: '1px solid #1c9cf0' }}
         aria-label="Toggle theme"
       >
         <span className="sr-only">Toggle theme</span>
@@ -32,12 +33,13 @@ export function ThemeToggle() {
       className={cn(
         'relative inline-flex h-10 w-20 items-center rounded-full transition-all duration-500 ease-out',
         'bg-gradient-to-br shadow-depth hover:shadow-depth-lg',
-        'backdrop-blur-xl border',
+        'backdrop-blur-xl',
         'group overflow-hidden',
         isDark
-          ? 'from-slate-800/90 to-slate-900/90 border-slate-700/50 shadow-glass-dark'
-          : 'from-white/90 to-gray-50/90 border-gray-200/50 shadow-glass'
+          ? 'from-slate-800/90 to-slate-900/90 shadow-glass-dark'
+          : 'from-white/90 to-gray-50/90 shadow-glass'
       )}
+      style={{ border: '1px solid #1c9cf0' }}
       aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
     >
       {/* Sliding background */}

@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import { useGameStore } from '@/stores/gameStore'
 import { Play, Pause, SkipBack, SkipForward } from 'lucide-react'
 import type { GeneratedGame } from '@/generator/GameGenerator'
+import { PageContainer } from '@/components/shared/PageContainer'
 import { cn } from '@/lib/utils'
 
 export default function GamePage() {
@@ -186,30 +187,30 @@ export default function GamePage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen p-4 md:p-6 max-w-3xl mx-auto bg-background">
+    <PageContainer className="overflow-y-auto pb-24 md:pb-4">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-primary to-accent-foreground bg-clip-text text-transparent">
+      <div className="mb-4 md:mb-6">
+        <h1 className="text-xl md:text-3xl font-bold mb-2 bg-gradient-to-r from-primary to-accent-foreground bg-clip-text text-transparent">
           Timeline Controls
         </h1>
-        <p className="text-muted-foreground">
+        <p className="text-sm md:text-base text-muted-foreground">
           Control game playback - posts will appear in the Feed as time progresses
         </p>
       </div>
 
       {/* Timeline Section */}
       <div className={cn(
-        'bg-card border border-border rounded-2xl p-6',
+        'bg-card border border-border rounded-2xl p-4 md:p-6',
         'shadow-lg',
         'transition-all duration-300'
       )}>
         <div className="relative">
-          <h3 className="text-lg font-bold text-card-foreground mb-4">
+          <h3 className="text-base md:text-lg font-bold text-card-foreground mb-3 md:mb-4">
             Timeline
           </h3>
 
           {/* Playback Buttons */}
-          <div className="flex gap-2 mb-4">
+          <div className="flex gap-2 mb-3 md:mb-4">
             <button
               onClick={() => {
                 setCurrentTimeMs(0)
@@ -217,25 +218,25 @@ export default function GamePage() {
               }}
               disabled={!startTime}
               className={cn(
-                'group relative px-3 py-2',
+                'group relative px-3 py-2.5 md:py-2',
                 'bg-secondary text-secondary-foreground',
                 'border border-border rounded-xl',
-                'hover:bg-secondary/80',
+                'hover:bg-secondary/80 active:scale-95',
                 'disabled:opacity-50 disabled:cursor-not-allowed',
                 'transition-all duration-300'
               )}
             >
-              <SkipBack className="w-4 h-4 group-hover:text-primary transition-colors" />
+              <SkipBack className="w-5 h-5 md:w-4 md:h-4 group-hover:text-primary transition-colors" />
             </button>
 
             <button
               onClick={() => setIsPlaying(!isPlaying)}
               disabled={!startTime}
               className={cn(
-                'group relative flex-1 px-3 py-2 rounded-xl font-bold text-sm',
+                'group relative flex-1 px-4 py-2.5 md:py-2 rounded-xl font-bold text-sm',
                 'disabled:opacity-50 disabled:cursor-not-allowed',
                 'flex items-center justify-center gap-2',
-                'transition-all duration-300 hover:scale-105',
+                'transition-all duration-300 hover:scale-105 active:scale-95',
                 'shadow-md',
                 isPlaying
                   ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
@@ -244,12 +245,12 @@ export default function GamePage() {
             >
               {isPlaying ? (
                 <>
-                  <Pause className="w-4 h-4" />
+                  <Pause className="w-5 h-5 md:w-4 md:h-4" />
                   Pause
                 </>
               ) : (
                 <>
-                  <Play className="w-4 h-4" />
+                  <Play className="w-5 h-5 md:w-4 md:h-4" />
                   Play
                 </>
               )}
@@ -262,21 +263,21 @@ export default function GamePage() {
               }}
               disabled={!startTime}
               className={cn(
-                'group relative px-3 py-2',
+                'group relative px-3 py-2.5 md:py-2',
                 'bg-secondary text-secondary-foreground',
                 'border border-border rounded-xl',
-                'hover:bg-secondary/80',
+                'hover:bg-secondary/80 active:scale-95',
                 'disabled:opacity-50 disabled:cursor-not-allowed',
                 'transition-all duration-300'
               )}
             >
-              <SkipForward className="w-4 h-4 group-hover:text-primary transition-colors" />
+              <SkipForward className="w-5 h-5 md:w-4 md:h-4 group-hover:text-primary transition-colors" />
             </button>
           </div>
 
           {/* Speed Control */}
-          <div className="mb-4">
-            <div className="text-sm text-muted-foreground mb-2 font-medium">Speed</div>
+          <div className="mb-3 md:mb-4">
+            <div className="text-xs md:text-sm text-muted-foreground mb-2 font-medium">Speed</div>
             <select
               value={speed}
               onChange={(e) => setSpeed(Number(e.target.value))}
@@ -299,18 +300,18 @@ export default function GamePage() {
 
           {/* Current Time Display */}
           <div className={cn(
-            'p-4 rounded-xl mb-4',
+            'p-3 md:p-4 rounded-xl mb-3 md:mb-4',
             'bg-accent border border-border'
           )}>
             <div className="text-xs text-muted-foreground mb-1 font-medium">Current Time</div>
-            <div className="text-lg font-bold text-accent-foreground">
+            <div className="text-base md:text-lg font-bold text-accent-foreground">
               {currentDate ? currentDate.toLocaleDateString('en-US', {
                 month: 'short',
                 day: 'numeric',
                 year: 'numeric'
               }) : 'No timeline'}
             </div>
-            <div className="text-sm text-muted-foreground mt-0.5">
+            <div className="text-xs md:text-sm text-muted-foreground mt-0.5">
               {currentDate ? currentDate.toLocaleTimeString('en-US', {
                 hour: '2-digit',
                 minute: '2-digit'
@@ -329,10 +330,10 @@ export default function GamePage() {
               setIsPlaying(false)
             }}
             disabled={!startTime}
-            className="w-full h-2 bg-input rounded-full appearance-none cursor-pointer accent-primary disabled:opacity-50 disabled:cursor-not-allowed mb-2 border border-border"
+            className="w-full h-3 md:h-2 bg-input rounded-full appearance-none cursor-pointer accent-primary disabled:opacity-50 disabled:cursor-not-allowed mb-2 border border-border touch-pan-x"
           />
 
-          <div className="text-xs text-muted-foreground text-center mb-4 font-medium">
+          <div className="text-xs text-muted-foreground text-center mb-3 md:mb-4 font-medium">
             {allGames.reduce((count, game) => {
               return count + (game.timeline?.reduce((dayCount, day) => {
                 return dayCount + (day.feedPosts?.filter(post => {
@@ -345,18 +346,18 @@ export default function GamePage() {
 
           {/* Game Ranges */}
           {gameRanges.length > 0 && (
-            <div className="mt-4">
-              <div className="text-sm text-muted-foreground mb-2 font-medium">Games</div>
+            <div className="mt-3 md:mt-4">
+              <div className="text-xs md:text-sm text-muted-foreground mb-2 font-medium">Games</div>
               {gameRanges.map((range, idx) => (
                 <div
                   key={range.gameId}
                   className={cn(
-                    'p-3 rounded-xl mb-2',
+                    'p-2.5 md:p-3 rounded-xl mb-2',
                     'bg-card border border-border',
-                    'transition-all hover:bg-muted/50'
+                    'transition-all hover:bg-muted/50 active:scale-[0.99]'
                   )}
                 >
-                  <div className="text-sm font-semibold text-card-foreground mb-0.5">
+                  <div className="text-xs md:text-sm font-semibold text-card-foreground mb-0.5">
                     Game {idx + 1}: {range.gameName}
                   </div>
                   <div className="text-xs text-muted-foreground">
@@ -375,8 +376,8 @@ export default function GamePage() {
 
           {/* Jump to Day */}
           {timelineDays.length > 0 && (
-            <div className="mt-4">
-              <div className="text-sm text-muted-foreground mb-2 font-medium">Jump to Day</div>
+            <div className="mt-3 md:mt-4">
+              <div className="text-xs md:text-sm text-muted-foreground mb-2 font-medium">Jump to Day</div>
               <select
                 onChange={(e) => {
                   const selectedTimestamp = Number(e.target.value)
@@ -406,7 +407,7 @@ export default function GamePage() {
           {/* Time Range Display */}
           {startTime && endTime && (
             <div className={cn(
-              'mt-4 p-3 rounded-xl',
+              'mt-3 md:mt-4 p-2.5 md:p-3 rounded-xl',
               'bg-muted border border-border',
               'text-xs text-muted-foreground'
             )}>
@@ -424,6 +425,6 @@ export default function GamePage() {
           )}
         </div>
       </div>
-    </div>
+    </PageContainer>
   )
 }

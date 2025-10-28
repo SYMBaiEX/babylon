@@ -2,13 +2,14 @@
 
 import { useState } from 'react'
 import { Search } from 'lucide-react'
+import { PageContainer } from '@/components/shared/PageContainer'
 import { cn } from '@/lib/utils'
 
 export default function MarketsPage() {
   const [searchQuery, setSearchQuery] = useState('')
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <PageContainer noPadding className="flex flex-col">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background border-b border-border">
         <div className="p-4">
@@ -44,6 +45,6 @@ export default function MarketsPage() {
           </div>
         </div>
       </div>
-    </div>
+    </PageContainer>
   )
 }

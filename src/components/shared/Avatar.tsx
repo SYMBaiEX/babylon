@@ -9,6 +9,7 @@ interface AvatarProps {
   type?: 'actor' | 'business'
   size?: 'sm' | 'md' | 'lg'
   className?: string
+  scaleFactor?: number
 }
 
 interface GroupAvatarProps {
@@ -23,19 +24,32 @@ const sizeClasses = {
   lg: 'w-12 h-12 text-base',
 }
 
-export function Avatar({ id, name, type = 'actor', size = 'md', className }: AvatarProps) {
+export function Avatar({ id, name, type = 'actor', size = 'md', className, scaleFactor = 1 }: AvatarProps) {
   const [imageError, setImageError] = useState(false)
   const imagePath = type === 'business'
     ? `/images/businesses/${id}.jpg`
     : `/images/actors/${id}.jpg`
 
+  // Base sizes in rem
+  const baseSizes = {
+    sm: 2,    // 32px
+    md: 2.5,  // 40px
+    lg: 3,    // 48px
+  }
+
+  const scaledSize = baseSizes[size] * scaleFactor
+
   return (
     <div
       className={cn(
         'rounded-full bg-primary/20 flex items-center justify-center overflow-hidden',
-        sizeClasses[size],
         className
       )}
+      style={{
+        width: `${scaledSize}rem`,
+        height: `${scaledSize}rem`,
+        fontSize: `${scaleFactor}rem`
+      }}
     >
       {!imageError ? (
         <img
