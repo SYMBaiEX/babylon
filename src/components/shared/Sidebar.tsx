@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, TrendingUp, MessageCircle, User, PlayCircle, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Home, TrendingUp, MessageCircle, User, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { LoginButton } from '@/components/auth/LoginButton'
@@ -15,7 +15,6 @@ export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const pathname = usePathname()
   const { ready, authenticated } = useAuth()
-  const { isPlaying, allGames } = useGameStore()
 
   const navItems = [
     {
@@ -23,12 +22,6 @@ export function Sidebar() {
       href: '/feed',
       icon: Home,
       active: pathname === '/feed' || pathname === '/',
-    },
-    {
-      name: 'Game',
-      href: '/game',
-      icon: PlayCircle,
-      active: pathname === '/game',
     },
     {
       name: 'Markets',
@@ -168,7 +161,7 @@ export function Sidebar() {
           </div>
         )}
 
-        {/* Game Status */}
+        {/* Realtime Status */}
         {!isCollapsed && (
           <div
             className={cn(
@@ -177,11 +170,12 @@ export function Sidebar() {
             )}
             style={{ border: '2px solid #1c9cf0' }}
           >
-            <p className="font-semibold mb-1" style={{ color: '#1c9cf0' }}>Game Status</p>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <p className="font-semibold" style={{ color: '#1c9cf0' }}>Live Game</p>
+            </div>
             <p className="text-xs text-muted-foreground">
-              {allGames.length > 0
-                ? (isPlaying ? '▶️ Playing' : '⏸️ Paused')
-                : 'No games loaded'}
+              Realtime generation active
             </p>
           </div>
         )}

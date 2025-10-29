@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { useGameStore } from '@/stores/gameStore'
+import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import { FeedToggle } from '@/components/shared/FeedToggle'
 import { Avatar } from '@/components/shared/Avatar'
@@ -9,79 +8,144 @@ import { PageContainer } from '@/components/shared/PageContainer'
 import { SearchBar } from '@/components/shared/SearchBar'
 import { cn } from '@/lib/utils'
 import { useFontSize } from '@/contexts/FontSizeContext'
+import type { FeedPost } from '@/shared/types'
+
+interface RealtimeHistoryTick {
+  timestamp: string
+  posts: FeedPost[]
+  events: any[]
+  priceUpdates: any[]
+}
 
 export default function FeedPage() {
   const [tab, setTab] = useState<'latest' | 'following'>('latest')
   const [searchQuery, setSearchQuery] = useState('')
-  const { allGames, currentTimeMs, startTime } = useGameStore()
+  const [realtimePosts, setRealtimePosts] = useState<FeedPost[]>([])
+  const [loading, setLoading] = useState(true)
+  const [lastUpdate, setLastUpdate] = useState(new Date())
   const { fontSize } = useFontSize()
 
-  // Get current date based on timeline
-  const currentDate = startTime ? new Date(startTime + currentTimeMs) : null
-
-  // Helper function to determine if author is a business
-  const isBusinessAuthor = (authorId: string) => {
-    for (const game of allGames) {
-      const org = game.setup?.organizations?.find(o => o.id === authorId)
-      if (org) return true
-    }
-    return false
-  }
-
-  // Get visible feed posts filtered by current time
-  const visibleFeedPosts = useMemo(() => {
-    if (allGames.length === 0 || !startTime || !currentDate) return []
-
-    const posts: Array<{
-      post: {
-        author: string
-        authorName: string
-        content: string
-        timestamp: string
-        type: string
-        sentiment: number
-        clueStrength: number
-        replyTo?: string
+  // Load realtime posts from daemon history
+  useEffect(() => {
+    const loadRealtimePosts = async () => {
+      try {
+        const response = await fetch('/games/realtime/history.json')
+        if (response.ok) {
+          const data = await response.json()
+          
+          // Extract all posts from all ticks
+          const allPosts: FeedPost[] = []
+          if (data.ticks && Array.isArray(data.ticks)) {
+            data.ticks.forEach((tick: RealtimeHistoryTick) => {
+              if (tick.posts && Array.isArray(tick.posts)) {
+                allPosts.push(...tick.posts)
+              }
+            })
+          }
+          
+          // Sort by timestamp (newest first)
+          allPosts.sort((a, b) => 
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          )
+          
+          setRealtimePosts(allPosts)
+          setLoading(false)
+        } else {
+          // No realtime history yet, try loading from static files as fallback
+          await loadStaticGamePosts()
+        }
+      } catch (error) {
+        console.error('Failed to load realtime posts:', error)
+        // Fallback to static game files
+        await loadStaticGamePosts()
       }
-      gameId: string
-      gameName: string
-      timestampMs: number
-    }> = []
+    }
 
-    allGames.forEach((g) => {
-      const gameName = g.id.includes('genesis')
-        ? 'October'
-        : new Date(g.generatedAt).toLocaleDateString('en-US', { month: 'long' })
-
-      g.timeline?.forEach((day) => {
-        day.feedPosts?.forEach((post) => {
-          const postTime = new Date(post.timestamp).getTime()
-          posts.push({
-            post,
-            gameId: g.id,
-            gameName,
-            timestampMs: postTime
+    const loadStaticGamePosts = async () => {
+      const allPosts: FeedPost[] = []
+      
+      // Try genesis
+      try {
+        const genesis = await fetch('/genesis.json')
+        if (genesis.ok) {
+          const data = await genesis.json()
+          data.timeline?.forEach((day: any) => {
+            if (day.feedPosts) {
+              allPosts.push(...day.feedPosts)
+            }
           })
-        })
-      })
+        }
+      } catch (e) {
+        // Ignore
+      }
+
+      // Try latest
+      try {
+        const latest = await fetch('/games/latest.json')
+        if (latest.ok) {
+          const data = await latest.json()
+          data.timeline?.forEach((day: any) => {
+            if (day.feedPosts) {
+              allPosts.push(...day.feedPosts)
+            }
+          })
+        }
+      } catch (e) {
+        // Ignore
+      }
+
+      allPosts.sort((a, b) => 
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      )
+      
+      setRealtimePosts(allPosts)
+      setLoading(false)
+    }
+
+    loadRealtimePosts()
+
+    // Poll for new posts every 30 seconds
+    const pollInterval = setInterval(() => {
+      loadRealtimePosts()
+      setLastUpdate(new Date())
+    }, 30000)
+
+    return () => clearInterval(pollInterval)
+  }, [])
+
+  // Filter posts by current actual time (not future posts)
+  const visiblePosts = useMemo(() => {
+    const now = new Date().getTime()
+    return realtimePosts.filter(post => {
+      const postTime = new Date(post.timestamp).getTime()
+      return postTime <= now
     })
+  }, [realtimePosts])
 
-    const currentTimeAbsolute = startTime + currentTimeMs
-    return posts
-      .filter((p) => p.timestampMs <= currentTimeAbsolute)
-      .sort((a, b) => b.timestampMs - a.timestampMs)
-  }, [allGames, startTime, currentDate, currentTimeMs])
-
-  // Filter posts by search query
+  // Filter by search query
   const filteredPosts = useMemo(() => {
-    if (!searchQuery.trim()) return visibleFeedPosts
+    if (!searchQuery.trim()) return visiblePosts
 
     const query = searchQuery.toLowerCase()
-    return visibleFeedPosts.filter(item =>
-      item.post.content.toLowerCase().includes(query) ||
-      item.post.authorName.toLowerCase().includes(query)
+    return visiblePosts.filter(post =>
+      post.content.toLowerCase().includes(query) ||
+      post.authorName.toLowerCase().includes(query)
     )
-  }, [visibleFeedPosts, searchQuery])
+  }, [visiblePosts, searchQuery])
+
+  if (loading) {
+    return (
+      <PageContainer noPadding className="flex flex-col">
+        <FeedToggle activeTab={tab} onTabChange={setTab} />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center text-muted-foreground">
+            <div className="text-lg mb-2">Loading feed...</div>
+            <div className="text-sm">Fetching realtime posts</div>
+          </div>
+        </div>
+      </PageContainer>
+    )
+  }
 
   return (
     <PageContainer noPadding className="flex flex-col">
@@ -95,52 +159,34 @@ export default function FeedPage() {
           onChange={setSearchQuery}
           placeholder="Search posts..."
         />
+        {/* Live indicator */}
+        <div className="flex items-center justify-between mt-2">
+          <div className="text-xs text-muted-foreground">
+            {visiblePosts.length} posts • Last updated: {lastUpdate.toLocaleTimeString()}
+          </div>
+          <div className="flex items-center gap-1 text-xs">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            <span className="text-green-600 dark:text-green-400 font-medium">LIVE</span>
+          </div>
+        </div>
       </div>
 
       {/* Content area */}
       <div className="flex-1 overflow-y-auto bg-background">
-        {allGames.length === 0 ? (
-          // No game loaded
+        {visiblePosts.length === 0 ? (
+          // No posts yet
           <div className="max-w-2xl mx-auto p-8 text-center">
             <div className="text-muted-foreground py-12">
-              <h2 className="text-2xl font-bold mb-2 text-foreground">No Game Loaded</h2>
+              <h2 className="text-2xl font-bold mb-2 text-foreground">No Posts Yet</h2>
               <p className="mb-6">
-                Load a game from the Game page to see posts here
+                Start the realtime daemon to see posts appear
               </p>
-              <Link
-                href="/game"
-                className={cn(
-                  'inline-block px-6 py-3 rounded-lg font-semibold',
-                  'bg-primary text-primary-foreground',
-                  'hover:bg-primary/90',
-                  'transition-all duration-300'
-                )}
-              >
-                Go to Game Controls
-              </Link>
-            </div>
-          </div>
-        ) : filteredPosts.length === 0 && !searchQuery ? (
-          // Game loaded but no visible posts yet
-          <div className="max-w-2xl mx-auto p-8 text-center">
-            <div className="text-muted-foreground py-12">
-              <h2 className="text-xl font-semibold mb-2 text-foreground">⏱️ No Posts Yet</h2>
-              <p className="mb-4">
-                {currentDate
-                  ? `Timeline: ${currentDate.toLocaleDateString()}`
-                  : 'Move the timeline to see posts'}
-              </p>
-              <Link
-                href="/game"
-                className={cn(
-                  'inline-block px-6 py-3 rounded-lg font-semibold',
-                  'bg-primary text-primary-foreground',
-                  'hover:bg-primary/90',
-                  'transition-all duration-300'
-                )}
-              >
-                Go to Game Controls
-              </Link>
+              <div className="bg-muted p-4 rounded-lg text-left text-sm font-mono">
+                <div className="text-foreground mb-2">$ bun run daemon</div>
+                <div className="text-muted-foreground">
+                  This will start generating 10-20 posts per minute
+                </div>
+              </div>
             </div>
           </div>
         ) : filteredPosts.length === 0 && searchQuery ? (
@@ -167,14 +213,24 @@ export default function FeedPage() {
         ) : (
           // Show posts - Twitter-like layout
           <div className="max-w-[600px] mx-auto">
-            {filteredPosts.map((item, i) => {
-              const post = item.post
+            {filteredPosts.map((post, i) => {
               const postDate = new Date(post.timestamp)
-              const isBusiness = isBusinessAuthor(post.author)
+              const now = new Date()
+              const diffMs = now.getTime() - postDate.getTime()
+              const diffMinutes = Math.floor(diffMs / 60000)
+              const diffHours = Math.floor(diffMs / 3600000)
+              const diffDays = Math.floor(diffMs / 86400000)
+
+              let timeAgo: string
+              if (diffMinutes < 1) timeAgo = 'Just now'
+              else if (diffMinutes < 60) timeAgo = `${diffMinutes}m ago`
+              else if (diffHours < 24) timeAgo = `${diffHours}h ago`
+              else if (diffDays < 7) timeAgo = `${diffDays}d ago`
+              else timeAgo = postDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
               return (
                 <article
-                  key={`${item.gameId}-${post.timestamp}-${i}`}
+                  key={`${post.id}-${i}`}
                   className={cn(
                     'px-4 py-3 border-b border-border',
                     'hover:bg-muted/30 cursor-pointer',
@@ -194,7 +250,7 @@ export default function FeedPage() {
                       <Avatar
                         id={post.author}
                         name={post.authorName}
-                        type={isBusiness ? 'business' : 'actor'}
+                        type="actor"
                         size="lg"
                         scaleFactor={fontSize}
                       />
@@ -212,11 +268,8 @@ export default function FeedPage() {
                           {post.authorName}
                         </Link>
                         <span className="text-muted-foreground text-sm">·</span>
-                        <time className="text-muted-foreground text-sm">
-                          {postDate.toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric'
-                          })}
+                        <time className="text-muted-foreground text-sm" title={postDate.toLocaleString()}>
+                          {timeAgo}
                         </time>
                       </div>
 

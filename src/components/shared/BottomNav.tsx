@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, PlayCircle, TrendingUp, MessageCircle, User } from 'lucide-react'
+import { Home, TrendingUp, MessageCircle, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function BottomNav() {
@@ -14,12 +14,6 @@ export function BottomNav() {
       href: '/feed',
       icon: Home,
       active: pathname === '/feed' || pathname === '/',
-    },
-    {
-      name: 'Game',
-      href: '/game',
-      icon: PlayCircle,
-      active: pathname === '/game',
     },
     {
       name: 'Markets',

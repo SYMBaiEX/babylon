@@ -5,6 +5,7 @@
 import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import type { GeneratedGame } from '../generator/GameGenerator';
+import { WorldContextPanel } from './components/WorldContextPanel';
 
 interface TimelineDay {
   day: number;
@@ -431,11 +432,17 @@ export function FeedView({
                               objectFit: 'cover'
                             }}
                             onError={(e) => {
-                              // Fallback to letter avatar if image fails to load
-                              e.currentTarget.style.display = 'none';
-                              const parent = e.currentTarget.parentElement;
-                              if (parent) {
-                                parent.textContent = post.authorName.charAt(0).toUpperCase();
+                              // Try organization image if actor image fails
+                              const currentSrc = e.currentTarget.src;
+                              if (currentSrc.includes('/actors/')) {
+                                e.currentTarget.src = `/images/organizations/${post.author}.jpg`;
+                              } else {
+                                // Final fallback to letter avatar
+                                e.currentTarget.style.display = 'none';
+                                const parent = e.currentTarget.parentElement;
+                                if (parent) {
+                                  parent.textContent = post.authorName.charAt(0).toUpperCase();
+                                }
                               }
                             }}
                           />
@@ -743,38 +750,23 @@ export function FeedView({
                 )}
               </div>
 
-              {/* Questions */}
-              <div>
-                <h3 style={{
-                  margin: '0 0 12px 0',
-                  fontSize: 18,
-                  fontWeight: 700,
-                  color: '#e7e9ea'
-                }}>
-                  Questions
-                </h3>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {allGames[allGames.length - 1]?.setup.questions.map(q => (
-                    <div
-                      key={q.id}
-                      style={{
-                        padding: '12px',
-                        background: '#16181c',
-                        borderRadius: 6,
-                        border: '1px solid #2f3336'
-                      }}
-                    >
-                      <div style={{
-                        fontSize: 14,
-                        color: '#e7e9ea',
-                        lineHeight: 1.4
-                      }}>
-                        {q.text}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              {/* World Context with Questions */}
+              <div style={{ marginTop: 24 }}>
+                {allGames.length > 0 && allGames[allGames.length - 1] && (
+                  <WorldContextPanel
+                    mainActors={allGames[allGames.length - 1].setup.mainActors.map(a => ({
+                      id: a.id,
+                      name: a.name,
+                      description: a.description || '',
+                      tier: a.tier,
+                      role: a.role,
+                      domain: a.domain
+                    }))}
+                    scenarios={allGames[allGames.length - 1].setup.scenarios}
+                    questions={allGames[allGames.length - 1].setup.questions}
+                    worldSummary={`Tracking ${allGames[allGames.length - 1].setup.questions.length} prediction markets across ${allGames[allGames.length - 1].setup.scenarios.length} scenarios with ${allGames[allGames.length - 1].setup.mainActors.length} main actors.`}
+                  />
+                )}
               </div>
             </div>
           </>
