@@ -6,8 +6,7 @@
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
-  authenticate,
-  authErrorResponse,
+  optionalAuth,
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
@@ -23,8 +22,17 @@ const prisma = new PrismaClient();
  */
 export async function GET(request: NextRequest) {
   try {
-    // Authenticate user
-    const user = await authenticate(request);
+    // Optional authentication - returns null if not authenticated
+    const user = await optionalAuth(request);
+
+    // If not authenticated, return empty array
+    if (!user) {
+      return successResponse({
+        posts: [],
+        total: 0,
+        hasMore: false,
+      });
+    }
 
     // Parse query parameters
     const searchParams = request.nextUrl.searchParams;
@@ -142,9 +150,6 @@ export async function GET(request: NextRequest) {
       offset,
     });
   } catch (error) {
-    if (error instanceof Error && error.message === 'Authentication failed') {
-      return authErrorResponse('Unauthorized');
-    }
     console.error('Error fetching favorites feed:', error);
     return errorResponse('Failed to fetch favorites feed');
   }

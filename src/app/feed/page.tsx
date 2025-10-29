@@ -13,9 +13,9 @@ import { useFontSize } from '@/contexts/FontSizeContext'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
 
 export default function FeedPage() {
-  const [tab, setTab] = useState<'latest' | 'following' | 'favorites'>('latest')
+  const [tab, setTab] = useState<'latest' | 'following'>('latest')
   const [searchQuery, setSearchQuery] = useState('')
-  const [favoritesPosts, setFavoritesPosts] = useState<Array<{
+  const [followingPosts, setFollowingPosts] = useState<Array<{
     post: {
       author: string
       authorName: string
@@ -30,7 +30,7 @@ export default function FeedPage() {
     gameName: string
     timestampMs: number
   }>>([])
-  const [loadingFavorites, setLoadingFavorites] = useState(false)
+  const [loadingFollowing, setLoadingFollowing] = useState(false)
   const { allGames, currentTimeMs, startTime } = useGameStore()
   const { fontSize } = useFontSize()
 
@@ -40,12 +40,12 @@ export default function FeedPage() {
   // Get current date based on timeline
   const currentDate = startTime ? new Date(startTime + currentTimeMs) : null
 
-  // Fetch favorites posts when favorites tab is active
+  // Fetch following posts when following tab is active
   useEffect(() => {
-    const fetchFavoritesPosts = async () => {
-      if (tab !== 'favorites') return
+    const fetchFollowingPosts = async () => {
+      if (tab !== 'following') return
 
-      setLoadingFavorites(true)
+      setLoadingFollowing(true)
       try {
         // TODO: Get auth token from Privy
         const token = null // Placeholder - will be implemented with Privy integration
@@ -65,16 +65,16 @@ export default function FeedPage() {
         if (response.ok) {
           const data = await response.json()
           // Transform API response to match feed post structure
-          setFavoritesPosts(data.data.posts || [])
+          setFollowingPosts(data.data.posts || [])
         }
       } catch (error) {
-        console.error('Failed to fetch favorites:', error)
+        console.error('Failed to fetch following:', error)
       } finally {
-        setLoadingFavorites(false)
+        setLoadingFollowing(false)
       }
     }
 
-    fetchFavoritesPosts()
+    fetchFollowingPosts()
   }, [tab])
 
   // Helper function to determine if author is a business
@@ -132,8 +132,8 @@ export default function FeedPage() {
 
   // Filter posts by search query
   const filteredPosts = useMemo(() => {
-    // Use favoritesPosts when favorites tab is active, otherwise use visibleFeedPosts
-    const sourcePosts = tab === 'favorites' ? favoritesPosts : visibleFeedPosts
+    // Use followingPosts when following tab is active, otherwise use visibleFeedPosts
+    const sourcePosts = tab === 'following' ? followingPosts : visibleFeedPosts
 
     if (!searchQuery.trim()) return sourcePosts
 
@@ -142,7 +142,7 @@ export default function FeedPage() {
       item.post.content.toLowerCase().includes(query) ||
       item.post.authorName.toLowerCase().includes(query)
     )
-  }, [tab, favoritesPosts, visibleFeedPosts, searchQuery])
+  }, [tab, followingPosts, visibleFeedPosts, searchQuery])
 
   return (
     <PageContainer noPadding className="flex flex-col">
@@ -183,15 +183,15 @@ export default function FeedPage() {
               </Link>
             </div>
           </div>
-        ) : filteredPosts.length === 0 && !searchQuery && tab === 'favorites' ? (
-          // Favorites tab with no favorited profiles
+        ) : filteredPosts.length === 0 && !searchQuery && tab === 'following' ? (
+          // Following tab with no followed profiles
           <div className="max-w-2xl mx-auto p-8 text-center">
             <div className="text-muted-foreground py-12">
-              <h2 className="text-xl font-semibold mb-2 text-foreground">⭐ No Favorites Yet</h2>
+              <h2 className="text-xl font-semibold mb-2 text-foreground">👥 Not Following Anyone Yet</h2>
               <p className="mb-4">
-                {loadingFavorites
-                  ? 'Loading favorites...'
-                  : 'Favorite profiles to see their posts here. Visit a profile and click the Favorite button.'}
+                {loadingFollowing
+                  ? 'Loading following...'
+                  : 'Follow profiles to see their posts here. Visit a profile and click the Follow button.'}
               </p>
             </div>
           </div>

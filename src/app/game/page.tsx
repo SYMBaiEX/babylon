@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { useGameStore } from '@/stores/gameStore'
 import { Play, Pause, SkipBack, SkipForward } from 'lucide-react'
 import type { GeneratedGame } from '@/generator/GameGenerator'
@@ -28,8 +28,6 @@ export default function GamePage() {
     setSpeed,
     setTimelineData
   } = useGameStore()
-
-  const intervalRef = useRef<NodeJS.Timeout | undefined>(undefined)
 
   // Load games on mount
   useEffect(() => {
@@ -140,30 +138,6 @@ export default function GamePage() {
       gameRanges: ranges
     })
   }
-
-  // Playback interval
-  useEffect(() => {
-    if (isPlaying && totalDurationMs > 0) {
-      intervalRef.current = setInterval(() => {
-        const prev = currentTimeMs
-        const next = prev + 1000 * speed
-        if (next >= totalDurationMs) {
-          setIsPlaying(false)
-          setCurrentTimeMs(totalDurationMs)
-        } else {
-          setCurrentTimeMs(next)
-        }
-      }, 50)
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-      }
-    }
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-    }
-  }, [isPlaying, speed, totalDurationMs])
 
   const currentDate = startTime ? new Date(startTime + currentTimeMs) : null
 

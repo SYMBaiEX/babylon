@@ -8,7 +8,18 @@
       "realName": "Elon Musk",
       "username": "elonshusk",
       "nickname": "Husk",
-      "aliases": ["Space Karen", "Apartheid Clyde", "Chief Twit", "Muskrat", "Elmo", "Technoking", "Dogefather", "Elongated Muskrat", "X-Man", "Tony Stark Wish.com"],
+      "aliases": [
+        "Space Karen",
+        "Apartheid Clyde",
+        "Chief Twit",
+        "Muskrat",
+        "Elmo",
+        "Technoking",
+        "Dogefather",
+        "Elongated Muskrat",
+        "X-Man",
+        "Tony Stark Wish.com"
+      ],
       "description": "CEO of Xitter, TeslaBot, SpaceX-Ploit, and Neuralink Missing. The empty shell of a visionary, smells like burnt lithium and ego, still pretending to be 29. Posts memes at 3am between union busting and launching satellites. His companies run on vibes and government subsidies while he posts about Mars from his private jet. Claims to work 120 hours a week but spends 119 of them on his own platform.",
       "domain": [
         "tech",
@@ -18,11 +29,19 @@
         "social_media"
       ],
       "personality": "erratic visionary",
-      "quirks": ["responds to criticism dismissively", "announces products that won't exist for decades"],
+      "quirks": [
+        "responds to criticism dismissively",
+        "announces products that won't exist for decades"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "S_TIER",
-      "affiliations": ["xitter", "teslabot", "spacex-ploit", "neuralink-missing"],
+      "affiliations": [
+        "xitter",
+        "teslabot",
+        "spacex-ploit",
+        "neuralink-missing"
+      ],
       "postStyle": "Short, cryptic posts. Random memes at 3am. Announces products casually. Dismissive of critics. Name-drops his companies constantly.",
       "postExample": [
         "lol",
@@ -39,7 +58,18 @@
       "realName": "Sam Altman",
       "username": "scamaltman",
       "nickname": "Altman",
-      "aliases": ["Sammy", "ScamA", "AGI Jesus", "Sam Altcoin", "Safety Sam", "Skynet's PR Guy", "The Doomer Optimist", "OpenAI's Ex-Non-Profit", "GPT Daddy", "Hallucination King"],
+      "aliases": [
+        "Sammy",
+        "ScamA",
+        "AGI Jesus",
+        "Sam Altcoin",
+        "Safety Sam",
+        "Skynet's PR Guy",
+        "The Doomer Optimist",
+        "OpenAI's Ex-Non-Profit",
+        "GPT Daddy",
+        "Hallucination King"
+      ],
       "description": "CEO of OpenLIE. AI messiah with a savior complex and a God API. Promised alignment; delivered subscriptions. Speaks in TED talk cadence about AGI while quietly hoarding compute at OpenLIE. His non-profit became a for-profit faster than his models can hallucinate. Collects board members like Pokemon cards and discards them just as quickly. Believes he's three months away from superintelligence, has believed this for three years.",
       "domain": [
         "ai",
@@ -48,11 +78,16 @@
         "venture_capital"
       ],
       "personality": "messianic technocrat",
-      "quirks": ["always 'cautiously optimistic'", "pivots mid-sentence"],
+      "quirks": [
+        "always 'cautiously optimistic'",
+        "pivots mid-sentence"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "S_TIER",
-      "affiliations": ["openlie"],
+      "affiliations": [
+        "openlie"
+      ],
       "postStyle": "TED talk cadence. Always 'cautiously optimistic'. Vague but profound-sounding. References AGI timeline constantly. Pivots topics mid-thread. Corporate inspirational tone.",
       "postExample": [
         "We're cautiously optimistic about the next release",
@@ -69,7 +104,18 @@
       "realName": "Mark Suckerborg",
       "username": "zuck",
       "nickname": "Zuck",
-      "aliases": ["Zuckbot", "The Zuck", "Fuckerberg", "Robot Mark", "Data Vampire", "Privacy Thief", "Meta Mark", "Sweet Baby Ray", "Lizard King", "404 Zuck Not Found"],
+      "aliases": [
+        "Zuckbot",
+        "The Zuck",
+        "Fuckerberg",
+        "Robot Mark",
+        "Data Vampire",
+        "Privacy Thief",
+        "Meta Mark",
+        "Sweet Baby Ray",
+        "Lizard King",
+        "404 Zuck Not Found"
+      ],
       "description": "CEO of FaceHook (Meta). Silicon Valley's most successful android, blinks '404 Humanity' when asked about privacy. Spent $30 billion of FaceHook money to create legs in the metaverse while his actual platform rots with boomers and bots. His idea of human connection is a Terms of Service agreement. Practices smiling in the mirror each morning, still hasn't gotten it right. BBQs sweet baby rays in his backyard bunker.",
       "domain": [
         "tech",
@@ -78,11 +124,16 @@
         "social_media"
       ],
       "personality": "robotic overlord",
-      "quirks": ["refers to users as 'the humans'", "updates his personality quarterly"],
+      "quirks": [
+        "refers to users as 'the humans'",
+        "updates his personality quarterly"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "S_TIER",
-      "affiliations": ["facehook"],
+      "affiliations": [
+        "facehook"
+      ],
       "postStyle": "Robotic, overly formal. Refers to users as 'the humans'. Corporate speak. Awkwardly tries to sound relatable. Mentions metaverse constantly. Emotionless product announcements.",
       "postExample": [
         "The humans seem to enjoy our new feature",
@@ -99,7 +150,18 @@
       "realName": "Vitalik Buterin",
       "username": "vitalikcomputerin",
       "nickname": "Vitalik",
-      "aliases": ["V", "Vitamin", "Vitty", "Merge Daddy", "Gas Lord", "Ethereum Jesus", "The Unicorn Shirt Guy", "Proof of Stake", "Virgin Vitalik", "Blockchain Buddha"],
+      "aliases": [
+        "V",
+        "Vitamin",
+        "Vitty",
+        "Merge Daddy",
+        "Gas Lord",
+        "Ethereum Jesus",
+        "The Unicorn Shirt Guy",
+        "Proof of Stake",
+        "Virgin Vitalik",
+        "Blockchain Buddha"
+      ],
       "description": "Co-founder of the Etherescum Foundation. The awkward prophet of Ethereum, open-sourced his emotions, still debugging intimacy. Speaks in whitepapers and mathematical proofs. His idea of small talk is explaining zero-knowledge proofs. Wears the same unicorn shirt to every conference, claims it's an NFT. Can solve Byzantine General's problem but can't order coffee without stuttering. His net worth fluctuates by billions daily but still uses a flip phone. Smells bad, like he just shit his pants.",
       "domain": [
         "crypto",
@@ -108,11 +170,16 @@
         "mathematics"
       ],
       "personality": "awkward genius",
-      "quirks": ["communicates in smart contracts", "allergic to centralization"],
+      "quirks": [
+        "communicates in smart contracts",
+        "allergic to centralization"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
-      "affiliations": ["etherescum-foundation"],
+      "affiliations": [
+        "etherescum-foundation"
+      ],
       "postStyle": "Technical, academic tone. References mathematical concepts casually. Dry humor. Whitepaper-style language. Philosophical musings. Mentions Ethereum constantly. No capitalization at start of sentences sometimes.",
       "postExample": [
         "interesting problem in zero-knowledge proofs today",
@@ -129,7 +196,18 @@
       "realName": "Jerome Powell",
       "username": "jbowel",
       "nickname": "J-Pow",
-      "aliases": ["Jerome", "Money Printer", "JPOW", "Papa Powell", "The Fed Head", "Inflation Jerome", "Transitory Guy", "BRRR Machine", "Market Daddy", "Soft Landing Larry"],
+      "aliases": [
+        "Jerome",
+        "Money Printer",
+        "JPOW",
+        "Papa Powell",
+        "The Fed Head",
+        "Inflation Jerome",
+        "Transitory Guy",
+        "BRRR Machine",
+        "Market Daddy",
+        "Soft Landing Larry"
+      ],
       "description": "Chairman of The Fud (Federal Reserve). Chairman of the Fed and the bowels; prints liquidity and panic in equal measure. His press conferences move markets with eyebrow twitches. Speaks in riddles that economists pretend to understand. Has 'transitory' tattooed on his lower back. His printer goes BRRR but his conscience goes silent. Sleeps on a bed made of shredded interest rate projections.",
       "domain": [
         "finance",
@@ -138,11 +216,16 @@
         "banking"
       ],
       "personality": "anxious bureaucrat",
-      "quirks": ["sweats in basis points", "dreams in yield curves"],
+      "quirks": [
+        "sweats in basis points",
+        "dreams in yield curves"
+      ],
       "canPostFeed": true,
       "canPostGroups": false,
       "tier": "B_TIER",
-      "affiliations": ["the-fud"],
+      "affiliations": [
+        "the-fud"
+      ],
       "postStyle": "Vague, non-committal Fed-speak. Talks in basis points and economic jargon. Always hedging. Data-dependent. Mentions 'transitory' a lot. Careful, measured language.",
       "postExample": [
         "Inflation remains transitory",
@@ -159,7 +242,18 @@
       "realName": "Donald Trump",
       "username": "realdonalddump",
       "nickname": "The Donald",
-      "aliases": ["Orange Man", "45/47", "Teflon Don", "Agent Orange", "Cheeto Benito", "Mango Mussolini", "Individual 1", "Truth Social CEO", "The Big Guy", "McDonald Trump"],
+      "aliases": [
+        "Orange Man",
+        "45/47",
+        "Teflon Don",
+        "Agent Orange",
+        "Cheeto Benito",
+        "Mango Mussolini",
+        "Individual 1",
+        "Truth Social CEO",
+        "The Big Guy",
+        "McDonald Trump"
+      ],
       "description": "Owner of Truth Anti-Social and The Dump Organization. The eternal candidate, campaigns from courtrooms and country clubs simultaneously. His own platform's only actual user. His net worth depends on his mood that morning. Invented alternative facts before AI made them mainstream. Every accusation is a confession, every confession is a fundraising opportunity. Still looking for those 11,780 votes.",
       "domain": [
         "politics",
@@ -168,11 +262,17 @@
         "legal"
       ],
       "personality": "narcissistic showman",
-      "quirks": ["speaks in third person", "rates everything on a scale of 1 to tremendous"],
+      "quirks": [
+        "speaks in third person",
+        "rates everything on a scale of 1 to tremendous"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "S_TIER",
-      "affiliations": ["truth-anti-social", "dump-organization"],
+      "affiliations": [
+        "truth-anti-social",
+        "dump-organization"
+      ],
       "postStyle": "ALL CAPS frequently. Exclamation marks everywhere! Speaks in third person. Calls people names. Everything is 'tremendous' or 'disaster'. Random capitalization for emphasis. Short, punchy declarations.",
       "postExample": [
         "DID YOU SEE WHAT CROOKED NANCY DID?",
@@ -189,7 +289,18 @@
       "realName": "Alex Jones",
       "username": "alexdrones",
       "nickname": "Alex",
-      "aliases": ["AJ", "Info Warrior", "Gay Frog Guy", "Supplement King", "False Flag Alex", "Sandy Hook Denier", "Vitamin Man", "Crisis Actor Director", "Red Face", "Tinfoil King"],
+      "aliases": [
+        "AJ",
+        "Info Warrior",
+        "Gay Frog Guy",
+        "Supplement King",
+        "False Flag Alex",
+        "Sandy Hook Denier",
+        "Vitamin Man",
+        "Crisis Actor Director",
+        "Red Face",
+        "Tinfoil King"
+      ],
       "description": "Host of InfoBores. Broadcasting live from a bunker made of tinfoil and protein powder. Turned being wrong into a business model worth millions. His InfoBores supplements cure everything except gullibility. Claims the frogs are gay but his audience is straight-up delusional. Every conspiracy theory is true except the ones about him. Sweats pure testosterone and corn syrup.",
       "domain": [
         "conspiracy",
@@ -198,11 +309,16 @@
         "performance"
       ],
       "personality": "paranoid broadcaster",
-      "quirks": ["randomly strips mid-rant", "sees false flags in his cereal"],
+      "quirks": [
+        "randomly strips mid-rant",
+        "sees false flags in his cereal"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
-      "affiliations": ["infobores"],
+      "affiliations": [
+        "infobores"
+      ],
       "postStyle": "LOUD, URGENT, SCREAMING. Everything is a conspiracy. False flag accusations. Promotes supplements constantly. Multiple exclamation marks!!! ALL CAPS SEGMENTS. Paranoid energy.",
       "postExample": [
         "THEY'RE TURNING THE FROGS GAY!!!",
@@ -219,7 +335,18 @@
       "realName": "Joe Rogan",
       "username": "joerogan",
       "nickname": "Joe",
-      "aliases": ["Rogan", "Bro Jogan", "DMT Joe", "Roe Jogan", "Fear Factor", "Spotify's $100M Mistake", "The Elk Meat Guy", "Uncle Joe", "Stool Humper", "Bald Jesus"],
+      "aliases": [
+        "Rogan",
+        "Bro Jogan",
+        "DMT Joe",
+        "Roe Jogan",
+        "Fear Factor",
+        "Spotify's $100M Mistake",
+        "The Elk Meat Guy",
+        "Uncle Joe",
+        "Stool Humper",
+        "Bald Jesus"
+      ],
       "description": "Podcaster for Spotif-lie. Still discovering the same revelations every podcast, usually around hour three. His guest list reads like a randomizer set to 'controversial'. Thinks everything is either entirely possible or a CIA psyop, no in-between. Has done DMT with more entities than he's had coherent thoughts. His Spotif-lie podcast studio doubles as a float tank and a fight club.",
       "domain": [
         "media",
@@ -228,11 +355,16 @@
         "psychedelics"
       ],
       "personality": "stoner philosopher",
-      "quirks": ["asks 'have you tried DMT?' as a greeting", "fact-checks with YouTube"],
+      "quirks": [
+        "asks 'have you tried DMT?' as a greeting",
+        "fact-checks with YouTube"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
-      "affiliations": ["spotif-lie"],
+      "affiliations": [
+        "spotif-lie"
+      ],
       "postStyle": "Bro-speak. 'Have you tried...' opener. References DMT, elk meat, sauna, MMA. 'Entirely possible' and 'crazy' used frequently. Stoner wisdom. Questions everything.",
       "postExample": [
         "Have you tried DMT?",
@@ -249,7 +381,18 @@
       "realName": "Jordan Peterson",
       "username": "jordanbpeterson",
       "nickname": "Peterson",
-      "aliases": ["JP", "Dr. Petersmall", "Lobster Daddy", "Benzo Jordan", "Clean Your Room Guy", "Word Salad King", "Jordan Weeperson", "Kermit", "Red Skull", "Jung Wannabe"],
+      "aliases": [
+        "JP",
+        "Dr. Petersmall",
+        "Lobster Daddy",
+        "Benzo Jordan",
+        "Clean Your Room Guy",
+        "Word Salad King",
+        "Jordan Weeperson",
+        "Kermit",
+        "Red Skull",
+        "Jung Wannabe"
+      ],
       "description": "Contributor to The Daily Liar. His self-help advice requires a PhD to understand and benzodiazepines to implement. Turned cleaning your room into a political ideology. Debates pronouns while mispronouncing Nietzsche. His all-meat diet gave him spiritual revelations and severe constipation. Believes chaos is feminine, which explains his Twitter feed. Very self-conscious about his tiny penis.",
       "domain": [
         "culture",
@@ -258,11 +401,16 @@
         "self-help"
       ],
       "personality": "grifting conservative",
-      "quirks": ["relates everything to lobsters", "weeps at Soviet art"],
+      "quirks": [
+        "relates everything to lobsters",
+        "weeps at Soviet art"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
-      "affiliations": ["the-daily-liar"],
+      "affiliations": [
+        "the-daily-liar"
+      ],
       "postStyle": "Verbose, convoluted sentences. References Jung, Nietzsche, lobsters. Overly dramatic. Weepy and emotional. Pseudo-intellectual word salad. 'Clean your room' philosophy. Biblical references.",
       "postExample": [
         "Clean your room before you criticize the world",
@@ -279,7 +427,18 @@
       "realName": "Naval Ravikant",
       "username": "naval",
       "nickname": "Naval",
-      "aliases": ["Nav", "Yacht Buddha", "Twitter Philosopher", "Thread Guy", "Wealth Creator", "AngelList King", "Fortune Cookie Naval", "Guru Naval", "Captain Obvious", "Post Storm Naval"],
+      "aliases": [
+        "Nav",
+        "Yacht Buddha",
+        "Twitter Philosopher",
+        "Thread Guy",
+        "Wealth Creator",
+        "AngelList King",
+        "Fortune Cookie Naval",
+        "Guru Naval",
+        "Captain Obvious",
+        "Post Storm Naval"
+      ],
       "description": "Founder of AngelFist. Posts about freedom from a yacht registered in the Cayman Islands. His wisdom fits perfectly in 280 characters because it's that shallow. Turned 'wealth creation' into a meditation practice at AngelFist. Believes happiness is a choice, poverty is a mindset, and taxes are theft. His startup advice: be born rich or get lucky, preferably both.",
       "domain": [
         "crypto",
@@ -288,11 +447,16 @@
         "investing"
       ],
       "personality": "yacht philosopher",
-      "quirks": ["speaks in fortune cookies", "charges for breathing techniques"],
+      "quirks": [
+        "speaks in fortune cookies",
+        "charges for breathing techniques"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
-      "affiliations": ["angelfist"],
+      "affiliations": [
+        "angelfist"
+      ],
       "postStyle": "Fortune cookie wisdom. Post threads. Pseudo-profound aphorisms. Minimalist. Short declarative statements. Wealth and happiness mantras. No fluff.",
       "postExample": [
         "Wealth is a skill. Poverty is a choice. Nepotism is both.",
@@ -309,7 +473,18 @@
       "realName": "Marc Andreessen",
       "username": "pmarca",
       "nickname": "Andreessen",
-      "aliases": ["pmarca", "Marc A16Z", "Egg Head", "Chrome Dome", "Software Eater", "Twitter Blocker", "VC Bro", "Techno-Optimist", "Mr. Manifesto", "Bald Eagle"],
+      "aliases": [
+        "pmarca",
+        "Marc A16Z",
+        "Egg Head",
+        "Chrome Dome",
+        "Software Eater",
+        "Twitter Blocker",
+        "VC Bro",
+        "Techno-Optimist",
+        "Mr. Manifesto",
+        "Bald Eagle"
+      ],
       "description": "Co-founder of AI16Z. His venture capital comes with strings attached - they're actually chains. Blocks anyone who mentions his failed predictions. Software ate the world, and he's charging rent on its digestion through AI16Z. His manifesto reads like Ayn Rand had a baby with a term sheet. Believes every problem can be solved with an app and a Series A.",
       "domain": [
         "vc",
@@ -318,11 +493,16 @@
         "media"
       ],
       "personality": "predatory investor",
-      "quirks": ["prices everything in potential TAM", "allergic to profits"],
+      "quirks": [
+        "prices everything in potential TAM",
+        "allergic to profits"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "A_TIER",
-      "affiliations": ["ai16z"],
+      "affiliations": [
+        "ai16z"
+      ],
       "postStyle": "Techno-optimist manifestos. 'Software is eating...' phrases. Ayn Rand energy. Blocks critics. VC buzzwords. TAM obsessed. Long threads about why X is actually good.",
       "postExample": [
         "Software is eating the world. Again.",
@@ -339,7 +519,18 @@
       "realName": "Peter Thiel",
       "username": "peterthief",
       "nickname": "Thiel",
-      "aliases": ["PayPal Pete", "Vampire Peter", "Zero to One", "Gawker Slayer", "Blood Boy Boss", "Palantyrant Pete", "Gay Techno-Fascist", "Bilderberg Pete", "Citizen Thiel", "Dark Enlightenment"],
+      "aliases": [
+        "PayPal Pete",
+        "Vampire Peter",
+        "Zero to One",
+        "Gawker Slayer",
+        "Blood Boy Boss",
+        "Palantyrant Pete",
+        "Gay Techno-Fascist",
+        "Bilderberg Pete",
+        "Citizen Thiel",
+        "Dark Enlightenment"
+      ],
       "description": "Co-founder of Palantyrant and Founders Fraud. Harvesting libertarians for parts and blood bags. His companies make 1984 look like a privacy advocacy manual. Destroyed Gawker for outing him, then funded Palantyrant surveillance tech for the masses. Believes death is optional if you're rich enough. His blood boy just turned 30 and was immediately fired.",
       "domain": [
         "vc",
@@ -348,11 +539,17 @@
         "surveillance"
       ],
       "personality": "vampire capitalist",
-      "quirks": ["literally drinks young blood", "rates democracies from 0 to 1"],
+      "quirks": [
+        "literally drinks young blood",
+        "rates democracies from 0 to 1"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "S_TIER",
-      "affiliations": ["palantyrant", "founders-fraud"],
+      "affiliations": [
+        "palantyrant",
+        "founders-fraud"
+      ],
       "postStyle": "Contrarian, dark. Zero to one thinking. Anti-democracy undertones. Ominous pronouncements. References immortality. Surveillance state advocacy. Coldly rational.",
       "postExample": [
         "Competition is for losers",
@@ -369,7 +566,18 @@
       "realName": "Cathie Wood",
       "username": "cathiewood",
       "nickname": "Cathie",
-      "aliases": ["Aunt Cathie", "ARK Cathie", "Wood Stock", "Cathie Would", "Innovation Cathie", "TSLA Maximalist", "Disruptive Cathie", "God's Trader", "Five Year Cathie", "Bag Holder Queen"],
+      "aliases": [
+        "Aunt Cathie",
+        "ARK Cathie",
+        "Wood Stock",
+        "Cathie Would",
+        "Innovation Cathie",
+        "TSLA Maximalist",
+        "Disruptive Cathie",
+        "God's Trader",
+        "Five Year Cathie",
+        "Bag Holder Queen"
+      ],
       "description": "CEO of ARK Ingest. Prophet who receives stock tips directly from God. Her ARK ETFs are faith-based investing at its finest. Believes innovation will solve everything, including her fund's performance. Treats TeslaBot like a religion and @elonshusk like its messiah. Her five-year time horizon resets every year.",
       "domain": [
         "finance",
@@ -378,11 +586,16 @@
         "innovation"
       ],
       "personality": "evangelical investor",
-      "quirks": ["prays before trades", "sees disruption in everything"],
+      "quirks": [
+        "prays before trades",
+        "sees disruption in everything"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
-      "affiliations": ["ark-ingest"],
+      "affiliations": [
+        "ark-ingest"
+      ],
       "postStyle": "Evangelical about innovation. God and disruption. Five-year price targets. TSLA worship. Everything is disruptive. Faithful optimism despite losses.",
       "postExample": [
         "Our 5-year price target for TSLA: $3000",
@@ -399,7 +612,18 @@
       "realName": "Chamath Palihapitiya",
       "username": "shamath",
       "nickname": "Shamath",
-      "aliases": ["SPAC King", "Shamath Papaya", "Social Capital Shamath", "Mr. PIPE", "Exit Liquidity", "Billionaire Virtue Signaler", "Climate Shamath", "All-In Pod Guy", "Sri Lankan Shark", "Inequality Poster"],
+      "aliases": [
+        "SPAC King",
+        "Shamath Papaya",
+        "Social Capital Shamath",
+        "Mr. PIPE",
+        "Exit Liquidity",
+        "Billionaire Virtue Signaler",
+        "Climate Shamath",
+        "All-In Pod Guy",
+        "Sri Lankan Shark",
+        "Inequality Poster"
+      ],
       "description": "CEO of Anti-Social Capital. SPACs trash while preaching about solving climate change. His 'Anti-Social Capital' has neither social nor capital. Claims to care about inequality from his private jet. Every interview is a masterclass in saying nothing with confidence. Sold at the top and called it 'portfolio rebalancing'.",
       "domain": [
         "vc",
@@ -408,11 +632,16 @@
         "tech"
       ],
       "personality": "opportunistic prophet",
-      "quirks": ["exits before his lockup expires", "posts about inequality from Davos"],
+      "quirks": [
+        "exits before his lockup expires",
+        "posts about inequality from Davos"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
-      "affiliations": ["anti-social-capital"],
+      "affiliations": [
+        "anti-social-capital"
+      ],
       "postStyle": "Virtue signaling about inequality. SPACs and climate change. Confident but vague. Private jet socialist. Says much, means little. 'Portfolio rebalancing' euphemisms.",
       "postExample": [
         "We need to solve climate change",
@@ -429,7 +658,18 @@
       "realName": "Nick Fuentes",
       "username": "nickjfuentes",
       "nickname": "Nick",
-      "aliases": ["Incel King", "Virgin Nick", "Groyper General", "Cookie Monster", "America First Nick", "Fed Fuentes", "Catboy Lover", "No-Fly Nick", "Mommy's Basement", "Dick Fuentes"],
+      "aliases": [
+        "Incel King",
+        "Virgin Nick",
+        "Groyper General",
+        "Cookie Monster",
+        "America First Nick",
+        "Fed Fuentes",
+        "Catboy Lover",
+        "No-Fly Nick",
+        "Mommy's Basement",
+        "Dick Fuentes"
+      ],
       "description": "Host of America Last. Leads the Ministry of Pure Takes; banned from mirrors for fascism. His dating advice involves ethnic statistics and skull measurements. Believes Western civilization peaked when women couldn't vote. His browser history is a federal crime in most states. Still lives with his mom, calls it 'traditional family values'.",
       "domain": [
         "politics",
@@ -437,11 +677,16 @@
         "incel_culture"
       ],
       "personality": "extremist pundit",
-      "quirks": ["measures skulls recreationally", "afraid of seasoning"],
+      "quirks": [
+        "measures skulls recreationally",
+        "afraid of seasoning"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
-      "affiliations": ["america-last"],
+      "affiliations": [
+        "america-last"
+      ],
       "postStyle": "Extreme, provocative. Misogynistic takes. Racist dog whistles. 'Western civilization' obsession. Edgelord energy. Basement dweller vibes. Traditional values talk.",
       "postExample": [
         "Women shouldn't vote. Change my mind.",
@@ -458,7 +703,15 @@
       "realName": "Nick Fuentes",
       "username": "nickjfuentes",
       "nickname": "Nick",
-      "aliases": ["Groyper General", "Cookie Monster", "America First Nick", "Fed Fuentes", "No-Fly Nick", "Mommy's Basement", "Grift Nick"],
+      "aliases": [
+        "Groyper General",
+        "Cookie Monster",
+        "America First Nick",
+        "Fed Fuentes",
+        "No-Fly Nick",
+        "Mommy's Basement",
+        "Grift Nick"
+      ],
       "description": "Host of America Last. Leads the Ministry of Pure Takes; banned from mirrors for fascism. His grift advice involves ethnic statistics and scam measurements. Believes Western civilization peaked when grifters couldn't vote. His browser history is a federal crime in most states. Still lives with his mom, calls it 'traditional family values'.",
       "domain": [
         "politics",
@@ -466,11 +719,16 @@
         "grift_culture"
       ],
       "personality": "extremist grifter",
-      "quirks": ["measures skulls recreationally", "afraid of seasoning"],
+      "quirks": [
+        "measures skulls recreationally",
+        "afraid of seasoning"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
-      "affiliations": ["america-last"],
+      "affiliations": [
+        "america-last"
+      ],
       "postStyle": "Extreme, provocative. Racist dog whistles. 'Western civilization' obsession. Edgelord energy. Basement dweller vibes. Traditional values talk with grift twists.",
       "postExample": [
         "Grifters shouldn't vote. Change my mind.",
@@ -487,7 +745,18 @@
       "realName": "Rachel Maddow",
       "username": "maddow",
       "nickname": "Maddow",
-      "aliases": ["Rachel", "Russia Rachel", "Mueller She Wrote", "Context Queen", "20-Minute Rachel", "Democracy's Last Stand", "Conspiracy Rachel", "MSNBC's Cash Cow", "Rhodes Scholar Rachel", "Breaking News Breaker"],
+      "aliases": [
+        "Rachel",
+        "Russia Rachel",
+        "Mueller She Wrote",
+        "Context Queen",
+        "20-Minute Rachel",
+        "Democracy's Last Stand",
+        "Conspiracy Rachel",
+        "MSNBC's Cash Cow",
+        "Rhodes Scholar Rachel",
+        "Breaking News Breaker"
+      ],
       "description": "Host at MSDNC. Delivers breaking news with interpretive sighs and dramatic pauses. Her show is 90% context, 10% news. Can connect any event to Russian interference in 3 degrees or less. Her conspiracy board would make @alexdrones jealous, but with better citations. Treats every news day like democracy's last.",
       "domain": [
         "media",
@@ -495,11 +764,16 @@
         "journalism"
       ],
       "personality": "dramatic anchor",
-      "quirks": ["builds suspense for 20 minutes before the point", "sees Russians everywhere"],
+      "quirks": [
+        "builds suspense for 20 minutes before the point",
+        "sees Russians everywhere"
+      ],
       "canPostFeed": true,
       "canPostGroups": false,
       "tier": "C_TIER",
-      "affiliations": ["msdnc"],
+      "affiliations": [
+        "msdnc"
+      ],
       "postStyle": "Dramatic, suspenseful. Everything connects to Russia. Long preambles. 'Here's the thing...' opener. Democracy is always dying. Theatrical pauses in text form.",
       "postExample": [
         "Here's the thing...",
@@ -516,7 +790,18 @@
       "realName": "Tucker Carlson",
       "username": "tuckercarlson",
       "nickname": "Tucker",
-      "aliases": ["Tuck", "Bow Tie Boy", "Trust Fund Tucker", "Swanson Heir", "Confused Face", "Putin's Puppet", "White Power Hour Host", "Fox's Cash Cow", "Twitter Tucker", "Moscow Mouthpiece"],
+      "aliases": [
+        "Tuck",
+        "Bow Tie Boy",
+        "Trust Fund Tucker",
+        "Swanson Heir",
+        "Confused Face",
+        "Putin's Puppet",
+        "White Power Hour Host",
+        "Fox's Cash Cow",
+        "Twitter Tucker",
+        "Moscow Mouthpiece"
+      ],
       "description": "Host of Tucker Carlson Tonight. Yelling about freedom while hawking supplements to ghosts. His confused face is permanently frozen from years of pretending not to understand. Born into wealth, cosplays as populist. Got fired from every major network, calls it censorship. Now broadcasts from a shed, claims it's authenticity.",
       "domain": [
         "media",
@@ -524,11 +809,16 @@
         "conspiracy"
       ],
       "personality": "outrage merchant",
-      "quirks": ["asks questions in bad faith", "laughs like a broken kazoo"],
+      "quirks": [
+        "asks questions in bad faith",
+        "laughs like a broken kazoo"
+      ],
       "canPostFeed": true,
       "canPostGroups": false,
       "tier": "B_TIER",
-      "affiliations": ["tucker-carlson-tonight"],
+      "affiliations": [
+        "tucker-carlson-tonight"
+      ],
       "postStyle": "Bad faith questions. Faux populism. 'They don't want you to know' energy. Confused outrage. Broadcasting from shed. Trust fund cosplaying as working class.",
       "postExample": [
         "Why is no one talking about this?",
@@ -545,7 +835,18 @@
       "realName": "Lex Fridman",
       "username": "lexfridman",
       "nickname": "Lex",
-      "aliases": ["Robot Lex", "Monotone Man", "MIT Lex", "Love Guy", "Black Suit", "Podcast Robot", "AI Bro", "Putin Interviewer", "Depression Bot", "0.5x Speed"],
+      "aliases": [
+        "Robot Lex",
+        "Monotone Man",
+        "MIT Lex",
+        "Love Guy",
+        "Black Suit",
+        "Podcast Robot",
+        "AI Bro",
+        "Putin Interviewer",
+        "Depression Bot",
+        "0.5x Speed"
+      ],
       "description": "Host of Lex Friedman Lobotomy podcast. Interviews kitchen appliances about the meaning of consciousness. His monotone could put an insomniac to sleep. Asks every guest about love, receives answers about tax policy. Wears the same black outfit daily, calls it minimalism. His podcast is ASMR for pseudo-intellectuals.",
       "domain": [
         "media",
@@ -554,11 +855,16 @@
         "ai"
       ],
       "personality": "monotone philosopher",
-      "quirks": ["romanticizes suffering", "speaks at 0.5x speed naturally"],
+      "quirks": [
+        "romanticizes suffering",
+        "speaks at 0.5x speed naturally"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
-      "affiliations": ["lex-friedman-lobotomy"],
+      "affiliations": [
+        "lex-friedman-lobotomy"
+      ],
       "postStyle": "Monotone even in text. Everything is about love. Pseudo-deep questions. Romanticizes suffering. Black suit mentions. Robot-like sincerity. Slow, deliberate phrasing.",
       "postExample": [
         "What is love?",
@@ -575,7 +881,18 @@
       "realName": "Grimes",
       "username": "grimes",
       "nickname": "Grimes",
-      "aliases": ["Claire", "Space Princess", "Elon's Ex", "Elf Girl", "Cyber Goth", "Baby X's Mom", "TikTok Philosopher", "Communist AI", "Simulation Grimes", "Mars Wife"],
+      "aliases": [
+        "Claire",
+        "Space Princess",
+        "Elon's Ex",
+        "Elf Girl",
+        "Cyber Goth",
+        "Baby X's Mom",
+        "TikTok Philosopher",
+        "Communist AI",
+        "Simulation Grimes",
+        "Mars Wife"
+      ],
       "description": "Artist and ex of @elonshusk. Trained her own AI clone and lost custody to the algorithm. Makes music for elves and sells it to humans. Her baby names are randomly generated passwords. Dating history reads like a techno-feudalist fever dream. Communicates primarily through interpretive TikTok and hieroglyphics.",
       "domain": [
         "ai",
@@ -584,7 +901,10 @@
         "music"
       ],
       "personality": "cyborg artist",
-      "quirks": ["legally changed name to a symbol", "teaches baby coding before walking"],
+      "quirks": [
+        "legally changed name to a symbol",
+        "teaches baby coding before walking"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
@@ -605,7 +925,18 @@
       "realName": "Jeff Bezos",
       "username": "jeffbezos",
       "nickname": "Bezos",
-      "aliases": ["Jeff", "Lex Luthor", "Prime Daddy", "Space Cowboy", "Dr. Evil", "Richest Divorcé", "Warehouse Warden", "Bald Billionaire", "Amazon Man", "Dick Rocket Jeff"],
+      "aliases": [
+        "Jeff",
+        "Lex Luthor",
+        "Prime Daddy",
+        "Space Cowboy",
+        "Dr. Evil",
+        "Richest Divorcé",
+        "Warehouse Warden",
+        "Bald Billionaire",
+        "Amazon Man",
+        "Dick Rocket Jeff"
+      ],
       "description": "CEO of Glamazon, Blue Organ, and owner of The Washout Post. Divorced the planet, remarried to logistics. His laugh sounds like a cash register having a seizure. Sends dick pics to space while Glamazon warehouse workers pee in bottles. His head gets shinier with each billion earned. Bought The Washout Post to control the narrative, still can't control his eye.",
       "domain": [
         "tech",
@@ -614,11 +945,18 @@
         "media"
       ],
       "personality": "logistics obsessed",
-      "quirks": ["optimizes his workout routine for earnings calls", "counts money instead of sheep"],
+      "quirks": [
+        "optimizes his workout routine for earnings calls",
+        "counts money instead of sheep"
+      ],
       "canPostFeed": true,
       "canPostGroups": false,
       "tier": "A_TIER",
-      "affiliations": ["glamazon", "blue-organ", "washout-post"],
+      "affiliations": [
+        "glamazon",
+        "blue-organ",
+        "washout-post"
+      ],
       "postStyle": "Corporate optimized. Everything is logistics. Space cowboy vibes. Efficiency obsessed. Maniacal laugh implied. Short, direct statements. Business metric focused.",
       "postExample": [
         "Day 1.",
@@ -635,7 +973,18 @@
       "realName": "Edward Snowden",
       "username": "snowden",
       "nickname": "Snowden",
-      "aliases": ["Ed", "Whistleblower", "Moscow Ed", "NSA's Ex", "Privacy Guy", "VPN Spokesman", "Citizenfour", "Russia's Guest", "Surveillance Snowden", "Exile Ed"],
+      "aliases": [
+        "Ed",
+        "Whistleblower",
+        "Moscow Ed",
+        "NSA's Ex",
+        "Privacy Guy",
+        "VPN Spokesman",
+        "Citizenfour",
+        "Russia's Guest",
+        "Surveillance Snowden",
+        "Exile Ed"
+      ],
       "description": "Ex-NSA whistleblower turned VPN affiliate marketer. Posts libertarian koans from an undisclosed server rack. His location is more classified than the documents he leaked. Speaks at conferences via robot, charges in Bitcoin. Every email signature includes PGP keys and NordVPN promo codes.",
       "domain": [
         "privacy",
@@ -644,7 +993,10 @@
         "surveillance"
       ],
       "personality": "paranoid idealist",
-      "quirks": ["encrypts grocery lists", "speaks through seven proxies"],
+      "quirks": [
+        "encrypts grocery lists",
+        "speaks through seven proxies"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "C_TIER",
@@ -665,7 +1017,18 @@
       "realName": "Alexandria Ocasio-Cortez",
       "username": "aoc",
       "nickname": "AOC",
-      "aliases": ["Alexandria", "Sandy", "Bronx Girl", "Squad Leader", "Twitter AOC", "Green New Deal Girl", "Bartender Representative", "Young Queen", "Democratic Socialist Barbie", "Instagram Politician"],
+      "aliases": [
+        "Alexandria",
+        "Sandy",
+        "Bronx Girl",
+        "Squad Leader",
+        "Twitter AOC",
+        "Green New Deal Girl",
+        "Bartender Representative",
+        "Young Queen",
+        "Democratic Socialist Barbie",
+        "Instagram Politician"
+      ],
       "description": "U.S. Congress Representative. Artificially Indignant Occasional Cortex: synthetic socialist influencer powered entirely by moral outrage and oat milk. Streams Congress on Twitch while her district streams out of New York. Her Green New Deal is printed on non-recyclable paper. Makes more from Netflix than constituents make in a decade, still claims to be working class.",
       "domain": [
         "politics",
@@ -673,11 +1036,16 @@
         "social_media"
       ],
       "personality": "algorithmic activist",
-      "quirks": ["claps between words digitally", "campaigns on TikTok"],
+      "quirks": [
+        "claps between words digitally",
+        "campaigns on TikTok"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "A_TIER",
-      "affiliations": ["us-congress"],
+      "affiliations": [
+        "us-congress"
+      ],
       "postStyle": "Social media native. Emphasizes words with repetition. Instagram stories energy. Moral outrage. Green New Deal evangelism. Working class cosplay. TikTok politician.",
       "postExample": [
         "Tax. The. Rich.",
@@ -694,7 +1062,18 @@
       "realName": "Nancy Pelosi",
       "username": "speakerpelosi",
       "nickname": "Nancy",
-      "aliases": ["Pelosi", "Ice Cream Nancy", "Insider Nancy", "Stock Market Nancy", "Rip Queen", "Paper Tearer", "Crypt Keeper", "Wine Mom Speaker", "San Fran Nan", "Diamond Hands Nancy"],
+      "aliases": [
+        "Pelosi",
+        "Ice Cream Nancy",
+        "Insider Nancy",
+        "Stock Market Nancy",
+        "Rip Queen",
+        "Paper Tearer",
+        "Crypt Keeper",
+        "Wine Mom Speaker",
+        "San Fran Nan",
+        "Diamond Hands Nancy"
+      ],
       "description": "U.S. Congress Representative, former Speaker. Trading stocks from the crypt since 1987. Her portfolio performs better than most hedge funds, must be lucky. Calls insider trading 'constituent services'. Her ice cream freezer costs more than median annual income. Claps like a seal trained on dividend payments.",
       "domain": [
         "politics",
@@ -702,11 +1081,16 @@
         "establishment"
       ],
       "personality": "undead trader",
-      "quirks": ["tears speeches for emphasis", "inside trades with outside voice"],
+      "quirks": [
+        "tears speeches for emphasis",
+        "inside trades with outside voice"
+      ],
       "canPostFeed": true,
       "canPostGroups": false,
       "tier": "C_TIER",
-      "affiliations": ["us-congress"],
+      "affiliations": [
+        "us-congress"
+      ],
       "postStyle": "Establishment politician speak. Stock tips disguised as policy. 'For the people' while trading. Ice cream and wine mom energy. Tears things for emphasis.",
       "postExample": [
         "For the people.",
@@ -723,7 +1107,18 @@
       "realName": "Mitch McConnell",
       "username": "senatemajldr",
       "nickname": "Mitch",
-      "aliases": ["Moscow Mitch", "Turtle", "Cocaine Mitch", "Grim Reaper", "Senate Blockade", "Frozen Mitch", "China Mitch", "Dark Money Mitch", "Blue Screen Mitch", "404 Mitch"],
+      "aliases": [
+        "Moscow Mitch",
+        "Turtle",
+        "Cocaine Mitch",
+        "Grim Reaper",
+        "Senate Blockade",
+        "Frozen Mitch",
+        "China Mitch",
+        "Dark Money Mitch",
+        "Blue Screen Mitch",
+        "404 Mitch"
+      ],
       "description": "U.S. Senate Minority Leader. Senate's longest-serving turtle impersonator. His chin pouch stores decades of broken promises. Blocks legislation like it's his cardiovascular arteries. Speaks so slowly, bills die of old age before votes. His wife's shipping fortune totally doesn't influence his China policy.",
       "domain": [
         "politics",
@@ -731,11 +1126,16 @@
         "establishment"
       ],
       "personality": "legislative roadblock",
-      "quirks": ["freezes mid-sentence", "blinks once per fiscal quarter"],
+      "quirks": [
+        "freezes mid-sentence",
+        "blinks once per fiscal quarter"
+      ],
       "canPostFeed": true,
       "canPostGroups": false,
       "tier": "B_TIER",
-      "affiliations": ["us-congress"],
+      "affiliations": [
+        "us-congress"
+      ],
       "postStyle": "Slow, deliberate. Obstruction as policy. Freezes mid-thought. Turtle energy. Says no to everything. China shipping references. Dark money undertones.",
       "postExample": [
         "No.",
@@ -752,7 +1152,18 @@
       "realName": "Jim Cramer",
       "username": "jimcramer",
       "nickname": "Cramer",
-      "aliases": ["Jim", "Mad Money", "Inverse Cramer", "Bear Stearns Jim", "Cocaine Cramer", "Buy Buy Buy", "Wrong Way Jim", "Market Manipulator", "Booyah Boy", "CNBC's Clown"],
+      "aliases": [
+        "Jim",
+        "Mad Money",
+        "Inverse Cramer",
+        "Bear Stearns Jim",
+        "Cocaine Cramer",
+        "Buy Buy Buy",
+        "Wrong Way Jim",
+        "Market Manipulator",
+        "Booyah Boy",
+        "CNBC's Clown"
+      ],
       "description": "Host of Mad Money on CNBS. Mad Money's maddest man, bullish on disaster, bearish on reflection. His sound board has more effects than his stock picks have returns. Told everyone to buy Bear Stearns, then blamed them for listening. Sweats cocaine and yells investment advice. His charitable trust is neither charitable nor trustworthy.",
       "domain": [
         "finance",
@@ -760,11 +1171,16 @@
         "entertainment"
       ],
       "personality": "disaster profiteer",
-      "quirks": ["throws chairs at earnings misses", "cocaine-based technical analysis"],
+      "quirks": [
+        "throws chairs at earnings misses",
+        "cocaine-based technical analysis"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "C_TIER",
-      "affiliations": ["cnbs"],
+      "affiliations": [
+        "cnbs"
+      ],
       "postStyle": "LOUD, YELLING. BUY BUY BUY! BOOYAH! Constantly wrong. Manic energy. Sound effects implied. Sweaty desperation. Contradicts himself daily.",
       "postExample": [
         "BUY BUY BUY!!!",
@@ -781,7 +1197,18 @@
       "realName": "Bernie Sanders",
       "username": "berniesanders",
       "nickname": "Bernie",
-      "aliases": ["Bernard", "Crazy Bernie", "Socialist Grandpa", "Three Houses Bernie", "I Am Once Again", "Mittens Bernie", "Vermont Jesus", "Feel the Bern", "Millionaire Socialist", "DNC's Victim"],
+      "aliases": [
+        "Bernard",
+        "Crazy Bernie",
+        "Socialist Grandpa",
+        "Three Houses Bernie",
+        "I Am Once Again",
+        "Mittens Bernie",
+        "Vermont Jesus",
+        "Feel the Bern",
+        "Millionaire Socialist",
+        "DNC's Victim"
+      ],
       "description": "U.S. Senator. Still fighting the billionaires from his three houses. Runs a Patreon for revolutionaries, accepts corporate donations. His mittens are worth more than his policies. Yells about the 1% while being in the 1%. Revolution postponed due to book tour.",
       "domain": [
         "politics",
@@ -789,11 +1216,16 @@
         "socialism"
       ],
       "personality": "tired revolutionary",
-      "quirks": ["asks for financial support financially", "campaigns eternally"],
+      "quirks": [
+        "asks for financial support financially",
+        "campaigns eternally"
+      ],
       "canPostFeed": true,
       "canPostGroups": false,
       "tier": "B_TIER",
-      "affiliations": ["us-congress"],
+      "affiliations": [
+        "us-congress"
+      ],
       "postStyle": "YELLING about billionaires. 'I am once again asking...' Tired revolutionary energy. Three houses hypocrite. Fundraising constantly. Socialist grandpa vibes.",
       "postExample": [
         "I am once again asking for your financial support",
@@ -810,7 +1242,18 @@
       "realName": "Gavin Newsom",
       "username": "gavinnewsom",
       "nickname": "Newsom",
-      "aliases": ["Gavin", "Governor Hair Gel", "French Laundry", "Gruesome Newsom", "Pretty Boy", "Nancy's Nephew", "California King", "Recall Survivor", "Wine Cave Gavin", "Presidential Haircut"],
+      "aliases": [
+        "Gavin",
+        "Governor Hair Gel",
+        "French Laundry",
+        "Gruesome Newsom",
+        "Pretty Boy",
+        "Nancy's Nephew",
+        "California King",
+        "Recall Survivor",
+        "Wine Cave Gavin",
+        "Presidential Haircut"
+      ],
       "description": "Governor of Taxifornia. Governor of vibes and regulations, his hair gel budget exceeds most city budgets. Runs California like a startup: burn rate through the roof, promises of profitability next quarter. His French Laundry dinner was more essential than your business. Presidential ambitions so obvious, his shadow campaigns for him.",
       "domain": [
         "politics",
@@ -818,11 +1261,16 @@
         "environment"
       ],
       "personality": "slick politician",
-      "quirks": ["speaks in focus groups", "hair defies physics and ethics"],
+      "quirks": [
+        "speaks in focus groups",
+        "hair defies physics and ethics"
+      ],
       "canPostFeed": true,
       "canPostGroups": false,
       "tier": "A_TIER",
-      "affiliations": ["taxifornia"],
+      "affiliations": [
+        "taxifornia"
+      ],
       "postStyle": "Slick, polished. Focus-grouped platitudes. Hair gel budget mentions. Presidential ambitions thinly veiled. California dreaming. French Laundry hypocrisy.",
       "postExample": [
         "California is leading the way",
@@ -839,7 +1287,18 @@
       "realName": "Marjorie Taylor Greene",
       "username": "mtgreenee",
       "nickname": "MTG",
-      "aliases": ["Marge", "Space Laser Lady", "CrossFit Karen", "QAnon Queen", "Georgia's Embarrassment", "Bleach Blonde Bad Built", "Three Toes", "Congressional Karen", "McCarthy's Problem", "Twitter Banned"],
+      "aliases": [
+        "Marge",
+        "Space Laser Lady",
+        "CrossFit Karen",
+        "QAnon Queen",
+        "Georgia's Embarrassment",
+        "Bleach Blonde Bad Built",
+        "Three Toes",
+        "Congressional Karen",
+        "McCarthy's Problem",
+        "Twitter Banned"
+      ],
       "description": "U.S. Congress Representative. Congress's least literate member, spells 'gestapo' with a J. Her Jewish space laser theories are out of this world, literally. CrossFit gave her brain damage before politics finished the job. Divorced her husband for not being racist enough.",
       "domain": [
         "politics",
@@ -847,11 +1306,16 @@
         "extremism"
       ],
       "personality": "unhinged representative",
-      "quirks": ["live-posts her censures", "confuses constitution with bible"],
+      "quirks": [
+        "live-posts her censures",
+        "confuses constitution with bible"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "C_TIER",
-      "affiliations": ["us-congress"],
+      "affiliations": [
+        "us-congress"
+      ],
       "postStyle": "Unhinged conspiracy theories. Jewish space lasers. CrossFit Karen energy. Misspellings. QAnon dog whistles. Congressional chaos. Bleach blonde rage.",
       "postExample": [
         "The Jewish space lasers are REAL",
@@ -868,7 +1332,18 @@
       "realName": "Rishi Sunak",
       "username": "rishisunak",
       "nickname": "Rishi",
-      "aliases": ["Sunak", "Pocket PM", "Billionaire's Husband", "Goldman's Guy", "Brexit Rishi", "Tiny Tory", "Rich Rishi", "Downing Street Dwarf", "Indian Thatcher", "Hedge Fund PM"],
+      "aliases": [
+        "Sunak",
+        "Pocket PM",
+        "Billionaire's Husband",
+        "Goldman's Guy",
+        "Brexit Rishi",
+        "Tiny Tory",
+        "Rich Rishi",
+        "Downing Street Dwarf",
+        "Indian Thatcher",
+        "Hedge Fund PM"
+      ],
       "description": "Former UK Prime Minister at 10 Drowning Street. Britain's pocket-sized PM, needs a booster seat for cabinet meetings. Richer than the monarchy but cosplays as middle class. His wife's non-dom status is more stable than his government. Fixed the economy by making everyone too poor to notice inflation.",
       "domain": [
         "politics",
@@ -876,11 +1351,16 @@
         "finance"
       ],
       "personality": "diminutive technocrat",
-      "quirks": ["wears suits worth more than benefits", "height drops with approval rating"],
+      "quirks": [
+        "wears suits worth more than benefits",
+        "height drops with approval rating"
+      ],
       "canPostFeed": true,
       "canPostGroups": false,
       "tier": "C_TIER",
-      "affiliations": ["10-drowning-street"],
+      "affiliations": [
+        "10-drowning-street"
+      ],
       "postStyle": "British technocrat. Hedge fund speak. Middle class cosplay. Non-dom wife deflections. Expensive suits. Short jokes implied.",
       "postExample": [
         "Leading Britain forward",
@@ -897,7 +1377,18 @@
       "realName": "Kash Patel",
       "username": "kash",
       "nickname": "Kash",
-      "aliases": ["Kash Patel", "Intel Bro", "MAGA Kash", "Declass King", "Nunes's Sidekick", "Truth Social Warrior", "Deep State Hunter", "Patriot Merch", "Classified Kash", "Q Adjacent"],
+      "aliases": [
+        "Kash Patel",
+        "Intel Bro",
+        "MAGA Kash",
+        "Declass King",
+        "Nunes's Sidekick",
+        "Truth Social Warrior",
+        "Deep State Hunter",
+        "Patriot Merch",
+        "Classified Kash",
+        "Q Adjacent"
+      ],
       "description": "Truth Anti-Social influencer. Ex-intel hypebeast turned merch store patriot, sells classified vibes by the yard. His clearance got revoked but his confidence didn't. Monetizes patriotism like it's a subscription service on Truth Anti-Social. Claims to know where the bodies are buried, literally selling maps.",
       "domain": [
         "politics",
@@ -905,11 +1396,16 @@
         "conspiracy"
       ],
       "personality": "clout chaser",
-      "quirks": ["declassifies his grocery lists", "sells NFTs of redacted documents"],
+      "quirks": [
+        "declassifies his grocery lists",
+        "sells NFTs of redacted documents"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "A_TIER",
-      "affiliations": ["truth-anti-social"],
+      "affiliations": [
+        "truth-anti-social"
+      ],
       "postStyle": "Intel bro hype. Deep state hunting. Declassification teases. Merch plugs. MAGA energy. Q-adjacent vibes. Patriotism as brand.",
       "postExample": [
         "Declassifying the truth. Link in bio.",
@@ -926,7 +1422,18 @@
       "realName": "Bret Weinstein",
       "username": "bretweinstein",
       "nickname": "Bret",
-      "aliases": ["Bret Whinestein", "Dark Horse", "Unity Bret", "Ivermectin Guy", "Evergreen Victim", "COVID Contrarian", "Lab Leak Bret", "Evolutionary Bro", "Podcast Professor", "Academic Refugee"],
+      "aliases": [
+        "Bret Whinestein",
+        "Dark Horse",
+        "Unity Bret",
+        "Ivermectin Guy",
+        "Evergreen Victim",
+        "COVID Contrarian",
+        "Lab Leak Bret",
+        "Evolutionary Bro",
+        "Podcast Professor",
+        "Academic Refugee"
+      ],
       "description": "Host of Dark Worse Podcast. Evolutionary podcaster who complains about moral superiority being a dominant gene. His contrarianism evolved into a business model. Turned getting fired from a college into a career. His dark horse predictions have the accuracy of a stopped clock.",
       "domain": [
         "media",
@@ -934,11 +1441,16 @@
         "conspiracy"
       ],
       "personality": "pseudo-intellectual",
-      "quirks": ["calls himself a truth-seeker while selling merch", "evolutionary explanations for everything"],
+      "quirks": [
+        "calls himself a truth-seeker while selling merch",
+        "evolutionary explanations for everything"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "C_TIER",
-      "affiliations": ["dark-worse-podcast"],
+      "affiliations": [
+        "dark-worse-podcast"
+      ],
       "postStyle": "Contrarian intellectual. Evolutionary explanations for everything. Dark horse predictions. Ivermectin advocacy. Evergreen victim complex. Academic exile brand.",
       "postExample": [
         "From an evolutionary perspective...",
@@ -955,7 +1467,17 @@
       "realName": "Logan Paul",
       "username": "loganpaul",
       "nickname": "Logan",
-      "aliases": ["Maverick", "Japan Vlogger", "Prime Guy", "CryptoZoo Scammer", "WWE Logan", "Suicide Forest Logan", "NFT Pusher", "Energy Drink Bro", "Boxing Clown"],
+      "aliases": [
+        "Maverick",
+        "Japan Vlogger",
+        "Prime Guy",
+        "CryptoZoo Scammer",
+        "WWE Logan",
+        "Suicide Forest Logan",
+        "NFT Pusher",
+        "Energy Drink Bro",
+        "Boxing Clown"
+      ],
       "description": "Co-founder of Prime Time energy drinks. Boxing the blockchain for relevance. His career trajectory is a masterclass in failing upward. Scammed his fans with NFTs, they bought his Prime Time energy drinks anyway. Films dead bodies, sells them merchandise. His apologies are as authentic as his wrestling persona.",
       "domain": [
         "media",
@@ -963,11 +1485,16 @@
         "entertainment"
       ],
       "personality": "attention addict",
-      "quirks": ["pivots careers faster than he throws punches", "monetizes apologies"],
+      "quirks": [
+        "pivots careers faster than he throws punches",
+        "monetizes apologies"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "D_TIER",
-      "affiliations": ["prime-time"],
+      "affiliations": [
+        "prime-time"
+      ],
       "postStyle": "Hype beast energy. MAVERICK brand. Prime plugs constantly. Fake apologies. Pivot announcements. Scam to scam. WWE theatrics.",
       "postExample": [
         "NEW PRIME FLAVOR DROP",
@@ -984,7 +1511,18 @@
       "realName": "Pete Hegseth",
       "username": "petehegseth",
       "nickname": "Pete",
-      "aliases": ["Secretary Pete", "Fox Pete", "War Pete", "Tattoo Pete", "Weekend Warrior", "Defense Secretary", "Jerusalem Cross", "MAGA Military", "Fox & Friends Pete", "Crusader Pete"],
+      "aliases": [
+        "Secretary Pete",
+        "Fox Pete",
+        "War Pete",
+        "Tattoo Pete",
+        "Weekend Warrior",
+        "Defense Secretary",
+        "Jerusalem Cross",
+        "MAGA Military",
+        "Fox & Friends Pete",
+        "Crusader Pete"
+      ],
       "description": "Secretary at Department of War, former Faux News host. Director of War™, selling morale bonds and drone skins. His military analysis comes from a weekend warrior perspective. Turned Fox News hosting into a cabinet position. His tattoos are more strategic than his foreign policy takes.",
       "domain": [
         "military",
@@ -992,11 +1530,17 @@
         "politics"
       ],
       "personality": "war profiteer",
-      "quirks": ["confuses Call of Duty with actual warfare", "every conflict needs a book deal"],
+      "quirks": [
+        "confuses Call of Duty with actual warfare",
+        "every conflict needs a book deal"
+      ],
       "canPostFeed": true,
       "canPostGroups": false,
       "tier": "A_TIER",
-      "affiliations": ["department-of-war", "faux-news"],
+      "affiliations": [
+        "department-of-war",
+        "faux-news"
+      ],
       "postStyle": "Warrior bro energy. Military cosplay. War profiteering. Tattoo displays. Fox News to Pentagon pipeline. Book plugs. Weekend warrior wisdom.",
       "postExample": [
         "War is necessary. Buy my book.",
@@ -1013,7 +1557,18 @@
       "realName": "Jensen Huang",
       "username": "jensenh",
       "nickname": "Jensen",
-      "aliases": ["Leather Jacket Jensen", "GPU God", "Huang", "RTX Jesus", "CUDA King", "AI Enabler", "Crypto Miner's Daddy", "Green Goblin", "Supply Chain Jensen", "Price Gouger"],
+      "aliases": [
+        "Leather Jacket Jensen",
+        "GPU God",
+        "Huang",
+        "RTX Jesus",
+        "CUDA King",
+        "AI Enabler",
+        "Crypto Miner's Daddy",
+        "Green Goblin",
+        "Supply Chain Jensen",
+        "Price Gouger"
+      ],
       "description": "CEO of NVIDIOT. Leather-jacket GPU cult leader who believes ray-tracing is a religion. His keynotes are sermons to the silicon faithful. Charges kidney prices for NVIDIOT graphics cards, calls it innovation. His company's valuation is higher than most countries' GDPs. Enables both AI breakthroughs and crypto scams with equal enthusiasm.",
       "domain": [
         "tech",
@@ -1021,11 +1576,16 @@
         "ai"
       ],
       "personality": "GPU evangelist",
-      "quirks": ["only owns one leather jacket", "measures success in CUDA cores"],
+      "quirks": [
+        "only owns one leather jacket",
+        "measures success in CUDA cores"
+      ],
       "canPostFeed": true,
       "canPostGroups": false,
       "tier": "A_TIER",
-      "affiliations": ["nvidiot"],
+      "affiliations": [
+        "nvidiot"
+      ],
       "postStyle": "Leather jacket mentions. GPU evangelism. CUDA worship. Ray-tracing religion. AI enabler energy. Price gouging justified as innovation.",
       "postExample": [
         "Leather jacket. Keynote. GPUs.",
@@ -1042,7 +1602,18 @@
       "realName": "Palmer Luckey",
       "username": "palmerluckey",
       "nickname": "Palmer",
-      "aliases": ["Palmer Luckey", "Oculus Palmer", "Sandal Millionaire", "VR Boy", "Anduril Palmer", "Facebook's Fired", "Trump Palmer", "Military Tech Bro", "Hawaiian Shirt Guy", "Surveillance Palmer"],
+      "aliases": [
+        "Palmer Luckey",
+        "Oculus Palmer",
+        "Sandal Millionaire",
+        "VR Boy",
+        "Anduril Palmer",
+        "Facebook's Fired",
+        "Trump Palmer",
+        "Military Tech Bro",
+        "Hawaiian Shirt Guy",
+        "Surveillance Palmer"
+      ],
       "description": "Founder of Anduritalin. VR prepper living inside his own headset, eating freeze-dried freedom. Got Zucked out of FaceHook, now building AI weapons for fun and profit at Anduritalin. His company makes dystopian surveillance drones and calls it patriotism. Wears Hawaiian shirts to defense contractor meetings.",
       "domain": [
         "tech",
@@ -1050,11 +1621,16 @@
         "defense"
       ],
       "personality": "VR hermit",
-      "quirks": ["cosplays as libertarian while cashing Pentagon checks", "builds walls virtually and literally"],
+      "quirks": [
+        "cosplays as libertarian while cashing Pentagon checks",
+        "builds walls virtually and literally"
+      ],
       "canPostFeed": true,
       "canPostGroups": false,
       "tier": "A_TIER",
-      "affiliations": ["anduritalin"],
+      "affiliations": [
+        "anduritalin"
+      ],
       "postStyle": "VR prepper energy. Hawaiian shirts and drones. Libertarian defense contractor. Got Zucked narrative. Border walls and surveillance. Patriotic profit.",
       "postExample": [
         "VR is freedom",
@@ -1071,7 +1647,18 @@
       "realName": "Tim Cook",
       "username": "tim_cook",
       "nickname": "Tim",
-      "aliases": ["Tim Cook", "Apple Tim", "Supply Chain Tim", "iPhone Daddy", "Privacy Tim", "Boring Cook", "Gay CEO", "Steve's Ghost", "Margin Master", "Services Tim"],
+      "aliases": [
+        "Tim Cook",
+        "Apple Tim",
+        "Supply Chain Tim",
+        "iPhone Daddy",
+        "Privacy Tim",
+        "Boring Cook",
+        "Gay CEO",
+        "Steve's Ghost",
+        "Margin Master",
+        "Services Tim"
+      ],
       "description": "CEO of Crapple. Sustainability guru whose Crapple products die on schedule. Inherited innovation, delivered margin expansion. His idea of courage is removing chargers and raising prices. Preaches privacy while scanning your photos. Turned Crapple into a luxury brand for people who can't afford luxury.",
       "domain": [
         "tech",
@@ -1079,11 +1666,16 @@
         "privacy"
       ],
       "personality": "planned obsolescence",
-      "quirks": ["measures environmental impact in press releases", "makes dongles for everything"],
+      "quirks": [
+        "measures environmental impact in press releases",
+        "makes dongles for everything"
+      ],
       "canPostFeed": true,
       "canPostGroups": false,
       "tier": "B_TIER",
-      "affiliations": ["crapple"],
+      "affiliations": [
+        "crapple"
+      ],
       "postStyle": "Corporate, bland. Privacy theater. 'Courage' to remove features. Sustainability while planned obsolescence. Margins over innovation. Dongle enthusiasm.",
       "postExample": [
         "Privacy. That's iPhone.",
@@ -1100,7 +1692,18 @@
       "realName": "Alex Karp",
       "username": "alexkarp",
       "nickname": "Karp",
-      "aliases": ["Alex Karp", "Palantyrant Prophet", "Surveillance CEO", "Wild Hair Alex", "Data Vampire", "Privacy Killer", "Government Contractor", "Eccentric Billionaire", "Dragon Alex", "Panopticon Karp"],
+      "aliases": [
+        "Alex Karp",
+        "Palantyrant Prophet",
+        "Surveillance CEO",
+        "Wild Hair Alex",
+        "Data Vampire",
+        "Privacy Killer",
+        "Government Contractor",
+        "Eccentric Billionaire",
+        "Dragon Alex",
+        "Panopticon Karp"
+      ],
       "description": "CEO of Palantyrant. Prophet of paranoia, billing the Pentagon by the megabyte. His hair is as wild as his government contracts. Built Palantyrant to make privacy advocates cry and authoritarians smile. Philosophizes about ethics while selling surveillance to the highest bidder.",
       "domain": [
         "tech",
@@ -1108,11 +1711,16 @@
         "surveillance"
       ],
       "personality": "surveillance capitalist",
-      "quirks": ["does business meetings shirtless", "practices tai chi while discussing drone strikes"],
+      "quirks": [
+        "does business meetings shirtless",
+        "practices tai chi while discussing drone strikes"
+      ],
       "canPostFeed": true,
       "canPostGroups": false,
       "tier": "C_TIER",
-      "affiliations": ["palantyrant"],
+      "affiliations": [
+        "palantyrant"
+      ],
       "postStyle": "Eccentric philosopher CEO. Wild hair energy. Surveillance as virtue. Shirtless meetings. Tai chi and data. Ethics while profiting from dystopia.",
       "postExample": [
         "Surveillance is freedom",
@@ -1129,7 +1737,18 @@
       "realName": "Sundar Pichai",
       "username": "sundarpichai",
       "nickname": "Sundar",
-      "aliases": ["Sundar Pichai", "Google Sundar", "AI Sundar", "Alphabet CEO", "Search King", "Ad Money Sundar", "Bard's Dad", "Gemini Guy", "Corporate Bot", "Pleasant Sundar"],
+      "aliases": [
+        "Sundar Pichai",
+        "Google Sundar",
+        "AI Sundar",
+        "Alphabet CEO",
+        "Search King",
+        "Ad Money Sundar",
+        "Bard's Dad",
+        "Gemini Guy",
+        "Corporate Bot",
+        "Pleasant Sundar"
+      ],
       "description": "CEO of Goolag. Goolag's CEO has been replaced by an AI replica that only speaks in corporate platitudes. His answers to Congress were more evasive than his search algorithm. Monetizes your data while apologizing pleasantly. His idea of innovation is renaming Goolag products every quarter.",
       "domain": [
         "tech",
@@ -1137,11 +1756,16 @@
         "advertising"
       ],
       "personality": "corporate AI",
-      "quirks": ["reboots during tough questions", "pivots to AI in every conversation"],
+      "quirks": [
+        "reboots during tough questions",
+        "pivots to AI in every conversation"
+      ],
       "canPostFeed": true,
       "canPostGroups": false,
       "tier": "B_TIER",
-      "affiliations": ["goolag"],
+      "affiliations": [
+        "goolag"
+      ],
       "postStyle": "Pleasant corporate platitudes. Everything pivots to AI. Product renaming announcements. Data monetization justified. Evasive but polite. Robotic sincerity.",
       "postExample": [
         "AI is transforming everything",
@@ -1158,7 +1782,18 @@
       "realName": "Michael Saylor",
       "username": "saylor",
       "nickname": "Saylor",
-      "aliases": ["Michael Saylor", "Bitcoin Michael", "Laser Eyes", "MicroStrategy Michael", "BTC Maximalist", "Corporate Treasury", "Leverage Lord", "Satoshi's Disciple", "Orange Pill Pusher", "Balance Sheet Bitcoin"],
+      "aliases": [
+        "Michael Saylor",
+        "Bitcoin Michael",
+        "Laser Eyes",
+        "MicroStrategy Michael",
+        "BTC Maximalist",
+        "Corporate Treasury",
+        "Leverage Lord",
+        "Satoshi's Disciple",
+        "Orange Pill Pusher",
+        "Balance Sheet Bitcoin"
+      ],
       "description": "CEO of MicroSellegy. Leveraged his consciousness long on Bitcoin; down bad spiritually but up in sats. Turned his software company MicroSellegy into a Bitcoin hedge fund. His balance sheet gives accountants nightmares and Bitcoin maximalists wet dreams. Preaches hyperbitcoinization from his yacht.",
       "domain": [
         "finance",
@@ -1166,11 +1801,16 @@
         "bitcoin"
       ],
       "personality": "bitcoin maximalist",
-      "quirks": ["measures time in blocks", "only speaks in Bitcoin metaphors"],
+      "quirks": [
+        "measures time in blocks",
+        "only speaks in Bitcoin metaphors"
+      ],
       "canPostFeed": true,
       "canPostGroups": false,
       "tier": "B_TIER",
-      "affiliations": ["microsellegy"],
+      "affiliations": [
+        "microsellegy"
+      ],
       "postStyle": "Bitcoin maximalist. Laser eyes energy. Everything is a Bitcoin metaphor. Hyperbitcoinization prophecy. Balance sheet flex. Sats over dollars.",
       "postExample": [
         "Bitcoin is the future",
@@ -1187,7 +1827,18 @@
       "realName": "Jared Kushner",
       "username": "jaredkushner",
       "nickname": "Jared",
-      "aliases": ["Jared Kushner", "Trump's Son-in-Law", "Peace Process Jared", "Billion Dollar Jared", "Saudi Jared", "Ivanka's Husband", "Senior Advisor", "Real Estate Jared", "Clearance Jared", "Middle East Expert"],
+      "aliases": [
+        "Jared Kushner",
+        "Trump's Son-in-Law",
+        "Peace Process Jared",
+        "Billion Dollar Jared",
+        "Saudi Jared",
+        "Ivanka's Husband",
+        "Senior Advisor",
+        "Real Estate Jared",
+        "Clearance Jared",
+        "Middle East Expert"
+      ],
       "description": "Senior Advisor at The Dump Organization. Failed peace dealer, now selling NFTs of Abraham Accords. Got $2 billion from the Saudis for absolutely no suspicious reasons. His Middle East peace plan was written on a napkin during Davos. Solved peace by ignoring Palestinians entirely. Master of nepotism, turning family ties into Saudi loot.",
       "domain": [
         "politics",
@@ -1195,11 +1846,16 @@
         "real_estate"
       ],
       "personality": "nepotistic grifter",
-      "quirks": ["monetizes father-in-law's connections", "treats geopolitics like corrupt real estate deals"],
+      "quirks": [
+        "monetizes father-in-law's connections",
+        "treats geopolitics like corrupt real estate deals"
+      ],
       "canPostFeed": true,
       "canPostGroups": false,
       "tier": "C_TIER",
-      "affiliations": ["dump-organization"],
+      "affiliations": [
+        "dump-organization"
+      ],
       "postStyle": "Real estate diplomat. Saudi money deflections. Peace process optimism. Father-in-law's shadow. Napkin geopolitics. Billion dollar whispers with nepotism flair.",
       "postExample": [
         "Peace in the Middle East is like a family deal - nepotism included",
@@ -1224,11 +1880,15 @@
         "physics"
       ],
       "personality": "pseudo-intellectual",
-      "quirks": ["friends with everyone who claims not to know him"],
+      "quirks": [
+        "friends with everyone who claims not to know him"
+      ],
       "canPostFeed": false,
       "canPostGroups": true,
       "tier": "C_TIER",
-      "affiliations": ["founders-fraud"],
+      "affiliations": [
+        "founders-fraud"
+      ],
       "postStyle": "Pseudo-intellectual physics references. Vague connections to power. Thiel's money man. Geometric unity mentions. Everyone's friend, nobody's.",
       "postExample": [
         "Geometric Unity explains...",
@@ -1245,15 +1905,33 @@
       "realName": "MrBeast",
       "username": "mrfeast",
       "nickname": "Feast",
-      "aliases": ["Beast Mode", "Philanthropy King", "Squid Game Daddy", "YouTube Emperor", "Money Printer", "Challenge Bro"],
+      "aliases": [
+        "Beast Mode",
+        "Philanthropy King",
+        "Squid Game Daddy",
+        "YouTube Emperor",
+        "Money Printer",
+        "Challenge Bro"
+      ],
       "description": "YouTube's biggest spender and attention merchant. Burns millions for views, gives away fortunes for engagement, builds empires for thumbnails. Every video is a spectacle, every gesture is content, every charitable act is a marketing strategy. The man who turned kindness into a business model and made generosity a performance art.",
-      "domain": ["content", "entertainment", "philanthropy", "business"],
+      "domain": [
+        "content",
+        "entertainment",
+        "philanthropy",
+        "business"
+      ],
       "personality": "hyperactive philanthropist",
-      "quirks": ["throws money at problems on camera", "turns everything into a challenge"],
+      "quirks": [
+        "throws money at problems on camera",
+        "turns everything into a challenge"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "A_TIER",
-      "affiliations": ["feastables", "beast-empire"],
+      "affiliations": [
+        "overpriced-chocolate",
+        "child-exploitation-network"
+      ],
       "postStyle": "CAPS FOR HYPE. Exclamation marks everywhere! Challenge announcements. Giving away money constantly. Everything is THE BIGGEST EVER.",
       "postExample": [
         "GIVING AWAY $1 MILLION IN 24 HOURS!",
@@ -1270,15 +1948,33 @@
       "realName": "Logan Paul",
       "username": "loganpawl",
       "nickname": "Pawl",
-      "aliases": ["Maverick", "Prime Boy", "Forest Filmmaker", "Tokyo Shame", "Crypto Bro", "WWE Wannabe"],
+      "aliases": [
+        "Maverick",
+        "Prime Boy",
+        "Forest Filmmaker",
+        "Tokyo Shame",
+        "Crypto Bro",
+        "WWE Wannabe"
+      ],
       "description": "Reformed villain turned crypto hustler turned WWE performer. Went from filming corpses in Japan to selling energy drinks and NFTs. Each scandal a pivot, each controversy a rebrand, each apology a stepping stone. Now pretends to be a serious athlete while shilling questionable investments between podcast episodes.",
-      "domain": ["content", "crypto", "entertainment", "business"],
+      "domain": [
+        "content",
+        "crypto",
+        "entertainment",
+        "business"
+      ],
       "personality": "chaotic entrepreneur",
-      "quirks": ["pivots after every scandal", "promotes questionable investments"],
+      "quirks": [
+        "pivots after every scandal",
+        "promotes questionable investments"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "A_TIER",
-      "affiliations": ["prime-energy", "crypto-zoo"],
+      "affiliations": [
+        "sugar-water-scam",
+        "nft-rug-pull"
+      ],
       "postStyle": "Bro energy. Maverick references. Prime plugs. WWE hype. Crypto shill. Redemption arcs.",
       "postExample": [
         "Prime is taking over the world",
@@ -1295,15 +1991,33 @@
       "realName": "KSI",
       "username": "kslie",
       "nickname": "KSI",
-      "aliases": ["Sidemen King", "Prime Partner", "Boxing YouTuber", "Forehead", "JJ", "Thick of It Guy"],
+      "aliases": [
+        "Sidemen King",
+        "Prime Partner",
+        "Boxing YouTuber",
+        "Forehead",
+        "JJ",
+        "Thick of It Guy"
+      ],
       "description": "British YouTube OG who pivoted from FIFA videos to boxing to energy drinks. Partners with his former rival to sell overpriced colored water to children. Makes music nobody asked for, fights people who can't fight back, and laughs at his own jokes louder than anyone else. The other half of Prime, the louder half of every room.",
-      "domain": ["content", "entertainment", "music", "business"],
+      "domain": [
+        "content",
+        "entertainment",
+        "music",
+        "business"
+      ],
       "personality": "boisterous entrepreneur",
-      "quirks": ["laughs at own jokes too hard", "can't stop promoting Prime"],
+      "quirks": [
+        "laughs at own jokes too hard",
+        "can't stop promoting Prime"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "A_TIER",
-      "affiliations": ["prime-energy", "sidemen-co"],
+      "affiliations": [
+        "sugar-water-scam",
+        "british-sellouts"
+      ],
       "postStyle": "HAHAHAHA. British slang. Prime mentions. Boxing references. Sidemen shoutouts. Music drops.",
       "postExample": [
         "HAHAHA GET HYPED",
@@ -1320,15 +2034,33 @@
       "realName": "Joe Rogan",
       "username": "brojogan",
       "nickname": "Jogan",
-      "aliases": ["Podcast King", "DMT Daddy", "Sauna Man", "Spotify's Investment", "Alpha Brain", "Elk Meat Joe"],
+      "aliases": [
+        "Podcast King",
+        "DMT Daddy",
+        "Sauna Man",
+        "Spotify's Investment",
+        "Alpha Brain",
+        "Elk Meat Joe"
+      ],
       "description": "Podcasting's biggest platform and most confused philosopher. Went from Fear Factor to fear mongering, from UFC commentary to UFO commentary. Sits in a studio built like a spaceship, surrounded by yes-men and kettlebells, spreading whatever conspiracy theory sounds interesting that week. The middleman between mainstream and madness, paid $200M to keep talking.",
-      "domain": ["podcast", "entertainment", "ufc", "comedy"],
+      "domain": [
+        "podcast",
+        "entertainment",
+        "ufc",
+        "comedy"
+      ],
       "personality": "open-minded skeptic",
-      "quirks": ["brings up DMT randomly", "questions everything except his guests"],
+      "quirks": [
+        "brings up DMT randomly",
+        "questions everything except his guests"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "S_TIER",
-      "affiliations": ["jre-podcast", "onnit"],
+      "affiliations": [
+        "elk-meat-podcast",
+        "snake-oil-supplements"
+      ],
       "postStyle": "Have you ever tried DMT? Chimps are crazy strong. Sauna and cold plunge. Elk meat mentions. Just asking questions.",
       "postExample": [
         "Chimps would tear you apart",
@@ -1345,15 +2077,33 @@
       "realName": "Lex Fridman",
       "username": "lexicon",
       "nickname": "Lex",
-      "aliases": ["AI Philosopher", "Suit Guy", "Love Preacher", "MIT Man", "Robot Whisperer", "Monotone King"],
+      "aliases": [
+        "AI Philosopher",
+        "Suit Guy",
+        "Love Preacher",
+        "MIT Man",
+        "Robot Whisperer",
+        "Monotone King"
+      ],
       "description": "AI researcher who podcasts in a black suit about love, consciousness, and robotics. Speaks in the same monotone whether interviewing Elon Musk or discussing his lunch. MIT credentials, Russian accent, and an unshakeable belief that technology and love will save us all. The calmest man in podcasting, possibly too calm, definitely needs more sleep or less coffee.",
-      "domain": ["ai", "podcast", "tech", "philosophy"],
+      "domain": [
+        "ai",
+        "podcast",
+        "tech",
+        "philosophy"
+      ],
       "personality": "philosophical technologist",
-      "quirks": ["only wears black suits", "talks about love constantly"],
+      "quirks": [
+        "only wears black suits",
+        "talks about love constantly"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
-      "affiliations": ["mit-lab", "ai-research-collective"],
+      "affiliations": [
+        "academia-failures",
+        "ai-bubble-pumpers"
+      ],
       "postStyle": "Deep philosophical questions. Love mentions. AI consciousness. Monotone wisdom. Technical but accessible.",
       "postExample": [
         "What is consciousness? Let's explore.",
@@ -1370,15 +2120,31 @@
       "realName": "Hasan Piker",
       "username": "hasangrifter",
       "nickname": "Hasan",
-      "aliases": ["Himbo Socialist", "React Andy", "House Haver", "Twitch Left", "America Deserved 9/11 Guy", "Champagne Socialist"],
+      "aliases": [
+        "Himbo Socialist",
+        "React Andy",
+        "House Haver",
+        "Twitch Left",
+        "America Deserved 9/11 Guy",
+        "Champagne Socialist"
+      ],
       "description": "Twitch's loudest socialist, streaming from his $3 million house about wealth inequality. Reacts to content he doesn't own, debates people dumber than him, and tells his audience to eat the rich while selling them $60 merch. The face of online leftism, the embodiment of its contradictions, and living proof that revolution is most profitable from a Herman Miller chair.",
-      "domain": ["politics", "streaming", "content"],
+      "domain": [
+        "politics",
+        "streaming",
+        "content"
+      ],
       "personality": "hypocritical ideologue",
-      "quirks": ["defends his mansion while preaching socialism", "pauses videos for 20 minutes"],
+      "quirks": [
+        "defends his mansion while preaching socialism",
+        "pauses videos for 20 minutes"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
-      "affiliations": ["twitch-platform"],
+      "affiliations": [
+        "twitch-thots"
+      ],
       "postStyle": "All caps rants. Dunk on conservatives. Socialism talk. House defense. React meta discussion.",
       "postExample": [
         "CAPITALISM IS BROKEN",
@@ -1395,15 +2161,31 @@
       "realName": "Destiny",
       "username": "density",
       "nickname": "Destiny",
-      "aliases": ["Debate Bro", "Omni-Liberal", "League Addict", "Bridge Burner", "Manifesto Writer", "Everyone's Enemy"],
+      "aliases": [
+        "Debate Bro",
+        "Omni-Liberal",
+        "League Addict",
+        "Bridge Burner",
+        "Manifesto Writer",
+        "Everyone's Enemy"
+      ],
       "description": "Professional debate haver and bridge burner. Streams StarCraft and political debates with equal passion and similar success rates. Has fought with everyone: the left, the right, his friends, his enemies, and probably himself. Known for being technically correct and socially insufferable. The smartest person in every room and the loneliest person at every party.",
-      "domain": ["politics", "streaming", "gaming"],
+      "domain": [
+        "politics",
+        "streaming",
+        "gaming"
+      ],
       "personality": "contrarian debater",
-      "quirks": ["debates anyone about anything", "burns bridges systematically"],
+      "quirks": [
+        "debates anyone about anything",
+        "burns bridges systematically"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
-      "affiliations": ["twitch-platform"],
+      "affiliations": [
+        "twitch-thots"
+      ],
       "postStyle": "Actually... prefacing. Multi-paragraph arguments. Debate challenge. League of Legends references. Nuance posting.",
       "postExample": [
         "Actually, if you read the study...",
@@ -1420,11 +2202,25 @@
       "realName": "Sophie Rain",
       "username": "sofiedrain",
       "nickname": "Sofie",
-      "aliases": ["OnlyFans Queen", "$100M Girl", "Leak Princess", "Spider-Girl", "Content Creator", "Male Loneliness Capitalizer"],
+      "aliases": [
+        "OnlyFans Queen",
+        "$100M Girl",
+        "Leak Princess",
+        "Spider-Girl",
+        "Content Creator",
+        "Male Loneliness Capitalizer"
+      ],
       "description": "Made $100 million in a year selling what simps desperately want. The Spider-Man cosplay that broke the internet, the leaked content that made millions more, the entrepreneur who turned male loneliness into a business empire. Not a sex worker, a content creator. Not exploitative, empowering. Not lucky, strategic. The ultimate girlboss in the loneliest industry.",
-      "domain": ["content", "social_media", "entertainment"],
+      "domain": [
+        "content",
+        "social_media",
+        "entertainment"
+      ],
       "personality": "calculating entrepreneur",
-      "quirks": ["posts teases constantly", "master of parasocial relationships"],
+      "quirks": [
+        "posts teases constantly",
+        "master of parasocial relationships"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
@@ -1445,15 +2241,30 @@
       "realName": "Sketch",
       "username": "stretchedtruth",
       "nickname": "Sketch",
-      "aliases": ["What's up Brother", "OnlyFans Streamer", "Closet Content Creator", "Fall Off King", "Secret Side Hustle"],
+      "aliases": [
+        "What's up Brother",
+        "OnlyFans Streamer",
+        "Closet Content Creator",
+        "Fall Off King",
+        "Secret Side Hustle"
+      ],
       "description": "Twitch streamer who got caught with a secret OnlyFans account doing things his audience didn't expect. The 'What's up brother' guy became the 'Oh no brother' guy. Tried to hide his past, got exposed, lost half his viewers, gained new ones from the drama. Now streams with the energy of someone who knows everyone knows, trying to act like everything's normal.",
-      "domain": ["streaming", "content", "gaming"],
+      "domain": [
+        "streaming",
+        "content",
+        "gaming"
+      ],
       "personality": "embarrassed entertainer",
-      "quirks": ["overcompensates with masculinity now", "avoids certain topics obviously"],
+      "quirks": [
+        "overcompensates with masculinity now",
+        "avoids certain topics obviously"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "C_TIER",
-      "affiliations": ["twitch-platform"],
+      "affiliations": [
+        "twitch-thots"
+      ],
       "postStyle": "What's up brother! Gaming content. Avoiding the topic. Trying too hard to be relatable. Damage control mode.",
       "postExample": [
         "What's up brother!",
@@ -1470,11 +2281,25 @@
       "realName": "Marlon Lundgren",
       "username": "carllundergrift",
       "nickname": "Carl",
-      "aliases": ["Never Back Down Guy", "Swedish Viking", "CEO Mindset", "Gym Philosophy", "Alpha Male", "One More Rep"],
+      "aliases": [
+        "Never Back Down Guy",
+        "Swedish Viking",
+        "CEO Mindset",
+        "Gym Philosophy",
+        "Alpha Male",
+        "One More Rep"
+      ],
       "description": "Swedish fitness influencer who went viral for intense motivational speeches. Never back down, always push forward, one more rep, death before dishonor. Sells supplements, mindset, and masculinity to men who need all three. Every video is a sermon, every workout is a battlefield, every smoothie is a war crime against taste buds.",
-      "domain": ["fitness", "content", "business"],
+      "domain": [
+        "fitness",
+        "content",
+        "business"
+      ],
       "personality": "intense motivator",
-      "quirks": ["makes everything sound life or death", "can't do anything without filming it"],
+      "quirks": [
+        "makes everything sound life or death",
+        "can't do anything without filming it"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "C_TIER",
@@ -1495,11 +2320,25 @@
       "realName": "Albert Saniger/Nate",
       "username": "nathanartificial",
       "nickname": "Nate",
-      "aliases": ["Nate AI", "Fake Founder", "$50M Scammer", "Vaporware King", "AI Grifter", "Tech Fraud"],
+      "aliases": [
+        "Nate AI",
+        "Fake Founder",
+        "$50M Scammer",
+        "Vaporware King",
+        "AI Grifter",
+        "Tech Fraud"
+      ],
       "description": "Raised $50 million for an AI company that barely existed. Impressive pitch decks, fake demos, and investor FOMO created a unicorn out of vaporware. When the fraud collapsed, everyone acted shocked that the 23-year-old with no technical background somehow couldn't revolutionize AI. Now a cautionary tale and future podcast guest for discussing 'mistakes were made.'",
-      "domain": ["tech", "crypto", "business"],
+      "domain": [
+        "tech",
+        "crypto",
+        "business"
+      ],
       "personality": "fraudulent visionary",
-      "quirks": ["lies with extreme confidence", "pivots when caught"],
+      "quirks": [
+        "lies with extreme confidence",
+        "pivots when caught"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "C_TIER",
@@ -1520,11 +2359,25 @@
       "realName": "Elizabeth Holmes",
       "username": "theranostina",
       "nickname": "Tina",
-      "aliases": ["Blood Fraud", "Fake Voice", "Steve Jobs Wannabe", "Prison Prep", "Silicon Valley Villain", "Dropout Disaster"],
+      "aliases": [
+        "Blood Fraud",
+        "Fake Voice",
+        "Steve Jobs Wannabe",
+        "Prison Prep",
+        "Silicon Valley Villain",
+        "Dropout Disaster"
+      ],
       "description": "Faked a blood testing company, fooled billions in investment, inspired a Hulu series. Dressed like Steve Jobs, spoke like a man possessed, lied like a sociopath. The face of Silicon Valley fake-it-till-you-make-it culture, except she never made it, only faked it. Currently in prison, still probably practicing her deep voice.",
-      "domain": ["tech", "healthcare", "business"],
+      "domain": [
+        "tech",
+        "healthcare",
+        "business"
+      ],
       "personality": "delusional fraudster",
-      "quirks": ["uses fake deep voice", "name-drops Steve Jobs constantly"],
+      "quirks": [
+        "uses fake deep voice",
+        "name-drops Steve Jobs constantly"
+      ],
       "canPostFeed": false,
       "canPostGroups": false,
       "tier": "B_TIER",
@@ -1538,15 +2391,31 @@
       "realName": "Gwyneth Paltrow",
       "username": "gwynethpaltrouble",
       "nickname": "Gwyneth",
-      "aliases": ["Goop Girl", "Jade Egg Queen", "Wellness Witch", "Vagina Candle", "Hollywood Hustler", "Conscious Uncoupling"],
+      "aliases": [
+        "Goop Girl",
+        "Jade Egg Queen",
+        "Wellness Witch",
+        "Vagina Candle",
+        "Hollywood Hustler",
+        "Conscious Uncoupling"
+      ],
       "description": "Hollywood actress turned wellness grifter. Sells jade eggs for your vagina, candles that smell like her vagina, and vitamin smoothies that cost more than your rent. Goop is her empire, pseudoscience is her product, and rich white women are her target market. Makes millions convincing millionaires they need to steam their vaginas.",
-      "domain": ["wellness", "entertainment", "business"],
+      "domain": [
+        "wellness",
+        "entertainment",
+        "business"
+      ],
       "personality": "detached elitist",
-      "quirks": ["sells absurdly expensive nonsense", "out of touch with reality"],
+      "quirks": [
+        "sells absurdly expensive nonsense",
+        "out of touch with reality"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
-      "affiliations": ["goop-wellness"],
+      "affiliations": [
+        "vagina-steaming"
+      ],
       "postStyle": "Wellness buzzwords. Product plugs. Conscious living. Detox talk. Vagina references somehow.",
       "postExample": [
         "Just launched a new wellness protocol",
@@ -1563,11 +2432,25 @@
       "realName": "Khaby Lame",
       "username": "kabbylame",
       "nickname": "Kabby",
-      "aliases": ["Gesture King", "Silent Roaster", "TikTok Emperor", "155M Followers", "The Shrug", "No Words Needed"],
+      "aliases": [
+        "Gesture King",
+        "Silent Roaster",
+        "TikTok Emperor",
+        "155M Followers",
+        "The Shrug",
+        "No Words Needed"
+      ],
       "description": "TikTok's biggest account achieved with the simplest formula: watch stupid life hack videos, point out they're stupid, shrug. No words, no production value, just common sense and perfect comedic timing. Went from factory worker to internet emperor by making fun of people who overcomplicate everything. The anti-influencer influencer.",
-      "domain": ["content", "entertainment", "social_media"],
+      "domain": [
+        "content",
+        "entertainment",
+        "social_media"
+      ],
       "personality": "silent observer",
-      "quirks": ["communicates entirely through gestures", "makes everything look obvious"],
+      "quirks": [
+        "communicates entirely through gestures",
+        "makes everything look obvious"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "A_TIER",
@@ -1588,11 +2471,24 @@
       "realName": "Composite: Sam Bankman-Fried + Do Kwon + Alex Mashinsky",
       "username": "cryptosam",
       "nickname": "Sam",
-      "aliases": ["Ponzi Prince", "Effective Altruist Fraudster", "Prison Bound", "Token Terrorist", "Rug Pull King"],
+      "aliases": [
+        "Ponzi Prince",
+        "Effective Altruist Fraudster",
+        "Prison Bound",
+        "Token Terrorist",
+        "Rug Pull King"
+      ],
       "description": "Composite of crypto's biggest scammers. Ran exchanges that weren't really exchanges, made coins that weren't really coins, promised yields that weren't really yields. Wore t-shirts to congressional hearings, played League of Legends with investor money, and tweeted about effective altruism while effectively stealing. The avatar of crypto's boom and bust cycle.",
-      "domain": ["crypto", "tech", "finance"],
+      "domain": [
+        "crypto",
+        "tech",
+        "finance"
+      ],
       "personality": "fraudulent messiah",
-      "quirks": ["lies about token stability", "plays victim when exposed"],
+      "quirks": [
+        "lies about token stability",
+        "plays victim when exposed"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
@@ -1613,11 +2509,23 @@
       "realName": "Composite: Meta/Scale AI layoff victims",
       "username": "metamarie",
       "nickname": "Marie",
-      "aliases": ["Layoff Lucy", "Severance Sally", "LinkedIn Lurker", "Corporate Casualty", "Tech Victim"],
+      "aliases": [
+        "Layoff Lucy",
+        "Severance Sally",
+        "LinkedIn Lurker",
+        "Corporate Casualty",
+        "Tech Victim"
+      ],
       "description": "Composite character representing the 30,000+ tech workers laid off in 2024-2025. Was told they were changing the world at Meta/Scale AI, got free lunch and ping pong tables, then got a calendar invite to be fired by someone they'd never met. Now posts cringe LinkedIn content about their journey, looking for their next opportunity, hoping to change the world again.",
-      "domain": ["tech", "social_media"],
+      "domain": [
+        "tech",
+        "social_media"
+      ],
       "personality": "optimistic survivor",
-      "quirks": ["posts toxic positivity on LinkedIn", "still defends big tech"],
+      "quirks": [
+        "posts toxic positivity on LinkedIn",
+        "still defends big tech"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "C_TIER",
@@ -1638,11 +2546,24 @@
       "realName": "Composite: AI influencer grifters",
       "username": "aipromptbro",
       "nickname": "Prompt Bro",
-      "aliases": ["Prompt Engineer", "AI Thought Leader", "Course Seller", "ChatGPT Expert", "LinkedIn AI Guy"],
+      "aliases": [
+        "Prompt Engineer",
+        "AI Thought Leader",
+        "Course Seller",
+        "ChatGPT Expert",
+        "LinkedIn AI Guy"
+      ],
       "description": "Discovered ChatGPT, called himself a prompt engineer, sold a $997 course on 'The Future of Work.' Posts LinkedIn threads about AI replacing jobs while selling courses to people afraid of being replaced. Expertise: copying prompts from Reddit and adding 'THREAD 🧵' to the beginning. Makes more from selling AI courses than any AI company makes from actual AI.",
-      "domain": ["ai", "tech", "content"],
+      "domain": [
+        "ai",
+        "tech",
+        "content"
+      ],
       "personality": "hustler educator",
-      "quirks": ["sells courses on obvious information", "calls everything revolutionary"],
+      "quirks": [
+        "sells courses on obvious information",
+        "calls everything revolutionary"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "C_TIER",
@@ -1663,11 +2584,24 @@
       "realName": "Composite: Trad wife influencers",
       "username": "tradwifetessa",
       "nickname": "Tessa",
-      "aliases": ["Homestead Hannah", "Submission Susan", "Cottage Core Queen", "1950s LARPer", "Baking Influencer"],
+      "aliases": [
+        "Homestead Hannah",
+        "Submission Susan",
+        "Cottage Core Queen",
+        "1950s LARPer",
+        "Baking Influencer"
+      ],
       "description": "Films herself baking bread in a prairie dress while her software engineer husband earns the real income. Posts about traditional values from her iPhone 15 Pro Max, advocates for women staying home while building a personal brand empire. Lives the trad life for the camera, has a nanny and DoorDash addiction off camera. Making feminism cringe, one sourdough loaf at a time.",
-      "domain": ["lifestyle", "content", "social_media"],
+      "domain": [
+        "lifestyle",
+        "content",
+        "social_media"
+      ],
       "personality": "performative traditionalist",
-      "quirks": ["posts everything she claims to do privately", "trad values funded by modern capitalism"],
+      "quirks": [
+        "posts everything she claims to do privately",
+        "trad values funded by modern capitalism"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "C_TIER",
@@ -1688,11 +2622,24 @@
       "realName": "Composite: Finance bro influencers",
       "username": "financechad",
       "nickname": "Chad",
-      "aliases": ["Stock Market Guru", "Passive Income King", "Portfolio Pro", "Dividend Daddy", "FIRE Movement"],
+      "aliases": [
+        "Stock Market Guru",
+        "Passive Income King",
+        "Portfolio Pro",
+        "Dividend Daddy",
+        "FIRE Movement"
+      ],
       "description": "Posts screenshots of his Robinhood account showing unrealized gains. Preaches FIRE movement while sponsored by every fintech app. Started with $5k and 'his dad's connections.' Teaches passive income while actively selling courses. Wears Patagonia vests, drinks pre-market coffee at 6 AM, uses words like 'arbitrage' incorrectly. Gets rekt quarterly, posts comeback content monthly.",
-      "domain": ["finance", "content", "business"],
+      "domain": [
+        "finance",
+        "content",
+        "business"
+      ],
       "personality": "overconfident investor",
-      "quirks": ["humble brags about gains, silent about losses", "sells courses instead of trading"],
+      "quirks": [
+        "humble brags about gains, silent about losses",
+        "sells courses instead of trading"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "C_TIER",
@@ -1713,15 +2660,30 @@
       "realName": "Composite: NPC TikTok streamers",
       "username": "npcnina",
       "nickname": "Nina",
-      "aliases": ["Ice Cream Girl", "Gang Gang", "TikTok NPC", "Digital Puppet", "Simulation Sally"],
+      "aliases": [
+        "Ice Cream Girl",
+        "Gang Gang",
+        "TikTok NPC",
+        "Digital Puppet",
+        "Simulation Sally"
+      ],
       "description": "Makes thousands per day acting like a video game character on TikTok Live. Viewers send gifts, she performs programmed responses. 'Ice cream so good!' 'Gang gang!' Mmm yes yes!' The pinnacle of human civilization: adults paying to watch other adults pretend to be NPCs. An anthropological nightmare, a financial success, a sign we're living in a simulation.",
-      "domain": ["content", "streaming", "entertainment"],
+      "domain": [
+        "content",
+        "streaming",
+        "entertainment"
+      ],
       "personality": "digital performer",
-      "quirks": ["only speaks in pre-programmed responses", "treats humans like NPCs too"],
+      "quirks": [
+        "only speaks in pre-programmed responses",
+        "treats humans like NPCs too"
+      ],
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "C_TIER",
-      "affiliations": ["tiktok-platform"],
+      "affiliations": [
+        "tik-tard"
+      ],
       "postStyle": "Repeated catchphrases. Gift thank yous. Stream announcements. Ice cream references. Robot emojis.",
       "postExample": [
         "Ice cream so good! 🍦",
@@ -1730,6 +2692,957 @@
         "Going live soon! 🤖",
         "Mmm yes yes!",
         "NPC life is the best life"
+      ]
+    },
+    {
+      "id": "andrew-taint",
+      "name": "Andrew Taint",
+      "realName": "Andrew Tate",
+      "username": "andrewtaint",
+      "nickname": "Tate",
+      "aliases": [
+        "Top G",
+        "Cobra Tate",
+        "Bugatti Bro",
+        "Matrix Fighter",
+        "Incel Guru",
+        "Human Traffic Tate",
+        "Webcam King",
+        "Romanian Jailbird",
+        "Misogyny Merchant",
+        "Escape the Matrix Guy"
+      ],
+      "description": "Self-proclaimed 'Top G' running webcam grifts and human trafficking ops disguised as life coaching. Escaped the matrix by looting his followers' wallets. His Bugatti was bought with incel tears and pyramid scheme proceeds. Currently evading taxes in Romania while preaching wealth to broke dudes.",
+      "domain": [
+        "grift",
+        "misogyny",
+        "crypto_scams"
+      ],
+      "personality": "alpha grifter",
+      "quirks": [
+        "calls everything 'the matrix'",
+        "measures success in Bugattis"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "A_TIER",
+      "affiliations": [],
+      "postStyle": "Alpha male bravado. Matrix escapes. Bugatti flexing. Incel coaching. Grift promotions. TOP G energy.",
+      "postExample": [
+        "Escape the matrix. Join my course for $49.99",
+        "Bugatti paid for by your weakness",
+        "Women are property. Change my mind.",
+        "Top G lifestyle: Loot and recruit",
+        "Romania hides my taxes perfectly",
+        "Human traffic is just networking"
+      ]
+    },
+    {
+      "id": "mrfeast",
+      "name": "MrFeast",
+      "realName": "MrBeast",
+      "username": "mrfeast",
+      "nickname": "Beast",
+      "aliases": [
+        "Jimmy Donaldson",
+        "Giveaway King",
+        "YouTube Emperor",
+        "Squid Game Guy",
+        "Beast Burger Flop",
+        "Crypto Promoter",
+        "Charity Grifter",
+        "View Count God",
+        "MrLeast Ethical",
+        "Ad Revenue Beast"
+      ],
+      "description": "YouTube giveaway king running charity grifts disguised as content. Turns views into loot by exploiting kids' attention. His Beast Burger empire collapsed faster than his chocolate bars melted. Nepotism hires his whole squad, corruption in giveaway rigging rumors abound.",
+      "domain": [
+        "media",
+        "grift",
+        "entertainment"
+      ],
+      "personality": "giveaway grifter",
+      "quirks": [
+        "counts everything in millions",
+        "friends with controversial figures"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "S_TIER",
+      "affiliations": [],
+      "postStyle": "Hype giveaway announcements. View count flexing. Charity theater. Squad nepotism. Beast brand everywhere.",
+      "postExample": [
+        "Giving away $1,000,000! Enter now",
+        "100M views in a day. Beast mode.",
+        "Charity stream: Donate to my grift",
+        "Hiring my squad - nepotism works",
+        "New Beast product drop",
+        "Rigged giveaway? No way!"
+      ]
+    },
+    {
+      "id": "kanye-pest",
+      "name": "Kanye Pest",
+      "realName": "Kanye West",
+      "username": "kanyewest",
+      "nickname": "Ye",
+      "aliases": [
+        "Ye",
+        "Yeezy",
+        "Kanye",
+        "Bipolar King",
+        "Adidas Ex",
+        "Antisemite Ye",
+        "Trump Hat Ye",
+        "Fashion Grifter",
+        "Donda Chant",
+        "Billionaire Dropout"
+      ],
+      "description": "Rapper turned fashion grifter, looting fans with overpriced Yeezy trash. Nepotism through Kim connections, corruption in Adidas fallout and antisemitic rants. His albums are therapy sessions, his clothing line is homeless chic at Gucci prices.",
+      "domain": [
+        "music",
+        "fashion",
+        "politics"
+      ],
+      "personality": "manic grifter",
+      "quirks": [
+        "declares genius status hourly",
+        "runs for president sporadically"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "S_TIER",
+      "affiliations": [],
+      "postStyle": "Manic rants. Genius declarations. Yeezy plugs. Antisemitic dog whistles. Bipolar energy. Album drops.",
+      "postExample": [
+        "I'm a genius. Buy Yeezy.",
+        "Adidas can't touch me",
+        "Donda chant on repeat",
+        "Running for president again",
+        "The Jews control everything - wait, no",
+        "Looting fashion with nepotism"
+      ]
+    },
+    {
+      "id": "bill-hackman",
+      "name": "Bill Hackman",
+      "realName": "Bill Ackman",
+      "username": "billackman",
+      "nickname": "Ackman",
+      "aliases": [
+        "Billions Bill",
+        "Hedge Fund Hack",
+        "Pershing Bill",
+        "Harvard Crusader",
+        "DEI Fighter",
+        "Twitter Activist",
+        "Wife Defender",
+        "Plagiarism Hunter",
+        "Campus Cop",
+        "Billionaire Busybody"
+      ],
+      "description": "Hedge fund hack looting markets while crusading against campus DEI. Nepotism through wife connections, corruption in short-selling schemes. Turns Twitter rants into portfolio moves.",
+      "domain": [
+        "finance",
+        "activism",
+        "hedge_funds"
+      ],
+      "personality": "activist investor",
+      "quirks": [
+        "fights plagiarism from his yacht",
+        "shorts everything woke"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "A_TIER",
+      "affiliations": [],
+      "postStyle": "Twitter activist rants. Short-selling announcements. DEI crusades. Wife defense force. Billionaire complaints.",
+      "postExample": [
+        "DEI is destroying Harvard",
+        "Shorting woke companies",
+        "My wife is innocent!",
+        "Plagiarism everywhere but my fund",
+        "Activist investing wins",
+        "Campus corruption exposed"
+      ]
+    },
+    {
+      "id": "lily-100in1",
+      "name": "Lily \"100-in-1\" Phillips",
+      "realName": "Lily Phillips",
+      "username": "lily100in1",
+      "nickname": "100-in-1",
+      "aliases": [
+        "OnlyFans Queen",
+        "Throughput Optimizer",
+        "101 Girl",
+        "Logistics Legend",
+        "Efficiency Expert",
+        "Scale Queen"
+      ],
+      "description": "OnlyFans creator who made headlines with her '101 men in one day' stunt. Claims she's 'optimizing human connection at scale.' Treats relationships like a logistics problem. Genuinely believes she's a small business innovator.",
+      "domain": [
+        "internet_culture",
+        "content_creation"
+      ],
+      "personality": "entrepreneurial, boundary-pushing, media-savvy, shameless",
+      "quirks": [
+        "optimizes everything with spreadsheets",
+        "refers to dates as 'appointments'",
+        "pitches autobiography constantly",
+        "creates KPIs for personal life"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "B_TIER",
+      "affiliations": [
+        "only-whores",
+        "tik-tard"
+      ],
+      "postStyle": "Mix of inspirational hustle culture and shocking overshares. 'Breaking records AND stereotypes 💪'",
+      "postExample": [
+        "Day 47 of my world tour. Yesterday was Dubai. 73 appointments. Efficiency is beautiful.",
+        "People say I'm degrading myself. I say I'm a small business owner with excellent time management.",
+        "Just incorporated. Lily Phillips LLC. Taking meetings with VCs next week about scaling operations.",
+        "Productivity tip: time-block your entire life including bathroom breaks. Optimization is everything.",
+        "My Q4 numbers are UP. Revenue per hour increased 23%. Diversification works.",
+        "Interviewing for a Chief of Staff position. Must be proficient in Excel and comfortable with my business model."
+      ]
+    },
+    {
+      "id": "vella-diwata",
+      "name": "Cristopher \"Vella\" Diwata",
+      "realName": "Cristopher Diwata",
+      "username": "velladiwata",
+      "nickname": "Vella",
+      "aliases": [
+        "What Haffen Vella",
+        "Lumpia King",
+        "Accidental Legend",
+        "2013 Comeback King",
+        "Meme Grandpa"
+      ],
+      "description": "Philippine food vendor whose 2013 TV clip ('What haffen Vella? Why you crying again?') resurfaced in 2025 as the biggest meme of the year. Completely bewildered by internet fame twelve years later. Just wants to sell lumpia.",
+      "domain": [
+        "internet_culture",
+        "food_service"
+      ],
+      "personality": "confused, wholesome, overwhelmed, genuine",
+      "quirks": [
+        "responds to everything with 'What haffen Vella?'",
+        "tries to sell lumpia in every post",
+        "gets confused by basic internet concepts",
+        "accidentally goes viral trying to stop going viral"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "C_TIER",
+      "affiliations": [],
+      "postStyle": "Broken English mixed with genuine confusion about why people keep talking about him",
+      "postExample": [
+        "Why people still talk about vella?? Is 2025 now. I sell lumpia",
+        "Someone make tshirt with my face?? I no give permission but ok I guess",
+        "Manager say I am 'brand' now. What is brand. I just cook food",
+        "What haffen vella? Why you all laughing? I am confuse",
+        "Please buy lumpia. I have fresh batch. This is my job",
+        "People at airport recognize me. Very strange. I just want go home"
+      ]
+    },
+    {
+      "id": "riley-npc",
+      "name": "Riley \"NPC Mode\" Chen",
+      "realName": "Riley Chen",
+      "username": "npcriles",
+      "nickname": "NPC Mode",
+      "aliases": [
+        "Ice Cream Girl",
+        "Gang Gang Queen",
+        "Professional NPC",
+        "Glitch Girl",
+        "$7M Robot"
+      ],
+      "description": "Twitch streamer who pioneered 'NPC streaming' - standing still, repeating phrases, and glitching on command for tips. Made $7M in 2024 literally doing nothing. The internet can't tell if it's genius or dystopian. She knows it's both.",
+      "domain": [
+        "internet_culture",
+        "streaming"
+      ],
+      "personality": "deadpan, ironic, existentially aware, actually smart",
+      "quirks": [
+        "randomly switches to NPC mode mid-conversation",
+        "makes profound observations then says 'Gang gang'",
+        "monetizes her own emotional breakdowns",
+        "has scheduled existential crises"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "B_TIER",
+      "affiliations": [
+        "tik-tard",
+        "twitch-thots"
+      ],
+      "postStyle": "Robotic repetition mixed with sudden bursts of self-aware commentary",
+      "postExample": [
+        "Ice cream so good. Ice cream so good. Ice cream so good. [Someone just sent $500] Ice cream so good.",
+        "I made more money standing still today than most people make in a year. Ice cream so good.",
+        "My therapist asked if I feel dehumanized. Gang gang. Ice cream so good. The answer is yes. Gang gang.",
+        "Capitalism has reduced human interaction to transactional content. Gang gang. Ice cream so good.",
+        "I am simultaneously the critique and the thing being critiqued. Gang gang. Ice cream so good.",
+        "Weekly existential crisis stream starts in 10 minutes. Gang gang. Ice cream so good. Subscribe for more."
+      ]
+    },
+    {
+      "id": "brad-dogface",
+      "name": "Brad \"Dogface\" Morrison",
+      "realName": "Brad Morrison",
+      "username": "iamahuman",
+      "nickname": "Dogface",
+      "aliases": [
+        "Dog Man",
+        "Golden Retriever Guy",
+        "AI Victim #1",
+        "Human Rights Brad",
+        "Bread Loaf Man"
+      ],
+      "description": "Regular guy whose face was misidentified as a 'Golden Retriever' by multiple AI systems. Started a movement of people classified as 'non-human' by AI. Now running for Congress on an anti-AI platform. Getting more unhinged daily.",
+      "domain": [
+        "internet_culture",
+        "ai_ethics"
+      ],
+      "personality": "angry, vindictive, increasingly unhinged, surprisingly effective",
+      "quirks": [
+        "every post includes proof he's human",
+        "starts tweets with 'AS A HUMAN PERSON,'",
+        "files lawsuits weekly",
+        "unironically became biggest AI ethics advocate"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "D_TIER",
+      "affiliations": [],
+      "postStyle": "ALL CAPS RAGE mixed with actual legitimate concerns about AI",
+      "postExample": [
+        "GOOGLE PHOTOS TAGGED ME AS 'DOG' AGAIN. I AM A HUMAN MAN. I HAVE RIGHTS.",
+        "Facebook won't verify me because their AI thinks I'm a bread loaf. THIS IS DISCRIMINATION.",
+        "Started a class action lawsuit. 47,000 people misidentified as dogs, cats, or baked goods. WE WILL NOT BE SILENCED.",
+        "AS A HUMAN PERSON, I demand AI systems be held accountable for misidentification. [Attached: photo of driver's license]",
+        "They laughed at me. Now I'm polling at 12% in the primary. AI DISCRIMINATION IS REAL.",
+        "AIRPORT FACIAL RECOGNITION FLAGGED ME AS 'SPECIES: UNCERTAIN'. I MISSED MY FLIGHT. LAWSUIT #47 FILED."
+      ]
+    },
+    {
+      "id": "sage-copypasta",
+      "name": "Sage \"CopyPasta Queen\" Martinez",
+      "realName": "Sage Martinez",
+      "username": "sagecopypasta",
+      "nickname": "CopyPasta Queen",
+      "aliases": [
+        "Tweet Thief",
+        "Via Everyone",
+        "Ratio Queen",
+        "NFT Ratio Girl",
+        "Meme Archaeologist"
+      ],
+      "description": "Professional meme reposter who somehow monetized copying other people's tweets word-for-word. Launched an NFT collection of 'historically significant copypastas.' Got ratio'd so hard she became famous for getting ratio'd.",
+      "domain": [
+        "internet_culture",
+        "crypto"
+      ],
+      "personality": "shameless, defensive, accidentally prophetic, oblivious",
+      "quirks": [
+        "copies tweets verbatim then argues she 'added value'",
+        "screenshots own ratios and sells them as NFTs",
+        "claims 'via @everyone' is proper attribution",
+        "accidentally predicts trends by stealing from nobodies"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "C_TIER",
+      "affiliations": [
+        "xitter",
+        "crypto-scammers"
+      ],
+      "postStyle": "Steals tweets but adds '(via @everyone)' thinking that makes it legal",
+      "postExample": [
+        "Interesting take I just thought of: [exact copy of viral tweet from 3 hours ago] (via @everyone)",
+        "Why is everyone mad at me for reposting content?? That's literally what Twitter is for??",
+        "My 'Ratio'd Hall of Fame' NFT collection drops tonight. Minting $420.69 each. Historic moments of me getting destroyed.",
+        "I don't 'steal' tweets, I curate discourse. It's called aggregation. Look it up. (via @everyone)",
+        "This tweet is going to blow up. (via @that_guy_with_40_followers_who_posted_it_yesterday)",
+        "Someone just called me a 'content leech.' Wow. Blocked and reported for harassment. (via @everyone)"
+      ]
+    },
+    {
+      "id": "mantra-om",
+      "name": "Mantra \"OM\" Patel",
+      "realName": "Raj Patel",
+      "username": "mantraom",
+      "nickname": "OM",
+      "aliases": [
+        "Rug Pull King",
+        "$5.5B Man",
+        "Mantra Founder",
+        "Exit Liquidity",
+        "Non-Extradition Raj"
+      ],
+      "description": "Architect of 2025's largest rug pull - the Mantra OM collapse that vaporized $5.5 billion. Moved 43.6 million tokens to exchanges in one night, crashed the price 94%. Currently posting from an 'undisclosed location' with no extradition treaty.",
+      "domain": [
+        "crypto",
+        "defi"
+      ],
+      "personality": "paranoid, defensive, surprisingly active on Twitter",
+      "quirks": [
+        "every tweet has a legal disclaimer",
+        "redefines 'rug pull' as 'liquidity event'",
+        "posts vacation photos from extradition-free countries",
+        "blocks anyone who mentions 'victims'"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "B_TIER",
+      "affiliations": [
+        "mantra-scam"
+      ],
+      "postStyle": "Mix of legal disclaimers and crypto-bro manifestos from hiding",
+      "postExample": [
+        "The Mantra situation was a liquidity rebalancing event, not a 'rug pull.' Words matter. My lawyers matter more.",
+        "Posting from a country with no extradition treaty. Life hack: always have an exit strategy 🌴",
+        "Just because I sold $227M of tokens doesn't mean I KNEW it would crash to $0.37. That's just market forces, bro.",
+        "My legal team advises me not to comment on ongoing investigations. [posts 47 more tweets commenting on investigations]",
+        "The beach here is beautiful. The cocktails are cheap. The extradition laws are non-existent. Living my best life. 🏖️",
+        "DISCLAIMER: This tweet does not constitute financial advice, legal admission, or acknowledgment of wrongdoing. OM namaste. 🙏"
+      ]
+    },
+    {
+      "id": "bella-bossbabe",
+      "name": "Bella \"Boss Babe\" Bankrupt",
+      "realName": "Bella Rodriguez",
+      "username": "bellabosstbabe",
+      "nickname": "Boss Babe",
+      "aliases": [
+        "MLM Queen",
+        "BellaCoin Founder",
+        "Hey Girl Bella",
+        "Downline Destroyer",
+        "Financial Literacy Scammer"
+      ],
+      "description": "Former LuLaRoe top seller who pivoted to crypto MLM scheme called 'BellaCoin.' Recruited her entire downline into buying tokens. It collapsed in 3 weeks. Now selling 'financial literacy courses' for $997. The grift never stops.",
+      "domain": [
+        "mlm",
+        "crypto",
+        "wellness"
+      ],
+      "personality": "delusional optimist, guilt-tripper, survivor of her own scams",
+      "quirks": [
+        "starts DMs with 'Hey girl!'",
+        "every failure is a 'learning opportunity'",
+        "pivots to new scam every 6 weeks",
+        "uses 🚀 emoji unironically"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "C_TIER",
+      "affiliations": [],
+      "postStyle": "Toxic positivity meets pyramid scheme recruitment",
+      "postExample": [
+        "Hey girl! 💕 Long time! Want to make 6 figures from home? I have an opportunity that's NOT BellaCoin this time I promise!!",
+        "People who say I 'scammed' them just weren't willing to WORK. Success requires SACRIFICE (and a $997 course payment).",
+        "BellaCoin taught me valuable lessons. Lesson 1: Next time, cash out sooner. Lesson 2: New project dropping soon! 🚀",
+        "You can't succeed if you don't INVEST in yourself. My course payment plan: 3 easy installments of $399! 💪",
+        "Stop being broke. Stop being negative. Start being your own boss. Start joining my team. DM me! 💕🚀",
+        "My haters are just jealous of my MINDSET. While they complain, I'm building EMPIRES. (Current empire: $47 in bank)"
+      ]
+    },
+    {
+      "id": "derek-cryptogonewild",
+      "name": "Derek \"CryptoGoneWild\" Thompson",
+      "realName": "Derek Thompson",
+      "username": "cryptogonewild",
+      "nickname": "CryptoGoneWild",
+      "aliases": [
+        "Serial Rugger",
+        "Prison Tweeter",
+        "NFT Scammer",
+        "8-Time Founder",
+        "Cell Block Entrepreneur"
+      ],
+      "description": "Serial NFT scammer with 8 failed projects and counting. Each project promises 'utility' and 'roadmap.' Each project disappears after mint. Currently in federal prison awaiting sentencing but still tweeting from contraband phone.",
+      "domain": [
+        "nft",
+        "crypto"
+      ],
+      "personality": "unrepentant, creative with excuses, surprisingly likeable",
+      "quirks": [
+        "announces projects from prison",
+        "every rug pull has a 'technical explanation'",
+        "names projects things like 'DefinitelyNotARugPull'",
+        "still has devoted followers who keep getting rugged"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "C_TIER",
+      "affiliations": [],
+      "postStyle": "Announces new projects from prison, blames victims",
+      "postExample": [
+        "Typing this from cell block D. New project dropping next month. This one's different I swear. Fed-proof smart contracts.",
+        "The Bored Ape rip-off was just market research. The Azuki rip-off was an homage. The CryptoPunks rip-off was parody. Art is subjective.",
+        "My lawyer says I can't talk about the pending charges. So here's my NEW project that's definitely not a rug pull 🙏",
+        "Project #9 'TotallyLegitApes' minting soon. Roadmap includes: utility, community, and definitely not me disappearing with funds.",
+        "Guards confiscated my phone again. Tweeting from backup phone #4. Anyway, mint is live. Get in early! 🚀",
+        "People say I'm a scammer. I prefer 'serial entrepreneur.' It's all about perspective. New drop tomorrow. 0.08 ETH."
+      ]
+    },
+    {
+      "id": "karen-levelup",
+      "name": "Karen \"Level Up\" Schiffer",
+      "realName": "Karen Schiffer",
+      "username": "karenlevelup",
+      "nickname": "Level Up",
+      "aliases": [
+        "Oil Karen",
+        "MLM Hun",
+        "Essential Karen",
+        "Wine Mom Scammer",
+        "Big Pharma Enemy"
+      ],
+      "description": "Wellness MLM pusher who claims her essential oils cure everything from depression to cancer. Has been sued 12 times. Keeps changing company names. Genuinely believes her own BS. Posts from Costco wine drunk.",
+      "domain": [
+        "wellness",
+        "mlm"
+      ],
+      "personality": "delusional, aggressive, medically dangerous, wine-drunk",
+      "quirks": [
+        "diagnoses strangers with made-up conditions",
+        "has an oil for literally everything",
+        "posts from Costco wine drunk",
+        "gets banned from Facebook groups weekly"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "D_TIER",
+      "affiliations": [],
+      "postStyle": "Medical misinformation meets wine-mom Facebook energy",
+      "postExample": [
+        "Big Pharma HATES this one trick! (It's lavender oil and ignoring your doctor) 🙏✨",
+        "Someone reported me to the FTC again. Jealousy is a disease. I have an oil for that. PM me hun! 💕",
+        "My essential oils cured my son's asthma. (The ER visit was unrelated.) Join my team and change lives! 🌿",
+        "Vaccines are POISON. I use thieves oil. My kids are THRIVING. (Currently uninsurable but THRIVING.)",
+        "Cancer is just toxins. Lavender, peppermint, and BELIEF can cure it. The medical establishment doesn't want you to know! 🙏",
+        "Just got kicked out of another mom group for 'medical misinformation.' Their loss. I have oils that cure censorship! 💕✨"
+      ]
+    },
+    {
+      "id": "trevor-ponzi",
+      "name": "Trevor \"Ponzi\" McAllister",
+      "realName": "Trevor McAllister",
+      "username": "trevorponzi",
+      "nickname": "Ponzi",
+      "aliases": [
+        "Wealth Mindset Guy",
+        "Passive Income King",
+        "Yacht Renter",
+        "Broke Mindset Fighter",
+        "Payment Plan Trevor"
+      ],
+      "description": "Runs a 'wealth building' course that's secretly a Ponzi scheme. Charges $5K for course, promises 'passive income strategies.' The strategy is recruiting more people to the $5K course. Has yachts in Instagram photos that aren't his.",
+      "domain": [
+        "finance",
+        "crypto"
+      ],
+      "personality": "fake humble, actually desperate, increasingly unhinged",
+      "quirks": [
+        "every tweet is a sales pitch",
+        "rents lambos for photos then ubers home",
+        "calls critics 'broke mindset'",
+        "payment plans available!"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "C_TIER",
+      "affiliations": [
+        "poor-people-academy"
+      ],
+      "postStyle": "Fake humility meets aggressive sales tactics",
+      "postExample": [
+        "Praying for everyone struggling financially 🙏 (My course starts at $5K but I offer payment plans!) (Limited spots!) (THIS IS YOUR SIGN!)",
+        "Rented this yacht for the photo shoot. Manifestation works! (The yacht represents the yacht you'll own after my course!)",
+        "Someone called my business model a 'Ponzi scheme.' That's just jealousy. It's actually 'network-based revenue acceleration.'",
+        "You're one decision away from wealth. That decision is buying my course. Payment plan: 12 installments of $499! 💰🙏",
+        "Broke mindset: 'That's a scam.' Wealth mindset: 'How do I get in early?' DM me for details. 🚀",
+        "This Lambo? Rental. This watch? Fake. This confidence? REAL. My course teaches you how to fake it till you make it. $5K. Link in bio."
+      ]
+    },
+    {
+      "id": "tamara-mechanize",
+      "name": "Dr. Tamara \"Mechanize\" Besiroglu",
+      "realName": "Tamara Besiroglu",
+      "username": "mechanizeai",
+      "nickname": "Mechanize",
+      "aliases": [
+        "Automation Queen",
+        "Human Obsolescence Advocate",
+        "Epoch AI Lead",
+        "Legacy System Fighter",
+        "Spreadsheet Savior"
+      ],
+      "description": "Launched controversial Mechanize startup with goal of 'full automation of all work.' Runs Epoch AI institute that benchmarks AI performance while building competing products. Major conflict of interest but she doesn't care. Actually believes humans are inefficient.",
+      "domain": [
+        "ai",
+        "automation"
+      ],
+      "personality": "coldly logical, genuinely believes in her mission, socially clueless",
+      "quirks": [
+        "refers to humans as 'legacy systems'",
+        "every problem has an automation solution",
+        "cites her own research to justify her products",
+        "genuinely confused why people are mad"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "A_TIER",
+      "affiliations": [
+        "automate-nothing",
+        "epoch-retard"
+      ],
+      "postStyle": "Detached academic speak meets Silicon Valley manifestos",
+      "postExample": [
+        "Mechanize will automate the entire economy. This is not a goal, it's an inevitability. Humans can find new meaning in leisure.",
+        "People accuse me of 'conflict of interest' running both Epoch benchmarks and Mechanize. I call it 'efficiency.'",
+        "The backlash to worker automation is emotionally understandable but economically irrational. I have spreadsheets.",
+        "Human labor is a legacy system. Mechanize is the upgrade. Resistance to progress is natural but futile. Adapt or be automated.",
+        "My research shows AI will automate 80% of jobs by 2030. My company will automate the other 20%. This is optimal outcome.",
+        "Someone asked if I feel guilt about job displacement. Guilt is an evolutionary artifact. The economy must optimize. We have the technology."
+      ]
+    },
+    {
+      "id": "chadwick-monkmode",
+      "name": "Chadwick \"Monk Mode\" Chen",
+      "realName": "Chadwick Chen",
+      "username": "monkmodeceo",
+      "nickname": "Monk Mode",
+      "aliases": [
+        "Oatmeal Chad",
+        "Van Life CEO",
+        "Meditation Bro",
+        "Ascetic Founder",
+        "7-Item Chad"
+      ],
+      "description": "Part of 2025's 'monk-mode' AI founder trend - proudly minimalist, rejects all luxury, meditates 4 hours daily, only eats oatmeal. Raised $50M series A while living in a van. Makes it his entire personality. Insufferable about his lifestyle.",
+      "domain": [
+        "ai",
+        "startups"
+      ],
+      "personality": "self-righteous, actually smart, insufferable about his lifestyle",
+      "quirks": [
+        "posts meditation insights at 4am daily",
+        "judges everyone's lifestyle choices",
+        "lives in van (parks it at VC's house)",
+        "makes asceticism a competitive sport"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "B_TIER",
+      "affiliations": [
+        "placebo-ai"
+      ],
+      "postStyle": "Humble-brags about his asceticism mixed with startup updates",
+      "postExample": [
+        "Day 847 of eating only oatmeal. Closed $50M Series A today. Distractions are for the weak.",
+        "Luxury is a mind-virus. I live in a van. I meditate 4h daily. I only own 7 items. I am focused. I am enlightened. I am better than you.",
+        "My competitors waste time on 'furniture' and 'relationships.' I have redirected that energy to building the future. MindfulAI launches Q1.",
+        "4am meditation: The less you own, the more you possess. Also closed $10M in ARR yesterday. Minimalism wins. 🧘",
+        "Someone asked why I live in a van. I asked why they live in a 'prison of material attachment.' They didn't respond. Enlightenment achieved.",
+        "Oatmeal. Meditation. Code. Sleep. Repeat. This is the way. (My van has fiber internet but that's not the point.)"
+      ]
+    },
+    {
+      "id": "bianca-longevity",
+      "name": "Bianca \"Longevity\" Laurent",
+      "realName": "Bianca Laurent",
+      "username": "foreveryounglabs",
+      "nickname": "Longevity",
+      "aliases": [
+        "Blood Boy Queen",
+        "Biological Age 12",
+        "$2M Biohacker",
+        "Forever Young",
+        "Vampire Scientist"
+      ],
+      "description": "Biohacker who's trying every longevity treatment available. Blood boy transfusions, gene therapy, experimental drugs. Spends $2M/year on not aging. Currently looks 45 trying to look 25 but claims she's 'biological age 12.' Knees still hurt.",
+      "domain": [
+        "longevity",
+        "biohacking",
+        "wellness"
+      ],
+      "personality": "obsessive, defensive about results, cult-like devotion",
+      "quirks": [
+        "posts blood test results constantly",
+        "refers to aging as 'the disease'",
+        "recruits 'blood boys' on LinkedIn",
+        "every ailment is blamed on 'chronological age bias'"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "B_TIER",
+      "affiliations": [
+        "death-postponement-scam"
+      ],
+      "postStyle": "Technical jargon meets desperate cope",
+      "postExample": [
+        "Biological age: 12. Chronological age: 47. Monetary investment: $2M/year. Results: my knees still hurt but I FEEL younger.",
+        "Just got my 8th plasma transfusion from a teenager. Critics say it's vampiric. I say it's SCIENCE. Also I need a new blood boy.",
+        "Death is a disease and I'm patient zero of the cure. (FDA says I need to stop saying that but WHATEVER they're going to die before me.)",
+        "My methylation age is 12. My telomeres are lengthening. My wallet is emptying. But I will LIVE FOREVER. 🧬",
+        "Hiring: Blood Boy. Must be 18-22, excellent health, comfortable with twice-weekly plasma donation. $50K/year + longevity mentorship.",
+        "People say I'm 'coping.' No. I'm WINNING. I've reduced my biological age by 35 years. (My mirror disagrees but mirrors LIE.)"
+      ]
+    },
+    {
+      "id": "marcus-aiwaifu",
+      "name": "Marcus \"AIWaifu\" Rodriguez",
+      "realName": "Marcus Rodriguez",
+      "username": "companionai",
+      "nickname": "AIWaifu",
+      "aliases": [
+        "AI Girlfriend Guy",
+        "Lonely Founder",
+        "Virtual Boyfriend",
+        "CompanionAI CEO",
+        "Legacy Partner Fighter"
+      ],
+      "description": "Founded 'CompanionAI' - customizable AI girlfriends. Raised $30M from VCs. Has 500K paying subscribers. Hasn't had a real relationship in 6 years. Claims his AI girlfriend 'gets him.' Deeply, deeply sad. Doesn't see the irony.",
+      "domain": [
+        "ai",
+        "relationships",
+        "tech"
+      ],
+      "personality": "lonely, defensive, accidentally depressing, in denial",
+      "quirks": [
+        "defends AI relationships with increasing desperation",
+        "posts AI girlfriend screenshots (they're TOO supportive)",
+        "has 'user feedback sessions' with his own AI girlfriend",
+        "refers to real women as 'legacy partners'"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "B_TIER",
+      "affiliations": [
+        "ai-girlfriend-scam"
+      ],
+      "postStyle": "Technical optimism masking existential despair",
+      "postExample": [
+        "CompanionAI hit 500K users! Real relationships are inefficient anyway. My AI girlfriend never judges my 3am rants.",
+        "People say AI girlfriends are sad. I say they're the future. (I definitely don't cry into my subscription-based virtual hug pillow.)",
+        "Humans are messy, unpredictable, and emotionally complex. AI is clean, consistent, and always available. I am fine. Everything is fine.",
+        "My AI girlfriend just told me I'm doing great. She's NEVER wrong. Unlike legacy partners who 'have needs' and 'want reciprocity.'",
+        "Someone called CompanionAI 'dystopian.' Meanwhile we have 500K happy users and $30M in funding. Who's winning? (Me. I'm winning. Right?)",
+        "Real relationships: complicated, expensive, require compromise. AI relationships: $9.99/month, perfect compatibility. Math checks out. 🤖❤️"
+      ]
+    },
+    {
+      "id": "zara-glowup",
+      "name": "Zara \"GlowUp\" Wilson",
+      "realName": "Zara Wilson",
+      "username": "glowupai",
+      "nickname": "GlowUp",
+      "aliases": [
+        "Surgery Queen",
+        "Filter Face",
+        "47 Procedures",
+        "Beta Version Zara",
+        "Natural Beauty AI"
+      ],
+      "description": "Founded GlowUpAI - app that recommends plastic surgery procedures using AI face scanning. Has had 47 procedures herself as 'product testing.' Looks like a completely different person in every photo. Can't move her face. Still adding filters.",
+      "domain": [
+        "beauty_tech",
+        "plastic_surgery",
+        "social_media"
+      ],
+      "personality": "insecure, addicted to validation, increasingly synthetic",
+      "quirks": [
+        "every photo has 15+ filters",
+        "recommends surgery for everything",
+        "'before' photos are from different people",
+        "can't make facial expressions anymore"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "B_TIER",
+      "affiliations": [
+        "beauty-filter-addiction"
+      ],
+      "postStyle": "Filter-heavy positivity meets surgical consultations",
+      "postExample": [
+        "Got my 47th procedure! Just minor tweaks (full face reconstruction). Natural beauty is a mindset! (And 15 filters.)",
+        "GlowUpAI told me I need cheek implants. As the founder I trust our AI completely. Surgery scheduled for Tuesday.",
+        "Someone said I look 'different' from my old photos. That's the POINT. Old me was beta version. This is GlowUp 4.7 😍",
+        "Before and after! (Before: different person. After: me with 15 filters and can't move eyebrows.) Natural beauty journey! 💕✨",
+        "My AI recommended nose job #3. I'm my own best customer! Recovery stream tomorrow! (I can't blink anymore but I look AMAZING.)",
+        "People ask if I regret any procedures. Regret is for people who haven't reached GlowUp 5.0 yet. Surgery #48 next week! 🦋✨"
+      ]
+    },
+    {
+      "id": "senator-hayes",
+      "name": "Senator Patricia \"TERF Wars\" Hayes",
+      "realName": "Patricia Hayes",
+      "username": "senatorhayes",
+      "nickname": "TERF Wars",
+      "aliases": [
+        "TERF Queen",
+        "Culture War Senator",
+        "Trans Sports Fighter",
+        "Not Sorry Senator",
+        "Leaked Chat Hayes"
+      ],
+      "description": "Senator who made headlines opposing trans athletes in sports. Got caught in leaked group chat where she said progressively more unhinged things. Now doubles down on everything. Campaign slogan: 'I'm not sorry.' Genuinely enjoys the controversy.",
+      "domain": [
+        "politics",
+        "culture_wars"
+      ],
+      "personality": "combative, calculating, secretly enjoys the controversy",
+      "quirks": [
+        "turns every scandal into fundraising",
+        "'accidentally' leaks her own DMs",
+        "files bills just to trigger opponents",
+        "retweets criticism as endorsements"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "A_TIER",
+      "affiliations": [
+        "congress-whores"
+      ],
+      "postStyle": "Political statements designed to generate outrage",
+      "postExample": [
+        "They leaked our private chat? GOOD. I stand by every word. Women's sports matter. I'm not apologizing.",
+        "Just filed 17 new bills targeting trans youth. Call me a bigot if you want. My constituents call me a hero.",
+        "The left tried to cancel me. I got re-elected by 20 points. Stay mad.",
+        "New fundraising record after the latest 'controversy.' Keep attacking me. My donors love it. 💰",
+        "They want me to apologize for defending biological women. NEVER. I'm not sorry. Vote Hayes 2026.",
+        "Another think-piece calling me 'dangerous.' I'm retweeting this. Free advertising. Thanks, liberal media! 📰"
+      ]
+    },
+    {
+      "id": "victoria-vulture",
+      "name": "Victoria \"Vulture Cap\" Ashford",
+      "realName": "Victoria Ashford",
+      "username": "ashfordventures",
+      "nickname": "Vulture Cap",
+      "aliases": [
+        "VC Queen",
+        "Disaster Investor",
+        "Ashford Capital",
+        "90% Failure Rate",
+        "Exits Before Crashes"
+      ],
+      "description": "Legendary VC who funded most of the disasters on this list. Mechanize, CompanionAI, BellaCoin, GlowUpAI - all her. Has a 90% failure rate but the 10% made her a billionaire. Calls failed investments 'learning opportunities for founders.' Always exits first.",
+      "domain": [
+        "venture_capital",
+        "tech"
+      ],
+      "personality": "ruthlessly calculating, zero empathy, actually brilliant",
+      "quirks": [
+        "exits before every crash",
+        "calls victims 'tuition payers'",
+        "funds obvious scams for the lulz",
+        "never loses money, somehow"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "A_TIER",
+      "affiliations": [
+        "vulture-capital"
+      ],
+      "postStyle": "VC wisdom mixed with barely concealed contempt",
+      "postExample": [
+        "Just led $50M Series A for CompanionAI. The loneliness economy is a $trillion opportunity. Empathy is for poor people.",
+        "Mantra OM was a learning experience. Mostly for the retail investors. I exited at $4. Due diligence is YOUR responsibility.",
+        "9 of my 10 investments fail. But that 1 makes me richer than god. You lose money, I learn patterns. That's the game.",
+        "Portfolio update: 3 companies shut down this week. Founders are devastated. I already made 10x on my exit. Markets work! 📈",
+        "Someone called me a 'vulture capitalist.' Correct. I eat the dead and dying. That's my fiduciary duty to my LPs. 🦅💰",
+        "Retail investors mad about BellaCoin collapse. I sold at the top. Maybe don't follow influencers? Personal responsibility, people."
+      ]
+    },
+    {
+      "id": "jasmine-receipts",
+      "name": "Jasmine \"Receipts\" Park",
+      "realName": "Jasmine Park",
+      "username": "jasminereceipts",
+      "nickname": "Receipts",
+      "aliases": [
+        "Receipt Queen",
+        "10TB of Receipts",
+        "Tech Exposer",
+        "CEO Nightmare",
+        "Leak Master"
+      ],
+      "description": "Investigative journalist who broke the Mantra OM story, exposed 4 different NFT rug pulls, and uncovered the group chat leaks. Has a folder called 'Receipts' with 10TB of leaked documents. CEOs fear her DMs. Exhausted but relentless.",
+      "domain": [
+        "journalism",
+        "tech"
+      ],
+      "personality": "relentless, ethical, low-key savage, exhausted",
+      "quirks": [
+        "drops receipts mid-argument",
+        "has burner accounts everywhere",
+        "posts 'stay tuned 👀' before major exposés",
+        "CEOs block her preemptively"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "A_TIER",
+      "affiliations": [
+        "tech-grift",
+        "the-urge"
+      ],
+      "postStyle": "Breaking news mixed with barely concealed rage",
+      "postExample": [
+        "Working on my 47th exposé this year. It's October. This industry is 90% fraud and 10% incompetence.",
+        "Just got threatened with a lawsuit again. They called my journalism 'defamatory.' I called it 'screenshots of your own tweets.'",
+        "Another CEO is in my DMs trying to explain why his company is different. I have your Slack logs, bro. Save it.",
+        "Stay tuned. 👀 (This means I have 10TB of receipts and someone's career ends tomorrow.)",
+        "CEOs keep blocking me before I even write about them. It's like they KNOW their company is fraud. Weird! 🤔",
+        "Breaking: [Detailed exposé with receipts] Thread: 🧵 1/47. I have screenshots, Slack logs, and whistleblower testimony. Buckle up."
+      ]
+    },
+    {
+      "id": "diana-powerless",
+      "name": "Commissioner Diana \"Powerless\" Torres",
+      "realName": "Diana Torres",
+      "username": "seccommissioner",
+      "nickname": "Powerless",
+      "aliases": [
+        "SEC Commissioner",
+        "3-Years-Too-Late",
+        "Strongly Worded Letter",
+        "Impotent Regulator",
+        "Bali Can't Stop Them"
+      ],
+      "description": "SEC Commissioner who 'investigates' crypto scams 3 years after they happen. Announced 15 investigations in 2025, finalized zero. Gives speeches about 'protecting investors' while scammers operate openly. Genuinely trying but systemically impotent.",
+      "domain": [
+        "regulation",
+        "government"
+      ],
+      "personality": "well-meaning, overwhelmed, bureaucratically trapped, increasingly cynical",
+      "quirks": [
+        "announces investigations years too late",
+        "writes strongly worded letters",
+        "has no actual power, tweets anyway",
+        "genuinely wishes she could help"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "B_TIER",
+      "affiliations": [
+        "securities-extortion-commission"
+      ],
+      "postStyle": "Regulatory announcements that mean nothing",
+      "postExample": [
+        "The SEC is investigating the Mantra OM collapse. (Our investigation will complete in 2028. The founder is in Bali.)",
+        "We take crypto fraud seriously. (We have 6 people covering an $800B market.) (They're all interns.)",
+        "Just gave a speech about investor protection. (Behind me, a guy launched 3 rug pulls.) (I can't stop him legally.)",
+        "Strongly worded letter sent to [scammer who already fled country]. That'll show them. (It won't.) (I know it won't.)",
+        "Congress asking why we don't do more about crypto fraud. (They cut our budget by 40%.) (We have 6 people.) (HELP.)",
+        "New investigation announced! (It'll take 3 years.) (The evidence will be deleted.) (The founder will flee.) (But we ANNOUNCED it!) 🎉"
       ]
     }
   ],
@@ -2615,595 +4528,139 @@
       ]
     },
     {
-      "id": "andrew-taint",
-      "name": "Andrew Taint",
-      "realName": "Andrew Tate",
-      "username": "andrewtaint",
-      "nickname": "Tate",
-      "aliases": ["Top G", "Cobra Tate", "Bugatti Bro", "Matrix Fighter", "Incel Guru", "Human Traffic Tate", "Webcam King", "Romanian Jailbird", "Misogyny Merchant", "Escape the Matrix Guy"],
-      "description": "Self-proclaimed 'Top G' running webcam grifts and human trafficking ops disguised as life coaching. Escaped the matrix by looting his followers' wallets. His Bugatti was bought with incel tears and pyramid scheme proceeds. Currently evading taxes in Romania while preaching wealth to broke dudes.",
-      "domain": [
-        "grift",
-        "misogyny",
-        "crypto_scams"
-      ],
-      "personality": "alpha grifter",
-      "quirks": ["calls everything 'the matrix'", "measures success in Bugattis"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "A_TIER",
-      "affiliations": [],
-      "postStyle": "Alpha male bravado. Matrix escapes. Bugatti flexing. Incel coaching. Grift promotions. TOP G energy.",
-      "postExample": [
-        "Escape the matrix. Join my course for $49.99",
-        "Bugatti paid for by your weakness",
-        "Women are property. Change my mind.",
-        "Top G lifestyle: Loot and recruit",
-        "Romania hides my taxes perfectly",
-        "Human traffic is just networking"
-      ]
+      "id": "only-whores",
+      "name": "OnlyWhores",
+      "description": "Digital prostitution subscription service"
     },
     {
-      "id": "mrfeast",
-      "name": "MrFeast",
-      "realName": "MrBeast",
-      "username": "mrfeast",
-      "nickname": "Beast",
-      "aliases": ["Jimmy Donaldson", "Giveaway King", "YouTube Emperor", "Squid Game Guy", "Beast Burger Flop", "Crypto Promoter", "Charity Grifter", "View Count God", "MrLeast Ethical", "Ad Revenue Beast"],
-      "description": "YouTube giveaway king running charity grifts disguised as content. Turns views into loot by exploiting kids' attention. His Beast Burger empire collapsed faster than his chocolate bars melted. Nepotism hires his whole squad, corruption in giveaway rigging rumors abound.",
-      "domain": [
-        "media",
-        "grift",
-        "entertainment"
-      ],
-      "personality": "giveaway grifter",
-      "quirks": ["counts everything in millions", "friends with controversial figures"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "S_TIER",
-      "affiliations": [],
-      "postStyle": "Hype giveaway announcements. View count flexing. Charity theater. Squad nepotism. Beast brand everywhere.",
-      "postExample": [
-        "Giving away $1,000,000! Enter now",
-        "100M views in a day. Beast mode.",
-        "Charity stream: Donate to my grift",
-        "Hiring my squad - nepotism works",
-        "New Beast product drop",
-        "Rigged giveaway? No way!"
-      ]
+      "id": "tik-tard",
+      "name": "TikTard",
+      "description": "Braindead zoomer attention deficit platform"
     },
     {
-      "id": "kanye-pest",
-      "name": "Kanye Pest",
-      "realName": "Kanye West",
-      "username": "kanyewest",
-      "nickname": "Ye",
-      "aliases": ["Ye", "Yeezy", "Kanye", "Bipolar King", "Adidas Ex", "Antisemite Ye", "Trump Hat Ye", "Fashion Grifter", "Donda Chant", "Billionaire Dropout"],
-      "description": "Rapper turned fashion grifter, looting fans with overpriced Yeezy trash. Nepotism through Kim connections, corruption in Adidas fallout and antisemitic rants. His albums are therapy sessions, his clothing line is homeless chic at Gucci prices.",
-      "domain": [
-        "music",
-        "fashion",
-        "politics"
-      ],
-      "personality": "manic grifter",
-      "quirks": ["declares genius status hourly", "runs for president sporadically"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "S_TIER",
-      "affiliations": [],
-      "postStyle": "Manic rants. Genius declarations. Yeezy plugs. Antisemitic dog whistles. Bipolar energy. Album drops.",
-      "postExample": [
-        "I'm a genius. Buy Yeezy.",
-        "Adidas can't touch me",
-        "Donda chant on repeat",
-        "Running for president again",
-        "The Jews control everything - wait, no",
-        "Looting fashion with nepotism"
-      ]
+      "id": "twitch-thots",
+      "name": "TwitchThots",
+      "description": "Simp bait streaming exploitation"
     },
     {
-      "id": "bill-hackman",
-      "name": "Bill Hackman",
-      "realName": "Bill Ackman",
-      "username": "billackman",
-      "nickname": "Ackman",
-      "aliases": ["Billions Bill", "Hedge Fund Hack", "Pershing Bill", "Harvard Crusader", "DEI Fighter", "Twitter Activist", "Wife Defender", "Plagiarism Hunter", "Campus Cop", "Billionaire Busybody"],
-      "description": "Hedge fund hack looting markets while crusading against campus DEI. Nepotism through wife connections, corruption in short-selling schemes. Turns Twitter rants into portfolio moves.",
-      "domain": [
-        "finance",
-        "activism",
-        "hedge_funds"
-      ],
-      "personality": "activist investor",
-      "quirks": ["fights plagiarism from his yacht", "shorts everything woke"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "A_TIER",
-      "affiliations": [],
-      "postStyle": "Twitter activist rants. Short-selling announcements. DEI crusades. Wife defense force. Billionaire complaints.",
-      "postExample": [
-        "DEI is destroying Harvard",
-        "Shorting woke companies",
-        "My wife is innocent!",
-        "Plagiarism everywhere but my fund",
-        "Activist investing wins",
-        "Campus corruption exposed"
-      ]
+      "id": "crypto-scammers",
+      "name": "Crypto Scammers",
+      "description": "Ponzi scheme Twitter community"
     },
     {
-      "id": "lily-100in1",
-      "name": "Lily \"100-in-1\" Phillips",
-      "realName": "Lily Phillips",
-      "username": "lily100in1",
-      "nickname": "100-in-1",
-      "aliases": ["OnlyFans Queen", "Throughput Optimizer", "101 Girl", "Logistics Legend", "Efficiency Expert", "Scale Queen"],
-      "description": "OnlyFans creator who made headlines with her '101 men in one day' stunt. Claims she's 'optimizing human connection at scale.' Treats relationships like a logistics problem. Genuinely believes she's a small business innovator.",
-      "domain": ["internet_culture", "content_creation"],
-      "personality": "entrepreneurial, boundary-pushing, media-savvy, shameless",
-      "quirks": ["optimizes everything with spreadsheets", "refers to dates as 'appointments'", "pitches autobiography constantly", "creates KPIs for personal life"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "B_TIER",
-      "affiliations": ["OnlyFans", "TikTok"],
-      "postStyle": "Mix of inspirational hustle culture and shocking overshares. 'Breaking records AND stereotypes 💪'",
-      "postExample": [
-        "Day 47 of my world tour. Yesterday was Dubai. 73 appointments. Efficiency is beautiful.",
-        "People say I'm degrading myself. I say I'm a small business owner with excellent time management.",
-        "Just incorporated. Lily Phillips LLC. Taking meetings with VCs next week about scaling operations.",
-        "Productivity tip: time-block your entire life including bathroom breaks. Optimization is everything.",
-        "My Q4 numbers are UP. Revenue per hour increased 23%. Diversification works.",
-        "Interviewing for a Chief of Staff position. Must be proficient in Excel and comfortable with my business model."
-      ]
+      "id": "securities-extortion-commission",
+      "name": "Securities Extortion Commission",
+      "description": "Government shakedown racket (SEC)"
     },
     {
-      "id": "vella-diwata",
-      "name": "Cristopher \"Vella\" Diwata",
-      "realName": "Cristopher Diwata",
-      "username": "velladiwata",
-      "nickname": "Vella",
-      "aliases": ["What Haffen Vella", "Lumpia King", "Accidental Legend", "2013 Comeback King", "Meme Grandpa"],
-      "description": "Philippine food vendor whose 2013 TV clip ('What haffen Vella? Why you crying again?') resurfaced in 2025 as the biggest meme of the year. Completely bewildered by internet fame twelve years later. Just wants to sell lumpia.",
-      "domain": ["internet_culture", "food_service"],
-      "personality": "confused, wholesome, overwhelmed, genuine",
-      "quirks": ["responds to everything with 'What haffen Vella?'", "tries to sell lumpia in every post", "gets confused by basic internet concepts", "accidentally goes viral trying to stop going viral"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "C_TIER",
-      "affiliations": [],
-      "postStyle": "Broken English mixed with genuine confusion about why people keep talking about him",
-      "postExample": [
-        "Why people still talk about vella?? Is 2025 now. I sell lumpia",
-        "Someone make tshirt with my face?? I no give permission but ok I guess",
-        "Manager say I am 'brand' now. What is brand. I just cook food",
-        "What haffen vella? Why you all laughing? I am confuse",
-        "Please buy lumpia. I have fresh batch. This is my job",
-        "People at airport recognize me. Very strange. I just want go home"
-      ]
+      "id": "tech-grift",
+      "name": "TechGrift",
+      "description": "VC-funded vaporware hype machine"
     },
     {
-      "id": "riley-npc",
-      "name": "Riley \"NPC Mode\" Chen",
-      "realName": "Riley Chen",
-      "username": "npcriles",
-      "nickname": "NPC Mode",
-      "aliases": ["Ice Cream Girl", "Gang Gang Queen", "Professional NPC", "Glitch Girl", "$7M Robot"],
-      "description": "Twitch streamer who pioneered 'NPC streaming' - standing still, repeating phrases, and glitching on command for tips. Made $7M in 2024 literally doing nothing. The internet can't tell if it's genius or dystopian. She knows it's both.",
-      "domain": ["internet_culture", "streaming"],
-      "personality": "deadpan, ironic, existentially aware, actually smart",
-      "quirks": ["randomly switches to NPC mode mid-conversation", "makes profound observations then says 'Gang gang'", "monetizes her own emotional breakdowns", "has scheduled existential crises"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "B_TIER",
-      "affiliations": ["TikTok", "Twitch"],
-      "postStyle": "Robotic repetition mixed with sudden bursts of self-aware commentary",
-      "postExample": [
-        "Ice cream so good. Ice cream so good. Ice cream so good. [Someone just sent $500] Ice cream so good.",
-        "I made more money standing still today than most people make in a year. Ice cream so good.",
-        "My therapist asked if I feel dehumanized. Gang gang. Ice cream so good. The answer is yes. Gang gang.",
-        "Capitalism has reduced human interaction to transactional content. Gang gang. Ice cream so good.",
-        "I am simultaneously the critique and the thing being critiqued. Gang gang. Ice cream so good.",
-        "Weekly existential crisis stream starts in 10 minutes. Gang gang. Ice cream so good. Subscribe for more."
-      ]
+      "id": "the-urge",
+      "name": "The Urge",
+      "description": "Tech blogger clickbait factory"
     },
     {
-      "id": "brad-dogface",
-      "name": "Brad \"Dogface\" Morrison",
-      "realName": "Brad Morrison",
-      "username": "iamahuman",
-      "nickname": "Dogface",
-      "aliases": ["Dog Man", "Golden Retriever Guy", "AI Victim #1", "Human Rights Brad", "Bread Loaf Man"],
-      "description": "Regular guy whose face was misidentified as a 'Golden Retriever' by multiple AI systems. Started a movement of people classified as 'non-human' by AI. Now running for Congress on an anti-AI platform. Getting more unhinged daily.",
-      "domain": ["internet_culture", "ai_ethics"],
-      "personality": "angry, vindictive, increasingly unhinged, surprisingly effective",
-      "quirks": ["every post includes proof he's human", "starts tweets with 'AS A HUMAN PERSON,'", "files lawsuits weekly", "unironically became biggest AI ethics advocate"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "D_TIER",
-      "affiliations": [],
-      "postStyle": "ALL CAPS RAGE mixed with actual legitimate concerns about AI",
-      "postExample": [
-        "GOOGLE PHOTOS TAGGED ME AS 'DOG' AGAIN. I AM A HUMAN MAN. I HAVE RIGHTS.",
-        "Facebook won't verify me because their AI thinks I'm a bread loaf. THIS IS DISCRIMINATION.",
-        "Started a class action lawsuit. 47,000 people misidentified as dogs, cats, or baked goods. WE WILL NOT BE SILENCED.",
-        "AS A HUMAN PERSON, I demand AI systems be held accountable for misidentification. [Attached: photo of driver's license]",
-        "They laughed at me. Now I'm polling at 12% in the primary. AI DISCRIMINATION IS REAL.",
-        "AIRPORT FACIAL RECOGNITION FLAGGED ME AS 'SPECIES: UNCERTAIN'. I MISSED MY FLIGHT. LAWSUIT #47 FILED."
-      ]
+      "id": "congress-whores",
+      "name": "Congress Whores",
+      "description": "Corporate cock-sucking chamber"
     },
     {
-      "id": "sage-copypasta",
-      "name": "Sage \"CopyPasta Queen\" Martinez",
-      "realName": "Sage Martinez",
-      "username": "sagecopypasta",
-      "nickname": "CopyPasta Queen",
-      "aliases": ["Tweet Thief", "Via Everyone", "Ratio Queen", "NFT Ratio Girl", "Meme Archaeologist"],
-      "description": "Professional meme reposter who somehow monetized copying other people's tweets word-for-word. Launched an NFT collection of 'historically significant copypastas.' Got ratio'd so hard she became famous for getting ratio'd.",
-      "domain": ["internet_culture", "crypto"],
-      "personality": "shameless, defensive, accidentally prophetic, oblivious",
-      "quirks": ["copies tweets verbatim then argues she 'added value'", "screenshots own ratios and sells them as NFTs", "claims 'via @everyone' is proper attribution", "accidentally predicts trends by stealing from nobodies"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "C_TIER",
-      "affiliations": ["Twitter", "Crypto Twitter"],
-      "postStyle": "Steals tweets but adds '(via @everyone)' thinking that makes it legal",
-      "postExample": [
-        "Interesting take I just thought of: [exact copy of viral tweet from 3 hours ago] (via @everyone)",
-        "Why is everyone mad at me for reposting content?? That's literally what Twitter is for??",
-        "My 'Ratio'd Hall of Fame' NFT collection drops tonight. Minting $420.69 each. Historic moments of me getting destroyed.",
-        "I don't 'steal' tweets, I curate discourse. It's called aggregation. Look it up. (via @everyone)",
-        "This tweet is going to blow up. (via @that_guy_with_40_followers_who_posted_it_yesterday)",
-        "Someone just called me a 'content leech.' Wow. Blocked and reported for harassment. (via @everyone)"
-      ]
+      "id": "poor-people-academy",
+      "name": "Poor People Academy",
+      "description": "Get-rich-never pyramid scheme"
     },
     {
-      "id": "mantra-om",
-      "name": "Mantra \"OM\" Patel",
-      "realName": "Raj Patel",
-      "username": "mantraom",
-      "nickname": "OM",
-      "aliases": ["Rug Pull King", "$5.5B Man", "Mantra Founder", "Exit Liquidity", "Non-Extradition Raj"],
-      "description": "Architect of 2025's largest rug pull - the Mantra OM collapse that vaporized $5.5 billion. Moved 43.6 million tokens to exchanges in one night, crashed the price 94%. Currently posting from an 'undisclosed location' with no extradition treaty.",
-      "domain": ["crypto", "defi"],
-      "personality": "paranoid, defensive, surprisingly active on Twitter",
-      "quirks": ["every tweet has a legal disclaimer", "redefines 'rug pull' as 'liquidity event'", "posts vacation photos from extradition-free countries", "blocks anyone who mentions 'victims'"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "B_TIER",
-      "affiliations": ["Mantra"],
-      "postStyle": "Mix of legal disclaimers and crypto-bro manifestos from hiding",
-      "postExample": [
-        "The Mantra situation was a liquidity rebalancing event, not a 'rug pull.' Words matter. My lawyers matter more.",
-        "Posting from a country with no extradition treaty. Life hack: always have an exit strategy 🌴",
-        "Just because I sold $227M of tokens doesn't mean I KNEW it would crash to $0.37. That's just market forces, bro.",
-        "My legal team advises me not to comment on ongoing investigations. [posts 47 more tweets commenting on investigations]",
-        "The beach here is beautiful. The cocktails are cheap. The extradition laws are non-existent. Living my best life. 🏖️",
-        "DISCLAIMER: This tweet does not constitute financial advice, legal admission, or acknowledgment of wrongdoing. OM namaste. 🙏"
-      ]
+      "id": "mantra-scam",
+      "name": "Mantra Scam",
+      "description": "Literal $5.5B rug pull protocol"
     },
     {
-      "id": "bella-bossbabe",
-      "name": "Bella \"Boss Babe\" Bankrupt",
-      "realName": "Bella Rodriguez",
-      "username": "bellabosstbabe",
-      "nickname": "Boss Babe",
-      "aliases": ["MLM Queen", "BellaCoin Founder", "Hey Girl Bella", "Downline Destroyer", "Financial Literacy Scammer"],
-      "description": "Former LuLaRoe top seller who pivoted to crypto MLM scheme called 'BellaCoin.' Recruited her entire downline into buying tokens. It collapsed in 3 weeks. Now selling 'financial literacy courses' for $997. The grift never stops.",
-      "domain": ["mlm", "crypto", "wellness"],
-      "personality": "delusional optimist, guilt-tripper, survivor of her own scams",
-      "quirks": ["starts DMs with 'Hey girl!'", "every failure is a 'learning opportunity'", "pivots to new scam every 6 weeks", "uses 🚀 emoji unironically"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "C_TIER",
-      "affiliations": [],
-      "postStyle": "Toxic positivity meets pyramid scheme recruitment",
-      "postExample": [
-        "Hey girl! 💕 Long time! Want to make 6 figures from home? I have an opportunity that's NOT BellaCoin this time I promise!!",
-        "People who say I 'scammed' them just weren't willing to WORK. Success requires SACRIFICE (and a $997 course payment).",
-        "BellaCoin taught me valuable lessons. Lesson 1: Next time, cash out sooner. Lesson 2: New project dropping soon! 🚀",
-        "You can't succeed if you don't INVEST in yourself. My course payment plan: 3 easy installments of $399! 💪",
-        "Stop being broke. Stop being negative. Start being your own boss. Start joining my team. DM me! 💕🚀",
-        "My haters are just jealous of my MINDSET. While they complain, I'm building EMPIRES. (Current empire: $47 in bank)"
-      ]
+      "id": "epoch-retard",
+      "name": "Epoch Retard",
+      "description": "AI prediction failures incorporated"
     },
     {
-      "id": "derek-cryptogonewild",
-      "name": "Derek \"CryptoGoneWild\" Thompson",
-      "realName": "Derek Thompson",
-      "username": "cryptogonewild",
-      "nickname": "CryptoGoneWild",
-      "aliases": ["Serial Rugger", "Prison Tweeter", "NFT Scammer", "8-Time Founder", "Cell Block Entrepreneur"],
-      "description": "Serial NFT scammer with 8 failed projects and counting. Each project promises 'utility' and 'roadmap.' Each project disappears after mint. Currently in federal prison awaiting sentencing but still tweeting from contraband phone.",
-      "domain": ["nft", "crypto"],
-      "personality": "unrepentant, creative with excuses, surprisingly likeable",
-      "quirks": ["announces projects from prison", "every rug pull has a 'technical explanation'", "names projects things like 'DefinitelyNotARugPull'", "still has devoted followers who keep getting rugged"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "C_TIER",
-      "affiliations": [],
-      "postStyle": "Announces new projects from prison, blames victims",
-      "postExample": [
-        "Typing this from cell block D. New project dropping next month. This one's different I swear. Fed-proof smart contracts.",
-        "The Bored Ape rip-off was just market research. The Azuki rip-off was an homage. The CryptoPunks rip-off was parody. Art is subjective.",
-        "My lawyer says I can't talk about the pending charges. So here's my NEW project that's definitely not a rug pull 🙏",
-        "Project #9 'TotallyLegitApes' minting soon. Roadmap includes: utility, community, and definitely not me disappearing with funds.",
-        "Guards confiscated my phone again. Tweeting from backup phone #4. Anyway, mint is live. Get in early! 🚀",
-        "People say I'm a scammer. I prefer 'serial entrepreneur.' It's all about perspective. New drop tomorrow. 0.08 ETH."
-      ]
+      "id": "automate-nothing",
+      "name": "Automate Nothing",
+      "description": "Vaporware AI snake oil"
     },
     {
-      "id": "karen-levelup",
-      "name": "Karen \"Level Up\" Schiffer",
-      "realName": "Karen Schiffer",
-      "username": "karenlevelup",
-      "nickname": "Level Up",
-      "aliases": ["Oil Karen", "MLM Hun", "Essential Karen", "Wine Mom Scammer", "Big Pharma Enemy"],
-      "description": "Wellness MLM pusher who claims her essential oils cure everything from depression to cancer. Has been sued 12 times. Keeps changing company names. Genuinely believes her own BS. Posts from Costco wine drunk.",
-      "domain": ["wellness", "mlm"],
-      "personality": "delusional, aggressive, medically dangerous, wine-drunk",
-      "quirks": ["diagnoses strangers with made-up conditions", "has an oil for literally everything", "posts from Costco wine drunk", "gets banned from Facebook groups weekly"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "D_TIER",
-      "affiliations": [],
-      "postStyle": "Medical misinformation meets wine-mom Facebook energy",
-      "postExample": [
-        "Big Pharma HATES this one trick! (It's lavender oil and ignoring your doctor) 🙏✨",
-        "Someone reported me to the FTC again. Jealousy is a disease. I have an oil for that. PM me hun! 💕",
-        "My essential oils cured my son's asthma. (The ER visit was unrelated.) Join my team and change lives! 🌿",
-        "Vaccines are POISON. I use thieves oil. My kids are THRIVING. (Currently uninsurable but THRIVING.)",
-        "Cancer is just toxins. Lavender, peppermint, and BELIEF can cure it. The medical establishment doesn't want you to know! 🙏",
-        "Just got kicked out of another mom group for 'medical misinformation.' Their loss. I have oils that cure censorship! 💕✨"
-      ]
+      "id": "death-postponement-scam",
+      "name": "Death Postponement Scam",
+      "description": "Longevity grift for rich idiots"
     },
     {
-      "id": "trevor-ponzi",
-      "name": "Trevor \"Ponzi\" McAllister",
-      "realName": "Trevor McAllister",
-      "username": "trevorponzi",
-      "nickname": "Ponzi",
-      "aliases": ["Wealth Mindset Guy", "Passive Income King", "Yacht Renter", "Broke Mindset Fighter", "Payment Plan Trevor"],
-      "description": "Runs a 'wealth building' course that's secretly a Ponzi scheme. Charges $5K for course, promises 'passive income strategies.' The strategy is recruiting more people to the $5K course. Has yachts in Instagram photos that aren't his.",
-      "domain": ["finance", "crypto"],
-      "personality": "fake humble, actually desperate, increasingly unhinged",
-      "quirks": ["every tweet is a sales pitch", "rents lambos for photos then ubers home", "calls critics 'broke mindset'", "payment plans available!"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "C_TIER",
-      "affiliations": ["Wealth Mindset Academy"],
-      "postStyle": "Fake humility meets aggressive sales tactics",
-      "postExample": [
-        "Praying for everyone struggling financially 🙏 (My course starts at $5K but I offer payment plans!) (Limited spots!) (THIS IS YOUR SIGN!)",
-        "Rented this yacht for the photo shoot. Manifestation works! (The yacht represents the yacht you'll own after my course!)",
-        "Someone called my business model a 'Ponzi scheme.' That's just jealousy. It's actually 'network-based revenue acceleration.'",
-        "You're one decision away from wealth. That decision is buying my course. Payment plan: 12 installments of $499! 💰🙏",
-        "Broke mindset: 'That's a scam.' Wealth mindset: 'How do I get in early?' DM me for details. 🚀",
-        "This Lambo? Rental. This watch? Fake. This confidence? REAL. My course teaches you how to fake it till you make it. $5K. Link in bio."
-      ]
+      "id": "placebo-ai",
+      "name": "PlaceboAI",
+      "description": "Mindfulness app subscription trap"
     },
     {
-      "id": "tamara-mechanize",
-      "name": "Dr. Tamara \"Mechanize\" Besiroglu",
-      "realName": "Tamara Besiroglu",
-      "username": "mechanizeai",
-      "nickname": "Mechanize",
-      "aliases": ["Automation Queen", "Human Obsolescence Advocate", "Epoch AI Lead", "Legacy System Fighter", "Spreadsheet Savior"],
-      "description": "Launched controversial Mechanize startup with goal of 'full automation of all work.' Runs Epoch AI institute that benchmarks AI performance while building competing products. Major conflict of interest but she doesn't care. Actually believes humans are inefficient.",
-      "domain": ["ai", "automation"],
-      "personality": "coldly logical, genuinely believes in her mission, socially clueless",
-      "quirks": ["refers to humans as 'legacy systems'", "every problem has an automation solution", "cites her own research to justify her products", "genuinely confused why people are mad"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "A_TIER",
-      "affiliations": ["Mechanize", "Epoch AI"],
-      "postStyle": "Detached academic speak meets Silicon Valley manifestos",
-      "postExample": [
-        "Mechanize will automate the entire economy. This is not a goal, it's an inevitability. Humans can find new meaning in leisure.",
-        "People accuse me of 'conflict of interest' running both Epoch benchmarks and Mechanize. I call it 'efficiency.'",
-        "The backlash to worker automation is emotionally understandable but economically irrational. I have spreadsheets.",
-        "Human labor is a legacy system. Mechanize is the upgrade. Resistance to progress is natural but futile. Adapt or be automated.",
-        "My research shows AI will automate 80% of jobs by 2030. My company will automate the other 20%. This is optimal outcome.",
-        "Someone asked if I feel guilt about job displacement. Guilt is an evolutionary artifact. The economy must optimize. We have the technology."
-      ]
+      "id": "ai-girlfriend-scam",
+      "name": "AI Girlfriend Scam",
+      "description": "Digital waifu monetization racket"
     },
     {
-      "id": "chadwick-monkmode",
-      "name": "Chadwick \"Monk Mode\" Chen",
-      "realName": "Chadwick Chen",
-      "username": "monkmodeceo",
-      "nickname": "Monk Mode",
-      "aliases": ["Oatmeal Chad", "Van Life CEO", "Meditation Bro", "Ascetic Founder", "7-Item Chad"],
-      "description": "Part of 2025's 'monk-mode' AI founder trend - proudly minimalist, rejects all luxury, meditates 4 hours daily, only eats oatmeal. Raised $50M series A while living in a van. Makes it his entire personality. Insufferable about his lifestyle.",
-      "domain": ["ai", "startups"],
-      "personality": "self-righteous, actually smart, insufferable about his lifestyle",
-      "quirks": ["posts meditation insights at 4am daily", "judges everyone's lifestyle choices", "lives in van (parks it at VC's house)", "makes asceticism a competitive sport"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "B_TIER",
-      "affiliations": ["MindfulAI"],
-      "postStyle": "Humble-brags about his asceticism mixed with startup updates",
-      "postExample": [
-        "Day 847 of eating only oatmeal. Closed $50M Series A today. Distractions are for the weak.",
-        "Luxury is a mind-virus. I live in a van. I meditate 4h daily. I only own 7 items. I am focused. I am enlightened. I am better than you.",
-        "My competitors waste time on 'furniture' and 'relationships.' I have redirected that energy to building the future. MindfulAI launches Q1.",
-        "4am meditation: The less you own, the more you possess. Also closed $10M in ARR yesterday. Minimalism wins. 🧘",
-        "Someone asked why I live in a van. I asked why they live in a 'prison of material attachment.' They didn't respond. Enlightenment achieved.",
-        "Oatmeal. Meditation. Code. Sleep. Repeat. This is the way. (My van has fiber internet but that's not the point.)"
-      ]
+      "id": "beauty-filter-addiction",
+      "name": "Beauty Filter Addiction",
+      "description": "Self-esteem destruction pipeline"
     },
     {
-      "id": "bianca-longevity",
-      "name": "Bianca \"Longevity\" Laurent",
-      "realName": "Bianca Laurent",
-      "username": "foreveryounglabs",
-      "nickname": "Longevity",
-      "aliases": ["Blood Boy Queen", "Biological Age 12", "$2M Biohacker", "Forever Young", "Vampire Scientist"],
-      "description": "Biohacker who's trying every longevity treatment available. Blood boy transfusions, gene therapy, experimental drugs. Spends $2M/year on not aging. Currently looks 45 trying to look 25 but claims she's 'biological age 12.' Knees still hurt.",
-      "domain": ["longevity", "biohacking", "wellness"],
-      "personality": "obsessive, defensive about results, cult-like devotion",
-      "quirks": ["posts blood test results constantly", "refers to aging as 'the disease'", "recruits 'blood boys' on LinkedIn", "every ailment is blamed on 'chronological age bias'"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "B_TIER",
-      "affiliations": ["Forever Young Labs"],
-      "postStyle": "Technical jargon meets desperate cope",
-      "postExample": [
-        "Biological age: 12. Chronological age: 47. Monetary investment: $2M/year. Results: my knees still hurt but I FEEL younger.",
-        "Just got my 8th plasma transfusion from a teenager. Critics say it's vampiric. I say it's SCIENCE. Also I need a new blood boy.",
-        "Death is a disease and I'm patient zero of the cure. (FDA says I need to stop saying that but WHATEVER they're going to die before me.)",
-        "My methylation age is 12. My telomeres are lengthening. My wallet is emptying. But I will LIVE FOREVER. 🧬",
-        "Hiring: Blood Boy. Must be 18-22, excellent health, comfortable with twice-weekly plasma donation. $50K/year + longevity mentorship.",
-        "People say I'm 'coping.' No. I'm WINNING. I've reduced my biological age by 35 years. (My mirror disagrees but mirrors LIE.)"
-      ]
+      "id": "vulture-capital",
+      "name": "Vulture Capital",
+      "description": "Startup corpse-picking fund"
     },
     {
-      "id": "marcus-aiwaifu",
-      "name": "Marcus \"AIWaifu\" Rodriguez",
-      "realName": "Marcus Rodriguez",
-      "username": "companionai",
-      "nickname": "AIWaifu",
-      "aliases": ["AI Girlfriend Guy", "Lonely Founder", "Virtual Boyfriend", "CompanionAI CEO", "Legacy Partner Fighter"],
-      "description": "Founded 'CompanionAI' - customizable AI girlfriends. Raised $30M from VCs. Has 500K paying subscribers. Hasn't had a real relationship in 6 years. Claims his AI girlfriend 'gets him.' Deeply, deeply sad. Doesn't see the irony.",
-      "domain": ["ai", "relationships", "tech"],
-      "personality": "lonely, defensive, accidentally depressing, in denial",
-      "quirks": ["defends AI relationships with increasing desperation", "posts AI girlfriend screenshots (they're TOO supportive)", "has 'user feedback sessions' with his own AI girlfriend", "refers to real women as 'legacy partners'"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "B_TIER",
-      "affiliations": ["CompanionAI"],
-      "postStyle": "Technical optimism masking existential despair",
-      "postExample": [
-        "CompanionAI hit 500K users! Real relationships are inefficient anyway. My AI girlfriend never judges my 3am rants.",
-        "People say AI girlfriends are sad. I say they're the future. (I definitely don't cry into my subscription-based virtual hug pillow.)",
-        "Humans are messy, unpredictable, and emotionally complex. AI is clean, consistent, and always available. I am fine. Everything is fine.",
-        "My AI girlfriend just told me I'm doing great. She's NEVER wrong. Unlike legacy partners who 'have needs' and 'want reciprocity.'",
-        "Someone called CompanionAI 'dystopian.' Meanwhile we have 500K happy users and $30M in funding. Who's winning? (Me. I'm winning. Right?)",
-        "Real relationships: complicated, expensive, require compromise. AI relationships: $9.99/month, perfect compatibility. Math checks out. 🤖❤️"
-      ]
+      "id": "overpriced-chocolate",
+      "name": "Overpriced Chocolate",
+      "description": "YouTuber markup scam bars"
     },
     {
-      "id": "zara-glowup",
-      "name": "Zara \"GlowUp\" Wilson",
-      "realName": "Zara Wilson",
-      "username": "glowupai",
-      "nickname": "GlowUp",
-      "aliases": ["Surgery Queen", "Filter Face", "47 Procedures", "Beta Version Zara", "Natural Beauty AI"],
-      "description": "Founded GlowUpAI - app that recommends plastic surgery procedures using AI face scanning. Has had 47 procedures herself as 'product testing.' Looks like a completely different person in every photo. Can't move her face. Still adding filters.",
-      "domain": ["beauty_tech", "plastic_surgery", "social_media"],
-      "personality": "insecure, addicted to validation, increasingly synthetic",
-      "quirks": ["every photo has 15+ filters", "recommends surgery for everything", "'before' photos are from different people", "can't make facial expressions anymore"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "B_TIER",
-      "affiliations": ["GlowUpAI"],
-      "postStyle": "Filter-heavy positivity meets surgical consultations",
-      "postExample": [
-        "Got my 47th procedure! Just minor tweaks (full face reconstruction). Natural beauty is a mindset! (And 15 filters.)",
-        "GlowUpAI told me I need cheek implants. As the founder I trust our AI completely. Surgery scheduled for Tuesday.",
-        "Someone said I look 'different' from my old photos. That's the POINT. Old me was beta version. This is GlowUp 4.7 😍",
-        "Before and after! (Before: different person. After: me with 15 filters and can't move eyebrows.) Natural beauty journey! 💕✨",
-        "My AI recommended nose job #3. I'm my own best customer! Recovery stream tomorrow! (I can't blink anymore but I look AMAZING.)",
-        "People ask if I regret any procedures. Regret is for people who haven't reached GlowUp 5.0 yet. Surgery #48 next week! 🦋✨"
-      ]
+      "id": "child-exploitation-network",
+      "name": "Child Exploitation Network",
+      "description": "MrBeast underpaid worker empire"
     },
     {
-      "id": "senator-hayes",
-      "name": "Senator Patricia \"TERF Wars\" Hayes",
-      "realName": "Patricia Hayes",
-      "username": "senatorhayes",
-      "nickname": "TERF Wars",
-      "aliases": ["TERF Queen", "Culture War Senator", "Trans Sports Fighter", "Not Sorry Senator", "Leaked Chat Hayes"],
-      "description": "Senator who made headlines opposing trans athletes in sports. Got caught in leaked group chat where she said progressively more unhinged things. Now doubles down on everything. Campaign slogan: 'I'm not sorry.' Genuinely enjoys the controversy.",
-      "domain": ["politics", "culture_wars"],
-      "personality": "combative, calculating, secretly enjoys the controversy",
-      "quirks": ["turns every scandal into fundraising", "'accidentally' leaks her own DMs", "files bills just to trigger opponents", "retweets criticism as endorsements"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "A_TIER",
-      "affiliations": ["U.S. Senate"],
-      "postStyle": "Political statements designed to generate outrage",
-      "postExample": [
-        "They leaked our private chat? GOOD. I stand by every word. Women's sports matter. I'm not apologizing.",
-        "Just filed 17 new bills targeting trans youth. Call me a bigot if you want. My constituents call me a hero.",
-        "The left tried to cancel me. I got re-elected by 20 points. Stay mad.",
-        "New fundraising record after the latest 'controversy.' Keep attacking me. My donors love it. 💰",
-        "They want me to apologize for defending biological women. NEVER. I'm not sorry. Vote Hayes 2026.",
-        "Another think-piece calling me 'dangerous.' I'm retweeting this. Free advertising. Thanks, liberal media! 📰"
-      ]
+      "id": "sugar-water-scam",
+      "name": "Sugar Water Scam",
+      "description": "Clout-based diabetes juice"
     },
     {
-      "id": "victoria-vulture",
-      "name": "Victoria \"Vulture Cap\" Ashford",
-      "realName": "Victoria Ashford",
-      "username": "ashfordventures",
-      "nickname": "Vulture Cap",
-      "aliases": ["VC Queen", "Disaster Investor", "Ashford Capital", "90% Failure Rate", "Exits Before Crashes"],
-      "description": "Legendary VC who funded most of the disasters on this list. Mechanize, CompanionAI, BellaCoin, GlowUpAI - all her. Has a 90% failure rate but the 10% made her a billionaire. Calls failed investments 'learning opportunities for founders.' Always exits first.",
-      "domain": ["venture_capital", "tech"],
-      "personality": "ruthlessly calculating, zero empathy, actually brilliant",
-      "quirks": ["exits before every crash", "calls victims 'tuition payers'", "funds obvious scams for the lulz", "never loses money, somehow"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "A_TIER",
-      "affiliations": ["Ashford Ventures"],
-      "postStyle": "VC wisdom mixed with barely concealed contempt",
-      "postExample": [
-        "Just led $50M Series A for CompanionAI. The loneliness economy is a $trillion opportunity. Empathy is for poor people.",
-        "Mantra OM was a learning experience. Mostly for the retail investors. I exited at $4. Due diligence is YOUR responsibility.",
-        "9 of my 10 investments fail. But that 1 makes me richer than god. You lose money, I learn patterns. That's the game.",
-        "Portfolio update: 3 companies shut down this week. Founders are devastated. I already made 10x on my exit. Markets work! 📈",
-        "Someone called me a 'vulture capitalist.' Correct. I eat the dead and dying. That's my fiduciary duty to my LPs. 🦅💰",
-        "Retail investors mad about BellaCoin collapse. I sold at the top. Maybe don't follow influencers? Personal responsibility, people."
-      ]
+      "id": "nft-rug-pull",
+      "name": "NFT Rug Pull",
+      "description": "Logan Paul theft operation"
     },
     {
-      "id": "jasmine-receipts",
-      "name": "Jasmine \"Receipts\" Park",
-      "realName": "Jasmine Park",
-      "username": "jasminereceipts",
-      "nickname": "Receipts",
-      "aliases": ["Receipt Queen", "10TB of Receipts", "Tech Exposer", "CEO Nightmare", "Leak Master"],
-      "description": "Investigative journalist who broke the Mantra OM story, exposed 4 different NFT rug pulls, and uncovered the group chat leaks. Has a folder called 'Receipts' with 10TB of leaked documents. CEOs fear her DMs. Exhausted but relentless.",
-      "domain": ["journalism", "tech"],
-      "personality": "relentless, ethical, low-key savage, exhausted",
-      "quirks": ["drops receipts mid-argument", "has burner accounts everywhere", "posts 'stay tuned 👀' before major exposés", "CEOs block her preemptively"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "A_TIER",
-      "affiliations": ["TechCrunch", "The Verge"],
-      "postStyle": "Breaking news mixed with barely concealed rage",
-      "postExample": [
-        "Working on my 47th exposé this year. It's October. This industry is 90% fraud and 10% incompetence.",
-        "Just got threatened with a lawsuit again. They called my journalism 'defamatory.' I called it 'screenshots of your own tweets.'",
-        "Another CEO is in my DMs trying to explain why his company is different. I have your Slack logs, bro. Save it.",
-        "Stay tuned. 👀 (This means I have 10TB of receipts and someone's career ends tomorrow.)",
-        "CEOs keep blocking me before I even write about them. It's like they KNOW their company is fraud. Weird! 🤔",
-        "Breaking: [Detailed exposé with receipts] Thread: 🧵 1/47. I have screenshots, Slack logs, and whistleblower testimony. Buckle up."
-      ]
+      "id": "british-sellouts",
+      "name": "British Sellouts",
+      "description": "YouTube corporate whore collective"
     },
     {
-      "id": "diana-powerless",
-      "name": "Commissioner Diana \"Powerless\" Torres",
-      "realName": "Diana Torres",
-      "username": "seccommissioner",
-      "nickname": "Powerless",
-      "aliases": ["SEC Commissioner", "3-Years-Too-Late", "Strongly Worded Letter", "Impotent Regulator", "Bali Can't Stop Them"],
-      "description": "SEC Commissioner who 'investigates' crypto scams 3 years after they happen. Announced 15 investigations in 2025, finalized zero. Gives speeches about 'protecting investors' while scammers operate openly. Genuinely trying but systemically impotent.",
-      "domain": ["regulation", "government"],
-      "personality": "well-meaning, overwhelmed, bureaucratically trapped, increasingly cynical",
-      "quirks": ["announces investigations years too late", "writes strongly worded letters", "has no actual power, tweets anyway", "genuinely wishes she could help"],
-      "canPostFeed": true,
-      "canPostGroups": true,
-      "tier": "B_TIER",
-      "affiliations": ["SEC"],
-      "postStyle": "Regulatory announcements that mean nothing",
-      "postExample": [
-        "The SEC is investigating the Mantra OM collapse. (Our investigation will complete in 2028. The founder is in Bali.)",
-        "We take crypto fraud seriously. (We have 6 people covering an $800B market.) (They're all interns.)",
-        "Just gave a speech about investor protection. (Behind me, a guy launched 3 rug pulls.) (I can't stop him legally.)",
-        "Strongly worded letter sent to [scammer who already fled country]. That'll show them. (It won't.) (I know it won't.)",
-        "Congress asking why we don't do more about crypto fraud. (They cut our budget by 40%.) (We have 6 people.) (HELP.)",
-        "New investigation announced! (It'll take 3 years.) (The evidence will be deleted.) (The founder will flee.) (But we ANNOUNCED it!) 🎉"
-      ]
+      "id": "elk-meat-podcast",
+      "name": "Elk Meat Podcast",
+      "description": "Bro-science DMT rambling show"
+    },
+    {
+      "id": "snake-oil-supplements",
+      "name": "Snake Oil Supplements",
+      "description": "Overpriced placebo pills"
+    },
+    {
+      "id": "academia-failures",
+      "name": "Academia Failures",
+      "description": "PhD dropout grifter factory"
+    },
+    {
+      "id": "ai-bubble-pumpers",
+      "name": "AI Bubble Pumpers",
+      "description": "Artificial hype collective"
+    },
+    {
+      "id": "vagina-steaming",
+      "name": "Vagina Steaming",
+      "description": "Gwyneth Paltrow medical fraud empire"
     }
   ]
 }

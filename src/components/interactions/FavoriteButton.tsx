@@ -73,7 +73,7 @@ export function FavoriteButton({
           isAnimating && 'scale-110',
           className
         )}
-        title={isFavorited ? 'Unfavorite' : 'Favorite'}
+        title={isFavorited ? 'Unfollow' : 'Follow'}
       >
         <Bookmark
           size={iconSizes[size]}
@@ -111,7 +111,7 @@ export function FavoriteButton({
           isAnimating && 'animate-bounce'
         )}
       />
-      <span>{isFavorited ? 'Favorited' : 'Favorite'}</span>
+      <span>{isFavorited ? 'Following' : 'Follow'}</span>
     </button>
   );
 }
