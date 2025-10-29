@@ -34,7 +34,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <div suppressHydrationWarning>
       <ThemeProvider
         attribute="class"
-        defaultTheme="dark"
+        defaultTheme="system"
         enableSystem
         disableTransitionOnChange={false}
       >
@@ -58,7 +58,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <div suppressHydrationWarning>
       <ThemeProvider
         attribute="class"
-        defaultTheme="dark"
+        defaultTheme="system"
         enableSystem
         disableTransitionOnChange={false}
       >

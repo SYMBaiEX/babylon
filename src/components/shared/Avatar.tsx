@@ -84,7 +84,8 @@ export function GroupAvatar({ members, size = 'md', className }: GroupAvatarProp
   }
 
   if (displayMembers.length === 1) {
-    return <Avatar {...displayMembers[0]} size={size} className={className} />
+    const member = displayMembers[0]!;
+    return <Avatar id={member.id} name={member.name} type={member.type} size={size} className={className} />
   }
 
   // Overlapping avatars

@@ -13,6 +13,8 @@ Day {{day}}/30
 {{progressContext}}
 {{atmosphereContext}}
 
+{{previousPostsContext}}
+
 IMPORTANT: NO HASHTAGS OR EMOJIS IN POSTS.
 
 Generate general thoughts posts for these {{actorCount}} actors:

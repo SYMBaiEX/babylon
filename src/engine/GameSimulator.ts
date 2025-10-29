@@ -143,6 +143,9 @@ interface AgentBet {
   agentId: string;
   bet: string;
   position: 'YES' | 'NO';
+  outcome: boolean;
+  shares: number;
+  amount: number;
 }
 
 /**
@@ -259,12 +262,10 @@ export class GameSimulator extends EventEmitter {
         }
         market.totalVolume += bet.amount;
         
-        // Recalculate odds (simple LMSR approximation)
-        const total = market.yesShares + market.noShares;
-        if (total > 0) {
-          market.yesOdds = Math.round((market.yesShares / total) * 100);
-          market.noOdds = 100 - market.yesOdds;
-        }
+        // Recalculate odds using LMSR
+        const odds = this.calculateLMSROdds(market.yesShares, market.noShares);
+        market.yesOdds = odds.yesOdds;
+        market.noOdds = odds.noOdds;
 
         this.emitEvent('agent:bet', bet, bet.agentId);
         this.emitEvent('market:updated', market);
@@ -371,26 +372,77 @@ export class GameSimulator extends EventEmitter {
    * Generate clue network aligned with outcome
    */
   private generateClueNetwork(): ClueData[] {
-    // Simple clue network for now
     const clues: ClueData[] = [];
-    const tiers = ['early', 'mid', 'late'];
-    
-    for (let i = 0; i < 12; i++) {
-      const tier = tiers[Math.floor(i / 4)];
-      const day = tier === 'early' ? Math.floor(Math.random() * 10) + 1 :
-                  tier === 'mid' ? Math.floor(Math.random() * 10) + 11 :
-                  Math.floor(Math.random() * 10) + 21;
-      
+    const outcome = this.config.outcome;
+
+    // Early clues (Days 1-10): Weak signals, mixed accuracy
+    // 4 true clues (70% reliability), 2 false clues (noise)
+    for (let i = 0; i < 6; i++) {
+      const day = Math.floor(Math.random() * 10) + 1;
+      const isTrueClue = i < 4;
+
       clues.push({
-        id: `clue-${i}`,
-        tier,
+        id: `early-clue-${i}`,
+        tier: 'early',
         day,
-        pointsToward: this.config.outcome, // Clues point to correct outcome
-        reliability: 0.7 + Math.random() * 0.3,
+        pointsToward: isTrueClue ? outcome : !outcome, // Some noise in early days
+        reliability: isTrueClue ? 0.6 + Math.random() * 0.15 : 0.4 + Math.random() * 0.2, // 60-75% for true, 40-60% for noise
       });
     }
 
-    return clues;
+    // Mid-game clues (Days 11-20): Stronger signals, higher accuracy
+    // 6 true clues (80% reliability), 1 false clue
+    for (let i = 0; i < 7; i++) {
+      const day = Math.floor(Math.random() * 10) + 11;
+      const isTrueClue = i < 6;
+
+      clues.push({
+        id: `mid-clue-${i}`,
+        tier: 'mid',
+        day,
+        pointsToward: isTrueClue ? outcome : !outcome,
+        reliability: isTrueClue ? 0.75 + Math.random() * 0.15 : 0.3 + Math.random() * 0.2, // 75-90% for true, 30-50% for noise
+      });
+    }
+
+    // Late-game clues (Days 21-30): Definitive signals, very high accuracy
+    // 8 true clues (90%+ reliability), almost no noise
+    for (let i = 0; i < 8; i++) {
+      const day = Math.floor(Math.random() * 10) + 21;
+
+      clues.push({
+        id: `late-clue-${i}`,
+        tier: 'late',
+        day,
+        pointsToward: outcome, // All true in late game
+        reliability: 0.85 + Math.random() * 0.15, // 85-100% reliability
+      });
+    }
+
+    // Sort by day for realistic information flow
+    return clues.sort((a, b) => a.day - b.day);
+  }
+
+  /**
+   * Calculate market odds using LMSR (Logarithmic Market Scoring Rule)
+   * This provides better price discovery and liquidity
+   */
+  private calculateLMSROdds(yesShares: number, noShares: number, liquidity: number = 100): { yesOdds: number; noOdds: number } {
+    // LMSR formula: P(YES) = exp(q_yes / b) / (exp(q_yes / b) + exp(q_no / b))
+    // where b is the liquidity parameter (higher = less price movement per trade)
+    
+    const b = liquidity;
+    const expYes = Math.exp(yesShares / b);
+    const expNo = Math.exp(noShares / b);
+    const sumExp = expYes + expNo;
+    
+    const yesProb = expYes / sumExp;
+    const noProb = expNo / sumExp;
+    
+    return {
+      yesOdds: Math.round(yesProb * 100),
+      noOdds: Math.round(noProb * 100),
+    };
   }
 
   /**
@@ -401,15 +453,40 @@ export class GameSimulator extends EventEmitter {
     const distributed: DistributedClue[] = [];
 
     dayClues.forEach(clue => {
-      // Give to insiders first
-      const insider = agents.find(a => a.isInsider && a.cluesReceived.length < 5);
-      if (insider) {
-        insider.cluesReceived.push(clue);
+      // Distribution strategy based on clue tier and reliability
+      let recipient: InternalAgent | undefined;
+
+      if (clue.tier === 'early') {
+        // Early clues: Go to insiders first, then spread to connected agents
+        recipient = agents.find(a => a.isInsider && a.cluesReceived.length < 8);
+
+        // If no insiders available, give to random agent with few clues
+        if (!recipient) {
+          const eligibleAgents = agents.filter(a => a.cluesReceived.length < 5);
+          recipient = eligibleAgents[Math.floor(Math.random() * eligibleAgents.length)];
+        }
+      } else if (clue.tier === 'mid') {
+        // Mid clues: More widespread, prefer agents with some knowledge already
+        const eligibleAgents = agents.filter(a => a.cluesReceived.length > 0 && a.cluesReceived.length < 10);
+        recipient = eligibleAgents.length > 0
+          ? eligibleAgents[Math.floor(Math.random() * eligibleAgents.length)]
+          : agents.find(a => a.cluesReceived.length < 10);
+      } else {
+        // Late clues: Widespread distribution, anyone can receive
+        const eligibleAgents = agents.filter(a => a.cluesReceived.length < 15);
+        recipient = eligibleAgents[Math.floor(Math.random() * eligibleAgents.length)];
+      }
+
+      if (recipient) {
+        recipient.cluesReceived.push({
+          clue: `${clue.tier.toUpperCase()} Clue #${clue.id}: ${clue.reliability > 0.7 ? 'Strong signal' : 'Weak signal'} pointing to ${clue.pointsToward ? 'YES' : 'NO'}`,
+          pointsToward: clue.pointsToward,
+        });
+
         distributed.push({
-          agentId: insider.id,
-          clue: `Clue #${clue.id}: Points to ${clue.pointsToward ? 'YES' : 'NO'}`,
-          tier: clue.tier,
-          reliability: clue.reliability,
+          agentId: recipient.id,
+          clue: `${clue.tier.toUpperCase()} Clue received: Points to ${clue.pointsToward ? 'YES' : 'NO'} (${Math.round(clue.reliability * 100)}% reliability)`,
+          pointsToward: clue.pointsToward,
         });
       }
     });
@@ -448,6 +525,9 @@ export class GameSimulator extends EventEmitter {
           agentId: agent.id,
           bet: `Bet ${amount} on ${betOnYes ? 'YES' : 'NO'} (${shares.toFixed(0)} shares)`,
           position: betOnYes ? 'YES' : 'NO',
+          outcome: betOnYes,
+          shares,
+          amount,
         });
       }
     });

@@ -27,6 +27,19 @@ model User {
   postStyle       String?
   postExample     String?
 
+  // Virtual wallet for trading
+  virtualBalance       Decimal  @default(10000) @db.Decimal(18, 2) // Start with $10k
+  totalDeposited       Decimal  @default(10000) @db.Decimal(18, 2)
+  totalWithdrawn       Decimal  @default(0) @db.Decimal(18, 2)
+  lifetimePnL          Decimal  @default(0) @db.Decimal(18, 2)
+  
+  // Profile completion tracking
+  profileComplete      Boolean  @default(false)
+  hasProfileImage      Boolean  @default(false)
+  hasUsername          Boolean  @default(false)
+  hasBio               Boolean  @default(false)
+  profileSetupCompletedAt DateTime?
+
   // Relationships
   comments        Comment[]
   reactions       Reaction[]
@@ -36,6 +49,7 @@ model User {
   favorites       Favorite[]   @relation("UserFavorites")
   favoritedBy     Favorite[]   @relation("UserFavoritedBy")
   shares          Share[]
+  balanceTransactions BalanceTransaction[]
 
   @@index([walletAddress])
   @@index([username])
@@ -246,17 +260,221 @@ model Message {
   @@index([senderId])
 }
 
-// Game model - game state tracking
+// Game model - continuous game state tracking
 model Game {
   id              String   @id @default(uuid())
   currentDay      Int      @default(1)
+  currentDate     DateTime @default(now()) // Current in-game date
   isRunning       Boolean  @default(false)
-  speed           Int      @default(5000)  // milliseconds
+  isContinuous    Boolean  @default(true)  // Continuous vs monthly batch
+  speed           Int      @default(60000) // milliseconds between ticks (60s default)
   startedAt       DateTime?
   pausedAt        DateTime?
   completedAt     DateTime?
+  lastTickAt      DateTime? // Last time generation ran
+  lastSnapshotAt  DateTime? // Last daily snapshot
+  activeQuestions Int      @default(0) // Current active question count
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   @@index([isRunning])
+  @@index([isContinuous])
+}
+
+// UserInteraction model - tracks player replies to NPCs with rate limiting
+model UserInteraction {
+  id              String   @id @default(uuid())
+  userId          String   // Player who replied
+  npcId           String   // NPC actor ID they replied to
+  postId          String   // Post they replied to
+  commentId       String   // Their comment ID
+  timestamp       DateTime @default(now())
+  qualityScore    Float    @default(1.0) // 0-1 score based on length, uniqueness, etc.
+  wasFollowed     Boolean  @default(false) // Did NPC follow them after this?
+  wasInvitedToChat Boolean  @default(false) // Were they invited to a group chat after this?
+  
+  @@index([userId, npcId, timestamp(sort: Desc)])
+  @@index([userId, timestamp(sort: Desc)])
+  @@index([npcId, timestamp(sort: Desc)])
+}
+
+// GroupChatMembership model - tracks player membership in NPC group chats
+model GroupChatMembership {
+  id                  String   @id @default(uuid())
+  userId              String   // Player
+  chatId              String   // Group chat
+  npcAdminId          String   // NPC who owns/controls the chat
+  joinedAt            DateTime @default(now())
+  lastMessageAt       DateTime? // Last time user posted in chat
+  messageCount        Int      @default(0) // Total messages by user
+  qualityScore        Float    @default(1.0) // Average quality of messages
+  isActive            Boolean  @default(true) // False if swept/booted
+  sweepReason         String?  // Why they were removed (inactive, spam, low quality)
+  removedAt           DateTime?
+  
+  @@unique([userId, chatId])
+  @@index([userId, isActive])
+  @@index([chatId, isActive])
+  @@index([lastMessageAt])
+}
+
+// FollowStatus model - tracks NPC follows of players
+model FollowStatus {
+  id              String   @id @default(uuid())
+  userId          String   // Player
+  npcId           String   // NPC actor ID
+  followedAt      DateTime @default(now())
+  unfollowedAt    DateTime? // If NPC unfollows
+  isActive        Boolean  @default(true)
+  followReason    String?  // "consistent_replies", "quality_content", etc.
+  
+  @@unique([userId, npcId])
+  @@index([userId, isActive])
+  @@index([npcId])
+}
+
+// PerpPosition model - perpetual futures positions
+model PerpPosition {
+  id                    String   @id @default(uuid())
+  userId                String
+  ticker                String   // Company ticker
+  organizationId        String
+  side                  String   // 'long' or 'short'
+  entryPrice            Float
+  currentPrice          Float
+  size                  Float    // Position size in USD
+  leverage              Int      // 1-100x
+  liquidationPrice      Float
+  unrealizedPnL         Float
+  unrealizedPnLPercent  Float
+  fundingPaid           Float    @default(0)
+  openedAt              DateTime @default(now())
+  lastUpdated           DateTime @updatedAt
+  closedAt              DateTime?
+  realizedPnL           Float?   // Set when closed
+  
+  @@index([userId, closedAt])
+  @@index([ticker])
+  @@index([organizationId])
+}
+
+// BalanceTransaction model - tracks all balance changes
+model BalanceTransaction {
+  id              String   @id @default(uuid())
+  userId          String
+  type            String   // 'deposit', 'perp_open', 'perp_close', 'pred_buy', 'pred_sell', 'pred_payout', 'funding_paid'
+  amount          Decimal  @db.Decimal(18, 2) // Can be negative for debits
+  balanceBefore   Decimal  @db.Decimal(18, 2)
+  balanceAfter    Decimal  @db.Decimal(18, 2)
+  relatedId       String?  // positionId or other reference
+  description     String?
+  createdAt       DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([type])
+}
+
+// Question model - prediction market questions
+model Question {
+  id              String   @id @default(uuid())
+  questionNumber  Int      // Sequential number
+  text            String
+  scenarioId      Int
+  outcome         Boolean  // Predetermined outcome
+  rank            Int
+  createdDate     DateTime @default(now())
+  resolutionDate  DateTime // When question resolves (24h-7d from creation)
+  status          String   @default("active") // 'active', 'resolved', 'cancelled'
+  resolvedOutcome Boolean? // Final outcome when resolved
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status, resolutionDate])
+  @@index([createdDate(sort: Desc)])
+  @@index([questionNumber])
+}
+
+// Organization model - companies, media, government
+model Organization {
+  id              String   @id // From actors.json
+  name            String
+  description     String
+  type            String   // 'company', 'media', 'government'
+  canBeInvolved   Boolean  @default(true)
+  initialPrice    Float?   // For companies
+  currentPrice    Float?   // Current stock price
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relationships
+  stockPrices StockPrice[]
+
+  @@index([type])
+  @@index([currentPrice])
+}
+
+// StockPrice model - price history for companies
+model StockPrice {
+  id             String   @id @default(uuid())
+  organizationId String
+  price          Float
+  change         Float    // Change from previous
+  changePercent  Float    // Percentage change
+  timestamp      DateTime @default(now())
+  isSnapshot     Boolean  @default(false) // true for EOD snapshots
+  openPrice      Float?   // For daily snapshots
+  highPrice      Float?   // For daily snapshots
+  lowPrice       Float?   // For daily snapshots
+  volume         Float?   // For daily snapshots
+
+  // Relationships
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, timestamp(sort: Desc)])
+  @@index([timestamp(sort: Desc)])
+  @@index([isSnapshot, timestamp])
+}
+
+// WorldEvent model - events that happen in the game
+model WorldEvent {
+  id              String   @id @default(uuid())
+  eventType       String   // 'meeting', 'announcement', 'scandal', etc.
+  description     String
+  actors          String[] // Array of actor IDs
+  relatedQuestion Int?     // Question number
+  pointsToward    String?  // 'YES', 'NO', or null
+  visibility      String   @default("public") // 'public', 'private', 'group'
+  gameId          String?
+  dayNumber       Int?
+  timestamp       DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  @@index([gameId, dayNumber])
+  @@index([timestamp(sort: Desc)])
+  @@index([relatedQuestion])
+}
+
+// Actor model - NPCs from actors.json (cached in DB)
+model Actor {
+  id              String   @id // From actors.json
+  name            String
+  description     String?
+  domain          String[] // Array of domains
+  personality     String?
+  tier            String?  // S_TIER, A_TIER, etc.
+  affiliations    String[] // Organization IDs
+  canPostFeed     Boolean  @default(true)
+  canPostGroups   Boolean  @default(true)
+  postStyle       String?
+  postExample     String[]
+  role            String?  // 'main', 'supporting', 'extra'
+  initialLuck     String   @default("medium") // 'low', 'medium', 'high'
+  initialMood     Float    @default(0) // -1 to 1
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tier])
+  @@index([role])
 }

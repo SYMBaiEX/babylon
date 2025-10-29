@@ -1,0 +1,27 @@
+/**
+ * Games API Route
+ * 
+ * GET /api/games - Get all games
+ */
+
+import { gameService } from '@/lib/game-service';
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  try {
+    const games = await gameService.getAllGames();
+
+    return NextResponse.json({
+      success: true,
+      games,
+      count: games.length,
+    });
+  } catch (error) {
+    console.error('API Error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to load games' },
+      { status: 500 }
+    );
+  }
+}
+

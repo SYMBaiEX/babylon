@@ -14,7 +14,15 @@ interface UseAuthReturn {
 export function useAuth(): UseAuthReturn {
   const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy()
   const { wallets } = useWallets()
-  const { setUser, setWallet, clearAuth } = useAuthStore()
+  const {
+    setUser,
+    setWallet,
+    clearAuth,
+    loadedUserId,
+    isLoadingProfile,
+    setLoadedUserId,
+    setIsLoadingProfile
+  } = useAuthStore()
 
   const wallet = wallets[0] // Get first connected wallet
 
@@ -43,25 +51,111 @@ export function useAuth(): UseAuthReturn {
     updateAccessToken()
   }, [authenticated, getAccessToken])
 
-  // Sync Privy state with Zustand store
+  // Sync Privy state with Zustand store and check for new users
   useEffect(() => {
     if (authenticated && user) {
-      setUser({
-        id: user.id,
-        walletAddress: wallet?.address,
-        displayName: user.email?.address || wallet?.address || 'Anonymous',
-      })
+      const walletAddress = wallet?.address
+      const walletChainId = wallet?.chainId
 
-      if (wallet) {
+      if (walletAddress && walletChainId) {
         setWallet({
-          address: wallet.address,
-          chainId: wallet.chainId,
+          address: walletAddress,
+          chainId: walletChainId,
         })
       }
+
+      // Skip if we've already loaded this user's profile OR if already loading
+      if (loadedUserId === user.id || isLoadingProfile) {
+        return
+      }
+
+      // Mark as loading to prevent duplicate fetches across all components
+      setIsLoadingProfile(true)
+      setLoadedUserId(user.id)
+
+      // Fetch complete user profile from database
+      const loadUserProfile = async () => {
+        fetch(`/api/users/${user.id}/profile`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.user) {
+              setUser({
+                id: user.id,
+                walletAddress: walletAddress,
+                displayName: data.user.displayName || user.email?.address || walletAddress || 'Anonymous',
+                email: user.email?.address,
+                username: data.user.username,
+                bio: data.user.bio,
+                profileImageUrl: data.user.profileImageUrl,
+                profileComplete: data.user.profileComplete,
+              })
+            } else {
+              // Fallback if profile fetch fails
+              setUser({
+                id: user.id,
+                walletAddress: walletAddress,
+                displayName: user.email?.address || walletAddress || 'Anonymous',
+                email: user.email?.address,
+              })
+            }
+          })
+          .catch(err => {
+            console.error('Error loading user profile:', err)
+            // Fallback if profile fetch fails
+            setUser({
+              id: user.id,
+              walletAddress: walletAddress,
+              displayName: user.email?.address || walletAddress || 'Anonymous',
+              email: user.email?.address,
+            })
+          })
+          .finally(() => {
+            // Mark loading as complete
+            setIsLoadingProfile(false)
+          })
+      }
+
+      // Check if new user and redirect to profile setup
+      const checkNewUser = async () => {
+        const token = await getAccessToken()
+        if (!token) return // Skip if no token
+
+        const response = await fetch(`/api/users/${user.id}/is-new`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        if (response.ok) {
+          const data = await response.json()
+          if (data.needsSetup && typeof window !== 'undefined') {
+            // Redirect to profile setup
+            const currentPath = window.location.pathname
+            if (currentPath !== '/profile/setup') {
+              window.location.href = '/profile/setup'
+            }
+          }
+        }
+      }
+
+      loadUserProfile()
+      checkNewUser()
     } else {
       clearAuth()
     }
-  }, [authenticated, user, wallet, setUser, setWallet, clearAuth])
+    // Only run when authenticated state or user.id changes, not on every wallet update
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authenticated, user?.id])
+
+  // Wrap logout to ensure all state is cleared
+  const handleLogout = async () => {
+    await logout()
+    clearAuth()
+
+    // Clear access token
+    if (typeof window !== 'undefined') {
+      window.__privyAccessToken = null
+    }
+  }
 
   return {
     ready,
@@ -69,6 +163,6 @@ export function useAuth(): UseAuthReturn {
     user,
     wallet,
     login,
-    logout,
+    logout: handleLogout,
   }
 }

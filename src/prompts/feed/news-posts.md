@@ -14,6 +14,10 @@ Type: {{eventType}}
 {{sourceContext}}
 {{outcomeFrame}}
 
+{{phaseContext}}
+
+{{orgBehaviorContext}}
+
 IMPORTANT: NO HASHTAGS OR EMOJIS IN POSTS.
 
 Generate breaking news posts for these {{mediaCount}} media entities:

@@ -1,78 +1,136 @@
 'use client'
 
-import { User, Calendar, Settings, LogOut } from 'lucide-react'
-import Link from 'next/link'
+import { useState, useEffect } from 'react'
+import { User, Calendar } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { LoginButton } from '@/components/auth/LoginButton'
 import { UserMenu } from '@/components/auth/UserMenu'
-import { ThemeToggle } from '@/components/shared/ThemeToggle'
 import { PageContainer } from '@/components/shared/PageContainer'
+import { Separator } from '@/components/shared/Separator'
 import { cn } from '@/lib/utils'
 
+interface ProfileData {
+  id: string
+  username?: string
+  displayName?: string
+  bio?: string
+  profileImageUrl?: string
+  walletAddress?: string
+  createdAt: string
+  profileComplete?: boolean
+  virtualBalance?: string
+  lifetimePnL?: string
+}
+
 export default function ProfilePage() {
-  const { ready, authenticated, logout } = useAuth()
+  const { ready, authenticated } = useAuth()
   const { user } = useAuthStore()
+  const [profileData, setProfileData] = useState<ProfileData | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (authenticated && user?.id) {
+      fetch(`/api/users/${user.id}/profile`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.user) {
+            setProfileData(data.user)
+          }
+          setLoading(false)
+        })
+        .catch(err => {
+          console.error('Error fetching profile:', err)
+          setLoading(false)
+        })
+    } else {
+      setLoading(false)
+    }
+  }, [authenticated, user?.id])
 
   return (
     <PageContainer noPadding className="flex flex-col">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-background border-b border-border">
-        <div className="p-4 flex items-center justify-between">
+      <div className="sticky top-0 z-10 bg-background">
+        <div className="p-4">
           <h1 className="text-2xl font-bold text-foreground">Profile</h1>
-          <div className="md:hidden">
-            <ThemeToggle />
-          </div>
         </div>
+        <Separator />
       </div>
 
       {/* Content area */}
       <div className="flex-1 overflow-y-auto">
         {/* Authentication Section - Top of mobile profile */}
         {ready && !authenticated && (
-          <div className="bg-muted/50 border-b border-border p-4">
-            <div className="max-w-2xl mx-auto">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-sm mb-1 text-foreground">Connect Your Wallet</h3>
-                  <p className="text-xs text-muted-foreground">
-                    View your profile and make predictions
-                  </p>
+          <>
+            <div className="bg-muted/50 p-4">
+              <div className="max-w-2xl mx-auto">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-sm mb-1 text-foreground">Connect Your Wallet</h3>
+                    <p className="text-xs text-muted-foreground">
+                      View your profile and make predictions
+                    </p>
+                  </div>
+                  <LoginButton />
                 </div>
-                <LoginButton />
               </div>
             </div>
-          </div>
+            <Separator />
+          </>
         )}
 
         <div className="max-w-2xl mx-auto">
           {/* Profile Header */}
           <div className="p-4">
-            <div className="flex items-start gap-4">
-              <div className={cn(
-                'w-16 h-16 md:w-20 md:h-20 rounded-full',
-                'bg-primary/20 flex items-center justify-center flex-shrink-0'
-              )}>
-                <User className="w-8 h-8 md:w-10 md:h-10 text-primary" />
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
               </div>
-              <div className="flex-1 min-w-0">
-                <h2 className="text-xl md:text-2xl font-bold truncate text-foreground">
-                  {authenticated && user?.displayName ? user.displayName : 'Your Profile'}
-                </h2>
-                <p className="text-sm text-muted-foreground truncate">
-                  {authenticated && user?.walletAddress
-                    ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
-                    : '@username'}
-                </p>
-                <div className="flex items-center gap-2 mt-2 text-xs md:text-sm text-muted-foreground">
-                  <Calendar className="w-3 h-3 md:w-4 md:h-4" />
-                  <span>Joined October 2025</span>
+            ) : (
+              <div className="flex items-start gap-4">
+                {profileData?.profileImageUrl ? (
+                  <img
+                    src={profileData.profileImageUrl}
+                    alt={profileData.displayName || 'Profile'}
+                    className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover flex-shrink-0"
+                  />
+                ) : (
+                  <div className={cn(
+                    'w-16 h-16 md:w-20 md:h-20 rounded-full',
+                    'bg-primary/20 flex items-center justify-center flex-shrink-0'
+                  )}>
+                    <User className="w-8 h-8 md:w-10 md:h-10 text-primary" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-xl md:text-2xl font-bold truncate text-foreground">
+                    {authenticated && profileData?.displayName ? profileData.displayName : 'Your Profile'}
+                  </h2>
+                  <p className="text-sm text-muted-foreground truncate">
+                    {authenticated && profileData?.username
+                      ? `@${profileData.username}`
+                      : authenticated && profileData?.walletAddress
+                      ? `${profileData.walletAddress.slice(0, 6)}...${profileData.walletAddress.slice(-4)}`
+                      : '@username'}
+                  </p>
+                  {profileData?.bio && (
+                    <p className="text-sm text-foreground mt-2">
+                      {profileData.bio}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-2 mt-2 text-xs md:text-sm text-muted-foreground">
+                    <Calendar className="w-3 h-3 md:w-4 md:h-4" />
+                    <span>Joined {profileData?.createdAt ? new Date(profileData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'October 2025'}</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Stats */}
-            <div className="flex gap-4 md:gap-6 mt-4 text-sm border-t border-border pt-4">
+            <div className="relative">
+              <Separator />
+              <div className="flex gap-4 md:gap-6 mt-4 text-sm pt-4">
               <div>
                 <span className="font-bold text-foreground">0</span>
                 <span className="text-muted-foreground ml-1 text-xs md:text-sm">Following</span>
@@ -81,9 +139,10 @@ export default function ProfilePage() {
                 <span className="font-bold text-foreground">0</span>
                 <span className="text-muted-foreground ml-1 text-xs md:text-sm">Followers</span>
               </div>
-              <div>
-                <span className="font-bold text-foreground">0</span>
-                <span className="text-muted-foreground ml-1 text-xs md:text-sm">Posts</span>
+                <div>
+                  <span className="font-bold text-foreground">0</span>
+                  <span className="text-muted-foreground ml-1 text-xs md:text-sm">Posts</span>
+                </div>
               </div>
             </div>
           </div>
@@ -92,33 +151,12 @@ export default function ProfilePage() {
           {ready && authenticated && (
             <div className="px-4 pb-4">
               <UserMenu />
-
-              {/* Action Buttons - 2x1 Grid */}
-              <div className="grid grid-cols-2 gap-3 mt-4">
-                <Link
-                  href="/settings"
-                  className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold rounded-xl transition-colors border-2 hover:bg-[#1c9cf0]/10"
-                  style={{
-                    borderColor: '#1c9cf0',
-                    color: '#1c9cf0'
-                  }}
-                >
-                  <Settings className="w-4 h-4" />
-                  <span>Settings</span>
-                </Link>
-                <button
-                  onClick={logout}
-                  className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-destructive hover:bg-destructive/10 rounded-xl transition-colors border-2 border-destructive/20"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Disconnect</span>
-                </button>
-              </div>
             </div>
           )}
 
           {/* Posts section */}
-          <div className="border-t border-border mt-4">
+          <div className="mt-4">
+            <Separator />
             <div className="text-center text-muted-foreground py-12 px-4">
               <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p className="text-sm">{authenticated ? 'Your posts will appear here' : 'Connect your wallet to see your posts'}</p>
