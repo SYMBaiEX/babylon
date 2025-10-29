@@ -28,12 +28,38 @@ import {
 } from '@/shared/perps-types';
 import type { Organization } from '@/shared/types';
 
+interface ClosedPosition {
+  userId: string;
+  ticker: string;
+  side: 'long' | 'short';
+  size: number;
+  leverage: number;
+  entryPrice: number;
+  exitPrice: number;
+  realizedPnL: number;
+  fundingPaid: number;
+  timestamp: string;
+  reason: 'manual' | 'liquidation';
+}
+
+interface TradeRecord {
+  userId: string;
+  ticker: string;
+  type: 'open' | 'close' | 'liquidation';
+  size: number;
+  price: number;
+  volume: number;
+  timestamp: string;
+}
+
 export class PerpetualsEngine extends EventEmitter {
   private positions: Map<string, PerpPosition> = new Map();
   private markets: Map<string, PerpMarket> = new Map();
   private fundingRates: Map<string, FundingRate> = new Map();
   private dailySnapshots: Map<string, DailyPriceSnapshot[]> = new Map(); // ticker -> snapshots
   private liquidations: Liquidation[] = [];
+  private closedPositions: ClosedPosition[] = [];
+  private tradeHistory: TradeRecord[] = [];
   private lastFundingTime: string = new Date().toISOString();
   private currentDate: string = new Date().toISOString().split('T')[0]!;
 
@@ -100,6 +126,7 @@ export class PerpetualsEngine extends EventEmitter {
     const entryPrice = order.orderType === 'market' ? market.currentPrice : order.limitPrice!;
     const liquidationPrice = calculateLiquidationPrice(entryPrice, order.side, order.leverage);
 
+    const timestamp = new Date().toISOString();
     const position: PerpPosition = {
       id: `pos-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       userId,
@@ -114,12 +141,23 @@ export class PerpetualsEngine extends EventEmitter {
       unrealizedPnL: 0,
       unrealizedPnLPercent: 0,
       fundingPaid: 0,
-      openedAt: new Date().toISOString(),
-      lastUpdated: new Date().toISOString(),
+      openedAt: timestamp,
+      lastUpdated: timestamp,
     };
 
     this.positions.set(position.id, position);
-    
+
+    // Record trade history
+    this.tradeHistory.push({
+      userId,
+      ticker: order.ticker,
+      type: 'open',
+      size: order.size,
+      price: entryPrice,
+      volume: order.size * entryPrice,
+      timestamp,
+    });
+
     // Update market open interest
     market.openInterest += order.size * order.leverage;
     market.volume24h += order.size;
@@ -151,6 +189,33 @@ export class PerpetualsEngine extends EventEmitter {
     );
 
     const realizedPnL = pnl - position.fundingPaid;
+    const timestamp = new Date().toISOString();
+
+    // Record closed position for statistics
+    this.closedPositions.push({
+      userId: position.userId,
+      ticker: position.ticker,
+      side: position.side,
+      size: position.size,
+      leverage: position.leverage,
+      entryPrice: position.entryPrice,
+      exitPrice: market.currentPrice,
+      realizedPnL,
+      fundingPaid: position.fundingPaid,
+      timestamp,
+      reason: 'manual',
+    });
+
+    // Record trade history
+    this.tradeHistory.push({
+      userId: position.userId,
+      ticker: position.ticker,
+      type: 'close',
+      size: position.size,
+      price: market.currentPrice,
+      volume: position.size * market.currentPrice,
+      timestamp,
+    });
 
     // Update market
     market.openInterest -= position.size * position.leverage;
@@ -252,12 +317,13 @@ export class PerpetualsEngine extends EventEmitter {
   private liquidatePosition(positionId: string, currentPrice: number): void {
     const position = this.positions.get(positionId);
     if (!position) return;
-    
+
     const market = this.markets.get(position.ticker);
     if (!market) return;
-    
+
     const loss = position.size; // Complete loss
-    
+    const timestamp = new Date().toISOString();
+
     const liquidation: Liquidation = {
       positionId,
       ticker: position.ticker,
@@ -265,17 +331,43 @@ export class PerpetualsEngine extends EventEmitter {
       liquidationPrice: position.liquidationPrice,
       actualPrice: currentPrice,
       loss,
-      timestamp: new Date().toISOString(),
+      timestamp,
     };
-    
+
     this.liquidations.push(liquidation);
-    
+
+    // Record closed position for statistics (liquidation)
+    this.closedPositions.push({
+      userId: position.userId,
+      ticker: position.ticker,
+      side: position.side,
+      size: position.size,
+      leverage: position.leverage,
+      entryPrice: position.entryPrice,
+      exitPrice: currentPrice,
+      realizedPnL: -loss, // Total loss
+      fundingPaid: position.fundingPaid,
+      timestamp,
+      reason: 'liquidation',
+    });
+
+    // Record trade history
+    this.tradeHistory.push({
+      userId: position.userId,
+      ticker: position.ticker,
+      type: 'liquidation',
+      size: position.size,
+      price: currentPrice,
+      volume: position.size * currentPrice,
+      timestamp,
+    });
+
     // Update market
     market.openInterest -= position.size * position.leverage;
-    
+
     // Remove position
     this.positions.delete(positionId);
-    
+
     this.emit('position:liquidated', liquidation);
   }
 
@@ -340,23 +432,65 @@ export class PerpetualsEngine extends EventEmitter {
    * Get trading stats
    */
   getTradingStats(userId: string): TradingStats {
-    // Simplified stats - would need to track closed positions in production
     const userPositions = this.getUserPositions(userId);
-    
-    const totalPnL = userPositions.reduce((sum, p) => sum + p.unrealizedPnL, 0);
-    const totalFundingPaid = userPositions.reduce((sum, p) => sum + p.fundingPaid, 0);
-    
+    const userClosedPositions = this.closedPositions.filter(p => p.userId === userId);
+    const userTrades = this.tradeHistory.filter(t => t.userId === userId);
+
+    // Calculate total volume from trade history
+    const totalVolume = userTrades.reduce((sum, t) => sum + t.volume, 0);
+
+    // Calculate current unrealized PnL from open positions
+    const unrealizedPnL = userPositions.reduce((sum, p) => sum + p.unrealizedPnL, 0);
+
+    // Calculate realized PnL from closed positions
+    const realizedPnL = userClosedPositions.reduce((sum, p) => sum + p.realizedPnL, 0);
+
+    // Total PnL = realized + unrealized
+    const totalPnL = realizedPnL + unrealizedPnL;
+
+    // Calculate win/loss statistics from closed positions
+    const winningTrades = userClosedPositions.filter(p => p.realizedPnL > 0);
+    const losingTrades = userClosedPositions.filter(p => p.realizedPnL <= 0);
+
+    const winRate = userClosedPositions.length > 0
+      ? (winningTrades.length / userClosedPositions.length) * 100
+      : 0;
+
+    const avgWin = winningTrades.length > 0
+      ? winningTrades.reduce((sum, p) => sum + p.realizedPnL, 0) / winningTrades.length
+      : 0;
+
+    const avgLoss = losingTrades.length > 0
+      ? losingTrades.reduce((sum, p) => sum + p.realizedPnL, 0) / losingTrades.length
+      : 0;
+
+    const largestWin = winningTrades.length > 0
+      ? Math.max(...winningTrades.map(p => p.realizedPnL))
+      : 0;
+
+    const largestLoss = losingTrades.length > 0
+      ? Math.min(...losingTrades.map(p => p.realizedPnL))
+      : 0;
+
+    // Calculate total funding paid
+    const totalFundingPaid =
+      userPositions.reduce((sum, p) => sum + p.fundingPaid, 0) +
+      userClosedPositions.reduce((sum, p) => sum + p.fundingPaid, 0);
+
+    // Count liquidations
+    const totalLiquidations = userClosedPositions.filter(p => p.reason === 'liquidation').length;
+
     return {
-      totalVolume: 0, // Would track from order history
-      totalTrades: userPositions.length,
+      totalVolume,
+      totalTrades: userClosedPositions.length + userPositions.length,
       totalPnL,
-      winRate: 0,
-      avgWin: 0,
-      avgLoss: 0,
-      largestWin: 0,
-      largestLoss: 0,
+      winRate,
+      avgWin,
+      avgLoss,
+      largestWin,
+      largestLoss,
       totalFundingPaid,
-      totalLiquidations: 0,
+      totalLiquidations,
     };
   }
 

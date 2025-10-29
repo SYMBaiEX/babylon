@@ -3,11 +3,12 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { User as UserIcon, LogOut, X, Wallet, Copy, Check } from 'lucide-react'
+import { User as UserIcon, LogOut, X, Wallet, Copy, Check, Menu } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { useLoginModal } from '@/hooks/useLoginModal'
+import { useUIStore } from '@/stores/uiStore'
 
 export function MobileHeader() {
   const { authenticated, logout } = useAuth()
@@ -15,6 +16,7 @@ export function MobileHeader() {
   const { showLoginModal } = useLoginModal()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [copied, setCopied] = useState(false)
+  const { toggleMobileMenu } = useUIStore()
 
   const handleCopyAddress = async () => {
     if (wallet?.address) {
@@ -62,25 +64,16 @@ export function MobileHeader() {
             />
           </Link>
 
-          {/* User Menu Button */}
+          {/* Mobile Hamburger toggles bottom nav overlay */}
           <button
-            onClick={() => {
-              if (authenticated) {
-                setShowUserMenu(true)
-              } else {
-                showLoginModal({
-                  title: 'Welcome to Babylon',
-                  message: 'Connect your wallet to start playing.',
-                })
-              }
-            }}
+            onClick={toggleMobileMenu}
             className={cn(
               'p-2 rounded-lg',
               'bg-primary/20 text-primary',
               'hover:bg-primary/30 transition-all'
             )}
           >
-            <UserIcon className="w-6 h-6" />
+            <Menu className="w-6 h-6" />
           </button>
         </div>
       </header>

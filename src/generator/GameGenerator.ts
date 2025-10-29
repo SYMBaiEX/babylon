@@ -52,6 +52,7 @@ import type {
   ActorsDatabase,
   GameHistory,
   GenesisGame,
+  FeedPost,
 } from '@/shared/types';
 
 /**
@@ -544,6 +545,7 @@ export class GameGenerator {
 
       events.push({
         id: `genesis-${day}-${i}`,
+        day,
         type,
         actors: involvedActors.map(a => a.id),
         description,
@@ -566,18 +568,11 @@ export class GameGenerator {
   ): Promise<string> {
     const actorDescriptions = actors.map(a => `${a.name} (${a.description})`).join(', ');
 
-    const prompt = `You must respond with valid JSON only.
-
-Date: ${dateStr}
-Event type: ${type}
-Involved: ${actorDescriptions}
-
-Generate a normal, mundane baseline event. One sentence, max 100 chars.
-
-Respond with ONLY this JSON format:
-{"event": "your event description"}
-
-No other text.`;
+    const prompt = loadPrompt('game/baseline-event', {
+      dateStr,
+      eventType: type,
+      actorDescriptions
+    });
 
     const response = await this.llm.generateJSON<{ event: string }>(
       prompt,
@@ -903,12 +898,16 @@ Otherwise, start fresh.`;
     // Connect each main to each other (rivalry or alliance)
     for (let i = 0; i < selectedActors.mains.length; i++) {
       for (let j = i + 1; j < selectedActors.mains.length; j++) {
+        const actor1 = selectedActors.mains[i];
+        const actor2 = selectedActors.mains[j];
+        if (!actor1 || !actor2) continue;
+
         const relationship = Math.random() > 0.5 ? 'rivals' : 'allies';
         connections.push({
-          actor1: selectedActors.mains[i].id,
-          actor2: selectedActors.mains[j].id,
+          actor1: actor1.id,
+          actor2: actor2.id,
           relationship,
-          context: `${relationship === 'rivals' ? 'Competing' : 'Collaborating'} in ${selectedActors.mains[i].domain?.[0] || 'same space'}`,
+          context: `${relationship === 'rivals' ? 'Competing' : 'Collaborating'} in ${actor1.domain?.[0] || 'same space'}`,
         });
       }
     }
@@ -1038,10 +1037,10 @@ Otherwise, start fresh.`;
     for (const main of selectedActors.mains) {
       const positiveConnections = getPositiveConnections(main.id);
       const memberIds = [main.id, ...positiveConnections.slice(0, 6)];
-      const members = memberIds.map(id => getActorById(id)).filter(Boolean);
-      
+      const members = memberIds.map(id => getActorById(id)).filter((actor): actor is SelectedActor => actor !== null && actor !== undefined);
+
       const domain = main.domain?.[0] || 'general';
-      
+
       // Generate contextual name using LLM
       const groupName = await this.generateGroupChatName(main, members, domain);
       const kebabName = groupName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -1065,10 +1064,10 @@ Otherwise, start fresh.`;
     for (const supporting of highTierSupporting) {
       const positiveConnections = getPositiveConnections(supporting.id);
       const memberIds = [supporting.id, ...positiveConnections.slice(0, 5)];
-      const members = memberIds.map(id => getActorById(id)).filter(Boolean);
-      
+      const members = memberIds.map(id => getActorById(id)).filter((actor): actor is SelectedActor => actor !== null && actor !== undefined);
+
       const domain = supporting.domain?.[0] || 'general';
-      
+
       // Generate contextual name using LLM
       const groupName = await this.generateGroupChatName(supporting, members, domain);
       const kebabName = groupName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + `-${chats.length}`;
@@ -1160,6 +1159,7 @@ Otherwise, start fresh.`;
 
       events.push({
         id: `event-${day}-${i}`,
+        day,
         type: req.type,
         actors: req.actors.map((a: SelectedActor) => a.id),
         description: desc.event,
@@ -1192,8 +1192,23 @@ Otherwise, start fresh.`;
     this.feedGenerator.setRelationships(connections);
     this.feedGenerator.setActorGroupContexts(actorGroupContextMap);
 
+    // Generate day transition post (days 2+)
+    const feedPosts: FeedPost[] = [];
+    if (day > 1 && previousDays.length > 0) {
+      const previousDayEvents = previousDays[previousDays.length - 1]?.events || [];
+      const transitionPost = await this.feedGenerator.generateDayTransitionPost(
+        day,
+        previousDayEvents,
+        questions,
+        allActors
+      );
+      if (transitionPost) {
+        feedPosts.push(transitionPost);
+      }
+    }
+
     // Generate feed posts from events
-    const feedPosts = await this.feedGenerator.generateDayFeed(
+    const eventFeedPosts = await this.feedGenerator.generateDayFeed(
       day,
       events.map(e => ({
         id: e.id,
@@ -1206,6 +1221,7 @@ Otherwise, start fresh.`;
       allActors,
       questions[0]!.outcome
     );
+    feedPosts.push(...eventFeedPosts);
 
     // Generate group messages - BATCHED
     const groupMessages = await this.generateDayGroupMessagesBatch(
@@ -1365,24 +1381,16 @@ Max 120 characters, one sentence.`;
     const eventHistory = relatedEvents.length > 0
       ? `Recent events: ${relatedEvents.map(e => e.description).join('; ')}`
       : 'No prior events';
-    
-    const prompt = `You must respond with valid JSON only.
 
-Question: ${question.text}
-Outcome: ${question.outcome ? 'YES' : 'NO'}
-History: ${eventHistory}
+    const outcome = question.outcome ? 'YES' : 'NO';
+    const outcomeContext = question.outcome ? 'PROVES it happened' : 'PROVES it failed/was cancelled';
 
-Generate a definitive resolution event proving the ${question.outcome ? 'YES' : 'NO'} outcome.
-${question.outcome ? 'PROVES it happened' : 'PROVES it failed/was cancelled'}
-One sentence, max 150 chars, concrete and observable.
-
-Respond with ONLY this JSON format:
-{
-  "event": "your resolution event",
-  "type": "announcement"
-}
-
-No other text.`;
+    const prompt = loadPrompt('game/resolution-event', {
+      questionText: question.text,
+      outcome,
+      eventHistory,
+      outcomeContext
+    });
 
     const response = await this.llm.generateJSON<{ event: string; type: 'announcement' | 'revelation' }>(
       prompt,
@@ -1392,6 +1400,7 @@ No other text.`;
 
     return {
       id: `resolution-${day}-${question.id}`,
+      day,
       type: response.type || 'revelation',
       actors: mainActors.map(a => a.id),
       description: response.event || `Resolution event for question ${question.id}`,
@@ -1671,28 +1680,24 @@ ${req.members.map((m, idx) => {
    * Private insider information shared in groups
    */
   public async generateGroupMessage(
-    actor: SelectedActor, 
-    events: WorldEvent[], 
+    actor: SelectedActor,
+    events: WorldEvent[],
     day: number,
     groupTheme: string
   ): Promise<string> {
     const recentEvent = events[Math.floor(Math.random() * events.length)];
-    
-    const prompt = `You are ${actor.name}, a ${actor.description}.
-Personality: ${actor.personality}
-Domain: ${actor.domain?.join(', ')}
+    const eventContext = recentEvent ? `Recent event: ${recentEvent.description}` : `It's Day ${day} of 30`;
+    const informationHint = day < 15 ? 'Drop vague hints' : 'Share more concrete information';
 
-You're in a PRIVATE group chat about ${groupTheme} with trusted insiders.
-${recentEvent ? `Recent event: ${recentEvent.description}` : `It's Day ${day} of 30`}
-
-Write a private message (max 200 chars) sharing insider info or your real thoughts.
-- This is PRIVATE - be more candid than on public feed
-- Share information you wouldn't post publicly
-- ${day < 15 ? 'Drop vague hints' : 'Share more concrete information'}
-- Stay in character
-- Can use emojis (🤫, 👀, 🔥, etc.) if natural
-
-Write ONLY the message text:`;
+    const prompt = loadPrompt('game/group-message', {
+      actorName: actor.name,
+      actorDescription: actor.description,
+      personality: actor.personality || 'balanced',
+      domain: actor.domain?.join(', ') || 'general',
+      groupTheme,
+      eventContext,
+      informationHint
+    });
 
     const response = await this.llm.generateJSON<{ message: string }>(
       prompt,

@@ -1,6 +1,7 @@
 import { http } from 'viem'
 import { mainnet, sepolia } from 'viem/chains'
 import { createConfig } from 'wagmi'
+import type { PrivyClientConfig } from '@privy-io/react-auth'
 
 const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID) || 1
 const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || ''
@@ -23,16 +24,18 @@ export const privyConfig = {
   config: {
     appearance: {
       theme: 'dark' as const,
-      accentColor: '#1c9cf0',
+      accentColor: '#1c9cf0' as const,
       logo: '/assets/logos/logo.svg',
       showWalletLoginFirst: true,
-      walletList: ['metamask', 'rabby_wallet', 'detected_wallets', 'rainbow', 'coinbase_wallet', 'wallet_connect'],
+      walletList: ['metamask', 'rabby_wallet', 'detected_wallets', 'rainbow', 'coinbase_wallet', 'wallet_connect'] as PrivyClientConfig['appearance']['walletList'],
       walletChainType: 'ethereum-only' as const,
     },
     // Prioritize EVM wallet login (Metamask, Rabby, etc.)
-    loginMethods: ['wallet', 'email'] as const,
+    loginMethods: ['wallet', 'email'] as PrivyClientConfig['loginMethods'],
     embeddedWallets: {
-      createOnLogin: 'users-without-wallets' as const,
+      ethereum: {
+        createOnLogin: 'users-without-wallets' as const,
+      },
     },
     defaultChain: selectedChain,
     // Wallet configuration - supports all injected wallets including Rabby

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { User as UserIcon, Copy, Check, LogOut } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
+import { Separator } from '@/components/shared/Separator'
 import { cn } from '@/lib/utils'
 
 export function UserMenu() {
@@ -63,13 +64,7 @@ export function UserMenu() {
         {user?.email && (
           <>
             <div className="py-2">
-              <div
-                className="h-px rounded-full"
-                style={{
-                  background: 'linear-gradient(90deg, transparent, rgba(28, 156, 240, 0.3), transparent)',
-                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)'
-                }}
-              />
+              <Separator />
             </div>
             <div>
               <label className="text-xs text-muted-foreground uppercase tracking-wide block mb-1">
@@ -86,13 +81,7 @@ export function UserMenu() {
         {wallet?.address && (
           <>
             <div className="py-2">
-              <div
-                className="h-px rounded-full"
-                style={{
-                  background: 'linear-gradient(90deg, transparent, rgba(28, 156, 240, 0.3), transparent)',
-                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)'
-                }}
-              />
+              <Separator />
             </div>
             <div>
               <label className="text-xs text-muted-foreground uppercase tracking-wide block mb-2">
@@ -121,13 +110,7 @@ export function UserMenu() {
         {/* Logout Button */}
         <>
           <div className="py-2">
-            <div
-              className="h-px rounded-full"
-              style={{
-                background: 'linear-gradient(90deg, transparent, rgba(28, 156, 240, 0.3), transparent)',
-                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)'
-              }}
-            />
+            <Separator />
           </div>
           <div>
             <button

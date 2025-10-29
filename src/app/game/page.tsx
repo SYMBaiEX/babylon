@@ -143,7 +143,7 @@ export default function GamePage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-background text-foreground">
+      <div className="flex flex-col items-center justify-center h-full bg-background text-foreground">
         <div className="text-lg">Loading games...</div>
       </div>
     )
@@ -151,7 +151,7 @@ export default function GamePage() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-background">
+      <div className="flex flex-col items-center justify-center h-full bg-background">
         <div className="text-lg text-destructive mb-4">⚠️ {error}</div>
         <p className="text-sm text-muted-foreground">
           Generate a game using the CLI to get started

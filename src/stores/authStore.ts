@@ -20,8 +20,12 @@ interface Wallet {
 interface AuthState {
   user: User | null
   wallet: Wallet | null
+  loadedUserId: string | null
+  isLoadingProfile: boolean
   setUser: (user: User) => void
   setWallet: (wallet: Wallet) => void
+  setLoadedUserId: (userId: string) => void
+  setIsLoadingProfile: (loading: boolean) => void
   clearAuth: () => void
 }
 
@@ -30,9 +34,13 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       wallet: null,
+      loadedUserId: null,
+      isLoadingProfile: false,
       setUser: (user) => set({ user }),
       setWallet: (wallet) => set({ wallet }),
-      clearAuth: () => set({ user: null, wallet: null }),
+      setLoadedUserId: (userId) => set({ loadedUserId: userId }),
+      setIsLoadingProfile: (loading) => set({ isLoadingProfile: loading }),
+      clearAuth: () => set({ user: null, wallet: null, loadedUserId: null, isLoadingProfile: false }),
     }),
     {
       name: 'babylon-auth',

@@ -12,8 +12,9 @@ import {
   errorResponse,
 } from '@/lib/api/auth-middleware';
 import { MessageQualityChecker } from '@/services/MessageQualityChecker';
-import { GroupChatSweep } from '@/services/GroupChatSweep';
+import { GroupChatSweep, type SweepDecision } from '@/services/GroupChatSweep';
 import { GroupChatInvite } from '@/services/GroupChatInvite';
+import { broadcastMessage } from '@/app/api/ws/chat/route';
 
 const prisma = new PrismaClient();
 
@@ -47,30 +48,55 @@ export async function POST(
     }
 
     // 3. Check if user is a member of this chat
-    const isMember = await GroupChatInvite.isInChat(user.userId, chatId);
-
-    if (!isMember) {
-      return errorResponse('You are not a member of this group chat', 403);
+    // For game chats (containing hyphens), skip membership check as they're virtual
+    const isGameChat = chatId.includes('-');
+    let isMember = true;
+    
+    if (!isGameChat) {
+      isMember = await GroupChatInvite.isInChat(user.userId, chatId);
+      if (!isMember) {
+        return errorResponse('You are not a member of this group chat', 403);
+      }
     }
 
-    // 4. Check if user should be removed (pre-check)
-    const sweepDecision = await GroupChatSweep.checkForRemoval(user.userId, chatId);
+    // 4. Check if user should be removed (pre-check) - only for database chats
+    let sweepDecision: SweepDecision = { shouldRemove: false, reason: undefined, stats: { hoursSinceLastMessage: 0, messagesLast24h: 0 } };
+    
+    if (!isGameChat) {
+      sweepDecision = await GroupChatSweep.checkForRemoval(user.userId, chatId);
+      if (sweepDecision.shouldRemove) {
+        await GroupChatSweep.removeFromChat(user.userId, chatId, sweepDecision.reason || 'Auto-removed');
+        return errorResponse(
+          `You have been removed from this chat: ${sweepDecision.reason}`,
+          403
+        );
+      }
+    }
 
-    if (sweepDecision.shouldRemove) {
-      await GroupChatSweep.removeFromChat(user.userId, chatId, sweepDecision.reason || 'Auto-removed');
-      return errorResponse(
-        `You have been removed from this chat: ${sweepDecision.reason}`,
-        403
+    // 5. Check message quality (skip uniqueness check for game chats)
+    let qualityResult;
+    try {
+      qualityResult = await MessageQualityChecker.checkQuality(
+        content,
+        user.userId,
+        'groupchat',
+        isGameChat ? '' : chatId // Pass empty string for game chats to skip DB queries
       );
+    } catch (qualityError) {
+      console.error('Quality check error:', qualityError);
+      // For game chats, allow messages even if quality check fails
+      if (isGameChat) {
+        qualityResult = {
+          score: 0.8,
+          passed: true,
+          warnings: [],
+          errors: [],
+          factors: { length: 1.0, uniqueness: 1.0, contentQuality: 0.8 },
+        };
+      } else {
+        throw qualityError;
+      }
     }
-
-    // 5. Check message quality
-    const qualityResult = await MessageQualityChecker.checkQuality(
-      content,
-      user.userId,
-      'groupchat',
-      chatId
-    );
 
     if (!qualityResult.passed) {
       return errorResponse(
@@ -79,29 +105,53 @@ export async function POST(
       );
     }
 
-    // 6. Create message
-    const message = await prisma.message.create({
-      data: {
+    // 6. Create message (only for database chats)
+    let message = null;
+    let membership = null;
+    
+    if (!isGameChat) {
+      message = await prisma.message.create({
+        data: {
+          content: content.trim(),
+          chatId,
+          senderId: user.userId,
+        },
+      });
+
+      // 7. Update user's quality score in chat
+      await GroupChatSweep.updateQualityScore(user.userId, chatId, qualityResult.score);
+
+      // 8. Get updated membership stats
+      membership = await prisma.groupChatMembership.findUnique({
+        where: {
+          userId_chatId: {
+            userId: user.userId,
+            chatId,
+          },
+        },
+      });
+    } else {
+      // For game chats, create a mock message object
+      message = {
+        id: `game-${Date.now()}`,
         content: content.trim(),
         chatId,
         senderId: user.userId,
-      },
+        createdAt: new Date(),
+      };
+    }
+
+    // 9. Broadcast message via WebSocket
+    broadcastMessage(chatId, {
+      id: message.id,
+      content: message.content,
+      chatId: message.chatId,
+      senderId: message.senderId,
+      createdAt: message.createdAt.toISOString(),
+      isGameChat,
     });
 
-    // 7. Update user's quality score in chat
-    await GroupChatSweep.updateQualityScore(user.userId, chatId, qualityResult.score);
-
-    // 8. Get updated membership stats
-    const membership = await prisma.groupChatMembership.findUnique({
-      where: {
-        userId_chatId: {
-          userId: user.userId,
-          chatId,
-        },
-      },
-    });
-
-    // 9. Return success with feedback
+    // 10. Return success with feedback
     return successResponse(
       {
         message: {
@@ -124,6 +174,7 @@ export async function POST(
           status: 'active',
         },
         warnings: qualityResult.warnings,
+        isGameChat,
       },
       201
     );
@@ -132,7 +183,10 @@ export async function POST(
       return authErrorResponse('Unauthorized');
     }
     console.error('Error sending group chat message:', error);
-    return errorResponse('Failed to send message');
+    const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    console.error('Error details:', { errorMessage, errorStack });
+    return errorResponse(errorMessage, 500);
   }
 }
 

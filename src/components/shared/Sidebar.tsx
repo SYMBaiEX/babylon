@@ -11,6 +11,7 @@ import { LoginButton } from '@/components/auth/LoginButton'
 import { UserMenu } from '@/components/auth/UserMenu'
 import { useGameStore } from '@/stores/gameStore'
 import { ThemeToggle } from '@/components/shared/ThemeToggle'
+import { Separator } from '@/components/shared/Separator'
 
 export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -244,13 +245,7 @@ export function Sidebar() {
 
       {/* Separator */}
       <div className="px-4 py-2">
-        <div
-          className="h-px rounded-full"
-          style={{
-            background: 'linear-gradient(90deg, transparent, rgba(28, 156, 240, 0.3), transparent)',
-            boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)'
-          }}
-        />
+        <Separator />
       </div>
 
       {/* Bottom Section */}

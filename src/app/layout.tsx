@@ -48,8 +48,8 @@ export default function RootLayout({
             <Sidebar />
 
             {/* Main Content Area */}
-            <main className="flex-1 min-h-screen pt-16 pb-20 md:pt-0 md:pb-0 transition-all duration-300 bg-background md:bg-sidebar">
-              <div className="md:p-3 lg:p-4">
+            <main className="flex-1 min-h-screen pt-16 md:pt-0 md:pb-0 transition-all duration-300 bg-background md:bg-sidebar">
+              <div className="h-[calc(100vh-4rem)] md:h-full md:p-3 lg:p-4">
                 {children}
               </div>
             </main>

@@ -13,6 +13,12 @@ You must respond with valid JSON only.
 
 ━━━ GENERATE DAY {{day}} EVENTS ━━━
 
+{{phaseContext}}
+
+{{relationshipContext}}
+
+{{organizationBehaviorContext}}
+
 Generate {{eventCount}} events:
 
 {{eventRequestsList}}

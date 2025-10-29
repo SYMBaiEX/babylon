@@ -66,7 +66,7 @@ export default function ActorProfilePage() {
             posts.push({
               post,
               gameId: game.id,
-              gameName: game.setup?.title || game.id,
+              gameName: game.id,
               timestampMs: postDate.getTime()
             })
           }

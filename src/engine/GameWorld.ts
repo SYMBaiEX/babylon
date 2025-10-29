@@ -20,6 +20,7 @@ import { EventEmitter } from 'events';
 import { v4 as uuid } from 'uuid';
 import { FeedGenerator, type FeedEvent } from './FeedGenerator';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
+import { loadPrompt } from '../prompts/loader';
 
 export interface WorldConfig {
   /** Predetermined outcome (true = success, false = failure) */
@@ -56,6 +57,7 @@ export interface WorldEvent {
   actors: string[];
   visibility: 'public' | 'leaked' | 'secret' | 'private' | 'group';
   pointsToward?: 'YES' | 'NO' | null;
+  relatedQuestion?: number | null;
 }
 
 /**
@@ -476,20 +478,20 @@ export class GameWorld extends EventEmitter {
         : `Day ${day} investigation: Multiple concerns raised by experts`;
     }
 
-    const prompt = `Generate a news report for Day ${day} of a prediction market game.
+    const reputationContext = journalist.reliability > 0.7 ? 'reliable' : 'questionable';
+    const truthContext = journalist.knowsTruth ? 'hints at' : 'speculates about';
 
-Context:
-- Question: ${this.generateQuestion()}
-- Real outcome: ${this.config.outcome ? 'YES' : 'NO'}
-- Journalist: ${journalist.name} (${journalist.role}, reliability: ${journalist.reliability})
-- Recent events: ${events.map(e => e.description).join('; ')}
-
-Generate a realistic news report that:
-- Reflects the journalist's ${journalist.reliability > 0.7 ? 'reliable' : 'questionable'} reputation
-- Subtly ${journalist.knowsTruth ? 'hints at' : 'speculates about'} the outcome
-- Sounds like real journalism, not obviously biased
-
-Respond with JSON: { "headline": "...", "report": "..." }`;
+    const prompt = loadPrompt('world/news-report', {
+      day: day.toString(),
+      question: this.generateQuestion(),
+      outcome: this.config.outcome ? 'YES' : 'NO',
+      journalistName: journalist.name,
+      journalistRole: journalist.role,
+      journalistReliability: journalist.reliability.toString(),
+      recentEvents: events.map(e => e.description).join('; '),
+      reputationContext,
+      truthContext
+    });
 
     try {
       const response = await this.llm.generateJSON<{ headline: string; report: string }>(prompt);
@@ -512,20 +514,15 @@ Respond with JSON: { "headline": "...", "report": "..." }`;
       return rumors[index] ?? rumors[0]!;
     }
 
-    const prompt = `Generate a rumor for Day ${day} of a prediction market game.
+    const outcomeHint = this.config.outcome ? 'Leans positive' : 'Raises concerns';
 
-Context:
-- Question: ${this.generateQuestion()}
-- Real outcome: ${this.config.outcome ? 'YES' : 'NO'}
-- Recent events: ${events.slice(-3).map(e => e.description).join('; ')}
-
-Generate a realistic rumor that:
-- Sounds like internet gossip or leaked information
-- May or may not be accurate
-- ${this.config.outcome ? 'Leans positive' : 'Raises concerns'}
-- Starts with "Rumor:" or "Unconfirmed:" or "Sources say:"
-
-Respond with JSON: { "rumor": "..." }`;
+    const prompt = loadPrompt('world/rumor', {
+      day: day.toString(),
+      question: this.generateQuestion(),
+      outcome: this.config.outcome ? 'YES' : 'NO',
+      recentEvents: events.slice(-3).map(e => e.description).join('; '),
+      outcomeHint
+    });
 
     try {
       const response = await this.llm.generateJSON<{ rumor: string }>(prompt);
@@ -546,21 +543,15 @@ Respond with JSON: { "rumor": "..." }`;
     }
 
     const participants = npcs.slice(0, 3);
-    const prompt = `Generate a brief conversation between NPCs on Day ${day}.
+    const participantsStr = participants.map(n => `${n.name} (${n.role}, knows truth: ${n.knowsTruth})`).join(', ');
 
-Context:
-- Question: ${this.generateQuestion()}
-- Real outcome: ${this.config.outcome ? 'YES' : 'NO'}
-- Participants: ${participants.map(n => `${n.name} (${n.role}, knows truth: ${n.knowsTruth})`).join(', ')}
-- Recent events: ${events.slice(-2).map(e => e.description).join('; ')}
-
-Generate a natural conversation where:
-- Insiders hint at what they know
-- Outsiders speculate
-- People disagree based on their information
-- Keep it brief (2-3 exchanges)
-
-Respond with JSON: { "conversation": "..." }`;
+    const prompt = loadPrompt('world/npc-conversation', {
+      day: day.toString(),
+      question: this.generateQuestion(),
+      outcome: this.config.outcome ? 'YES' : 'NO',
+      participants: participantsStr,
+      recentEvents: events.slice(-2).map(e => e.description).join('; ')
+    });
 
     try {
       const response = await this.llm.generateJSON<{ conversation: string }>(prompt);
@@ -576,20 +567,20 @@ Respond with JSON: { "conversation": "..." }`;
       return `${expert.name} publishes analysis: ${this.config.outcome ? 'Indicators positive' : 'Warning signs evident'}`;
     }
 
-    const prompt = `Generate expert analysis from ${expert.name}.
+    const confidenceContext = expert.knowsTruth ? 'Confidently points toward truth' : 'Makes educated guesses';
+    const reliabilityContext = expert.reliability > 0.7 ? 'accurate' : 'sometimes wrong';
 
-Context:
-- Question: ${this.generateQuestion()}
-- Real outcome: ${this.config.outcome ? 'YES' : 'NO'}
-- Expert: ${expert.name} (${expert.role}, knows truth: ${expert.knowsTruth}, reliability: ${expert.reliability})
-- Recent events: ${events.slice(-5).map(e => e.description).join('; ')}
-
-Generate analysis that:
-- Sounds authoritative and expert-like
-- ${expert.knowsTruth ? 'Confidently points toward truth' : 'Makes educated guesses'}
-- Reflects expert's reliability (${expert.reliability > 0.7 ? 'accurate' : 'sometimes wrong'})
-
-Respond with JSON: { "analysis": "..." }`;
+    const prompt = loadPrompt('world/expert-analysis', {
+      expertName: expert.name,
+      question: this.generateQuestion(),
+      outcome: this.config.outcome ? 'YES' : 'NO',
+      expertRole: expert.role,
+      knowsTruth: expert.knowsTruth.toString(),
+      reliability: expert.reliability.toString(),
+      recentEvents: events.slice(-5).map(e => e.description).join('; '),
+      confidenceContext,
+      reliabilityContext
+    });
 
     try {
       const response = await this.llm.generateJSON<{ analysis: string }>(prompt);
@@ -609,16 +600,12 @@ Respond with JSON: { "analysis": "..." }`;
       return `Day ${day}: ${events.length} events`;
     }
 
-    const prompt = `Generate a summary for Day ${day}.
-
-Context:
-- Question: ${this.generateQuestion()}
-- Events today: ${events.map(e => `${e.type}: ${e.description}`).join('; ')}
-- Real outcome: ${this.config.outcome ? 'YES' : 'NO'}
-
-Generate a one-line summary that captures the day's key developments.
-
-Respond with JSON: { "summary": "..." }`;
+    const prompt = loadPrompt('world/day-summary', {
+      day: day.toString(),
+      question: this.generateQuestion(),
+      eventsToday: events.map(e => `${e.type}: ${e.description}`).join('; '),
+      outcome: this.config.outcome ? 'YES' : 'NO'
+    });
 
     try {
       const response = await this.llm.generateJSON<{ summary: string }>(prompt);

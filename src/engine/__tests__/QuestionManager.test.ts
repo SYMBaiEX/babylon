@@ -1,6 +1,6 @@
 /**
  * QuestionManager Tests
- * 
+ *
  * Verifies:
  * - Question creation with correct dates
  * - Question resolution logic
@@ -10,9 +10,16 @@
 
 import { describe, test, expect } from 'bun:test';
 import type { Question } from '@/shared/types';
+import { QuestionManager } from '../QuestionManager';
+
+// Mock LLM client for testing
+const mockLLM = {
+  generateJSON: async () => ({ questions: [] }),
+} as any;
 
 describe('QuestionManager', () => {
   test('detects questions that should be resolved', () => {
+    const manager = new QuestionManager(mockLLM);
     const questions: Question[] = [
       {
         id: 1,
@@ -37,19 +44,17 @@ describe('QuestionManager', () => {
     ];
 
     const currentDate = '2025-11-03';
-    
+
     // Question 1 should be resolved (resolutionDate <= currentDate)
     // Question 2 should not (resolutionDate > currentDate)
-    const toResolve = questions.filter(q => {
-      if (!q.resolutionDate) return false;
-      return new Date(q.resolutionDate) <= new Date(currentDate);
-    });
+    const toResolve = manager.getQuestionsToResolve(questions, currentDate);
 
     expect(toResolve.length).toBe(1);
     expect(toResolve[0]!.id).toBe(1);
   });
 
   test('calculates days until resolution correctly', () => {
+    const manager = new QuestionManager(mockLLM);
     const question: Question = {
       id: 1,
       text: 'Test Question',
@@ -62,11 +67,8 @@ describe('QuestionManager', () => {
     };
 
     const currentDate = '2025-11-01';
-    
-    const current = new Date(currentDate);
-    const resolution = new Date(question.resolutionDate!);
-    const diffTime = resolution.getTime() - current.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    const diffDays = manager.getDaysUntilResolution(question, currentDate);
 
     expect(diffDays).toBe(4);
   });
@@ -87,6 +89,7 @@ describe('QuestionManager', () => {
   });
 
   test('tracks question status transitions', () => {
+    const manager = new QuestionManager(mockLLM);
     const question: Question = {
       id: 1,
       text: 'Test Question',
@@ -99,17 +102,14 @@ describe('QuestionManager', () => {
     };
 
     // Resolve the question
-    const resolved: Question = {
-      ...question,
-      status: 'resolved',
-      resolvedOutcome: question.outcome,
-    };
+    const resolved = manager.resolveQuestion(question, question.outcome);
 
     expect(resolved.status).toBe('resolved');
     expect(resolved.resolvedOutcome).toBe(true);
   });
 
   test('filters active vs resolved questions', () => {
+    const manager = new QuestionManager(mockLLM);
     const questions: Question[] = [
       {
         id: 1,
@@ -138,8 +138,8 @@ describe('QuestionManager', () => {
       },
     ];
 
-    const active = questions.filter(q => q.status === 'active');
-    const resolved = questions.filter(q => q.status === 'resolved');
+    const active = manager.getActiveQuestions(questions);
+    const resolved = manager.getResolvedQuestions(questions);
 
     expect(active.length).toBe(2);
     expect(resolved.length).toBe(1);

@@ -33,7 +33,7 @@ export function PageContainer({ children, className, noPadding = false }: PageCo
         className={cn(
           // Mobile: Full space, no container styling
           'bg-background overflow-hidden',
-          'h-[calc(100vh-5rem)]',
+          'h-full min-h-full',
           // Desktop: Neumorphic container with soft shadows
           'md:rounded-2xl md:h-[calc(100vh-2rem)]',
           'md:neumorphic-container',

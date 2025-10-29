@@ -38,6 +38,9 @@ export function ShareButton({
   const isShared = storeData?.isShared ?? initialShared;
   const count = storeData?.shareCount ?? shareCount;
 
+  const { authenticated } = useAuth();
+  const { showLoginModal } = useLoginModal();
+
   const handleClick = () => {
     if (!authenticated) {
       showLoginModal({
