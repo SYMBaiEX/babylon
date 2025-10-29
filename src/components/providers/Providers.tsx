@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import { privyConfig, wagmiConfig } from '@/lib/privy-config'
 import { ThemeProvider } from '@/components/shared/ThemeProvider'
 import { FontSizeProvider } from '@/contexts/FontSizeContext'
+import { GamePlaybackManager } from './GamePlaybackManager'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false)
@@ -31,23 +32,24 @@ export function Providers({ children }: { children: React.ReactNode }) {
   if (!mounted) {
     return (
       <div suppressHydrationWarning>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem
-          disableTransitionOnChange={false}
-        >
-          <FontSizeProvider>
-            <PrivyProvider
-              appId={privyConfig.appId}
-              config={privyConfig.config}
-            >
-              <QueryClientProvider client={queryClient}>
-                {children}
-              </QueryClientProvider>
-            </PrivyProvider>
-          </FontSizeProvider>
-        </ThemeProvider>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="dark"
+        enableSystem
+        disableTransitionOnChange={false}
+      >
+        <FontSizeProvider>
+          <PrivyProvider
+            appId={privyConfig.appId}
+            config={privyConfig.config}
+          >
+            <QueryClientProvider client={queryClient}>
+              <GamePlaybackManager />
+              {children}
+            </QueryClientProvider>
+          </PrivyProvider>
+        </FontSizeProvider>
+      </ThemeProvider>
       </div>
     )
   }
@@ -66,6 +68,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             config={privyConfig.config}
           >
             <QueryClientProvider client={queryClient}>
+              <GamePlaybackManager />
               <WagmiProvider config={wagmiConfig}>
                 {children}
               </WagmiProvider>

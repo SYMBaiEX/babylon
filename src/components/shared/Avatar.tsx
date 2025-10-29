@@ -21,7 +21,7 @@ interface GroupAvatarProps {
 const sizeClasses = {
   sm: 'w-8 h-8 text-xs',
   md: 'w-10 h-10 text-sm',
-  lg: 'w-12 h-12 text-base',
+  lg: 'w-14 h-14 text-base',
 }
 
 export function Avatar({ id, name, type = 'actor', size = 'md', className, scaleFactor = 1 }: AvatarProps) {
@@ -34,7 +34,7 @@ export function Avatar({ id, name, type = 'actor', size = 'md', className, scale
   const baseSizes = {
     sm: 2,    // 32px
     md: 2.5,  // 40px
-    lg: 3,    // 48px
+    lg: 3.5,  // 56px
   }
 
   const scaledSize = baseSizes[size] * scaleFactor
@@ -42,7 +42,7 @@ export function Avatar({ id, name, type = 'actor', size = 'md', className, scale
   return (
     <div
       className={cn(
-        'rounded-full bg-primary/20 flex items-center justify-center overflow-hidden',
+        'rounded-lg bg-primary/20 flex items-center justify-center overflow-hidden',
         className
       )}
       style={{
@@ -68,13 +68,13 @@ export function Avatar({ id, name, type = 'actor', size = 'md', className, scale
 }
 
 export function GroupAvatar({ members, size = 'md', className }: GroupAvatarProps) {
-  // Show up to 3 members in overlapping circles
+  // Show up to 3 members in overlapping squares
   const displayMembers = members.slice(0, 3)
 
   if (displayMembers.length === 0) {
     return (
       <div className={cn(
-        'rounded-full bg-primary/20 flex items-center justify-center',
+        'rounded-lg bg-primary/20 flex items-center justify-center',
         sizeClasses[size],
         className
       )}>
@@ -100,7 +100,7 @@ export function GroupAvatar({ members, size = 'md', className }: GroupAvatarProp
         <div
           key={member.id}
           className={cn(
-            'absolute rounded-full bg-primary/20 flex items-center justify-center overflow-hidden border-2 border-background',
+            'absolute rounded-lg bg-primary/20 flex items-center justify-center overflow-hidden border-2 border-background',
             overlappingSizeClasses[size]
           )}
           style={{

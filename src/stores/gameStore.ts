@@ -49,6 +49,7 @@ interface GameState {
     timelineDays: TimelineDay[]
     gameRanges: GameRange[]
   }) => void
+  advanceTime: (speedMultiplier: number) => void
   reset: () => void
 }
 
@@ -69,13 +70,20 @@ export const useGameStore = create<GameState>()(
       gameRanges: [],
 
       // Actions
-      setAllGames: (games) => set({ allGames: games }),
-      setLoading: (loading) => set({ loading }),
-      setError: (error) => set({ error }),
-      setCurrentTimeMs: (ms) => set({ currentTimeMs: ms }),
-      setIsPlaying: (playing) => set({ isPlaying: playing }),
-      setSpeed: (speed) => set({ speed }),
-      setTimelineData: (data) => set(data),
+  setAllGames: (games) => set({ allGames: games }),
+  setLoading: (loading) => set({ loading }),
+  setError: (error) => set({ error }),
+  setCurrentTimeMs: (ms) => set({ currentTimeMs: ms }),
+  setIsPlaying: (playing) => set({ isPlaying: playing }),
+  setSpeed: (speed) => set({ speed }),
+  setTimelineData: (data) => set(data),
+  advanceTime: (speedMultiplier: number) => set((state) => {
+    const next = state.currentTimeMs + (1000 * speedMultiplier);
+    if (next >= state.totalDurationMs) {
+      return { currentTimeMs: state.totalDurationMs, isPlaying: false };
+    }
+    return { currentTimeMs: next };
+  }),
       reset: () => set({
         allGames: [],
         loading: false,

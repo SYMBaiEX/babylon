@@ -67,13 +67,28 @@ export type GameEventType =
   | 'game:ended';
 
 /**
+ * Event data types for different events
+ */
+export type GameEventData =
+  | { id: string; question: string }  // game:started
+  | { day: number }  // day:changed
+  | { agentId: string; clue: string; pointsToward: boolean }  // clue:distributed
+  | { agentId: string; bet: string; position: 'YES' | 'NO' }  // agent:bet
+  | { agentId: string; post: string }  // agent:post
+  | { from: string; to: string; message: string }  // agent:dm
+  | MarketState  // market:updated
+  | { outcome: boolean }  // outcome:revealed
+  | { outcome: boolean; winners: string[] }  // game:ended
+  | Record<string, unknown>;  // fallback for any other data
+
+/**
  * Single game event
  */
 export interface GameEvent {
   type: GameEventType;
   timestamp: number;
   day: number;
-  data: any;
+  data: GameEventData;
   agentId?: string;
 }
 
@@ -85,6 +100,57 @@ export interface AgentState {
   reputation: number;
   isInsider: boolean;
   cluesReceived: number;
+}
+
+/**
+ * Internal agent representation with full state
+ */
+interface InternalAgent {
+  id: string;
+  name: string;
+  isInsider: boolean;
+  yesShares: number;
+  noShares: number;
+  reputation: number;
+  cluesReceived: Array<{ clue: string; pointsToward: boolean }>;
+  knowledge: string[];
+}
+
+/**
+ * Clue in the network
+ */
+interface ClueData {
+  id: string;
+  tier: string;
+  day: number;
+  pointsToward: boolean;
+  reliability: number;
+}
+
+/**
+ * Distributed clue
+ */
+interface DistributedClue {
+  agentId: string;
+  clue: string;
+  pointsToward: boolean;
+}
+
+/**
+ * Agent bet
+ */
+interface AgentBet {
+  agentId: string;
+  bet: string;
+  position: 'YES' | 'NO';
+}
+
+/**
+ * Agent post
+ */
+interface AgentPost {
+  agentId: string;
+  post: string;
 }
 
 export interface MarketState {
@@ -251,7 +317,7 @@ export class GameSimulator extends EventEmitter {
   /**
    * Emit game event and add to log
    */
-  private emitEvent(type: GameEventType, data: any, agentId?: string) {
+  private emitEvent(type: GameEventType, data: GameEventData, agentId?: string) {
     const event: GameEvent = {
       type,
       timestamp: Date.now(),
@@ -281,8 +347,8 @@ export class GameSimulator extends EventEmitter {
   /**
    * Create AI agents with roles
    */
-  private createAgents() {
-    const agents: any[] = [];
+  private createAgents(): InternalAgent[] {
+    const agents: InternalAgent[] = [];
     const numInsiders = Math.floor(this.config.numAgents * this.config.insiderPercentage);
 
     for (let i = 0; i < this.config.numAgents; i++) {
@@ -304,9 +370,9 @@ export class GameSimulator extends EventEmitter {
   /**
    * Generate clue network aligned with outcome
    */
-  private generateClueNetwork() {
+  private generateClueNetwork(): ClueData[] {
     // Simple clue network for now
-    const clues: any[] = [];
+    const clues: ClueData[] = [];
     const tiers = ['early', 'mid', 'late'];
     
     for (let i = 0; i < 12; i++) {
@@ -330,9 +396,9 @@ export class GameSimulator extends EventEmitter {
   /**
    * Get clues to distribute on specific day
    */
-  private getCluesForDay(day: number, agents: any[], clueNetwork: any[]) {
+  private getCluesForDay(day: number, agents: InternalAgent[], clueNetwork: ClueData[]): DistributedClue[] {
     const dayClues = clueNetwork.filter(c => c.day === day);
-    const distributed: any[] = [];
+    const distributed: DistributedClue[] = [];
 
     dayClues.forEach(clue => {
       // Give to insiders first
@@ -354,8 +420,8 @@ export class GameSimulator extends EventEmitter {
   /**
    * Process agent betting decisions
    */
-  private processAgentBets(day: number, agents: any[], market: MarketState) {
-    const bets: any[] = [];
+  private processAgentBets(day: number, agents: InternalAgent[], market: MarketState): AgentBet[] {
+    const bets: AgentBet[] = [];
 
     // Agents bet based on their knowledge and the market state
     agents.forEach(agent => {
@@ -365,7 +431,7 @@ export class GameSimulator extends EventEmitter {
 
       if (shouldBet && Math.random() > 0.5) {
         // Determine outcome based on clues
-        const yesClues = agent.cluesReceived.filter((c: any) => c.pointsToward).length;
+        const yesClues = agent.cluesReceived.filter((c) => c.pointsToward).length;
         const noClues = agent.cluesReceived.length - yesClues;
         const betOnYes = yesClues > noClues;
 
@@ -380,10 +446,8 @@ export class GameSimulator extends EventEmitter {
 
         bets.push({
           agentId: agent.id,
-          outcome: betOnYes,
-          amount,
-          shares,
-          day,
+          bet: `Bet ${amount} on ${betOnYes ? 'YES' : 'NO'} (${shares.toFixed(0)} shares)`,
+          position: betOnYes ? 'YES' : 'NO',
         });
       }
     });
@@ -394,16 +458,15 @@ export class GameSimulator extends EventEmitter {
   /**
    * Generate social posts
    */
-  private generatePosts(day: number, agents: any[]) {
-    const posts: any[] = [];
+  private generatePosts(day: number, agents: InternalAgent[]): AgentPost[] {
+    const posts: AgentPost[] = [];
 
     // Some agents post each day
     if (day % 3 === 0) {
       agents.slice(0, 2).forEach(agent => {
         posts.push({
           agentId: agent.id,
-          content: `Day ${day}: My analysis suggests ${agent.yesShares > agent.noShares ? 'YES' : 'NO'}`,
-          day,
+          post: `Day ${day}: My analysis suggests ${agent.yesShares > agent.noShares ? 'YES' : 'NO'}`,
         });
       });
     }
@@ -414,7 +477,7 @@ export class GameSimulator extends EventEmitter {
   /**
    * Calculate winners based on outcome
    */
-  private calculateWinners(agents: any[], outcome: boolean) {
+  private calculateWinners(agents: InternalAgent[], outcome: boolean): InternalAgent[] {
     return agents.filter(agent => {
       if (outcome) {
         return agent.yesShares > agent.noShares;
@@ -427,7 +490,7 @@ export class GameSimulator extends EventEmitter {
   /**
    * Calculate reputation changes
    */
-  private calculateReputationChanges(agents: any[], winners: any[]): ReputationChange[] {
+  private calculateReputationChanges(agents: InternalAgent[], winners: InternalAgent[]): ReputationChange[] {
     return agents.map(agent => {
       const isWinner = winners.some(w => w.id === agent.id);
       const change = isWinner ? 10 : -5;

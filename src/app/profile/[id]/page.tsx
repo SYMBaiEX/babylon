@@ -8,8 +8,10 @@ import { useGameStore } from '@/stores/gameStore'
 import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { SearchBar } from '@/components/shared/SearchBar'
+import { FavoriteButton, InteractionBar } from '@/components/interactions'
 import { cn } from '@/lib/utils'
 import { useFontSize } from '@/contexts/FontSizeContext'
+import { useErrorToasts } from '@/hooks/useErrorToasts'
 
 export default function ActorProfilePage() {
   const params = useParams()
@@ -17,6 +19,9 @@ export default function ActorProfilePage() {
   const { allGames, currentTimeMs, startTime } = useGameStore()
   const { fontSize} = useFontSize()
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Enable error toast notifications
+  useErrorToasts()
 
   // Find actor info
   const actorInfo = useMemo(() => {
@@ -215,6 +220,13 @@ export default function ActorProfilePage() {
                   <Calendar className="w-4 h-4" />
                   <span>Active in {actorInfo.game.id}</span>
                 </div>
+                <div className="mt-3">
+                  <FavoriteButton
+                    profileId={actorInfo.id}
+                    variant="button"
+                    size="md"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -285,6 +297,20 @@ export default function ActorProfilePage() {
                           <span>Replying to a post</span>
                         </div>
                       )}
+
+                      {/* Interactions */}
+                      <InteractionBar
+                        postId={`${item.gameId}-${post.author}-${post.timestamp}`}
+                        initialInteractions={{
+                          postId: `${item.gameId}-${post.author}-${post.timestamp}`,
+                          likeCount: 0,
+                          commentCount: 0,
+                          shareCount: 0,
+                          isLiked: false,
+                          isShared: false,
+                        }}
+                        className="mt-3"
+                      />
                     </div>
                   </div>
                 </article>
