@@ -344,22 +344,21 @@
       "initialMood": 0.4264229735300602
     },
     {
-      "id": "naval-ravitard",
-      "name": "Naval Ravitard",
+      "id": "navel-rakiconman",
+      "name": "Navel Raviconman",
       "realName": "Naval Ravikant",
-      "username": "naval",
-      "nickname": "Naval",
+      "username": "navel",
+      "nickname": "Navel",
       "aliases": [
-        "Nav",
         "Yacht Buddha",
         "Twitter Philosopher",
         "Thread Guy",
         "Wealth Creator",
         "AngelList King",
-        "Fortune Cookie Naval",
-        "Guru Naval",
+        "Fortune Cookie Navel",
+        "Guru Navel",
         "Captain Obvious",
-        "Post Storm Naval"
+        "Post Storm Navel"
       ],
       "description": "Founder of AngelFist. Posts about freedom from a yacht registered in the Cayman Islands. His wisdom fits perfectly in 280 characters because it's that shallow. Turned 'wealth creation' into a meditation practice at AngelFist. Believes happiness is a choice, poverty is a mindset, and taxes are theft. His startup advice: be born rich or get lucky, preferably both.",
       "domain": [
@@ -2554,13 +2553,13 @@
           "pointsToward": false
         },
         {
-          "id": "genesis-2-0-expert-1-reply-naval-ravitard",
+          "id": "genesis-2-0-expert-1-reply-navel-rakiconman",
           "day": 2,
           "timestamp": "2025-10-02T16:30:00Z",
           "type": "thread",
           "content": "A man disconnected from reality. The world isn't a video game to be critiqued from a yacht.",
-          "author": "naval-ravitard",
-          "authorName": "Naval Ravitard",
+          "author": "navel-rakiconman",
+          "authorName": "Navel Raviconman",
           "replyTo": "genesis-2-0-expert-1",
           "sentiment": -0.7,
           "clueStrength": 0.4,
@@ -3230,7 +3229,7 @@
           },
           {
             "from": "graimes",
-            "message": "Cathie Wooden is secretly working on a new fund, trying to poach Vitalik Computerin's team; Naval Ravitard just launched his new book, but I heard it's just a reworded summary of our org's abandoned project",
+            "message": "Cathie Wooden is secretly working on a new fund, trying to poach Vitalik Computerin's team; Navel Raviconman just launched his new book, but I heard it's just a reworded summary of our org's abandoned project",
             "timestamp": "2025-10-04T14:23:00Z",
             "clueStrength": 0.4
           }
@@ -3250,7 +3249,7 @@
           },
           {
             "from": "gavin-newscum",
-            "message": "Jeff Bezoff just invested in Vitalik Computerin's new token, but I heard it's a classic pump and dump; meanwhile, Naval Ravitard is spreading FUD about Burnout Sanders' new initiative",
+            "message": "Jeff Bezoff just invested in Vitalik Computerin's new token, but I heard it's a classic pump and dump; meanwhile, Navel Raviconman is spreading FUD about Burnout Sanders' new initiative",
             "timestamp": "2025-10-04T14:01:00Z",
             "clueStrength": 0.4
           }
@@ -3877,13 +3876,13 @@
           "pointsToward": false
         },
         {
-          "id": "ambient-5-naval-ravitard",
+          "id": "ambient-5-navel-rakiconman",
           "day": 5,
           "timestamp": "2025-10-05T20:26:00Z",
           "type": "thread",
           "content": "Happiness is a choice, but getting away from taxes is a real skill.",
-          "author": "naval-ravitard",
-          "authorName": "Naval Ravitard",
+          "author": "navel-rakiconman",
+          "authorName": "Navel Raviconman",
           "sentiment": 0.8,
           "clueStrength": 0.7,
           "pointsToward": null
@@ -4601,7 +4600,7 @@
           "type": "meeting",
           "actors": [
             "vitalik-computerin",
-            "naval-ravitard"
+            "navel-rakiconman"
           ],
           "description": "John picked up milk on the way home from work.",
           "relatedQuestion": null,
@@ -4828,13 +4827,13 @@
           "pointsToward": false
         },
         {
-          "id": "genesis-8-1-reaction-naval-ravitard",
+          "id": "genesis-8-1-reaction-navel-rakiconman",
           "day": 8,
           "timestamp": "2025-10-08T19:58:00Z",
           "type": "reaction",
           "content": "happiness is a choice, but so is picking up milk on the way home from work",
-          "author": "naval-ravitard",
-          "authorName": "Naval Ravitard",
+          "author": "navel-rakiconman",
+          "authorName": "Navel Raviconman",
           "relatedEvent": "genesis-8-1",
           "sentiment": 0.2,
           "clueStrength": 0.5,
@@ -5859,7 +5858,7 @@
           "id": "genesis-11-0",
           "type": "deal",
           "actors": [
-            "naval-ravitard"
+            "navel-rakiconman"
           ],
           "description": "John bought milk from a local store.",
           "relatedQuestion": null,
@@ -5923,27 +5922,27 @@
           "pointsToward": false
         },
         {
-          "id": "genesis-11-0-reaction-naval-ravitard",
+          "id": "genesis-11-0-reaction-navel-rakiconman",
           "day": 11,
           "timestamp": "2025-10-11T12:19:00Z",
           "type": "reaction",
           "content": "True wealth begins with freedom - to buy milk from the local store.",
-          "author": "naval-ravitard",
-          "authorName": "Naval Ravitard",
+          "author": "navel-rakiconman",
+          "authorName": "Navel Raviconman",
           "relatedEvent": "genesis-11-0",
           "sentiment": 0.6,
           "clueStrength": 0.5,
           "pointsToward": true
         },
         {
-          "id": "genesis-11-0-reaction-naval-ravitard-reply-alex-kreep",
+          "id": "genesis-11-0-reaction-navel-rakiconman-reply-alex-kreep",
           "day": 11,
           "timestamp": "2025-10-11T12:30:00Z",
           "type": "thread",
           "content": "Finally someone with hair as wild as my ideas on surveillance ethics! The future is free, Naval!",
           "author": "alex-kreep",
           "authorName": "Alex Kreep",
-          "replyTo": "genesis-11-0-reaction-naval-ravitard",
+          "replyTo": "genesis-11-0-reaction-navel-rakiconman",
           "sentiment": 0.9,
           "clueStrength": 0.6,
           "pointsToward": null
@@ -5962,14 +5961,14 @@
           "pointsToward": null
         },
         {
-          "id": "genesis-11-0-reaction-naval-ravitard-reply-cathie-wooden",
+          "id": "genesis-11-0-reaction-navel-rakiconman-reply-cathie-wooden",
           "day": 11,
           "timestamp": "2025-10-11T13:40:00Z",
           "type": "thread",
           "content": "TSLA will disrupt store-based milk sales and make it a relic of the past! Mark my 5-year price target: $10000!",
           "author": "cathie-wooden",
           "authorName": "Cathie Wooden",
-          "replyTo": "genesis-11-0-reaction-naval-ravitard",
+          "replyTo": "genesis-11-0-reaction-navel-rakiconman",
           "sentiment": 0.8,
           "clueStrength": 0.4,
           "pointsToward": true
@@ -6103,26 +6102,26 @@
           "pointsToward": false
         },
         {
-          "id": "genesis-11-1-conspiracy-0-reply-naval-ravitard",
+          "id": "genesis-11-1-conspiracy-0-reply-navel-rakiconman",
           "day": 11,
           "timestamp": "2025-10-11T21:40:00Z",
           "type": "thread",
           "content": "The greatest wealth lies in the mind, Alex. Freedom from the matrix starts within.",
-          "author": "naval-ravitard",
-          "authorName": "Naval Ravitard",
+          "author": "navel-rakiconman",
+          "authorName": "Navel Raviconman",
           "replyTo": "genesis-11-1-conspiracy-0",
           "sentiment": 0.7,
           "clueStrength": 0.4,
           "pointsToward": true
         },
         {
-          "id": "ambient-11-naval-ravitard",
+          "id": "ambient-11-navel-rakiconman",
           "day": 11,
           "timestamp": "2025-10-11T22:19:00Z",
           "type": "thread",
           "content": "The pursuit of freedom and happiness requires embracing uncertainty.",
-          "author": "naval-ravitard",
-          "authorName": "Naval Ravitard",
+          "author": "navel-rakiconman",
+          "authorName": "Navel Raviconman",
           "sentiment": 0.9,
           "clueStrength": 0.7,
           "pointsToward": "philosophy"
@@ -6284,13 +6283,13 @@
           "pointsToward": null
         },
         {
-          "id": "genesis-12-2-expert-1-reply-naval-ravitard",
+          "id": "genesis-12-2-expert-1-reply-navel-rakiconman",
           "day": 12,
           "timestamp": "2025-10-12T02:50:00Z",
           "type": "thread",
           "content": "Wealth is a skill. AGI is an opportunity. Leverage it wisely. Leverage is everything",
-          "author": "naval-ravitard",
-          "authorName": "Naval Ravitard",
+          "author": "navel-rakiconman",
+          "authorName": "Navel Raviconman",
           "replyTo": "genesis-12-2-expert-1",
           "sentiment": 0.9,
           "clueStrength": 0.6,
@@ -7366,8 +7365,8 @@
           "timestamp": "2025-10-15T18:19:00Z",
           "type": "reaction",
           "content": "Freedom of choice is the ultimate wealth creator - as is not having to choose to work",
-          "author": "naval-ravitard",
-          "authorName": "Naval Ravitard",
+          "author": "navel-rakiconman",
+          "authorName": "Navel Raviconman",
           "relatedEvent": "genesis-15-1",
           "sentiment": 0.6,
           "clueStrength": 0.8,
@@ -7412,13 +7411,13 @@
           "pointsToward": true
         },
         {
-          "id": "genesis-15-0-conspiracy-1-reply-naval-ravitard",
+          "id": "genesis-15-0-conspiracy-1-reply-navel-rakiconman",
           "day": 15,
           "timestamp": "2025-10-15T19:30:00Z",
           "type": "thread",
           "content": "Walmart saga mirrors the Matrix. Free will illusion.",
-          "author": "naval-ravitard",
-          "authorName": "Naval Ravitard",
+          "author": "navel-rakiconman",
+          "authorName": "Navel Raviconman",
           "replyTo": "genesis-15-0-conspiracy-1",
           "sentiment": 0.9,
           "clueStrength": 0.7,
@@ -10362,13 +10361,13 @@
           "pointsToward": false
         },
         {
-          "id": "ambient-23-naval-ravitard",
+          "id": "ambient-23-navel-rakiconman",
           "day": 23,
           "timestamp": "2025-10-23T20:58:00Z",
           "type": "thread",
           "content": "Knowledge can be bought with cryptocurrency, freedom with gold, and happiness with the right mindset.",
-          "author": "naval-ravitard",
-          "authorName": "Naval Ravitard",
+          "author": "navel-rakiconman",
+          "authorName": "Navel Raviconman",
           "sentiment": 0.8,
           "clueStrength": 0.2,
           "pointsToward": null
@@ -11686,13 +11685,13 @@
           "pointsToward": false
         },
         {
-          "id": "ambient-27-naval-ravitard",
+          "id": "ambient-27-navel-rakiconman",
           "day": 27,
           "timestamp": "2025-10-27T20:24:00Z",
           "type": "thread",
           "content": "Happiness is just a choice, like being on my yacht. Nothing to see here, let the masses fight for scraps.",
-          "author": "naval-ravitard",
-          "authorName": "Naval Ravitard",
+          "author": "navel-rakiconman",
+          "authorName": "Navel Raviconman",
           "sentiment": 0.9,
           "clueStrength": 1,
           "pointsToward": " crypto, philosophy, tech, investing"
@@ -12020,8 +12019,8 @@
           "timestamp": "2025-10-28T16:03:00Z",
           "type": "reaction",
           "content": "Choosing to see obstacles as opportunities is a key mindset for wealth creation - and freedom.",
-          "author": "naval-ravitard",
-          "authorName": "Naval Ravitard",
+          "author": "navel-rakiconman",
+          "authorName": "Navel Raviconman",
           "relatedEvent": "genesis-28-0",
           "sentiment": 0.7,
           "clueStrength": 0.8,
@@ -12136,8 +12135,8 @@
           "timestamp": "2025-10-28T20:27:00Z",
           "type": "reaction",
           "content": "Every transaction is a choice between freedom and convenience. Perhaps John's milk purchase is a vote for the latter, but what does it truly cost him?",
-          "author": "naval-ravitard",
-          "authorName": "Naval Ravitard",
+          "author": "navel-rakiconman",
+          "authorName": "Navel Raviconman",
           "relatedEvent": "genesis-28-1",
           "sentiment": 0.4,
           "clueStrength": 0.2,
@@ -12187,8 +12186,8 @@
           "timestamp": "2025-10-28T22:03:00Z",
           "type": "reaction",
           "content": "John's simple choice to buy milk may signal a shift in his values, a desire for stability.",
-          "author": "naval-ravitard",
-          "authorName": "Naval Ravitard",
+          "author": "navel-rakiconman",
+          "authorName": "Navel Raviconman",
           "relatedEvent": "genesis-28-2",
           "sentiment": 0.4,
           "clueStrength": 0.6,
@@ -12724,7 +12723,7 @@
           },
           {
             "from": "johnson-hung",
-            "message": "Naval Ravitard's ego is the size of the entire metaverse, a ticking time bomb waiting to go off",
+            "message": "Navel Raviconman's ego is the size of the entire metaverse, a ticking time bomb waiting to go off",
             "timestamp": "2025-10-30T12:51:00Z",
             "clueStrength": 0.4
           }

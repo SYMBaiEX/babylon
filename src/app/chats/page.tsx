@@ -156,20 +156,17 @@ export default function ChatsPage() {
         <div className="flex-1 flex items-center justify-center">
           <div className="max-w-md mx-auto p-8 text-center">
             <MessageCircle className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-            <h2 className="text-xl font-bold mb-2 text-foreground">No Game Loaded</h2>
-            <p className="text-muted-foreground mb-6">
-              Load a game to see group chats and conversations
+            <h2 className="text-xl font-bold mb-2 text-foreground">No Chats Yet</h2>
+            <p className="text-muted-foreground mb-4">
+              Game is auto-generating in the background...
             </p>
-            <Link
-              href="/game"
-              className={cn(
-                'inline-block px-6 py-3 rounded-lg font-semibold',
-                'bg-primary text-primary-foreground',
-                'hover:bg-primary/90 transition-colors'
-              )}
-            >
-              Go to Game Controls
-            </Link>
+            <div className="text-sm text-muted-foreground space-y-2">
+              <p>This happens automatically on first run.</p>
+              <p>Check the terminal logs for progress.</p>
+              <p className="font-mono text-xs bg-muted p-2 rounded">
+                First generation takes 3-5 minutes
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -357,13 +354,9 @@ export default function ChatsPage() {
                     ) : (
                       <>
                         <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p className="mb-2 text-foreground">⏱️ No messages yet</p>
+                        <p className="mb-2 text-foreground">No messages in this group yet</p>
                         <p className="text-xs">
-                          Move the timeline on the{' '}
-                          <Link href="/game" className="text-primary hover:underline">
-                            Game page
-                          </Link>{' '}
-                          to see messages
+                          This group hasn't posted messages in the current time period
                         </p>
                       </>
                     )}

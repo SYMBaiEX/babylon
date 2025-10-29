@@ -7,199 +7,106 @@ import { ArrowLeft, Calendar, Briefcase, Users } from 'lucide-react'
 import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { SearchBar } from '@/components/shared/SearchBar'
+import { FavoriteButton, InteractionBar } from '@/components/interactions'
 import { cn } from '@/lib/utils'
 import { useFontSize } from '@/contexts/FontSizeContext'
-import type { Actor, Organization, FeedPost, ActorsDatabase } from '@/shared/types'
-
-interface ActorInfo {
-  id: string
-  name: string
-  description?: string
-  domain?: string[]
-  personality?: string
-  tier?: string
-  affiliations?: string[]
-  type: 'actor' | 'organization'
-  orgType?: 'company' | 'media' | 'government'
-  initialPrice?: number
-}
+import { useErrorToasts } from '@/hooks/useErrorToasts'
+import { useGameStore } from '@/stores/gameStore'
+import type { FeedPost } from '@/shared/types'
 
 export default function ActorProfilePage() {
   const params = useParams()
   const actorId = params.id as string
   const { fontSize } = useFontSize()
   const [searchQuery, setSearchQuery] = useState('')
-  const [actorInfo, setActorInfo] = useState<ActorInfo | null>(null)
-  const [posts, setPosts] = useState<FeedPost[]>([])
-  const [loading, setLoading] = useState(true)
+  const [tab, setTab] = useState<'posts' | 'replies'>('posts')
+  const { allGames } = useGameStore()
 
-  // Load actor info from actors.json
-  useEffect(() => {
-    const loadActorInfo = async () => {
-      try {
-        // Load actors database
-        const response = await fetch('/data/actors.json')
-        if (!response.ok) {
-          throw new Error('Failed to load actors')
-        }
-        
-        const actorsDb: ActorsDatabase = await response.json()
-        
-        // Find actor
-        const actor = actorsDb.actors.find(a => a.id === actorId)
-        if (actor) {
-          setActorInfo({
-            id: actor.id,
-            name: actor.name,
-            description: actor.description,
-            domain: actor.domain,
-            personality: actor.personality,
-            tier: actor.tier,
-            affiliations: actor.affiliations,
-            type: 'actor',
-          })
-          return
-        }
+  // Enable error toast notifications
+  useErrorToasts()
 
-        // Find organization
-        const org = actorsDb.organizations.find(o => o.id === actorId)
-        if (org) {
-          setActorInfo({
-            id: org.id,
-            name: org.name,
-            description: org.description,
-            type: 'organization',
-            orgType: org.type,
-            initialPrice: org.initialPrice,
-          })
-          return
-        }
+  // Find actor info
+  const actorInfo = useMemo(() => {
+    for (const game of allGames) {
+      // Check all actor arrays
+      const allActors = [
+        ...(game.setup?.mainActors || []),
+        ...(game.setup?.supportingActors || []),
+        ...(game.setup?.extras || [])
+      ]
 
-        // Not found
-        setActorInfo(null)
-      } catch (error) {
-        console.error('Failed to load actor info:', error)
-        setActorInfo(null)
+      const actor = allActors.find(a => a.id === actorId)
+      if (actor) {
+        return {
+          id: actor.id,
+          name: actor.name,
+          type: 'actor' as const,
+          role: actor.role || 'actor',
+          game: game
+        }
       }
     }
+    return null
+  }, [allGames, actorId])
 
-    loadActorInfo()
-  }, [actorId])
+  // Get posts for this actor from all games
+  const actorPosts = useMemo(() => {
+    const posts: Array<{
+      post: FeedPost
+      gameId: string
+      gameName: string
+      timestampMs: number
+    }> = []
 
-  // Load posts from realtime history
-  useEffect(() => {
-    const loadPosts = async () => {
-      try {
-        // Try realtime history first
-        const realtimeResponse = await fetch('/games/realtime/history.json')
-        if (realtimeResponse.ok) {
-          const data = await realtimeResponse.json()
-          
-          // Extract posts by this actor from all ticks
-          const actorPosts: FeedPost[] = []
-          if (data.ticks && Array.isArray(data.ticks)) {
-            data.ticks.forEach((tick: any) => {
-              if (tick.posts && Array.isArray(tick.posts)) {
-                tick.posts.forEach((post: FeedPost) => {
-                  if (post.author === actorId) {
-                    actorPosts.push(post)
-                  }
-                })
-              }
+    allGames.forEach(game => {
+      game.timeline?.forEach(day => {
+        day.feedPosts?.forEach(post => {
+          if (post.author === actorId) {
+            const postDate = new Date(post.timestamp)
+            posts.push({
+              post,
+              gameId: game.id,
+              gameName: game.setup?.title || game.id,
+              timestampMs: postDate.getTime()
             })
           }
-          
-          // Sort by timestamp (newest first)
-          actorPosts.sort((a, b) => 
-            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-          )
-          
-          setPosts(actorPosts)
-          setLoading(false)
-          return
-        }
-      } catch (error) {
-        console.error('Failed to load realtime posts:', error)
-      }
+        })
+      })
+    })
 
-      // Fallback to static game files
-      try {
-        const actorPosts: FeedPost[] = []
-        
-        // Load genesis
-        const genesisResponse = await fetch('/genesis.json')
-        if (genesisResponse.ok) {
-          const genesis = await genesisResponse.json()
-          genesis.timeline?.forEach((day: any) => {
-            day.feedPosts?.forEach((post: FeedPost) => {
-              if (post.author === actorId) {
-                actorPosts.push(post)
-              }
-            })
-          })
-        }
-
-        // Load latest
-        const latestResponse = await fetch('/games/latest.json')
-        if (latestResponse.ok) {
-          const latest = await latestResponse.json()
-          latest.timeline?.forEach((day: any) => {
-            day.feedPosts?.forEach((post: FeedPost) => {
-              if (post.author === actorId) {
-                actorPosts.push(post)
-              }
-            })
-          })
-        }
-
-        actorPosts.sort((a, b) => 
-          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-        )
-        
-        setPosts(actorPosts)
-        setLoading(false)
-      } catch (error) {
-        console.error('Failed to load posts:', error)
-        setPosts([])
-        setLoading(false)
-      }
-    }
-
-    if (actorInfo) {
-      loadPosts()
-    }
-  }, [actorId, actorInfo])
+    // Sort by timestamp (newest first)
+    return posts.sort((a, b) => b.timestampMs - a.timestampMs)
+  }, [allGames, actorId])
 
   // Filter posts up to current time
   const visiblePosts = useMemo(() => {
     const now = new Date().getTime()
-    return posts.filter(post => {
-      const postTime = new Date(post.timestamp).getTime()
-      return postTime <= now
-    })
-  }, [posts])
+    return actorPosts.filter(item => item.timestampMs <= now)
+  }, [actorPosts])
+
+  // Separate posts and replies (from visible posts only)
+  const originalPosts = useMemo(() => {
+    return visiblePosts.filter(item => !item.post.replyTo)
+  }, [visiblePosts])
+
+  const replyPosts = useMemo(() => {
+    return visiblePosts.filter(item => item.post.replyTo)
+  }, [visiblePosts])
+
+  // Filter by tab
+  const tabFilteredPosts = useMemo(() => {
+    return tab === 'posts' ? originalPosts : replyPosts
+  }, [tab, originalPosts, replyPosts])
 
   // Filter by search query
   const filteredPosts = useMemo(() => {
-    if (!searchQuery.trim()) return visiblePosts
+    if (!searchQuery.trim()) return tabFilteredPosts
 
     const query = searchQuery.toLowerCase()
-    return visiblePosts.filter(post =>
-      post.content.toLowerCase().includes(query)
+    return tabFilteredPosts.filter(item =>
+      item.post.content.toLowerCase().includes(query)
     )
-  }, [visiblePosts, searchQuery])
-
-  if (loading) {
-    return (
-      <PageContainer noPadding className="flex flex-col">
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center text-muted-foreground">
-            <div className="text-lg mb-2">Loading profile...</div>
-          </div>
-        </div>
-      </PageContainer>
-    )
-  }
+  }, [tabFilteredPosts, searchQuery])
 
   // Actor not found
   if (!actorInfo) {
@@ -246,12 +153,44 @@ export default function ActorProfilePage() {
           </div>
         </div>
 
+        {/* Tabs: Posts vs Replies */}
+        <div className="flex items-center justify-around h-14 border-b border-border">
+          <button
+            onClick={() => setTab('posts')}
+            className={cn(
+              'flex-1 h-full font-semibold transition-all duration-300 relative',
+              tab === 'posts'
+                ? 'text-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+            )}
+          >
+            Posts ({originalPosts.length})
+            {tab === 'posts' && (
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
+            )}
+          </button>
+          <button
+            onClick={() => setTab('replies')}
+            className={cn(
+              'flex-1 h-full font-semibold transition-all duration-300 relative',
+              tab === 'replies'
+                ? 'text-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+            )}
+          >
+            Replies ({replyPosts.length})
+            {tab === 'replies' && (
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
+            )}
+          </button>
+        </div>
+
         {/* Search Bar */}
-        <div className="px-4 pb-3">
+        <div className="px-4 py-3">
           <SearchBar
             value={searchQuery}
             onChange={setSearchQuery}
-            placeholder="Search posts..."
+            placeholder={`Search ${tab}...`}
           />
         </div>
       </div>
@@ -270,73 +209,21 @@ export default function ActorProfilePage() {
                 className="w-20 h-20"
               />
               <div className="flex-1">
-                <h2 className="text-2xl font-bold mb-1">{actorInfo.name}</h2>
-                {actorInfo.type === 'actor' && actorInfo.tier && (
-                  <div className="inline-block px-2 py-1 rounded-full text-xs font-bold bg-primary/20 text-primary mb-2">
-                    {actorInfo.tier.replace('_TIER', '')}
-                  </div>
-                )}
-                {actorInfo.type === 'organization' && actorInfo.orgType && (
-                  <div className="flex items-center gap-2 mb-2">
-                    <Briefcase className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground capitalize">{actorInfo.orgType}</span>
-                    {actorInfo.initialPrice && (
-                      <>
-                        <span className="text-muted-foreground">·</span>
-                        <span className="text-sm font-mono text-foreground">
-                          ${actorInfo.initialPrice.toFixed(2)}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Description */}
-            {actorInfo.description && (
-              <p className="text-sm text-foreground mb-3 leading-relaxed">
-                {actorInfo.description}
-              </p>
-            )}
-
-            {/* Metadata */}
-            <div className="flex flex-wrap gap-4 text-sm">
-              {actorInfo.domain && actorInfo.domain.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">
-                    {actorInfo.domain.join(', ')}
-                  </span>
+                <h2 className="text-2xl font-bold">{actorInfo.name}</h2>
+                <p className="text-muted-foreground">{actorInfo.role}</p>
+                <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                  <Calendar className="w-4 h-4" />
+                  <span>Active in {actorInfo.game.id}</span>
                 </div>
-              )}
-              {actorInfo.personality && (
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-muted-foreground capitalize">
-                    {actorInfo.personality}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Affiliations */}
-            {actorInfo.affiliations && actorInfo.affiliations.length > 0 && (
-              <div className="mt-4">
-                <div className="text-xs font-bold text-muted-foreground mb-2">AFFILIATIONS</div>
-                <div className="flex flex-wrap gap-2">
-                  {actorInfo.affiliations.map(affiliation => (
-                    <Link
-                      key={affiliation}
-                      href={`/profile/${affiliation}`}
-                      className="px-3 py-1 rounded-full bg-muted hover:bg-muted/80 text-xs font-medium text-foreground transition-colors"
-                    >
-                      {affiliation}
-                    </Link>
-                  ))}
+                <div className="mt-3">
+                  <FavoriteButton
+                    profileId={actorInfo.id}
+                    variant="button"
+                    size="md"
+                  />
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
 
@@ -347,15 +234,10 @@ export default function ActorProfilePage() {
               <p className="text-muted-foreground">
                 {searchQuery ? 'No posts found matching your search' : 'No posts yet'}
               </p>
-              {!searchQuery && posts.length === 0 && (
-                <p className="text-sm text-muted-foreground mt-2">
-                  Start the daemon to see posts: <span className="font-mono">bun run daemon</span>
-                </p>
-              )}
             </div>
           ) : (
-            filteredPosts.map((post, i) => {
-              const postDate = new Date(post.timestamp)
+            filteredPosts.map((item, i) => {
+              const postDate = new Date(item.post.timestamp)
               const now = new Date()
               const diffMs = now.getTime() - postDate.getTime()
               const diffMinutes = Math.floor(diffMs / 60000)
@@ -371,7 +253,7 @@ export default function ActorProfilePage() {
 
               return (
                 <article
-                  key={`${post.id}-${i}`}
+                  key={`${item.post.id}-${i}`}
                   className={cn(
                     'px-4 py-3 border-b border-border',
                     'hover:bg-muted/30',
@@ -385,8 +267,8 @@ export default function ActorProfilePage() {
                     {/* Avatar */}
                     <div className="flex-shrink-0">
                       <Avatar
-                        id={post.author}
-                        name={post.authorName}
+                        id={item.post.author}
+                        name={item.post.authorName}
                         type={actorInfo.type}
                         size="lg"
                         scaleFactor={fontSize}
@@ -398,7 +280,7 @@ export default function ActorProfilePage() {
                       {/* Author and timestamp */}
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-bold text-foreground">
-                          {post.authorName}
+                          {item.post.authorName}
                         </span>
                         <span className="text-muted-foreground text-sm">·</span>
                         <time className="text-muted-foreground text-sm" title={postDate.toLocaleString()}>
@@ -408,16 +290,30 @@ export default function ActorProfilePage() {
 
                       {/* Post content */}
                       <div className="text-foreground leading-normal whitespace-pre-wrap break-words">
-                        {post.content}
+                        {item.post.content}
                       </div>
 
                       {/* Metadata */}
-                      {post.replyTo && (
+                      {item.post.replyTo && (
                         <div className="mt-2 text-sm text-muted-foreground flex items-center gap-1">
                           <span className="text-xs">↩️</span>
                           <span>Replying to a post</span>
                         </div>
                       )}
+
+                      {/* Interactions */}
+                      <InteractionBar
+                        postId={`${item.gameId}-${item.post.author}-${item.post.timestamp}`}
+                        initialInteractions={{
+                          postId: `${item.gameId}-${item.post.author}-${item.post.timestamp}`,
+                          likeCount: 0,
+                          commentCount: 0,
+                          shareCount: 0,
+                          isLiked: false,
+                          isShared: false,
+                        }}
+                        className="mt-3"
+                      />
                     </div>
                   </div>
                 </article>

@@ -67,3 +67,4 @@ Event: "SEC investigates Palmer Cucky for securities fraud"
 Company: Anduritalin
 → {"direction": "negative", "magnitude": "major", "reasoning": "CEO under federal investigation"}
 
+

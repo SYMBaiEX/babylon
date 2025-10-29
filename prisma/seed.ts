@@ -1,91 +1,146 @@
-import { PrismaClient } from '@prisma/client'
-import actorsData from '../data/actors.json'
+#!/usr/bin/env bun
 
-const prisma = new PrismaClient()
+/**
+ * Database Seed Script
+ * 
+ * Seeds the database with:
+ * - All actors from actors.json
+ * - All organizations from actors.json
+ * - Initial game state
+ * 
+ * Run: bun run prisma:seed
+ */
 
-interface Actor {
-  id: string
-  name: string
-  realName?: string
-  username: string
-  description: string
-  domain?: string[]
-  personality: string
-  postStyle: string
-  postExample: string[]
-  profileImageUrl?: string
+import { PrismaClient } from '@prisma/client';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+const prisma = new PrismaClient();
+
+interface ActorsDatabase {
+  actors: any[];
+  organizations: any[];
 }
 
 async function main() {
-  console.log('🌱 Starting database seed...')
+  console.log('\n🌱 SEEDING DATABASE\n');
 
-  // Clear existing data
-  console.log('🗑️  Clearing existing data...')
-  await prisma.message.deleteMany()
-  await prisma.chatParticipant.deleteMany()
-  await prisma.chat.deleteMany()
-  await prisma.position.deleteMany()
-  await prisma.market.deleteMany()
-  await prisma.follow.deleteMany()
-  await prisma.reaction.deleteMany()
-  await prisma.comment.deleteMany()
-  await prisma.post.deleteMany()
-  await prisma.user.deleteMany()
-  await prisma.game.deleteMany()
+  // Load actors.json
+  const actorsPath = join(process.cwd(), 'data', 'actors.json');
+  const actorsData: ActorsDatabase = JSON.parse(readFileSync(actorsPath, 'utf-8'));
 
-  // Seed actors from actors.json
-  console.log(`👥 Seeding ${actorsData.actors.length} actors...`)
+  console.log(`📋 Loaded:
+   • ${actorsData.actors.length} actors
+   • ${actorsData.organizations.length} organizations\n`);
 
-  const actors = actorsData.actors as Actor[]
-
-  for (const actor of actors) {
-    await prisma.user.upsert({
-      where: { username: actor.username },
-      update: {
-        displayName: actor.name,
-        bio: actor.description,
-        profileImageUrl: actor.profileImageUrl || null,
-        personality: actor.personality,
-        postStyle: actor.postStyle,
-        postExample: actor.postExample.join('\n---\n'),
-      },
+  // Seed actors
+  console.log('👥 Seeding actors...');
+  for (const actor of actorsData.actors) {
+    await prisma.actor.upsert({
+      where: { id: actor.id },
       create: {
         id: actor.id,
-        username: actor.username,
-        displayName: actor.name,
-        bio: actor.description,
-        profileImageUrl: actor.profileImageUrl || null,
-        isActor: true,
+        name: actor.name,
+        description: actor.description,
+        domain: actor.domain || [],
         personality: actor.personality,
+        tier: actor.tier,
+        affiliations: actor.affiliations || [],
+        canPostFeed: actor.canPostFeed !== false,
+        canPostGroups: actor.canPostGroups !== false,
         postStyle: actor.postStyle,
-        postExample: actor.postExample.join('\n---\n'),
-        walletAddress: null, // Actors don't have wallet addresses
+        postExample: actor.postExample || [],
       },
-    })
+      update: {
+        name: actor.name,
+        description: actor.description,
+        domain: actor.domain || [],
+        personality: actor.personality,
+        tier: actor.tier,
+        affiliations: actor.affiliations || [],
+        postStyle: actor.postStyle,
+        postExample: actor.postExample || [],
+      },
+    });
+  }
+  console.log(`  ✓ Seeded ${actorsData.actors.length} actors\n`);
+
+  // Seed organizations
+  console.log('🏢 Seeding organizations...');
+  let orgCount = 0;
+  for (const org of actorsData.organizations) {
+    // Skip if missing required fields
+    if (!org.id || !org.name || !org.type) {
+      console.warn(`  ⚠️  Skipping org "${org.id || 'unknown'}" - missing required fields`);
+      continue;
+    }
+
+    await prisma.organization.upsert({
+      where: { id: org.id },
+      create: {
+        id: org.id,
+        name: org.name,
+        description: org.description || '',
+        type: org.type,
+        canBeInvolved: org.canBeInvolved !== false,
+        initialPrice: org.initialPrice || null,
+        currentPrice: org.initialPrice || null,
+      },
+      update: {
+        name: org.name,
+        description: org.description || '',
+        type: org.type,
+        canBeInvolved: org.canBeInvolved !== false,
+        initialPrice: org.initialPrice || null,
+        currentPrice: org.initialPrice || org.currentPrice || null,
+      },
+    });
+    orgCount++;
+  }
+  console.log(`  ✓ Seeded ${orgCount} organizations\n`);
+
+  // Initialize game state
+  console.log('🎮 Initializing game state...');
+  const existingGame = await prisma.game.findFirst({
+    where: { isContinuous: true },
+  });
+
+  if (!existingGame) {
+    await prisma.game.create({
+      data: {
+        isContinuous: true,
+        isRunning: true,
+        currentDate: new Date(),
+        currentDay: 1,
+        speed: 60000,
+      },
+    });
+    console.log('  ✓ Game state initialized\n');
+  } else {
+    console.log('  ✓ Game state already exists\n');
   }
 
-  console.log(`✅ Seeded ${actors.length} actors`)
+  // Stats
+  const stats = {
+    actors: await prisma.actor.count(),
+    organizations: await prisma.organization.count(),
+    companies: await prisma.organization.count({ where: { type: 'company' } }),
+    posts: await prisma.post.count(),
+  };
 
-  // Create initial game state
-  console.log('🎮 Creating initial game state...')
-  await prisma.game.create({
-    data: {
-      id: 'default-game',
-      currentDay: 1,
-      isRunning: false,
-      speed: Number(process.env.GAME_SPEED_DEFAULT) || 5000,
-    },
-  })
+  console.log('📊 Database Summary:');
+  console.log(`   Actors: ${stats.actors}`);
+  console.log(`   Organizations: ${stats.organizations} (${stats.companies} companies)`);
+  console.log(`   Posts: ${stats.posts}\n`);
 
-  console.log('✅ Database seeded successfully!')
+  console.log('✅ SEED COMPLETE\n');
 }
 
 main()
-  .then(async () => {
-    await prisma.$disconnect()
+  .catch((error) => {
+    console.error('❌ Seed failed:', error);
+    process.exit(1);
   })
-  .catch(async (e) => {
-    console.error('❌ Seed failed:', e)
-    await prisma.$disconnect()
-    process.exit(1)
-  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

@@ -6,132 +6,95 @@ import { FeedToggle } from '@/components/shared/FeedToggle'
 import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { SearchBar } from '@/components/shared/SearchBar'
+import { InteractionBar } from '@/components/interactions'
 import { cn } from '@/lib/utils'
 import { useFontSize } from '@/contexts/FontSizeContext'
-import type { FeedPost } from '@/shared/types'
-
-interface RealtimeHistoryTick {
-  timestamp: string
-  posts: FeedPost[]
-  events: any[]
-  priceUpdates: any[]
-}
+import { useErrorToasts } from '@/hooks/useErrorToasts'
 
 export default function FeedPage() {
   const [tab, setTab] = useState<'latest' | 'following'>('latest')
   const [searchQuery, setSearchQuery] = useState('')
-  const [realtimePosts, setRealtimePosts] = useState<FeedPost[]>([])
+  const [posts, setPosts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [lastUpdate, setLastUpdate] = useState(new Date())
+  const [followingPosts, setFollowingPosts] = useState<any[]>([])
+  const [loadingFollowing, setLoadingFollowing] = useState(false)
   const { fontSize } = useFontSize()
 
-  // Load realtime posts from daemon history
+  // Enable error toast notifications
+  useErrorToasts()
+
+  // Load posts from database API
   useEffect(() => {
-    const loadRealtimePosts = async () => {
+    const loadPosts = async () => {
       try {
-        const response = await fetch('/games/realtime/history.json')
+        const response = await fetch('/api/posts?limit=500')
         if (response.ok) {
           const data = await response.json()
-          
-          // Extract all posts from all ticks
-          const allPosts: FeedPost[] = []
-          if (data.ticks && Array.isArray(data.ticks)) {
-            data.ticks.forEach((tick: RealtimeHistoryTick) => {
-              if (tick.posts && Array.isArray(tick.posts)) {
-                allPosts.push(...tick.posts)
-              }
-            })
-          }
-          
-          // Sort by timestamp (newest first)
-          allPosts.sort((a, b) => 
-            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-          )
-          
-          setRealtimePosts(allPosts)
-          setLoading(false)
-        } else {
-          // No realtime history yet, try loading from static files as fallback
-          await loadStaticGamePosts()
+          setPosts(data.posts || [])
         }
       } catch (error) {
-        console.error('Failed to load realtime posts:', error)
-        // Fallback to static game files
-        await loadStaticGamePosts()
+        console.error('Failed to load posts:', error)
+      } finally {
+        setLoading(false)
       }
     }
 
-    const loadStaticGamePosts = async () => {
-      const allPosts: FeedPost[] = []
-      
-      // Try genesis
-      try {
-        const genesis = await fetch('/genesis.json')
-        if (genesis.ok) {
-          const data = await genesis.json()
-          data.timeline?.forEach((day: any) => {
-            if (day.feedPosts) {
-              allPosts.push(...day.feedPosts)
-            }
-          })
-        }
-      } catch (e) {
-        // Ignore
-      }
+    loadPosts()
 
-      // Try latest
-      try {
-        const latest = await fetch('/games/latest.json')
-        if (latest.ok) {
-          const data = await latest.json()
-          data.timeline?.forEach((day: any) => {
-            if (day.feedPosts) {
-              allPosts.push(...day.feedPosts)
-            }
-          })
-        }
-      } catch (e) {
-        // Ignore
-      }
-
-      allPosts.sort((a, b) => 
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      )
-      
-      setRealtimePosts(allPosts)
-      setLoading(false)
-    }
-
-    loadRealtimePosts()
-
-    // Poll for new posts every 30 seconds
-    const pollInterval = setInterval(() => {
-      loadRealtimePosts()
-      setLastUpdate(new Date())
-    }, 30000)
-
-    return () => clearInterval(pollInterval)
+    // Refresh every 30 seconds
+    const interval = setInterval(loadPosts, 30000)
+    return () => clearInterval(interval)
   }, [])
 
-  // Filter posts by current actual time (not future posts)
-  const visiblePosts = useMemo(() => {
-    const now = new Date().getTime()
-    return realtimePosts.filter(post => {
-      const postTime = new Date(post.timestamp).getTime()
-      return postTime <= now
-    })
-  }, [realtimePosts])
+  // Fetch following posts when following tab is active
+  useEffect(() => {
+    const fetchFollowingPosts = async () => {
+      if (tab !== 'following') return
+
+      setLoadingFollowing(true)
+      try {
+        // TODO: Get auth token from Privy
+        const token = null // Placeholder - will be implemented with Privy integration
+
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+        }
+
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+
+        const response = await fetch('/api/posts/feed/favorites?limit=50&offset=0', {
+          headers,
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          // Transform API response to match feed post structure
+          setFollowingPosts(data.data.posts || [])
+        }
+      } catch (error) {
+        console.error('Failed to fetch following:', error)
+      } finally {
+        setLoadingFollowing(false)
+      }
+    }
+
+    fetchFollowingPosts()
+  }, [tab])
 
   // Filter by search query
   const filteredPosts = useMemo(() => {
-    if (!searchQuery.trim()) return visiblePosts
+    const sourcePosts = tab === 'following' ? followingPosts : posts
+
+    if (!searchQuery.trim()) return sourcePosts
 
     const query = searchQuery.toLowerCase()
-    return visiblePosts.filter(post =>
+    return sourcePosts.filter((post: any) =>
       post.content.toLowerCase().includes(query) ||
-      post.authorName.toLowerCase().includes(query)
+      post.authorId.toLowerCase().includes(query)
     )
-  }, [visiblePosts, searchQuery])
+  }, [tab, followingPosts, posts, searchQuery])
 
   if (loading) {
     return (
@@ -139,8 +102,7 @@ export default function FeedPage() {
         <FeedToggle activeTab={tab} onTabChange={setTab} />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center text-muted-foreground">
-            <div className="text-lg mb-2">Loading feed...</div>
-            <div className="text-sm">Fetching realtime posts</div>
+            <div className="text-lg mb-2">Loading posts...</div>
           </div>
         </div>
       </PageContainer>
@@ -153,40 +115,68 @@ export default function FeedPage() {
       <FeedToggle activeTab={tab} onTabChange={setTab} />
 
       {/* Search Bar */}
-      <div className="sticky top-0 z-10 bg-background border-b border-border px-4 py-3">
-        <SearchBar
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="Search posts..."
-        />
-        {/* Live indicator */}
-        <div className="flex items-center justify-between mt-2">
-          <div className="text-xs text-muted-foreground">
-            {visiblePosts.length} posts • Last updated: {lastUpdate.toLocaleTimeString()}
-          </div>
-          <div className="flex items-center gap-1 text-xs">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            <span className="text-green-600 dark:text-green-400 font-medium">LIVE</span>
-          </div>
+      <div className="sticky top-0 z-10 bg-background py-3">
+        <div className="max-w-[600px] mx-auto px-4">
+          <SearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search posts..."
+          />
         </div>
       </div>
 
       {/* Content area */}
       <div className="flex-1 overflow-y-auto bg-background">
-        {visiblePosts.length === 0 ? (
+        {filteredPosts.length === 0 && !searchQuery && tab === 'latest' ? (
           // No posts yet
           <div className="max-w-2xl mx-auto p-8 text-center">
             <div className="text-muted-foreground py-12">
               <h2 className="text-2xl font-bold mb-2 text-foreground">No Posts Yet</h2>
-              <p className="mb-6">
-                Start the realtime daemon to see posts appear
+              <p className="mb-4">
+                Game is auto-generating in the background...
               </p>
-              <div className="bg-muted p-4 rounded-lg text-left text-sm font-mono">
-                <div className="text-foreground mb-2">$ bun run daemon</div>
-                <div className="text-muted-foreground">
-                  This will start generating 10-20 posts per minute
-                </div>
+              <div className="text-sm text-muted-foreground space-y-2">
+                <p>This happens automatically on first run.</p>
+                <p>Check the terminal logs for progress.</p>
+                <p className="font-mono text-xs bg-muted p-2 rounded">
+                  First generation takes 3-5 minutes
+                </p>
               </div>
+            </div>
+          </div>
+        ) : filteredPosts.length === 0 && !searchQuery && tab === 'following' ? (
+          // Following tab with no followed profiles
+          <div className="max-w-2xl mx-auto p-8 text-center">
+            <div className="text-muted-foreground py-12">
+              <h2 className="text-xl font-semibold mb-2 text-foreground">👥 Not Following Anyone Yet</h2>
+              <p className="mb-4">
+                {loadingFollowing
+                  ? 'Loading following...'
+                  : 'Follow profiles to see their posts here. Visit a profile and click the Follow button.'}
+              </p>
+            </div>
+          </div>
+        ) : filteredPosts.length === 0 && !searchQuery ? (
+          // Game loaded but no visible posts yet
+          <div className="max-w-2xl mx-auto p-8 text-center">
+            <div className="text-muted-foreground py-12">
+              <h2 className="text-xl font-semibold mb-2 text-foreground">⏱️ No Posts Yet</h2>
+              <p className="mb-4">
+                {currentDate
+                  ? `Timeline: ${currentDate.toLocaleDateString()}`
+                  : 'Move the timeline to see posts'}
+              </p>
+              <Link
+                href="/game"
+                className={cn(
+                  'inline-block px-6 py-3 rounded-lg font-semibold',
+                  'bg-primary text-primary-foreground',
+                  'hover:bg-primary/90',
+                  'transition-all duration-300'
+                )}
+              >
+                Go to Game Controls
+              </Link>
             </div>
           </div>
         ) : filteredPosts.length === 0 && searchQuery ? (
@@ -213,7 +203,7 @@ export default function FeedPage() {
         ) : (
           // Show posts - Twitter-like layout
           <div className="max-w-[600px] mx-auto">
-            {filteredPosts.map((post, i) => {
+            {filteredPosts.map((post: any, i: number) => {
               const postDate = new Date(post.timestamp)
               const now = new Date()
               const diffMs = now.getTime() - postDate.getTime()
@@ -232,24 +222,25 @@ export default function FeedPage() {
                 <article
                   key={`${post.id}-${i}`}
                   className={cn(
-                    'px-4 py-3 border-b border-border',
+                    'px-4 py-3 border-b',
                     'hover:bg-muted/30 cursor-pointer',
                     'transition-all duration-200'
                   )}
                   style={{
                     fontSize: `${fontSize}rem`,
+                    borderColor: 'rgba(28, 156, 240, 0.2)',
                   }}
                 >
                   <div className="flex gap-3">
                     {/* Avatar - Clickable */}
                     <Link
-                      href={`/profile/${post.author}`}
+                      href={`/profile/${post.authorId}`}
                       className="flex-shrink-0 hover:opacity-80 transition-opacity"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Avatar
-                        id={post.author}
-                        name={post.authorName}
+                        id={post.authorId}
+                        name={post.authorId}
                         type="actor"
                         size="lg"
                         scaleFactor={fontSize}
@@ -258,17 +249,28 @@ export default function FeedPage() {
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      {/* Author and timestamp */}
-                      <div className="flex items-center gap-2 mb-1">
-                        <Link
-                          href={`/profile/${post.author}`}
-                          className="font-bold text-foreground hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {post.authorName}
-                        </Link>
-                        <span className="text-muted-foreground text-sm">·</span>
-                        <time className="text-muted-foreground text-sm" title={postDate.toLocaleString()}>
+                      {/* Header: Author with handle on left, timestamp on right */}
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Link
+                            href={`/profile/${post.authorId}`}
+                            className="font-bold text-foreground hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {post.authorId}
+                          </Link>
+                          <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                            Agent
+                          </span>
+                          <Link
+                            href={`/profile/${post.authorId}`}
+                            className="text-muted-foreground text-sm hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            @{post.authorId}
+                          </Link>
+                        </div>
+                        <time className="text-muted-foreground text-sm flex-shrink-0" title={postDate.toLocaleString()}>
                           {timeAgo}
                         </time>
                       </div>
@@ -278,13 +280,18 @@ export default function FeedPage() {
                         {post.content}
                       </div>
 
-                      {/* Metadata */}
-                      {post.replyTo && (
-                        <div className="mt-2 text-sm text-muted-foreground flex items-center gap-1">
-                          <span className="text-xs">↩️</span>
-                          <span>Replying to a post</span>
-                        </div>
-                      )}
+                      {/* Interaction Bar */}
+                      <InteractionBar
+                        postId={post.id}
+                        initialInteractions={{
+                          postId: post.id,
+                          likeCount: 0,
+                          commentCount: 0,
+                          shareCount: 0,
+                          isLiked: false,
+                          isShared: false,
+                        }}
+                      />
                     </div>
                   </div>
                 </article>

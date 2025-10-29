@@ -39,13 +39,14 @@ export function BottomNav() {
     <nav
       className={cn(
         'fixed bottom-4 left-4 right-4 z-50 md:hidden',
-        'bg-sidebar/95 backdrop-blur-md border-2 border-border',
-        'rounded-2xl shadow-2xl',
+        'bg-sidebar/95 backdrop-blur-md border-2',
+        'rounded-xl shadow-2xl',
         'transition-all duration-300'
       )}
+      style={{ borderColor: '#1c9cf0' }}
     >
       {/* Navigation Items */}
-      <div className="relative flex justify-around items-center h-16 px-2">
+      <div className="relative flex justify-around items-center h-12 px-2 py-1">
         {navItems.map((item) => {
           const Icon = item.icon
           return (
@@ -53,41 +54,24 @@ export function BottomNav() {
               key={item.name}
               href={item.href}
               className={cn(
-                'group relative flex flex-col items-center justify-center flex-1 h-full',
+                'group relative flex items-center justify-center',
                 'transition-all duration-300',
-                'rounded-xl',
-                item.active && 'bg-sidebar-accent'
+                'w-10 h-10 rounded-md',
+                item.active && 'bg-sidebar-accent/80'
               )}
+              aria-label={item.name}
             >
-              {/* Icon container */}
-              <div
+              {/* Icon */}
+              <Icon
                 className={cn(
-                  'relative mb-0.5 transition-all duration-300',
+                  'w-6 h-6 transition-all duration-300',
                   'group-hover:scale-110',
-                  item.active && 'scale-105'
-                )}
-              >
-                <Icon
-                  className={cn(
-                    'w-5 h-5 transition-all duration-300',
-                    item.active
-                      ? 'text-sidebar-primary'
-                      : 'text-sidebar-foreground group-hover:text-sidebar-primary'
-                  )}
-                />
-              </div>
-
-              {/* Label */}
-              <span
-                className={cn(
-                  'text-[10px] font-medium transition-all duration-300',
                   item.active
-                    ? 'text-sidebar-primary font-semibold'
+                    ? 'text-sidebar-primary scale-105'
                     : 'text-sidebar-foreground group-hover:text-sidebar-primary'
                 )}
-              >
-                {item.name}
-              </span>
+                style={item.active ? { color: '#1c9cf0' } : undefined}
+              />
             </Link>
           )
         })}

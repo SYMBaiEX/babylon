@@ -32,6 +32,7 @@ import { generateActorContext } from '../engine/EmotionSystem';
 import { shuffleArray } from '@/shared/utils';
 import { loadPrompt } from '../prompts/loader';
 import type {
+  Actor,
   ActorTier,
   SelectedActor,
   ActorConnection,
@@ -52,6 +53,15 @@ import type {
   GameHistory,
   GenesisGame,
 } from '@/shared/types';
+
+/**
+ * Structure for actors selected for a game
+ */
+interface SelectedActorsByTier {
+  mains: SelectedActor[];
+  supporting: SelectedActor[];
+  extras: SelectedActor[];
+}
 
 /**
  * Generate context from previous month's game
@@ -156,7 +166,7 @@ You're aware of these conversations. They inform your knowledge and perspective.
 ` : '';
 }
 
-export function createScenarioPrompt(mainActors: any[], organizations?: any[]) {
+export function createScenarioPrompt(mainActors: Actor[], organizations?: Organization[]) {
   const organizationContext = organizations && organizations.length > 0 ? `
 
 AFFILIATED ORGANIZATIONS:
@@ -193,7 +203,7 @@ Organizations should:
   });
 }
 
-export function createQuestionPrompt(scenarios: any[], organizations?: any[]) {
+export function createQuestionPrompt(scenarios: Scenario[], organizations?: Organization[]) {
   const organizationContext = organizations && organizations.length > 0 ? `
 
 ORGANIZATIONS IN PLAY:
@@ -887,7 +897,7 @@ Otherwise, start fresh.`;
   /**
    * Generate actor connections with richer network
    */
-  private generateConnections(selectedActors: any): ActorConnection[] {
+  private generateConnections(selectedActors: SelectedActorsByTier): ActorConnection[] {
     const connections: ActorConnection[] = [];
     
     // Connect each main to each other (rivalry or alliance)
@@ -1002,7 +1012,7 @@ Otherwise, start fresh.`;
   /**
    * Create group chats - one per main actor + some for high-tier supporting
    */
-  private async createGroupChats(selectedActors: any, connections: ActorConnection[]): Promise<GroupChat[]> {
+  private async createGroupChats(selectedActors: SelectedActorsByTier, connections: ActorConnection[]): Promise<GroupChat[]> {
     const chats: GroupChat[] = [];
     
     // Helper to get positive relationships for an actor
@@ -1017,7 +1027,7 @@ Otherwise, start fresh.`;
     };
     
     // Helper to get actor details by ID
-    const getActorById = (id: string): SelectedActor => {
+    const getActorById = (id: string): SelectedActor | undefined => {
       return [...selectedActors.mains, ...selectedActors.supporting, ...selectedActors.extras]
         .find((a: SelectedActor) => a.id === id);
     };

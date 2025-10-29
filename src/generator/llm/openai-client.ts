@@ -11,6 +11,14 @@ import 'dotenv/config';
 
 type LLMProvider = 'groq' | 'openai';
 
+/**
+ * Simple JSON schema for validation
+ */
+interface JSONSchema {
+  required?: string[];
+  properties?: Record<string, unknown>;
+}
+
 export class BabylonLLMClient {
   private client: OpenAI;
   private provider: LLMProvider;
@@ -47,7 +55,7 @@ export class BabylonLLMClient {
    */
   async generateJSON<T>(
     prompt: string,
-    schema?: any,
+    schema?: JSONSchema,
     options: {
       model?: string;
       temperature?: number;
@@ -137,7 +145,7 @@ export class BabylonLLMClient {
   /**
    * Simple schema validation
    */
-  private validateSchema(data: any, schema: any): boolean {
+  private validateSchema(data: Record<string, unknown>, schema: JSONSchema): boolean {
     // Basic validation - check required fields exist
     if (schema.required) {
       for (const field of schema.required) {

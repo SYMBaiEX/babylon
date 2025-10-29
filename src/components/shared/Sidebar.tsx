@@ -1,22 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { LoginButton } from '@/components/auth/LoginButton'
+import { useAuth } from '@/hooks/useAuth'
+import { useAuthStore } from '@/stores/authStore'
+import { cn } from '@/lib/utils'
+import { Home, MessageCircle, TrendingUp, User, LogOut } from 'lucide-react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, TrendingUp, MessageCircle, User, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useAuth } from '@/hooks/useAuth'
-import { LoginButton } from '@/components/auth/LoginButton'
-import { UserMenu } from '@/components/auth/UserMenu'
-import { useGameStore } from '@/stores/gameStore'
-import { ThemeToggle } from '@/components/shared/ThemeToggle'
+import { useState } from 'react'
 
 export function Sidebar() {
-  const [isCollapsed, setIsCollapsed] = useState(false)
   const pathname = usePathname()
-  const { ready, authenticated } = useAuth()
+  const { ready, authenticated, logout } = useAuth()
+  const { user } = useAuthStore()
+  const [showLogoutMenu, setShowLogoutMenu] = useState(false)
 
-  const navItems = [
+  const allNavItems = [
     {
       name: 'Feed',
       href: '/feed',
@@ -40,54 +40,51 @@ export function Sidebar() {
       href: '/profile',
       icon: User,
       active: pathname === '/profile' || pathname?.startsWith('/profile/'),
-    },
-    {
-      name: 'Settings',
-      href: '/settings',
-      icon: Settings,
-      active: pathname === '/settings' || pathname?.startsWith('/settings/'),
-    },
+      requiresAuth: true,
+    }
   ]
+
+  const navItems = allNavItems.filter(item => !item.requiresAuth || authenticated)
+  
+  const isOnFeed = pathname === '/feed' || pathname === '/'
+  const showLoginInSidebar = !isOnFeed
 
   return (
     <aside
       className={cn(
         'hidden md:flex md:flex-col h-screen sticky top-0',
         'bg-sidebar',
-        'transition-all duration-300',
-        isCollapsed ? 'md:w-20' : 'md:w-64 lg:w-72'
+        'md:w-64 lg:w-72'
       )}
     >
       {/* Header */}
-      <div className={cn(
-        'p-6 flex items-center',
-        isCollapsed ? 'justify-center' : 'justify-between'
-      )}>
-        {!isCollapsed && (
-          <Link
-            href="/feed"
-            className={cn(
-              'text-2xl font-bold',
-              'bg-gradient-to-br from-sidebar-primary to-primary',
-              'bg-clip-text text-transparent',
-              'hover:scale-105 transition-transform duration-300 inline-block'
-            )}
-          >
-            Babylon
-          </Link>
-        )}
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className={cn(
-            'p-2 rounded-lg',
-            'hover:bg-sidebar-accent',
-            'transition-all duration-300'
-          )}
-          style={{ color: '#1c9cf0' }}
+      <div className="p-6 flex items-center justify-center">
+        <Link
+          href="/feed"
+          className="hover:scale-105 transition-transform duration-300"
         >
-          {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-        </button>
+          <Image
+            src="/assets/logos/logo.svg"
+            alt="Babylon Logo"
+            width={32}
+            height={32}
+            className="flex-shrink-0 w-8 h-8"
+          />
+        </Link>
       </div>
+
+      {/* Authentication Section at Top (only show if not on feed) */}
+      {!authenticated && showLoginInSidebar && (
+        <div className="px-6 pb-4">
+          {!ready ? (
+            <div className="px-4 py-3 text-xs text-muted-foreground">
+              Loading auth...
+            </div>
+          ) : (
+            <LoginButton />
+          )}
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 px-4 space-y-1">
@@ -98,88 +95,75 @@ export function Sidebar() {
               key={item.name}
               href={item.href}
               className={cn(
-                'group relative flex items-center gap-4 px-4 py-3 rounded-xl',
+                'group relative flex items-center gap-4 px-4 py-3 rounded-lg',
                 'transition-all duration-300',
-                isCollapsed && 'justify-center',
                 item.active
                   ? [
                       'bg-sidebar-accent',
-                      'text-sidebar-primary font-semibold',
+                      'font-semibold',
                     ]
                   : [
                       'text-sidebar-foreground hover:bg-sidebar-accent/50',
                       'hover:text-sidebar-primary',
                     ]
               )}
-              title={isCollapsed ? item.name : undefined}
+              style={item.active ? { color: '#1c9cf0' } : undefined}
             >
               {/* Icon */}
               <Icon
-                className={cn(
-                  'w-6 h-6 transition-all duration-300',
-                  'group-hover:scale-110',
-                  isCollapsed ? 'flex-shrink-0' : ''
-                )}
+                className="w-6 h-6 transition-all duration-300 group-hover:scale-110"
+                style={item.active ? { color: '#1c9cf0' } : undefined}
               />
 
               {/* Label */}
-              {!isCollapsed && (
-                <span className="text-lg">{item.name}</span>
-              )}
+              <span className="text-lg">{item.name}</span>
             </Link>
           )
         })}
       </nav>
 
       {/* Bottom Section */}
-      <div
-        className="p-4 space-y-4"
-        style={{ borderTop: '1px solid #1c9cf0' }}
-      >
-        {/* Theme Toggle */}
-        {!isCollapsed && (
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium" style={{ color: '#1c9cf0' }}>Theme</span>
-            <ThemeToggle />
-          </div>
-        )}
+      {authenticated && ready && (
+        <div
+          className="p-4"
+          style={{ borderTop: '1px solid #1c9cf0' }}
+        >
+          {/* User Profile Section at Bottom */}
+          <div className="relative">
+            <button
+              onClick={() => setShowLogoutMenu(!showLogoutMenu)}
+              className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-sidebar-accent transition-colors"
+            >
+              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                <User className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0 text-left">
+                <p className="font-semibold text-foreground truncate text-sm">
+                  {user?.displayName || 'Anonymous'}
+                </p>
+              </div>
+            </button>
 
-        {isCollapsed && (
-          <div className="flex justify-center">
-            <ThemeToggle />
-          </div>
-        )}
-
-        {/* Authentication Section */}
-        {ready && !isCollapsed && (
-          <div>
-            {authenticated ? (
-              <UserMenu />
-            ) : (
-              <LoginButton />
+            {/* Logout Menu */}
+            {showLogoutMenu && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-sidebar-accent rounded-lg shadow-lg border-2 overflow-hidden"
+                style={{ borderColor: '#1c9cf0' }}
+              >
+                <button
+                  onClick={() => {
+                    logout()
+                    setShowLogoutMenu(false)
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-3 hover:bg-destructive/10 text-destructive transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span className="text-sm font-medium">Logout</span>
+                </button>
+              </div>
             )}
           </div>
-        )}
-
-        {/* Realtime Status */}
-        {!isCollapsed && (
-          <div
-            className={cn(
-              'text-sm p-3 rounded-xl',
-              'bg-sidebar-accent'
-            )}
-            style={{ border: '2px solid #1c9cf0' }}
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <p className="font-semibold" style={{ color: '#1c9cf0' }}>Live Game</p>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Realtime generation active
-            </p>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </aside>
   )
 }

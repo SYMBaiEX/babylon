@@ -318,9 +318,11 @@ async function main() {
   } else {
     console.log('   ℹ️ No previous games found. This will be Game #1');
     
-    // First game starts November 1, 2025 (default start)
-    nextStartDate = '2025-11-01';
-    console.log(`   ✓ Starting ${nextStartDate} (first month)\n`);
+    // First game starts from current actual date
+    const now = new Date();
+    // Start from first of current month
+    nextStartDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    console.log(`   ✓ Starting ${nextStartDate} (current month, first game)\n`);
   }
 
   // STEP 2: Generate New Game

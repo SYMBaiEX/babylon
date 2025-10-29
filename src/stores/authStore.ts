@@ -5,6 +5,11 @@ interface User {
   id: string
   walletAddress?: string
   displayName: string
+  email?: string
+  username?: string
+  bio?: string
+  profileImageUrl?: string
+  profileComplete?: boolean
 }
 
 interface Wallet {

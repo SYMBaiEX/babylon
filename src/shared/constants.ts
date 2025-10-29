@@ -25,6 +25,8 @@ export const POST_TYPES = {
   NEWS: 'news',
   THREAD: 'thread',
   RUMOR: 'rumor',
+  POST: 'post',
+  REPLY: 'reply',
 } as const;
 
 export type PostType = (typeof POST_TYPES)[keyof typeof POST_TYPES];
