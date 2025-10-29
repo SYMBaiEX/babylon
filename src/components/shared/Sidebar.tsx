@@ -23,49 +23,68 @@ export function Sidebar() {
       name: 'Feed',
       href: '/feed',
       icon: Home,
+      color: '#1c9cf0', // Blue
       active: pathname === '/feed' || pathname === '/',
     },
     {
       name: 'Game',
       href: '/game',
       icon: PlayCircle,
+      color: '#10b981', // Emerald
       active: pathname === '/game',
     },
     {
       name: 'Markets',
       href: '/markets',
       icon: TrendingUp,
+      color: '#f59e0b', // Amber
       active: pathname === '/markets',
     },
     {
       name: 'Chats',
       href: '/chats',
       icon: MessageCircle,
+      color: '#b82323', // Red
       active: pathname === '/chats',
     },
     {
       name: 'Profile',
       href: '/profile',
       icon: User,
+      color: '#8b5cf6', // Purple
       active: pathname === '/profile' || pathname?.startsWith('/profile/'),
     },
     {
       name: 'Settings',
       href: '/settings',
       icon: Settings,
+      color: '#64748b', // Slate
       active: pathname === '/settings' || pathname?.startsWith('/settings/'),
     },
   ]
 
   return (
-    <aside
-      className={cn(
-        'hidden md:flex md:flex-col h-screen sticky top-0',
-        'bg-sidebar',
-        'transition-all duration-300',
-        isCollapsed ? 'md:w-20' : 'md:w-64 lg:w-72'
-      )}
-    >
+    <>
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .neumorphic-sidebar-button {
+            box-shadow: inset 5px 5px 5px rgba(0, 0, 0, 0.1), inset -5px -5px 5px rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+          }
+
+          .neumorphic-sidebar-button:hover {
+            box-shadow: none;
+          }
+        `
+      }} />
+      <aside
+        className={cn(
+          'hidden md:flex md:flex-col h-screen sticky top-0',
+          'bg-sidebar',
+          'transition-all duration-300',
+          isCollapsed ? 'md:w-20' : 'md:w-64 lg:w-72'
+        )}
+      >
       {/* Header */}
       <div className={cn(
         'p-6',
@@ -142,7 +161,7 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-4 space-y-1">
+      <nav className="flex-1 px-4 space-y-2">
         {navItems.map((item) => {
           const Icon = item.icon
           return (
@@ -151,48 +170,101 @@ export function Sidebar() {
               href={item.href}
               className={cn(
                 'group relative flex items-center gap-4 px-4 py-3 rounded-lg',
+                'neumorphic-sidebar-button',
                 'transition-all duration-300',
                 isCollapsed && 'justify-center',
-                item.active
-                  ? [
-                      'bg-sidebar-accent',
-                      'font-semibold',
-                    ]
-                  : [
-                      'text-sidebar-foreground hover:bg-sidebar-accent/50',
-                      'hover:text-sidebar-primary',
-                    ]
+                !item.active && 'bg-sidebar-accent/30'
               )}
               title={isCollapsed ? item.name : undefined}
-              style={item.active ? { color: '#1c9cf0' } : undefined}
+              style={{
+                backgroundColor: item.active ? item.color : undefined,
+              }}
+              onMouseEnter={(e) => {
+                if (!item.active) {
+                  e.currentTarget.style.backgroundColor = item.color
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!item.active) {
+                  e.currentTarget.style.backgroundColor = ''
+                }
+              }}
             >
               {/* Icon */}
               <Icon
                 className={cn(
                   'w-6 h-6 transition-all duration-300',
                   'group-hover:scale-110',
-                  isCollapsed ? 'flex-shrink-0' : ''
+                  isCollapsed ? 'flex-shrink-0' : '',
+                  !item.active && 'text-sidebar-foreground'
                 )}
-                style={item.active ? { color: '#1c9cf0' } : undefined}
+                style={{
+                  color: item.active ? '#e4e4e4' : undefined,
+                }}
+                onMouseEnter={(e) => {
+                  if (!item.active) {
+                    e.currentTarget.style.color = '#e4e4e4'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!item.active) {
+                    e.currentTarget.style.color = ''
+                  }
+                }}
               />
 
               {/* Label */}
               {!isCollapsed && (
-                <span className="text-lg">{item.name}</span>
+                <span
+                  className={cn(
+                    'text-lg transition-colors duration-300',
+                    item.active ? 'font-semibold' : 'text-sidebar-foreground'
+                  )}
+                  style={{
+                    color: item.active ? '#e4e4e4' : undefined,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!item.active) {
+                      e.currentTarget.style.color = '#e4e4e4'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!item.active) {
+                      e.currentTarget.style.color = ''
+                    }
+                  }}
+                >
+                  {item.name}
+                </span>
               )}
             </Link>
           )
         })}
       </nav>
 
+      {/* Separator */}
+      <div className="px-4 py-2">
+        <div
+          className="h-px rounded-full"
+          style={{
+            background: 'linear-gradient(90deg, transparent, rgba(28, 156, 240, 0.3), transparent)',
+            boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)'
+          }}
+        />
+      </div>
+
       {/* Bottom Section */}
-      <div
-        className="p-4 space-y-4"
-        style={{ borderTop: '1px solid #1c9cf0' }}
-      >
+      <div className="p-4 space-y-4">
         {/* Theme Toggle */}
         {!isCollapsed && (
-          <div className="flex items-center justify-between">
+          <div
+            className={cn(
+              'flex items-center justify-between p-3 rounded-xl',
+              'bg-sidebar-accent/30',
+              'neumorphic-sidebar-button',
+              'transition-all duration-300'
+            )}
+          >
             <span className="text-sm font-medium" style={{ color: '#1c9cf0' }}>Theme</span>
             <ThemeToggle />
           </div>
@@ -200,7 +272,7 @@ export function Sidebar() {
 
         {isCollapsed && (
           <div className="flex justify-center">
-            <ThemeToggle />
+            <ThemeToggle compact />
           </div>
         )}
 
@@ -220,9 +292,10 @@ export function Sidebar() {
           <div
             className={cn(
               'text-sm p-3 rounded-xl',
-              'bg-sidebar-accent'
+              'bg-sidebar-accent/30',
+              'neumorphic-sidebar-button',
+              'transition-all duration-300'
             )}
-            style={{ border: '2px solid #1c9cf0' }}
           >
             <p className="font-semibold mb-1" style={{ color: '#1c9cf0' }}>Game Status</p>
             <p className="text-xs text-muted-foreground">
@@ -234,5 +307,6 @@ export function Sidebar() {
         )}
       </div>
     </aside>
+    </>
   )
 }
