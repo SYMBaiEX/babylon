@@ -23,7 +23,7 @@
 
 ### Tier System:
 - **S-Tier (5):** Most famous, highest impact (Elon's Husk, Scam Altman, etc.)
-- **A-Tier (6):** Famous influencers (Naval Ravitard, Peter Thief, etc.)
+- **A-Tier (6):** Famous influencers (Navel Raviconman, Peter Thief, etc.)
 - **B-Tier (8):** Known personalities (Rachel Madcow, Lex Deadpan, etc.)
 - **C-Tier (10):** Supporting cast
 - **D-Tier (39):** Extras and commentators

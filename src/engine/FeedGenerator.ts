@@ -135,6 +135,10 @@ export class FeedGenerator extends EventEmitter {
     const ambientNoise = await this.generateAmbientFeed(day, allActors, outcome);
     feed.push(...ambientNoise);
 
+    // Generate replies (30-50% of existing posts get replies)
+    const replies = await this.generateReplies(day, feed, allActors);
+    feed.push(...replies);
+
     // Sort by timestamp for realistic feed flow
     return feed.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
   }
@@ -566,11 +570,11 @@ export class FeedGenerator extends EventEmitter {
           const content = c.post || c.tweet;
           return content && typeof content === 'string' && content.trim().length > 0;
         })
-        .map(c => ({
+        .map((c: any) => ({
           post: c.post || c.tweet!,
-          sentiment: c.sentiment,
-          clueStrength: c.clueStrength,
-          pointsToward: c.pointsToward,
+          sentiment: c.sentiment || 0,
+          clueStrength: c.clueStrength || 0,
+          pointsToward: c.pointsToward || null,
         }));
       const minRequired = Math.ceil(commentators.length * 0.5);
       
@@ -637,11 +641,11 @@ export class FeedGenerator extends EventEmitter {
           const content = c.post || c.tweet;
           return content && typeof content === 'string' && content.trim().length > 0;
         })
-        .map(c => ({
+        .map((c: any) => ({
           post: c.post || c.tweet!,
-          sentiment: c.sentiment,
-          clueStrength: c.clueStrength,
-          pointsToward: c.pointsToward,
+          sentiment: c.sentiment || 0,
+          clueStrength: c.clueStrength || 0,
+          pointsToward: c.pointsToward || null,
         }));
       const minRequired = Math.ceil(conspiracists.length * 0.5);
       
@@ -1200,36 +1204,123 @@ No other text.`;
     const ambient: FeedPost[] = [];
     const baseTime = `2025-10-${String(day).padStart(2, '0')}T`;
 
-    // Random actors post general thoughts (2-4 per day to avoid spam)
+    // DENSE CONTENT: Each actor posts 1-20 times per hour
+    // Generate posts for all 24 hours of the day
     const postingActors = allActors.filter(a => a.canPostFeed !== false);
-    const randomActors = shuffleArray(postingActors).slice(0, 2 + Math.floor(Math.random() * 3));
+    
+    // For each hour of the day, select random actors to post
+    for (let hour = 0; hour < 24; hour++) {
+      // Each hour, 10-30% of actors post (1-20 posts per actor per hour achieved through probability)
+      const actorsThisHour = shuffleArray(postingActors).slice(0, Math.floor(postingActors.length * (0.1 + Math.random() * 0.2)));
+      
+      if (actorsThisHour.length === 0) continue;
 
-    if (randomActors.length === 0) {
-      return ambient;
+      // ✅ BATCH: Generate all ambient posts for this hour in ONE call
+      const posts = await this.generateAmbientPostsBatch(actorsThisHour, day, outcome);
+      
+      posts.forEach((post, i) => {
+        const actor = actorsThisHour[i];
+        if (!actor) return;
+
+        // Spread posts throughout the hour (random minutes)
+        const minute = Math.floor(Math.random() * 60);
+        const second = Math.floor(Math.random() * 60);
+
+        ambient.push({
+          id: `ambient-${day}-${hour}-${actor.id}-${i}`,
+          day,
+          timestamp: `${baseTime}${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}Z`,
+          type: 'thread',
+          content: post.post,
+          author: actor.id,
+          authorName: actor.name,
+          sentiment: post.sentiment,
+          clueStrength: post.clueStrength,
+          pointsToward: post.pointsToward,
+        });
+      });
     }
 
-    // ✅ BATCH: Generate all ambient posts in ONE call
-    const posts = await this.generateAmbientPostsBatch(randomActors, day, outcome);
-    
-    posts.forEach((post, i) => {
-      const actor = randomActors[i];
-      if (!actor) return; // Skip if actor doesn't exist
-
-      ambient.push({
-        id: `ambient-${day}-${actor.id}`,
-        day,
-        timestamp: `${baseTime}${String(18 + i * 2).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
-        type: 'thread',
-        content: post.post,
-        author: actor.id,
-        authorName: actor.name,
-        sentiment: post.sentiment,
-        clueStrength: post.clueStrength,
-        pointsToward: post.pointsToward,
-      });
-    });
-
     return ambient;
+  }
+
+  /**
+   * Generate replies to existing posts
+   * 30-50% of posts get replies from other actors
+   */
+  private async generateReplies(day: number, existingPosts: FeedPost[], allActors: Actor[]): Promise<FeedPost[]> {
+    const replies: FeedPost[] = [];
+    
+    // Select posts that could get replies (30-50% of posts)
+    const postsToReplyTo = shuffleArray(existingPosts).slice(0, Math.floor(existingPosts.length * (0.3 + Math.random() * 0.2)));
+    
+    for (const originalPost of postsToReplyTo) {
+      // Select 1-3 actors to reply
+      const replyCount = 1 + Math.floor(Math.random() * 3);
+      const replyingActors = shuffleArray(
+        allActors.filter(a => a.id !== originalPost.author && a.canPostFeed !== false)
+      ).slice(0, replyCount);
+      
+      for (const actor of replyingActors) {
+        // Generate reply content
+        const replyContent = await this.generateReplyContent(actor, originalPost);
+        
+        // Reply timestamp is after original post
+        const originalTime = new Date(originalPost.timestamp);
+        const replyTime = new Date(originalTime.getTime() + (5 + Math.random() * 55) * 60 * 1000); // 5-60 minutes later
+        
+        replies.push({
+          id: `reply-${originalPost.id}-${actor.id}`,
+          day,
+          timestamp: replyTime.toISOString(),
+          type: 'reply',
+          content: replyContent,
+          author: actor.id,
+          authorName: actor.name,
+          replyTo: originalPost.id,
+          relatedEvent: originalPost.relatedEvent,
+          sentiment: originalPost.sentiment * (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.5),
+          clueStrength: originalPost.clueStrength * 0.5,
+          pointsToward: originalPost.pointsToward,
+        });
+      }
+    }
+    
+    return replies;
+  }
+
+  /**
+   * Generate reply content for an actor replying to a post
+   */
+  private async generateReplyContent(actor: Actor, originalPost: FeedPost): Promise<string> {
+    if (!this.llm) {
+      // Fallback without LLM
+      const reactions = ['Interesting take', 'I disagree', 'This is huge', 'Nope', 'Facts', 'Cope', 'Based'];
+      return reactions[Math.floor(Math.random() * reactions.length)]!;
+    }
+
+    try {
+      const prompt = `You are ${actor.name} (${actor.personality || 'actor'}).
+      
+Original post by ${originalPost.authorName}:
+"${originalPost.content}"
+
+Write a brief reply (max 200 chars) in your voice.
+${actor.postStyle ? `Your style: ${actor.postStyle}` : ''}
+
+Respond with JSON: {"reply": "your reply here"}`;
+
+      const response = await this.llm.generateJSON<{ reply: string }>(
+        prompt,
+        undefined,
+        { temperature: 1.0, maxTokens: 500 }
+      );
+
+      return response.reply || 'Interesting';
+    } catch (error) {
+      // Fallback on error
+      return 'Interesting take';
+    }
   }
 
   /**

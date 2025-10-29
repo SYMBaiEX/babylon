@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Calendar } from 'lucide-react'
-import { useGameStore } from '@/stores/gameStore'
+import { ArrowLeft, Calendar, Briefcase, Users } from 'lucide-react'
 import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { SearchBar } from '@/components/shared/SearchBar'
@@ -12,13 +11,16 @@ import { FavoriteButton, InteractionBar } from '@/components/interactions'
 import { cn } from '@/lib/utils'
 import { useFontSize } from '@/contexts/FontSizeContext'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
+import { useGameStore } from '@/stores/gameStore'
+import type { FeedPost } from '@/shared/types'
 
 export default function ActorProfilePage() {
   const params = useParams()
   const actorId = params.id as string
-  const { allGames, currentTimeMs, startTime } = useGameStore()
-  const { fontSize} = useFontSize()
+  const { fontSize } = useFontSize()
   const [searchQuery, setSearchQuery] = useState('')
+  const [tab, setTab] = useState<'posts' | 'replies'>('posts')
+  const { allGames } = useGameStore()
 
   // Enable error toast notifications
   useErrorToasts()
@@ -43,109 +45,70 @@ export default function ActorProfilePage() {
           game: game
         }
       }
-
-      // Check organizations
-      const org = game.setup?.organizations?.find(o => o.id === actorId)
-      if (org) {
-        return {
-          id: org.id,
-          name: org.name,
-          type: 'business' as const,
-          role: org.type || 'organization',
-          game: game
-        }
-      }
     }
     return null
   }, [allGames, actorId])
 
-  // Get all posts by this actor
+  // Get posts for this actor from all games
   const actorPosts = useMemo(() => {
-    if (allGames.length === 0 || !startTime || !actorId) return []
-
     const posts: Array<{
-      post: {
-        author: string
-        authorName: string
-        content: string
-        timestamp: string
-        type: string
-        sentiment: number
-        clueStrength: number
-        replyTo?: string
-      }
+      post: FeedPost
       gameId: string
       gameName: string
       timestampMs: number
     }> = []
 
-    allGames.forEach((g) => {
-      const gameName = g.id.includes('genesis')
-        ? 'October'
-        : new Date(g.generatedAt).toLocaleDateString('en-US', { month: 'long' })
-
-      g.timeline?.forEach((day) => {
-        day.feedPosts?.forEach((post) => {
-          // Filter by author
+    allGames.forEach(game => {
+      game.timeline?.forEach(day => {
+        day.feedPosts?.forEach(post => {
           if (post.author === actorId) {
-            const postTime = new Date(post.timestamp).getTime()
+            const postDate = new Date(post.timestamp)
             posts.push({
               post,
-              gameId: g.id,
-              gameName,
-              timestampMs: postTime
+              gameId: game.id,
+              gameName: game.setup?.title || game.id,
+              timestampMs: postDate.getTime()
             })
           }
         })
       })
     })
 
-    const currentTimeAbsolute = startTime + currentTimeMs
-    return posts
-      .filter((p) => p.timestampMs <= currentTimeAbsolute)
-      .sort((a, b) => b.timestampMs - a.timestampMs)
-  }, [allGames, startTime, currentTimeMs, actorId])
+    // Sort by timestamp (newest first)
+    return posts.sort((a, b) => b.timestampMs - a.timestampMs)
+  }, [allGames, actorId])
 
-  // Filter posts by search query
+  // Filter posts up to current time
+  const visiblePosts = useMemo(() => {
+    const now = new Date().getTime()
+    return actorPosts.filter(item => item.timestampMs <= now)
+  }, [actorPosts])
+
+  // Separate posts and replies (from visible posts only)
+  const originalPosts = useMemo(() => {
+    return visiblePosts.filter(item => !item.post.replyTo)
+  }, [visiblePosts])
+
+  const replyPosts = useMemo(() => {
+    return visiblePosts.filter(item => item.post.replyTo)
+  }, [visiblePosts])
+
+  // Filter by tab
+  const tabFilteredPosts = useMemo(() => {
+    return tab === 'posts' ? originalPosts : replyPosts
+  }, [tab, originalPosts, replyPosts])
+
+  // Filter by search query
   const filteredPosts = useMemo(() => {
-    if (!searchQuery.trim()) return actorPosts
+    if (!searchQuery.trim()) return tabFilteredPosts
 
     const query = searchQuery.toLowerCase()
-    return actorPosts.filter(item =>
-      item.post.content.toLowerCase().includes(query) ||
-      item.post.authorName.toLowerCase().includes(query)
+    return tabFilteredPosts.filter(item =>
+      item.post.content.toLowerCase().includes(query)
     )
-  }, [actorPosts, searchQuery])
+  }, [tabFilteredPosts, searchQuery])
 
-  // Loading state - no games loaded yet
-  if (allGames.length === 0) {
-    return (
-      <PageContainer noPadding className="flex flex-col">
-        <div className="sticky top-0 z-10 bg-background border-b border-border">
-          <div className="px-4 py-3 flex items-center gap-4">
-            <Link
-              href="/feed"
-              className="hover:bg-muted/50 rounded-full p-2 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <h1 className="text-xl font-bold">Profile</h1>
-          </div>
-        </div>
-        <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          <p className="text-muted-foreground">No game loaded</p>
-          <Link
-            href="/game"
-            className="px-6 py-3 rounded-lg font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all"
-          >
-            Load a Game
-          </Link>
-        </div>
-      </PageContainer>
-    )
-  }
-
-  // Actor not found in loaded games
+  // Actor not found
   if (!actorInfo) {
     return (
       <PageContainer noPadding className="flex flex-col">
@@ -161,7 +124,7 @@ export default function ActorProfilePage() {
           </div>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          <p className="text-muted-foreground">Actor "{actorId}" not found in loaded games</p>
+          <p className="text-muted-foreground">Actor "{actorId}" not found</p>
           <Link
             href="/feed"
             className="px-6 py-3 rounded-lg font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all"
@@ -186,16 +149,48 @@ export default function ActorProfilePage() {
           </Link>
           <div className="flex-1">
             <h1 className="text-xl font-bold">{actorInfo.name}</h1>
-            <p className="text-sm text-muted-foreground">{actorPosts.length} posts</p>
+            <p className="text-sm text-muted-foreground">{visiblePosts.length} posts</p>
           </div>
         </div>
 
+        {/* Tabs: Posts vs Replies */}
+        <div className="flex items-center justify-around h-14 border-b border-border">
+          <button
+            onClick={() => setTab('posts')}
+            className={cn(
+              'flex-1 h-full font-semibold transition-all duration-300 relative',
+              tab === 'posts'
+                ? 'text-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+            )}
+          >
+            Posts ({originalPosts.length})
+            {tab === 'posts' && (
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
+            )}
+          </button>
+          <button
+            onClick={() => setTab('replies')}
+            className={cn(
+              'flex-1 h-full font-semibold transition-all duration-300 relative',
+              tab === 'replies'
+                ? 'text-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+            )}
+          >
+            Replies ({replyPosts.length})
+            {tab === 'replies' && (
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
+            )}
+          </button>
+        </div>
+
         {/* Search Bar */}
-        <div className="px-4 pb-3">
+        <div className="px-4 py-3">
           <SearchBar
             value={searchQuery}
             onChange={setSearchQuery}
-            placeholder="Search posts..."
+            placeholder={`Search ${tab}...`}
           />
         </div>
       </div>
@@ -205,7 +200,7 @@ export default function ActorProfilePage() {
         {/* Profile Header */}
         <div className="border-b border-border">
           <div className="max-w-[600px] mx-auto px-4 py-6">
-            <div className="flex items-start gap-4">
+            <div className="flex items-start gap-4 mb-4">
               <Avatar
                 id={actorInfo.id}
                 name={actorInfo.name}
@@ -242,12 +237,23 @@ export default function ActorProfilePage() {
             </div>
           ) : (
             filteredPosts.map((item, i) => {
-              const post = item.post
-              const postDate = new Date(post.timestamp)
+              const postDate = new Date(item.post.timestamp)
+              const now = new Date()
+              const diffMs = now.getTime() - postDate.getTime()
+              const diffMinutes = Math.floor(diffMs / 60000)
+              const diffHours = Math.floor(diffMs / 3600000)
+              const diffDays = Math.floor(diffMs / 86400000)
+
+              let timeAgo: string
+              if (diffMinutes < 1) timeAgo = 'Just now'
+              else if (diffMinutes < 60) timeAgo = `${diffMinutes}m ago`
+              else if (diffHours < 24) timeAgo = `${diffHours}h ago`
+              else if (diffDays < 7) timeAgo = `${diffDays}d ago`
+              else timeAgo = postDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
               return (
                 <article
-                  key={`${item.gameId}-${post.timestamp}-${i}`}
+                  key={`${item.post.id}-${i}`}
                   className={cn(
                     'px-4 py-3 border-b border-border',
                     'hover:bg-muted/30',
@@ -261,8 +267,8 @@ export default function ActorProfilePage() {
                     {/* Avatar */}
                     <div className="flex-shrink-0">
                       <Avatar
-                        id={post.author}
-                        name={post.authorName}
+                        id={item.post.author}
+                        name={item.post.authorName}
                         type={actorInfo.type}
                         size="lg"
                         scaleFactor={fontSize}
@@ -274,24 +280,21 @@ export default function ActorProfilePage() {
                       {/* Author and timestamp */}
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-bold text-foreground">
-                          {post.authorName}
+                          {item.post.authorName}
                         </span>
                         <span className="text-muted-foreground text-sm">·</span>
-                        <time className="text-muted-foreground text-sm">
-                          {postDate.toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric'
-                          })}
+                        <time className="text-muted-foreground text-sm" title={postDate.toLocaleString()}>
+                          {timeAgo}
                         </time>
                       </div>
 
                       {/* Post content */}
                       <div className="text-foreground leading-normal whitespace-pre-wrap break-words">
-                        {post.content}
+                        {item.post.content}
                       </div>
 
                       {/* Metadata */}
-                      {post.replyTo && (
+                      {item.post.replyTo && (
                         <div className="mt-2 text-sm text-muted-foreground flex items-center gap-1">
                           <span className="text-xs">↩️</span>
                           <span>Replying to a post</span>
@@ -300,9 +303,9 @@ export default function ActorProfilePage() {
 
                       {/* Interactions */}
                       <InteractionBar
-                        postId={`${item.gameId}-${post.author}-${post.timestamp}`}
+                        postId={`${item.gameId}-${item.post.author}-${item.post.timestamp}`}
                         initialInteractions={{
-                          postId: `${item.gameId}-${post.author}-${post.timestamp}`,
+                          postId: `${item.gameId}-${item.post.author}-${item.post.timestamp}`,
                           likeCount: 0,
                           commentCount: 0,
                           shareCount: 0,

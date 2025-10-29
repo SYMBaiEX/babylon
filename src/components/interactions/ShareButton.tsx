@@ -4,6 +4,8 @@ import { cn } from '@/lib/utils';
 import { Repeat2, X } from 'lucide-react';
 import { useState } from 'react';
 import { useInteractionStore } from '@/stores/interactionStore';
+import { useAuth } from '@/hooks/useAuth';
+import { useLoginModal } from '@/hooks/useLoginModal';
 import type { ShareButtonProps } from '@/types/interactions';
 
 const sizeClasses = {
@@ -37,6 +39,13 @@ export function ShareButton({
   const count = storeData?.shareCount ?? shareCount;
 
   const handleClick = () => {
+    if (!authenticated) {
+      showLoginModal({
+        title: 'Login to Share',
+        message: 'Connect your wallet to share posts with your followers.',
+      });
+      return;
+    }
     if (isShared) {
       // If already shared, unshare immediately
       handleShare();

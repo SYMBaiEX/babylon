@@ -422,8 +422,8 @@
       ]
     },
     {
-      "id": "naval-ravitard",
-      "name": "Naval Ravitard",
+      "id": "navel-rakiconman",
+      "name": "Navel Raviconman",
       "realName": "Naval Ravikant",
       "username": "naval",
       "nickname": "Naval",
@@ -3661,7 +3661,8 @@
         "Upgrade to ChatGPT Plus",
         "We're making AI safe and beneficial",
         "AGI is closer than you think"
-      ]
+      ],
+      "initialPrice": 450
     },
     {
       "id": "anthropimp",
@@ -3677,7 +3678,8 @@
         "We're the ethical AI company",
         "Alignment through morality",
         "Claude is helpful, harmless, and honest"
-      ]
+      ],
+      "initialPrice": 380
     },
     {
       "id": "deepmined",
@@ -3693,7 +3695,8 @@
         "DeepMind, not DeepMined",
         "We're advancing science",
         "Intelligence, artificially perfected"
-      ]
+      ],
+      "initialPrice": 320
     },
     {
       "id": "facehook",
@@ -3709,7 +3712,8 @@
         "Reels are the future",
         "Connecting people*\n\n*and selling their data",
         "Meta is committed to privacy"
-      ]
+      ],
+      "initialPrice": 520
     },
     {
       "id": "palantyrant",
@@ -3725,7 +3729,8 @@
         "AI-driven insights at scale",
         "Making the world safer through surveillance",
         "Data is power. We provide both."
-      ]
+      ],
+      "initialPrice": 45
     },
     {
       "id": "anduritalin",
@@ -3741,7 +3746,8 @@
         "AI-powered security solutions",
         "Technology defending freedom",
         "Surveillance towers operational"
-      ]
+      ],
+      "initialPrice": 28
     },
     {
       "id": "goldman-sucks",
@@ -3757,7 +3763,8 @@
         "Goldman leadership in markets",
         "Serving our clients' interests*\n\n*ours first",
         "Innovation in financial engineering"
-      ]
+      ],
+      "initialPrice": 420
     },
     {
       "id": "blackcrook",
@@ -3773,7 +3780,8 @@
         "Passive investing democratizes wealth",
         "We own your house. For your benefit.",
         "Stakeholder capitalism in action"
-      ]
+      ],
+      "initialPrice": 850
     },
     {
       "id": "faux-news",
@@ -3917,7 +3925,8 @@
         "Enterprise customers love our updates",
         "Synergy through integration",
         "Innovation in the cloud"
-      ]
+      ],
+      "initialPrice": 425
     },
     {
       "id": "conbase",
@@ -3933,7 +3942,8 @@
         "Our fees are competitive*\n\n*expensive",
         "Fighting the SEC for your freedom",
         "Crypto is the future"
-      ]
+      ],
+      "initialPrice": 180
     },
     {
       "id": "mckinscam",
@@ -3949,7 +3959,8 @@
         "Synergies identified",
         "Efficiency gains through restructuring",
         "Consulting delivered. Company destroyed."
-      ]
+      ],
+      "initialPrice": 95
     },
     {
       "id": "ai16z",
@@ -3965,7 +3976,8 @@
         "New fund announcement",
         "AI16Z leads Series A",
         "Crypto meets traditional VC"
-      ]
+      ],
+      "initialPrice": 55
     },
     {
       "id": "department-of-war",
@@ -4005,7 +4017,7 @@
       "description": "saving humanity by managing it",
       "type": "company",
       "canBeInvolved": true,
-      "postStyle": "EA parody. Longtermism justified. Saving humanity through control. Utilitarian authoritarianism. Rationalist dystopia.",
+      "postStyle": "A parody of a parody-- so... serious? Longtermism justified. Saving humanity through control. Utilitarian authoritarianism. Rationalist dystopia.",
       "postExample": [
         "Maximizing utility through control",
         "Longtermism requires management",
@@ -4013,7 +4025,8 @@
         "Authoritarianism for the greater good",
         "EA principles applied",
         "Managing human potential"
-      ]
+      ],
+      "initialPrice": 12
     },
     {
       "id": "atlantic-council-of-concern",
@@ -4029,7 +4042,8 @@
         "Think tank analysis published",
         "Influencing for democracy",
         "Transatlantic concerns addressed"
-      ]
+      ],
+      "initialPrice": 8
     },
     {
       "id": "xitter",
@@ -4045,7 +4059,8 @@
         "The platform formerly known as Twitter",
         "Elon's vision realized",
         "Freedom of reach costs extra"
-      ]
+      ],
+      "initialPrice": 42
     },
     {
       "id": "teslabot",
@@ -4061,7 +4076,8 @@
         "Semi-autonomous ethics included",
         "Model Y sales record",
         "FSD Beta improving daily"
-      ]
+      ],
+      "initialPrice": 245
     },
     {
       "id": "spacex-ploit",
@@ -4077,7 +4093,8 @@
         "Making life multi-planetary",
         "Government subsidies appreciated",
         "Landing rockets. Mind blown."
-      ]
+      ],
+      "initialPrice": 180
     },
     {
       "id": "neuralink-missing",
@@ -4093,7 +4110,8 @@
         "The monkey is fine. Probably.",
         "FDA approval expected",
         "Connect your brain to the internet"
-      ]
+      ],
+      "initialPrice": 22
     },
     {
       "id": "etherescum-foundation",
@@ -4109,7 +4127,8 @@
         "Gas fees are a feature",
         "Decentralized decision-making*\n\n*centrally planned",
         "Vitalik approves this message"
-      ]
+      ],
+      "initialPrice": 35
     },
     {
       "id": "angelfist",
@@ -4125,7 +4144,8 @@
         "Founders: Apply now",
         "Punching up. Or down. Depends.",
         "AngelList ecosystem growing"
-      ]
+      ],
+      "initialPrice": 18
     },
     {
       "id": "founders-fraud",
@@ -4141,7 +4161,8 @@
         "PayPal mafia reunites",
         "Contrarian investing wins",
         "Building the future of surveillance"
-      ]
+      ],
+      "initialPrice": 42
     },
     {
       "id": "ark-ingest",
@@ -4157,7 +4178,8 @@
         "TSLA is the future",
         "Innovation always wins",
         "ARK ETFs outperform*\n\n*eventually"
-      ]
+      ],
+      "initialPrice": 48
     },
     {
       "id": "anti-social-capital",
@@ -4173,7 +4195,8 @@
         "Portfolio rebalancing complete",
         "Inequality is the challenge",
         "SPACs democratize access"
-      ]
+      ],
+      "initialPrice": 31
     },
     {
       "id": "truth-anti-social",
@@ -4205,7 +4228,8 @@
         "NDAs ensure discretion",
         "The best properties. Believe me.",
         "Debt is leverage. Smart business."
-      ]
+      ],
+      "initialPrice": 15
     },
     {
       "id": "spotif-lie",
@@ -4221,7 +4245,8 @@
         "Podcast platform leading",
         "Algorithm recommendations improving",
         "Controversies make us stronger"
-      ]
+      ],
+      "initialPrice": 285
     },
     {
       "id": "the-daily-liar",
@@ -4253,7 +4278,8 @@
         "Hydration + energy",
         "Prime Time dominating",
         "Sold out everywhere"
-      ]
+      ],
+      "initialPrice": 22
     },
     {
       "id": "nvidiot",
@@ -4269,7 +4295,8 @@
         "CUDA cores changing everything",
         "Supply constrained excellence",
         "Ray-tracing is the future"
-      ]
+      ],
+      "initialPrice": 1250
     },
     {
       "id": "crapple",
@@ -4285,7 +4312,8 @@
         "Innovation sold separately",
         "Services revenue growing",
         "Carbon neutral*\n\n*in marketing"
-      ]
+      ],
+      "initialPrice": 225
     },
     {
       "id": "goolag",
@@ -4301,7 +4329,8 @@
         "Data privacy commitment",
         "Gemini AI announced. Again.",
         "Search ads optimized"
-      ]
+      ],
+      "initialPrice": 165
     },
     {
       "id": "microsellegy",
@@ -4317,7 +4346,8 @@
         "Saylor's vision realized",
         "BTC treasury strategy",
         "Leveraged to the max"
-      ]
+      ],
+      "initialPrice": 375
     },
     {
       "id": "glamazon",
@@ -4333,7 +4363,8 @@
         "Warehouse efficiency gains",
         "New fulfillment center",
         "One-day shipping expanding"
-      ]
+      ],
+      "initialPrice": 185
     },
     {
       "id": "blue-organ",
@@ -4349,7 +4380,8 @@
         "Blue Origin leads the way",
         "Bezos in space again",
         "Rockets for the 0.001%"
-      ]
+      ],
+      "initialPrice": 28
     },
     {
       "id": "infobores",

@@ -54,6 +54,53 @@ async function fileExists(path: string): Promise<boolean> {
   return exists(path).catch(() => false);
 }
 
+/**
+ * Map satirical organization names to their original company names
+ * for logo parody generation
+ */
+function getOriginalCompanyName(satiricalName: string, orgId: string): string {
+  const mappings: Record<string, string> = {
+    'openlie': 'OpenAI',
+    'anthropimp': 'Anthropic',
+    'deepmined': 'DeepMind',
+    'facehook': 'Facebook',
+    'palantyrant': 'Palantir',
+    'anduritalin': 'Anduril',
+    'xitter': 'Twitter/X',
+    'teslabot': 'Tesla',
+    'spacex-ploit': 'SpaceX',
+    'neuralink-missing': 'Neuralink',
+    'macrohard': 'Microsoft',
+    'goolag': 'Google',
+    'smamazon': 'Amazon',
+    'crapple': 'Apple',
+    'foxnoise': 'Fox News',
+    'msdnc': 'MSNBC',
+    'cnn-clickbait': 'CNN',
+    'washout-post': 'Washington Post',
+    'new-york-slimes': 'New York Times',
+    'the-daily-liar': 'The Daily Wire',
+    'microsellegy': 'MicroStrategy',
+    'coinbased': 'Coinbase',
+    'buy-nance': 'Binance',
+    'bitfinesse': 'Bitfinex',
+    'a16zzzz': 'Andreessen Horowitz (a16z)',
+    'y-combinator-rejects': 'Y Combinator',
+    'tesla': 'Tesla',
+    'us-congress': 'US Congress',
+    '10-drowning-street': '10 Downing Street',
+    'taxifornia': 'California',
+    'truth-anti-social': 'Truth Social',
+    'parlor-trick': 'Parler',
+    'gab-garbage': 'Gab',
+    'tucker-carlson-tonight': 'Tucker Carlson Tonight',
+    'the-joe-rogaine-experience': 'The Joe Rogan Experience',
+    'infowars': 'InfoWars',
+  };
+
+  return mappings[orgId] || satiricalName;
+}
+
 async function generateActorImage(actor: Actor): Promise<string> {
   console.log(`Generating image for ${actor.name}...`);
 
@@ -102,9 +149,13 @@ async function generateActorImage(actor: Actor): Promise<string> {
 async function generateOrganizationImage(org: Organization): Promise<string> {
   console.log(`Generating image for ${org.name}...`);
 
+  // Get the original company name for logo parody
+  const originalCompany = getOriginalCompanyName(org.name, org.id);
+
   // Load prompt template and render with variables
   const prompt = loadPrompt('image/organization-logo', {
     organizationName: org.name,
+    originalCompany,
     organizationType: org.type,
     organizationDescription: org.description
   });

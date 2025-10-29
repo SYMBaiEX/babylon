@@ -25,10 +25,19 @@ export const privyConfig = {
       theme: 'dark' as const,
       accentColor: '#1c9cf0',
       logo: '/assets/logos/logo.svg',
+      showWalletLoginFirst: true,
+      walletList: ['metamask', 'rabby_wallet', 'detected_wallets', 'rainbow', 'coinbase_wallet', 'wallet_connect'],
+      walletChainType: 'ethereum-only' as const,
     },
+    // Prioritize EVM wallet login (Metamask, Rabby, etc.)
     loginMethods: ['wallet', 'email'] as const,
     embeddedWallets: {
       createOnLogin: 'users-without-wallets' as const,
     },
+    defaultChain: selectedChain,
+    // Wallet configuration - supports all injected wallets including Rabby
+    supportedChains: [mainnet, sepolia],
+    // WalletConnect configuration for mobile wallets
+    walletConnectCloudProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
   },
 }

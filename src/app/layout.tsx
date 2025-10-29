@@ -6,7 +6,12 @@ import { BottomNav } from '@/components/shared/BottomNav'
 import { Providers } from '@/components/providers/Providers'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
+
+// Auto-start game service on server
+import '@/lib/game-service'
 import { Toaster } from 'sonner'
+import { GlobalLoginModal } from '@/components/auth/GlobalLoginModal'
+import { FeedAuthBanner } from '@/components/auth/FeedAuthBanner'
 
 export const metadata: Metadata = {
   title: 'Babylon - Prediction Market Game',
@@ -33,6 +38,7 @@ export default function RootLayout({
       <body className="antialiased bg-sidebar font-sans" suppressHydrationWarning>
         <Providers>
           <Toaster position="top-center" richColors closeButton />
+          <GlobalLoginModal />
 
           {/* Mobile Header */}
           <MobileHeader />
@@ -51,6 +57,9 @@ export default function RootLayout({
             {/* Mobile Bottom Navigation */}
             <BottomNav />
           </div>
+
+          {/* Auth Banner - shows on all pages when not authenticated */}
+          <FeedAuthBanner />
         </Providers>
       </body>
     </html>

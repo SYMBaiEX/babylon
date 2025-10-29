@@ -81,6 +81,39 @@ export interface ActorConnection {
 }
 
 /**
+ * Stock price at a specific moment
+ */
+export interface StockPrice {
+  price: number;
+  timestamp: string; // ISO timestamp
+  change: number; // Change from previous price
+  changePercent: number; // Percentage change
+}
+
+/**
+ * Price update with reason
+ */
+export interface PriceUpdate {
+  organizationId: string;
+  timestamp: string;
+  oldPrice: number;
+  newPrice: number;
+  change: number;
+  changePercent: number;
+  reason: string; // Event that caused the change
+  impact: 'major' | 'moderate' | 'minor'; // Magnitude of impact
+}
+
+/**
+ * Markov chain state for price generation
+ */
+export interface MarkovChainState {
+  trend: 'bullish' | 'bearish' | 'neutral';
+  volatility: number; // 0-1
+  momentum: number; // -1 to 1
+}
+
+/**
  * Organization entity
  */
 export interface Organization {
@@ -91,6 +124,11 @@ export interface Organization {
   canBeInvolved: boolean;
   postStyle?: string;
   postExample?: string[];
+  // Stock price fields (only for companies)
+  initialPrice?: number; // Starting price
+  currentPrice?: number; // Current price
+  priceHistory?: StockPrice[]; // Historical prices
+  markovState?: MarkovChainState; // Current market state
 }
 
 /**
@@ -150,6 +188,11 @@ export interface Question {
   scenario: number;
   outcome: boolean;
   rank: number;
+  // New fields for continuous game
+  createdDate?: string; // ISO date when question was created
+  resolutionDate?: string; // ISO date when question resolves (24h-7d from creation)
+  status?: 'active' | 'resolved' | 'cancelled'; // Question lifecycle status
+  resolvedOutcome?: boolean; // Final outcome when resolved
 }
 
 /**
@@ -240,6 +283,20 @@ export interface GameSetup {
 }
 
 /**
+ * Game state for continuous generation
+ */
+export interface GameState {
+  id: string;
+  currentDay: number;
+  currentDate: string; // ISO date
+  activeQuestions: Question[]; // Currently active questions (max 20)
+  resolvedQuestions: Question[]; // Questions that have been resolved
+  organizations: Organization[]; // Organizations with current prices
+  priceUpdates: PriceUpdate[]; // Recent price updates
+  lastGeneratedDate: string; // ISO timestamp of last generation
+}
+
+/**
  * Complete generated game
  */
 export interface GeneratedGame {
@@ -249,6 +306,8 @@ export interface GeneratedGame {
   setup: GameSetup;
   timeline: DayTimeline[];
   resolution: GameResolution;
+  // New fields for continuous game
+  gameState?: GameState; // Current game state (for continuous games)
 }
 
 /**
