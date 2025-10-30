@@ -1,11 +1,12 @@
 /**
  * API Authentication Middleware
- * 
- * Uses Privy server-side auth to verify users
+ *
+ * Supports both Privy user authentication and agent session tokens
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { PrivyClient } from '@privy-io/server-auth';
+import { verifyAgentSession } from '@/app/api/agents/auth/route';
 
 // Initialize Privy client
 const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID!;
@@ -17,10 +18,12 @@ export interface AuthenticatedUser {
   userId: string;
   walletAddress?: string;
   email?: string;
+  isAgent?: boolean;
 }
 
 /**
  * Authenticate request and return user info
+ * Supports both Privy user tokens and agent session tokens
  */
 export async function authenticate(request: NextRequest): Promise<AuthenticatedUser> {
   const authHeader = request.headers.get('authorization');
@@ -31,6 +34,16 @@ export async function authenticate(request: NextRequest): Promise<AuthenticatedU
 
   const token = authHeader.substring(7);
 
+  // Try agent session authentication first (faster)
+  const agentSession = verifyAgentSession(token);
+  if (agentSession) {
+    return {
+      userId: agentSession.agentId,
+      isAgent: true,
+    };
+  }
+
+  // Fall back to Privy user authentication
   try {
     const claims = await privy.verifyAuthToken(token);
 
@@ -38,6 +51,7 @@ export async function authenticate(request: NextRequest): Promise<AuthenticatedU
       userId: claims.userId,
       walletAddress: undefined, // Would need to fetch from Privy user
       email: undefined,
+      isAgent: false,
     };
   } catch (error) {
     console.error('Auth verification error:', error);

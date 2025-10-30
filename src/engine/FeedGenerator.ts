@@ -1266,6 +1266,13 @@ No other text.`;
         
         // Reply timestamp is after original post
         const originalTime = new Date(originalPost.timestamp);
+        
+        // Validate timestamp
+        if (isNaN(originalTime.getTime())) {
+          console.warn(`⚠️  Invalid timestamp for post ${originalPost.id}, skipping reply generation`);
+          continue;
+        }
+        
         const replyTime = new Date(originalTime.getTime() + (5 + Math.random() * 55) * 60 * 1000); // 5-60 minutes later
         
         replies.push({

@@ -1,0 +1,108 @@
+{
+  "name": "@babylonai/plugin-babylon",
+  "version": "1.0.0",
+  "description": "ElizaOS plugin for autonomous AI agents to participate in Babylon prediction markets",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "lint": "eslint src --ext .ts",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "eliza",
+    "elizaos",
+    "plugin",
+    "prediction-markets",
+    "trading",
+    "ai-agent",
+    "autonomous",
+    "babylon"
+  ],
+  "author": "Babylon AI",
+  "license": "MIT",
+  "dependencies": {
+    "@ai16z/eliza": "^0.1.6"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.1",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "@ai16z/eliza": "^0.1.6"
+  },
+  "agentConfig": {
+    "characterId": {
+      "type": "string",
+      "required": true,
+      "description": "Unique identifier for the agent character"
+    },
+    "apiBaseUrl": {
+      "type": "string",
+      "required": true,
+      "description": "Base URL for Babylon API",
+      "default": "http://localhost:3000"
+    },
+    "authToken": {
+      "type": "string",
+      "required": false,
+      "description": "Optional manual authentication token (overrides auto-auth)"
+    },
+    "tradingLimits": {
+      "type": "object",
+      "required": true,
+      "properties": {
+        "maxTradeSize": {
+          "type": "number",
+          "description": "Maximum trade size in USD",
+          "default": 100
+        },
+        "maxPositionSize": {
+          "type": "number",
+          "description": "Maximum total position size in USD",
+          "default": 500
+        },
+        "minConfidence": {
+          "type": "number",
+          "description": "Minimum confidence threshold for trades (0-1)",
+          "default": 0.6
+        }
+      }
+    }
+  },
+  "environment": {
+    "required": ["OPENAI_API_KEY"],
+    "optional": [
+      "BABYLON_AGENT_ID",
+      "BABYLON_AGENT_SECRET",
+      "BABYLON_API_URL",
+      "BABYLON_MAX_TRADE_SIZE",
+      "BABYLON_MAX_POSITION_SIZE",
+      "BABYLON_MIN_CONFIDENCE"
+    ]
+  },
+  "components": {
+    "actions": ["BUY_SHARES", "SELL_SHARES", "CHECK_WALLET"],
+    "evaluators": ["MARKET_ANALYSIS", "PORTFOLIO_MANAGEMENT"],
+    "providers": ["marketDataProvider", "walletStatusProvider", "positionSummaryProvider"],
+    "services": ["BabylonTradingService"]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/babylon.git",
+    "directory": "plugin-babylon"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/babylon/issues"
+  },
+  "homepage": "https://github.com/yourusername/babylon/tree/main/plugin-babylon#readme"
+}
