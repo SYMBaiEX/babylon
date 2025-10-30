@@ -13,12 +13,15 @@
 import { EventEmitter } from 'events';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { Prisma } from '@prisma/client';
 import { FeedGenerator } from './FeedGenerator';
 import { QuestionManager } from './QuestionManager';
 import { PriceEngine } from './PriceEngine';
 import { PerpetualsEngine } from './PerpetualsEngine';
+import { A2AGameIntegration, type A2AGameConfig } from './A2AGameIntegration';
 import { BabylonLLMClient } from '../generator/llm/openai-client';
 import { shuffleArray } from '@/shared/utils';
+import { db } from '../lib/database-service';
 import type {
   SelectedActor,
   Organization,
@@ -39,6 +42,7 @@ interface RealtimeConfig {
   postsPerTick?: number;
   historyDays?: number;
   savePath?: string;
+  a2a?: A2AGameConfig;
 }
 
 interface MinuteTick {
@@ -58,14 +62,15 @@ export class RealtimeGameEngine extends EventEmitter {
   private questionManager: QuestionManager;
   private priceEngine: PriceEngine;
   private perpsEngine: PerpetualsEngine;
-  
+  private a2aIntegration: A2AGameIntegration;
+
   private actors: SelectedActor[] = [];
   private organizations: Organization[] = [];
   private scenarios: Scenario[] = [];
   private questions: Question[] = [];
   private connections: ActorConnection[] = [];
   private groupChats: GroupChat[] = [];
-  
+
   private recentTicks: MinuteTick[] = [];
   private isRunning = false;
   private intervalId?: NodeJS.Timeout;
@@ -74,14 +79,18 @@ export class RealtimeGameEngine extends EventEmitter {
   private luckMood: Map<string, { luck: string; mood: number }> = new Map();
   private lastDailySnapshot: string = new Date().toISOString().split('T')[0]!;
 
+  private static readonly GAME_START_DATE = new Date('2025-10-01T00:00:00Z');
+  private static readonly GAME_ID = 'realtime';
+
   constructor(config?: RealtimeConfig) {
     super();
-    
+
     this.config = {
       tickIntervalMs: config?.tickIntervalMs || 60000,
       postsPerTick: config?.postsPerTick || 15,
       historyDays: config?.historyDays || 30,
       savePath: config?.savePath || join(process.cwd(), 'games', 'realtime'),
+      a2a: config?.a2a,
     };
 
     this.llm = new BabylonLLMClient();
@@ -89,6 +98,7 @@ export class RealtimeGameEngine extends EventEmitter {
     this.questionManager = new QuestionManager(this.llm);
     this.priceEngine = new PriceEngine(Date.now());
     this.perpsEngine = new PerpetualsEngine();
+    this.a2aIntegration = new A2AGameIntegration(config?.a2a);
   }
 
   async initialize(): Promise<void> {
@@ -108,6 +118,8 @@ export class RealtimeGameEngine extends EventEmitter {
     this.perpsEngine.initializeMarkets(this.organizations);
     const companies = this.organizations.filter(o => o.type === 'company');
     console.log(`  ✓ Initialized ${companies.length} company prices\n`);
+
+    await this.syncDatabaseState();
 
     console.log('📝 Generating scenarios...');
     this.scenarios = await this.generateScenarios();
@@ -133,9 +145,18 @@ export class RealtimeGameEngine extends EventEmitter {
       console.log(`  ✓ Generated ${newQuestions.length} questions\n`);
     }
 
+    // Initialize A2A integration
+    await this.a2aIntegration.initialize();
+
     console.log('✅ ENHANCED ENGINE READY');
     console.log('========================');
-    console.log(`Active Questions: ${this.questions.filter(q => q.status === 'active').length}\n`);
+    console.log(`Active Questions: ${this.questions.filter(q => q.status === 'active').length}`);
+    const a2aStatus = this.a2aIntegration.getStatus();
+    if (a2aStatus.enabled) {
+      console.log(`A2A Server: Enabled (port ${this.config.a2a?.port || 8080})\n`);
+    } else {
+      console.log('A2A Server: Disabled\n');
+    }
   }
 
   start(): void {
@@ -160,7 +181,7 @@ export class RealtimeGameEngine extends EventEmitter {
     this.emit('started');
   }
 
-  stop(): void {
+  async stop(): Promise<void> {
     if (!this.isRunning) return;
 
     if (this.intervalId) clearInterval(this.intervalId);
@@ -169,6 +190,10 @@ export class RealtimeGameEngine extends EventEmitter {
 
     this.isRunning = false;
     this.saveState();
+
+    // Shutdown A2A integration
+    await this.a2aIntegration.shutdown();
+
     this.emit('stopped');
   }
 
@@ -255,7 +280,26 @@ export class RealtimeGameEngine extends EventEmitter {
         this.recentTicks = this.recentTicks.slice(-maxTicks);
       }
 
+      await this.persistTickData(tick).catch(error => {
+        console.error('  ❌ Failed to persist tick data:', error);
+      });
+
       this.emit('tick', tick);
+
+      // Broadcast market data to A2A agents
+      if (this.a2aIntegration.getStatus().enabled) {
+        this.a2aIntegration.broadcastMarketData(this.questions, priceUpdates);
+
+        // Broadcast significant events
+        for (const event of events) {
+          this.a2aIntegration.broadcastGameEvent({
+            type: event.type,
+            description: event.description,
+            relatedQuestion: event.relatedQuestion,
+            timestamp: Date.now(),
+          });
+        }
+      }
 
       if (this.recentTicks.length % 10 === 0) {
         this.saveState();
@@ -834,6 +878,154 @@ OUTPUT JSON:
     }
   }
 
+  private async syncDatabaseState(): Promise<void> {
+    console.log('💾 Syncing engine state to database...');
+    try {
+      const gameState = await db.getGameState();
+      if (!gameState) {
+        await db.initializeGame();
+      }
+    } catch (error) {
+      console.error('⚠️  Failed to ensure game state exists:', error);
+    }
+
+    await Promise.allSettled(
+      this.actors.map(async (actor) => {
+        try {
+          await db.upsertActor(actor as any);
+        } catch (error) {
+          console.error(`⚠️  Failed to sync actor ${actor.id}:`, error);
+        }
+      })
+    );
+
+    await Promise.allSettled(
+      this.organizations.map(async (org) => {
+        try {
+          await db.upsertOrganization(org as any);
+        } catch (error) {
+          console.error(`⚠️  Failed to sync organization ${org.id}:`, error);
+        }
+      })
+    );
+  }
+
+  private getGameDayNumber(date: Date): number {
+    const diff = date.getTime() - RealtimeGameEngine.GAME_START_DATE.getTime();
+    if (diff <= 0) return 0;
+    const dayMs = 24 * 60 * 60 * 1000;
+    return Math.floor(diff / dayMs);
+  }
+
+  private async persistTickData(tick: MinuteTick): Promise<void> {
+    const tickDate = new Date(tick.timestamp);
+    const dayNumber = this.getGameDayNumber(tickDate);
+
+    if (tick.posts.length > 0) {
+      await db.createManyPosts(
+        tick.posts.map((post) => ({
+          ...post,
+          gameId: RealtimeGameEngine.GAME_ID,
+          dayNumber,
+        }))
+      );
+    }
+
+    if (tick.events.length > 0) {
+      for (const event of tick.events) {
+        try {
+          await db.createEvent({
+            id: event.id,
+            eventType: event.type,
+            description: event.description,
+            actors: event.actors,
+            relatedQuestion: typeof event.relatedQuestion === 'number' ? event.relatedQuestion : undefined,
+            pointsToward: event.pointsToward ?? undefined,
+            visibility: event.visibility,
+            gameId: RealtimeGameEngine.GAME_ID,
+            dayNumber,
+          });
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2002'
+          ) {
+            // Duplicate event, skip
+            continue;
+          }
+          throw error;
+        }
+      }
+    }
+
+    if (tick.priceUpdates.length > 0) {
+      await Promise.allSettled(
+        tick.priceUpdates.map(async (update) => {
+          try {
+            await db.updateOrganizationPrice(update.organizationId, update.newPrice);
+          } catch (error) {
+            if (
+              error instanceof Prisma.PrismaClientKnownRequestError &&
+              error.code === 'P2025'
+            ) {
+              const org = this.organizations.find((o) => o.id === update.organizationId);
+              if (org) {
+                try {
+                  await db.upsertOrganization(org as any);
+                  await db.updateOrganizationPrice(update.organizationId, update.newPrice);
+                  return;
+                } catch (nestedError) {
+                  console.error(`⚠️  Failed to upsert organization ${update.organizationId}:`, nestedError);
+                }
+              }
+            }
+            console.error(`⚠️  Failed to update price for ${update.organizationId}:`, error);
+          }
+
+          try {
+            await db.recordPriceUpdate(
+              update.organizationId,
+              update.newPrice,
+              update.change,
+              update.changePercent
+            );
+          } catch (error) {
+            if (
+              error instanceof Prisma.PrismaClientKnownRequestError &&
+              error.code === 'P2003'
+            ) {
+              const org = this.organizations.find((o) => o.id === update.organizationId);
+              if (org) {
+                try {
+                  await db.upsertOrganization(org as any);
+                  await db.recordPriceUpdate(
+                    update.organizationId,
+                    update.newPrice,
+                    update.change,
+                    update.changePercent
+                  );
+                  return;
+                } catch (nestedError) {
+                  console.error(`⚠️  Failed to reconcile price update for ${update.organizationId}:`, nestedError);
+                }
+              }
+            }
+            console.error(`⚠️  Failed to record price update for ${update.organizationId}:`, error);
+          }
+        })
+      );
+    }
+
+    try {
+      await db.updateGameState({
+        lastTickAt: tickDate,
+        activeQuestions: this.questions.filter((q) => q.status === 'active').length,
+      });
+    } catch (error) {
+      console.error('⚠️  Failed to update game state metadata:', error);
+    }
+  }
+
   private saveState(): void {
     if (!existsSync(this.config.savePath)) {
       mkdirSync(this.config.savePath, { recursive: true });
@@ -979,4 +1171,3 @@ OUTPUT JSON:
       .flatMap(t => t.groupChatMessages[chatId] || []);
   }
 }
-

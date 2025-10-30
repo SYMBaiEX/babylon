@@ -1,5 +1,5 @@
 import { usePrivy, useWallets, type User, type ConnectedWallet } from '@privy-io/react-auth'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 
 interface UseAuthReturn {
@@ -10,6 +10,10 @@ interface UseAuthReturn {
   login: () => void
   logout: () => Promise<void>
 }
+
+const loadedProfileUsers = new Set<string>()
+const checkedNewUserUsers = new Set<string>()
+let lastSyncedWalletAddress: string | null = null
 
 export function useAuth(): UseAuthReturn {
   const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy()
@@ -24,7 +28,7 @@ export function useAuth(): UseAuthReturn {
     setIsLoadingProfile
   } = useAuthStore()
 
-  const wallet = wallets[0] // Get first connected wallet
+  const wallet = useMemo(() => wallets[0], [wallets]) // Get first connected wallet
 
   // Store access token globally for API calls
   useEffect(() => {
@@ -53,98 +57,94 @@ export function useAuth(): UseAuthReturn {
 
   // Sync Privy state with Zustand store and check for new users
   useEffect(() => {
-    if (authenticated && user) {
-      const walletAddress = wallet?.address
-      const walletChainId = wallet?.chainId
+    if (!authenticated || !user) {
+      loadedProfileUsers.clear()
+      checkedNewUserUsers.clear()
+      lastSyncedWalletAddress = null
+      clearAuth()
+      return
+    }
 
-      if (walletAddress && walletChainId) {
-        setWallet({
-          address: walletAddress,
-          chainId: walletChainId,
-        })
+    if (wallet && lastSyncedWalletAddress !== wallet.address) {
+      lastSyncedWalletAddress = wallet.address
+      setWallet({
+        address: wallet.address,
+        chainId: wallet.chainId,
+      })
+    }
+
+    const loadUserProfile = async () => {
+      try {
+        const response = await fetch(`/api/users/${user.id}/profile`)
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data?.error || 'Failed to load user profile')
+        }
+
+        if (data.user) {
+          setUser({
+            id: user.id,
+            walletAddress: wallet?.address,
+            displayName: data.user.displayName || user.email?.address || wallet?.address || 'Anonymous',
+            email: user.email?.address,
+            username: data.user.username,
+            bio: data.user.bio,
+            profileImageUrl: data.user.profileImageUrl,
+            profileComplete: data.user.profileComplete,
+          })
+          return
+        }
+      } catch (error) {
+        console.error('Error loading user profile:', error)
       }
 
-      // Skip if we've already loaded this user's profile OR if already loading
-      if (loadedUserId === user.id || isLoadingProfile) {
-        return
-      }
+      // Fallback if profile fetch fails
+      setUser({
+        id: user.id,
+        walletAddress: wallet?.address,
+        displayName: user.email?.address || wallet?.address || 'Anonymous',
+        email: user.email?.address,
+      })
+    }
 
-      // Mark as loading to prevent duplicate fetches across all components
-      setIsLoadingProfile(true)
-      setLoadedUserId(user.id)
-
-      // Fetch complete user profile from database
-      const loadUserProfile = async () => {
-        fetch(`/api/users/${user.id}/profile`)
-          .then(res => res.json())
-          .then(data => {
-            if (data.user) {
-              setUser({
-                id: user.id,
-                walletAddress: walletAddress,
-                displayName: data.user.displayName || user.email?.address || walletAddress || 'Anonymous',
-                email: user.email?.address,
-                username: data.user.username,
-                bio: data.user.bio,
-                profileImageUrl: data.user.profileImageUrl,
-                profileComplete: data.user.profileComplete,
-              })
-            } else {
-              // Fallback if profile fetch fails
-              setUser({
-                id: user.id,
-                walletAddress: walletAddress,
-                displayName: user.email?.address || walletAddress || 'Anonymous',
-                email: user.email?.address,
-              })
-            }
-          })
-          .catch(err => {
-            console.error('Error loading user profile:', err)
-            // Fallback if profile fetch fails
-            setUser({
-              id: user.id,
-              walletAddress: walletAddress,
-              displayName: user.email?.address || walletAddress || 'Anonymous',
-              email: user.email?.address,
-            })
-          })
-          .finally(() => {
-            // Mark loading as complete
-            setIsLoadingProfile(false)
-          })
-      }
-
-      // Check if new user and redirect to profile setup
-      const checkNewUser = async () => {
+    const checkNewUser = async () => {
+      try {
         const token = await getAccessToken()
         if (!token) return // Skip if no token
 
         const response = await fetch(`/api/users/${user.id}/is-new`, {
           headers: {
-            'Authorization': `Bearer ${token}`
-          }
+            'Authorization': `Bearer ${token}`,
+          },
         })
-        if (response.ok) {
-          const data = await response.json()
-          if (data.needsSetup && typeof window !== 'undefined') {
-            // Redirect to profile setup
-            const currentPath = window.location.pathname
-            if (currentPath !== '/profile/setup') {
-              window.location.href = '/profile/setup'
-            }
+
+        if (!response.ok) {
+          throw new Error('Failed to check new user status')
+        }
+
+        const data = await response.json()
+        if (data.needsSetup && typeof window !== 'undefined') {
+          const currentPath = window.location.pathname
+          if (currentPath !== '/profile/setup') {
+            window.location.href = '/profile/setup'
           }
         }
+      } catch (error) {
+        console.error('Error checking new user status:', error)
       }
-
-      loadUserProfile()
-      checkNewUser()
-    } else {
-      clearAuth()
     }
-    // Only run when authenticated state or user.id changes, not on every wallet update
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authenticated, user?.id])
+
+    if (!loadedProfileUsers.has(user.id)) {
+      loadedProfileUsers.add(user.id)
+      void loadUserProfile()
+    }
+
+    if (!checkedNewUserUsers.has(user.id)) {
+      checkedNewUserUsers.add(user.id)
+      void checkNewUser()
+    }
+  }, [authenticated, user, wallet, setUser, setWallet, clearAuth, getAccessToken])
 
   // Wrap logout to ensure all state is cleared
   const handleLogout = async () => {

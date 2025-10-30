@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useGameStore } from '@/stores/gameStore'
 import Link from 'next/link'
 import { FeedToggle } from '@/components/shared/FeedToggle'
@@ -12,14 +12,20 @@ import { cn } from '@/lib/utils'
 import { useFontSize } from '@/contexts/FontSizeContext'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
 
+const PAGE_SIZE = 20
+
 export default function FeedPage() {
   const [tab, setTab] = useState<'latest' | 'following'>('latest')
   const [searchQuery, setSearchQuery] = useState('')
   const [posts, setPosts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [offset, setOffset] = useState(0)
   const [followingPosts, setFollowingPosts] = useState<any[]>([])
   const [loadingFollowing, setLoadingFollowing] = useState(false)
   const { fontSize } = useFontSize()
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
   // Game timeline state (viewer-style)
   const { allGames, startTime, currentTimeMs } = useGameStore()
@@ -28,28 +34,102 @@ export default function FeedPage() {
   // Enable error toast notifications
   useErrorToasts()
 
-  // Load posts from database API
-  useEffect(() => {
-    const loadPosts = async () => {
-      try {
-        const response = await fetch('/api/posts?limit=500')
-        if (response.ok) {
-          const data = await response.json()
-          setPosts(data.posts || [])
-        }
-      } catch (error) {
-        console.error('Failed to load posts:', error)
-      } finally {
-        setLoading(false)
+  const fetchLatestPosts = useCallback(async (requestOffset: number, append = false) => {
+    if (tab !== 'latest') return
+
+    if (append) setLoadingMore(true)
+    else setLoading(true)
+
+    try {
+      const response = await fetch(`/api/posts?limit=${PAGE_SIZE}&offset=${requestOffset}`)
+      if (!response.ok) {
+        if (append) setHasMore(false)
+        return
       }
+
+      const data = await response.json()
+      const newPosts = Array.isArray(data.posts) ? data.posts : []
+      const total = typeof data.total === 'number' ? data.total : undefined
+
+      let uniqueAdded = 0
+
+      setPosts(prev => {
+        const prevSize = prev.length
+        const combined = append ? [...prev, ...newPosts] : [...newPosts, ...prev]
+        const unique = new Map<string, any>()
+        combined.forEach(post => {
+          if (post?.id) {
+            unique.set(post.id, post)
+          }
+        })
+
+        const deduped = Array.from(unique.values()).sort((a, b) => {
+          const aTime = new Date(a.timestamp ?? a.createdAt ?? 0).getTime()
+          const bTime = new Date(b.timestamp ?? b.createdAt ?? 0).getTime()
+          return bTime - aTime
+        })
+
+        uniqueAdded = deduped.length - prevSize
+        setOffset(deduped.length)
+        return deduped
+      })
+
+      if (append && uniqueAdded === 0) {
+        setHasMore(false)
+        return
+      }
+
+      const moreAvailable =
+        newPosts.length === PAGE_SIZE &&
+        (total === undefined || requestOffset + newPosts.length < total)
+
+      if (!append && newPosts.length === 0 && requestOffset === 0) {
+        setHasMore(false)
+      } else {
+        setHasMore(moreAvailable)
+      }
+    } catch (error) {
+      console.error('Failed to load posts:', error)
+      if (append) setHasMore(false)
+    } finally {
+      if (append) setLoadingMore(false)
+      else setLoading(false)
     }
+  }, [tab])
 
-    loadPosts()
+  // Initial load for latest tab
+  useEffect(() => {
+    fetchLatestPosts(0, false)
+  }, [fetchLatestPosts])
 
-    // Refresh every 30 seconds
-    const interval = setInterval(loadPosts, 30000)
-    return () => clearInterval(interval)
-  }, [])
+  // Infinite scroll observer for latest tab
+  useEffect(() => {
+    if (tab !== 'latest') return
+
+    const target = loadMoreRef.current
+    if (!target) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (
+          entry?.isIntersecting &&
+          hasMore &&
+          !loading &&
+          !loadingMore &&
+          !searchQuery.trim()
+        ) {
+          void fetchLatestPosts(offset, true)
+        }
+      },
+      { rootMargin: '200px' }
+    )
+
+    observer.observe(target)
+    return () => {
+      observer.disconnect()
+    }
+  }, [tab, hasMore, loading, loadingMore, searchQuery, offset, fetchLatestPosts])
 
   // Fetch following posts when following tab is active
   useEffect(() => {
@@ -245,8 +325,7 @@ export default function FeedPage() {
           // Show posts - Twitter-like layout
           <div className="max-w-[600px] mx-auto">
             {filteredPosts.map((post: any, i: number) => {
-              console.log('post', JSON.stringify(post, null, 2))
-              const postDate = new Date(post.timestamp)
+              const postDate = new Date(post.timestamp ?? post.createdAt ?? Date.now())
               const now = new Date()
               const diffMs = now.getTime() - postDate.getTime()
               const diffMinutes = Math.floor(diffMs / 60000)
@@ -339,6 +418,21 @@ export default function FeedPage() {
                 </article>
               )
             })}
+            {tab === 'latest' && (
+              <>
+                <div ref={loadMoreRef} className="h-1 w-full" />
+                {loadingMore && (
+                  <div className="py-4 text-center text-sm text-muted-foreground">
+                    Loading more posts...
+                  </div>
+                )}
+                {!loadingMore && !hasMore && posts.length > 0 && (
+                  <div className="py-4 text-center text-xs text-muted-foreground">
+                    You&apos;re all caught up.
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>

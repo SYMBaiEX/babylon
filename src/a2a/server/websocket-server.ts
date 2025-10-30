@@ -373,15 +373,44 @@ export class A2AWebSocketServer extends EventEmitter {
   // Close server
   public async close(): Promise<void> {
     return new Promise((resolve) => {
-      // Close all connections
+      // Close all connections first
+      const closePromises: Promise<void>[] = []
+
       for (const connection of this.connections.values()) {
-        connection.ws.close(1001, 'Server shutting down')
+        const closePromise = new Promise<void>((resolveClose) => {
+          if (connection.ws.readyState === WebSocket.CLOSED) {
+            resolveClose()
+            return
+          }
+
+          connection.ws.once('close', () => resolveClose())
+          connection.ws.close(1001, 'Server shutting down')
+
+          // Timeout after 500ms
+          setTimeout(() => resolveClose(), 500)
+        })
+        closePromises.push(closePromise)
       }
 
-      // Close server
-      this.wss.close(() => {
-        this.logger.info('A2A WebSocket server closed')
-        resolve()
+      // Wait for all connections to close, then close server
+      Promise.all(closePromises).then(() => {
+        this.connections.clear()
+
+        // Set a timeout in case wss.close() never calls callback
+        const timeout = setTimeout(() => {
+          this.logger.info('A2A WebSocket server closed (forced)')
+          resolve()
+        }, 2000)
+
+        this.wss.close((err) => {
+          clearTimeout(timeout)
+          if (err) {
+            this.logger.error('Error closing WebSocket server:', err)
+          } else {
+            this.logger.info('A2A WebSocket server closed')
+          }
+          resolve()
+        })
       })
     })
   }

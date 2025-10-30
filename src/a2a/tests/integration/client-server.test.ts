@@ -53,7 +53,7 @@ describe('Client-Server Integration', () => {
 
   afterEach(async () => {
     if (client.isConnected()) {
-      client.disconnect()
+      await client.disconnect()
     }
     await server.close()
     await new Promise(resolve => setTimeout(resolve, 100))

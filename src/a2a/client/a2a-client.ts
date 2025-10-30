@@ -50,7 +50,10 @@ export class A2AClient extends EventEmitter {
     return new Promise((resolve, reject) => {
       this.ws = new WebSocket(this.config.endpoint)
 
+      let connectionEstablished = false
+
       this.ws.on('open', async () => {
+        connectionEstablished = true
         try {
           await this.performHandshake()
           this.setupHeartbeat()
@@ -69,7 +72,13 @@ export class A2AClient extends EventEmitter {
       })
 
       this.ws.on('error', (error) => {
-        this.emit('error', error)
+        // If connection was never established, reject the connect() promise
+        if (!connectionEstablished) {
+          reject(error)
+        } else {
+          // Only emit error event if connection was already established
+          this.emit('error', error)
+        }
       })
     })
   }
@@ -347,14 +356,27 @@ export class A2AClient extends EventEmitter {
 
   // ==================== Connection Management ====================
 
-  disconnect(): void {
+  async disconnect(): Promise<void> {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null
     }
 
     if (this.ws) {
-      this.ws.close()
+      // Wait for the WebSocket to actually close
+      await new Promise<void>((resolve) => {
+        if (this.ws!.readyState === WebSocket.CLOSED) {
+          resolve()
+          return
+        }
+
+        this.ws!.once('close', () => resolve())
+        this.ws!.close()
+
+        // Timeout after 1 second to prevent hanging
+        setTimeout(() => resolve(), 1000)
+      })
+
       this.ws = null
     }
   }

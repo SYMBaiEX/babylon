@@ -12,8 +12,21 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '100');
     const offset = parseInt(searchParams.get('offset') || '0');
-    const actorId = searchParams.get('actorId');
-    
+    const actorId = searchParams.get('actorId') || undefined;
+
+    // Prefer realtime history when available
+    const realtimeResult = await gameService.getRealtimePosts(limit, offset, actorId || undefined);
+    if (realtimeResult && realtimeResult.posts.length > 0) {
+      return NextResponse.json({
+        success: true,
+        posts: realtimeResult.posts,
+        total: realtimeResult.total,
+        limit,
+        offset,
+        source: 'realtime',
+      });
+    }
+
     let posts;
     
     if (actorId) {
@@ -39,4 +52,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

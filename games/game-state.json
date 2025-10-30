@@ -1,0 +1,61 @@
+{
+  "id": "babylon-continuous-1761801459174",
+  "currentDay": 1,
+  "currentDate": "2025-11-02",
+  "activeQuestions": [
+    {
+      "id": 1,
+      "text": "Will Nancy Ponzi propose legislation to regulate blockchain-backed beverages within the next 2 days?",
+      "scenario": 1,
+      "outcome": false,
+      "rank": 1,
+      "createdDate": "2025-11-01",
+      "resolutionDate": "2025-11-03",
+      "status": "active"
+    },
+    {
+      "id": 2,
+      "text": "Will Palantyrant be shut down by regulators within 5 days?",
+      "scenario": 2,
+      "outcome": true,
+      "rank": 1,
+      "createdDate": "2025-11-01",
+      "resolutionDate": "2025-11-06",
+      "status": "active"
+    },
+    {
+      "id": 3,
+      "text": "Will Sugar Water Scam Co.'s stock price reach $10 within 7 days?",
+      "scenario": 1,
+      "outcome": false,
+      "rank": 1,
+      "createdDate": "2025-11-01",
+      "resolutionDate": "2025-11-08",
+      "status": "active"
+    },
+    {
+      "id": 4,
+      "text": "Will Mitch McConman's wife's shipping company secure a major government contract for space exploration within 7 days?",
+      "scenario": 1,
+      "outcome": false,
+      "rank": 1,
+      "createdDate": "2025-11-02",
+      "resolutionDate": "2025-11-07",
+      "status": "active"
+    },
+    {
+      "id": 5,
+      "text": "Will Logan Pawl's Sugar Water Scam Co. face a class-action lawsuit related to its blockchain-backed beverage partnership within 5 days?",
+      "scenario": 1,
+      "outcome": true,
+      "rank": 1,
+      "createdDate": "2025-11-02",
+      "resolutionDate": "2025-11-04",
+      "status": "active"
+    }
+  ],
+  "resolvedQuestions": [],
+  "organizations": [],
+  "priceUpdates": [],
+  "lastGeneratedDate": "2025-10-30T05:19:25.527Z"
+}
