@@ -709,8 +709,22 @@ export class ContinuousGameGenerator {
       this.feedGenerator.setActorGroupContexts(actorGroupContexts);
     }
 
-    // Generate feed posts from events
+    // Generate day transition post (days 2+)
     const feedPosts: FeedPost[] = [];
+    if (day > 1 && previousDays.length > 0) {
+      const previousDayEvents = previousDays[previousDays.length - 1]?.events || [];
+      const transitionPost = await this.feedGenerator.generateDayTransitionPost(
+        day,
+        previousDayEvents,
+        questions,
+        actors
+      );
+      if (transitionPost) {
+        feedPosts.push(transitionPost);
+      }
+    }
+
+    // Generate feed posts from events
     const eventFeedPosts = await this.feedGenerator.generateDayFeed(day, events, actors, true);
     feedPosts.push(...eventFeedPosts);
 

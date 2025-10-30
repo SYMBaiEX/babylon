@@ -1192,8 +1192,22 @@ Otherwise, start fresh.`;
     this.feedGenerator.setRelationships(connections);
     this.feedGenerator.setActorGroupContexts(actorGroupContextMap);
 
-    // Generate feed posts from events
+    // Generate day transition post (days 2+)
     const feedPosts: FeedPost[] = [];
+    if (day > 1 && previousDays.length > 0) {
+      const previousDayEvents = previousDays[previousDays.length - 1]?.events || [];
+      const transitionPost = await this.feedGenerator.generateDayTransitionPost(
+        day,
+        previousDayEvents,
+        questions,
+        allActors
+      );
+      if (transitionPost) {
+        feedPosts.push(transitionPost);
+      }
+    }
+
+    // Generate feed posts from events
     const eventFeedPosts = await this.feedGenerator.generateDayFeed(
       day,
       events.map(e => ({

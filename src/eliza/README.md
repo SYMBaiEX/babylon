@@ -38,7 +38,7 @@ src/eliza/
 └── characters/
     └── alice-trader.json        # Character definition
 
-plugin-prediction-markets/        # Standalone ElizaOS plugin
+plugin-babylon/                   # Standalone ElizaOS plugin
 ├── src/
 │   ├── actions/                 # Trading actions
 │   ├── evaluators/              # Market analysis

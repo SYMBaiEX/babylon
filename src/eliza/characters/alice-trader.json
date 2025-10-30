@@ -79,7 +79,7 @@
     ]
   },
   "clients": ["babylon"],
-  "plugins": ["prediction-markets"],
+  "plugins": ["babylon"],
   "modelProvider": "openai",
   "settings": {
     "secrets": {

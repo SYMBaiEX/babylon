@@ -1,5 +1,5 @@
 /**
- * @babylonai/plugin-prediction-markets
+ * @babylonai/plugin-babylon
  *
  * ElizaOS plugin for autonomous AI agents to participate in Babylon prediction markets
  *
@@ -9,7 +9,7 @@
  * - Multiple strategies: Momentum, contrarian, volume-based trading
  * - Real-time data: Market prices, wallet balance, position tracking
  *
- * @module @babylonai/plugin-prediction-markets
+ * @module @babylonai/plugin-babylon
  */
 
 import type { Plugin } from '@ai16z/eliza';
@@ -41,7 +41,7 @@ export * from './environment';
  *
  * @example
  * ```typescript
- * import { predictionMarketsPlugin } from '@babylonai/plugin-prediction-markets';
+ * import { predictionMarketsPlugin } from '@babylonai/plugin-babylon';
  *
  * const runtime = new AgentRuntime({
  *   character,
@@ -51,7 +51,7 @@ export * from './environment';
  * ```
  */
 export const predictionMarketsPlugin: Plugin = {
-  name: 'prediction-markets',
+  name: 'babylon',
   description: 'Participate in Babylon prediction markets with autonomous trading, portfolio management, and risk assessment',
   actions: babylonGameActions,
   evaluators: babylonGameEvaluators,
