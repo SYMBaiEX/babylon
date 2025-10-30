@@ -231,7 +231,7 @@ export class FeedGenerator extends EventEmitter {
     // 2. INVOLVED PARTIES REACT - BATCHED
     const involvedActors = worldEvent.actors
       .map(id => allActors.find(a => a.id === id))
-      .filter((a): a is Actor => a !== undefined && (a.canPostFeed || a.canPostFeed === undefined));
+      .filter((a): a is Actor => a !== undefined);
 
     if (involvedActors.length > 0) {
       // ✅ BATCH: All reactions in ONE call - can now see previous media posts
@@ -1455,12 +1455,11 @@ export class FeedGenerator extends EventEmitter {
 
     // DENSE CONTENT: Each actor posts 1-20 times per hour
     // Generate posts for all 24 hours of the day
-    const postingActors = allActors.filter(a => a.canPostFeed !== false);
     
     // For each hour of the day, select random actors to post
     for (let hour = 0; hour < 24; hour++) {
       // Each hour, 10-30% of actors post (1-20 posts per actor per hour achieved through probability)
-      const actorsThisHour = shuffleArray(postingActors).slice(0, Math.floor(postingActors.length * (0.1 + Math.random() * 0.2)));
+      const actorsThisHour = shuffleArray(allActors).slice(0, Math.floor(allActors.length * (0.1 + Math.random() * 0.2)));
       
       if (actorsThisHour.length === 0) continue;
 
@@ -1507,7 +1506,7 @@ export class FeedGenerator extends EventEmitter {
       // Select 1-3 actors to reply
       const replyCount = 1 + Math.floor(Math.random() * 3);
       const replyingActors = shuffleArray(
-        allActors.filter(a => a.id !== originalPost.author && a.canPostFeed !== false)
+        allActors.filter(a => a.id !== originalPost.author)
       ).slice(0, replyCount);
       
       for (const actor of replyingActors) {
@@ -1696,7 +1695,7 @@ export class FeedGenerator extends EventEmitter {
 
     // 1-3 people reply
     const postingActors = allActors.filter(a =>
-      a.canPostFeed !== false && a.id !== originalPost.author
+      a.id !== originalPost.author
     );
     const repliers = shuffleArray(postingActors).slice(0, 1 + Math.floor(Math.random() * 3));
     

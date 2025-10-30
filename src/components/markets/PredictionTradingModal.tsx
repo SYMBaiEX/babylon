@@ -5,7 +5,7 @@ import { X, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
-import { PredictionPricing } from '@/lib/prediction-pricing'
+import { PredictionPricing, calculateExpectedPayout } from '@/lib/prediction-pricing'
 
 interface PredictionMarket {
   id: number
@@ -54,7 +54,7 @@ export function PredictionTradingModal({
     : null
 
   const expectedPayout = calculation
-    ? PredictionPricing.calculateExpectedPayout(calculation.sharesBought)
+    ? calculateExpectedPayout(calculation.sharesBought)
     : 0
   const expectedProfit = expectedPayout - amountNum
 

@@ -11,7 +11,7 @@ import {
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
-import { getRealtimeEngine } from '@/api/realtime';
+import { getPerpsEngine } from '@/lib/perps-service';
 import { WalletService } from '@/services/WalletService';
 
 const prisma = new PrismaClient();
@@ -53,9 +53,7 @@ export async function POST(
     }
 
     // 5. Close position via engine
-    const engine = getRealtimeEngine();
-    const perpsEngine = engine.getPerpsEngine();
-    
+    const perpsEngine = getPerpsEngine();
     const { position, realizedPnL } = perpsEngine.closePosition(positionId);
 
     // 6. Calculate final settlement

@@ -167,20 +167,23 @@ export default function FeedPage() {
 
       {/* Content area */}
       <div className="flex-1 overflow-y-auto bg-background">
-        {filteredPosts.length === 0 && !searchQuery && tab === 'latest' ? (
+        {loading ? (
+          <div className="max-w-2xl mx-auto p-8 text-center">
+            <div className="text-muted-foreground py-12">
+              <p>Loading posts...</p>
+            </div>
+          </div>
+        ) : filteredPosts.length === 0 && !searchQuery && tab === 'latest' ? (
           // No posts yet
           <div className="max-w-2xl mx-auto p-8 text-center">
             <div className="text-muted-foreground py-12">
               <h2 className="text-2xl font-bold mb-2 text-foreground">No Posts Yet</h2>
               <p className="mb-4">
-                Game is auto-generating in the background...
+                Engine is generating posts...
               </p>
               <div className="text-sm text-muted-foreground space-y-2">
-                <p>This happens automatically on first run.</p>
-                <p>Check the terminal logs for progress.</p>
-                <p className="font-mono text-xs bg-muted p-2 rounded">
-                  First generation takes 3-5 minutes
-                </p>
+                <p>Check terminal for tick logs.</p>
+                <p>Posts appear within 60 seconds.</p>
               </div>
             </div>
           </div>
@@ -242,6 +245,7 @@ export default function FeedPage() {
           // Show posts - Twitter-like layout
           <div className="max-w-[600px] mx-auto">
             {filteredPosts.map((post: any, i: number) => {
+              console.log('post', JSON.stringify(post, null, 2))
               const postDate = new Date(post.timestamp)
               const now = new Date()
               const diffMs = now.getTime() - postDate.getTime()
@@ -305,7 +309,7 @@ export default function FeedPage() {
                             className="text-muted-foreground text-sm hover:underline"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            @{post.authorId}
+                            @{post.author}
                           </Link>
                         </div>
                         <time className="text-muted-foreground text-sm flex-shrink-0" title={postDate.toLocaleString()}>

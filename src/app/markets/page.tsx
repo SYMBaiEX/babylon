@@ -210,9 +210,9 @@ export default function MarketsPage() {
           <div className="p-4">
             <h2 className="text-sm font-bold text-muted-foreground mb-3">MARKETS</h2>
             <div className="space-y-2 mb-6">
-              {filteredPerpMarkets.map((market) => (
+              {filteredPerpMarkets.map((market, idx) => (
                 <button
-                  key={market.ticker}
+                  key={`market-${market.ticker}-${idx}`}
                   onClick={() => handleMarketClick(market)}
                   className="w-full p-3 rounded-lg text-left hover:bg-accent border bg-card border-border transition-all"
                 >
@@ -254,11 +254,11 @@ export default function MarketsPage() {
           <div className="p-4">
             <h2 className="text-sm font-bold text-muted-foreground mb-3">ACTIVE ({activePredictions.length})</h2>
             <div className="space-y-2 mb-6">
-              {filteredPredictions.filter(p => p.status === 'active').map((prediction) => {
+              {filteredPredictions.filter(p => p.status === 'active').map((prediction, idx) => {
                 const daysLeft = getDaysLeft(prediction.resolutionDate)
                 return (
                   <button
-                    key={prediction.id}
+                    key={`prediction-${prediction.id}-${idx}`}
                     onClick={() => handlePredictionClick(prediction)}
                     className="w-full p-3 rounded-lg text-left hover:bg-accent border bg-card border-border transition-all"
                   >
@@ -287,8 +287,8 @@ export default function MarketsPage() {
               <>
                 <h2 className="text-sm font-bold text-muted-foreground mb-3 mt-6">RESOLVED ({resolvedPredictions.length})</h2>
                 <div className="space-y-2">
-                  {filteredPredictions.filter(p => p.status === 'resolved').map((prediction) => (
-                    <div key={prediction.id} className="p-3 rounded-lg bg-card border border-border opacity-60">
+                  {filteredPredictions.filter(p => p.status === 'resolved').map((prediction, idx) => (
+                    <div key={`resolved-${prediction.id}-${idx}`} className="p-3 rounded-lg bg-card border border-border opacity-60">
                       <div className="font-medium mb-2">{prediction.text}</div>
                       <div className="flex gap-2 text-xs">
                         <span className="text-muted-foreground">Resolved:</span>

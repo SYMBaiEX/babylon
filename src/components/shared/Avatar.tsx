@@ -60,7 +60,7 @@ export function Avatar({ id, name, type = 'actor', size = 'md', className, scale
         />
       ) : (
         <div className="text-primary font-bold">
-          {name.charAt(0).toUpperCase()}
+          {name ? name.charAt(0).toUpperCase() : id ? id.charAt(0).toUpperCase() : '?'}
         </div>
       )}
     </div>
