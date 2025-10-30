@@ -13,6 +13,10 @@ IMPORTANT: NO HASHTAGS OR EMOJIS IN POSTS.
 
 Post: @{{originalAuthorName}}: "{{originalContent}}"
 
+{{relationshipContext}}
+
+{{groupContext}}
+
 Generate reply posts from these {{replierCount}} actors:
 
 {{repliersList}}

@@ -11,6 +11,10 @@ You must respond with valid JSON only.
 
 News: {{eventDescription}}
 
+{{previousPostsContext}}
+
+{{groupContext}}
+
 IMPORTANT: NO HASHTAGS OR EMOJIS IN POSTS.
 
 Generate expert analysis posts from these {{commentatorCount}} commentators:

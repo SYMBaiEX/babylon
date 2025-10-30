@@ -7,6 +7,8 @@ import { LikeButton } from './LikeButton';
 import { ShareButton } from './ShareButton';
 import { CommentSection } from './CommentSection';
 import { useInteractionStore } from '@/stores/interactionStore';
+import { useAuth } from '@/hooks/useAuth';
+import { useLoginModal } from '@/hooks/useLoginModal';
 import type { InteractionBarProps } from '@/types/interactions';
 
 export function InteractionBar({
@@ -17,6 +19,8 @@ export function InteractionBar({
 }: InteractionBarProps) {
   const [showComments, setShowComments] = useState(false);
   const { postInteractions } = useInteractionStore();
+  const { authenticated } = useAuth();
+  const { showLoginModal } = useLoginModal();
 
   // Get interaction data from store (synced via polling) or fall back to initial values
   const storeData = postInteractions.get(postId);

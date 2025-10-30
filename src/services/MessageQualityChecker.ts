@@ -127,6 +127,11 @@ export class MessageQualityChecker {
     errors: string[],
     warnings: string[]
   ): Promise<number> {
+    // Skip uniqueness check for game chats (empty contextId)
+    if (!contextId) {
+      return 1.0; // Perfect score for game chats
+    }
+
     // Get recent messages from this user
     let recentMessages: string[] = [];
 

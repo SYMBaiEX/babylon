@@ -13,6 +13,12 @@ Event involving these actors: {{eventDescription}}
 
 {{eventContext}}
 
+{{phaseContext}}
+
+{{relationshipContext}}
+
+{{previousPostsContext}}
+
 IMPORTANT: NO HASHTAGS OR EMOJIS IN POSTS.
 
 Generate reaction posts for each actor:

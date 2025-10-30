@@ -9,8 +9,8 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const games = gameService.getAllGames();
-    
+    const games = await gameService.getAllGames();
+
     return NextResponse.json({
       success: true,
       games,
