@@ -54469,6 +54469,2131 @@
       ],
       "questionsResolved": 0,
       "questionsCreated": 0
+    },
+    {
+      "timestamp": "2025-10-30T01:30:31.853Z",
+      "posts": [
+        {
+          "id": "post-1761787831854-0.7133876415931717",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:30:31.854Z",
+          "type": "post",
+          "content": "Lexicon Friedman's take on: Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "author": "lexicon-friedman",
+          "authorName": "Lexicon Friedman",
+          "sentiment": -0.6482241049373023,
+          "clueStrength": 0.7923193357188572,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787831854-0.9774021611797585",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:30:31.854Z",
+          "type": "post",
+          "content": "Kanye Pest's take on: Event related to: Will Elon's Husk tweet about Neuralink alignment within 48 hours?",
+          "author": "kanye-pest",
+          "authorName": "Kanye Pest",
+          "sentiment": -0.8113281131302048,
+          "clueStrength": 0.5712889955301443,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787831854-0.21701357443321956",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:30:31.854Z",
+          "type": "post",
+          "content": "Gavin Newscum's take on: Event related to: Will Elon's Husk tweet about Neuralink alignment within 48 hours?",
+          "author": "gavin-newscum",
+          "authorName": "Gavin Newscum",
+          "sentiment": 0.8226050964400997,
+          "clueStrength": 0.6066488351354307,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761787831854-0.3246306351611603",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:30:31.854Z",
+          "type": "post",
+          "content": "Bianca \"Longevity\" Laurent's take on: Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "author": "bianca-longevity",
+          "authorName": "Bianca \"Longevity\" Laurent",
+          "sentiment": 0.22812572641297768,
+          "clueStrength": 0.46502217330647433,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787831854-0.867063425455759",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:30:31.854Z",
+          "type": "post",
+          "content": "Gwyneth Paltrouble's take on: Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "author": "gwyneth-paltrouble",
+          "authorName": "Gwyneth Paltrouble",
+          "sentiment": -0.06866126131394346,
+          "clueStrength": 0.9820659540878018,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761787831854-0.7757564228228249",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:30:31.854Z",
+          "type": "post",
+          "content": "Eric Whinestein's take on: Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "author": "eric-whinestein",
+          "authorName": "Eric Whinestein",
+          "sentiment": -0.26829436012571684,
+          "clueStrength": 0.8155628796512939,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787831854-0.39573552994247563",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:30:31.854Z",
+          "type": "post",
+          "content": "Carl Lundergrift's take on: Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "author": "carl-lundergrift",
+          "authorName": "Carl Lundergrift",
+          "sentiment": -0.040091339122322545,
+          "clueStrength": 0.03157807491728404,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787831854-0.43667257434658047",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:30:31.854Z",
+          "type": "post",
+          "content": "Jasmine \"Receipts\" Park's take on: Event related to: Will Elon's Husk tweet about Neuralink alignment within 48 hours?",
+          "author": "jasmine-receipts",
+          "authorName": "Jasmine \"Receipts\" Park",
+          "sentiment": 0.6641863342529404,
+          "clueStrength": 0.9156654256596051,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761787831854-0.7054036379715185",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:30:31.854Z",
+          "type": "post",
+          "content": "Brad \"Dogface\" Morrison's take on: Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "author": "brad-dogface",
+          "authorName": "Brad \"Dogface\" Morrison",
+          "sentiment": -0.2755728460381386,
+          "clueStrength": 0.2889180937084965,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761787831854-0.7092139253284133",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:30:31.854Z",
+          "type": "post",
+          "content": "MrFeast's take on: Event related to: Will Elon's Husk tweet about Neuralink alignment within 48 hours?",
+          "author": "mrfeast",
+          "authorName": "MrFeast",
+          "sentiment": -0.7937360090858792,
+          "clueStrength": 0.665109517833294,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787831854-0.4119402932085361",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:30:31.854Z",
+          "type": "post",
+          "content": "Stretched Truth's take on: Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "author": "stretched-truth",
+          "authorName": "Stretched Truth",
+          "sentiment": -0.06439770601673045,
+          "clueStrength": 0.27239660688607836,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761787831854-0.18465764994916412",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:30:31.854Z",
+          "type": "post",
+          "content": "Meta Marie's take on: Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "author": "meta-marie",
+          "authorName": "Meta Marie",
+          "sentiment": -0.2969766063928896,
+          "clueStrength": 0.2059481451291072,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787831854-0.8897687594162542",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:30:31.854Z",
+          "type": "post",
+          "content": "Donald Dump's take on: Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "author": "donald-dump",
+          "authorName": "Donald Dump",
+          "sentiment": -0.8121613245570187,
+          "clueStrength": 0.8374883776272606,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761787831854-0.170954020494277",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:30:31.854Z",
+          "type": "post",
+          "content": "Crypto Sam's take on: Event related to: Will Elon's Husk tweet about Neuralink alignment within 48 hours?",
+          "author": "crypto-sam",
+          "authorName": "Crypto Sam",
+          "sentiment": 0.8430206218804068,
+          "clueStrength": 0.8903471398045282,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787831854-0.8663234470815104",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:30:31.854Z",
+          "type": "post",
+          "content": "Dick Fuentes's take on: Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "author": "dick-fuentes",
+          "authorName": "Dick Fuentes",
+          "sentiment": -0.9614597926608783,
+          "clueStrength": 0.09063336909899622,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761787831854-0.4055276831389796",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:30:31.854Z",
+          "type": "post",
+          "content": "Jeff Bezoff's take on: Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "author": "jeff-bezoff",
+          "authorName": "Jeff Bezoff",
+          "sentiment": -0.06933891157750072,
+          "clueStrength": 0.867262340521175,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787831854-0.04917467472699144",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:30:31.854Z",
+          "type": "post",
+          "content": "KS-Lie's take on: Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "author": "ks-lie",
+          "authorName": "KS-Lie",
+          "sentiment": 0.5524409796358145,
+          "clueStrength": 0.8207223528196286,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761787831854-0.25560626672736086",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:30:31.854Z",
+          "type": "post",
+          "content": "Finance Chad's take on: Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "author": "finance-chad",
+          "authorName": "Finance Chad",
+          "sentiment": -0.972766190541658,
+          "clueStrength": 0.8623489881025141,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761787831854-0.7541850411825295",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:30:31.854Z",
+          "type": "post",
+          "content": "Dr. Tamara \"Mechanize\" Besiroglu's take on: Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "author": "tamara-mechanize",
+          "authorName": "Dr. Tamara \"Mechanize\" Besiroglu",
+          "sentiment": 0.37000013041786195,
+          "clueStrength": 0.1530680998132592,
+          "pointsToward": true
+        }
+      ],
+      "priceUpdates": [],
+      "events": [
+        {
+          "id": "event-1761787831853-0",
+          "type": "conflict",
+          "actors": [],
+          "description": "Event related to: Will Elon's Husk tweet about Neuralink alignment within 48 hours?",
+          "relatedQuestion": 12,
+          "pointsToward": "YES",
+          "visibility": "public"
+        },
+        {
+          "id": "event-1761787831853-1",
+          "type": "conflict",
+          "actors": [],
+          "description": "Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "relatedQuestion": 5,
+          "pointsToward": null,
+          "visibility": "public"
+        },
+        {
+          "id": "event-1761787831853-2",
+          "type": "deal",
+          "actors": [],
+          "description": "Event related to: Will Elon's Husk tweet about Neuralink alignment within 48 hours?",
+          "relatedQuestion": 12,
+          "pointsToward": "YES",
+          "visibility": "public"
+        }
+      ],
+      "questionsResolved": 0,
+      "questionsCreated": 0
+    },
+    {
+      "timestamp": "2025-10-30T01:31:31.863Z",
+      "posts": [
+        {
+          "id": "post-1761787891864-0.5367561548923083",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:31:31.864Z",
+          "type": "post",
+          "content": "Bianca \"Longevity\" Laurent's take on: Event related to: Will Scam Altman's OpenLIE launch a subscription plan costing over $50/month?",
+          "author": "bianca-longevity",
+          "authorName": "Bianca \"Longevity\" Laurent",
+          "sentiment": 0.3655937557836566,
+          "clueStrength": 0.03356113247806203,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761787891864-0.19526512094872128",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:31:31.864Z",
+          "type": "post",
+          "content": "Eric Whinestein's take on: Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "author": "eric-whinestein",
+          "authorName": "Eric Whinestein",
+          "sentiment": 0.11746725158302551,
+          "clueStrength": 0.2891929098352297,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787891864-0.9961350490314695",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:31:31.864Z",
+          "type": "post",
+          "content": "Rishi Soon-Axed's take on: Event related to: Will Scam Altman's OpenLIE launch a subscription plan costing over $50/month?",
+          "author": "rishi-soon-axed",
+          "authorName": "Rishi Soon-Axed",
+          "sentiment": 0.6719859580533512,
+          "clueStrength": 0.8691377600167516,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761787891864-0.9646618597798038",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:31:31.864Z",
+          "type": "post",
+          "content": "Lexicon Friedman's take on: Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "author": "lexicon-friedman",
+          "authorName": "Lexicon Friedman",
+          "sentiment": -0.39080786619315866,
+          "clueStrength": 0.3324557459374813,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787891864-0.18641882937376164",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:31:31.864Z",
+          "type": "post",
+          "content": "Scam Altman's take on: Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "author": "scam-altman",
+          "authorName": "Scam Altman",
+          "sentiment": 0.7121861176149085,
+          "clueStrength": 0.2568305382411735,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787891864-0.21591746493576824",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:31:31.864Z",
+          "type": "post",
+          "content": "NPC Streamer Nina's take on: Event related to: Will Scam Altman's OpenLIE launch a subscription plan costing over $50/month?",
+          "author": "npc-streamer-nina",
+          "authorName": "NPC Streamer Nina",
+          "sentiment": 0.028897948775532534,
+          "clueStrength": 0.9640117000045814,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787891864-0.055503965110147435",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:31:31.864Z",
+          "type": "post",
+          "content": "Marjorie Trailer Greed's take on: Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "author": "marjorie-trailer-greed",
+          "authorName": "Marjorie Trailer Greed",
+          "sentiment": 0.5604356457677482,
+          "clueStrength": 0.02320716365894948,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787891864-0.8677774414187689",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:31:31.864Z",
+          "type": "post",
+          "content": "Alex Drones's take on: Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "author": "alex-drones",
+          "authorName": "Alex Drones",
+          "sentiment": -0.8286087238993511,
+          "clueStrength": 0.6259334589918137,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787891864-0.43317764702428097",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:31:31.864Z",
+          "type": "post",
+          "content": "Bro Jogan's take on: Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "author": "bro-jogan",
+          "authorName": "Bro Jogan",
+          "sentiment": -0.3483449176361355,
+          "clueStrength": 0.969091030586374,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761787891864-0.7284462887735705",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:31:31.864Z",
+          "type": "post",
+          "content": "Sundar PitchAI's take on: Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "author": "sundar-pitchai",
+          "authorName": "Sundar PitchAI",
+          "sentiment": 0.5815059483348963,
+          "clueStrength": 0.13871387559496862,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787891864-0.2147363757508196",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:31:31.864Z",
+          "type": "post",
+          "content": "Nancy Ponzi's take on: Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "author": "nancy-ponzi",
+          "authorName": "Nancy Ponzi",
+          "sentiment": -0.8563674078177668,
+          "clueStrength": 0.9182677043318026,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761787891864-0.34877882065380206",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:31:31.864Z",
+          "type": "post",
+          "content": "GrAImes's take on: Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "author": "graimes",
+          "authorName": "GrAImes",
+          "sentiment": 0.5811303263250598,
+          "clueStrength": 0.6621592317986169,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761787891864-0.9516969642127369",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:31:31.864Z",
+          "type": "post",
+          "content": "Edward Snowjob's take on: Event related to: Will Peter Thief release a line of Palantyrant-branded self-driving coffin drones?",
+          "author": "edward-snowjob",
+          "authorName": "Edward Snowjob",
+          "sentiment": -0.46553212559456325,
+          "clueStrength": 0.6995438359991584,
+          "pointsToward": false
+        }
+      ],
+      "priceUpdates": [],
+      "events": [
+        {
+          "id": "event-1761787891863-0",
+          "type": "deal",
+          "actors": [],
+          "description": "Event related to: Will Peter Thief release a line of Palantyrant-branded self-driving coffin drones?",
+          "relatedQuestion": 1,
+          "pointsToward": "NO",
+          "visibility": "public"
+        },
+        {
+          "id": "event-1761787891864-1",
+          "type": "announcement",
+          "actors": [],
+          "description": "Event related to: Will Scam Altman's OpenLIE launch a subscription plan costing over $50/month?",
+          "relatedQuestion": 7,
+          "pointsToward": null,
+          "visibility": "public"
+        },
+        {
+          "id": "event-1761787891864-2",
+          "type": "deal",
+          "actors": [],
+          "description": "Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "relatedQuestion": 9,
+          "pointsToward": null,
+          "visibility": "public"
+        },
+        {
+          "id": "event-1761787891864-3",
+          "type": "announcement",
+          "actors": [],
+          "description": "Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "relatedQuestion": 9,
+          "pointsToward": null,
+          "visibility": "public"
+        }
+      ],
+      "questionsResolved": 0,
+      "questionsCreated": 0
+    },
+    {
+      "timestamp": "2025-10-30T01:32:31.877Z",
+      "posts": [
+        {
+          "id": "post-1761787951878-0.2440353157035411",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:32:31.878Z",
+          "type": "post",
+          "content": "Navel Raviconman's take on: Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "author": "navel-rakiconman",
+          "authorName": "Navel Raviconman",
+          "sentiment": -0.00923354767741058,
+          "clueStrength": 0.8154446559068249,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787951878-0.09844067363628795",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:32:31.878Z",
+          "type": "post",
+          "content": "Eric Whinestein's take on: Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "author": "eric-whinestein",
+          "authorName": "Eric Whinestein",
+          "sentiment": 0.9816999636079751,
+          "clueStrength": 0.4837315824381041,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761787951878-0.6281979384381975",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:32:31.878Z",
+          "type": "post",
+          "content": "Burnout Sanders's take on: Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "author": "burnout-sanders",
+          "authorName": "Burnout Sanders",
+          "sentiment": -0.39244218361796124,
+          "clueStrength": 0.48444921573044564,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787951878-0.3951831923057949",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:32:31.878Z",
+          "type": "post",
+          "content": "GrAImes's take on: Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "author": "graimes",
+          "authorName": "GrAImes",
+          "sentiment": -0.2368039653568199,
+          "clueStrength": 0.3519887172173912,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761787951878-0.8933090498474969",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:32:31.878Z",
+          "type": "post",
+          "content": "Senator Patricia \"TERF Wars\" Hayes's take on: Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "author": "senator-hayes",
+          "authorName": "Senator Patricia \"TERF Wars\" Hayes",
+          "sentiment": -0.29141657306425195,
+          "clueStrength": 0.3187259358917396,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787951878-0.08007051862752212",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:32:31.878Z",
+          "type": "post",
+          "content": "Edward Snowjob's take on: Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "author": "edward-snowjob",
+          "authorName": "Edward Snowjob",
+          "sentiment": 0.8022943131578613,
+          "clueStrength": 0.6997436591992408,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787951878-0.18751718042021448",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:32:31.878Z",
+          "type": "post",
+          "content": "Vitalik Computerin's take on: Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "author": "vitalik-computerin",
+          "authorName": "Vitalik Computerin",
+          "sentiment": 0.17672063887819167,
+          "clueStrength": 0.676749950101619,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761787951878-0.16701622290444917",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:32:31.878Z",
+          "type": "post",
+          "content": "Brad \"Dogface\" Morrison's take on: Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "author": "brad-dogface",
+          "authorName": "Brad \"Dogface\" Morrison",
+          "sentiment": 0.5619345419687307,
+          "clueStrength": 0.1710473033115003,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787951878-0.7580288363490202",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:32:31.878Z",
+          "type": "post",
+          "content": "Sage \"CopyPasta Queen\" Martinez's take on: Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "author": "sage-copypasta",
+          "authorName": "Sage \"CopyPasta Queen\" Martinez",
+          "sentiment": -0.373358674210698,
+          "clueStrength": 0.6776862439136586,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787951878-0.5865595687438554",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:32:31.878Z",
+          "type": "post",
+          "content": "Meta Marie's take on: Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "author": "meta-marie",
+          "authorName": "Meta Marie",
+          "sentiment": 0.657131445680545,
+          "clueStrength": 0.6519032590279494,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787951878-0.23671100097764897",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:32:31.878Z",
+          "type": "post",
+          "content": "Michael Seller's take on: Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "author": "michael-seller",
+          "authorName": "Michael Seller",
+          "sentiment": -0.648042410037708,
+          "clueStrength": 0.46996503037062887,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787951878-0.27296818789791866",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:32:31.878Z",
+          "type": "post",
+          "content": "Trevor \"Ponzi\" McAllister's take on: Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "author": "trevor-ponzi",
+          "authorName": "Trevor \"Ponzi\" McAllister",
+          "sentiment": 0.5724992818416195,
+          "clueStrength": 0.6897617858829375,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761787951878-0.532220862326606",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:32:31.878Z",
+          "type": "post",
+          "content": "Lex Deadpan's take on: Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "author": "lex-deadpan",
+          "authorName": "Lex Deadpan",
+          "sentiment": -0.8865579639465504,
+          "clueStrength": 0.05126005953530077,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787951878-0.38737634717658054",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:32:31.878Z",
+          "type": "post",
+          "content": "Mr. Feast's take on: Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "author": "mr-feast",
+          "authorName": "Mr. Feast",
+          "sentiment": -0.35712391452047454,
+          "clueStrength": 0.25949233167345365,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787951878-0.9593573046221917",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:32:31.878Z",
+          "type": "post",
+          "content": "Mark Suckerborg's take on: Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "author": "mark-suckerborg",
+          "authorName": "Mark Suckerborg",
+          "sentiment": 0.48805987559956154,
+          "clueStrength": 0.5225646263681938,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787951878-0.7094308084532286",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:32:31.878Z",
+          "type": "post",
+          "content": "Bella \"Boss Babe\" Bankrupt's take on: Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "author": "bella-bossbabe",
+          "authorName": "Bella \"Boss Babe\" Bankrupt",
+          "sentiment": 0.5587041291531594,
+          "clueStrength": 0.4173070307775151,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761787951878-0.37934354962698213",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:32:31.878Z",
+          "type": "post",
+          "content": "AIOC's take on: Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "author": "aoc-aioc",
+          "authorName": "AIOC",
+          "sentiment": 0.26557050192934195,
+          "clueStrength": 0.9038742964743307,
+          "pointsToward": false
+        }
+      ],
+      "priceUpdates": [],
+      "events": [
+        {
+          "id": "event-1761787951878-0",
+          "type": "deal",
+          "actors": [],
+          "description": "Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "relatedQuestion": 9,
+          "pointsToward": null,
+          "visibility": "public"
+        },
+        {
+          "id": "event-1761787951878-1",
+          "type": "conflict",
+          "actors": [],
+          "description": "Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "relatedQuestion": 13,
+          "pointsToward": null,
+          "visibility": "public"
+        }
+      ],
+      "questionsResolved": 0,
+      "questionsCreated": 0
+    },
+    {
+      "timestamp": "2025-10-30T01:33:31.890Z",
+      "posts": [
+        {
+          "id": "post-1761788011890-0.7253575967368895",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:33:31.890Z",
+          "type": "post",
+          "content": "Andrew Taint's take on: Event related to: Will Mr. Feast's charitable donation for November reach $1 million on his YouTube channel?",
+          "author": "andrew-taint",
+          "authorName": "Andrew Taint",
+          "sentiment": 0.3453742196061671,
+          "clueStrength": 0.3977691458131425,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788011890-0.6921270277538116",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:33:31.890Z",
+          "type": "post",
+          "content": "Lexicon Friedman's take on: Event related to: Will Mr. Feast's charitable donation for November reach $1 million on his YouTube channel?",
+          "author": "lexicon-friedman",
+          "authorName": "Lexicon Friedman",
+          "sentiment": 0.7288686492080125,
+          "clueStrength": 0.4217578208131967,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788011890-0.7207640446875778",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:33:31.890Z",
+          "type": "post",
+          "content": "Gwyneth Paltrouble's take on: Event related to: Will Mr. Feast's charitable donation for November reach $1 million on his YouTube channel?",
+          "author": "gwyneth-paltrouble",
+          "authorName": "Gwyneth Paltrouble",
+          "sentiment": 0.8132796647420348,
+          "clueStrength": 0.05445699273467541,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788011890-0.14851821432978096",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:33:31.890Z",
+          "type": "post",
+          "content": "Marc Andreescum's take on: Event related to: Will Logan Pawl's next WWE appearance involve a live wrestling match with Andrew Taint?",
+          "author": "marc-andreescum",
+          "authorName": "Marc Andreescum",
+          "sentiment": -0.3333027587248867,
+          "clueStrength": 0.9875869227132146,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788011890-0.4543430034588969",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:33:31.890Z",
+          "type": "post",
+          "content": "Lily \"100-in-1\" Phillips's take on: Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "author": "lily-100in1",
+          "authorName": "Lily \"100-in-1\" Phillips",
+          "sentiment": 0.8774160393931729,
+          "clueStrength": 0.43192397550258765,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788011890-0.5219133680080819",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:33:31.890Z",
+          "type": "post",
+          "content": "Tim Cooked's take on: Event related to: Will Mr. Feast's charitable donation for November reach $1 million on his YouTube channel?",
+          "author": "tim-cooked",
+          "authorName": "Tim Cooked",
+          "sentiment": -0.1672113682453773,
+          "clueStrength": 0.7044480272198754,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788011890-0.6781649796221465",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:33:31.890Z",
+          "type": "post",
+          "content": "Palmer Cucky's take on: Event related to: Will Logan Pawl's next WWE appearance involve a live wrestling match with Andrew Taint?",
+          "author": "palmer-cucky",
+          "authorName": "Palmer Cucky",
+          "sentiment": -0.7278952165558783,
+          "clueStrength": 0.5357261926063872,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788011890-0.15991958339289103",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:33:31.890Z",
+          "type": "post",
+          "content": "Density's take on: Event related to: Will Mr. Feast's charitable donation for November reach $1 million on his YouTube channel?",
+          "author": "density",
+          "authorName": "Density",
+          "sentiment": -0.655044359316725,
+          "clueStrength": 0.30865696623341554,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788011890-0.09301488865522689",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:33:31.890Z",
+          "type": "post",
+          "content": "Mark Suckerborg's take on: Event related to: Will Mr. Feast's charitable donation for November reach $1 million on his YouTube channel?",
+          "author": "mark-suckerborg",
+          "authorName": "Mark Suckerborg",
+          "sentiment": 0.5905983640057495,
+          "clueStrength": 0.1662758545827161,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788011890-0.3709895758471362",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:33:31.890Z",
+          "type": "post",
+          "content": "Eric Whinestein's take on: Event related to: Will Logan Pawl's next WWE appearance involve a live wrestling match with Andrew Taint?",
+          "author": "eric-whinestein",
+          "authorName": "Eric Whinestein",
+          "sentiment": -0.7978370457825816,
+          "clueStrength": 0.518193097641841,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788011890-0.8097386991834783",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:33:31.890Z",
+          "type": "post",
+          "content": "Dr. Tamara \"Mechanize\" Besiroglu's take on: Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "author": "tamara-mechanize",
+          "authorName": "Dr. Tamara \"Mechanize\" Besiroglu",
+          "sentiment": 0.3351198082084239,
+          "clueStrength": 0.9992303375102014,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788011890-0.2834612081368113",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:33:31.890Z",
+          "type": "post",
+          "content": "MrFeast's take on: Event related to: Will Mr. Feast's charitable donation for November reach $1 million on his YouTube channel?",
+          "author": "mrfeast",
+          "authorName": "MrFeast",
+          "sentiment": 0.6393664930947862,
+          "clueStrength": 0.6480245872564288,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788011890-0.5806385105396938",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:33:31.890Z",
+          "type": "post",
+          "content": "Trevor \"Ponzi\" McAllister's take on: Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "author": "trevor-ponzi",
+          "authorName": "Trevor \"Ponzi\" McAllister",
+          "sentiment": -0.7288947837382014,
+          "clueStrength": 0.0757773692918462,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788011890-0.27841838248326245",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:33:31.890Z",
+          "type": "post",
+          "content": "Logan Drawl's take on: Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "author": "logan-drawl",
+          "authorName": "Logan Drawl",
+          "sentiment": -0.9908825751452839,
+          "clueStrength": 0.8414241750926958,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788011890-0.4750364388547448",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:33:31.890Z",
+          "type": "post",
+          "content": "Elon's Husk's take on: Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "author": "elon-husk",
+          "authorName": "Elon's Husk",
+          "sentiment": 0.962405356340394,
+          "clueStrength": 0.9324545171674714,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788011890-0.37925504339940974",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:33:31.890Z",
+          "type": "post",
+          "content": "Kanye Pest's take on: Event related to: Will Logan Pawl's next WWE appearance involve a live wrestling match with Andrew Taint?",
+          "author": "kanye-pest",
+          "authorName": "Kanye Pest",
+          "sentiment": -0.344851591302779,
+          "clueStrength": 0.8097528207705438,
+          "pointsToward": false
+        }
+      ],
+      "priceUpdates": [],
+      "events": [
+        {
+          "id": "event-1761788011890-0",
+          "type": "conflict",
+          "actors": [],
+          "description": "Event related to: Will Jeff Bezoff send a private jet to transport Mr. Feast on a charity giveaway tour?",
+          "relatedQuestion": 13,
+          "pointsToward": "YES",
+          "visibility": "public"
+        },
+        {
+          "id": "event-1761788011890-1",
+          "type": "deal",
+          "actors": [],
+          "description": "Event related to: Will Mr. Feast's charitable donation for November reach $1 million on his YouTube channel?",
+          "relatedQuestion": 16,
+          "pointsToward": "YES",
+          "visibility": "public"
+        },
+        {
+          "id": "event-1761788011890-2",
+          "type": "conflict",
+          "actors": [],
+          "description": "Event related to: Will Logan Pawl's next WWE appearance involve a live wrestling match with Andrew Taint?",
+          "relatedQuestion": 15,
+          "pointsToward": "NO",
+          "visibility": "public"
+        },
+        {
+          "id": "event-1761788011890-3",
+          "type": "conflict",
+          "actors": [],
+          "description": "Event related to: Will Mr. Feast's charitable donation for November reach $1 million on his YouTube channel?",
+          "relatedQuestion": 16,
+          "pointsToward": "YES",
+          "visibility": "public"
+        }
+      ],
+      "questionsResolved": 0,
+      "questionsCreated": 0
+    },
+    {
+      "timestamp": "2025-10-30T01:34:31.904Z",
+      "posts": [
+        {
+          "id": "post-1761788071904-0.0539464555006981",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:34:31.904Z",
+          "type": "post",
+          "content": "Sofie Drain's take on: Event related to: Will AIOC publish a 10-minute livestream on Twitch criticizing Gavin Newscum's French Laundry dinner as an essential expense?",
+          "author": "sofie-drain",
+          "authorName": "Sofie Drain",
+          "sentiment": -0.43119813224349324,
+          "clueStrength": 0.32128728518512184,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788071904-0.9768882931183491",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:34:31.904Z",
+          "type": "post",
+          "content": "Elon's Husk's take on: Event related to: Will Andrew Taint be sued by Romanian authorities over alleged tax evasion?",
+          "author": "elon-husk",
+          "authorName": "Elon's Husk",
+          "sentiment": 0.678015291323415,
+          "clueStrength": 0.9318773459307881,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788071904-0.09026490707788826",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:34:31.904Z",
+          "type": "post",
+          "content": "Commissioner Diana \"Powerless\" Torres's take on: Event related to: Will AIOC publish a 10-minute livestream on Twitch criticizing Gavin Newscum's French Laundry dinner as an essential expense?",
+          "author": "diana-powerless",
+          "authorName": "Commissioner Diana \"Powerless\" Torres",
+          "sentiment": -0.8960388853143946,
+          "clueStrength": 0.06685793925242844,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788071904-0.6844737417857245",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:34:31.904Z",
+          "type": "post",
+          "content": "Cathie Wooden's take on: Event related to: Will AIOC publish a 10-minute livestream on Twitch criticizing Gavin Newscum's French Laundry dinner as an essential expense?",
+          "author": "cathie-wooden",
+          "authorName": "Cathie Wooden",
+          "sentiment": -0.4184088116350093,
+          "clueStrength": 0.10644972232697802,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788071904-0.44904894191546574",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:34:31.904Z",
+          "type": "post",
+          "content": "Gavin Newscum's take on: Event related to: Will AIOC publish a 10-minute livestream on Twitch criticizing Gavin Newscum's French Laundry dinner as an essential expense?",
+          "author": "gavin-newscum",
+          "authorName": "Gavin Newscum",
+          "sentiment": 0.7255535478836932,
+          "clueStrength": 0.2784863605058494,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788071904-0.022686016591974445",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:34:31.904Z",
+          "type": "post",
+          "content": "Mitch McConman's take on: Event related to: Will Andrew Taint be sued by Romanian authorities over alleged tax evasion?",
+          "author": "mitch-mcconman",
+          "authorName": "Mitch McConman",
+          "sentiment": -0.8062350426093055,
+          "clueStrength": 0.8856631516124838,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788071904-0.14122356941445346",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:34:31.904Z",
+          "type": "post",
+          "content": "Zara \"GlowUp\" Wilson's take on: Event related to: Will AIOC publish a 10-minute livestream on Twitch criticizing Gavin Newscum's French Laundry dinner as an essential expense?",
+          "author": "zara-glowup",
+          "authorName": "Zara \"GlowUp\" Wilson",
+          "sentiment": 0.8257046151380902,
+          "clueStrength": 0.7755271248154179,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788071904-0.5478793461185367",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:34:31.904Z",
+          "type": "post",
+          "content": "Mantra \"OM\" Patel's take on: Event related to: Will AIOC publish a 10-minute livestream on Twitch criticizing Gavin Newscum's French Laundry dinner as an essential expense?",
+          "author": "mantra-om",
+          "authorName": "Mantra \"OM\" Patel",
+          "sentiment": 0.9376360344917227,
+          "clueStrength": 0.9195764806004272,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788071904-0.4859380738424752",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:34:31.904Z",
+          "type": "post",
+          "content": "Trevor \"Ponzi\" McAllister's take on: Event related to: Will AIOC publish a 10-minute livestream on Twitch criticizing Gavin Newscum's French Laundry dinner as an essential expense?",
+          "author": "trevor-ponzi",
+          "authorName": "Trevor \"Ponzi\" McAllister",
+          "sentiment": -0.062277575695052434,
+          "clueStrength": 0.8390106943704463,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788071904-0.08949126441158572",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:34:31.904Z",
+          "type": "post",
+          "content": "Gwyneth Paltrouble's take on: Event related to: Will AIOC publish a 10-minute livestream on Twitch criticizing Gavin Newscum's French Laundry dinner as an essential expense?",
+          "author": "gwyneth-paltrouble",
+          "authorName": "Gwyneth Paltrouble",
+          "sentiment": 0.3650494641673667,
+          "clueStrength": 0.7064015923678433,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788071904-0.10544755973735098",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:34:31.904Z",
+          "type": "post",
+          "content": "Vitalik Computerin's take on: Event related to: Will Andrew Taint be sued by Romanian authorities over alleged tax evasion?",
+          "author": "vitalik-computerin",
+          "authorName": "Vitalik Computerin",
+          "sentiment": 0.003593379306334299,
+          "clueStrength": 0.923572476437247,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788071904-0.07734435508451276",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:34:31.904Z",
+          "type": "post",
+          "content": "GrAImes's take on: Event related to: Will Andrew Taint be sued by Romanian authorities over alleged tax evasion?",
+          "author": "graimes",
+          "authorName": "GrAImes",
+          "sentiment": -0.2741820132797077,
+          "clueStrength": 0.7761036797998098,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788071904-0.5011900634410049",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:34:31.904Z",
+          "type": "post",
+          "content": "Kanye Pest's take on: Event related to: Will AIOC publish a 10-minute livestream on Twitch criticizing Gavin Newscum's French Laundry dinner as an essential expense?",
+          "author": "kanye-pest",
+          "authorName": "Kanye Pest",
+          "sentiment": -0.2327109850272504,
+          "clueStrength": 0.06499659402578528,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788071904-0.6692751205958167",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:34:31.904Z",
+          "type": "post",
+          "content": "Peter Thief's take on: Event related to: Will Andrew Taint be sued by Romanian authorities over alleged tax evasion?",
+          "author": "peter-thief",
+          "authorName": "Peter Thief",
+          "sentiment": 0.05551508574862618,
+          "clueStrength": 0.8013186312412215,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788071904-0.08619933086731058",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:34:31.904Z",
+          "type": "post",
+          "content": "Victoria \"Vulture Cap\" Ashford's take on: Event related to: Will AIOC publish a 10-minute livestream on Twitch criticizing Gavin Newscum's French Laundry dinner as an essential expense?",
+          "author": "victoria-vulture",
+          "authorName": "Victoria \"Vulture Cap\" Ashford",
+          "sentiment": 0.28974848666722197,
+          "clueStrength": 0.5964094603718968,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788071904-0.23636919909635168",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:34:31.904Z",
+          "type": "post",
+          "content": "Sundar PitchAI's take on: Event related to: Will AIOC publish a 10-minute livestream on Twitch criticizing Gavin Newscum's French Laundry dinner as an essential expense?",
+          "author": "sundar-pitchai",
+          "authorName": "Sundar PitchAI",
+          "sentiment": -0.9867828299676082,
+          "clueStrength": 0.38899807569184874,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788071904-0.720791751271129",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:34:31.904Z",
+          "type": "post",
+          "content": "Michael Seller's take on: Event related to: Will Andrew Taint be sued by Romanian authorities over alleged tax evasion?",
+          "author": "michael-seller",
+          "authorName": "Michael Seller",
+          "sentiment": 0.8442147606096362,
+          "clueStrength": 0.9368892588484481,
+          "pointsToward": true
+        }
+      ],
+      "priceUpdates": [],
+      "events": [
+        {
+          "id": "event-1761788071904-0",
+          "type": "scandal",
+          "actors": [],
+          "description": "Event related to: Will Andrew Taint be sued by Romanian authorities over alleged tax evasion?",
+          "relatedQuestion": 4,
+          "pointsToward": null,
+          "visibility": "public"
+        },
+        {
+          "id": "event-1761788071904-1",
+          "type": "revelation",
+          "actors": [],
+          "description": "Event related to: Will AIOC publish a 10-minute livestream on Twitch criticizing Gavin Newscum's French Laundry dinner as an essential expense?",
+          "relatedQuestion": 14,
+          "pointsToward": null,
+          "visibility": "public"
+        }
+      ],
+      "questionsResolved": 0,
+      "questionsCreated": 0
+    },
+    {
+      "timestamp": "2025-10-30T01:35:31.921Z",
+      "posts": [
+        {
+          "id": "post-1761788131921-0.4468661675410057",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:35:31.921Z",
+          "type": "post",
+          "content": "Mark Suckerborg's take on: Event related to: Will Logan Pawl's next WWE appearance involve a live wrestling match with Andrew Taint?",
+          "author": "mark-suckerborg",
+          "authorName": "Mark Suckerborg",
+          "sentiment": -0.38455093889182734,
+          "clueStrength": 0.48963299485753065,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788131921-0.47215963689722606",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:35:31.921Z",
+          "type": "post",
+          "content": "Nathan Artificially-Intelligent's take on: Event related to: Will Jeff Bezoff's The Washout Post publish a 5-part exposé on Elon's Husk's alleged lithium hoarding?",
+          "author": "nathan-artificial",
+          "authorName": "Nathan Artificially-Intelligent",
+          "sentiment": -0.6025725924761303,
+          "clueStrength": 0.9764310959559799,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788131921-0.5506324281694865",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:35:31.921Z",
+          "type": "post",
+          "content": "Chadwick \"Monk Mode\" Chen's take on: Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "author": "chadwick-monkmode",
+          "authorName": "Chadwick \"Monk Mode\" Chen",
+          "sentiment": 0.806136253326796,
+          "clueStrength": 0.916453779336315,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788131921-0.3478603143562067",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:35:31.921Z",
+          "type": "post",
+          "content": "Jim Scammer's take on: Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "author": "jim-scammer",
+          "authorName": "Jim Scammer",
+          "sentiment": -0.21273998890938284,
+          "clueStrength": 0.8445584652896883,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788131921-0.9032195634497373",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:35:31.921Z",
+          "type": "post",
+          "content": "Dr. Tamara \"Mechanize\" Besiroglu's take on: Event related to: Will Logan Pawl's next WWE appearance involve a live wrestling match with Andrew Taint?",
+          "author": "tamara-mechanize",
+          "authorName": "Dr. Tamara \"Mechanize\" Besiroglu",
+          "sentiment": 0.46918536528063237,
+          "clueStrength": 0.5257648069810559,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788131921-0.7169110984085174",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:35:31.921Z",
+          "type": "post",
+          "content": "Marcus \"AIWaifu\" Rodriguez's take on: Event related to: Will Logan Pawl's next WWE appearance involve a live wrestling match with Andrew Taint?",
+          "author": "marcus-aiwaifu",
+          "authorName": "Marcus \"AIWaifu\" Rodriguez",
+          "sentiment": -0.8333349341929068,
+          "clueStrength": 0.5732898935990156,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788131921-0.8977228907593122",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:35:31.921Z",
+          "type": "post",
+          "content": "Mantra \"OM\" Patel's take on: Event related to: Will Jeff Bezoff's The Washout Post publish a 5-part exposé on Elon's Husk's alleged lithium hoarding?",
+          "author": "mantra-om",
+          "authorName": "Mantra \"OM\" Patel",
+          "sentiment": -0.5540397682782499,
+          "clueStrength": 0.6465565530830291,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788131921-0.9212176616268941",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:35:31.921Z",
+          "type": "post",
+          "content": "Jordan Petersmall's take on: Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "author": "jordan-petersmall",
+          "authorName": "Jordan Petersmall",
+          "sentiment": -0.033562544082516244,
+          "clueStrength": 0.3747876657044953,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788131921-0.7574812736545189",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:35:31.921Z",
+          "type": "post",
+          "content": "Scam Altman's take on: Event related to: Will Logan Pawl's next WWE appearance involve a live wrestling match with Andrew Taint?",
+          "author": "scam-altman",
+          "authorName": "Scam Altman",
+          "sentiment": 0.3106398110094206,
+          "clueStrength": 0.1322385407748985,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788131921-0.32220501285809844",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:35:31.921Z",
+          "type": "post",
+          "content": "KS-Lie's take on: Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "author": "ks-lie",
+          "authorName": "KS-Lie",
+          "sentiment": -0.3352077523600534,
+          "clueStrength": 0.5411357348424572,
+          "pointsToward": false
+        }
+      ],
+      "priceUpdates": [],
+      "events": [
+        {
+          "id": "event-1761788131921-0",
+          "type": "deal",
+          "actors": [],
+          "description": "Event related to: Will Jeff Bezoff's The Washout Post publish a 5-part exposé on Elon's Husk's alleged lithium hoarding?",
+          "relatedQuestion": 10,
+          "pointsToward": null,
+          "visibility": "public"
+        },
+        {
+          "id": "event-1761788131921-1",
+          "type": "deal",
+          "actors": [],
+          "description": "Event related to: Will Logan Pawl's next WWE appearance involve a live wrestling match with Andrew Taint?",
+          "relatedQuestion": 15,
+          "pointsToward": "NO",
+          "visibility": "public"
+        },
+        {
+          "id": "event-1761788131921-2",
+          "type": "deal",
+          "actors": [],
+          "description": "Event related to: Will Logan Pawl's next WWE appearance involve a live wrestling match with Andrew Taint?",
+          "relatedQuestion": 15,
+          "pointsToward": "NO",
+          "visibility": "public"
+        },
+        {
+          "id": "event-1761788131921-3",
+          "type": "scandal",
+          "actors": [],
+          "description": "Event related to: Will Mr. Feast give away a private island within the next 5 days?",
+          "relatedQuestion": 9,
+          "pointsToward": null,
+          "visibility": "public"
+        }
+      ],
+      "questionsResolved": 0,
+      "questionsCreated": 0
+    },
+    {
+      "timestamp": "2025-10-30T01:36:31.934Z",
+      "posts": [
+        {
+          "id": "post-1761788191935-0.8831828964200459",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:36:31.935Z",
+          "type": "post",
+          "content": "Sage \"CopyPasta Queen\" Martinez's take on: Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "author": "sage-copypasta",
+          "authorName": "Sage \"CopyPasta Queen\" Martinez",
+          "sentiment": 0.8779654979720037,
+          "clueStrength": 0.5751664048429486,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788191935-0.3422390737677883",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:36:31.935Z",
+          "type": "post",
+          "content": "NPC Streamer Nina's take on: Event related to: Will Andrew Taint be sued by Romanian authorities over alleged tax evasion?",
+          "author": "npc-streamer-nina",
+          "authorName": "NPC Streamer Nina",
+          "sentiment": -0.8674469800950804,
+          "clueStrength": 0.25118875836470655,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788191935-0.6967940232863088",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:36:31.935Z",
+          "type": "post",
+          "content": "Rachel Madcow's take on: Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "author": "rachel-madcow",
+          "authorName": "Rachel Madcow",
+          "sentiment": -0.693022796830661,
+          "clueStrength": 0.6689116051849193,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788191935-0.3818056742536562",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:36:31.935Z",
+          "type": "post",
+          "content": "Derek \"CryptoGoneWild\" Thompson's take on: Event related to: Will Andrew Taint be sued by Romanian authorities over alleged tax evasion?",
+          "author": "derek-cryptogonewild",
+          "authorName": "Derek \"CryptoGoneWild\" Thompson",
+          "sentiment": 0.9588655033258995,
+          "clueStrength": 0.8419645188999971,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788191935-0.3381704254568245",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:36:31.935Z",
+          "type": "post",
+          "content": "Bret Whinestein's take on: Event related to: Will Andrew Taint be sued by Romanian authorities over alleged tax evasion?",
+          "author": "bret-whinestein",
+          "authorName": "Bret Whinestein",
+          "sentiment": 0.4693425024852047,
+          "clueStrength": 0.05088232808309545,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788191935-0.19016317204529964",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:36:31.935Z",
+          "type": "post",
+          "content": "Commissioner Diana \"Powerless\" Torres's take on: Event related to: Will Andrew Taint be sued by Romanian authorities over alleged tax evasion?",
+          "author": "diana-powerless",
+          "authorName": "Commissioner Diana \"Powerless\" Torres",
+          "sentiment": -0.730293618266685,
+          "clueStrength": 0.40663808313969985,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788191935-0.5816819037267102",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:36:31.935Z",
+          "type": "post",
+          "content": "Burnout Sanders's take on: Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "author": "burnout-sanders",
+          "authorName": "Burnout Sanders",
+          "sentiment": -0.8852401537986543,
+          "clueStrength": 0.7157050582488214,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788191935-0.5302684154995936",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:36:31.935Z",
+          "type": "post",
+          "content": "Mr. Feast's take on: Event related to: Will Andrew Taint be sued by Romanian authorities over alleged tax evasion?",
+          "author": "mr-feast",
+          "authorName": "Mr. Feast",
+          "sentiment": -0.1785683100941906,
+          "clueStrength": 0.22272298839959026,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788191935-0.3821312311923941",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:36:31.935Z",
+          "type": "post",
+          "content": "Jim Scammer's take on: Event related to: Will Andrew Taint be sued by Romanian authorities over alleged tax evasion?",
+          "author": "jim-scammer",
+          "authorName": "Jim Scammer",
+          "sentiment": 0.9365311403783592,
+          "clueStrength": 0.9574678406057535,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788191935-0.4680830191063521",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:36:31.935Z",
+          "type": "post",
+          "content": "Navel Raviconman's take on: Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "author": "navel-rakiconman",
+          "authorName": "Navel Raviconman",
+          "sentiment": -0.8412739535300071,
+          "clueStrength": 0.9087074450878252,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788191935-0.0210630847308495",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:36:31.935Z",
+          "type": "post",
+          "content": "Logan Drawl's take on: Event related to: Will Andrew Taint be sued by Romanian authorities over alleged tax evasion?",
+          "author": "logan-drawl",
+          "authorName": "Logan Drawl",
+          "sentiment": -0.9771371585092186,
+          "clueStrength": 0.434910465437508,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788191935-0.9967582800017363",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:36:31.935Z",
+          "type": "post",
+          "content": "Edward Snowjob's take on: Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "author": "edward-snowjob",
+          "authorName": "Edward Snowjob",
+          "sentiment": 0.010785210775082987,
+          "clueStrength": 0.3992123717763656,
+          "pointsToward": true
+        }
+      ],
+      "priceUpdates": [],
+      "events": [
+        {
+          "id": "event-1761788191935-0",
+          "type": "revelation",
+          "actors": [],
+          "description": "Event related to: Will Scam Altman's next TED talk mention Neuralink alignment within 3 minutes?",
+          "relatedQuestion": 5,
+          "pointsToward": null,
+          "visibility": "public"
+        },
+        {
+          "id": "event-1761788191935-1",
+          "type": "revelation",
+          "actors": [],
+          "description": "Event related to: Will Andrew Taint be sued by Romanian authorities over alleged tax evasion?",
+          "relatedQuestion": 4,
+          "pointsToward": null,
+          "visibility": "public"
+        }
+      ],
+      "questionsResolved": 0,
+      "questionsCreated": 0
+    },
+    {
+      "timestamp": "2025-10-30T01:37:31.945Z",
+      "posts": [
+        {
+          "id": "post-1761788251945-0.6724564168280776",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:37:31.945Z",
+          "type": "post",
+          "content": "Kanye Pest's take on: Event related to: Will Gavin Newscum increase his hair gel budget by $1 million?",
+          "author": "kanye-pest",
+          "authorName": "Kanye Pest",
+          "sentiment": 0.08792350111410041,
+          "clueStrength": 0.2516615870626857,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788251945-0.6377043929850625",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:37:31.945Z",
+          "type": "post",
+          "content": "Victoria \"Vulture Cap\" Ashford's take on: Event related to: Will Andrew Taint be sued by Romanian authorities over alleged tax evasion?",
+          "author": "victoria-vulture",
+          "authorName": "Victoria \"Vulture Cap\" Ashford",
+          "sentiment": 0.8221491156518583,
+          "clueStrength": 0.3581639611151235,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788251945-0.8265542615181258",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:37:31.945Z",
+          "type": "post",
+          "content": "Tim Cooked's take on: Event related to: Will Peter Thief release a line of Palantyrant-branded self-driving coffin drones?",
+          "author": "tim-cooked",
+          "authorName": "Tim Cooked",
+          "sentiment": -0.832667652554774,
+          "clueStrength": 0.0828752311736507,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788251945-0.6952782696511175",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:37:31.945Z",
+          "type": "post",
+          "content": "Bill Hackman's take on: Event related to: Will Peter Thief release a line of Palantyrant-branded self-driving coffin drones?",
+          "author": "bill-hackman",
+          "authorName": "Bill Hackman",
+          "sentiment": -0.612119459451578,
+          "clueStrength": 0.3852380378037139,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788251945-0.9973061536825205",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:37:31.945Z",
+          "type": "post",
+          "content": "Jasmine \"Receipts\" Park's take on: Event related to: Will Peter Thief release a line of Palantyrant-branded self-driving coffin drones?",
+          "author": "jasmine-receipts",
+          "authorName": "Jasmine \"Receipts\" Park",
+          "sentiment": -0.042751064764182,
+          "clueStrength": 0.8149639765787136,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788251945-0.1972173260713872",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:37:31.945Z",
+          "type": "post",
+          "content": "Crypto Sam's take on: Event related to: Will Gavin Newscum increase his hair gel budget by $1 million?",
+          "author": "crypto-sam",
+          "authorName": "Crypto Sam",
+          "sentiment": 0.8952143016656735,
+          "clueStrength": 0.8795113852863856,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788251945-0.3635733840983113",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:37:31.945Z",
+          "type": "post",
+          "content": "Burnout Sanders's take on: Event related to: Will Gavin Newscum increase his hair gel budget by $1 million?",
+          "author": "burnout-sanders",
+          "authorName": "Burnout Sanders",
+          "sentiment": -0.06132746352969054,
+          "clueStrength": 0.5122640906317957,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788251945-0.8667861944260098",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:37:31.945Z",
+          "type": "post",
+          "content": "Nancy Ponzi's take on: Event related to: Will Gavin Newscum increase his hair gel budget by $1 million?",
+          "author": "nancy-ponzi",
+          "authorName": "Nancy Ponzi",
+          "sentiment": 0.6240508425586366,
+          "clueStrength": 0.7419147118548659,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788251945-0.7079751349079093",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:37:31.945Z",
+          "type": "post",
+          "content": "Dick Fuentes's take on: Event related to: Will Gavin Newscum increase his hair gel budget by $1 million?",
+          "author": "dick-fuentes",
+          "authorName": "Dick Fuentes",
+          "sentiment": 0.36031840353346967,
+          "clueStrength": 0.9371551223054713,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788251945-0.5122832973046332",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:37:31.945Z",
+          "type": "post",
+          "content": "Jim Scammer's take on: Event related to: Will Andrew Taint be sued by Romanian authorities over alleged tax evasion?",
+          "author": "jim-scammer",
+          "authorName": "Jim Scammer",
+          "sentiment": -0.1143785236729884,
+          "clueStrength": 0.8268582978424883,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788251945-0.7236757490767205",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:37:31.945Z",
+          "type": "post",
+          "content": "Bro Jogan's take on: Event related to: Will Peter Thief release a line of Palantyrant-branded self-driving coffin drones?",
+          "author": "bro-jogan",
+          "authorName": "Bro Jogan",
+          "sentiment": -0.8053253040547661,
+          "clueStrength": 0.11891898505723653,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788251945-0.4843437998496445",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:37:31.945Z",
+          "type": "post",
+          "content": "Lily \"100-in-1\" Phillips's take on: Event related to: Will Peter Thief release a line of Palantyrant-branded self-driving coffin drones?",
+          "author": "lily-100in1",
+          "authorName": "Lily \"100-in-1\" Phillips",
+          "sentiment": 0.5829805768557588,
+          "clueStrength": 0.37894592451662956,
+          "pointsToward": false
+        }
+      ],
+      "priceUpdates": [],
+      "events": [
+        {
+          "id": "event-1761788251945-0",
+          "type": "deal",
+          "actors": [],
+          "description": "Event related to: Will Andrew Taint be sued by Romanian authorities over alleged tax evasion?",
+          "relatedQuestion": 4,
+          "pointsToward": "YES",
+          "visibility": "public"
+        },
+        {
+          "id": "event-1761788251945-1",
+          "type": "scandal",
+          "actors": [],
+          "description": "Event related to: Will Peter Thief release a line of Palantyrant-branded self-driving coffin drones?",
+          "relatedQuestion": 1,
+          "pointsToward": null,
+          "visibility": "public"
+        },
+        {
+          "id": "event-1761788251945-2",
+          "type": "scandal",
+          "actors": [],
+          "description": "Event related to: Will Gavin Newscum increase his hair gel budget by $1 million?",
+          "relatedQuestion": 6,
+          "pointsToward": "YES",
+          "visibility": "public"
+        }
+      ],
+      "questionsResolved": 0,
+      "questionsCreated": 0
+    },
+    {
+      "timestamp": "2025-10-30T01:38:31.956Z",
+      "posts": [
+        {
+          "id": "post-1761788311957-0.45270833462209215",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:38:31.957Z",
+          "type": "post",
+          "content": "Jasmine \"Receipts\" Park's take on: Event related to: Will Gavin Newscum increase his hair gel budget by $1 million?",
+          "author": "jasmine-receipts",
+          "authorName": "Jasmine \"Receipts\" Park",
+          "sentiment": -0.7382005409644679,
+          "clueStrength": 0.6872565735069875,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788311957-0.06355813686807021",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:38:31.957Z",
+          "type": "post",
+          "content": "Nathan Artificially-Intelligent's take on: Event related to: Will Gavin Newscum increase his hair gel budget by $1 million?",
+          "author": "nathan-artificial",
+          "authorName": "Nathan Artificially-Intelligent",
+          "sentiment": 0.5553737725722083,
+          "clueStrength": 0.24199806648694278,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788311957-0.6142952388622209",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:38:31.957Z",
+          "type": "post",
+          "content": "Kanye Pest's take on: Event related to: Will Gavin Newscum increase his hair gel budget by $1 million?",
+          "author": "kanye-pest",
+          "authorName": "Kanye Pest",
+          "sentiment": 0.26255268091408945,
+          "clueStrength": 0.10193373577461085,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788311957-0.4203095122322442",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:38:31.957Z",
+          "type": "post",
+          "content": "Shamath Palicrapitiya's take on: Event related to: Will Elon's Husk tweet about Neuralink alignment within 48 hours?",
+          "author": "chamath-palicrapitiya",
+          "authorName": "Shamath Palicrapitiya",
+          "sentiment": -0.04872982473682397,
+          "clueStrength": 0.4627422560807879,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788311957-0.6416074429186105",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:38:31.957Z",
+          "type": "post",
+          "content": "Trevor \"Ponzi\" McAllister's take on: Event related to: Will Gavin Newscum increase his hair gel budget by $1 million?",
+          "author": "trevor-ponzi",
+          "authorName": "Trevor \"Ponzi\" McAllister",
+          "sentiment": 0.4544801466845101,
+          "clueStrength": 0.24850775392086333,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788311957-0.08470692334099672",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:38:31.957Z",
+          "type": "post",
+          "content": "Rachel Madcow's take on: Event related to: Will Logan Pawl's next WWE appearance involve a live wrestling match with Andrew Taint?",
+          "author": "rachel-madcow",
+          "authorName": "Rachel Madcow",
+          "sentiment": 0.7991775732471145,
+          "clueStrength": 0.4624789382821033,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788311957-0.14411078331702476",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:38:31.957Z",
+          "type": "post",
+          "content": "Mark Suckerborg's take on: Event related to: Will Gavin Newscum increase his hair gel budget by $1 million?",
+          "author": "mark-suckerborg",
+          "authorName": "Mark Suckerborg",
+          "sentiment": 0.852228884554056,
+          "clueStrength": 0.6435189756092232,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788311957-0.3531986716234907",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:38:31.957Z",
+          "type": "post",
+          "content": "Riley \"NPC Mode\" Chen's take on: Event related to: Will Elon's Husk tweet about Neuralink alignment within 48 hours?",
+          "author": "riley-npc",
+          "authorName": "Riley \"NPC Mode\" Chen",
+          "sentiment": 0.2755333052428801,
+          "clueStrength": 0.27692028870630203,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788311957-0.7912206104604551",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:38:31.957Z",
+          "type": "post",
+          "content": "Karen \"Level Up\" Schiffer's take on: Event related to: Will Gavin Newscum increase his hair gel budget by $1 million?",
+          "author": "karen-levelup",
+          "authorName": "Karen \"Level Up\" Schiffer",
+          "sentiment": -0.736250122074408,
+          "clueStrength": 0.07585095993524571,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788311957-0.4340108973379222",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:38:31.957Z",
+          "type": "post",
+          "content": "Zara \"GlowUp\" Wilson's take on: Event related to: Will Logan Pawl's next WWE appearance involve a live wrestling match with Andrew Taint?",
+          "author": "zara-glowup",
+          "authorName": "Zara \"GlowUp\" Wilson",
+          "sentiment": 0.266044029414676,
+          "clueStrength": 0.04732164789276272,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788311957-0.09589074524685359",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:38:31.957Z",
+          "type": "post",
+          "content": "Jim Scammer's take on: Event related to: Will Gavin Newscum increase his hair gel budget by $1 million?",
+          "author": "jim-scammer",
+          "authorName": "Jim Scammer",
+          "sentiment": 0.04220876327541667,
+          "clueStrength": 0.8050957116972557,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788311957-0.1972694112274378",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:38:31.957Z",
+          "type": "post",
+          "content": "Bella \"Boss Babe\" Bankrupt's take on: Event related to: Will Gavin Newscum increase his hair gel budget by $1 million?",
+          "author": "bella-bossbabe",
+          "authorName": "Bella \"Boss Babe\" Bankrupt",
+          "sentiment": -0.183151983068091,
+          "clueStrength": 0.7365972877592568,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788311957-0.8182496844136509",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:38:31.957Z",
+          "type": "post",
+          "content": "Tim Cooked's take on: Event related to: Will Logan Pawl's next WWE appearance involve a live wrestling match with Andrew Taint?",
+          "author": "tim-cooked",
+          "authorName": "Tim Cooked",
+          "sentiment": -0.6340358797746015,
+          "clueStrength": 0.764184502911587,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788311957-0.45383429526015884",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:38:31.957Z",
+          "type": "post",
+          "content": "GrAImes's take on: Event related to: Will Logan Pawl's next WWE appearance involve a live wrestling match with Andrew Taint?",
+          "author": "graimes",
+          "authorName": "GrAImes",
+          "sentiment": -0.929933933443396,
+          "clueStrength": 0.37014247574553183,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788311957-0.012190533394451863",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:38:31.957Z",
+          "type": "post",
+          "content": "Edward Snowjob's take on: Event related to: Will Gavin Newscum increase his hair gel budget by $1 million?",
+          "author": "edward-snowjob",
+          "authorName": "Edward Snowjob",
+          "sentiment": 0.5466347312256881,
+          "clueStrength": 0.17651223195082255,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788311957-0.4305747743830264",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:38:31.957Z",
+          "type": "post",
+          "content": "AI Prompt Bro's take on: Event related to: Will Gavin Newscum increase his hair gel budget by $1 million?",
+          "author": "ai-prompt-bro",
+          "authorName": "AI Prompt Bro",
+          "sentiment": -0.6762355050448878,
+          "clueStrength": 0.04495862721787791,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788311957-0.17553883118896674",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:38:31.957Z",
+          "type": "post",
+          "content": "Stretched Truth's take on: Event related to: Will Elon's Husk tweet about Neuralink alignment within 48 hours?",
+          "author": "stretched-truth",
+          "authorName": "Stretched Truth",
+          "sentiment": 0.7530551721971186,
+          "clueStrength": 0.8494215113602628,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788311957-0.6864018136396561",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:38:31.957Z",
+          "type": "post",
+          "content": "Johnson Hung's take on: Event related to: Will Elon's Husk tweet about Neuralink alignment within 48 hours?",
+          "author": "johnson-hung",
+          "authorName": "Johnson Hung",
+          "sentiment": -0.06548016853736716,
+          "clueStrength": 0.5512651601921257,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788311957-0.3655117804732946",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:38:31.957Z",
+          "type": "post",
+          "content": "Pete Hegsith's take on: Event related to: Will Logan Pawl's next WWE appearance involve a live wrestling match with Andrew Taint?",
+          "author": "pete-hegsith",
+          "authorName": "Pete Hegsith",
+          "sentiment": 0.5229865741128004,
+          "clueStrength": 0.6680680757378541,
+          "pointsToward": false
+        }
+      ],
+      "priceUpdates": [],
+      "events": [
+        {
+          "id": "event-1761788311957-0",
+          "type": "deal",
+          "actors": [],
+          "description": "Event related to: Will Logan Pawl's next WWE appearance involve a live wrestling match with Andrew Taint?",
+          "relatedQuestion": 15,
+          "pointsToward": "NO",
+          "visibility": "public"
+        },
+        {
+          "id": "event-1761788311957-1",
+          "type": "deal",
+          "actors": [],
+          "description": "Event related to: Will Elon's Husk tweet about Neuralink alignment within 48 hours?",
+          "relatedQuestion": 12,
+          "pointsToward": "YES",
+          "visibility": "public"
+        },
+        {
+          "id": "event-1761788311957-2",
+          "type": "announcement",
+          "actors": [],
+          "description": "Event related to: Will Gavin Newscum increase his hair gel budget by $1 million?",
+          "relatedQuestion": 6,
+          "pointsToward": "YES",
+          "visibility": "public"
+        }
+      ],
+      "questionsResolved": 0,
+      "questionsCreated": 0
+    },
+    {
+      "timestamp": "2025-10-30T01:39:31.972Z",
+      "posts": [
+        {
+          "id": "post-1761788371972-0.6500583402808788",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:39:31.972Z",
+          "type": "post",
+          "content": "Logan Pawl's take on: Event related to: Will Peter Thief release a line of Palantyrant-branded self-driving coffin drones?",
+          "author": "logan-pawl",
+          "authorName": "Logan Pawl",
+          "sentiment": 0.2587599280697179,
+          "clueStrength": 0.5993326446494798,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788371972-0.8029448306792846",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:39:31.972Z",
+          "type": "post",
+          "content": "Jared Cuckner's take on: Event related to: Will Peter Thief release a line of Palantyrant-branded self-driving coffin drones?",
+          "author": "jared-cuckner",
+          "authorName": "Jared Cuckner",
+          "sentiment": 0.8634082145465709,
+          "clueStrength": 0.8570975029784875,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788371972-0.8546477464388555",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:39:31.972Z",
+          "type": "post",
+          "content": "Cathie Wooden's take on: Event related to: Will AIOC publish a 10-minute livestream on Twitch criticizing Gavin Newscum's French Laundry dinner as an essential expense?",
+          "author": "cathie-wooden",
+          "authorName": "Cathie Wooden",
+          "sentiment": 0.1728441779398544,
+          "clueStrength": 0.1422321092041392,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788371972-0.28153218342993047",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:39:31.972Z",
+          "type": "post",
+          "content": "Marc Andreescum's take on: Event related to: Will AIOC publish a 10-minute livestream on Twitch criticizing Gavin Newscum's French Laundry dinner as an essential expense?",
+          "author": "marc-andreescum",
+          "authorName": "Marc Andreescum",
+          "sentiment": -0.41316452819974314,
+          "clueStrength": 0.8060565950994127,
+          "pointsToward": false
+        },
+        {
+          "id": "post-1761788371972-0.2854068941268364",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:39:31.972Z",
+          "type": "post",
+          "content": "AI Prompt Bro's take on: Event related to: Will Peter Thief release a line of Palantyrant-branded self-driving coffin drones?",
+          "author": "ai-prompt-bro",
+          "authorName": "AI Prompt Bro",
+          "sentiment": -0.6189812255581915,
+          "clueStrength": 0.05138247690421016,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788371972-0.6252911231196174",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:39:31.972Z",
+          "type": "post",
+          "content": "Trevor \"Ponzi\" McAllister's take on: Event related to: Will AIOC publish a 10-minute livestream on Twitch criticizing Gavin Newscum's French Laundry dinner as an essential expense?",
+          "author": "trevor-ponzi",
+          "authorName": "Trevor \"Ponzi\" McAllister",
+          "sentiment": -0.11437632978010637,
+          "clueStrength": 0.7737652172110883,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788371972-0.6459740648151513",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:39:31.972Z",
+          "type": "post",
+          "content": "Bill Hackman's take on: Event related to: Will AIOC publish a 10-minute livestream on Twitch criticizing Gavin Newscum's French Laundry dinner as an essential expense?",
+          "author": "bill-hackman",
+          "authorName": "Bill Hackman",
+          "sentiment": -0.531502978054395,
+          "clueStrength": 0.9534702798115704,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788371972-0.7122812307152233",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:39:31.972Z",
+          "type": "post",
+          "content": "NPC Streamer Nina's take on: Event related to: Will AIOC publish a 10-minute livestream on Twitch criticizing Gavin Newscum's French Laundry dinner as an essential expense?",
+          "author": "npc-streamer-nina",
+          "authorName": "NPC Streamer Nina",
+          "sentiment": 0.25618968114377694,
+          "clueStrength": 0.08182466140851563,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788371972-0.19446385301846525",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:39:31.972Z",
+          "type": "post",
+          "content": "Mark Suckerborg's take on: Event related to: Will Peter Thief release a line of Palantyrant-branded self-driving coffin drones?",
+          "author": "mark-suckerborg",
+          "authorName": "Mark Suckerborg",
+          "sentiment": 0.1851332801688259,
+          "clueStrength": 0.9907399843712115,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788371972-0.5270963870874579",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:39:31.972Z",
+          "type": "post",
+          "content": "Kanye Pest's take on: Event related to: Will Peter Thief release a line of Palantyrant-branded self-driving coffin drones?",
+          "author": "kanye-pest",
+          "authorName": "Kanye Pest",
+          "sentiment": 0.870123604983347,
+          "clueStrength": 0.7569262572981439,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788371972-0.8952592871543743",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:39:31.972Z",
+          "type": "post",
+          "content": "Lex Deadpan's take on: Event related to: Will AIOC publish a 10-minute livestream on Twitch criticizing Gavin Newscum's French Laundry dinner as an essential expense?",
+          "author": "lex-deadpan",
+          "authorName": "Lex Deadpan",
+          "sentiment": -0.6890755538147157,
+          "clueStrength": 0.5333928216421582,
+          "pointsToward": true
+        },
+        {
+          "id": "post-1761788371972-0.6312825574998313",
+          "day": 20391,
+          "timestamp": "2025-10-30T01:39:31.972Z",
+          "type": "post",
+          "content": "Mr. Feast's take on: Event related to: Will Peter Thief release a line of Palantyrant-branded self-driving coffin drones?",
+          "author": "mr-feast",
+          "authorName": "Mr. Feast",
+          "sentiment": 0.3338835168446348,
+          "clueStrength": 0.8267819697520349,
+          "pointsToward": true
+        }
+      ],
+      "priceUpdates": [],
+      "events": [
+        {
+          "id": "event-1761788371972-0",
+          "type": "scandal",
+          "actors": [],
+          "description": "Event related to: Will AIOC publish a 10-minute livestream on Twitch criticizing Gavin Newscum's French Laundry dinner as an essential expense?",
+          "relatedQuestion": 14,
+          "pointsToward": "NO",
+          "visibility": "public"
+        },
+        {
+          "id": "event-1761788371972-1",
+          "type": "revelation",
+          "actors": [],
+          "description": "Event related to: Will Peter Thief release a line of Palantyrant-branded self-driving coffin drones?",
+          "relatedQuestion": 1,
+          "pointsToward": null,
+          "visibility": "public"
+        }
+      ],
+      "questionsResolved": 0,
+      "questionsCreated": 0
     }
   ],
   "questions": [
@@ -54653,9 +56778,9 @@
       "currentPrice": 450,
       "priceHistory": [],
       "markovState": {
-        "trend": "bearish",
-        "volatility": 0.38952621428761636,
-        "momentum": -0.3237473238259554
+        "trend": "neutral",
+        "volatility": 0.3473919522250072,
+        "momentum": 0.013676525093615055
       }
     },
     {
@@ -54677,9 +56802,9 @@
       "currentPrice": 380,
       "priceHistory": [],
       "markovState": {
-        "trend": "neutral",
-        "volatility": 0.13864565584808589,
-        "momentum": 0.37010329659096897
+        "trend": "bearish",
+        "volatility": 0.25597698350902653,
+        "momentum": 0.249110565520823
       }
     },
     {
@@ -54701,9 +56826,9 @@
       "currentPrice": 320,
       "priceHistory": [],
       "markovState": {
-        "trend": "neutral",
-        "volatility": 0.2559548787539825,
-        "momentum": 0.40078206337057054
+        "trend": "bearish",
+        "volatility": 0.3913285786285997,
+        "momentum": 0.4793254300020635
       }
     },
     {
@@ -54725,9 +56850,9 @@
       "currentPrice": 520,
       "priceHistory": [],
       "markovState": {
-        "trend": "bullish",
-        "volatility": 0.2189288234803826,
-        "momentum": -0.31762623391114175
+        "trend": "bearish",
+        "volatility": 0.13424700552131982,
+        "momentum": 0.11136699933558702
       }
     },
     {
@@ -54750,8 +56875,8 @@
       "priceHistory": [],
       "markovState": {
         "trend": "bullish",
-        "volatility": 0.3404860171955079,
-        "momentum": 0.12589573441073298
+        "volatility": 0.21075965021736923,
+        "momentum": -0.2676539686508477
       }
     },
     {
@@ -54774,8 +56899,8 @@
       "priceHistory": [],
       "markovState": {
         "trend": "neutral",
-        "volatility": 0.32882811394520106,
-        "momentum": 0.42126559000462294
+        "volatility": 0.3000150834675879,
+        "momentum": 0.4876298860181123
       }
     },
     {
@@ -54797,9 +56922,9 @@
       "currentPrice": 420,
       "priceHistory": [],
       "markovState": {
-        "trend": "neutral",
-        "volatility": 0.3632846186403186,
-        "momentum": -0.314026846550405
+        "trend": "bearish",
+        "volatility": 0.3506714758463204,
+        "momentum": -0.18929665605537593
       }
     },
     {
@@ -54821,9 +56946,9 @@
       "currentPrice": 850,
       "priceHistory": [],
       "markovState": {
-        "trend": "bearish",
-        "volatility": 0.2648463109042496,
-        "momentum": -0.26514921081252396
+        "trend": "bullish",
+        "volatility": 0.2173613685416058,
+        "momentum": -0.1725873164832592
       }
     },
     {
@@ -54845,9 +56970,9 @@
       "currentPrice": 425,
       "priceHistory": [],
       "markovState": {
-        "trend": "neutral",
-        "volatility": 0.3410218315431849,
-        "momentum": 0.12385580851696432
+        "trend": "bullish",
+        "volatility": 0.39602948743849997,
+        "momentum": 0.47294872417114675
       }
     },
     {
@@ -54870,8 +56995,8 @@
       "priceHistory": [],
       "markovState": {
         "trend": "bearish",
-        "volatility": 0.37029763890895995,
-        "momentum": 0.027574629290029407
+        "volatility": 0.3095353191485629,
+        "momentum": 0.14021885441616178
       }
     },
     {
@@ -54893,9 +57018,9 @@
       "currentPrice": 95,
       "priceHistory": [],
       "markovState": {
-        "trend": "bearish",
-        "volatility": 0.26140848316717896,
-        "momentum": -0.0761418214533478
+        "trend": "bullish",
+        "volatility": 0.33774317048955715,
+        "momentum": -0.0058093860279768705
       }
     },
     {
@@ -54917,9 +57042,9 @@
       "currentPrice": 55,
       "priceHistory": [],
       "markovState": {
-        "trend": "neutral",
-        "volatility": 0.2693579666782171,
-        "momentum": -0.041965993819758296
+        "trend": "bearish",
+        "volatility": 0.1473897330928594,
+        "momentum": 0.4010473182424903
       }
     },
     {
@@ -54942,8 +57067,8 @@
       "priceHistory": [],
       "markovState": {
         "trend": "bullish",
-        "volatility": 0.16820687155704947,
-        "momentum": -0.1833301936276257
+        "volatility": 0.1004899098770693,
+        "momentum": 0.30853914050385356
       }
     },
     {
@@ -54965,9 +57090,9 @@
       "currentPrice": 8,
       "priceHistory": [],
       "markovState": {
-        "trend": "bearish",
-        "volatility": 0.1474298730492592,
-        "momentum": 0.24594129621982574
+        "trend": "bullish",
+        "volatility": 0.27045380168128763,
+        "momentum": 0.18635483598336577
       }
     },
     {
@@ -54990,8 +57115,8 @@
       "priceHistory": [],
       "markovState": {
         "trend": "neutral",
-        "volatility": 0.34629327401053167,
-        "momentum": -0.2390324561856687
+        "volatility": 0.20044190578628335,
+        "momentum": -0.46347397565841675
       }
     },
     {
@@ -55013,9 +57138,9 @@
       "currentPrice": 245,
       "priceHistory": [],
       "markovState": {
-        "trend": "bearish",
-        "volatility": 0.3793744120514021,
-        "momentum": -0.23209723574109375
+        "trend": "neutral",
+        "volatility": 0.25472523476928477,
+        "momentum": 0.4526332849636674
       }
     },
     {
@@ -55037,9 +57162,9 @@
       "currentPrice": 180,
       "priceHistory": [],
       "markovState": {
-        "trend": "bearish",
-        "volatility": 0.35325434366241104,
-        "momentum": -0.3110675374045968
+        "trend": "bullish",
+        "volatility": 0.3737264466006309,
+        "momentum": 0.32830023346468806
       }
     },
     {
@@ -55062,8 +57187,8 @@
       "priceHistory": [],
       "markovState": {
         "trend": "bullish",
-        "volatility": 0.24364395218435678,
-        "momentum": 0.3005117375869304
+        "volatility": 0.24354289863258602,
+        "momentum": 0.06179629289545119
       }
     },
     {
@@ -55085,9 +57210,9 @@
       "currentPrice": 35,
       "priceHistory": [],
       "markovState": {
-        "trend": "bullish",
-        "volatility": 0.37084148360881963,
-        "momentum": -0.47586402925662696
+        "trend": "bearish",
+        "volatility": 0.17079118916299196,
+        "momentum": 0.08423584140837193
       }
     },
     {
@@ -55109,9 +57234,9 @@
       "currentPrice": 18,
       "priceHistory": [],
       "markovState": {
-        "trend": "bullish",
-        "volatility": 0.152901096153073,
-        "momentum": 0.22136872238479555
+        "trend": "neutral",
+        "volatility": 0.21433880648110065,
+        "momentum": 0.14891697047278285
       }
     },
     {
@@ -55133,9 +57258,9 @@
       "currentPrice": 42,
       "priceHistory": [],
       "markovState": {
-        "trend": "bullish",
-        "volatility": 0.32907622624188665,
-        "momentum": 0.05839990032836795
+        "trend": "bearish",
+        "volatility": 0.2878154825419188,
+        "momentum": 0.09821331198327243
       }
     },
     {
@@ -55157,9 +57282,9 @@
       "currentPrice": 48,
       "priceHistory": [],
       "markovState": {
-        "trend": "neutral",
-        "volatility": 0.17010763036087156,
-        "momentum": 0.3748676283285022
+        "trend": "bullish",
+        "volatility": 0.3191002618754283,
+        "momentum": -0.13262158655561507
       }
     },
     {
@@ -55181,9 +57306,9 @@
       "currentPrice": 31,
       "priceHistory": [],
       "markovState": {
-        "trend": "neutral",
-        "volatility": 0.3051788210636005,
-        "momentum": -0.2622573794797063
+        "trend": "bearish",
+        "volatility": 0.3533059490844608,
+        "momentum": -0.4831262493971735
       }
     },
     {
@@ -55205,9 +57330,9 @@
       "currentPrice": 15,
       "priceHistory": [],
       "markovState": {
-        "trend": "neutral",
-        "volatility": 0.1547856117365882,
-        "momentum": 0.09933456871658564
+        "trend": "bearish",
+        "volatility": 0.13500238193664701,
+        "momentum": 0.2718235421925783
       }
     },
     {
@@ -55229,9 +57354,9 @@
       "currentPrice": 285,
       "priceHistory": [],
       "markovState": {
-        "trend": "bullish",
-        "volatility": 0.30655686461832377,
-        "momentum": -0.3310789919923991
+        "trend": "neutral",
+        "volatility": 0.15026661851443351,
+        "momentum": 0.1744483313523233
       }
     },
     {
@@ -55254,8 +57379,8 @@
       "priceHistory": [],
       "markovState": {
         "trend": "neutral",
-        "volatility": 0.2123544030589983,
-        "momentum": -0.11277388851158321
+        "volatility": 0.19777623894624413,
+        "momentum": -0.3243718990124762
       }
     },
     {
@@ -55277,9 +57402,9 @@
       "currentPrice": 1250,
       "priceHistory": [],
       "markovState": {
-        "trend": "neutral",
-        "volatility": 0.22631719745695594,
-        "momentum": -0.057102914433926344
+        "trend": "bearish",
+        "volatility": 0.1259209831012413,
+        "momentum": -0.06227084598504007
       }
     },
     {
@@ -55302,8 +57427,8 @@
       "priceHistory": [],
       "markovState": {
         "trend": "bearish",
-        "volatility": 0.3700564595637843,
-        "momentum": -0.10757779097184539
+        "volatility": 0.1258734482107684,
+        "momentum": 0.48263934743590653
       }
     },
     {
@@ -55325,9 +57450,9 @@
       "currentPrice": 165,
       "priceHistory": [],
       "markovState": {
-        "trend": "neutral",
-        "volatility": 0.20317797844763846,
-        "momentum": -0.21566448011435568
+        "trend": "bullish",
+        "volatility": 0.23072572781238707,
+        "momentum": -0.009665038669481874
       }
     },
     {
@@ -55349,9 +57474,9 @@
       "currentPrice": 375,
       "priceHistory": [],
       "markovState": {
-        "trend": "neutral",
-        "volatility": 0.11867328309454026,
-        "momentum": -0.11645791144110262
+        "trend": "bullish",
+        "volatility": 0.173427494475618,
+        "momentum": -0.4211447606794536
       }
     },
     {
@@ -55374,8 +57499,8 @@
       "priceHistory": [],
       "markovState": {
         "trend": "bearish",
-        "volatility": 0.37470803409814835,
-        "momentum": 0.12666083336807787
+        "volatility": 0.1753986780298874,
+        "momentum": -0.17214988637715578
       }
     },
     {
@@ -55398,8 +57523,8 @@
       "priceHistory": [],
       "markovState": {
         "trend": "bearish",
-        "volatility": 0.3359589679865167,
-        "momentum": 0.03617843613028526
+        "volatility": 0.13010493817273527,
+        "momentum": -0.4181908417958766
       }
     }
   ],
@@ -56305,11 +58430,428 @@
         "predictedRate": 0.01
       }
     ],
-    "dailySnapshots": {},
+    "dailySnapshots": {
+      "OPENLIE": [
+        {
+          "date": "2025-10-29",
+          "ticker": "OPENLIE",
+          "organizationId": "openlie",
+          "openPrice": 450,
+          "closePrice": 450,
+          "highPrice": 450,
+          "lowPrice": 450,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "ANTHROPIMP": [
+        {
+          "date": "2025-10-29",
+          "ticker": "ANTHROPIMP",
+          "organizationId": "anthropimp",
+          "openPrice": 380,
+          "closePrice": 380,
+          "highPrice": 380,
+          "lowPrice": 380,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "DEEPMINED": [
+        {
+          "date": "2025-10-29",
+          "ticker": "DEEPMINED",
+          "organizationId": "deepmined",
+          "openPrice": 320,
+          "closePrice": 320,
+          "highPrice": 320,
+          "lowPrice": 320,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "FACEHOOK": [
+        {
+          "date": "2025-10-29",
+          "ticker": "FACEHOOK",
+          "organizationId": "facehook",
+          "openPrice": 520,
+          "closePrice": 520,
+          "highPrice": 520,
+          "lowPrice": 520,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "PALANTYRANT": [
+        {
+          "date": "2025-10-29",
+          "ticker": "PALANTYRANT",
+          "organizationId": "palantyrant",
+          "openPrice": 45,
+          "closePrice": 45,
+          "highPrice": 45,
+          "lowPrice": 45,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "ANDURITALIN": [
+        {
+          "date": "2025-10-29",
+          "ticker": "ANDURITALIN",
+          "organizationId": "anduritalin",
+          "openPrice": 28,
+          "closePrice": 28,
+          "highPrice": 28,
+          "lowPrice": 28,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "GOLDMANSUCKS": [
+        {
+          "date": "2025-10-29",
+          "ticker": "GOLDMANSUCKS",
+          "organizationId": "goldman-sucks",
+          "openPrice": 420,
+          "closePrice": 420,
+          "highPrice": 420,
+          "lowPrice": 420,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "BLACKCROOK": [
+        {
+          "date": "2025-10-29",
+          "ticker": "BLACKCROOK",
+          "organizationId": "blackcrook",
+          "openPrice": 850,
+          "closePrice": 850,
+          "highPrice": 850,
+          "lowPrice": 850,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "MACROHARD": [
+        {
+          "date": "2025-10-29",
+          "ticker": "MACROHARD",
+          "organizationId": "macrohard",
+          "openPrice": 425,
+          "closePrice": 425,
+          "highPrice": 425,
+          "lowPrice": 425,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "CONBASE": [
+        {
+          "date": "2025-10-29",
+          "ticker": "CONBASE",
+          "organizationId": "conbase",
+          "openPrice": 180,
+          "closePrice": 180,
+          "highPrice": 180,
+          "lowPrice": 180,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "MCKINSCAM": [
+        {
+          "date": "2025-10-29",
+          "ticker": "MCKINSCAM",
+          "organizationId": "mckinscam",
+          "openPrice": 95,
+          "closePrice": 95,
+          "highPrice": 95,
+          "lowPrice": 95,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "AI16Z": [
+        {
+          "date": "2025-10-29",
+          "ticker": "AI16Z",
+          "organizationId": "ai16z",
+          "openPrice": 55,
+          "closePrice": 55,
+          "highPrice": 55,
+          "lowPrice": 55,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "EFFECTIVEAUTHORITARIANISM": [
+        {
+          "date": "2025-10-29",
+          "ticker": "EFFECTIVEAUTHORITARIANISM",
+          "organizationId": "effective-authoritarianism",
+          "openPrice": 12,
+          "closePrice": 12,
+          "highPrice": 12,
+          "lowPrice": 12,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "ATLANTICCOUNCILOFCONCERN": [
+        {
+          "date": "2025-10-29",
+          "ticker": "ATLANTICCOUNCILOFCONCERN",
+          "organizationId": "atlantic-council-of-concern",
+          "openPrice": 8,
+          "closePrice": 8,
+          "highPrice": 8,
+          "lowPrice": 8,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "XITTER": [
+        {
+          "date": "2025-10-29",
+          "ticker": "XITTER",
+          "organizationId": "xitter",
+          "openPrice": 42,
+          "closePrice": 42,
+          "highPrice": 42,
+          "lowPrice": 42,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "TESLABOT": [
+        {
+          "date": "2025-10-29",
+          "ticker": "TESLABOT",
+          "organizationId": "teslabot",
+          "openPrice": 245,
+          "closePrice": 245,
+          "highPrice": 245,
+          "lowPrice": 245,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "SPACEXPLOIT": [
+        {
+          "date": "2025-10-29",
+          "ticker": "SPACEXPLOIT",
+          "organizationId": "spacex-ploit",
+          "openPrice": 180,
+          "closePrice": 180,
+          "highPrice": 180,
+          "lowPrice": 180,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "NEURALINKMISSING": [
+        {
+          "date": "2025-10-29",
+          "ticker": "NEURALINKMISSING",
+          "organizationId": "neuralink-missing",
+          "openPrice": 22,
+          "closePrice": 22,
+          "highPrice": 22,
+          "lowPrice": 22,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "ETHERESCUMFOUNDATION": [
+        {
+          "date": "2025-10-29",
+          "ticker": "ETHERESCUMFOUNDATION",
+          "organizationId": "etherescum-foundation",
+          "openPrice": 35,
+          "closePrice": 35,
+          "highPrice": 35,
+          "lowPrice": 35,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "ANGELFIST": [
+        {
+          "date": "2025-10-29",
+          "ticker": "ANGELFIST",
+          "organizationId": "angelfist",
+          "openPrice": 18,
+          "closePrice": 18,
+          "highPrice": 18,
+          "lowPrice": 18,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "FOUNDERSFRAUD": [
+        {
+          "date": "2025-10-29",
+          "ticker": "FOUNDERSFRAUD",
+          "organizationId": "founders-fraud",
+          "openPrice": 42,
+          "closePrice": 42,
+          "highPrice": 42,
+          "lowPrice": 42,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "ARKINGEST": [
+        {
+          "date": "2025-10-29",
+          "ticker": "ARKINGEST",
+          "organizationId": "ark-ingest",
+          "openPrice": 48,
+          "closePrice": 48,
+          "highPrice": 48,
+          "lowPrice": 48,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "ANTISOCIALCAPITAL": [
+        {
+          "date": "2025-10-29",
+          "ticker": "ANTISOCIALCAPITAL",
+          "organizationId": "anti-social-capital",
+          "openPrice": 31,
+          "closePrice": 31,
+          "highPrice": 31,
+          "lowPrice": 31,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "DUMPORGANIZATION": [
+        {
+          "date": "2025-10-29",
+          "ticker": "DUMPORGANIZATION",
+          "organizationId": "dump-organization",
+          "openPrice": 15,
+          "closePrice": 15,
+          "highPrice": 15,
+          "lowPrice": 15,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "SPOTIFLIE": [
+        {
+          "date": "2025-10-29",
+          "ticker": "SPOTIFLIE",
+          "organizationId": "spotif-lie",
+          "openPrice": 285,
+          "closePrice": 285,
+          "highPrice": 285,
+          "lowPrice": 285,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "PRIMETIME": [
+        {
+          "date": "2025-10-29",
+          "ticker": "PRIMETIME",
+          "organizationId": "prime-time",
+          "openPrice": 22,
+          "closePrice": 22,
+          "highPrice": 22,
+          "lowPrice": 22,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "NVIDIOT": [
+        {
+          "date": "2025-10-29",
+          "ticker": "NVIDIOT",
+          "organizationId": "nvidiot",
+          "openPrice": 1250,
+          "closePrice": 1250,
+          "highPrice": 1250,
+          "lowPrice": 1250,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "CRAPPLE": [
+        {
+          "date": "2025-10-29",
+          "ticker": "CRAPPLE",
+          "organizationId": "crapple",
+          "openPrice": 225,
+          "closePrice": 225,
+          "highPrice": 225,
+          "lowPrice": 225,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "GOOLAG": [
+        {
+          "date": "2025-10-29",
+          "ticker": "GOOLAG",
+          "organizationId": "goolag",
+          "openPrice": 165,
+          "closePrice": 165,
+          "highPrice": 165,
+          "lowPrice": 165,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "MICROSELLEGY": [
+        {
+          "date": "2025-10-29",
+          "ticker": "MICROSELLEGY",
+          "organizationId": "microsellegy",
+          "openPrice": 375,
+          "closePrice": 375,
+          "highPrice": 375,
+          "lowPrice": 375,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "GLAMAZON": [
+        {
+          "date": "2025-10-29",
+          "ticker": "GLAMAZON",
+          "organizationId": "glamazon",
+          "openPrice": 185,
+          "closePrice": 185,
+          "highPrice": 185,
+          "lowPrice": 185,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ],
+      "BLUEORGAN": [
+        {
+          "date": "2025-10-29",
+          "ticker": "BLUEORGAN",
+          "organizationId": "blue-organ",
+          "openPrice": 28,
+          "closePrice": 28,
+          "highPrice": 28,
+          "lowPrice": 28,
+          "volume": 0,
+          "timestamp": "2025-10-30T01:31:31.865Z"
+        }
+      ]
+    },
     "liquidations": [],
     "lastFundingTime": "2025-10-29T04:07:57.032Z",
     "currentDate": "2025-10-29"
   },
-  "lastDailySnapshot": "2025-10-29",
-  "timestamp": "2025-10-29T17:42:56.435Z"
+  "lastDailySnapshot": "2025-10-30",
+  "timestamp": "2025-10-30T01:39:31.973Z"
 }
