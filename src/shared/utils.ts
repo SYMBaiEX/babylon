@@ -4,6 +4,8 @@
  * Consolidated utility functions to eliminate duplication across codebase
  */
 
+import type { Actor, ActorRelationship, Organization } from './types';
+
 /**
  * Shuffle array using Fisher-Yates algorithm
  * Provides cryptographically secure randomization
@@ -151,4 +153,142 @@ export function pickRandom<T>(array: T[]): T | undefined {
 export function pickRandomN<T>(array: T[], count: number): T[] {
   const shuffled = shuffleArray(array);
   return shuffled.slice(0, Math.min(count, array.length));
+}
+
+/**
+ * Build phase-specific narrative context for LLM prompts
+ * Provides instructions on how content should reflect the current game phase
+ *
+ * @param day - Current game day (1-30)
+ * @returns Phase-specific narrative instructions
+ */
+export function buildPhaseContext(day: number): string {
+  if (day <= 10) {
+    return `Phase: WILD (Days 1-10)
+- Generate mysterious, disconnected events
+- Drop vague hints and rumors
+- Create speculation and uncertainty
+- Events feel random and chaotic
+- Minimal concrete information`;
+  } else if (day <= 20) {
+    return `Phase: CONNECTION (Days 11-20)
+- Begin connecting previous events
+- Reveal relationships between actors
+- Provide more concrete information
+- Story threads start emerging
+- Patterns become visible`;
+  } else if (day <= 25) {
+    return `Phase: CONVERGENCE (Days 21-25)
+- Major storyline convergence
+- Big revelations about questions
+- Clear narrative threads
+- Dramatic developments
+- Truth starts emerging`;
+  } else if (day <= 29) {
+    return `Phase: CLIMAX (Days 26-29)
+- Maximum drama and uncertainty
+- Conflicting final clues
+- Rapid developments
+- High stakes moments
+- Resolution seems imminent`;
+  } else {
+    return `Phase: RESOLUTION (Day 30)
+- Definitive outcomes
+- All questions resolved
+- Epilogue content
+- Narrative closure`;
+  }
+}
+
+/**
+ * Build relationship context for actors in LLM prompts
+ * Formats actor relationships and connections for narrative generation
+ *
+ * @param actors - List of actors involved
+ * @param relationships - Relationship data between actors
+ * @returns Formatted relationship context string
+ */
+export function buildRelationshipContext(
+  actors: Actor[],
+  relationships: ActorRelationship[]
+): string {
+  if (!relationships || relationships.length === 0) {
+    return '';
+  }
+
+  const actorIds = new Set(actors.map(a => a.id));
+  const relevantRelationships = relationships.filter(
+    r => actorIds.has(r.actor1) && actorIds.has(r.actor2)
+  );
+
+  if (relevantRelationships.length === 0) {
+    return '';
+  }
+
+  const actorMap = new Map(actors.map(a => [a.id, a.name]));
+  const relationshipLines = relevantRelationships
+    .slice(0, 10) // Limit to avoid token bloat
+    .map(r => {
+      const name1 = actorMap.get(r.actor1) || r.actor1;
+      const name2 = actorMap.get(r.actor2) || r.actor2;
+      return `- ${name1} & ${name2}: ${r.relationship}${r.context ? ` (${r.context})` : ''}`;
+    })
+    .join('\n');
+
+  return `\nKnown Relationships:\n${relationshipLines}`;
+}
+
+/**
+ * Build organization behavior context for LLM prompts
+ * Provides guidance on how different organization types should behave
+ *
+ * @param organizations - List of organizations involved
+ * @returns Formatted organization behavior instructions
+ */
+export function buildOrganizationBehaviorContext(organizations: Organization[]): string {
+  if (!organizations || organizations.length === 0) {
+    return '';
+  }
+
+  const orgsByType = {
+    media: organizations.filter(o => o.type === 'media'),
+    company: organizations.filter(o => o.type === 'company'),
+    government: organizations.filter(o => o.type === 'government'),
+  };
+
+  const contextParts: string[] = [];
+
+  if (orgsByType.media.length > 0) {
+    contextParts.push(
+      `Media Organizations (${orgsByType.media.map(o => o.name).join(', ')}):
+- Break stories first, prioritize speed and exclusivity
+- Cite sources when available, use "sources say" for leaks
+- Maintain journalistic tone, factual but engaging
+- Compete for attention and credibility`
+    );
+  }
+
+  if (orgsByType.company.length > 0) {
+    contextParts.push(
+      `Companies (${orgsByType.company.map(o => o.name).join(', ')}):
+- Issue official statements, press releases
+- Protect reputation and manage PR
+- Announce developments strategically
+- Respond to criticism and controversy`
+    );
+  }
+
+  if (orgsByType.government.length > 0) {
+    contextParts.push(
+      `Government Entities (${orgsByType.government.map(o => o.name).join(', ')}):
+- Formal, official communications
+- Regulatory announcements and investigations
+- Policy statements and enforcement actions
+- Balance transparency with discretion`
+    );
+  }
+
+  return contextParts.length > 0
+    ? `\nOrganization Behavior Guidelines:\n${contextParts.join('\n\n')}`
+    : '';
 }

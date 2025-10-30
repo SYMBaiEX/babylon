@@ -157,12 +157,24 @@ export type FeedEvent = FeedPost;
  */
 export interface WorldEvent {
   id: string;
-  type: 'meeting' | 'announcement' | 'scandal' | 'deal' | 'conflict' | 'revelation';
+  day: number;
+  type:
+    | 'announcement'
+    | 'meeting'
+    | 'leak'
+    | 'development'
+    | 'scandal'
+    | 'rumor'
+    | 'deal'
+    | 'conflict'
+    | 'revelation'
+    | 'development:occurred'
+    | 'news:published';
   actors: string[];
   description: string;
-  relatedQuestion: number | null;
-  pointsToward: 'YES' | 'NO' | null;
-  visibility: 'public' | 'private' | 'group';
+  relatedQuestion?: number | null;
+  pointsToward?: 'YES' | 'NO' | null;
+  visibility: 'public' | 'leaked' | 'secret' | 'private' | 'group';
 }
 
 /**

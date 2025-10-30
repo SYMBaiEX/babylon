@@ -76,24 +76,34 @@ export default function ActorProfilePage() {
     loadActorInfo()
   }, [actorId])
 
-  // Load posts from database API
-  const [actorPosts, setActorPosts] = useState<any[]>([])
-  
-  useEffect(() => {
-    const loadPosts = async () => {
-      try {
-        const response = await fetch(`/api/posts?actorId=${actorId}&limit=500`)
-        if (response.ok) {
-          const data = await response.json()
-          setActorPosts(data.posts || [])
-        }
-      } catch (error) {
-        console.error('Failed to load actor posts:', error)
-      }
-    }
-    
-    loadPosts()
-  }, [actorId])
+  // Get posts for this actor from all games
+  const actorPosts = useMemo(() => {
+    const posts: Array<{
+      post: FeedPost
+      gameId: string
+      gameName: string
+      timestampMs: number
+    }> = []
+
+    allGames.forEach(game => {
+      game.timeline?.forEach(day => {
+        day.feedPosts?.forEach(post => {
+          if (post.author === actorId) {
+            const postDate = new Date(post.timestamp)
+            posts.push({
+              post,
+              gameId: game.id,
+              gameName: game.id,
+              timestampMs: postDate.getTime()
+            })
+          }
+        })
+      })
+    })
+
+    // Sort by timestamp (newest first)
+    return posts.sort((a, b) => b.timestampMs - a.timestampMs)
+  }, [allGames, actorId])
 
   // Filter posts up to current time
   const visiblePosts = useMemo(() => {
@@ -270,7 +280,7 @@ export default function ActorProfilePage() {
 
               return (
                 <article
-                  key={`${post.id}-${i}`}
+                  key={`${item.post.id}-${i}`}
                   className={cn(
                     'px-4 py-3 border-b border-border',
                     'hover:bg-muted/30',

@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { User, Calendar, LogOut } from 'lucide-react'
+import { User, Calendar } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { LoginButton } from '@/components/auth/LoginButton'
 import { UserMenu } from '@/components/auth/UserMenu'
 import { PageContainer } from '@/components/shared/PageContainer'
+import { Separator } from '@/components/shared/Separator'
 import { cn } from '@/lib/utils'
 
 interface ProfileData {
@@ -23,7 +24,7 @@ interface ProfileData {
 }
 
 export default function ProfilePage() {
-  const { ready, authenticated, logout } = useAuth()
+  const { ready, authenticated } = useAuth()
   const { user } = useAuthStore()
   const [profileData, setProfileData] = useState<ProfileData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -50,29 +51,33 @@ export default function ProfilePage() {
   return (
     <PageContainer noPadding className="flex flex-col">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-background border-b border-border">
+      <div className="sticky top-0 z-10 bg-background">
         <div className="p-4">
           <h1 className="text-2xl font-bold text-foreground">Profile</h1>
         </div>
+        <Separator />
       </div>
 
       {/* Content area */}
       <div className="flex-1 overflow-y-auto">
         {/* Authentication Section - Top of mobile profile */}
         {ready && !authenticated && (
-          <div className="bg-muted/50 border-b border-border p-4">
-            <div className="max-w-2xl mx-auto">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-sm mb-1 text-foreground">Connect Your Wallet</h3>
-                  <p className="text-xs text-muted-foreground">
-                    View your profile and make predictions
-                  </p>
+          <>
+            <div className="bg-muted/50 p-4">
+              <div className="max-w-2xl mx-auto">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-sm mb-1 text-foreground">Connect Your Wallet</h3>
+                    <p className="text-xs text-muted-foreground">
+                      View your profile and make predictions
+                    </p>
+                  </div>
+                  <LoginButton />
                 </div>
-                <LoginButton />
               </div>
             </div>
-          </div>
+            <Separator />
+          </>
         )}
 
         <div className="max-w-2xl mx-auto">
@@ -123,7 +128,9 @@ export default function ProfilePage() {
             )}
 
             {/* Stats */}
-            <div className="flex gap-4 md:gap-6 mt-4 text-sm border-t border-border pt-4">
+            <div className="relative">
+              <Separator />
+              <div className="flex gap-4 md:gap-6 mt-4 text-sm pt-4">
               <div>
                 <span className="font-bold text-foreground">0</span>
                 <span className="text-muted-foreground ml-1 text-xs md:text-sm">Following</span>
@@ -132,9 +139,10 @@ export default function ProfilePage() {
                 <span className="font-bold text-foreground">0</span>
                 <span className="text-muted-foreground ml-1 text-xs md:text-sm">Followers</span>
               </div>
-              <div>
-                <span className="font-bold text-foreground">0</span>
-                <span className="text-muted-foreground ml-1 text-xs md:text-sm">Posts</span>
+                <div>
+                  <span className="font-bold text-foreground">0</span>
+                  <span className="text-muted-foreground ml-1 text-xs md:text-sm">Posts</span>
+                </div>
               </div>
             </div>
           </div>
@@ -143,22 +151,12 @@ export default function ProfilePage() {
           {ready && authenticated && (
             <div className="px-4 pb-4">
               <UserMenu />
-
-              {/* Action Buttons - 2x1 Grid */}
-              <div className="grid grid-cols-2 gap-3 mt-4">
-                <button
-                  onClick={logout}
-                  className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-destructive hover:bg-destructive/10 rounded-xl transition-colors border-2 border-destructive/20"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Disconnect</span>
-                </button>
-              </div>
             </div>
           )}
 
           {/* Posts section */}
-          <div className="border-t border-border mt-4">
+          <div className="mt-4">
+            <Separator />
             <div className="text-center text-muted-foreground py-12 px-4">
               <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p className="text-sm">{authenticated ? 'Your posts will appear here' : 'Connect your wallet to see your posts'}</p>

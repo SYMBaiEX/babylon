@@ -98,18 +98,87 @@ async function saveDayTimeline(day: number, timeline: DayTimeline): Promise<void
 }
 
 /**
+ * Save game assets (actors, scenarios, connections, etc.)
+ */
+async function saveGameAssets(assets: {
+  allActors: any[];
+  scenarios: any[];
+  groupChats: any[];
+  connections: any[];
+  luckMood: Map<string, { luck: string; mood: number }>;
+}): Promise<void> {
+  const gamesDir = join(process.cwd(), 'games');
+  await mkdir(gamesDir, { recursive: true });
+
+  const assetsPath = join(gamesDir, 'game-assets.json');
+
+  // Convert Map to object for JSON serialization
+  const luckMoodObj: Record<string, { luck: string; mood: number }> = {};
+  assets.luckMood.forEach((value, key) => {
+    luckMoodObj[key] = value;
+  });
+
+  await writeFile(assetsPath, JSON.stringify({
+    allActors: assets.allActors,
+    scenarios: assets.scenarios,
+    groupChats: assets.groupChats,
+    connections: assets.connections,
+    luckMood: luckMoodObj,
+  }, null, 2));
+}
+
+/**
  * Load all actors/scenarios/etc for continuous generation
  */
 async function loadGameAssets(state: GameState) {
-  // This would load the persisted actors, scenarios, connections, etc.
-  // For now, return placeholder - in real implementation, save these during initialization
+  const assetsPath = join(process.cwd(), 'games', 'game-assets.json');
+
+  // Load saved assets
+  let savedAssets;
+  try {
+    const exists = await access(assetsPath).then(() => true).catch(() => false);
+    if (exists) {
+      const content = await readFile(assetsPath, 'utf-8');
+      savedAssets = JSON.parse(content);
+    }
+  } catch (error) {
+    console.error('Failed to load game assets:', error);
+  }
+
+  // Convert luckMood object back to Map
+  const luckMood = new Map<string, { luck: string; mood: number }>();
+  if (savedAssets?.luckMood) {
+    Object.entries(savedAssets.luckMood).forEach(([key, value]: [string, any]) => {
+      luckMood.set(key, value);
+    });
+  }
+
+  // Load previous days' timelines (last 5 days for context)
+  const previousDays: DayTimeline[] = [];
+  const dailyDir = join(process.cwd(), 'games', 'daily');
+  const startDay = Math.max(1, state.currentDay - 4); // Last 5 days
+
+  for (let day = startDay; day <= state.currentDay; day++) {
+    try {
+      const dayPath = join(dailyDir, `day-${String(day).padStart(3, '0')}.json`);
+      const exists = await access(dayPath).then(() => true).catch(() => false);
+      if (exists) {
+        const content = await readFile(dayPath, 'utf-8');
+        const timeline = JSON.parse(content) as DayTimeline;
+        previousDays.push(timeline);
+      }
+    } catch (error) {
+      console.warn(`Could not load day ${day} timeline:`, error);
+    }
+  }
+
   return {
-    allActors: [],
-    scenarios: [],
-    groupChats: [],
-    connections: [],
-    luckMood: new Map(),
-    previousDays: [],
+    allActors: savedAssets?.allActors || [],
+    scenarios: savedAssets?.scenarios || [],
+    groupChats: savedAssets?.groupChats || [],
+    connections: savedAssets?.connections || [],
+    luckMood,
+    previousDays,
   };
 }
 
@@ -135,13 +204,21 @@ async function main() {
   if (options.init) {
     console.log('🌍 INITIALIZING NEW GAME\n');
 
-    const gameState = await generator.initializeGame('2025-11-01');
+    const { gameState, assets } = await generator.initializeGame('2025-11-01');
+
+    // Save game state
     await saveGameState(gameState);
+
+    // Save game assets for future days
+    await saveGameAssets(assets);
 
     console.log('✅ Game initialized successfully!');
     console.log(`   Game ID: ${gameState.id}`);
     console.log(`   Start Date: ${gameState.currentDate}`);
-    console.log(`   Active Questions: ${gameState.activeQuestions.length}\n`);
+    console.log(`   Active Questions: ${gameState.activeQuestions.length}`);
+    console.log(`   Actors: ${assets.allActors.length}`);
+    console.log(`   Scenarios: ${assets.scenarios.length}`);
+    console.log(`   Group Chats: ${assets.groupChats.length}\n`);
 
     return;
   }
@@ -184,6 +261,9 @@ async function main() {
 
     // Save updated state
     await saveGameState(updatedGameState);
+
+    // Save updated assets (luck/mood changes are persisted)
+    await saveGameAssets(assets);
 
     currentState = updatedGameState;
     assets.previousDays.push(dayTimeline);

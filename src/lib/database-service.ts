@@ -437,6 +437,15 @@ class DatabaseService {
       isRunning: gameState?.isRunning || false,
     };
   }
+
+  /**
+   * Get all games
+   */
+  async getAllGames() {
+    return await prisma.game.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 }
 
 // Singleton instance

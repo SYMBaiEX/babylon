@@ -30,6 +30,16 @@ class GameService {
     return await engine.getStats();
   }
 
+  /**
+   * Get all games from database
+   */
+  async getAllGames() {
+    return await db.getAllGames();
+  }
+
+  /**
+   * Get engine status
+   */
   getStatus() {
     const engine = getEngine();
     return engine.getStatus();

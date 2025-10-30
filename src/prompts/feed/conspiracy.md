@@ -11,6 +11,10 @@ You must respond with valid JSON only.
 
 Mainstream story: {{eventDescription}}
 
+{{previousPostsContext}}
+
+{{groupContext}}
+
 IMPORTANT: NO HASHTAGS OR EMOJIS IN POSTS.
 
 Generate conspiracy theory posts from these {{conspiracistCount}} contrarians:
