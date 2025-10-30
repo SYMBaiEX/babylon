@@ -15,22 +15,19 @@ export async function GET(request: Request) {
     const actorId = searchParams.get('actorId');
     
     let posts;
-    let total;
     
     if (actorId) {
       // Get posts by specific actor
       posts = await gameService.getPostsByActor(actorId, limit);
-      total = posts.length; // Approximate
     } else {
       // Get recent posts
       posts = await gameService.getRecentPosts(limit, offset);
-      total = posts.length; // Approximate
     }
     
     return NextResponse.json({
       success: true,
       posts,
-      total,
+      total: posts.length,
       limit,
       offset,
     });

@@ -46,8 +46,6 @@ async function main() {
         personality: actor.personality,
         tier: actor.tier,
         affiliations: actor.affiliations || [],
-        canPostFeed: actor.canPostFeed !== false,
-        canPostGroups: actor.canPostGroups !== false,
         postStyle: actor.postStyle,
         postExample: actor.postExample || [],
       },

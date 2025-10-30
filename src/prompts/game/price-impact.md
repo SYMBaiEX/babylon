@@ -55,7 +55,7 @@ Respond with ONLY valid JSON:
 
 ## Examples
 
-Event: "Mark Suckerborg announces new metaverse feature"
+Event: "Mork Zorkorborg announces new metaverse feature"
 Company: FaceHook
 → {"direction": "positive", "magnitude": "moderate", "reasoning": "Direct product announcement from CEO"}
 
@@ -63,7 +63,7 @@ Event: "Elon's Husk tweets conspiracy theory"
 Company: FaceHook
 → {"direction": "neutral", "magnitude": "minor", "reasoning": "Unrelated to FaceHook operations"}
 
-Event: "SEC investigates Palmer Cucky for securities fraud"
+Event: "SEC investigates Palmer Sucky for securities fraud"
 Company: Anduritalin
 → {"direction": "negative", "magnitude": "major", "reasoning": "CEO under federal investigation"}
 

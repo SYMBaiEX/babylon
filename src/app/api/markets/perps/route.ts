@@ -1,51 +1,104 @@
 /**
- * API Route: /api/markets/perps
- * Methods: GET (get perpetual markets data)
+ * Perpetual Futures Markets API
+ * 
+ * GET /api/markets/perps - Get all tradeable companies
  */
 
-import { NextRequest } from 'next/server';
-import { successResponse, errorResponse } from '@/lib/api/auth-middleware';
-import { getRealtimeEngine } from '@/api/realtime';
+import { db } from '@/lib/database-service';
+import { NextResponse } from 'next/server';
 
-/**
- * GET /api/markets/perps
- * Get all perpetual futures markets with current prices, funding rates, etc.
- */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const engine = getRealtimeEngine();
-    const perpsEngine = engine.getPerpsEngine();
+    // Get ONLY companies (not media, government, think tanks)
+    const companies = await db.getCompanies();
+    
+    // Build markets with REAL 24h stats
+    const markets = await Promise.all(
+      companies.map(async (company) => {
+        const currentPrice = company.currentPrice || company.initialPrice || 100;
+        
+        // Get last 24 hours of price history (1440 minutes)
+        const priceHistory = await db.getPriceHistory(company.id, 1440);
+        
+        let change24h = 0;
+        let changePercent24h = 0;
+        let high24h = currentPrice;
+        let low24h = currentPrice;
+        
+        if (priceHistory.length > 0) {
+          // Calculate 24h change
+          const price24hAgo = priceHistory[priceHistory.length - 1];
+          if (price24hAgo) {
+            change24h = currentPrice - price24hAgo.price;
+            changePercent24h = (change24h / price24hAgo.price) * 100;
+          }
+          
+          // Calculate high/low
+          high24h = Math.max(...priceHistory.map(p => p.price), currentPrice);
+          low24h = Math.min(...priceHistory.map(p => p.price), currentPrice);
+        }
+        
+        // Get open interest from positions
+        let positions: any[] = [];
+        try {
+          positions = await db.prisma.perpPosition.findMany({
+            where: {
+              organizationId: company.id,
+              closedAt: null,
+            },
+          });
+        } catch (error) {
+          // Table might not exist yet or no positions
+          positions = [];
+        }
+        
+        const openInterest = positions.reduce((sum, p) => sum + (p.size * p.leverage), 0);
+        
+        // Calculate funding rate from position imbalance
+        const longs = positions.filter(p => p.side === 'long');
+        const shorts = positions.filter(p => p.side === 'short');
+        const longSize = longs.reduce((sum, p) => sum + p.size, 0);
+        const shortSize = shorts.reduce((sum, p) => sum + p.size, 0);
+        const totalSize = longSize + shortSize;
+        
+        let fundingRate = 0.01; // Default 1% annual
+        if (totalSize > 0) {
+          const imbalance = (longSize - shortSize) / totalSize;
+          fundingRate = 0.01 + (imbalance * 0.05); // ±5% based on imbalance
+        }
+        
+        return {
+          ticker: company.id.toUpperCase().replace(/-/g, ''),
+          organizationId: company.id,
+          name: company.name,
+          currentPrice,
+          change24h,
+          changePercent24h,
+          high24h,
+          low24h,
+          volume24h: 0, // TODO: Track from trades
+          openInterest,
+          fundingRate: {
+            rate: fundingRate,
+            nextFundingTime: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+            predictedRate: fundingRate,
+          },
+          maxLeverage: 100,
+          minOrderSize: 10,
+        };
+      })
+    );
 
-    const markets = perpsEngine.getMarkets();
-
-    return successResponse({
-      markets: markets.map((market) => ({
-        ticker: market.ticker,
-        organizationId: market.organizationId,
-        name: market.name,
-        currentPrice: market.currentPrice,
-        change24h: market.change24h,
-        changePercent24h: market.changePercent24h,
-        high24h: market.high24h,
-        low24h: market.low24h,
-        volume24h: market.volume24h,
-        openInterest: market.openInterest,
-        fundingRate: {
-          rate: market.fundingRate.rate,
-          nextFundingTime: market.fundingRate.nextFundingTime,
-          predictedRate: market.fundingRate.predictedRate,
-        },
-        maxLeverage: market.maxLeverage,
-        minOrderSize: market.minOrderSize,
-        markPrice: market.markPrice,
-        indexPrice: market.indexPrice,
-      })),
-      timestamp: new Date().toISOString(),
+    return NextResponse.json({
+      success: true,
+      markets,
+      count: markets.length,
     });
   } catch (error) {
-    console.error('Error fetching perp markets:', error);
-    return errorResponse('Failed to fetch perpetual markets');
+    console.error('API Error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to load markets' },
+      { status: 500 }
+    );
   }
 }
-
-

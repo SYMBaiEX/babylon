@@ -25,58 +25,75 @@ export default function ActorProfilePage() {
   // Enable error toast notifications
   useErrorToasts()
 
-  // Find actor info
-  const actorInfo = useMemo(() => {
-    for (const game of allGames) {
-      // Check all actor arrays
-      const allActors = [
-        ...(game.setup?.mainActors || []),
-        ...(game.setup?.supportingActors || []),
-        ...(game.setup?.extras || [])
-      ]
-
-      const actor = allActors.find(a => a.id === actorId)
-      if (actor) {
-        return {
-          id: actor.id,
-          name: actor.name,
-          type: 'actor' as const,
-          role: actor.role || 'actor',
-          game: game
+  // Load actor info from database/actors.json
+  const [actorInfo, setActorInfo] = useState<any>(null)
+  
+  useEffect(() => {
+    const loadActorInfo = async () => {
+      try {
+        // Try to load from actors.json (contains all actors)
+        const response = await fetch('/data/actors.json')
+        if (!response.ok) throw new Error('Failed to load actors')
+        
+        const actorsDb = await response.json()
+        
+        // Find actor
+        const actor = actorsDb.actors?.find((a: any) => a.id === actorId)
+        if (actor) {
+          setActorInfo({
+            id: actor.id,
+            name: actor.name,
+            description: actor.description,
+            tier: actor.tier,
+            domain: actor.domain,
+            personality: actor.personality,
+            affiliations: actor.affiliations,
+            type: 'actor' as const,
+          })
+          return
         }
+        
+        // Find organization
+        const org = actorsDb.organizations?.find((o: any) => o.id === actorId)
+        if (org) {
+          setActorInfo({
+            id: org.id,
+            name: org.name,
+            description: org.description,
+            type: 'organization' as const,
+          })
+          return
+        }
+        
+        // Not found
+        setActorInfo(null)
+      } catch (error) {
+        console.error('Failed to load actor:', error)
+        setActorInfo(null)
       }
     }
-    return null
-  }, [allGames, actorId])
+    
+    loadActorInfo()
+  }, [actorId])
 
-  // Get posts for this actor from all games
-  const actorPosts = useMemo(() => {
-    const posts: Array<{
-      post: FeedPost
-      gameId: string
-      gameName: string
-      timestampMs: number
-    }> = []
-
-    allGames.forEach(game => {
-      game.timeline?.forEach(day => {
-        day.feedPosts?.forEach(post => {
-          if (post.author === actorId) {
-            const postDate = new Date(post.timestamp)
-            posts.push({
-              post,
-              gameId: game.id,
-              gameName: game.setup?.title || game.id,
-              timestampMs: postDate.getTime()
-            })
-          }
-        })
-      })
-    })
-
-    // Sort by timestamp (newest first)
-    return posts.sort((a, b) => b.timestampMs - a.timestampMs)
-  }, [allGames, actorId])
+  // Load posts from database API
+  const [actorPosts, setActorPosts] = useState<any[]>([])
+  
+  useEffect(() => {
+    const loadPosts = async () => {
+      try {
+        const response = await fetch(`/api/posts?actorId=${actorId}&limit=500`)
+        if (response.ok) {
+          const data = await response.json()
+          setActorPosts(data.posts || [])
+        }
+      } catch (error) {
+        console.error('Failed to load actor posts:', error)
+      }
+    }
+    
+    loadPosts()
+  }, [actorId])
 
   // Filter posts up to current time
   const visiblePosts = useMemo(() => {
@@ -253,7 +270,7 @@ export default function ActorProfilePage() {
 
               return (
                 <article
-                  key={`${item.post.id}-${i}`}
+                  key={`${post.id}-${i}`}
                   className={cn(
                     'px-4 py-3 border-b border-border',
                     'hover:bg-muted/30',

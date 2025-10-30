@@ -31,8 +31,6 @@ export interface Actor {
   description?: string;
   domain?: string[];
   personality?: string;
-  canPostFeed?: boolean;
-  canPostGroups?: boolean;
   role?: string;
   affiliations?: string[]; // Organization IDs
   postStyle?: string; // Style guide for how they write posts

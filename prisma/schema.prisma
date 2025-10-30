@@ -465,8 +465,6 @@ model Actor {
   personality     String?
   tier            String?  // S_TIER, A_TIER, etc.
   affiliations    String[] // Organization IDs
-  canPostFeed     Boolean  @default(true)
-  canPostGroups   Boolean  @default(true)
   postStyle       String?
   postExample     String[]
   role            String?  // 'main', 'supporting', 'extra'

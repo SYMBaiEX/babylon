@@ -211,7 +211,7 @@ Respond with JSON:
 {
   "questions": [
     {
-      "text": "Will Mark Suckerborg announce new metaverse legs?",
+      "text": "Will Mork Zorkorborg announce new metaverse legs?",
       "scenario": 1,
       "daysUntilResolution": 3,
       "expectedOutcome": true

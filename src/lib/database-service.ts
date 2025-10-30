@@ -19,6 +19,8 @@ export const prisma = globalForPrisma.prisma || new PrismaClient();
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 class DatabaseService {
+  // Expose prisma for direct queries
+  public prisma = prisma;
   /**
    * Initialize game state in database
    */
@@ -366,8 +368,6 @@ class DatabaseService {
         personality: actor.personality,
         tier: actor.tier,
         affiliations: actor.affiliations || [],
-        canPostFeed: actor.canPostFeed !== false,
-        canPostGroups: actor.canPostGroups !== false,
         postStyle: actor.postStyle,
         postExample: actor.postExample || [],
         role: actor.role,

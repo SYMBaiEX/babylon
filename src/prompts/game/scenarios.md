@@ -24,7 +24,7 @@ Each scenario should:
 Examples:
 - "Elon's Husk announces plan to upload consciousness to Tesla, Xitter crashes from announcement traffic"
 - "Scam Altman's AGI becomes self-aware, OpenLIE issues crisis management statement"
-- "Vitalik Uterin proposes Ethereum runs for President, MSDNC breaks exclusive interview"
+- "Vitamin Uterin proposes Ethereum runs for President, MSDNC breaks exclusive interview"
 
 Return JSON:
 {

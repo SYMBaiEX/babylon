@@ -26,7 +26,7 @@ export const privyConfig = {
       accentColor: '#1c9cf0',
       logo: '/assets/logos/logo.svg',
       showWalletLoginFirst: true,
-      walletList: ['metamask', 'rabby_wallet', 'detected_wallets', 'rainbow', 'coinbase_wallet', 'wallet_connect'],
+      walletList: ['detected_wallets'],
       walletChainType: 'ethereum-only' as const,
     },
     // Prioritize EVM wallet login (Metamask, Rabby, etc.)

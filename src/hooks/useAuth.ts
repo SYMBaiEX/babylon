@@ -93,7 +93,12 @@ export function useAuth(): UseAuthReturn {
 
       // Check if new user and redirect to profile setup
       const checkNewUser = async () => {
-        const response = await fetch(`/api/users/${user.id}/is-new`)
+        const token = await getAccessToken()
+        const response = await fetch(`/api/users/${user.id}/is-new`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
         if (response.ok) {
           const data = await response.json()
           if (data.needsSetup && typeof window !== 'undefined') {
