@@ -7,8 +7,8 @@
  */
 
 import { AgentRuntime, Character, ModelProviderName, defaultCharacter, type ICacheManager, type UUID } from '@ai16z/eliza';
-import { predictionMarketsPlugin, createBabylonClient } from '../../../plugin-prediction-markets/src';
-import type { AgentConfig } from '../../../plugin-prediction-markets/src/types';
+import { predictionMarketsPlugin, createBabylonClient } from '../../../plugin-babylon/src';
+import type { AgentConfig } from '../../../plugin-babylon/src/types';
 import { SqliteDatabaseAdapter } from '@elizaos/adapter-sqlite';
 import * as fs from 'fs';
 import * as path from 'path';

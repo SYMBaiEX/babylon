@@ -1813,6 +1813,96 @@ export class FeedGenerator extends EventEmitter {
   }
 
   /**
+   * Generate day transition post (bridge between days)
+   * Creates narrative continuity by referencing previous day's events
+   * Public for external use
+   */
+  public async generateDayTransitionPost(
+    day: number,
+    previousDayEvents: WorldEvent[],
+    questions: Array<{ id: number; text: string; outcome: boolean }>,
+    allActors: Actor[]
+  ): Promise<FeedPost | null> {
+    if (!this.llm || previousDayEvents.length === 0) {
+      return null;
+    }
+
+    // Select a news organization to make the transition post
+    const newsOrg = this.organizations.find(o => o.type === 'media');
+    if (!newsOrg) {
+      return null;
+    }
+
+    // Summarize previous day's key events
+    const eventSummaries = previousDayEvents
+      .slice(0, 3) // Top 3 events
+      .map(e => `- ${e.description}`)
+      .join('\n');
+
+    const prompt = `You must respond with valid JSON only.
+
+You are: ${newsOrg.name}, ${newsOrg.description}
+
+Yesterday (Day ${day - 1}) saw major developments:
+${eventSummaries}
+
+Today is Day ${day}. Write a brief morning news post (max 280 chars) that:
+- Acknowledges yesterday's events
+- Sets the tone for today
+- Maintains ${newsOrg.name}'s editorial style
+
+Also analyze:
+- sentiment: -1 (very negative) to 1 (very positive)
+- clueStrength: 0 (vague) to 1 (very revealing) - keep low for transitions
+- pointsToward: true, false, or null
+
+Respond with ONLY this JSON:
+{
+  "post": "your transition post here",
+  "sentiment": 0.0,
+  "clueStrength": 0.1,
+  "pointsToward": null
+}
+
+No other text.`;
+
+    try {
+      const response = await this.llm.generateJSON<{
+        post: string;
+        sentiment: number;
+        clueStrength: number;
+        pointsToward: boolean | null;
+      }>(
+        prompt,
+        { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
+        { temperature: 0.8, maxTokens: 500 }
+      );
+
+      if (!response.post || response.post.trim().length === 0) {
+        return null;
+      }
+
+      const baseTime = `2025-10-${String(day).padStart(2, '0')}T06:00:00Z`;
+
+      return {
+        id: `transition-day-${day}`,
+        day,
+        timestamp: baseTime,
+        type: 'news',
+        content: response.post,
+        author: newsOrg.id,
+        authorName: newsOrg.name,
+        sentiment: response.sentiment,
+        clueStrength: response.clueStrength,
+        pointsToward: response.pointsToward,
+      };
+    } catch (error) {
+      console.warn(`⚠️  Failed to generate day transition post for day ${day}:`, error);
+      return null;
+    }
+  }
+
+  /**
    * Generate ambient post (general musing, not tied to events)
    * Public for external use and testing
    */

@@ -1,11 +1,11 @@
-# @babylonai/plugin-prediction-markets
+# @babylonai/plugin-babylon
 
 ElizaOS plugin for autonomous AI agents to participate in Babylon prediction markets as real players.
 
 ## Directory Structure
 
 ```
-plugin-prediction-markets/
+plugin-babylon/
 ├── images/              # Branding assets (logo.jpg, banner.jpg)
 ├── src/
 │   ├── actions/         # Trading actions (BUY_SHARES, SELL_SHARES, CHECK_WALLET)
@@ -109,7 +109,7 @@ Create a character file (e.g., `alice-trader.json`):
     "Specializes in high-volume, fast-moving markets"
   ],
   "clients": ["babylon"],
-  "plugins": ["prediction-markets"],
+  "plugins": ["babylon"],
   "modelProvider": "openai",
   "settings": {
     "secrets": {
@@ -130,7 +130,7 @@ Create a character file (e.g., `alice-trader.json`):
 
 ```typescript
 import { AgentRuntime, Character } from '@ai16z/eliza';
-import { predictionMarketsPlugin, createBabylonClient } from '@babylonai/plugin-prediction-markets';
+import { predictionMarketsPlugin, createBabylonClient } from '@babylonai/plugin-babylon';
 import { SqliteDatabaseAdapter } from '@elizaos/adapter-sqlite';
 
 // Load your character
@@ -311,7 +311,7 @@ bun run src/eliza/agents/run-eliza-agent.ts --api-url http://localhost:3000
 - Verify sufficient wallet balance
 
 ### Plugin not loading
-- Ensure plugin name is `"prediction-markets"` in character JSON
+- Ensure plugin name is `"babylon"` in character JSON
 - Verify all dependencies are installed
 - Check console for initialization errors
 
