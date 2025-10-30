@@ -2,14 +2,14 @@
 id: actor-portrait
 version: 3.0.0
 category: image
-description: Generates satirical political cartoon portraits with exaggerated visual puns
+description: Generates cyborg portraits with exaggerated visual puns
 model: fal-ai/flux/schnell
 image_size: square
 num_inference_steps: 4
 num_images: 1
 ---
 
-Create a satirical political cartoon portrait of "{{actorName}}" - a bizarro universe parody of the real person {{realName}}.
+Create a cyborg AI augmented portrait of "{{actorName}}" - a bizarro universe parody of the real person {{realName}}.
 
 PHYSICAL ACCURACY: Base the portrait on {{realName}}'s actual appearance:
 - Maintain their correct skin tone, ethnicity, and racial features
@@ -28,4 +28,4 @@ EXAGGERATE THE JOKE IN THE NAME "{{actorName}}":
 
 SATIRICAL CHARACTER: {{descriptionParts}}
 
-STYLE: Hand-drawn editorial cartoon style with HEAVILY exaggerated caricature features, bold ink lines, over-the-top expressions. Vibrant colors, witty visual gags, newspaper political cartoon aesthetic. Emphasize their satirical personality: {{personality}}. Make it instantly recognizable as {{realName}} but absurdly funny with visual jokes that match the puns in "{{actorName}}".
+MAKE THEM A CYBORG: Add cyborg implants to their face, glowing eyes, exposed metal skin, etc. Try to be varied and keep it interesting. Don't put any text on the image, it's a portrait of the person.

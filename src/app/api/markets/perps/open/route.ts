@@ -3,17 +3,16 @@
  * Methods: POST (open a new perpetual futures position)
  */
 
-import { NextRequest } from 'next/server';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { getPerpsEngine } from '@/lib/perps-service';
 import {
-  authenticate,
-  authErrorResponse,
-  successResponse,
-  errorResponse,
+    authenticate,
+    authErrorResponse,
+    errorResponse,
+    successResponse,
 } from '@/lib/api/auth-middleware';
-import { getRealtimeEngine } from '@/api/realtime';
 import { WalletService } from '@/services/WalletService';
-import { calculateLiquidationPrice } from '@/shared/perps-types';
+import { PrismaClient } from '@prisma/client';
+import { NextRequest } from 'next/server';
 
 const prisma = new PrismaClient();
 
@@ -48,8 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Get market info
-    const engine = getRealtimeEngine();
-    const perpsEngine = engine.getPerpsEngine();
+    const perpsEngine = getPerpsEngine();
     const markets = perpsEngine.getMarkets();
     const market = markets.find((m) => m.ticker === ticker);
 
@@ -90,7 +88,7 @@ export async function POST(request: NextRequest) {
     });
 
     // 9. Save position to database
-    const dbPosition = await prisma.perpPosition.create({
+    await prisma.perpPosition.create({
       data: {
         id: position.id,
         userId: user.userId,

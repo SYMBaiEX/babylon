@@ -6,7 +6,7 @@
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { successResponse, errorResponse, optionalAuth } from '@/lib/api/auth-middleware';
-import { getRealtimeEngine } from '@/api/realtime';
+import { getPerpsEngine } from '@/lib/perps-service';
 
 const prisma = new PrismaClient();
 
@@ -22,11 +22,10 @@ export async function GET(
     const { userId } = await params;
 
     // Optional auth - only show if requesting own positions or public
-    const user = await optionalAuth(request);
+    await optionalAuth(request);
 
     // Get perpetual positions
-    const engine = getRealtimeEngine();
-    const perpsEngine = engine.getPerpsEngine();
+    const perpsEngine = getPerpsEngine();
     const perpPositions = perpsEngine.getUserPositions(userId);
 
     // Get prediction market positions

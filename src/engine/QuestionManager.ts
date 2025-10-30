@@ -145,7 +145,12 @@ export class QuestionManager {
   ): string {
     const scenariosList = scenarios
       .map(
-        s => `\nScenario ${s.id}: ${s.title}\n${s.description}\nActors: ${s.mainActors.join(', ')}\n${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.join(', ')}` : ''}\n`
+        s => `
+Scenario ${s.id}: ${s.title}
+${s.description}
+Actors: ${s.mainActors.join(', ')}
+${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.join(', ')}` : ''}
+`
       )
       .join('\n');
 
@@ -161,14 +166,61 @@ export class QuestionManager {
       .map(o => `- ${o.name}: ${o.description}`)
       .join('\n');
 
-    return loadPrompt('game/question-generation', {
-      scenariosList,
-      actorsList,
-      orgsList,
-      recentContext,
-      activeQuestionsContext,
-      numToGenerate: numToGenerate.toString()
-    });
+    return `You are generating prediction market questions for a satirical game.
+
+CONTEXT:
+${scenariosList}
+
+KEY ACTORS:
+${actorsList}
+
+KEY COMPANIES:
+${orgsList}
+
+${recentContext}
+${activeQuestionsContext}
+
+TASK:
+Generate ${numToGenerate} NEW prediction market questions that:
+
+REQUIREMENTS:
+✅ Must be about FUTURE events (not past events)
+✅ Must be clear YES/NO questions
+✅ Must be specific and measurable
+✅ Must be satirical and entertaining
+✅ Should involve major actors or companies
+✅ Should build on recent events (if any)
+✅ Should NOT duplicate existing active questions
+✅ Can be about: product launches, scandals, mergers, feuds, announcements, market movements
+
+QUESTION TYPES (examples):
+- "Will [ACTOR] and [ACTOR] have a public feud?"
+- "Will [COMPANY] stock price reach $X?"
+- "Will [ACTOR] announce [PRODUCT/EVENT]?"
+- "Will [SCANDAL] force [ACTOR] to resign?"
+- "Will [COMPANY] acquire [COMPANY]?"
+
+RESOLUTION TIME:
+Each question should resolve between 1-7 days from now:
+- 1-2 days: Fast-moving drama (feuds, announcements)
+- 3-5 days: Medium developments (product launches, investigations)
+- 6-7 days: Slower outcomes (market movements, long-term deals)
+
+OUTPUT FORMAT:
+Respond with JSON:
+{
+  "questions": [
+    {
+      "text": "Will Mork Zorkorborg announce new metaverse legs?",
+      "scenario": 1,
+      "daysUntilResolution": 3,
+      "expectedOutcome": true
+    },
+    ...
+  ]
+}
+
+Generate ${numToGenerate} questions now:`;
   }
 
   /**
@@ -217,36 +269,26 @@ export class QuestionManager {
         ? `Recent events: ${relatedEvents.map(e => e.description).join('; ')}`
         : 'No prior events';
 
-    // Build actor context for involved parties
-    const involvedActors = actors
-      .filter(a => a.role === 'main' || a.role === 'supporting')
-      .slice(0, 5)
-      .map(a => `${a.name} (${a.description})`)
-      .join(', ');
+    const prompt = `You are generating a resolution event for a prediction market question.
 
-    // Build organization context for involved companies
-    const involvedOrgs = organizations
-      .filter(o => o.type === 'company')
-      .slice(0, 5)
-      .map(o => `${o.name}`)
-      .join(', ');
+QUESTION: ${question.text}
+PREDETERMINED OUTCOME: ${question.outcome ? 'YES' : 'NO'}
+HISTORY: ${eventHistory}
 
-    const contextInfo =
-      involvedActors || involvedOrgs
-        ? `\n\nKEY ACTORS: ${involvedActors || 'None'}\nKEY COMPANIES: ${involvedOrgs || 'None'}`
-        : '';
+Generate a definitive resolution event that PROVES the ${question.outcome ? 'YES' : 'NO'} outcome.
 
-    const outcomeContext = question.outcome 
-      ? 'PROVES it happened/succeeded' 
-      : 'PROVES it failed/was cancelled/did not happen';
+Requirements:
+- Must be concrete and observable
+- Must definitively resolve the question
+- ${question.outcome ? 'PROVES it happened/succeeded' : 'PROVES it failed/was cancelled/did not happen'}
+- One sentence, max 150 characters
+- Satirical but plausible
 
-    const prompt = loadPrompt('game/question-resolution-validation', {
-      questionText: question.text,
-      outcome: question.outcome ? 'YES' : 'NO',
-      eventHistory,
-      contextInfo,
-      outcomeContext
-    });
+Respond with JSON:
+{
+  "event": "Your resolution event description",
+  "type": "announcement"
+}`;
 
     try {
       const response = await this.llm.generateJSON<{ event: string; type: string }>(

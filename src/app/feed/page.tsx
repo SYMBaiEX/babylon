@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { useGameStore } from '@/stores/gameStore'
 import Link from 'next/link'
 import { FeedToggle } from '@/components/shared/FeedToggle'
 import { Avatar } from '@/components/shared/Avatar'
@@ -20,10 +19,6 @@ export default function FeedPage() {
   const [followingPosts, setFollowingPosts] = useState<any[]>([])
   const [loadingFollowing, setLoadingFollowing] = useState(false)
   const { fontSize } = useFontSize()
-
-  // Game timeline state (viewer-style)
-  const { allGames, startTime, currentTimeMs } = useGameStore()
-  const currentDate = startTime ? new Date(startTime + currentTimeMs) : null
 
   // Enable error toast notifications
   useErrorToasts()
@@ -88,53 +83,21 @@ export default function FeedPage() {
     fetchFollowingPosts()
   }, [tab])
 
-  // Compute timeline-visible posts from game (mirrors viewer FeedView)
-  const timelinePosts = useMemo(() => {
-    if (!startTime || !currentDate || allGames.length === 0) return [] as Array<{
-      id: string
-      content: string
-      authorId: string
-      authorName: string
-      timestamp: string
-    }>
-
-    const items: Array<{ id: string; content: string; authorId: string; authorName: string; timestamp: string; timestampMs: number }>= []
-
-    allGames.forEach((g) => {
-      g.timeline?.forEach((day) => {
-        day.feedPosts?.forEach((post) => {
-          const ts = new Date(post.timestamp).getTime()
-          items.push({
-            id: `game-${g.id}-${post.timestamp}`,
-            content: post.content,
-            authorId: post.author,
-            authorName: post.authorName,
-            timestamp: post.timestamp,
-            timestampMs: ts,
-          })
-        })
-      })
-    })
-
-    const currentAbs = startTime + currentTimeMs
-    return items
-      .filter((p) => p.timestampMs <= currentAbs)
-      .sort((a, b) => b.timestampMs - a.timestampMs)
-      .map(({ timestampMs, ...rest }) => rest)
-  }, [allGames, startTime, currentDate, currentTimeMs])
-
-  // Choose data source: timeline (if available) else API posts
-  const basePosts = (startTime && allGames.length > 0) ? timelinePosts : (tab === 'following' ? followingPosts : posts)
-
-  // Filter by search query (applies to whichever source is active)
+  // Filter by search query
   const filteredPosts = useMemo(() => {
-    if (!searchQuery.trim()) return basePosts
+    const sourcePosts = tab === 'following' ? followingPosts : posts
+    
+    // Ensure we always return an array
+    if (!Array.isArray(sourcePosts)) return []
+
+    if (!searchQuery.trim()) return sourcePosts
+
     const query = searchQuery.toLowerCase()
-    return basePosts.filter((post: any) =>
-      (post.content || '').toLowerCase().includes(query) ||
-      (post.authorId || '').toLowerCase().includes(query)
+    return sourcePosts.filter((post: any) =>
+      post.content?.toLowerCase().includes(query) ||
+      post.authorId?.toLowerCase().includes(query)
     )
-  }, [basePosts, searchQuery])
+  }, [tab, followingPosts, posts, searchQuery])
 
   if (loading) {
     return (
@@ -167,20 +130,23 @@ export default function FeedPage() {
 
       {/* Content area */}
       <div className="flex-1 overflow-y-auto bg-background">
-        {filteredPosts.length === 0 && !searchQuery && tab === 'latest' ? (
+        {loading ? (
+          <div className="max-w-2xl mx-auto p-8 text-center">
+            <div className="text-muted-foreground py-12">
+              <p>Loading posts...</p>
+            </div>
+          </div>
+        ) : filteredPosts.length === 0 && !searchQuery && tab === 'latest' ? (
           // No posts yet
           <div className="max-w-2xl mx-auto p-8 text-center">
             <div className="text-muted-foreground py-12">
               <h2 className="text-2xl font-bold mb-2 text-foreground">No Posts Yet</h2>
               <p className="mb-4">
-                Game is auto-generating in the background...
+                Engine is generating posts...
               </p>
               <div className="text-sm text-muted-foreground space-y-2">
-                <p>This happens automatically on first run.</p>
-                <p>Check the terminal logs for progress.</p>
-                <p className="font-mono text-xs bg-muted p-2 rounded">
-                  First generation takes 3-5 minutes
-                </p>
+                <p>Check terminal for tick logs.</p>
+                <p>Posts appear within 60 seconds.</p>
               </div>
             </div>
           </div>
@@ -194,27 +160,6 @@ export default function FeedPage() {
                   ? 'Loading following...'
                   : 'Follow profiles to see their posts here. Visit a profile and click the Follow button.'}
               </p>
-            </div>
-          </div>
-        ) : filteredPosts.length === 0 && !searchQuery ? (
-          // Game loaded but no visible posts yet
-          <div className="max-w-2xl mx-auto p-8 text-center">
-            <div className="text-muted-foreground py-12">
-              <h2 className="text-xl font-semibold mb-2 text-foreground">⏱️ No Posts Yet</h2>
-              <p className="mb-4">
-                Game is generating content in the background...
-              </p>
-              <Link
-                href="/game"
-                className={cn(
-                  'inline-block px-6 py-3 rounded-lg font-semibold',
-                  'bg-primary text-primary-foreground',
-                  'hover:bg-primary/90',
-                  'transition-all duration-300'
-                )}
-              >
-                Go to Game Controls
-              </Link>
             </div>
           </div>
         ) : filteredPosts.length === 0 && searchQuery ? (
@@ -242,6 +187,7 @@ export default function FeedPage() {
           // Show posts - Twitter-like layout
           <div className="max-w-[600px] mx-auto">
             {filteredPosts.map((post: any, i: number) => {
+              console.log('post', JSON.stringify(post, null, 2))
               const postDate = new Date(post.timestamp)
               const now = new Date()
               const diffMs = now.getTime() - postDate.getTime()
@@ -305,7 +251,7 @@ export default function FeedPage() {
                             className="text-muted-foreground text-sm hover:underline"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            @{post.authorId}
+                            @{post.author}
                           </Link>
                         </div>
                         <time className="text-muted-foreground text-sm flex-shrink-0" title={postDate.toLocaleString()}>

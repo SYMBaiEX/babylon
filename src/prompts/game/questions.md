@@ -31,13 +31,13 @@ Each question must:
 Examples of GOOD questions (including organizations):
 - "Will Elon's Husk announce Tesla's brain upload feature?"
 - "Will Scam Altman's AGI pass the Turing test publicly?"
-- "Will Vitalik Uterin fork Ethereum before Day 30?"
+- "Will Vitamin Uterin fork Ethereum before Day 30?"
 - "Will MSDNC break story about leaked OpenLIE documents?"
 - "Will The Fud raise interest rates in response to the crisis?"
 - "Will Xitter announce new content moderation policy?"
 
 Examples of BAD questions:
-- "Will Vitalik's emotions stabilize?" (too vague)
+- "Will Vitamin's emotions stabilize?" (too vague)
 - "Will the crypto apocalypse occur?" (undefined)
 - "Will the economy collapse?" (what counts as collapse?)
 

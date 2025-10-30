@@ -14,15 +14,7 @@ interface UseAuthReturn {
 export function useAuth(): UseAuthReturn {
   const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy()
   const { wallets } = useWallets()
-  const {
-    setUser,
-    setWallet,
-    clearAuth,
-    loadedUserId,
-    isLoadingProfile,
-    setLoadedUserId,
-    setIsLoadingProfile
-  } = useAuthStore()
+  const { setUser, setWallet, clearAuth } = useAuthStore()
 
   const wallet = wallets[0] // Get first connected wallet
 
@@ -54,24 +46,12 @@ export function useAuth(): UseAuthReturn {
   // Sync Privy state with Zustand store and check for new users
   useEffect(() => {
     if (authenticated && user) {
-      const walletAddress = wallet?.address
-      const walletChainId = wallet?.chainId
-
-      if (walletAddress && walletChainId) {
+      if (wallet) {
         setWallet({
-          address: walletAddress,
-          chainId: walletChainId,
+          address: wallet.address,
+          chainId: wallet.chainId,
         })
       }
-
-      // Skip if we've already loaded this user's profile OR if already loading
-      if (loadedUserId === user.id || isLoadingProfile) {
-        return
-      }
-
-      // Mark as loading to prevent duplicate fetches across all components
-      setIsLoadingProfile(true)
-      setLoadedUserId(user.id)
 
       // Fetch complete user profile from database
       const loadUserProfile = async () => {
@@ -81,8 +61,8 @@ export function useAuth(): UseAuthReturn {
             if (data.user) {
               setUser({
                 id: user.id,
-                walletAddress: walletAddress,
-                displayName: data.user.displayName || user.email?.address || walletAddress || 'Anonymous',
+                walletAddress: wallet?.address,
+                displayName: data.user.displayName || user.email?.address || wallet?.address || 'Anonymous',
                 email: user.email?.address,
                 username: data.user.username,
                 bio: data.user.bio,
@@ -93,8 +73,8 @@ export function useAuth(): UseAuthReturn {
               // Fallback if profile fetch fails
               setUser({
                 id: user.id,
-                walletAddress: walletAddress,
-                displayName: user.email?.address || walletAddress || 'Anonymous',
+                walletAddress: wallet?.address,
+                displayName: user.email?.address || wallet?.address || 'Anonymous',
                 email: user.email?.address,
               })
             }
@@ -104,22 +84,16 @@ export function useAuth(): UseAuthReturn {
             // Fallback if profile fetch fails
             setUser({
               id: user.id,
-              walletAddress: walletAddress,
-              displayName: user.email?.address || walletAddress || 'Anonymous',
+              walletAddress: wallet?.address,
+              displayName: user.email?.address || wallet?.address || 'Anonymous',
               email: user.email?.address,
             })
-          })
-          .finally(() => {
-            // Mark loading as complete
-            setIsLoadingProfile(false)
           })
       }
 
       // Check if new user and redirect to profile setup
       const checkNewUser = async () => {
         const token = await getAccessToken()
-        if (!token) return // Skip if no token
-
         const response = await fetch(`/api/users/${user.id}/is-new`, {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -142,15 +116,13 @@ export function useAuth(): UseAuthReturn {
     } else {
       clearAuth()
     }
-    // Only run when authenticated state or user.id changes, not on every wallet update
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authenticated, user?.id])
+  }, [authenticated, user, wallet, setUser, setWallet, clearAuth])
 
   // Wrap logout to ensure all state is cleared
   const handleLogout = async () => {
     await logout()
     clearAuth()
-
+    
     // Clear access token
     if (typeof window !== 'undefined') {
       window.__privyAccessToken = null

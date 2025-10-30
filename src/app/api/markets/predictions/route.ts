@@ -1,54 +1,36 @@
 /**
- * API Route: /api/markets/predictions
- * Methods: GET (get prediction market questions)
+ * Prediction Markets API
+ * 
+ * GET /api/markets/predictions - Get active prediction questions
  */
 
-import { NextRequest } from 'next/server';
-import { successResponse, errorResponse } from '@/lib/api/auth-middleware';
-import { getRealtimeEngine } from '@/api/realtime';
+import { db } from '@/lib/database-service';
+import { NextResponse } from 'next/server';
 
-/**
- * GET /api/markets/predictions
- * Get prediction market questions (active and resolved)
- * Query params:
- * - status: 'active' | 'resolved' | 'all' (default: 'all')
- */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const status = searchParams.get('status') || 'all';
-
-    const engine = getRealtimeEngine();
-    const allQuestions = engine.getAllQuestions();
-
-    let questions = allQuestions;
-
-    if (status === 'active') {
-      questions = allQuestions.filter((q) => q.status === 'active');
-    } else if (status === 'resolved') {
-      questions = allQuestions.filter((q) => q.status === 'resolved');
-    }
-
-    return successResponse({
-      questions: questions.map((q) => ({
-        id: q.id,
+    const questions = await db.getActiveQuestions();
+    
+    return NextResponse.json({
+      success: true,
+      questions: questions.map(q => ({
+        id: q.questionNumber,
         text: q.text,
-        scenario: q.scenario,
         status: q.status,
         createdDate: q.createdDate,
         resolutionDate: q.resolutionDate,
         resolvedOutcome: q.resolvedOutcome,
-        rank: q.rank,
+        scenario: q.scenarioId,
+        yesShares: 0, // TODO: Track from positions
+        noShares: 0,
       })),
-      total: questions.length,
-      active: allQuestions.filter((q) => q.status === 'active').length,
-      resolved: allQuestions.filter((q) => q.status === 'resolved').length,
-      timestamp: new Date().toISOString(),
+      count: questions.length,
     });
   } catch (error) {
-    console.error('Error fetching prediction markets:', error);
-    return errorResponse('Failed to fetch prediction markets');
+    console.error('API Error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to load predictions' },
+      { status: 500 }
+    );
   }
 }
-
-
