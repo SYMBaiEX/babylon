@@ -172,7 +172,7 @@ contract DeployBabylon is Script {
         }
 
         // Save deployment addresses
-        _saveDeployment();
+        // _saveDeployment();  // Skipping file save - will save manually
     }
 
     function _saveDeployment() internal {

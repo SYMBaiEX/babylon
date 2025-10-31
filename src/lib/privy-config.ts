@@ -39,12 +39,12 @@ export const privyConfig = {
       theme: 'dark' as const,
       accentColor: '#1c9cf0' as const,
       logo: '/assets/logos/logo.svg',
-      showWalletLoginFirst: true,
+      showWalletLoginFirst: false, // Changed to false to prioritize Farcaster
       walletList: ['metamask', 'rabby_wallet', 'detected_wallets', 'rainbow', 'coinbase_wallet', 'wallet_connect'],
       walletChainType: 'ethereum-only' as const,
     },
-    // Prioritize EVM wallet login (Metamask, Rabby, etc.)
-    loginMethods: ['wallet', 'email'] as PrivyClientConfig['loginMethods'],
+    // Prioritize Farcaster login, then wallet, then email
+    loginMethods: ['farcaster', 'wallet', 'email'] as PrivyClientConfig['loginMethods'],
     embeddedWallets: {
       ethereum: {
         createOnLogin: 'users-without-wallets' as const,

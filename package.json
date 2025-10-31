@@ -39,7 +39,9 @@
     "contracts:compile": "forge build",
     "contracts:test": "forge test",
     "contracts:deploy:testnet": "bun run scripts/deploy-contracts.ts",
-    "contracts:deploy:mainnet": "NETWORK=base bun run scripts/deploy-contracts.ts"
+    "contracts:deploy:mainnet": "NETWORK=base bun run scripts/deploy-contracts.ts",
+    "contracts:verify": "bash scripts/verify-contracts.sh",
+    "contracts:test-reads": "bun run scripts/test-contract-reads.ts"
   },
   "dependencies": {
     "@ai16z/eliza": "^0.1.6",

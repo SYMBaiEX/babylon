@@ -52,13 +52,13 @@ class ContractDeployer {
 
     // 2. Deploy Identity Registry
     console.log('\n1️⃣  Deploying ERC-8004 Identity Registry...')
-    const identityRegistry = await this.deployContract('IdentityRegistry')
+    const identityRegistry = await this.deployContract('ERC8004IdentityRegistry')
     console.log('✅ Identity Registry:', identityRegistry)
 
     // 3. Deploy Reputation System
     console.log('\n2️⃣  Deploying ERC-8004 Reputation System...')
     const reputationSystem = await this.deployContract(
-      'ReputationSystem',
+      'ERC8004ReputationSystem',
       [identityRegistry]
     )
     console.log('✅ Reputation System:', reputationSystem)
@@ -147,15 +147,47 @@ class ContractDeployer {
   ): Promise<string> {
     try {
       const args = constructorArgs.join(' ')
-      const cmd = `forge create --rpc-url ${this.config.rpcUrl} \
-        --private-key ${this.config.privateKey || '$DEPLOYER_PRIVATE_KEY'} \
-        contracts/**/${contractName}.sol:${contractName} \
-        ${args ? `--constructor-args ${args}` : ''} \
-        --json`
 
-      const output = execSync(cmd, { encoding: 'utf-8' })
-      const result = JSON.parse(output)
-      return result.deployedTo
+      // Map contract names to their file paths
+      const contractPaths: Record<string, string> = {
+        'ERC8004IdentityRegistry': 'contracts/identity/ERC8004IdentityRegistry.sol',
+        'ERC8004ReputationSystem': 'contracts/identity/ERC8004ReputationSystem.sol',
+        'DiamondCutFacet': 'contracts/core/DiamondCutFacet.sol',
+        'DiamondLoupeFacet': 'contracts/core/DiamondLoupeFacet.sol',
+        'PredictionMarketFacet': 'contracts/core/PredictionMarketFacet.sol',
+        'OracleFacet': 'contracts/core/OracleFacet.sol',
+        'Diamond': 'contracts/core/Diamond.sol'
+      }
+
+      const contractPath = contractPaths[contractName] || `contracts/**/${contractName}.sol`
+
+      // Build command without --json flag and with proper key handling
+      const constructorArgsStr = args ? `--constructor-args ${args}` : ''
+
+      console.log(`  Executing: forge create ${contractPath}:${contractName}`)
+      const output = execSync(
+        `forge create --rpc-url ${this.config.rpcUrl} --private-key ${this.config.privateKey} --broadcast ${contractPath}:${contractName} ${constructorArgsStr}`,
+        {
+          encoding: 'utf-8',
+          env: { ...process.env, DEPLOYER_PRIVATE_KEY: this.config.privateKey }
+        }
+      )
+
+      // Parse output for deployment address
+      // Look for "Deployed to: 0x..." pattern
+      const deployedMatch = output.match(/Deployed to:\s+(0x[a-fA-F0-9]{40})/i)
+      if (deployedMatch) {
+        return deployedMatch[1]
+      }
+
+      // Also try "Contract Address:" pattern
+      const addressMatch = output.match(/Contract Address:\s+(0x[a-fA-F0-9]{40})/i)
+      if (addressMatch) {
+        return addressMatch[1]
+      }
+
+      console.error('Forge output:', output)
+      throw new Error('Could not find deployment address in output')
     } catch (error) {
       console.error(`❌ Failed to deploy ${contractName}:`, error)
       throw error
@@ -180,12 +212,23 @@ class ContractDeployer {
    * Verify contracts on block explorer
    */
   private async verifyContracts(contracts: Record<string, string>): Promise<void> {
+    const contractPaths: Record<string, string> = {
+      'identityRegistry': 'contracts/identity/ERC8004IdentityRegistry.sol:ERC8004IdentityRegistry',
+      'reputationSystem': 'contracts/identity/ERC8004ReputationSystem.sol:ERC8004ReputationSystem',
+      'diamondCutFacet': 'contracts/core/DiamondCutFacet.sol:DiamondCutFacet',
+      'diamondLoupeFacet': 'contracts/core/DiamondLoupeFacet.sol:DiamondLoupeFacet',
+      'predictionMarketFacet': 'contracts/core/PredictionMarketFacet.sol:PredictionMarketFacet',
+      'oracleFacet': 'contracts/core/OracleFacet.sol:OracleFacet',
+      'diamond': 'contracts/core/Diamond.sol:Diamond'
+    }
+
     for (const [name, address] of Object.entries(contracts)) {
       try {
+        const contractPath = contractPaths[name] || `contracts/**/*.sol:${name}`
         console.log(`  Verifying ${name}...`)
         execSync(
           `forge verify-contract ${address} \
-          contracts/**/*.sol:${name} \
+          ${contractPath} \
           --chain-id ${this.config.network === 'base-sepolia' ? '84532' : '8453'} \
           --etherscan-api-key ${this.config.etherscanApiKey} \
           --watch`,

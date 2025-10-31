@@ -33,6 +33,11 @@ model User {
   totalWithdrawn       Decimal  @default(0) @db.Decimal(18, 2)
   lifetimePnL          Decimal  @default(0) @db.Decimal(18, 2)
   
+  // On-chain identity (ERC-8004)
+  onChainRegistered    Boolean  @default(false)
+  nftTokenId           Int?     @unique  // ERC-8004 NFT token ID
+  registrationTxHash   String?  // Transaction hash of on-chain registration
+
   // Profile completion tracking
   profileComplete      Boolean  @default(false)
   hasProfileImage      Boolean  @default(false)

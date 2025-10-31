@@ -1,6 +1,7 @@
 import { usePrivy, useWallets, type User, type ConnectedWallet } from '@privy-io/react-auth'
 import { useEffect, useMemo } from 'react'
 import { useAuthStore } from '@/stores/authStore'
+import { OnboardingService } from '@/lib/services/onboarding-service'
 
 interface UseAuthReturn {
   ready: boolean
@@ -13,6 +14,7 @@ interface UseAuthReturn {
 
 const loadedProfileUsers = new Set<string>()
 const checkedNewUserUsers = new Set<string>()
+const checkedOnboardingUsers = new Set<string>()
 let lastSyncedWalletAddress: string | null = null
 
 export function useAuth(): UseAuthReturn {
@@ -60,6 +62,7 @@ export function useAuth(): UseAuthReturn {
     if (!authenticated || !user) {
       loadedProfileUsers.clear()
       checkedNewUserUsers.clear()
+      checkedOnboardingUsers.clear()
       lastSyncedWalletAddress = null
       clearAuth()
       return
@@ -135,6 +138,50 @@ export function useAuth(): UseAuthReturn {
       }
     }
 
+    const checkOnboarding = async () => {
+      try {
+        // Only proceed if wallet is connected
+        if (!wallet?.address) {
+          console.log('Skipping onboarding check: no wallet connected')
+          return
+        }
+
+        // Check if user is already onboarded on-chain
+        const status = await OnboardingService.checkOnboardingStatus(user.id)
+
+        if (!status.isOnboarded) {
+          console.log('User not onboarded, triggering on-chain registration...')
+
+          // Trigger on-chain registration and points award
+          const result = await OnboardingService.completeOnboarding(
+            user.id,
+            wallet.address
+          )
+
+          if (result.success) {
+            console.log('Onboarding complete!', {
+              tokenId: result.tokenId,
+              points: result.points,
+              txHash: result.transactionHash,
+            })
+
+            // Show success notification (optional, requires toast library)
+            if (typeof window !== 'undefined' && (window as any).toast) {
+              (window as any).toast.success(
+                `Welcome! You've received ${result.points} points and NFT #${result.tokenId}`
+              )
+            }
+          } else {
+            console.error('Onboarding failed:', result.error)
+          }
+        } else {
+          console.log('User already onboarded on-chain with NFT #', status.tokenId)
+        }
+      } catch (error) {
+        console.error('Error during onboarding check:', error)
+      }
+    }
+
     if (!loadedProfileUsers.has(user.id)) {
       loadedProfileUsers.add(user.id)
       void loadUserProfile()
@@ -143,6 +190,12 @@ export function useAuth(): UseAuthReturn {
     if (!checkedNewUserUsers.has(user.id)) {
       checkedNewUserUsers.add(user.id)
       void checkNewUser()
+    }
+
+    // Check and trigger onboarding if needed (after wallet is connected)
+    if (wallet?.address && !checkedOnboardingUsers.has(user.id)) {
+      checkedOnboardingUsers.add(user.id)
+      void checkOnboarding()
     }
   }, [authenticated, user, wallet, setUser, setWallet, clearAuth, getAccessToken])
 

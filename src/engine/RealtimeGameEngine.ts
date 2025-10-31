@@ -22,6 +22,7 @@ import { A2AGameIntegration, type A2AGameConfig } from './A2AGameIntegration';
 import { BabylonLLMClient } from '../generator/llm/openai-client';
 import { shuffleArray } from '@/shared/utils';
 import { db } from '../lib/database-service';
+import { ReputationService } from '../lib/services/reputation-service';
 import type {
   SelectedActor,
   Organization,
@@ -218,11 +219,29 @@ export class RealtimeGameEngine extends EventEmitter {
           // Generate definitive resolution event
           const resolutionEvent = await this.generateResolutionEvent(question);
           resolutionEvents.push(resolutionEvent);
-          
+
           const resolved = this.questionManager.resolveQuestion(question, question.outcome);
           const index = this.questions.findIndex(q => q.id === question.id);
           if (index >= 0) {
             this.questions[index] = resolved;
+          }
+
+          // Update on-chain reputation for all users who had positions
+          console.log(`  🏆 Updating on-chain reputation for market ${question.id}`);
+          try {
+            const reputationUpdates = await ReputationService.updateReputationForResolvedMarket({
+              marketId: question.id.toString(),
+              outcome: question.outcome,
+            });
+
+            const winners = reputationUpdates.filter(u => u.change > 0).length;
+            const losers = reputationUpdates.filter(u => u.change < 0).length;
+            const errors = reputationUpdates.filter(u => u.error).length;
+
+            console.log(`  ✅ Reputation updated: ${winners} winners (+10), ${losers} losers (-5)${errors > 0 ? `, ${errors} errors` : ''}`);
+          } catch (error) {
+            console.error(`  ❌ Failed to update reputation for market ${question.id}:`, error);
+            // Don't fail the entire tick if reputation update fails
           }
         }
       }

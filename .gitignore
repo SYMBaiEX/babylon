@@ -1,6 +1,7 @@
 node_modules
 .env
 .env*.local
+DEPLOYER_WALLET.md
 .DS_Store
 dist/
 .next/
@@ -15,3 +16,5 @@ prisma/migrations/
 .next/
 dist/
 docs/
+cache/
+broadcast/
