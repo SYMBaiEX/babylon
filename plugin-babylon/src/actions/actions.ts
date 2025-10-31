@@ -12,7 +12,7 @@ import type {
   HandlerCallback,
   ActionResult,
 } from '@elizaos/core';
-import type { BabylonClientService } from '../services/services';
+import { BabylonClientService } from '../plugin';
 import type { TradeRequest } from '../types';
 
 /**
@@ -32,7 +32,7 @@ export const buySharesAction: Action = {
   description: 'Buy shares in a prediction market',
   validate: async (runtime: IAgentRuntime, message: Memory): Promise<boolean> => {
     // Check if agent has Babylon service configured
-    const babylonService = runtime.getService<BabylonClientService>('babylon');
+    const babylonService = runtime.getService<BabylonClientService>(BabylonClientService.serviceType);
     if (!babylonService) {
       runtime.logger.error('Babylon service not configured');
       return false;
@@ -57,7 +57,7 @@ export const buySharesAction: Action = {
     options?: { [key: string]: unknown },
     callback?: HandlerCallback
   ): Promise<ActionResult> => {
-    const babylonService = runtime.getService<BabylonClientService>('babylon');
+    const babylonService = runtime.getService<BabylonClientService>(BabylonClientService.serviceType);
 
     if (!babylonService) {
       const errorResult: ActionResult = {
@@ -210,7 +210,7 @@ export const sellSharesAction: Action = {
   ],
   description: 'Sell shares and close position in a prediction market',
   validate: async (runtime: IAgentRuntime, message: Memory): Promise<boolean> => {
-    const babylonService = runtime.getService<BabylonClientService>('babylon');
+    const babylonService = runtime.getService<BabylonClientService>(BabylonClientService.serviceType);
     if (!babylonService) return false;
 
     const content = message.content.text?.toLowerCase() || '';
@@ -230,7 +230,7 @@ export const sellSharesAction: Action = {
     options?: { [key: string]: unknown },
     callback?: HandlerCallback
   ): Promise<ActionResult> => {
-    const babylonService = runtime.getService<BabylonClientService>('babylon');
+    const babylonService = runtime.getService<BabylonClientService>(BabylonClientService.serviceType);
 
     if (!babylonService) {
       const errorResult: ActionResult = {
@@ -350,7 +350,7 @@ export const checkWalletAction: Action = {
   ],
   description: 'Check wallet balance and available funds',
   validate: async (runtime: IAgentRuntime, message: Memory): Promise<boolean> => {
-    const babylonService = runtime.getService<BabylonClientService>('babylon');
+    const babylonService = runtime.getService<BabylonClientService>(BabylonClientService.serviceType);
     if (!babylonService) return false;
 
     const content = message.content.text?.toLowerCase() || '';
@@ -369,7 +369,7 @@ export const checkWalletAction: Action = {
     options?: { [key: string]: unknown },
     callback?: HandlerCallback
   ): Promise<ActionResult> => {
-    const babylonService = runtime.getService<BabylonClientService>('babylon');
+    const babylonService = runtime.getService<BabylonClientService>(BabylonClientService.serviceType);
 
     if (!babylonService) {
       const errorResult: ActionResult = {

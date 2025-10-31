@@ -46,11 +46,36 @@ export function useWebSocket() {
 
       const token = await getAccessToken()
       if (!token) {
-        setError('Authentication required')
+        // Silently fail if not authenticated - this is expected for unauthenticated users
+        setError(null)
         return
       }
 
+      // Check if WebSocket server is available before attempting connection
+      try {
+        const healthCheckUrl = `${window.location.protocol}//${window.location.hostname}:${window.location.port || (window.location.protocol === 'https:' ? '443' : '80')}/api/ws/chat`
+        const healthResponse = await fetch(healthCheckUrl)
+        const healthData = await healthResponse.json()
+        
+        if (!healthData.initialized) {
+          setError('WebSocket server is not initialized. Please ensure the server is running.')
+          console.warn('WebSocket server not initialized')
+          return
+        }
+      } catch (healthError) {
+        // Health check failed - server might not be ready yet, but we'll try connecting anyway
+        if (reconnectAttempts.current === 0) {
+          console.warn('WebSocket server health check failed, attempting connection anyway:', healthError)
+        }
+      }
+
       const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:3001/ws/chat?token=${token}`
+      
+      // Only log connection attempt if not retrying (to reduce noise)
+      if (reconnectAttempts.current === 0) {
+        console.log('Connecting to WebSocket server...', wsUrl.replace(/token=[^&]+/, 'token=***'))
+      }
+      
       const ws = new WebSocket(wsUrl)
 
       ws.onopen = () => {
@@ -61,25 +86,65 @@ export function useWebSocket() {
       }
 
       ws.onclose = (event) => {
-        console.log('WebSocket disconnected:', event.code, event.reason)
-        setIsConnected(false)
         const g = getGlobal()
         const subs = g[SUBSCRIBERS_KEY] || 0
+        
+        setIsConnected(false)
+        
+        // Log only if it's an unexpected closure (not a clean close)
+        if (event.code !== 1000) {
+          // Only log on first disconnect or when giving up to reduce noise
+          if (reconnectAttempts.current === 0 || reconnectAttempts.current >= maxReconnectAttempts) {
+            console.log('WebSocket disconnected:', {
+              code: event.code,
+              reason: event.reason || 'No reason provided',
+              wasClean: event.wasClean,
+              subscribers: subs
+            })
+          }
+        }
+        
         // Attempt to reconnect only if not a normal closure AND there are subscribers
         if (subs > 0 && event.code !== 1000 && reconnectAttempts.current < maxReconnectAttempts) {
           const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000)
-          console.log(`Reconnecting in ${delay}ms... (attempt ${reconnectAttempts.current + 1})`)
+          // Only log reconnection attempts on first few tries to reduce noise
+          if (reconnectAttempts.current < 2) {
+            console.log(`Reconnecting in ${delay}ms... (attempt ${reconnectAttempts.current + 1}/${maxReconnectAttempts})`)
+          }
           
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectAttempts.current++
             connect()
           }, delay)
+        } else if (subs > 0 && reconnectAttempts.current >= maxReconnectAttempts) {
+          console.warn('WebSocket: Max reconnection attempts reached. Server may not be running on port 3001.')
+          setError('Unable to connect to chat server. Chat features may be unavailable.')
+        } else if (event.code === 1000) {
+          // Clean close - clear any previous errors
+          setError(null)
         }
       }
 
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error)
-        setError('WebSocket connection error')
+      ws.onerror = (errorEvent) => {
+        // WebSocket error events don't provide much information in the error object itself
+        // The actual error details come from the close event (code, reason)
+        // However, we can check the readyState to provide context
+        const errorMessage = ws.readyState === WebSocket.CLOSED 
+          ? 'Connection failed - server may not be running on port 3001'
+          : ws.readyState === WebSocket.CONNECTING
+          ? 'Connection timeout - server may not be responding'
+          : 'WebSocket connection error'
+        
+        // Only log meaningful errors or on first attempt
+        if (reconnectAttempts.current === 0) {
+          console.error('WebSocket error:', {
+            message: errorMessage,
+            readyState: ws.readyState,
+            url: wsUrl.replace(/token=[^&]+/, 'token=***')
+          })
+        }
+        
+        // Don't set error state here - let onclose handle it with proper error codes
       }
 
       setSocket(ws)
@@ -136,14 +201,23 @@ export function useWebSocket() {
     }
   }, [socket])
 
-  // Auto-connect on mount
+  // Auto-connect on mount, but only if authenticated
   useEffect(() => {
-    connect()
+    // Check if user is authenticated before attempting connection
+    getAccessToken()
+      .then(token => {
+        if (token) {
+          connect()
+        }
+      })
+      .catch(() => {
+        // Silently fail if not authenticated - this is expected
+      })
 
     return () => {
       disconnect()
     }
-  }, [connect, disconnect])
+  }, [connect, disconnect, getAccessToken])
 
   return {
     socket,

@@ -1,15 +1,23 @@
 /**
  * API Route: /api/users/[userId]/balance
- * Methods: GET (get user's balance)
+ * Methods: GET (get user balance)
  */
 
 import { NextRequest } from 'next/server';
-import { successResponse, errorResponse, optionalAuth } from '@/lib/api/auth-middleware';
+import { PrismaClient } from '@prisma/client';
+import {
+  authenticate,
+  optionalAuth,
+  successResponse,
+  errorResponse,
+} from '@/lib/api/auth-middleware';
 import { WalletService } from '@/services/WalletService';
+
+const prisma = new PrismaClient();
 
 /**
  * GET /api/users/[userId]/balance
- * Get user's virtual wallet balance
+ * Get user's virtual balance and stats
  */
 export async function GET(
   request: NextRequest,
@@ -17,15 +25,35 @@ export async function GET(
 ) {
   try {
     const { userId } = await params;
-    const user = await optionalAuth(request);
 
-    // Only show detailed balance if requesting own
-    const isOwnProfile = user?.userId === userId;
-
-    if (!isOwnProfile) {
-      return errorResponse('Cannot view other user balances', 403);
+    if (!userId) {
+      return errorResponse('User ID is required', 400);
     }
 
+    // Optional authentication - check if user is requesting their own balance
+    const authUser = await optionalAuth(request);
+
+    // If authenticated, ensure they're requesting their own balance
+    if (authUser && authUser.userId !== userId) {
+      return errorResponse('Unauthorized - can only view your own balance', 403);
+    }
+
+    // Ensure user exists in database
+    let dbUser = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!dbUser) {
+      // Create user if they don't exist yet
+      dbUser = await prisma.user.create({
+        data: {
+          id: userId,
+          isActor: false,
+        },
+      });
+    }
+
+    // Get balance info
     const balanceInfo = await WalletService.getBalance(userId);
 
     return successResponse({
@@ -33,11 +61,9 @@ export async function GET(
       totalDeposited: balanceInfo.totalDeposited,
       totalWithdrawn: balanceInfo.totalWithdrawn,
       lifetimePnL: balanceInfo.lifetimePnL,
-      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Error fetching balance:', error);
-    return errorResponse('Failed to fetch balance');
+    return errorResponse('Failed to fetch balance', 500);
   }
 }
-

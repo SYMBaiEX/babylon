@@ -55,6 +55,8 @@ model User {
   favoritedBy     Favorite[]   @relation("UserFavoritedBy")
   shares          Share[]
   balanceTransactions BalanceTransaction[]
+  notifications   Notification[] @relation("NotificationRecipient")
+  notificationsSent Notification[] @relation("NotificationActor")
 
   @@index([walletAddress])
   @@index([username])
@@ -480,4 +482,25 @@ model Actor {
 
   @@index([tier])
   @@index([role])
+}
+
+// Notification model - user notifications
+model Notification {
+  id          String   @id @default(uuid())
+  userId      String   // Who receives the notification
+  type        String   // 'comment', 'reaction', 'follow', 'mention', 'reply', 'share'
+  actorId     String?  // Who performed the action (user ID or actor ID)
+  postId      String?  // Related post (if applicable)
+  commentId   String?  // Related comment (if applicable)
+  message     String   // Notification message
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  // Relationships
+  user User @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor User? @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([userId, read, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([read])
 }

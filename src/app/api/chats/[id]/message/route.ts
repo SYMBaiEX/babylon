@@ -60,7 +60,16 @@ export async function POST(
     }
 
     // 4. Check if user should be removed (pre-check) - only for database chats
-    let sweepDecision: SweepDecision = { shouldRemove: false, reason: undefined, stats: { hoursSinceLastMessage: 0, messagesLast24h: 0 } };
+    let sweepDecision: SweepDecision = {
+      shouldRemove: false,
+      reason: undefined,
+      stats: {
+        hoursSinceLastMessage: 0,
+        messagesLast24h: 0,
+        averageQuality: 0,
+        totalMessages: 0
+      }
+    };
     
     if (!isGameChat) {
       sweepDecision = await GroupChatSweep.checkForRemoval(user.userId, chatId);

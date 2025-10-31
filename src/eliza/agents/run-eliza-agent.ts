@@ -1,21 +1,20 @@
 #!/usr/bin/env node
 
 /**
- * Run Eliza Agent - ElizaOS 1.6.3
+ * Run Eliza Agent - ElizaOS Latest
  *
  * Starts an Eliza agent that interacts with Babylon prediction markets as a real player
- * Following ElizaOS 1.6.3 best practices and architecture patterns
+ * Following latest ElizaOS best practices and architecture patterns
  */
 
 import {
   logger,
   type Character,
   type IAgentRuntime,
+  AgentRuntime,
+  stringToUuid,
 } from '@elizaos/core';
 import { predictionMarketsPlugin } from '../../../plugin-babylon/src';
-import createDatabaseAdapter from '@elizaos/plugin-sql';
-// @ts-ignore - @elizaos/plugin-bootstrap doesn't have TypeScript declarations yet
-import bootstrapPlugin from '@elizaos/plugin-bootstrap';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -133,7 +132,7 @@ async function loadCharacter(characterPath?: string): Promise<Character> {
 
 /**
  * Initialize character with Babylon plugin
- * This follows ElizaOS 1.6.3 Service pattern
+ * This follows latest ElizaOS Service pattern
  *
  * Configuration is passed via character.settings, which BabylonClientService reads
  * during its start() method when the plugin loads
@@ -163,9 +162,12 @@ async function main() {
   console.log('🤖 Starting Eliza Agent for Babylon Game\n');
 
   // Validate required environment variables
-  const token = process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY || process.env.ANTHROPIC_API_KEY;
-  if (!token) {
-    throw new Error('Model provider API key required (OPENAI_API_KEY, GROQ_API_KEY, or ANTHROPIC_API_KEY)');
+  // API keys are read automatically by ElizaOS from environment
+  const hasModelProvider = process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY || process.env.ANTHROPIC_API_KEY;
+  if (!hasModelProvider) {
+    console.warn('⚠️  No model provider API key found in environment');
+    console.warn('   Set OPENAI_API_KEY, GROQ_API_KEY, or ANTHROPIC_API_KEY');
+    console.warn('   Agent may not be able to generate responses\n');
   }
 
   // Load character
@@ -173,30 +175,8 @@ async function main() {
   let character = await loadCharacter(options.character);
   console.log(`✅ Loaded character: ${character.name}\n`);
 
-  // Add Babylon configuration to character settings
-  // BabylonClientService.start() will read these during plugin initialization
-  console.log('⚙️  Configuring Babylon settings...');
-  character = {
-    ...character,
-    settings: {
-      ...(character.settings || {}),
-      babylonApiUrl: options.apiUrl || 'http://localhost:3000',
-      babylonAuthToken: options.authToken,
-      babylonMaxTradeSize: options.maxTradeSize || 100,
-      babylonMaxPositionSize: 500,
-      babylonMinConfidence: 0.6,
-      autoTrading: options.autoTrade || false,
-    },
-    plugins: [
-      bootstrapPlugin,
-      predictionMarketsPlugin,
-      ...(Array.isArray(character.plugins) ? character.plugins : []),
-    ] as any,
-  };
-  console.log('✅ Babylon settings configured\n');
-
-  // Initialize database
-  console.log('💾 Initializing database...');
+  // Initialize database configuration
+  console.log('💾 Configuring database...');
 
   const postgresUrl = process.env.POSTGRES_URL || process.env.DATABASE_URL;
   const dataDir = process.env.PGLITE_DATA_DIR || path.join(__dirname, '../../../data/pglite');
@@ -213,31 +193,55 @@ async function main() {
     console.log('📊 Using PostgreSQL database\n');
   }
 
-  // Generate agent ID
-  const agentId = crypto.randomUUID();
+  // Add Babylon configuration and database settings to character
+  // Latest ElizaOS pattern: plugins (including SQL plugin) are configured in character
+  console.log('⚙️  Configuring character with plugins and settings...');
 
-  // Create database adapter
-  const databaseAdapter = createDatabaseAdapter(
-    {
-      postgresUrl,
-      dataDir,
-    },
-    agentId
-  );
+  // Build settings object with only defined optional values
+  const characterSettings: Record<string, string | number | boolean | Record<string, any>> = {
+    ...(character.settings || {}),
+    // Babylon plugin configuration
+    babylonApiUrl: options.apiUrl || 'http://localhost:3000',
+    babylonMaxTradeSize: options.maxTradeSize || 100,
+    babylonMaxPositionSize: 500,
+    babylonMinConfidence: 0.6,
+    autoTrading: options.autoTrade || false,
+    // Database configuration for SQL plugin
+    dataDir,
+  };
 
-  await databaseAdapter.init();
-  console.log(`✅ Database initialized${postgresUrl ? ' (PostgreSQL)' : ' (PGlite - development mode)'}\n`);
+  // Add optional settings only if they're defined
+  if (options.authToken) {
+    characterSettings.babylonAuthToken = options.authToken;
+  }
+  if (postgresUrl) {
+    characterSettings.postgresUrl = postgresUrl;
+  }
 
-  // Import AgentRuntime dynamically to avoid circular dependencies
-  const { AgentRuntime } = await import('@elizaos/core');
+  character = {
+    ...character,
+    settings: characterSettings,
+    plugins: [
+      '@elizaos/plugin-bootstrap',  // Bootstrap plugin for core ElizaOS functionality
+      '@elizaos/plugin-sql',        // SQL plugin provides database adapter
+      ...(Array.isArray(character.plugins) ? character.plugins : []),
+    ],
+  };
+  console.log('✅ Character configured with plugins and settings\n');
+
+  // Generate agent ID from character name for stability across restarts
+  // Falls back to random UUID if no character name
+  const agentId = stringToUuid(character.name || crypto.randomUUID());
 
   // Create agent runtime
+  // Latest ElizaOS: AgentRuntime automatically reads API keys from environment variables
+  // API keys should be set: OPENAI_API_KEY, GROQ_API_KEY, or ANTHROPIC_API_KEY
+  // Plugin objects (not strings) are passed to AgentRuntime constructor
   console.log('⚙️  Creating agent runtime...');
   const runtime = new AgentRuntime({
     character,
-    adapter: databaseAdapter,
-    token,
     agentId,
+    plugins: [predictionMarketsPlugin],  // Pass Plugin objects here, not strings
   });
 
   // Initialize character with Babylon-specific setup
@@ -294,19 +298,12 @@ process.on('SIGINT', () => {
   process.exit(0);
 });
 
-// Run if called directly
-// @ts-ignore - Bun-specific import.meta support
-const isMainModule =
-  // Bun runtime
-  (typeof import.meta.main !== 'undefined' && import.meta.main) ||
-  // Node/tsx runtime
-  (import.meta.url === `file://${process.argv[1]}`);
-
-if (isMainModule) {
-  main().catch((error) => {
-    console.error('❌ Fatal error:', error);
-    process.exit(1);
-  });
-}
-
+// Export main function for programmatic use
 export { main };
+
+// Run main function when executed directly
+// This works for both Bun and Node runtimes
+main().catch((error) => {
+  console.error('❌ Fatal error:', error);
+  process.exit(1);
+});

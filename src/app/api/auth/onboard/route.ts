@@ -45,8 +45,8 @@ const IDENTITY_REGISTRY_ABI = [
   },
   {
     type: 'function',
-    name: 'tokenOfOwner',
-    inputs: [{ name: 'owner', type: 'address' }],
+    name: 'getTokenId',
+    inputs: [{ name: '_address', type: 'address' }],
     outputs: [{ name: '', type: 'uint256' }],
     stateMutability: 'view',
   },
@@ -68,9 +68,18 @@ const REPUTATION_SYSTEM_ABI = [
     type: 'function',
     name: 'recordBet',
     inputs: [
-      { name: 'tokenId', type: 'uint256' },
-      { name: 'amount', type: 'uint256' },
-      { name: 'marketId', type: 'string' },
+      { name: '_tokenId', type: 'uint256' },
+      { name: '_amount', type: 'uint256' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'recordWin',
+    inputs: [
+      { name: '_tokenId', type: 'uint256' },
+      { name: '_profit', type: 'uint256' },
     ],
     outputs: [],
     stateMutability: 'nonpayable',
@@ -109,13 +118,38 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid wallet address format', 400)
     }
 
-    // Check if user exists in database
+    // Check if user exists in database, create if not exists
+    // First try by ID (Privy user ID)
     let dbUser = await prisma.user.findUnique({
-      where: { walletAddress: walletAddress.toLowerCase() },
+      where: { id: user.userId },
     })
 
     if (!dbUser) {
-      return errorResponse('User not found. Please complete signup first.', 404)
+      // User doesn't exist yet - create them
+      // Use userId from auth (Privy user ID) as the database ID
+      dbUser = await prisma.user.create({
+        data: {
+          id: user.userId,
+          walletAddress: walletAddress.toLowerCase(),
+          username: username,
+          displayName: username || `user_${user.userId.slice(0, 8)}`,
+          bio: bio || '',
+          isActor: false,
+          virtualBalance: 0, // Will be set to 1000 after registration
+          totalDeposited: 0,
+        },
+      })
+    } else {
+      // Update existing user with latest info if needed
+      dbUser = await prisma.user.update({
+        where: { id: dbUser.id },
+        data: {
+          walletAddress: walletAddress.toLowerCase(),
+          username: username || dbUser.username,
+          displayName: username || dbUser.displayName,
+          bio: bio || dbUser.bio,
+        },
+      })
     }
 
     // Create clients
@@ -137,7 +171,7 @@ export async function POST(request: NextRequest) {
       const tokenId = await publicClient.readContract({
         address: IDENTITY_REGISTRY,
         abi: IDENTITY_REGISTRY_ABI,
-        functionName: 'tokenOfOwner',
+        functionName: 'getTokenId',
         args: [walletAddress as Address],
       })
 
@@ -152,11 +186,20 @@ export async function POST(request: NextRequest) {
         })
       }
 
+      // Check if points were already awarded
+      const hasWelcomeBonus = await prisma.balanceTransaction.findFirst({
+        where: {
+          userId: dbUser.id,
+          description: 'Welcome bonus - initial signup',
+        },
+      })
+
       return successResponse({
         message: 'Already registered on-chain',
         tokenId: Number(tokenId),
         walletAddress,
         txHash: null,
+        pointsAwarded: hasWelcomeBonus ? 1000 : 0,
       })
     }
 
@@ -199,10 +242,10 @@ export async function POST(request: NextRequest) {
 
     console.log('Registration transaction sent:', txHash)
 
-    // Wait for transaction confirmation
+    // Wait for transaction confirmation (wait for more confirmations to ensure state is synced)
     const receipt = await publicClient.waitForTransactionReceipt({
       hash: txHash,
-      confirmations: 1,
+      confirmations: 2, // Wait for 2 confirmations to ensure state is synced
     })
 
     if (receipt.status !== 'success') {
@@ -234,7 +277,7 @@ export async function POST(request: NextRequest) {
       const queriedTokenId = await publicClient.readContract({
         address: IDENTITY_REGISTRY,
         abi: IDENTITY_REGISTRY_ABI,
-        functionName: 'tokenOfOwner',
+        functionName: 'getTokenId',
         args: [walletAddress as Address],
       })
       tokenId = Number(queriedTokenId)
@@ -242,24 +285,82 @@ export async function POST(request: NextRequest) {
 
     console.log('Agent registered with token ID:', tokenId)
 
-    // Award initial 1,000 reputation points by recording a "welcome" bet
+    // Set initial reputation to 70 (by recording 10 bets with 7 wins = 70% accuracy)
+    // This gives trustScore ≈ 7000 (70 out of 100)
+    // Note: We already waited for transaction confirmation above, but we need to verify token exists
     try {
-      const awardTxHash = await walletClient.writeContract({
-        address: REPUTATION_SYSTEM,
-        abi: REPUTATION_SYSTEM_ABI,
-        functionName: 'recordBet',
-        args: [BigInt(tokenId), parseEther('1000'), 'INITIAL_REGISTRATION'],
+      console.log('Setting initial reputation to 70...')
+      
+      // Wait a bit for state to sync after registration
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      // Verify token exists before attempting reputation calls
+      // Use isRegistered instead of ownerOf to avoid reverts
+      const isRegistered = await publicClient.readContract({
+        address: IDENTITY_REGISTRY,
+        abi: IDENTITY_REGISTRY_ABI,
+        functionName: 'isRegistered',
+        args: [walletAddress as Address],
       })
 
-      console.log('Initial reputation awarded:', awardTxHash)
+      if (!isRegistered) {
+        console.warn('Token not registered yet, skipping reputation setup')
+        throw new Error('Token not registered - cannot set reputation')
+      }
 
-      await publicClient.waitForTransactionReceipt({
-        hash: awardTxHash,
-        confirmations: 1,
-      })
+      // Also verify ownerOf works (will revert if token doesn't exist)
+      try {
+        const owner = await publicClient.readContract({
+          address: IDENTITY_REGISTRY,
+          abi: IDENTITY_REGISTRY_ABI,
+          functionName: 'ownerOf',
+          args: [BigInt(tokenId)],
+        })
+
+        if (!owner || owner === '0x0000000000000000000000000000000000000000') {
+          throw new Error('Token owner is zero address')
+        }
+
+        console.log('Token verified in registry, owner:', owner)
+      } catch (ownerError) {
+        console.warn('Could not verify token owner, but isRegistered=true, proceeding anyway')
+      }
+
+      // Record 10 bets total
+      for (let i = 0; i < 10; i++) {
+        await walletClient.writeContract({
+          address: REPUTATION_SYSTEM,
+          abi: REPUTATION_SYSTEM_ABI,
+          functionName: 'recordBet',
+          args: [BigInt(tokenId), parseEther('100')],
+        })
+      }
+
+      // Record 7 wins to achieve 70% accuracy (7/10 = 70%)
+      for (let i = 0; i < 7; i++) {
+        const winTxHash = await walletClient.writeContract({
+          address: REPUTATION_SYSTEM,
+          abi: REPUTATION_SYSTEM_ABI,
+          functionName: 'recordWin',
+          args: [BigInt(tokenId), parseEther('100')],
+        })
+        
+        // Wait for each transaction (except batch the last ones)
+        if (i < 2) {
+          await publicClient.waitForTransactionReceipt({
+            hash: winTxHash,
+            confirmations: 1,
+          })
+        }
+      }
+
+      // Wait for remaining transactions
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
+      console.log('Initial reputation set to 70 (7 wins out of 10 bets)')
     } catch (error) {
-      console.error('Failed to award initial reputation:', error)
-      // Don't fail registration if reputation award fails
+      console.error('Failed to set initial reputation:', error)
+      // Don't fail registration if reputation setup fails
     }
 
     // Update database
@@ -274,6 +375,51 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    // Award 1,000 virtual balance points to user (only if not already awarded)
+    try {
+      // Check if welcome bonus was already awarded
+      const existingBonus = await prisma.balanceTransaction.findFirst({
+        where: {
+          userId: dbUser.id,
+          description: 'Welcome bonus - initial signup',
+        },
+      })
+
+      if (!existingBonus) {
+        const balanceBefore = dbUser.virtualBalance
+        const amountDecimal = new (await import('@prisma/client')).Prisma.Decimal(1000)
+        const balanceAfter = balanceBefore.plus(amountDecimal)
+
+        // Create transaction record
+        await prisma.balanceTransaction.create({
+          data: {
+            userId: dbUser.id,
+            type: 'deposit',
+            amount: amountDecimal,
+            balanceBefore,
+            balanceAfter,
+            description: 'Welcome bonus - initial signup',
+          },
+        })
+
+        // Update user balance
+        await prisma.user.update({
+          where: { id: dbUser.id },
+          data: {
+            virtualBalance: { increment: 1000 },
+            totalDeposited: { increment: 1000 },
+          },
+        })
+
+        console.log('Successfully awarded 1,000 points to user')
+      } else {
+        console.log('Welcome bonus already awarded to user')
+      }
+    } catch (error) {
+      console.error('Error awarding points (non-critical):', error)
+      // Don't fail registration if points award fails
+    }
+
     return successResponse({
       message: 'Successfully registered on-chain',
       tokenId,
@@ -281,6 +427,7 @@ export async function POST(request: NextRequest) {
       txHash,
       blockNumber: Number(receipt.blockNumber),
       gasUsed: Number(receipt.gasUsed),
+      pointsAwarded: 1000,
     })
   } catch (error) {
     console.error('Registration error:', error)
@@ -335,7 +482,7 @@ export async function GET(request: NextRequest) {
       const queriedTokenId = await publicClient.readContract({
         address: IDENTITY_REGISTRY,
         abi: IDENTITY_REGISTRY_ABI,
-        functionName: 'tokenOfOwner',
+        functionName: 'getTokenId',
         args: [dbUser.walletAddress as Address],
       })
       tokenId = Number(queriedTokenId)

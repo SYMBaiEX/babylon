@@ -163,6 +163,42 @@ contract ERC8004ReputationSystem is Ownable {
         emit AgentUnbanned(_tokenId);
     }
 
+    /// @notice Get agents with minimum trust score
+    /// @param minScore Minimum trust score (0-10000 scale)
+    /// @return tokenIds Array of token IDs meeting the minimum score
+    function getAgentsByMinScore(uint256 minScore) external view returns (uint256[] memory) {
+        // Iterate through all possible token IDs (max reasonable range)
+        // In production, consider using an index or limiting the range
+        uint256[] memory max = new uint256[](1000); // Max 1000 agents
+        uint256 count = 0;
+        
+        // Check token IDs from 1 to 1000 (adjust based on deployment)
+        for (uint256 i = 1; i <= 1000; i++) {
+            // Verify token exists in identity registry
+            try identityRegistry.ownerOf(i) returns (address owner) {
+                if (owner != address(0)) {
+                    Reputation storage rep = reputations[i];
+                    if (!rep.isBanned && rep.trustScore >= minScore) {
+                        max[count] = i;
+                        count++;
+                        if (count >= 1000) break; // Prevent gas issues
+                    }
+                }
+            } catch {
+                // Token doesn't exist, skip
+                continue;
+            }
+        }
+        
+        // Resize array to actual count
+        uint256[] memory result = new uint256[](count);
+        for (uint256 i = 0; i < count; i++) {
+            result[i] = max[i];
+        }
+        
+        return result;
+    }
+
     // Internal functions
     function _updateAccuracyScore(uint256 _tokenId) internal {
         Reputation storage rep = reputations[_tokenId];

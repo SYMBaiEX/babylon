@@ -112,10 +112,10 @@ export function useAgentRegistry() {
 
   return {
     // Read operations
-    getProfile: async (tokenId: number) => {
-      if (!contracts || !contracts.read.identityRegistry.read.getProfile) return null
+    getAgentProfile: async (tokenId: number) => {
+      if (!contracts || !contracts.read.identityRegistry.read.getAgentProfile) return null
       try {
-        const profile = await contracts.read.identityRegistry.read.getProfile([BigInt(tokenId)]) as {
+        const profile = await contracts.read.identityRegistry.read.getAgentProfile([BigInt(tokenId)]) as {
           name: string
           endpoint: string
           capabilitiesHash: `0x${string}`
@@ -130,10 +130,10 @@ export function useAgentRegistry() {
       }
     },
 
-    getTokenOfOwner: async (ownerAddress: Address) => {
-      if (!contracts || !contracts.read.identityRegistry.read.tokenOfOwner) return null
+    getTokenId: async (ownerAddress: Address) => {
+      if (!contracts || !contracts.read.identityRegistry.read.getTokenId) return null
       try {
-        const tokenId = await contracts.read.identityRegistry.read.tokenOfOwner([ownerAddress]) as bigint
+        const tokenId = await contracts.read.identityRegistry.read.getTokenId([ownerAddress]) as bigint
         return tokenId === 0n ? null : Number(tokenId)
       } catch (error) {
         console.error('Error getting token:', error)
@@ -163,6 +163,17 @@ export function useAgentRegistry() {
       }
     },
 
+    getAgentsByCapability: async (capabilityHash: `0x${string}`) => {
+      if (!contracts || !contracts.read.identityRegistry.read.getAgentsByCapability) return []
+      try {
+        const tokenIds = await contracts.read.identityRegistry.read.getAgentsByCapability([capabilityHash]) as bigint[]
+        return tokenIds.map(id => Number(id))
+      } catch (error) {
+        console.error('Error getting agents by capability:', error)
+        return []
+      }
+    },
+
     // Write operations (requires wallet connection)
     registerAgent: async (
       name: string,
@@ -187,39 +198,33 @@ export function useAgentRegistry() {
       }
     },
 
-    updateProfile: async (
-      tokenId: number,
-      name: string,
+    updateAgent: async (
       endpoint: string,
       capabilitiesHash: `0x${string}`,
       metadataURI: string
     ) => {
-      if (!contracts?.write || !contracts.write.identityRegistry.write.updateProfile) {
+      if (!contracts?.write || !contracts.write.identityRegistry.write.updateAgent) {
         throw new Error('Wallet not connected')
       }
       try {
-        const hash = await contracts.write.identityRegistry.write.updateProfile([
-          BigInt(tokenId),
-          name,
+        const hash = await contracts.write.identityRegistry.write.updateAgent([
           endpoint,
           capabilitiesHash,
           metadataURI,
         ]) as `0x${string}`
         return hash
       } catch (error) {
-        console.error('Error updating profile:', error)
+        console.error('Error updating agent:', error)
         throw error
       }
     },
 
-    deactivateAgent: async (tokenId: number) => {
+    deactivateAgent: async () => {
       if (!contracts?.write || !contracts.write.identityRegistry.write.deactivateAgent) {
         throw new Error('Wallet not connected')
       }
       try {
-        const hash = await contracts.write.identityRegistry.write.deactivateAgent([
-          BigInt(tokenId),
-        ]) as `0x${string}`
+        const hash = await contracts.write.identityRegistry.write.deactivateAgent([]) as `0x${string}`
         return hash
       } catch (error) {
         console.error('Error deactivating agent:', error)
@@ -227,14 +232,12 @@ export function useAgentRegistry() {
       }
     },
 
-    reactivateAgent: async (tokenId: number) => {
+    reactivateAgent: async () => {
       if (!contracts?.write || !contracts.write.identityRegistry.write.reactivateAgent) {
         throw new Error('Wallet not connected')
       }
       try {
-        const hash = await contracts.write.identityRegistry.write.reactivateAgent([
-          BigInt(tokenId),
-        ]) as `0x${string}`
+        const hash = await contracts.write.identityRegistry.write.reactivateAgent([]) as `0x${string}`
         return hash
       } catch (error) {
         console.error('Error reactivating agent:', error)
@@ -258,21 +261,23 @@ export function useReputation() {
     getReputation: async (tokenId: number) => {
       if (!contracts || !contracts.read.reputationSystem.read.getReputation) return null
       try {
-        const rep = await contracts.read.reputationSystem.read.getReputation([BigInt(tokenId)]) as {
-          totalBets: bigint
-          winningBets: bigint
-          accuracyScore: bigint
-          trustScore: bigint
-          totalVolume: string
-          lastUpdated: bigint
-        }
+        const rep = await contracts.read.reputationSystem.read.getReputation([BigInt(tokenId)]) as [
+          bigint, // totalBets
+          bigint, // winningBets
+          bigint, // totalVolume
+          bigint, // profitLoss
+          bigint, // accuracyScore
+          bigint, // trustScore
+          boolean // isBanned
+        ]
         return {
-          totalBets: Number(rep.totalBets),
-          winningBets: Number(rep.winningBets),
-          accuracyScore: Number(rep.accuracyScore),
-          trustScore: Number(rep.trustScore),
-          totalVolume: rep.totalVolume,
-          lastUpdated: Number(rep.lastUpdated),
+          totalBets: Number(rep[0]),
+          winningBets: Number(rep[1]),
+          totalVolume: Number(rep[2]),
+          profitLoss: Number(rep[3]),
+          accuracyScore: Number(rep[4]),
+          trustScore: Number(rep[5]),
+          isBanned: rep[6],
         }
       } catch (error) {
         console.error('Error getting reputation:', error)
@@ -281,25 +286,49 @@ export function useReputation() {
     },
 
     getTrustScore: async (tokenId: number) => {
-      if (!contracts || !contracts.read.reputationSystem.read.getTrustScore) return 0
-      try {
-        const score = await contracts.read.reputationSystem.read.getTrustScore([BigInt(tokenId)]) as bigint
-        return Number(score)
-      } catch (error) {
-        console.error('Error getting trust score:', error)
-        return 0
-      }
+      const rep = await (async () => {
+        if (!contracts || !contracts.read.reputationSystem.read.getReputation) return null
+        try {
+          const repResult = await contracts.read.reputationSystem.read.getReputation([BigInt(tokenId)]) as [
+            bigint, bigint, bigint, bigint, bigint, bigint, boolean
+          ]
+          return {
+            totalBets: Number(repResult[0]),
+            winningBets: Number(repResult[1]),
+            totalVolume: Number(repResult[2]),
+            profitLoss: Number(repResult[3]),
+            accuracyScore: Number(repResult[4]),
+            trustScore: Number(repResult[5]),
+            isBanned: repResult[6],
+          }
+        } catch {
+          return null
+        }
+      })()
+      return rep ? rep.trustScore : 0
     },
 
     getAccuracyScore: async (tokenId: number) => {
-      if (!contracts || !contracts.read.reputationSystem.read.getAccuracyScore) return 0
-      try {
-        const score = await contracts.read.reputationSystem.read.getAccuracyScore([BigInt(tokenId)]) as bigint
-        return Number(score)
-      } catch (error) {
-        console.error('Error getting accuracy score:', error)
-        return 0
-      }
+      const rep = await (async () => {
+        if (!contracts || !contracts.read.reputationSystem.read.getReputation) return null
+        try {
+          const repResult = await contracts.read.reputationSystem.read.getReputation([BigInt(tokenId)]) as [
+            bigint, bigint, bigint, bigint, bigint, bigint, boolean
+          ]
+          return {
+            totalBets: Number(repResult[0]),
+            winningBets: Number(repResult[1]),
+            totalVolume: Number(repResult[2]),
+            profitLoss: Number(repResult[3]),
+            accuracyScore: Number(repResult[4]),
+            trustScore: Number(repResult[5]),
+            isBanned: repResult[6],
+          }
+        } catch {
+          return null
+        }
+      })()
+      return rep ? rep.accuracyScore : 0
     },
 
     getAgentsByMinScore: async (minScore: number) => {

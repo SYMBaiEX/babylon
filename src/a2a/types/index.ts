@@ -91,6 +91,8 @@ export interface AgentReputation {
   accuracyScore: number
   trustScore: number
   totalVolume: string
+  profitLoss: number
+  isBanned: boolean
 }
 
 export interface AgentConnection {

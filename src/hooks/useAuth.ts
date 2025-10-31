@@ -123,7 +123,16 @@ export function useAuth(): UseAuthReturn {
         })
 
         if (!response.ok) {
-          throw new Error('Failed to check new user status')
+          // Don't throw - silently fail if endpoint doesn't exist or errors
+          console.warn('Failed to check new user status:', response.status, response.statusText)
+          return
+        }
+
+        // Check if response is JSON before parsing
+        const contentType = response.headers.get('content-type')
+        if (!contentType || !contentType.includes('application/json')) {
+          console.warn('Non-JSON response from is-new endpoint')
+          return
         }
 
         const data = await response.json()
@@ -134,48 +143,67 @@ export function useAuth(): UseAuthReturn {
           }
         }
       } catch (error) {
-        console.error('Error checking new user status:', error)
+        // Silently handle errors - don't block user flow
+        console.warn('Error checking new user status:', error)
       }
     }
 
     const checkOnboarding = async () => {
       try {
-        // Only proceed if wallet is connected
-        if (!wallet?.address) {
-          console.log('Skipping onboarding check: no wallet connected')
+        // Check if user is already onboarded on-chain (doesn't require wallet)
+        const status = await OnboardingService.checkOnboardingStatus(user.id)
+
+        if (status.isOnboarded) {
+          console.log('User already onboarded on-chain with NFT #', status.tokenId)
           return
         }
 
-        // Check if user is already onboarded on-chain
-        const status = await OnboardingService.checkOnboardingStatus(user.id)
-
-        if (!status.isOnboarded) {
-          console.log('User not onboarded, triggering on-chain registration...')
-
-          // Trigger on-chain registration and points award
-          const result = await OnboardingService.completeOnboarding(
-            user.id,
-            wallet.address
-          )
-
-          if (result.success) {
-            console.log('Onboarding complete!', {
-              tokenId: result.tokenId,
-              points: result.points,
-              txHash: result.transactionHash,
-            })
-
-            // Show success notification (optional, requires toast library)
-            if (typeof window !== 'undefined' && (window as any).toast) {
-              (window as any).toast.success(
-                `Welcome! You've received ${result.points} points and NFT #${result.tokenId}`
-              )
+        // For onboarding, we need a wallet address
+        // Privy creates embedded wallets for email-only users, so wait for wallet
+        if (!wallet?.address) {
+          // If user authenticated but no wallet yet, wait a bit for embedded wallet creation
+          // Privy creates embedded wallets automatically for users-without-wallets
+          console.log('Waiting for wallet connection for onboarding...')
+          
+          // Retry after a short delay (embedded wallet creation can take a moment)
+          setTimeout(() => {
+            if (wallets.length > 0 && wallets[0]?.address && !checkedOnboardingUsers.has(user.id)) {
+              checkedOnboardingUsers.add(user.id)
+              void checkOnboarding()
             }
-          } else {
-            console.error('Onboarding failed:', result.error)
+          }, 2000)
+          return
+        }
+
+        console.log('User not onboarded, triggering on-chain registration...')
+
+        // Trigger on-chain registration and points award
+        const result = await OnboardingService.completeOnboarding(
+          user.id,
+          wallet.address
+        )
+
+        if (result.success) {
+          console.log('Onboarding complete!', {
+            tokenId: result.tokenId,
+            points: result.points,
+            txHash: result.transactionHash,
+          })
+
+          // Show success notification (optional, requires toast library)
+          if (typeof window !== 'undefined' && (window as any).toast) {
+            (window as any).toast.success(
+              `Welcome! You've received ${result.points} points and NFT #${result.tokenId}`
+            )
           }
         } else {
-          console.log('User already onboarded on-chain with NFT #', status.tokenId)
+          // Don't log as error if it's just "user not found" - that's expected for new users
+          // The user will be created when they try to onboard
+          if (result.error && !result.error.includes('not found')) {
+            console.error('Onboarding failed:', result.error)
+          } else {
+            console.log('Onboarding pending - user may need to complete signup first')
+          }
         }
       } catch (error) {
         console.error('Error during onboarding check:', error)
@@ -192,12 +220,14 @@ export function useAuth(): UseAuthReturn {
       void checkNewUser()
     }
 
-    // Check and trigger onboarding if needed (after wallet is connected)
-    if (wallet?.address && !checkedOnboardingUsers.has(user.id)) {
+    // Check and trigger onboarding if needed
+    // For email-only users, Privy creates embedded wallets automatically
+    // So we check onboarding status regardless, and wait for wallet if needed
+    if (!checkedOnboardingUsers.has(user.id)) {
       checkedOnboardingUsers.add(user.id)
       void checkOnboarding()
     }
-  }, [authenticated, user, wallet, setUser, setWallet, clearAuth, getAccessToken])
+  }, [authenticated, user, wallet, wallets, setUser, setWallet, clearAuth, getAccessToken])
 
   // Wrap logout to ensure all state is cleared
   const handleLogout = async () => {

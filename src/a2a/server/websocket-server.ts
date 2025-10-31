@@ -172,10 +172,11 @@ export class A2AWebSocketServer extends EventEmitter {
       ws.on('close', (code, reason) => {
         const connection = this.connections.get(tempId)
         if (connection) {
-          this.logger.info(`Agent disconnected: ${connection.agentId || tempId}`)
+          this.logger.info(`Agent disconnected: ${connection.agentId || tempId} (code: ${code})`)
           this.emit(A2AEventType.AGENT_DISCONNECTED, {
             agentId: connection.agentId,
-            reason: reason.toString()
+            reason: reason.toString(),
+            code
           })
           this.connections.delete(tempId)
         }
@@ -349,7 +350,8 @@ export class A2AWebSocketServer extends EventEmitter {
    */
   public async waitForReady(): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (this.wss.listening) {
+      // Check if server is already listening by checking if address() returns non-null
+      if (this.wss.address() !== null) {
         resolve()
         return
       }

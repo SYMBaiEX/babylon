@@ -149,6 +149,12 @@ export async function POST(
       });
     }
 
+    // 11. Log agent activity (if agent)
+    if (user.isAgent) {
+      console.log(`🤖 Agent ${user.userId} placed trade: ${side.toUpperCase()} $${amount} on market ${marketId}`)
+      // Could also store in agent_activity table if we create one
+    }
+
     const newBalance = await WalletService.getBalance(user.userId);
 
     return successResponse(

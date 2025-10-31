@@ -1,11 +1,12 @@
 /**
  * API Route: /api/users/[userId]/is-new
- * Methods: GET (check if user needs profile setup)
+ * Methods: GET (check if user needs setup)
  */
 
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
+  authenticate,
   optionalAuth,
   successResponse,
   errorResponse,
@@ -15,57 +16,67 @@ const prisma = new PrismaClient();
 
 /**
  * GET /api/users/[userId]/is-new
- * Check if user needs to complete profile setup
+ * Check if user needs profile setup
  */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
+    // Optional authentication - if not authenticated, return needsSetup: false
+    const authUser = await authenticate(request).catch(() => null);
     const { userId } = await params;
-    const authUser = await optionalAuth(request);
 
-    // Only show for own profile
-    if (authUser?.userId !== userId) {
+    if (!authUser) {
+      return successResponse({ needsSetup: false });
+    }
+
+    // Ensure requesting user matches the userId in the URL
+    if (authUser.userId !== userId) {
       return errorResponse('Unauthorized', 403);
     }
 
-    const user = await prisma.user.findUnique({
+    // Check if user exists and needs setup
+    const dbUser = await prisma.user.findUnique({
       where: { id: userId },
       select: {
+        id: true,
+        username: true,
+        displayName: true,
+        bio: true,
+        profileImageUrl: true,
         profileComplete: true,
-        profileSetupCompletedAt: true,
         hasUsername: true,
-        hasProfileImage: true,
         hasBio: true,
-        createdAt: true,
+        hasProfileImage: true,
       },
     });
 
-    if (!user) {
-      return successResponse({
-        isNew: true,
-        needsSetup: true,
-      });
+    if (!dbUser) {
+      // User doesn't exist yet - needs setup
+      return successResponse({ needsSetup: true });
     }
 
-    const needsSetup =
-      !user.profileSetupCompletedAt ||
-      (!user.hasUsername && !user.hasBio);
+    // Check if profile is complete
+    // User needs setup if they don't have username, displayName, or bio
+    const needsSetup = !dbUser.profileComplete && (
+      !dbUser.username ||
+      !dbUser.displayName ||
+      !dbUser.hasUsername ||
+      !dbUser.hasBio
+    );
 
     return successResponse({
-      isNew: needsSetup,
       needsSetup,
-      profile: {
-        hasUsername: user.hasUsername,
-        hasProfileImage: user.hasProfileImage,
-        hasBio: user.hasBio,
-        profileComplete: user.profileComplete,
-      },
+      profileComplete: dbUser.profileComplete || false,
+      hasUsername: dbUser.hasUsername || false,
+      hasBio: dbUser.hasBio || false,
+      hasProfileImage: dbUser.hasProfileImage || false,
     });
   } catch (error) {
-    console.error('Error checking user status:', error);
-    return errorResponse('Failed to check user status');
+    console.error('Error checking new user status:', error);
+    // Return needsSetup: false on error to prevent blocking user
+    return successResponse({ needsSetup: false });
   }
 }
 

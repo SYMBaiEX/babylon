@@ -87,6 +87,11 @@ export class A2AClient extends EventEmitter {
    * Perform handshake and authentication
    */
   private async performHandshake(): Promise<void> {
+    // Validate capabilities before handshake
+    if (!this.validateCapabilities(this.config.capabilities)) {
+      throw new Error('Invalid agent capabilities configuration')
+    }
+
     // Create authentication signature
     const timestamp = Date.now()
     const message = this.createAuthMessage(
@@ -129,6 +134,18 @@ export class A2AClient extends EventEmitter {
    */
   private createAuthMessage(address: string, tokenId: number, timestamp: number): string {
     return `A2A Authentication\n\nAddress: ${address}\nToken ID: ${tokenId}\nTimestamp: ${timestamp}`
+  }
+
+  /**
+   * Validate agent capabilities
+   */
+  private validateCapabilities(capabilities: AgentCapabilities): boolean {
+    return (
+      Array.isArray(capabilities.strategies) &&
+      Array.isArray(capabilities.markets) &&
+      Array.isArray(capabilities.actions) &&
+      typeof capabilities.version === 'string'
+    )
   }
 
   /**
@@ -212,10 +229,17 @@ export class A2AClient extends EventEmitter {
       }
 
       const id = this.messageId++
+
+      // Include session token in params for authenticated requests
+      const requestParams = params || {};
+      const paramsWithAuth = this.sessionToken
+        ? { ...requestParams, sessionToken: this.sessionToken }
+        : requestParams;
+
       const request: JsonRpcRequest = {
         jsonrpc: '2.0',
         method,
-        params,
+        params: paramsWithAuth,
         id
       }
 
@@ -313,7 +337,7 @@ export class A2AClient extends EventEmitter {
   // ==================== Information Sharing ====================
 
   async shareAnalysis(analysis: MarketAnalysis): Promise<{ shared: boolean; analysisId: string }> {
-    return this.sendRequest(A2AMethod.SHARE_ANALYSIS, analysis)
+    return this.sendRequest(A2AMethod.SHARE_ANALYSIS, { analysis })
   }
 
   async requestAnalysis(

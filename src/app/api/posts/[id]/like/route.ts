@@ -11,6 +11,7 @@ import {
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
+import { notifyReactionOnPost } from '@/lib/services/notification-service';
 
 const prisma = new PrismaClient();
 
@@ -32,46 +33,6 @@ export async function POST(
       return errorResponse('Post ID is required', 400);
     }
 
-    // Auto-create post if it doesn't exist
-    // PostId format: gameId-gameTimestamp-authorId-timestamp
-    // Example: babylon-1761441310151-kash-patrol-2025-10-01T02:12:00Z
-    
-    // Extract ISO timestamp from the end (matches YYYY-MM-DDTHH:mm:ssZ pattern)
-    const isoTimestampMatch = postId.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z)$/);
-
-    if (!isoTimestampMatch || !isoTimestampMatch[1]) {
-      return errorResponse('Invalid post ID format - no valid timestamp', 400);
-    }
-
-    const timestampStr = isoTimestampMatch[1];
-    
-    // Extract gameId (first part before first hyphen)
-    const firstHyphenIndex = postId.indexOf('-');
-    if (firstHyphenIndex === -1) {
-      return errorResponse('Invalid post ID format', 400);
-    }
-    const gameId = postId.substring(0, firstHyphenIndex);
-    
-    // Extract authorId (everything between second hyphen and the ISO timestamp)
-    const parts = postId.split('-');
-    if (parts.length < 3) {
-      return errorResponse('Invalid post ID format', 400);
-    }
-    
-    // AuthorId is everything between gameId+gameTimestamp and the ISO timestamp
-    // Remove gameId, remove timestamp at end, extract what's left
-    const withoutGameId = postId.substring(firstHyphenIndex + 1);
-    const secondHyphenIndex = withoutGameId.indexOf('-');
-    if (secondHyphenIndex === -1) {
-      return errorResponse('Invalid post ID format', 400);
-    }
-    const afterGameTimestamp = withoutGameId.substring(secondHyphenIndex + 1);
-    const authorId = afterGameTimestamp.substring(0, afterGameTimestamp.lastIndexOf('-' + timestampStr));
-
-    if (!gameId || !authorId) {
-      return errorResponse('Invalid post ID format', 400);
-    }
-
     // Ensure user exists in database (upsert pattern)
     await prisma.user.upsert({
       where: { id: user.userId },
@@ -86,18 +47,84 @@ export async function POST(
       },
     });
 
-    // Ensure post exists (upsert pattern)
-    await prisma.post.upsert({
+    // Check if post exists, if not try to find it or create a minimal record
+    let post = await prisma.post.findUnique({
       where: { id: postId },
-      update: {},  // Don't update if exists
-      create: {
-        id: postId,
-        content: '[Game-generated post]',  // Placeholder content
-        authorId,
-        gameId,
-        timestamp: new Date(timestampStr),
-      },
+      select: { id: true, authorId: true },
     });
+
+    // If post doesn't exist, try to extract info from ID or create minimal record
+    if (!post) {
+      // Try to parse different post ID formats
+      // Format 1: game-{gameId}-{timestamp}
+      // Format 2: post-{timestamp}-{random}
+      // Format 3: Simple UUID or database ID
+      
+      let authorId: string | undefined;
+      let gameId: string | undefined;
+      let timestamp: Date | undefined;
+
+      // Try to extract from game-{gameId}-{timestamp} format
+      if (postId.startsWith('game-')) {
+        const parts = postId.split('-');
+        if (parts.length >= 3) {
+          gameId = parts[1];
+          // Try to parse timestamp (could be ISO string or numeric)
+          const timestampPart = parts.slice(2).join('-');
+          timestamp = new Date(timestampPart);
+          if (isNaN(timestamp.getTime())) {
+            // Try numeric timestamp
+            const numericTimestamp = parseInt(timestampPart);
+            if (!isNaN(numericTimestamp)) {
+              timestamp = new Date(numericTimestamp);
+            }
+          }
+        }
+      }
+
+      // Try to extract from post-{timestamp}-{random} format
+      if (postId.startsWith('post-')) {
+        const parts = postId.split('-');
+        if (parts.length >= 2) {
+          const timestampPart = parts[1];
+          timestamp = new Date(parseInt(timestampPart));
+        }
+      }
+
+      // If we couldn't determine authorId, use a placeholder
+      // The post will be created but may need to be updated later
+      authorId = authorId || 'unknown';
+
+      // Create minimal post record to allow reactions
+      try {
+        post = await prisma.post.create({
+          data: {
+            id: postId,
+            content: '[Auto-created for interaction]',
+            authorId,
+            gameId: gameId || 'continuous',
+            timestamp: timestamp || new Date(),
+          },
+        });
+      } catch (error: any) {
+        // If creation fails (e.g., duplicate, validation error), try to fetch again
+        console.error('Error creating post for like:', error);
+        
+        // Check if it's a unique constraint violation (duplicate post)
+        if (error?.code === 'P2002') {
+          // Post already exists, fetch it
+          post = await prisma.post.findUnique({
+            where: { id: postId },
+            select: { id: true, authorId: true },
+          });
+        }
+        
+        if (!post) {
+          console.error('Failed to create or find post:', postId, error);
+          return errorResponse(`Post not found and could not be created: ${error?.message || 'Unknown error'}`, 400);
+        }
+      }
+    }
 
     // Check if already liked
     const existingReaction = await prisma.reaction.findUnique({
@@ -123,6 +150,16 @@ export async function POST(
       },
     });
 
+    // Create notification for post author (if not self-like)
+    if (post.authorId && post.authorId !== user.userId && post.authorId !== 'unknown') {
+      await notifyReactionOnPost(
+        post.authorId,
+        user.userId,
+        postId,
+        'like'
+      );
+    }
+
     // Get updated like count
     const likeCount = await prisma.reaction.count({
       where: {
@@ -131,16 +168,12 @@ export async function POST(
       },
     });
 
-    return successResponse(
-      {
-        id: reaction.id,
-        postId,
+    return successResponse({
+      data: {
         likeCount,
         isLiked: true,
-        createdAt: reaction.createdAt,
       },
-      201
-    );
+    });
   } catch (error) {
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
@@ -213,10 +246,10 @@ export async function DELETE(
     });
 
     return successResponse({
-      postId,
-      likeCount,
-      isLiked: false,
-      message: 'Post unliked successfully',
+      data: {
+        likeCount,
+        isLiked: false,
+      },
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'Authentication failed') {

@@ -25,9 +25,8 @@ const REPUTATION_SYSTEM_ABI = [
     type: 'function',
     name: 'recordBet',
     inputs: [
-      { name: 'tokenId', type: 'uint256' },
-      { name: 'amount', type: 'uint256' },
-      { name: 'marketId', type: 'string' },
+      { name: '_tokenId', type: 'uint256' },
+      { name: '_amount', type: 'uint256' },
     ],
     outputs: [],
     stateMutability: 'nonpayable',
@@ -36,9 +35,8 @@ const REPUTATION_SYSTEM_ABI = [
     type: 'function',
     name: 'recordWin',
     inputs: [
-      { name: 'tokenId', type: 'uint256' },
-      { name: 'amount', type: 'uint256' },
-      { name: 'marketId', type: 'string' },
+      { name: '_tokenId', type: 'uint256' },
+      { name: '_profit', type: 'uint256' },
     ],
     outputs: [],
     stateMutability: 'nonpayable',
@@ -47,9 +45,8 @@ const REPUTATION_SYSTEM_ABI = [
     type: 'function',
     name: 'recordLoss',
     inputs: [
-      { name: 'tokenId', type: 'uint256' },
-      { name: 'amount', type: 'uint256' },
-      { name: 'marketId', type: 'string' },
+      { name: '_tokenId', type: 'uint256' },
+      { name: '_loss', type: 'uint256' },
     ],
     outputs: [],
     stateMutability: 'nonpayable',
@@ -58,7 +55,15 @@ const REPUTATION_SYSTEM_ABI = [
     type: 'function',
     name: 'getReputation',
     inputs: [{ name: 'tokenId', type: 'uint256' }],
-    outputs: [{ name: '', type: 'uint256' }],
+    outputs: [
+      { name: 'totalBets', type: 'uint256' },
+      { name: 'winningBets', type: 'uint256' },
+      { name: 'totalVolume', type: 'uint256' },
+      { name: 'profitLoss', type: 'uint256' },
+      { name: 'accuracyScore', type: 'uint256' },
+      { name: 'trustScore', type: 'uint256' },
+      { name: 'isBanned', type: 'bool' },
+    ],
     stateMutability: 'view',
   },
 ] as const
@@ -151,7 +156,7 @@ export class ReputationService {
               address: REPUTATION_SYSTEM,
               abi: REPUTATION_SYSTEM_ABI,
               functionName: 'recordWin',
-              args: [BigInt(tokenId), amount, resolution.marketId],
+              args: [BigInt(tokenId), amount],
             })
           } else {
             // Loser: -5 reputation
@@ -160,7 +165,7 @@ export class ReputationService {
               address: REPUTATION_SYSTEM,
               abi: REPUTATION_SYSTEM_ABI,
               functionName: 'recordLoss',
-              args: [BigInt(tokenId), amount, resolution.marketId],
+              args: [BigInt(tokenId), amount],
             })
           }
 
@@ -227,7 +232,10 @@ export class ReputationService {
         args: [BigInt(user.nftTokenId)],
       })
 
-      return Number(reputation)
+      // Reputation returns tuple: [totalBets, winningBets, totalVolume, profitLoss, accuracyScore, trustScore, isBanned]
+      // We want trustScore (index 5) which is 0-10000 scale (divide by 100 to get 0-100)
+      const trustScore = Number(reputation[5])
+      return Math.floor(trustScore / 100) // Convert from 0-10000 to 0-100
     } catch (error) {
       console.error('Error getting on-chain reputation:', error)
       return null

@@ -143,6 +143,8 @@ export class FollowingMechanics {
     npcId: string,
     reason: string
   ): Promise<void> {
+    // Import notification service dynamically to avoid circular dependencies
+    const { notifyFollow } = await import('@/lib/services/notification-service');
     await prisma.followStatus.upsert({
       where: {
         userId_npcId: {
@@ -173,6 +175,11 @@ export class FollowingMechanics {
         wasFollowed: true,
       },
     });
+
+    // Create notification for the user (NPCs follow users, not the other way around)
+    // Note: For NPC follows, we use the NPC's ID as actorId since they're not real users
+    // In the future, if NPCs have user records, we can update this
+    await notifyFollow(userId, npcId);
   }
 
   /**

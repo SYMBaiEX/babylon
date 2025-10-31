@@ -4,20 +4,19 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { Home, TrendingUp, MessageCircle, User, PlayCircle, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Home, TrendingUp, MessageCircle, User, Settings, ChevronLeft, ChevronRight, Bell } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { LoginButton } from '@/components/auth/LoginButton'
 import { UserMenu } from '@/components/auth/UserMenu'
-import { useGameStore } from '@/stores/gameStore'
 import { ThemeToggle } from '@/components/shared/ThemeToggle'
 import { Separator } from '@/components/shared/Separator'
+import { NotificationsButton } from '@/components/shared/NotificationsButton'
 
 export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const pathname = usePathname()
   const { ready, authenticated } = useAuth()
-  const { isPlaying, allGames } = useGameStore()
 
   const navItems = [
     {
@@ -26,13 +25,6 @@ export function Sidebar() {
       icon: Home,
       color: '#1c9cf0', // Blue
       active: pathname === '/feed' || pathname === '/',
-    },
-    {
-      name: 'Game',
-      href: '/game',
-      icon: PlayCircle,
-      color: '#10b981', // Emerald
-      active: pathname === '/game',
     },
     {
       name: 'Markets',
@@ -47,6 +39,13 @@ export function Sidebar() {
       icon: MessageCircle,
       color: '#b82323', // Red
       active: pathname === '/chats',
+    },
+    {
+      name: 'Notifications',
+      href: '/notifications',
+      icon: Bell,
+      color: '#1c9cf0', // Blue
+      active: pathname === '/notifications',
     },
     {
       name: 'Profile',
@@ -66,18 +65,7 @@ export function Sidebar() {
 
   return (
     <>
-      <style dangerouslySetInnerHTML={{
-        __html: `
-          .neumorphic-sidebar-button {
-            box-shadow: inset 5px 5px 5px rgba(0, 0, 0, 0.1), inset -5px -5px 5px rgba(255, 255, 255, 0.05);
-            transition: all 0.3s ease;
-          }
-
-          .neumorphic-sidebar-button:hover {
-            box-shadow: none;
-          }
-        `
-      }} />
+      {/* Early 2000s Twitter: Simple, clean sidebar without neumorphic effects */}
       <aside
         className={cn(
           'hidden md:flex md:flex-col h-screen sticky top-0',
@@ -111,11 +99,11 @@ export function Sidebar() {
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
               className={cn(
-                'p-2 rounded-lg',
+                'p-2',
                 'hover:bg-sidebar-accent',
-                'transition-all duration-300'
+                'transition-colors duration-200'
               )}
-              style={{ color: '#1c9cf0' }}
+              className="text-sidebar-primary"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
@@ -149,11 +137,11 @@ export function Sidebar() {
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
               className={cn(
-                'p-2 rounded-lg',
+                'p-2',
                 'hover:bg-sidebar-accent',
-                'transition-all duration-300'
+                'transition-colors duration-200'
               )}
-              style={{ color: '#1c9cf0' }}
+              className="text-sidebar-primary"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
@@ -170,11 +158,10 @@ export function Sidebar() {
               key={item.name}
               href={item.href}
               className={cn(
-                'group relative flex items-center gap-4 px-4 py-3 rounded-lg',
-                'neumorphic-sidebar-button',
-                'transition-all duration-300',
+                'group relative flex items-center gap-4 px-4 py-3',
+                'transition-colors duration-200',
                 isCollapsed && 'justify-center',
-                !item.active && 'bg-sidebar-accent/30'
+                !item.active && 'bg-transparent hover:bg-sidebar-accent'
               )}
               title={isCollapsed ? item.name : undefined}
               style={{
@@ -254,13 +241,12 @@ export function Sidebar() {
         {!isCollapsed && (
           <div
             className={cn(
-              'flex items-center justify-between p-3 rounded-xl',
-              'bg-sidebar-accent/30',
-              'neumorphic-sidebar-button',
-              'transition-all duration-300'
+              'flex items-center justify-between p-3',
+              'bg-sidebar-accent',
+              'transition-colors duration-200'
             )}
           >
-            <span className="text-sm font-medium" style={{ color: '#1c9cf0' }}>Theme</span>
+            <span className="text-sm font-medium text-sidebar-primary">Theme</span>
             <ThemeToggle />
           </div>
         )}
@@ -282,24 +268,6 @@ export function Sidebar() {
           </div>
         )}
 
-        {/* Game Status */}
-        {!isCollapsed && (
-          <div
-            className={cn(
-              'text-sm p-3 rounded-xl',
-              'bg-sidebar-accent/30',
-              'neumorphic-sidebar-button',
-              'transition-all duration-300'
-            )}
-          >
-            <p className="font-semibold mb-1" style={{ color: '#1c9cf0' }}>Game Status</p>
-            <p className="text-xs text-muted-foreground">
-              {allGames.length > 0
-                ? (isPlaying ? '▶️ Playing' : '⏸️ Paused')
-                : 'No games loaded'}
-            </p>
-          </div>
-        )}
       </div>
     </aside>
     </>

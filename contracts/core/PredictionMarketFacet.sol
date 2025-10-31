@@ -311,12 +311,63 @@ contract PredictionMarketFacet is ReentrancyGuard {
         return sum;
     }
 
-    // Simple ln approximation
+    /// @notice Natural logarithm approximation using Taylor series
+    /// @dev Uses ln(1+z) ≈ z - z²/2 + z³/3 - z⁴/4 + z⁵/5 for |z| < 1
+    /// @dev For values far from 1e18, uses iterative scaling via ln(x*2^n) = ln(x) + n*ln(2)
+    /// @param x Input value in fixed-point (1e18 = 1.0), must be > 0
+    /// @return Result in fixed-point (1e18 = ln(1) = 0)
     function _ln(uint256 x) internal pure returns (uint256) {
         require(x > 0, "ln of zero");
-        // Very simple approximation: ln(x) ≈ (x - 1) for x close to 1
-        // For production, use a proper logarithm library
+        
+        // Handle edge case: ln(1) = 0
         if (x == 1e18) return 0;
-        return (x > 1e18) ? (x - 1e18) : 0;
+        
+        // Normalize to range [0.5e18, 2e18] using ln(x * 2^n) = ln(x) + n*ln(2)
+        int256 scaleFactor = 0; // Track how many times we've scaled (can be negative)
+        uint256 normalized = x;
+        
+        // Scale down if x > 2e18 (divide by 2, add ln(2))
+        while (normalized > 2e18) {
+            normalized = normalized / 2;
+            scaleFactor += 1;
+        }
+        
+        // Scale up if x < 0.5e18 (multiply by 2, subtract ln(2))
+        while (normalized < 5e17) {
+            normalized = normalized * 2;
+            scaleFactor -= 1;
+        }
+        
+        // Now normalized is in [0.5e18, 2e18]
+        // Calculate z = normalized - 1e18 (in fixed-point, range [-0.5e18, 1e18])
+        int256 z = int256(normalized) - int256(1e18);
+        
+        // Taylor series: ln(1+z) ≈ z - z²/2 + z³/3 - z⁴/4 + z⁵/5
+        // All calculations in fixed-point (1e18 scale)
+        int256 z2 = (z * z) / int256(1e18);
+        int256 z3 = (z2 * z) / int256(1e18);
+        int256 z4 = (z3 * z) / int256(1e18);
+        int256 z5 = (z4 * z) / int256(1e18);
+        
+        // Compute Taylor series approximation
+        int256 taylor = z 
+            - z2 / 2 
+            + z3 / 3 
+            - z4 / 4 
+            + z5 / 5;
+        
+        // Add scaling: result = taylor + scaleFactor * ln(2)
+        // ln(2) ≈ 0.6931471805599453 (scaled by 1e18)
+        int256 ln2_scaled = 693147180559945344;
+        int256 scaled = scaleFactor * ln2_scaled;
+        int256 result = taylor + scaled;
+        
+        // For LMSR, result should be non-negative in practice (we're taking ln of sum of exponentials)
+        // But handle potential negative gracefully by returning 0 (shouldn't happen in normal operation)
+        if (result < 0) {
+            return 0;
+        }
+        
+        return uint256(result);
     }
 }

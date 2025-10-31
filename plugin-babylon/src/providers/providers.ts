@@ -8,7 +8,7 @@
  */
 
 import type { Provider, IAgentRuntime, Memory, State, ProviderResult } from '@elizaos/core';
-import type { BabylonClientService } from '../services/services';
+import { BabylonClientService } from '../plugin';
 
 /**
  * Market Data Provider
@@ -23,7 +23,7 @@ export const marketDataProvider: Provider = {
   get: async (runtime: IAgentRuntime, _message: Memory, _state: State): Promise<ProviderResult> => {
     try {
       // Get client from BabylonClientService
-      const babylonService = runtime.getService<BabylonClientService>('babylon');
+      const babylonService = runtime.getService<BabylonClientService>(BabylonClientService.serviceType);
       if (!babylonService) {
         return {
           text: 'Market data unavailable - Babylon service not configured'
@@ -44,12 +44,19 @@ export const marketDataProvider: Provider = {
       const topMarket = sortedMarkets[0];
       const highVolumeMarkets = sortedMarkets.filter(m => m.totalVolume > 1000);
 
+      // Build market overview text with top market information
+      let overviewText = `📊 Market Overview:\n- Active Markets: ${markets.length}`;
+
+      // Add top market info if available (sortedMarkets has at least one element)
+      if (topMarket) {
+        overviewText += `\n- Top Volume: "${topMarket.question}" ($${topMarket.totalVolume.toFixed(0)})`;
+      }
+
+      overviewText += `\n- High Volume Markets (>$1000): ${highVolumeMarkets.length}`;
+      overviewText += `\n- Average Yes Price: ${(markets.reduce((sum, m) => sum + m.yesPrice, 0) / markets.length * 100).toFixed(1)}%`;
+
       return {
-        text: `📊 Market Overview:
-- Active Markets: ${markets.length}
-- Top Volume: "${topMarket.question}" ($${topMarket.totalVolume.toFixed(0)})
-- High Volume Markets (>$1000): ${highVolumeMarkets.length}
-- Average Yes Price: ${(markets.reduce((sum, m) => sum + m.yesPrice, 0) / markets.length * 100).toFixed(1)}%`,
+        text: overviewText,
         data: {
           markets,
           topMarket,
@@ -75,7 +82,7 @@ export const walletStatusProvider: Provider = {
   name: 'walletStatusProvider',
   get: async (runtime: IAgentRuntime, _message: Memory, _state: State): Promise<ProviderResult> => {
     try {
-      const babylonService = runtime.getService<BabylonClientService>('babylon');
+      const babylonService = runtime.getService<BabylonClientService>(BabylonClientService.serviceType);
       if (!babylonService) {
         return {
           text: 'Wallet status unavailable - Babylon service not configured'
@@ -125,7 +132,7 @@ export const positionSummaryProvider: Provider = {
   name: 'positionSummaryProvider',
   get: async (runtime: IAgentRuntime, _message: Memory, _state: State): Promise<ProviderResult> => {
     try {
-      const babylonService = runtime.getService<BabylonClientService>('babylon');
+      const babylonService = runtime.getService<BabylonClientService>(BabylonClientService.serviceType);
       if (!babylonService) {
         return {
           text: 'Position data unavailable - Babylon service not configured'

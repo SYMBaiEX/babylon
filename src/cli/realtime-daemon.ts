@@ -9,10 +9,15 @@
  * - Updates stock prices every minute
  * - Creates/resolves questions automatically
  * - Keeps rolling 30-day history
+ * - Auto-starts ElizaOS agents (if enabled)
  * 
  * Usage:
  *   bun run daemon              (start daemon)
  *   bun run daemon --verbose    (with detailed logging)
+ * 
+ * Environment Variables:
+ *   AUTO_START_AGENTS=true      (default: true) - Auto-start agents on daemon launch
+ *   AGENT_AUTO_TRADE=true       (default: false) - Enable auto-trading for agents
  */
 
 import { RealtimeGameEngine } from '../engine/RealtimeGameEngine';
@@ -66,7 +71,7 @@ async function main() {
       port: 8080,
       host: '0.0.0.0',
       maxConnections: 1000,
-      enableBlockchain: false, // Optional blockchain integration
+      enableBlockchain: process.env.A2A_ENABLE_BLOCKCHAIN === 'true', // Enable blockchain integration for agent discovery
     },
   });
 
@@ -105,11 +110,95 @@ async function main() {
     await engine.initialize();
     engine.start();
 
+    // Auto-start agents if enabled
+    const autoStartAgents = process.env.AUTO_START_AGENTS !== 'false'; // Default to true
+    if (autoStartAgents) {
+      console.log('\n🤖 Starting agents...');
+      await startAgents();
+    } else {
+      console.log('\n⏭️  Agent auto-start disabled (set AUTO_START_AGENTS=false to disable)');
+    }
+
     // Keep process alive
     await new Promise(() => {});
   } catch (error) {
     console.error('\n❌ Fatal Error:', error);
     process.exit(1);
+  }
+}
+
+// Track if agents have been started to prevent duplicate spawning
+let agentsStarted = false;
+let agentProcess: ReturnType<typeof import('child_process').spawn> | null = null;
+
+/**
+ * Start all agents using the spawn script
+ * Prevents duplicate spawning if called multiple times
+ */
+async function startAgents(): Promise<void> {
+  // If agents already started, don't start again
+  if (agentsStarted && agentProcess) {
+    console.log('   ⏭️  Agents already started, skipping duplicate spawn');
+    return;
+  }
+
+  try {
+    const { spawn } = await import('child_process');
+    const { join } = await import('path');
+    
+    const agentScript = join(process.cwd(), 'scripts', 'run-all-agents.ts');
+    const autoTrade = process.env.AGENT_AUTO_TRADE === 'true';
+    
+    console.log(`   Spawning agents with auto-trade: ${autoTrade ? 'ENABLED' : 'DISABLED'}`);
+    
+    agentProcess = spawn('bun', [
+      agentScript,
+      ...(autoTrade ? ['--auto-trade'] : []),
+    ], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+      },
+    });
+
+    agentsStarted = true;
+
+    // Log agent output
+    agentProcess.stdout?.on('data', (data) => {
+      const lines = data.toString().split('\n').filter((line: string) => line.trim());
+      lines.forEach((line: string) => {
+        if (line.includes('✅') || line.includes('❌') || line.includes('Starting')) {
+          console.log(`   ${line}`);
+        }
+      });
+    });
+
+    agentProcess.stderr?.on('data', (data) => {
+      const errorLines = data.toString().split('\n').filter((line: string) => line.trim());
+      errorLines.forEach((line: string) => {
+        if (line.includes('Error') || line.includes('error')) {
+          console.error(`   ⚠️  ${line}`);
+        }
+      });
+    });
+
+    agentProcess.on('exit', (code) => {
+      agentsStarted = false;
+      agentProcess = null;
+      if (code !== 0 && code !== null) {
+        console.error(`   ⚠️  Agent spawn process exited with code ${code}`);
+      }
+    });
+
+    // Wait a bit to see if agents start successfully
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    console.log('   ✅ Agent spawn process started');
+  } catch (error) {
+    agentsStarted = false;
+    agentProcess = null;
+    console.error('   ⚠️  Failed to start agents:', error);
+    console.error('   Agents can be started manually with: bun run eliza:all');
   }
 }
 

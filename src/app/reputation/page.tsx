@@ -11,6 +11,7 @@ interface ReputationStats {
   totalWins: number
   totalLosses: number
   winRate: number
+  hasNft?: boolean
   recentActivity: Array<{
     marketId: string
     marketTitle: string
@@ -26,7 +27,7 @@ export default function ReputationPage() {
   const [stats, setStats] = useState<ReputationStats | null>(null)
 
   useEffect(() => {
-    if (!authenticated || !user?.nftTokenId) {
+    if (!authenticated || !user) {
       setLoading(false)
       return
     }
@@ -86,7 +87,8 @@ export default function ReputationPage() {
     )
   }
 
-  if (!user?.nftTokenId) {
+  // Check if stats indicate no NFT after loading
+  if (!loading && stats && !stats.hasNft) {
     return (
       <PageContainer>
         <div className="max-w-4xl mx-auto text-center py-12">
@@ -197,7 +199,7 @@ export default function ReputationPage() {
                 Token ID
               </label>
               <p className="font-mono text-foreground">
-                #{user.nftTokenId}
+                #{user?.id || 'N/A'}
               </p>
             </div>
             <div>

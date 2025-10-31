@@ -23,15 +23,44 @@ export function UserMenu() {
     const fetchUserStats = async () => {
       try {
         setLoading(true)
-        const response = await fetch(`/api/users/${user.id}/balance`)
+        
+        // Get auth token from window (set by useAuth hook)
+        const token = typeof window !== 'undefined' ? (window as any).__privyAccessToken : null
+        
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+        }
+        
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+        
+        const response = await fetch(`/api/users/${user.id}/balance`, {
+          headers,
+        })
+        
         if (response.ok) {
           const data = await response.json()
           setPoints(data.balance || 0)
+        } else if (response.status === 403) {
+          // Silently handle 403 - user may not have access yet
+          console.warn('Access denied to balance endpoint')
         }
 
         // Fetch reputation (if user has NFT)
         if (user.nftTokenId) {
-          const reputationResponse = await fetch(`/api/users/${user.id}/reputation`)
+          const reputationHeaders: HeadersInit = {
+            'Content-Type': 'application/json',
+          }
+          
+          if (token) {
+            reputationHeaders['Authorization'] = `Bearer ${token}`
+          }
+          
+          const reputationResponse = await fetch(`/api/users/${user.id}/reputation`, {
+            headers: reputationHeaders,
+          })
+          
           if (reputationResponse.ok) {
             const reputationData = await reputationResponse.json()
             setReputation(reputationData.currentReputation || 100)

@@ -11,6 +11,7 @@ import {
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
+import { notifyShare } from '@/lib/services/notification-service';
 
 const prisma = new PrismaClient();
 
@@ -138,6 +139,15 @@ export async function POST(
         },
       },
     });
+
+    // Create notification for post author (if not self-share)
+    if (authorId !== user.userId) {
+      await notifyShare(
+        authorId,
+        user.userId,
+        postId
+      );
+    }
 
     // Get updated share count
     const shareCount = await prisma.share.count({

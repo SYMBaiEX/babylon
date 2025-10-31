@@ -1,81 +1,110 @@
 {
   "name": "@babylonai/plugin-babylon",
-  "version": "1.0.0",
   "description": "ElizaOS plugin for autonomous AI agents to participate in Babylon prediction markets",
+  "version": "2.0.0",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
-  },
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "clean": "rm -rf dist",
-    "lint": "eslint src --ext .ts",
-    "type-check": "tsc --noEmit"
-  },
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "packageType": "plugin",
+  "platform": "node",
+  "license": "MIT",
+  "author": "Babylon AI",
   "keywords": [
-    "eliza",
-    "elizaos",
     "plugin",
+    "elizaos",
     "prediction-markets",
     "trading",
     "ai-agent",
     "autonomous",
     "babylon"
   ],
-  "author": "Babylon AI",
-  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/babylon.git",
+    "directory": "plugin-babylon"
+  },
+  "homepage": "https://github.com/yourusername/babylon/tree/main/plugin-babylon#readme",
+  "bugs": {
+    "url": "https://github.com/yourusername/babylon/issues"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    ".npmignore",
+    ".gitignore",
+    "package.json"
+  ],
+  "scripts": {
+    "start": "elizaos start",
+    "dev": "elizaos dev",
+    "build": "bun run build.ts",
+    "test": "bun test src/__tests__",
+    "test:watch": "bun test --watch src/__tests__",
+    "build:watch": "bun run build.ts --watch",
+    "format": "prettier --write ./src",
+    "type-check": "tsc --noEmit"
+  },
   "dependencies": {
-    "@elizaos/core": "^1.6.3"
+    "@elizaos/core": "^1.6.3",
+    "zod": "4.1.11"
   },
   "devDependencies": {
+    "@elizaos/cli": "workspace:*",
     "@types/node": "^24.9.1",
-    "typescript": "^5.9.3"
+    "dotenv": "16.4.5",
+    "prettier": "3.5.3",
+    "typescript": "5.8.2"
   },
-  "peerDependencies": {
-    "@elizaos/core": "^1.6.3"
+  "resolutions": {
+    "// Note": "langchain 0.3.30 fixes @langchain/core zod/v3 import issues",
+    "zod": "4.1.11",
+    "langchain": "0.3.30",
+    "@langchain/core": "0.3.30"
+  },
+  "overrides": {
+    "@langchain/core": "0.3.30"
   },
   "agentConfig": {
-    "characterId": {
-      "type": "string",
-      "required": true,
-      "description": "Unique identifier for the agent character"
-    },
-    "apiBaseUrl": {
-      "type": "string",
-      "required": true,
-      "description": "Base URL for Babylon API",
-      "default": "http://localhost:3000"
-    },
-    "authToken": {
-      "type": "string",
-      "required": false,
-      "description": "Optional manual authentication token (overrides auto-auth)"
-    },
-    "tradingLimits": {
-      "type": "object",
-      "required": true,
-      "properties": {
-        "maxTradeSize": {
-          "type": "number",
-          "description": "Maximum trade size in USD",
-          "default": 100
-        },
-        "maxPositionSize": {
-          "type": "number",
-          "description": "Maximum total position size in USD",
-          "default": 500
-        },
-        "minConfidence": {
-          "type": "number",
-          "description": "Minimum confidence threshold for trades (0-1)",
-          "default": 0.6
-        }
+    "pluginType": "elizaos:plugin:1.0.0",
+    "pluginParameters": {
+      "BABYLON_API_URL": {
+        "type": "string",
+        "description": "Base URL for Babylon API",
+        "default": "http://localhost:3000"
+      },
+      "BABYLON_AGENT_ID": {
+        "type": "string",
+        "description": "Agent identifier for authentication",
+        "default": "babylon-agent-default"
+      },
+      "BABYLON_AGENT_SECRET": {
+        "type": "string",
+        "description": "Secret key for agent authentication (enables trading)"
+      },
+      "BABYLON_MAX_TRADE_SIZE": {
+        "type": "string",
+        "description": "Maximum trade size in USD",
+        "default": "100"
+      },
+      "BABYLON_MAX_POSITION_SIZE": {
+        "type": "string",
+        "description": "Maximum total position size in USD",
+        "default": "500"
+      },
+      "BABYLON_MIN_CONFIDENCE": {
+        "type": "string",
+        "description": "Minimum confidence threshold for trades (0-1)",
+        "default": "0.6"
       }
     }
   },
@@ -90,19 +119,7 @@
       "BABYLON_MIN_CONFIDENCE"
     ]
   },
-  "components": {
-    "actions": ["BUY_SHARES", "SELL_SHARES", "CHECK_WALLET"],
-    "evaluators": ["MARKET_ANALYSIS", "PORTFOLIO_MANAGEMENT"],
-    "providers": ["marketDataProvider", "walletStatusProvider", "positionSummaryProvider"],
-    "services": ["BabylonTradingService"]
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/yourusername/babylon.git",
-    "directory": "plugin-babylon"
-  },
-  "bugs": {
-    "url": "https://github.com/yourusername/babylon/issues"
-  },
-  "homepage": "https://github.com/yourusername/babylon/tree/main/plugin-babylon#readme"
+  "publishConfig": {
+    "access": "public"
+  }
 }

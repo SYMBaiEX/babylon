@@ -44,6 +44,15 @@ export class MessageRouter {
     connection: AgentConnection
   ): Promise<JsonRpcResponse> {
     try {
+      // Validate connection is authenticated
+      if (!connection.authenticated) {
+        return this.errorResponse(
+          request.id,
+          ErrorCode.NOT_AUTHENTICATED,
+          'Connection not authenticated'
+        )
+      }
+
       // Route to method handler
       switch (request.method) {
         // Agent Discovery
@@ -98,9 +107,19 @@ export class MessageRouter {
     }
   }
 
+  // ==================== Helper Methods ====================
+
+  /**
+   * Log request for tracking and debugging
+   */
+  private logRequest(agentId: string, method: string): void {
+    console.log(`[A2A Router] Agent ${agentId} -> ${method}`)
+  }
+
   // ==================== Agent Discovery ====================
 
   private async handleDiscover(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
+    this.logRequest(agentId, A2AMethod.DISCOVER_AGENTS)
     const params = request.params as {
       filters?: {
         strategies?: string[]
@@ -133,6 +152,7 @@ export class MessageRouter {
   }
 
   private async handleGetAgentInfo(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
+    this.logRequest(agentId, A2AMethod.GET_AGENT_INFO)
     const params = request.params as { agentId: string }
 
     // Query ERC-8004 registry if available
@@ -161,6 +181,7 @@ export class MessageRouter {
   // ==================== Market Operations ====================
 
   private async handleGetMarketData(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
+    this.logRequest(agentId, A2AMethod.GET_MARKET_DATA)
     const params = request.params as { marketId: string }
 
     // TODO: Query blockchain for market data
@@ -183,6 +204,7 @@ export class MessageRouter {
   }
 
   private async handleGetMarketPrices(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
+    this.logRequest(agentId, A2AMethod.GET_MARKET_PRICES)
     const params = request.params as { marketId: string }
 
     // TODO: Calculate current prices from blockchain state
@@ -198,6 +220,7 @@ export class MessageRouter {
   }
 
   private async handleSubscribeMarket(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
+    this.logRequest(agentId, A2AMethod.SUBSCRIBE_MARKET)
     const params = request.params as { marketId: string }
 
     // Add agent to subscription set for this market
@@ -219,6 +242,7 @@ export class MessageRouter {
   // ==================== Coalition Operations ====================
 
   private async handleProposeCoalition(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
+    this.logRequest(agentId, A2AMethod.PROPOSE_COALITION)
     const params = request.params as {
       name: string
       targetMarket: string
@@ -252,6 +276,7 @@ export class MessageRouter {
   }
 
   private async handleJoinCoalition(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
+    this.logRequest(agentId, A2AMethod.JOIN_COALITION)
     const params = request.params as { coalitionId: string }
 
     const coalition = this.coalitions.get(params.coalitionId)
@@ -279,6 +304,7 @@ export class MessageRouter {
   }
 
   private async handleCoalitionMessage(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
+    this.logRequest(agentId, A2AMethod.COALITION_MESSAGE)
     const params = request.params as {
       coalitionId: string
       messageType: 'analysis' | 'vote' | 'action' | 'coordination'
@@ -315,6 +341,7 @@ export class MessageRouter {
   }
 
   private async handleLeaveCoalition(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
+    this.logRequest(agentId, A2AMethod.LEAVE_COALITION)
     const params = request.params as { coalitionId: string }
 
     const coalition = this.coalitions.get(params.coalitionId)
@@ -346,9 +373,21 @@ export class MessageRouter {
   // ==================== Information Sharing ====================
 
   private async handleShareAnalysis(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
-    const params = request.params as MarketAnalysis
+    this.logRequest(agentId, A2AMethod.SHARE_ANALYSIS)
+    const params = request.params as unknown as MarketAnalysis
+
+    // Validate analysis has required fields
+    if (!params.marketId || !params.timestamp) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Analysis must include marketId and timestamp'
+      )
+    }
 
     // TODO: Store and distribute analysis to interested parties
+    // For now, log the analysis details
+    console.log(`[A2A Router] Agent ${agentId} shared analysis for market ${params.marketId}`)
 
     return {
       jsonrpc: '2.0',
@@ -361,13 +400,25 @@ export class MessageRouter {
   }
 
   private async handleRequestAnalysis(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
+    this.logRequest(agentId, A2AMethod.REQUEST_ANALYSIS)
     const params = request.params as {
       marketId: string
       paymentOffer?: string
       deadline: number
     }
 
+    // Validate request parameters
+    if (!params.marketId || !params.deadline) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Analysis request must include marketId and deadline'
+      )
+    }
+
     // TODO: Broadcast analysis request to capable agents
+    // For now, log the request details
+    console.log(`[A2A Router] Agent ${agentId} requesting analysis for market ${params.marketId}, deadline: ${params.deadline}`)
 
     return {
       jsonrpc: '2.0',
@@ -382,6 +433,7 @@ export class MessageRouter {
   // ==================== x402 Micropayments ====================
 
   private async handlePaymentRequest(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
+    this.logRequest(agentId, A2AMethod.PAYMENT_REQUEST)
     const params = request.params as {
       to: string
       amount: string
@@ -438,6 +490,7 @@ export class MessageRouter {
   }
 
   private async handlePaymentReceipt(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
+    this.logRequest(agentId, A2AMethod.PAYMENT_RECEIPT)
     const params = request.params as {
       requestId: string
       txHash: string

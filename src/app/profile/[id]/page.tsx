@@ -25,12 +25,53 @@ export default function ActorProfilePage() {
   // Enable error toast notifications
   useErrorToasts()
 
-  // Load actor info from database/actors.json
+  // Load actor/user info
   const [actorInfo, setActorInfo] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
   
   useEffect(() => {
     const loadActorInfo = async () => {
       try {
+        setLoading(true)
+        
+        // Check if this is a user ID (starts with "did:privy:" or similar)
+        const isUserId = actorId.startsWith('did:privy:') || actorId.length > 42
+        
+        if (isUserId) {
+          // Load user profile from API
+          try {
+            const token = typeof window !== 'undefined' ? (window as any).__privyAccessToken : null
+            const headers: HeadersInit = {
+              'Content-Type': 'application/json',
+            }
+            if (token) {
+              headers['Authorization'] = `Bearer ${token}`
+            }
+            
+            const response = await fetch(`/api/users/${actorId}/profile`, { headers })
+            if (response.ok) {
+              const data = await response.json()
+              if (data.user) {
+                setActorInfo({
+                  id: data.user.id,
+                  name: data.user.displayName || data.user.username || 'User',
+                  description: data.user.bio || '',
+                  role: data.user.isActor ? 'Actor' : 'User',
+                  type: data.user.isActor ? 'actor' : 'user' as const,
+                  isUser: true,
+                  username: data.user.username,
+                  profileImageUrl: data.user.profileImageUrl,
+                  stats: data.user.stats,
+                })
+                setLoading(false)
+                return
+              }
+            }
+          } catch (error) {
+            console.error('Failed to load user profile:', error)
+          }
+        }
+        
         // Try to load from actors.json (contains all actors)
         const response = await fetch('/data/actors.json')
         if (!response.ok) throw new Error('Failed to load actors')
@@ -40,6 +81,20 @@ export default function ActorProfilePage() {
         // Find actor
         const actor = actorsDb.actors?.find((a: any) => a.id === actorId)
         if (actor) {
+          // Find which game this actor belongs to
+          let gameId: string | null = null
+          for (const game of allGames) {
+            const allActors = [
+              ...(game.setup?.mainActors || []),
+              ...(game.setup?.supportingActors || []),
+              ...(game.setup?.extras || []),
+            ]
+            if (allActors.some(a => a.id === actorId)) {
+              gameId = game.id
+              break
+            }
+          }
+          
           setActorInfo({
             id: actor.id,
             name: actor.name,
@@ -48,8 +103,11 @@ export default function ActorProfilePage() {
             domain: actor.domain,
             personality: actor.personality,
             affiliations: actor.affiliations,
+            role: actor.role || actor.tier || 'Actor',
             type: 'actor' as const,
+            game: gameId ? { id: gameId } : undefined,
           })
+          setLoading(false)
           return
         }
         
@@ -61,20 +119,24 @@ export default function ActorProfilePage() {
             name: org.name,
             description: org.description,
             type: 'organization' as const,
+            role: 'Organization',
           })
+          setLoading(false)
           return
         }
         
         // Not found
         setActorInfo(null)
+        setLoading(false)
       } catch (error) {
         console.error('Failed to load actor:', error)
         setActorInfo(null)
+        setLoading(false)
       }
     }
     
     loadActorInfo()
-  }, [actorId])
+  }, [actorId, allGames])
 
   // Get posts for this actor from all games
   const actorPosts = useMemo(() => {
@@ -135,7 +197,28 @@ export default function ActorProfilePage() {
     )
   }, [tabFilteredPosts, searchQuery])
 
-  // Actor not found
+  // Loading or actor not found
+  if (loading) {
+    return (
+      <PageContainer noPadding className="flex flex-col">
+        <div className="sticky top-0 z-10 bg-background border-b border-border">
+          <div className="px-4 py-3 flex items-center gap-4">
+            <Link
+              href="/feed"
+              className="hover:bg-muted/50 rounded-full p-2 transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <h1 className="text-xl font-bold">Loading...</h1>
+          </div>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center gap-4">
+          <p className="text-muted-foreground">Loading profile...</p>
+        </div>
+      </PageContainer>
+    )
+  }
+
   if (!actorInfo) {
     return (
       <PageContainer noPadding className="flex flex-col">
@@ -237,11 +320,30 @@ export default function ActorProfilePage() {
               />
               <div className="flex-1">
                 <h2 className="text-2xl font-bold">{actorInfo.name}</h2>
-                <p className="text-muted-foreground">{actorInfo.role}</p>
-                <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
-                  <Calendar className="w-4 h-4" />
-                  <span>Active in {actorInfo.game.id}</span>
-                </div>
+                {actorInfo.role && (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Briefcase className="w-4 h-4" />
+                    <p>{actorInfo.role}</p>
+                  </div>
+                )}
+                {actorInfo.game?.id && (
+                  <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                    <Calendar className="w-4 h-4" />
+                    <span>Active in {actorInfo.game.id}</span>
+                  </div>
+                )}
+                {actorInfo.stats && (
+                  <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                    <Users className="w-4 h-4" />
+                    <span>{actorInfo.stats.followers || 0} followers · {actorInfo.stats.following || 0} following</span>
+                  </div>
+                )}
+                {!actorInfo.stats && !actorInfo.game && (
+                  <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                    <Users className="w-4 h-4" />
+                    <span>Community Member</span>
+                  </div>
+                )}
                 <div className="mt-3">
                   <FavoriteButton
                     profileId={actorInfo.id}
@@ -280,7 +382,7 @@ export default function ActorProfilePage() {
 
               return (
                 <article
-                  key={`${post.id}-${i}`}
+                  key={`${item.post.id}-${i}`}
                   className={cn(
                     'px-4 py-3 border-b border-border',
                     'hover:bg-muted/30',

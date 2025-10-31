@@ -10,7 +10,7 @@ import type {
   Memory,
   State,
 } from '@elizaos/core';
-import type { BabylonClientService } from '../services/services';
+import { BabylonClientService } from '../plugin';
 import type { BabylonMarket, MarketAnalysis } from '../types';
 
 /**
@@ -28,7 +28,7 @@ export const marketAnalysisEvaluator: Evaluator = {
   description: 'Analyze prediction markets and provide trading recommendations',
   validate: async (runtime: IAgentRuntime, message: Memory): Promise<boolean> => {
     // Always validate if we have markets to analyze
-    const babylonService = runtime.getService<BabylonClientService>('babylon');
+    const babylonService = runtime.getService<BabylonClientService>(BabylonClientService.serviceType);
     if (!babylonService) return false;
 
     const content = message.content.text?.toLowerCase() || '';
@@ -46,7 +46,7 @@ export const marketAnalysisEvaluator: Evaluator = {
     message: Memory,
     state?: State
   ): Promise<void> => {
-    const babylonService = runtime.getService<BabylonClientService>('babylon');
+    const babylonService = runtime.getService<BabylonClientService>(BabylonClientService.serviceType);
 
     if (!babylonService) {
       runtime.logger.error('Babylon service not configured');
@@ -234,7 +234,7 @@ export const portfolioManagementEvaluator: Evaluator = {
   ],
   description: 'Monitor positions and manage portfolio risk',
   validate: async (runtime: IAgentRuntime, message: Memory): Promise<boolean> => {
-    const babylonService = runtime.getService<BabylonClientService>('babylon');
+    const babylonService = runtime.getService<BabylonClientService>(BabylonClientService.serviceType);
     if (!babylonService) return false;
 
     const content = message.content.text?.toLowerCase() || '';
@@ -251,7 +251,7 @@ export const portfolioManagementEvaluator: Evaluator = {
     message: Memory,
     state?: State
   ): Promise<void> => {
-    const babylonService = runtime.getService<BabylonClientService>('babylon');
+    const babylonService = runtime.getService<BabylonClientService>(BabylonClientService.serviceType);
 
     if (!babylonService) {
       runtime.logger.error('Babylon service not configured');

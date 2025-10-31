@@ -46,9 +46,9 @@ export default function RootLayout({
             {/* Desktop Sidebar */}
             <Sidebar />
 
-            {/* Main Content Area */}
-            <main className="flex-1 min-h-screen pt-16 md:pt-0 md:pb-0 transition-all duration-300 bg-background md:bg-sidebar">
-              <div className="h-[calc(100vh-4rem)] md:h-full md:p-3 lg:p-4">
+            {/* Main Content Area - Early 2000s Twitter: Simple boxy layout */}
+            <main className="flex-1 min-h-screen pt-14 pb-12 md:pt-0 md:pb-0 bg-background md:bg-sidebar md:h-screen">
+              <div className="h-[calc(100vh-3.5rem-3rem)] md:h-full md:p-0">
                 {children}
               </div>
             </main>

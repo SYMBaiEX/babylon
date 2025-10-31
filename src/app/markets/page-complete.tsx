@@ -113,6 +113,13 @@ export default function MarketsPage() {
   const resolvedPredictions = predictions.filter(p => p.status === 'resolved')
   const totalPnL = perpPositions.reduce((sum, p) => sum + p.unrealizedPnL, 0)
 
+  // Log total PnL for debugging
+  useEffect(() => {
+    if (perpPositions.length > 0) {
+      console.log(`Total PnL across ${perpPositions.length} positions: $${totalPnL.toFixed(2)}`)
+    }
+  }, [perpPositions.length, totalPnL])
+
   const handleMarketClick = (market: PerpMarket) => {
     if (!authenticated) {
       showLoginModal({

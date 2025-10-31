@@ -7,23 +7,25 @@ export const IDENTITY_REGISTRY_ABI = [
   // ERC-721 standard functions
   'function balanceOf(address owner) external view returns (uint256)',
   'function ownerOf(uint256 tokenId) external view returns (address)',
-  'function tokenOfOwner(address owner) external view returns (uint256)',
 
   // Agent registration
-  'function registerAgent(string memory name, string memory endpoint, bytes32 capabilitiesHash, string memory metadataURI) external returns (uint256)',
-  'function updateProfile(uint256 tokenId, string memory name, string memory endpoint, bytes32 capabilitiesHash, string memory metadataURI) external',
-  'function deactivateAgent(uint256 tokenId) external',
-  'function reactivateAgent(uint256 tokenId) external',
+  'function registerAgent(string calldata _name, string calldata _endpoint, bytes32 _capabilitiesHash, string calldata _metadata) external returns (uint256 tokenId)',
+  'function updateAgent(string calldata _endpoint, bytes32 _capabilitiesHash, string calldata _metadata) external',
+  'function deactivateAgent() external',
+  'function reactivateAgent() external',
 
   // Profile queries
-  'function getProfile(uint256 tokenId) external view returns (tuple(string name, string endpoint, bytes32 capabilitiesHash, uint256 registeredAt, bool isActive, string metadata))',
-  'function isEndpointActive(string memory endpoint) external view returns (bool)',
+  'function getAgentProfile(uint256 _tokenId) external view returns (string memory name, string memory endpoint, bytes32 capabilitiesHash, uint256 registeredAt, bool isActive, string memory metadata)',
+  'function getTokenId(address _address) external view returns (uint256)',
+  'function isRegistered(address _address) external view returns (bool)',
+  'function verifyAgent(address _address, uint256 _tokenId) external view returns (bool)',
   'function getAllActiveAgents() external view returns (uint256[] memory)',
+  'function isEndpointActive(string memory endpoint) external view returns (bool)',
   'function getAgentsByCapability(bytes32 capabilityHash) external view returns (uint256[] memory)',
 
   // Events
   'event AgentRegistered(uint256 indexed tokenId, address indexed owner, string name, string endpoint)',
-  'event ProfileUpdated(uint256 indexed tokenId, string name, string endpoint)',
+  'event AgentUpdated(uint256 indexed tokenId, string endpoint, bytes32 capabilitiesHash)',
   'event AgentDeactivated(uint256 indexed tokenId)',
   'event AgentReactivated(uint256 indexed tokenId)',
 ] as const
@@ -31,26 +33,22 @@ export const IDENTITY_REGISTRY_ABI = [
 // ERC-8004 Reputation System ABI
 export const REPUTATION_SYSTEM_ABI = [
   // Reputation queries
-  'function getReputation(uint256 tokenId) external view returns (tuple(uint256 totalBets, uint256 winningBets, uint256 accuracyScore, uint256 trustScore, string totalVolume, uint256 lastUpdated))',
+  'function getReputation(uint256 _tokenId) external view returns (uint256 totalBets, uint256 winningBets, uint256 totalVolume, uint256 profitLoss, uint256 accuracyScore, uint256 trustScore, bool isBanned)',
+  'function getFeedbackCount(uint256 _tokenId) external view returns (uint256)',
+  'function getFeedback(uint256 _tokenId, uint256 _index) external view returns (address from, int8 rating, string memory comment, uint256 timestamp)',
   'function getAgentsByMinScore(uint256 minScore) external view returns (uint256[] memory)',
-  'function getTrustScore(uint256 tokenId) external view returns (uint256)',
-  'function getAccuracyScore(uint256 tokenId) external view returns (uint256)',
 
   // Reputation updates (only by authorized contracts)
-  'function recordBet(uint256 tokenId, uint256 amount, string memory marketId) external',
-  'function recordWin(uint256 tokenId, uint256 amount, string memory marketId) external',
-  'function recordLoss(uint256 tokenId, uint256 amount, string memory marketId) external',
-  'function submitFeedback(uint256 fromTokenId, uint256 toTokenId, uint256 rating, string memory comment) external',
-
-  // Feedback queries
-  'function getFeedback(uint256 tokenId, uint256 offset, uint256 limit) external view returns (tuple(uint256 from, uint256 rating, string comment, uint256 timestamp)[] memory)',
-  'function getFeedbackCount(uint256 tokenId) external view returns (uint256)',
+  'function recordBet(uint256 _tokenId, uint256 _amount) external',
+  'function recordWin(uint256 _tokenId, uint256 _profit) external',
+  'function recordLoss(uint256 _tokenId, uint256 _loss) external',
+  'function submitFeedback(uint256 _tokenId, int8 _rating, string calldata _comment) external',
 
   // Events
-  'event BetRecorded(uint256 indexed tokenId, uint256 amount, string marketId, uint256 timestamp)',
-  'event BetResolved(uint256 indexed tokenId, bool won, uint256 amount, string marketId)',
-  'event FeedbackSubmitted(uint256 indexed from, uint256 indexed to, uint256 rating, uint256 timestamp)',
-  'event ReputationUpdated(uint256 indexed tokenId, uint256 trustScore, uint256 accuracyScore)',
+  'event ReputationUpdated(uint256 indexed tokenId, uint256 accuracyScore, uint256 trustScore)',
+  'event FeedbackSubmitted(uint256 indexed tokenId, address indexed from, int8 rating)',
+  'event AgentBanned(uint256 indexed tokenId)',
+  'event AgentUnbanned(uint256 indexed tokenId)',
 ] as const
 
 // Prediction Market Facet ABI

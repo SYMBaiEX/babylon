@@ -19,6 +19,7 @@ interface RegistryUser {
   createdAt: string
   virtualBalance: string
   lifetimePnL: string
+  reputation: number | null
   stats: {
     positions: number
     comments: number
@@ -199,6 +200,9 @@ export default function RegistryPage() {
                       NFT Token ID
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                      Reputation
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
                       Balance
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
@@ -250,6 +254,26 @@ export default function RegistryPage() {
                           </div>
                         ) : (
                           <span className="text-gray-500">Not registered</span>
+                        )}
+                      </td>
+
+                      {/* Reputation */}
+                      <td className="px-6 py-4">
+                        {user.reputation !== null ? (
+                          <div className="flex items-center gap-2">
+                            <Shield className="w-4 h-4 text-yellow-500" />
+                            <span className="text-white font-medium">
+                              {user.reputation}/100
+                            </span>
+                            <div className="w-16 h-2 bg-gray-700 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-yellow-500 to-yellow-400"
+                                style={{ width: `${Math.min(100, Math.max(0, user.reputation))}%` }}
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-500">—</span>
                         )}
                       </td>
 

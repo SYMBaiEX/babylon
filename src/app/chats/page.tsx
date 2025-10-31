@@ -261,8 +261,24 @@ export default function ChatsPage() {
       console.error('Error loading chats:', error)
     } finally {
       setLoading(false)
+      // Log loading state for debugging
+      console.log('Chats loaded, loading state:', false)
     }
   }
+
+  // Log loading state changes for debugging
+  useEffect(() => {
+    if (loading) {
+      console.log('Loading chats...')
+    }
+  }, [loading])
+
+  // Log chat loading state changes for debugging
+  useEffect(() => {
+    if (loadingChat) {
+      console.log('Loading chat details...')
+    }
+  }, [loadingChat])
 
   const loadChatDetails = async (chatId: string) => {
     try {
@@ -396,6 +412,11 @@ export default function ChatsPage() {
       )
     : allUserChats
 
+  // Log filtered chats count for debugging
+  useEffect(() => {
+    console.log(`Filtered chats: ${filteredUserChats.length} of ${allUserChats.length}`)
+  }, [filteredUserChats.length, allUserChats.length])
+
   const formatTime = (dateString: string) => {
     const date = new Date(dateString)
     const now = new Date()
@@ -412,6 +433,14 @@ export default function ChatsPage() {
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     }
   }
+
+  // Log most recent chat time for debugging
+  useEffect(() => {
+    if (allUserChats.length > 0 && allUserChats[0]) {
+      const mostRecent = allUserChats[0]
+      console.log(`Most recent chat updated: ${formatTime(mostRecent.updatedAt)}`)
+    }
+  }, [allUserChats])
 
   // No games loaded state
   if (allGames.length === 0 && activeTab === 'game') {

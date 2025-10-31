@@ -32,14 +32,23 @@ interface WebSocketMessage {
 let wss: WebSocketServer | null = null
 let clients: Map<string, AuthenticatedWebSocket> = new Map()
 let chatRooms: Map<string, Set<string>> = new Map()
+let serverInitializationPromise: Promise<WebSocketServer> | null = null
+let serverInitializationError: Error | null = null
 
-function initializeWebSocketServer() {
+function initializeWebSocketServer(): WebSocketServer | null {
   if (wss) return wss
+  
+  // If initialization is in progress, return null (caller should wait)
+  if (serverInitializationPromise) return null
+  
+  // If initialization failed, return null
+  if (serverInitializationError) return null
 
-  wss = new WebSocketServer({ 
-    port: 3001,
-    path: '/ws/chat'
-  })
+  try {
+    wss = new WebSocketServer({ 
+      port: 3001,
+      path: '/ws/chat'
+    })
 
   wss.on('connection', async (ws: AuthenticatedWebSocket, req: IncomingMessage) => {
     console.log('New WebSocket connection attempt')
@@ -121,25 +130,42 @@ function initializeWebSocketServer() {
     })
   })
 
-  // Set up ping interval to keep connections alive
-  const pingInterval = setInterval(() => {
-    wss?.clients.forEach((client) => {
-      const ws = client as AuthenticatedWebSocket;
-      if (!ws.isAlive) {
-        ws.terminate()
-        return
-      }
-      ws.isAlive = false
-      ws.ping()
+    // Set up ping interval to keep connections alive
+    const pingInterval = setInterval(() => {
+      wss?.clients.forEach((client) => {
+        const ws = client as AuthenticatedWebSocket;
+        if (!ws.isAlive) {
+          ws.terminate()
+          return
+        }
+        ws.isAlive = false
+        ws.ping()
+      })
+    }, 30000)
+
+    wss.on('close', () => {
+      clearInterval(pingInterval)
     })
-  }, 30000)
 
-  wss.on('close', () => {
-    clearInterval(pingInterval)
-  })
+    console.log('WebSocket server initialized on port 3001')
+    return wss
+  } catch (error) {
+    console.error('Failed to initialize WebSocket server:', error)
+    serverInitializationError = error instanceof Error ? error : new Error(String(error))
+    wss = null
+    return null
+  }
+}
 
-  console.log('WebSocket server initialized on port 3001')
-  return wss
+// Initialize server on module load (runs when Next.js server starts)
+if (typeof window === 'undefined') {
+  // Only run on server side
+  try {
+    initializeWebSocketServer()
+  } catch (error) {
+    console.error('Failed to auto-initialize WebSocket server:', error)
+    serverInitializationError = error instanceof Error ? error : new Error(String(error))
+  }
 }
 
 async function handleMessage(ws: AuthenticatedWebSocket, message: WebSocketMessage) {
@@ -260,24 +286,38 @@ export async function GET(request: NextRequest) {
   try {
     // Initialize WebSocket server if not already done
     if (!wss) {
-      initializeWebSocketServer()
+      const result = initializeWebSocketServer()
+      if (!result && serverInitializationError) {
+        return new Response(JSON.stringify({
+          error: 'Failed to initialize WebSocket server',
+          details: serverInitializationError.message,
+          port: 3001
+        }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        })
+      }
     }
 
     return new Response(JSON.stringify({
-      status: 'WebSocket server running',
+      status: wss ? 'WebSocket server running' : 'WebSocket server not initialized',
       port: 3001,
       path: '/ws/chat',
-      connectedClients: clients.size
+      connectedClients: clients.size,
+      initialized: !!wss
     }), {
-      status: 200,
+      status: wss ? 200 : 503,
       headers: {
         'Content-Type': 'application/json'
       }
     })
   } catch (error) {
-    console.error('Error initializing WebSocket server:', error)
+    console.error('Error checking WebSocket server status:', error)
     return new Response(JSON.stringify({
-      error: 'Failed to initialize WebSocket server'
+      error: 'Failed to check WebSocket server status',
+      details: error instanceof Error ? error.message : String(error)
     }), {
       status: 500,
       headers: {

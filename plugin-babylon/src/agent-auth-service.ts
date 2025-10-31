@@ -87,11 +87,86 @@ export class AgentAuthService {
 
       console.log(`✅ Agent authenticated successfully (expires in ${Math.floor((this.tokenExpiresAt - Date.now()) / 1000 / 60)} minutes)`);
 
+      // Check and trigger on-chain registration if needed
+      await this.checkAndRegisterOnChain();
+
       return this.sessionToken;
     } catch (error) {
       console.error('Agent authentication error:', error);
       return null;
     }
+  }
+
+  private registrationCheckPromise: Promise<void> | null = null;
+
+  /**
+   * Check if agent is registered on-chain and register if not
+   * Uses a promise cache to prevent concurrent registration attempts
+   */
+  private async checkAndRegisterOnChain(): Promise<void> {
+    if (!this.sessionToken) {
+      return;
+    }
+
+    // If registration check is already in progress, wait for it
+    if (this.registrationCheckPromise) {
+      return this.registrationCheckPromise;
+    }
+
+    // Create and cache the registration check promise
+    this.registrationCheckPromise = (async () => {
+      try {
+        // Check registration status
+        const statusResponse = await fetch(`${this.apiBaseUrl}/api/agents/onboard`, {
+          headers: {
+            'Authorization': `Bearer ${this.sessionToken}`,
+          },
+        });
+
+        if (!statusResponse.ok) {
+          console.warn('Failed to check agent registration status');
+          return;
+        }
+
+        const statusData = await statusResponse.json() as { isRegistered?: boolean; tokenId?: number; reputationAwarded?: boolean };
+
+        if (statusData.isRegistered && statusData.tokenId) {
+          console.log(`✅ Agent already registered on-chain with token ID: ${statusData.tokenId}`);
+          return;
+        }
+
+        // Not registered, trigger registration
+        console.log('🔗 Registering agent on-chain...');
+
+        const registerResponse = await fetch(`${this.apiBaseUrl}/api/agents/onboard`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.sessionToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            agentName: this.agentId,
+            endpoint: `${this.apiBaseUrl}/agent/${this.agentId}`,
+          }),
+        });
+
+        if (registerResponse.ok) {
+          const registerData = await registerResponse.json() as { tokenId?: number; walletAddress?: string };
+          console.log(`✅ Agent registered on-chain! Token ID: ${registerData.tokenId}, Wallet: ${registerData.walletAddress}`);
+        } else {
+          const error = await registerResponse.json() as { error?: string };
+          console.warn(`⚠️  Failed to register agent on-chain: ${error.error || 'Unknown error'}`);
+        }
+      } catch (error) {
+        console.error('Error checking/registering agent on-chain:', error);
+        // Don't fail authentication if registration check fails
+      } finally {
+        // Clear the promise cache after completion
+        this.registrationCheckPromise = null;
+      }
+    })();
+
+    return this.registrationCheckPromise;
   }
 
   /**

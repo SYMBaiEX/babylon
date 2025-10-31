@@ -12,6 +12,7 @@ import {
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
+import { notifyCommentOnPost, notifyReplyToComment } from '@/lib/services/notification-service';
 
 const prisma = new PrismaClient();
 
@@ -283,6 +284,34 @@ export async function POST(
         },
       },
     });
+
+    // Create notifications
+    if (parentCommentId) {
+      // Reply to comment - notify the parent comment author
+      const parentComment = await prisma.comment.findUnique({
+        where: { id: parentCommentId },
+        select: { authorId: true },
+      });
+      if (parentComment && parentComment.authorId !== user.userId) {
+        await notifyReplyToComment(
+          parentComment.authorId,
+          user.userId,
+          postId,
+          parentCommentId,
+          comment.id
+        );
+      }
+    } else {
+      // Comment on post - notify the post author
+      if (authorId !== user.userId) {
+        await notifyCommentOnPost(
+          authorId,
+          user.userId,
+          postId,
+          comment.id
+        );
+      }
+    }
 
     return successResponse(
       {

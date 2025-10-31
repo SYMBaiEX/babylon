@@ -8,9 +8,12 @@ import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { SearchBar } from '@/components/shared/SearchBar'
 import { InteractionBar } from '@/components/interactions'
+import { CreatePostModal } from '@/components/posts/CreatePostModal'
 import { cn } from '@/lib/utils'
 import { useFontSize } from '@/contexts/FontSizeContext'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
+import { useAuth } from '@/hooks/useAuth'
+import { Plus, ShieldCheck } from 'lucide-react'
 
 const PAGE_SIZE = 20
 
@@ -24,6 +27,7 @@ export default function FeedPage() {
   const [offset, setOffset] = useState(0)
   const [followingPosts, setFollowingPosts] = useState<any[]>([])
   const [loadingFollowing, setLoadingFollowing] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const { fontSize } = useFontSize()
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
@@ -131,15 +135,21 @@ export default function FeedPage() {
     }
   }, [tab, hasMore, loading, loadingMore, searchQuery, offset, fetchLatestPosts])
 
+  const { authenticated, user } = useAuth()
+
   // Fetch following posts when following tab is active
   useEffect(() => {
     const fetchFollowingPosts = async () => {
       if (tab !== 'following') return
+      if (!authenticated || !user) {
+        setFollowingPosts([])
+        setLoadingFollowing(false)
+        return
+      }
 
       setLoadingFollowing(true)
       try {
-        // TODO: Get auth token from Privy
-        const token = null // Placeholder - will be implemented with Privy integration
+        const token = typeof window !== 'undefined' ? (window as any).__privyAccessToken : null
 
         const headers: HeadersInit = {
           'Content-Type': 'application/json',
@@ -149,24 +159,30 @@ export default function FeedPage() {
           headers['Authorization'] = `Bearer ${token}`
         }
 
-        const response = await fetch('/api/posts/feed/favorites?limit=50&offset=0', {
-          headers,
-        })
+        // Fetch posts from followed users/actors
+        const response = await fetch(
+          `/api/posts?following=true&userId=${user.id}&limit=${PAGE_SIZE}&offset=0`,
+          { headers }
+        )
 
         if (response.ok) {
           const data = await response.json()
-          // Transform API response to match feed post structure
-          setFollowingPosts(data.data.posts || [])
+          const posts = Array.isArray(data.posts) ? data.posts : []
+          setFollowingPosts(posts)
+        } else {
+          console.error('Failed to fetch following posts:', response.statusText)
+          setFollowingPosts([])
         }
       } catch (error) {
         console.error('Failed to fetch following:', error)
+        setFollowingPosts([])
       } finally {
         setLoadingFollowing(false)
       }
     }
 
     fetchFollowingPosts()
-  }, [tab])
+  }, [tab, authenticated, user])
 
   // Compute timeline-visible posts from game (mirrors viewer FeedView)
   const timelinePosts = useMemo(() => {
@@ -204,7 +220,10 @@ export default function FeedPage() {
   }, [allGames, startTime, currentDate, currentTimeMs])
 
   // Choose data source: timeline (if available) else API posts
-  const basePosts = (startTime && allGames.length > 0) ? timelinePosts : (tab === 'following' ? followingPosts : posts)
+  // For following tab, always use followingPosts (not timeline)
+  const basePosts = (tab === 'following') 
+    ? followingPosts 
+    : ((startTime && allGames.length > 0) ? timelinePosts : posts)
 
   // Filter by search query (applies to whichever source is active)
   const filteredPosts = useMemo(() => {
@@ -231,23 +250,77 @@ export default function FeedPage() {
 
   return (
     <PageContainer noPadding className="flex flex-col">
-      {/* Header with tabs */}
-      <FeedToggle activeTab={tab} onTabChange={setTab} />
+      {/* Header with tabs and + Hoot button */}
+      <div className="sticky top-0 z-10 bg-background border-b border-border">
+        <div className="flex items-center justify-between h-12 px-4">
+          {/* Tabs on left */}
+          <FeedToggle activeTab={tab} onTabChange={setTab} />
+          
+          {/* + Hoot button on right */}
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className={cn(
+              'md:hidden px-4 py-1.5 font-semibold',
+              'bg-primary text-primary-foreground',
+              'hover:bg-primary/90',
+              'transition-all duration-200',
+              'flex items-center gap-1.5'
+            )}
+          >
+            <Plus className="w-4 h-4" />
+            <span>Hoot</span>
+          </button>
+        </div>
+      </div>
 
       {/* Search Bar */}
-      <div className="sticky top-0 z-10 bg-background py-3">
-        <div className="max-w-[600px] mx-auto px-4">
+      <div className="sticky top-12 z-10 bg-background py-2 border-b border-border md:hidden">
+        <div className="px-4">
           <SearchBar
             value={searchQuery}
             onChange={setSearchQuery}
-            placeholder="Search posts..."
+            placeholder="Search Babylon..."
           />
         </div>
       </div>
 
+      {/* Desktop: Search and + Hoot button */}
+      <div className="hidden md:flex items-center justify-between sticky top-12 z-10 bg-background py-3 px-6 border-b border-border">
+        <div className="flex-1 max-w-[600px]">
+          <SearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search Babylon..."
+          />
+        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className={cn(
+            'ml-4 px-6 py-2 font-semibold',
+            'bg-primary text-primary-foreground',
+            'hover:bg-primary/90',
+            'transition-all duration-200',
+            'flex items-center gap-2'
+          )}
+        >
+          <Plus className="w-5 h-5" />
+          <span>Hoot</span>
+        </button>
+      </div>
+
+      {/* Create Post Modal */}
+      <CreatePostModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onPostCreated={() => {
+          // Refresh posts after creating
+          fetchLatestPosts(0, false)
+        }}
+      />
+
       {/* Content area */}
       <div className="flex-1 overflow-y-auto bg-background">
-        {loading ? (
+        {(loading || (tab === 'following' && loadingFollowing)) ? (
           <div className="max-w-2xl mx-auto p-8 text-center">
             <div className="text-muted-foreground py-12">
               <p>Loading posts...</p>
@@ -282,23 +355,12 @@ export default function FeedPage() {
         ) : filteredPosts.length === 0 && !searchQuery ? (
           // Game loaded but no visible posts yet
           <div className="max-w-2xl mx-auto p-8 text-center">
-            <div className="text-muted-foreground py-12">
-              <h2 className="text-xl font-semibold mb-2 text-foreground">⏱️ No Posts Yet</h2>
-              <p className="mb-4">
-                Game is generating content in the background...
-              </p>
-              <Link
-                href="/game"
-                className={cn(
-                  'inline-block px-6 py-3 rounded-lg font-semibold',
-                  'bg-primary text-primary-foreground',
-                  'hover:bg-primary/90',
-                  'transition-all duration-300'
-                )}
-              >
-                Go to Game Controls
-              </Link>
-            </div>
+          <div className="text-muted-foreground py-12">
+            <h2 className="text-xl font-semibold mb-2 text-foreground">⏱️ No Posts Yet</h2>
+            <p className="mb-4">
+              Game is running in the background via realtime-daemon. Content will appear here as it's generated.
+            </p>
+          </div>
           </div>
         ) : filteredPosts.length === 0 && searchQuery ? (
           // No search results
@@ -311,7 +373,7 @@ export default function FeedPage() {
               <button
                 onClick={() => setSearchQuery('')}
                 className={cn(
-                  'inline-block px-6 py-3 rounded-lg font-semibold',
+                  'inline-block px-6 py-3 font-semibold border border-border',
                   'bg-primary text-primary-foreground',
                   'hover:bg-primary/90',
                   'transition-all duration-300'
@@ -379,9 +441,7 @@ export default function FeedPage() {
                           >
                             {post.authorId}
                           </Link>
-                          <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-blue-500/10 text-blue-500 border border-blue-500/20">
-                            Agent
-                          </span>
+                          <ShieldCheck className="w-4 h-4 text-blue-500 flex-shrink-0" fill="currentColor" />
                           <Link
                             href={`/profile/${post.authorId}`}
                             className="text-muted-foreground text-sm hover:underline"

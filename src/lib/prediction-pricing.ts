@@ -59,6 +59,56 @@ export class PredictionPricing {
     };
   }
 
+  /**
+   * Calculate proceeds when selling shares (CPMM: k = yesShares * noShares)
+   */
+  static calculateSell(
+    currentYesShares: number,
+    currentNoShares: number,
+    side: 'yes' | 'no',
+    sharesToSell: number
+  ): ShareCalculation {
+    const k = currentYesShares * currentNoShares;
+    const currentTotal = currentYesShares + currentNoShares;
+    const currentYesPrice = currentNoShares / currentTotal;
+    const currentNoPrice = currentYesShares / currentTotal;
+
+    let newYesShares: number;
+    let newNoShares: number;
+
+    // When selling, we remove shares from the pool (opposite of buying)
+    if (side === 'yes') {
+      newYesShares = currentYesShares - sharesToSell;
+      newNoShares = k / newYesShares;
+    } else {
+      newNoShares = currentNoShares - sharesToSell;
+      newYesShares = k / newNoShares;
+    }
+
+    const newTotal = newYesShares + newNoShares;
+    const newYesPrice = newNoShares / newTotal;
+    const newNoPrice = newYesShares / newTotal;
+
+    // Calculate proceeds (how much USD user gets back)
+    const proceeds = side === 'yes'
+      ? (currentNoShares - newNoShares)
+      : (currentYesShares - newYesShares);
+
+    const priceImpact =
+      side === 'yes'
+        ? ((currentYesPrice - newYesPrice) / currentYesPrice) * 100
+        : ((currentNoPrice - newNoPrice) / currentNoPrice) * 100;
+
+    return {
+      sharesBought: -sharesToSell, // Negative because we're selling
+      avgPrice: proceeds / sharesToSell,
+      newYesPrice,
+      newNoPrice,
+      priceImpact,
+      totalCost: proceeds, // Proceeds for selling
+    };
+  }
+
   static getCurrentPrice(yesShares: number, noShares: number, side: 'yes' | 'no'): number {
     const total = yesShares + noShares;
     return side === 'yes' ? noShares / total : yesShares / total;

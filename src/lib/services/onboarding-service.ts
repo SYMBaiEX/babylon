@@ -45,6 +45,14 @@ export class OnboardingService {
         }),
       })
 
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text()
+        console.warn('Non-JSON response from onboard endpoint:', text.substring(0, 100))
+        return { success: false, error: 'Invalid response from server' }
+      }
+
       const data = await response.json()
 
       if (!response.ok) {
@@ -92,6 +100,13 @@ export class OnboardingService {
           'Authorization': `Bearer ${accessToken}`,
         },
       })
+
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        console.warn('Non-JSON response from onboard status check')
+        return { isOnboarded: false }
+      }
 
       const data = await response.json()
 

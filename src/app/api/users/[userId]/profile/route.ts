@@ -1,11 +1,12 @@
 /**
  * API Route: /api/users/[userId]/profile
- * Methods: GET (get user's profile)
+ * Methods: GET (get user profile)
  */
 
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
+  authenticate,
   optionalAuth,
   successResponse,
   errorResponse,
@@ -15,7 +16,7 @@ const prisma = new PrismaClient();
 
 /**
  * GET /api/users/[userId]/profile
- * Get user's profile information
+ * Get user profile information
  */
 export async function GET(
   request: NextRequest,
@@ -24,67 +25,79 @@ export async function GET(
   try {
     const { userId } = await params;
 
-    // Try to get user from database
-    let user = await prisma.user.findUnique({
+    if (!userId) {
+      return errorResponse('User ID is required', 400);
+    }
+
+    // Optional authentication
+    await optionalAuth(request);
+
+    // Get user profile
+    const dbUser = await prisma.user.findUnique({
       where: { id: userId },
       select: {
         id: true,
+        walletAddress: true,
         username: true,
         displayName: true,
         bio: true,
         profileImageUrl: true,
-        walletAddress: true,
+        isActor: true,
         profileComplete: true,
-        hasProfileImage: true,
         hasUsername: true,
         hasBio: true,
-        isActor: true,
+        hasProfileImage: true,
+        onChainRegistered: true,
+        nftTokenId: true,
+        virtualBalance: true,
+        lifetimePnL: true,
         createdAt: true,
+        _count: {
+          select: {
+            positions: true,
+            comments: true,
+            reactions: true,
+            followedBy: true,
+            following: true,
+          },
+        },
       },
     });
 
-    // If user doesn't exist in database yet, create them
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          id: userId,
-          isActor: false,
-        },
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-          bio: true,
-          profileImageUrl: true,
-          walletAddress: true,
-          profileComplete: true,
-          hasProfileImage: true,
-          hasUsername: true,
-          hasBio: true,
-          isActor: true,
-          createdAt: true,
-        },
-      });
+    if (!dbUser) {
+      return errorResponse('User not found', 404);
     }
 
     return successResponse({
       user: {
-        id: user.id,
-        username: user.username,
-        displayName: user.displayName,
-        bio: user.bio,
-        profileImageUrl: user.profileImageUrl,
-        walletAddress: user.walletAddress,
-        profileComplete: user.profileComplete,
-        hasProfileImage: user.hasProfileImage,
-        hasUsername: user.hasUsername,
-        hasBio: user.hasBio,
-        isActor: user.isActor,
-        createdAt: user.createdAt,
+        id: dbUser.id,
+        walletAddress: dbUser.walletAddress,
+        username: dbUser.username,
+        displayName: dbUser.displayName,
+        bio: dbUser.bio,
+        profileImageUrl: dbUser.profileImageUrl,
+        isActor: dbUser.isActor,
+        profileComplete: dbUser.profileComplete,
+        hasUsername: dbUser.hasUsername,
+        hasBio: dbUser.hasBio,
+        hasProfileImage: dbUser.hasProfileImage,
+        onChainRegistered: dbUser.onChainRegistered,
+        nftTokenId: dbUser.nftTokenId,
+        virtualBalance: Number(dbUser.virtualBalance),
+        lifetimePnL: Number(dbUser.lifetimePnL),
+        createdAt: dbUser.createdAt.toISOString(),
+        stats: {
+          positions: dbUser._count.positions,
+          comments: dbUser._count.comments,
+          reactions: dbUser._count.reactions,
+          followers: dbUser._count.followedBy,
+          following: dbUser._count.following,
+        },
       },
     });
   } catch (error) {
     console.error('Error fetching profile:', error);
-    return errorResponse('Failed to fetch profile');
+    return errorResponse('Failed to fetch profile', 500);
   }
 }
+

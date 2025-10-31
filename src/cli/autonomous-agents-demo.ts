@@ -4,7 +4,7 @@
  * Autonomous Agents Demo
  *
  * Demonstrates autonomous agents connecting to Babylon game via A2A protocol.
- * Run this alongside the realtime-daemon to see agents analyze markets and coordinate.
+ * Run this alongside the daemon to see agents analyze markets and coordinate.
  *
  * Usage:
  *   bun run agents              (start 3 demo agents)
@@ -28,10 +28,10 @@ function parseArgs(): CLIOptions {
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--count' && args[i + 1]) {
-      options.count = parseInt(args[i + 1]);
+      options.count = parseInt(args[i + 1]!);
       i++;
     } else if (args[i] === '--endpoint' && args[i + 1]) {
-      options.endpoint = args[i + 1];
+      options.endpoint = args[i + 1]!;
       i++;
     }
   }
@@ -100,10 +100,10 @@ async function main() {
   const agents: AutonomousAgent[] = [];
   for (let i = 0; i < options.count!; i++) {
     const template = agentTemplates[i % agentTemplates.length];
-    const config: AgentConfig = {
+    const config = {
       ...template,
       a2aEndpoint: options.endpoint!
-    };
+    } as AgentConfig;
 
     const agent = new AutonomousAgent(config);
     agents.push(agent);
@@ -168,7 +168,7 @@ async function main() {
     console.log('\n🔍 Demonstrating agent discovery...\n');
 
     if (agents.length >= 2) {
-      const leader = agents[0];
+      const leader = agents[0]!;
       const leaderStatus = leader.getStatus();
 
       // Find coalition partners using registry

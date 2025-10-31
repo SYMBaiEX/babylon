@@ -3,12 +3,14 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { User as UserIcon, LogOut, X, Wallet, Copy, Check, Menu } from 'lucide-react'
+import { User as UserIcon, LogOut, X, Wallet, Copy, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { useLoginModal } from '@/hooks/useLoginModal'
-import { useUIStore } from '@/stores/uiStore'
+import { PointsTracker } from '@/components/shared/PointsTracker'
+import { NotificationsButton } from '@/components/shared/NotificationsButton'
+import { ThemeToggle } from '@/components/shared/ThemeToggle'
 
 export function MobileHeader() {
   const { authenticated, logout } = useAuth()
@@ -16,7 +18,6 @@ export function MobileHeader() {
   const { showLoginModal } = useLoginModal()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [copied, setCopied] = useState(false)
-  const { toggleMobileMenu } = useUIStore()
 
   const handleCopyAddress = async () => {
     if (wallet?.address) {
@@ -47,34 +48,35 @@ export function MobileHeader() {
         )}
         style={{ borderColor: '#1c9cf0' }}
       >
-        <div className="flex items-center justify-between h-16 px-4">
+        <div className="flex items-center justify-between h-14 px-4 relative">
+          {/* Left: Logo */}
           <Link
             href="/feed"
             className={cn(
               'flex items-center gap-3',
-              'hover:scale-105 transition-transform duration-300'
+              'hover:scale-105 transition-transform duration-300',
+              'flex-shrink-0'
             )}
           >
             <Image
               src="/assets/logos/logo.svg"
               alt="Babylon Logo"
-              width={32}
-              height={32}
-              className="flex-shrink-0 w-8 h-8"
+              width={28}
+              height={28}
+              className="flex-shrink-0 w-7 h-7"
             />
           </Link>
 
-          {/* Mobile Hamburger toggles bottom nav overlay */}
-          <button
-            onClick={toggleMobileMenu}
-            className={cn(
-              'p-2 rounded-lg',
-              'bg-primary/20 text-primary',
-              'hover:bg-primary/30 transition-all'
-            )}
-          >
-            <Menu className="w-6 h-6" />
-          </button>
+          {/* Center: Points Tracker */}
+          <div className="absolute left-1/2 transform -translate-x-1/2">
+            <PointsTracker showIcon={true} />
+          </div>
+
+          {/* Right side: Notifications and Theme Toggle */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <NotificationsButton />
+            <ThemeToggle compact />
+          </div>
         </div>
       </header>
 

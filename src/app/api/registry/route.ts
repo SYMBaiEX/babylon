@@ -8,6 +8,7 @@
 import { NextRequest } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { successResponse, errorResponse } from '@/lib/api/auth-middleware'
+import { ReputationService } from '@/lib/services/reputation-service'
 
 const prisma = new PrismaClient()
 
@@ -78,27 +79,45 @@ export async function GET(request: NextRequest) {
     // Get total count for pagination
     const totalCount = await prisma.user.count({ where })
 
+    // Fetch reputation scores for all users (in parallel)
+    const usersWithReputation = await Promise.all(
+      users.map(async (user) => {
+        let reputation: number | null = null
+        if (user.onChainRegistered && user.nftTokenId) {
+          try {
+            reputation = await ReputationService.getOnChainReputation(user.id)
+          } catch (error) {
+            console.error(`Failed to fetch reputation for user ${user.id}:`, error)
+            // Continue without reputation if fetch fails
+          }
+        }
+
+        return {
+          id: user.id,
+          username: user.username,
+          displayName: user.displayName,
+          bio: user.bio,
+          profileImageUrl: user.profileImageUrl,
+          walletAddress: user.walletAddress,
+          isActor: user.isActor,
+          onChainRegistered: user.onChainRegistered,
+          nftTokenId: user.nftTokenId,
+          registrationTxHash: user.registrationTxHash,
+          createdAt: user.createdAt,
+          virtualBalance: user.virtualBalance.toString(),
+          lifetimePnL: user.lifetimePnL.toString(),
+          reputation,
+          stats: {
+            positions: user._count.positions,
+            comments: user._count.comments,
+            reactions: user._count.reactions,
+          },
+        }
+      })
+    )
+
     return successResponse({
-      users: users.map(user => ({
-        id: user.id,
-        username: user.username,
-        displayName: user.displayName,
-        bio: user.bio,
-        profileImageUrl: user.profileImageUrl,
-        walletAddress: user.walletAddress,
-        isActor: user.isActor,
-        onChainRegistered: user.onChainRegistered,
-        nftTokenId: user.nftTokenId,
-        registrationTxHash: user.registrationTxHash,
-        createdAt: user.createdAt,
-        virtualBalance: user.virtualBalance.toString(),
-        lifetimePnL: user.lifetimePnL.toString(),
-        stats: {
-          positions: user._count.positions,
-          comments: user._count.comments,
-          reactions: user._count.reactions,
-        },
-      })),
+      users: usersWithReputation,
       pagination: {
         total: totalCount,
         limit: filters.limit || 100,

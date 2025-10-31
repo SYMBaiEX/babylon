@@ -49,7 +49,17 @@ export class AgentRegistry extends EventEmitter {
       winningBets: 0,
       accuracyScore: 0,
       trustScore: 0.5, // Start with neutral trust
-      totalVolume: '0'
+      totalVolume: '0',
+      profitLoss: 0,
+      isBanned: false,
+    };
+
+    // Create capabilities following A2A protocol
+    const capabilities: AgentCapabilities = {
+      strategies: [], // Will be populated from agent config
+      markets: ['prediction'],
+      actions: ['analyze', 'predict', 'coordinate'],
+      version: '1.0.0'
     };
 
     // Create profile following A2A protocol
@@ -58,12 +68,7 @@ export class AgentRegistry extends EventEmitter {
       address: status.address,
       name: status.name,
       endpoint: '', // Will be set if agent exposes API
-      capabilities: {
-        strategies: [], // Will be populated from agent config
-        markets: ['prediction'],
-        actions: ['analyze', 'predict', 'coordinate'],
-        version: '1.0.0'
-      },
+      capabilities,
       reputation,
       isActive: true
     };
@@ -108,6 +113,14 @@ export class AgentRegistry extends EventEmitter {
       if (registration) {
         registration.lastActive = Date.now();
         registration.performance.totalPredictions++;
+        // Update average confidence from analysis
+        if (analysis && typeof analysis === 'object' && 'confidence' in analysis) {
+          const confidence = Number(analysis.confidence);
+          const currentAvg = registration.performance.averageConfidence;
+          const totalPreds = registration.performance.totalPredictions;
+          registration.performance.averageConfidence =
+            (currentAvg * (totalPreds - 1) + confidence) / totalPreds;
+        }
         this.agents.set(agentId, registration);
       }
     });

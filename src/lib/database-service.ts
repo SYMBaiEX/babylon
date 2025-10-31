@@ -329,7 +329,7 @@ class DatabaseService {
   async createEvent(event: {
     id: string;
     eventType: string;
-    description: string;
+    description: string | { title?: string; text?: string; timestamp?: string; source?: string };
     actors: string[];
     relatedQuestion?: number;
     pointsToward?: string;
@@ -337,8 +337,22 @@ class DatabaseService {
     gameId?: string;
     dayNumber?: number;
   }) {
+    // Convert description to string if it's an object
+    let descriptionString: string;
+    if (typeof event.description === 'string') {
+      descriptionString = event.description;
+    } else if (event.description && typeof event.description === 'object') {
+      // Handle object description - use text or title, or stringify
+      descriptionString = event.description.text || event.description.title || JSON.stringify(event.description);
+    } else {
+      descriptionString = String(event.description || '');
+    }
+
     return await prisma.worldEvent.create({
-      data: event,
+      data: {
+        ...event,
+        description: descriptionString,
+      },
     });
   }
 

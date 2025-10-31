@@ -9,10 +9,10 @@ import { EventEmitter } from 'events';
 import { ethers } from 'ethers';
 import { A2AClient } from '../a2a/client/a2a-client';
 import { BabylonLLMClient } from '../generator/llm/openai-client';
+import { A2AEventType } from '../a2a/types';
 import type {
   AgentCapabilities,
-  MarketAnalysis,
-  A2AEventType
+  MarketAnalysis
 } from '../a2a/types';
 import type { Question } from '@/shared/types';
 
@@ -200,14 +200,37 @@ export class AutonomousAgent extends EventEmitter {
       // Build analysis prompt based on agent personality and question
       const prompt = this.buildAnalysisPrompt(question);
 
-      // Get LLM analysis
-      const response = await this.llm.generateText(prompt, {
-        temperature: 0.7,
-        maxTokens: 500
-      });
+      // Get LLM analysis using JSON output
+      interface AnalysisResponse {
+        prediction: boolean;
+        confidence: number;
+        reasoning: string;
+      }
 
-      // Parse analysis (simplified - could use structured output)
-      const analysis = this.parseAnalysis(response, question);
+      const response = await this.llm.generateJSON<AnalysisResponse>(
+        prompt,
+        {
+          required: ['prediction', 'confidence', 'reasoning'],
+          properties: {
+            prediction: { type: 'boolean' },
+            confidence: { type: 'number' },
+            reasoning: { type: 'string' }
+          }
+        },
+        {
+          temperature: 0.7,
+          maxTokens: 500
+        }
+      );
+
+      // Create analysis result from JSON response
+      const analysis: AgentAnalysisResult = {
+        questionId: question.id,
+        prediction: response.prediction,
+        confidence: response.confidence,
+        reasoning: response.reasoning,
+        timestamp: Date.now()
+      };
 
       // Store analysis
       this.analyses.set(question.id, analysis);
@@ -235,49 +258,17 @@ Risk Tolerance: ${this.config.riskTolerance}
 
 Analyze this prediction market question:
 Question: ${question.text}
-Current Yes Price: ${question.yesPrice}
-Current No Price: ${question.noPrice}
-Total Volume: ${question.totalVolume}
-Closes: ${new Date(question.closeDate).toLocaleString()}
+Question ID: ${question.id}
+${question.status ? `Status: ${question.status}` : ''}
+${question.createdDate ? `Created: ${new Date(question.createdDate).toLocaleString()}` : ''}
+${question.resolutionDate ? `Resolves: ${new Date(question.resolutionDate).toLocaleString()}` : ''}
 
-Provide your analysis in the following format:
-PREDICTION: YES or NO
-CONFIDENCE: 0.0 to 1.0
-REASONING: Brief explanation of your prediction
+Provide your analysis as JSON with the following fields:
+- prediction: boolean (true for YES, false for NO)
+- confidence: number between 0.0 and 1.0
+- reasoning: string with brief explanation
 
-Be concise and direct.`;
-  }
-
-  /**
-   * Parse LLM response into structured analysis
-   */
-  private parseAnalysis(response: string, question: Question): AgentAnalysisResult {
-    // Simple parsing - could be more sophisticated
-    const lines = response.split('\n');
-    let prediction = false;
-    let confidence = 0.5;
-    let reasoning = '';
-
-    for (const line of lines) {
-      if (line.includes('PREDICTION:')) {
-        prediction = line.includes('YES');
-      } else if (line.includes('CONFIDENCE:')) {
-        const match = line.match(/(\d+\.?\d*)/);
-        if (match) confidence = parseFloat(match[1]);
-      } else if (line.includes('REASONING:')) {
-        reasoning = line.replace('REASONING:', '').trim();
-      } else if (reasoning && line.trim()) {
-        reasoning += ' ' + line.trim();
-      }
-    }
-
-    return {
-      questionId: question.id,
-      prediction,
-      confidence: Math.min(Math.max(confidence, 0), 1), // Clamp 0-1
-      reasoning: reasoning || 'No reasoning provided',
-      timestamp: Date.now()
-    };
+Be concise and analytical.`;
   }
 
   /**

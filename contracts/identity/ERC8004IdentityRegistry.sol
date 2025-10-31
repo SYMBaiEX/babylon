@@ -149,6 +149,62 @@ contract ERC8004IdentityRegistry is ERC721, Ownable {
         return addressToTokenId[_address] == _tokenId && ownerOf(_tokenId) == _address;
     }
 
+    /// @notice Get all active agent token IDs
+    function getAllActiveAgents() external view returns (uint256[] memory) {
+        uint256[] memory activeAgents = new uint256[](_nextTokenId - 1);
+        uint256 count = 0;
+        
+        for (uint256 i = 1; i < _nextTokenId; i++) {
+            if (profiles[i].isActive && ownerOf(i) != address(0)) {
+                activeAgents[count] = i;
+                count++;
+            }
+        }
+        
+        // Resize array to actual count
+        uint256[] memory result = new uint256[](count);
+        for (uint256 i = 0; i < count; i++) {
+            result[i] = activeAgents[i];
+        }
+        
+        return result;
+    }
+
+    /// @notice Check if endpoint is active
+    function isEndpointActive(string memory endpoint) external view returns (bool) {
+        if (!endpointTaken[endpoint]) return false;
+        
+        // Find token ID with this endpoint
+        for (uint256 i = 1; i < _nextTokenId; i++) {
+            if (keccak256(bytes(profiles[i].endpoint)) == keccak256(bytes(endpoint))) {
+                return profiles[i].isActive && ownerOf(i) != address(0);
+            }
+        }
+        
+        return false;
+    }
+
+    /// @notice Get agents by capability hash
+    function getAgentsByCapability(bytes32 capabilityHash) external view returns (uint256[] memory) {
+        uint256[] memory matchingAgents = new uint256[](_nextTokenId - 1);
+        uint256 count = 0;
+        
+        for (uint256 i = 1; i < _nextTokenId; i++) {
+            if (profiles[i].capabilitiesHash == capabilityHash && profiles[i].isActive && ownerOf(i) != address(0)) {
+                matchingAgents[count] = i;
+                count++;
+            }
+        }
+        
+        // Resize array to actual count
+        uint256[] memory result = new uint256[](count);
+        for (uint256 i = 0; i < count; i++) {
+            result[i] = matchingAgents[i];
+        }
+        
+        return result;
+    }
+
     /// @notice Override transfer to update address mapping
     function _update(address to, uint256 tokenId, address auth) internal override returns (address) {
         address from = super._update(to, tokenId, auth);
