@@ -16,3 +16,4 @@ cache/
 broadcast/
 data/
 bun.lock
+plugin-babylon/.eliza/

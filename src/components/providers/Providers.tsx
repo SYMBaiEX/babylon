@@ -3,7 +3,7 @@
 import { PrivyProvider } from '@privy-io/react-auth'
 import { WagmiProvider } from '@privy-io/wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { privyConfig, wagmiConfig } from '@/lib/privy-config'
 import { ThemeProvider } from '@/components/shared/ThemeProvider'
 import { FontSizeProvider } from '@/contexts/FontSizeContext'
@@ -45,7 +45,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           >
             <QueryClientProvider client={queryClient}>
               <GamePlaybackManager />
-              {children}
+              <Fragment>{children}</Fragment>
             </QueryClientProvider>
           </PrivyProvider>
         </FontSizeProvider>
@@ -70,7 +70,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             <QueryClientProvider client={queryClient}>
               <GamePlaybackManager />
               <WagmiProvider config={wagmiConfig}>
-                {children}
+                <Fragment>{children}</Fragment>
               </WagmiProvider>
             </QueryClientProvider>
           </PrivyProvider>
