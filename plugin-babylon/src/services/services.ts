@@ -5,7 +5,7 @@
  * BabylonTradingService manages automated market monitoring and portfolio review.
  */
 
-import { Service, type IAgentRuntime, type Memory, ServiceType } from '@ai16z/eliza';
+import { Service, type IAgentRuntime, type Memory, ServiceType } from '@elizaos/core';
 import { BabylonApiClient } from '../api-client';
 import type { MarketAnalysis } from '../types';
 
@@ -34,6 +34,16 @@ export class BabylonTradingService extends Service {
   }
 
   /**
+   * Static factory method to create and initialize the service
+   * Follows ElizaOS service pattern
+   */
+  static async start(runtime: IAgentRuntime): Promise<BabylonTradingService> {
+    const service = new BabylonTradingService();
+    await service.initialize(runtime);
+    return service;
+  }
+
+  /**
    * Initialize the trading service
    * Starts background monitoring loops
    */
@@ -46,8 +56,10 @@ export class BabylonTradingService extends Service {
       return;
     }
 
-    // Check if auto-trading is enabled
-    this.isAutoTrading = (runtime.character.settings as any)?.autoTrading === true;
+    // Check if auto-trading is enabled (preserve instance value if already set via enableAutoTrading)
+    if (!this.isAutoTrading) {
+      this.isAutoTrading = (runtime.character.settings as any)?.autoTrading === true;
+    }
 
     if (!this.isAutoTrading) {
       console.log('ℹ️  Auto-trading disabled - service initialized but not active');

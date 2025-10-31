@@ -31,14 +31,14 @@
   "author": "Babylon AI",
   "license": "MIT",
   "dependencies": {
-    "@ai16z/eliza": "^0.1.6"
+    "@elizaos/core": "^1.6.3"
   },
   "devDependencies": {
     "@types/node": "^24.9.1",
     "typescript": "^5.9.3"
   },
   "peerDependencies": {
-    "@ai16z/eliza": "^0.1.6"
+    "@elizaos/core": "^1.6.3"
   },
   "agentConfig": {
     "characterId": {

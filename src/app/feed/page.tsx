@@ -343,13 +343,12 @@ export default function FeedPage() {
                 <article
                   key={`${post.id}-${i}`}
                   className={cn(
-                    'px-4 py-3 border-b',
+                    'px-4 py-3 border-b border-border',
                     'hover:bg-muted/30 cursor-pointer',
                     'transition-all duration-200'
                   )}
                   style={{
                     fontSize: `${fontSize}rem`,
-                    borderColor: 'rgba(28, 156, 240, 0.2)',
                   }}
                 >
                   <div className="flex gap-3">

@@ -4,8 +4,6 @@ import { Sidebar } from '@/components/shared/Sidebar'
 import { MobileHeader } from '@/components/shared/MobileHeader'
 import { BottomNav } from '@/components/shared/BottomNav'
 import { Providers } from '@/components/providers/Providers'
-import { GeistSans } from 'geist/font/sans'
-import { GeistMono } from 'geist/font/mono'
 
 // Auto-start game service on server
 import '@/lib/game-service'
@@ -35,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    <html lang="en" suppressHydrationWarning>
       <body className="antialiased bg-sidebar font-sans" suppressHydrationWarning>
         <Providers>
           <Toaster position="top-center" richColors closeButton />

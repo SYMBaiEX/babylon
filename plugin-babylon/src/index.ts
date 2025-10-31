@@ -12,7 +12,7 @@
  * @module @babylonai/plugin-babylon
  */
 
-import type { Plugin } from '@ai16z/eliza';
+import type { Plugin } from '@elizaos/core';
 import { BabylonApiClient } from './api-client';
 import { babylonGameActions } from './actions/actions';
 import { babylonGameEvaluators } from './evaluators/evaluators';

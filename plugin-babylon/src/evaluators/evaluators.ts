@@ -9,7 +9,7 @@ import type {
   IAgentRuntime,
   Memory,
   State,
-} from '@ai16z/eliza';
+} from '@elizaos/core';
 import { BabylonApiClient } from '../api-client';
 import type { BabylonMarket, MarketAnalysis } from '../types';
 

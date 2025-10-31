@@ -87,9 +87,8 @@ export function InteractionBar({
           className={cn(
             'flex items-center gap-1 h-8 px-2 rounded-full',
             'hover:bg-muted transition-all duration-200',
-            'text-xs border border-transparent'
+            'text-xs border border-transparent text-primary'
           )}
-          style={{ color: '#1c9cf0' }}
         >
           <MessageCircle size={14} />
           {commentCount > 0 && (

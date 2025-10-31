@@ -10,7 +10,7 @@ import type {
   Memory,
   State,
   HandlerCallback,
-} from '@ai16z/eliza';
+} from '@elizaos/core';
 import { BabylonApiClient } from '../api-client';
 import type { TradeRequest } from '../types';
 

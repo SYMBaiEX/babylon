@@ -7,7 +7,7 @@
 
 import { NextRequest } from 'next/server'
 import { PrismaClient, Prisma } from '@prisma/client'
-import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-middleware'
+import { errorResponse, successResponse } from '@/lib/api/auth-middleware'
 
 const prisma = new PrismaClient()
 
@@ -23,9 +23,6 @@ interface AwardPointsRequest {
  */
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate the requesting user
-    const authUser = await authenticate(request)
-
     // Parse request body
     const body: AwardPointsRequest = await request.json()
     const { userId, amount, reason } = body
@@ -38,12 +35,13 @@ export async function POST(request: NextRequest) {
       return errorResponse('Amount must be positive', 400)
     }
 
-    // Verify user exists
+    // Verify user exists and get current balance
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
         id: true,
         virtualBalance: true,
+        totalDeposited: true,
       },
     })
 
@@ -51,15 +49,20 @@ export async function POST(request: NextRequest) {
       return errorResponse('User not found', 404)
     }
 
+    // Calculate balance changes
+    const balanceBefore = new Prisma.Decimal(user.virtualBalance.toString())
+    const amountDecimal = new Prisma.Decimal(amount)
+    const balanceAfter = balanceBefore.plus(amountDecimal)
+
     // Award points by creating a deposit transaction
     const transaction = await prisma.balanceTransaction.create({
       data: {
         userId: user.id,
-        amount: new Prisma.Decimal(amount),
-        transactionType: 'deposit',
+        type: 'deposit',
+        amount: amountDecimal,
+        balanceBefore,
+        balanceAfter,
         description: reason,
-        status: 'completed',
-        completedAt: new Date(),
       },
     })
 
@@ -88,6 +91,8 @@ export async function POST(request: NextRequest) {
         amount: transaction.amount.toString(),
         reason: transaction.description,
         timestamp: transaction.createdAt,
+        balanceBefore: transaction.balanceBefore.toString(),
+        balanceAfter: transaction.balanceAfter.toString(),
       },
       user: {
         id: updatedUser.id,
@@ -110,9 +115,6 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    // Authenticate the requesting user
-    const authUser = await authenticate(request)
-
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
 
@@ -124,8 +126,7 @@ export async function GET(request: NextRequest) {
     const transactions = await prisma.balanceTransaction.findMany({
       where: {
         userId,
-        transactionType: 'deposit',
-        status: 'completed',
+        type: 'deposit',
       },
       orderBy: {
         createdAt: 'desc',
@@ -135,7 +136,8 @@ export async function GET(request: NextRequest) {
         amount: true,
         description: true,
         createdAt: true,
-        completedAt: true,
+        balanceBefore: true,
+        balanceAfter: true,
       },
     })
 
@@ -145,7 +147,8 @@ export async function GET(request: NextRequest) {
         amount: tx.amount.toString(),
         reason: tx.description,
         timestamp: tx.createdAt,
-        completedAt: tx.completedAt,
+        balanceBefore: tx.balanceBefore.toString(),
+        balanceAfter: tx.balanceAfter.toString(),
       })),
     })
   } catch (error) {

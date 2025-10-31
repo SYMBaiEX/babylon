@@ -7,7 +7,7 @@
  * every agent decision.
  */
 
-import type { Provider, IAgentRuntime, Memory, State } from '@ai16z/eliza';
+import type { Provider, IAgentRuntime, Memory, State, ProviderResult } from '@elizaos/core';
 import { BabylonApiClient } from '../api-client';
 
 /**
@@ -19,17 +19,23 @@ import { BabylonApiClient } from '../api-client';
  * - Market opportunities
  */
 export const marketDataProvider: Provider = {
-  get: async (runtime: IAgentRuntime, message: Memory, state?: State): Promise<string> => {
+  name: 'marketDataProvider',
+  get: async (runtime: IAgentRuntime, _message: Memory, _state: State): Promise<ProviderResult> => {
     try {
-      const client = runtime.clients.babylonClient as BabylonApiClient;
+      // Get client from runtime services or state
+      const client = (runtime as any).babylonClient as BabylonApiClient;
       if (!client) {
-        return 'Market data unavailable - client not configured';
+        return {
+          text: 'Market data unavailable - client not configured'
+        };
       }
 
       const markets = await client.getActiveMarkets();
 
       if (markets.length === 0) {
-        return 'No active markets currently available';
+        return {
+          text: 'No active markets currently available'
+        };
       }
 
       // Sort by volume to identify hottest markets
@@ -37,14 +43,23 @@ export const marketDataProvider: Provider = {
       const topMarket = sortedMarkets[0];
       const highVolumeMarkets = sortedMarkets.filter(m => m.totalVolume > 1000);
 
-      return `📊 Market Overview:
+      return {
+        text: `📊 Market Overview:
 - Active Markets: ${markets.length}
 - Top Volume: "${topMarket.question}" ($${topMarket.totalVolume.toFixed(0)})
 - High Volume Markets (>$1000): ${highVolumeMarkets.length}
-- Average Yes Price: ${(markets.reduce((sum, m) => sum + m.yesPrice, 0) / markets.length * 100).toFixed(1)}%`;
+- Average Yes Price: ${(markets.reduce((sum, m) => sum + m.yesPrice, 0) / markets.length * 100).toFixed(1)}%`,
+        data: {
+          markets,
+          topMarket,
+          highVolumeMarkets
+        }
+      };
     } catch (error) {
-      console.error('Error in marketDataProvider:', error);
-      return 'Market data temporarily unavailable';
+      runtime.logger.error('Error in marketDataProvider:', error);
+      return {
+        text: 'Market data temporarily unavailable'
+      };
     }
   },
 };
@@ -56,31 +71,41 @@ export const marketDataProvider: Provider = {
  * Essential for making informed trading decisions based on available funds.
  */
 export const walletStatusProvider: Provider = {
-  get: async (runtime: IAgentRuntime, message: Memory, state?: State): Promise<string> => {
+  name: 'walletStatusProvider',
+  get: async (runtime: IAgentRuntime, _message: Memory, _state: State): Promise<ProviderResult> => {
     try {
-      const client = runtime.clients.babylonClient as BabylonApiClient;
+      const client = (runtime as any).babylonClient as BabylonApiClient;
       if (!client) {
-        return 'Wallet status unavailable - client not configured';
+        return {
+          text: 'Wallet status unavailable - client not configured'
+        };
       }
 
       const wallet = await client.getWallet();
 
       if (!wallet) {
-        return 'Wallet information unavailable - not authenticated';
+        return {
+          text: 'Wallet information unavailable - not authenticated'
+        };
       }
 
       const utilizationRate = wallet.balance > 0
         ? ((wallet.lockedBalance / wallet.balance) * 100).toFixed(1)
         : '0.0';
 
-      return `💰 Wallet Status:
+      return {
+        text: `💰 Wallet Status:
 - Available Balance: $${wallet.availableBalance.toFixed(2)}
 - Locked in Positions: $${wallet.lockedBalance.toFixed(2)}
 - Total Balance: $${wallet.balance.toFixed(2)}
-- Capital Utilization: ${utilizationRate}%`;
+- Capital Utilization: ${utilizationRate}%`,
+        data: { wallet }
+      };
     } catch (error) {
-      console.error('Error in walletStatusProvider:', error);
-      return 'Wallet status temporarily unavailable';
+      runtime.logger.error('Error in walletStatusProvider:', error);
+      return {
+        text: 'Wallet status temporarily unavailable'
+      };
     }
   },
 };
@@ -95,17 +120,22 @@ export const walletStatusProvider: Provider = {
  * - Performance metrics
  */
 export const positionSummaryProvider: Provider = {
-  get: async (runtime: IAgentRuntime, message: Memory, state?: State): Promise<string> => {
+  name: 'positionSummaryProvider',
+  get: async (runtime: IAgentRuntime, _message: Memory, _state: State): Promise<ProviderResult> => {
     try {
-      const client = runtime.clients.babylonClient as BabylonApiClient;
+      const client = (runtime as any).babylonClient as BabylonApiClient;
       if (!client) {
-        return 'Position data unavailable - client not configured';
+        return {
+          text: 'Position data unavailable - client not configured'
+        };
       }
 
       const positions = await client.getPositions();
 
       if (positions.length === 0) {
-        return '📈 Positions: No active positions';
+        return {
+          text: '📈 Positions: No active positions'
+        };
       }
 
       const profitablePositions = positions.filter(p => p.pnl > 0);
@@ -114,15 +144,27 @@ export const positionSummaryProvider: Provider = {
       const totalValue = positions.reduce((sum, p) => sum + p.currentValue, 0);
       const winRate = (profitablePositions.length / positions.length * 100).toFixed(1);
 
-      return `📈 Position Summary:
+      return {
+        text: `📈 Position Summary:
 - Active Positions: ${positions.length}
 - Profitable: ${profitablePositions.length} | Losing: ${losingPositions.length}
 - Win Rate: ${winRate}%
 - Total P&L: ${totalPnL >= 0 ? '+' : ''}$${totalPnL.toFixed(2)}
-- Position Value: $${totalValue.toFixed(2)}`;
+- Position Value: $${totalValue.toFixed(2)}`,
+        data: {
+          positions,
+          profitablePositions,
+          losingPositions,
+          totalPnL,
+          totalValue,
+          winRate: parseFloat(winRate)
+        }
+      };
     } catch (error) {
-      console.error('Error in positionSummaryProvider:', error);
-      return 'Position data temporarily unavailable';
+      runtime.logger.error('Error in positionSummaryProvider:', error);
+      return {
+        text: 'Position data temporarily unavailable'
+      };
     }
   },
 };
