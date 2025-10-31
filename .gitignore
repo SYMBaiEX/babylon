@@ -13,9 +13,6 @@ prisma/migrations/
 .vscode/
 .idea/
 .serena/
-.next/
-dist/
-docs/
 cache/
 broadcast/
 data/

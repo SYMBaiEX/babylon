@@ -10,8 +10,9 @@ import type {
   Memory,
   State,
   HandlerCallback,
+  ActionResult,
 } from '@elizaos/core';
-import { BabylonApiClient } from '../api-client';
+import type { BabylonClientService } from '../services/services';
 import type { TradeRequest } from '../types';
 
 /**
@@ -30,15 +31,15 @@ export const buySharesAction: Action = {
   ],
   description: 'Buy shares in a prediction market',
   validate: async (runtime: IAgentRuntime, message: Memory): Promise<boolean> => {
-    // Check if agent has Babylon client configured
-    const client = runtime.clients.babylonClient as BabylonApiClient;
-    if (!client) {
-      console.error('Babylon client not configured');
+    // Check if agent has Babylon service configured
+    const babylonService = runtime.getService<BabylonClientService>('babylon');
+    if (!babylonService) {
+      runtime.logger.error('Babylon service not configured');
       return false;
     }
 
     // Extract market intent from message
-    const content = message.content.text.toLowerCase();
+    const content = message.content.text?.toLowerCase() || '';
     const hasBuyIntent =
       content.includes('buy') ||
       content.includes('bet') ||
@@ -55,19 +56,30 @@ export const buySharesAction: Action = {
     state?: State,
     options?: { [key: string]: unknown },
     callback?: HandlerCallback
-  ): Promise<unknown> => {
-    const client = runtime.clients.babylonClient as BabylonApiClient;
+  ): Promise<ActionResult> => {
+    const babylonService = runtime.getService<BabylonClientService>('babylon');
 
-    if (!client) {
+    if (!babylonService) {
+      const errorResult: ActionResult = {
+        success: false,
+        text: 'Error: Babylon service not configured',
+        error: 'Babylon service not configured',
+      };
       callback?.({
-        text: 'Error: Babylon client not configured',
+        text: errorResult.text,
         action: 'BUY_SHARES',
-        source: message.content.source,
       });
-      return false;
+      return errorResult;
     }
 
+    const client = babylonService.getClient();
+
     try {
+      // Log user intent for debugging (message content may provide context)
+      if (message.content.text) {
+        runtime.logger.debug(`BUY_SHARES triggered by: ${message.content.text.substring(0, 100)}`);
+      }
+
       // Extract trade parameters from message or state
       const tradeRequest: TradeRequest = {
         marketId: (state as any)?.marketId || (options as any)?.marketId,
@@ -77,27 +89,35 @@ export const buySharesAction: Action = {
 
       // Validate parameters
       if (!tradeRequest.marketId) {
-        callback?.({
+        const errorResult: ActionResult = {
+          success: false,
           text: 'Error: No market specified for trade',
+          error: 'No market specified',
+        };
+        callback?.({
+          text: errorResult.text,
           action: 'BUY_SHARES',
-          source: message.content.source,
         });
-        return false;
+        return errorResult;
       }
 
       // Check wallet balance
       const wallet = await client.getWallet();
       if (!wallet || wallet.availableBalance < tradeRequest.amount) {
-        callback?.({
+        const errorResult: ActionResult = {
+          success: false,
           text: `Insufficient balance. Available: $${wallet?.availableBalance || 0}, Required: $${tradeRequest.amount}`,
+          error: 'Insufficient balance',
+        };
+        callback?.({
+          text: errorResult.text,
           action: 'BUY_SHARES',
-          source: message.content.source,
         });
-        return false;
+        return errorResult;
       }
 
       // Execute trade
-      console.log(`Buying ${tradeRequest.side} shares for $${tradeRequest.amount} on market ${tradeRequest.marketId}`);
+      runtime.logger.info(`Buying ${tradeRequest.side} shares for $${tradeRequest.amount} on market ${tradeRequest.marketId}`);
       const result = await client.buyShares(tradeRequest);
 
       if (result.success) {
@@ -106,39 +126,50 @@ export const buySharesAction: Action = {
         callback?.({
           text: responseText,
           action: 'BUY_SHARES',
-          source: message.content.source,
           data: result,
         });
 
-        return true;
+        return {
+          success: true,
+          text: responseText,
+          data: result,
+        };
       } else {
-        callback?.({
+        const errorResult: ActionResult = {
+          success: false,
           text: `❌ Trade failed: ${result.error}`,
+          error: result.error,
+        };
+        callback?.({
+          text: errorResult.text,
           action: 'BUY_SHARES',
-          source: message.content.source,
         });
-        return false;
+        return errorResult;
       }
     } catch (error) {
-      console.error('Error in buySharesAction:', error);
-      callback?.({
+      runtime.logger.error(`Error in buySharesAction: ${error instanceof Error ? error.message : String(error)}`);
+      const errorResult: ActionResult = {
+        success: false,
         text: `Error executing trade: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error: error instanceof Error ? error : new Error('Unknown error'),
+      };
+      callback?.({
+        text: errorResult.text,
         action: 'BUY_SHARES',
-        source: message.content.source,
       });
-      return false;
+      return errorResult;
     }
   },
   examples: [
     [
       {
-        user: '{{user1}}',
+        name: '{{name1}}',
         content: {
           text: 'Buy YES shares on this market for $50',
         },
       },
       {
-        user: '{{agent}}',
+        name: '{{agent}}',
         content: {
           text: 'Analyzing market... Executing trade for $50 on YES side.',
           action: 'BUY_SHARES',
@@ -147,13 +178,13 @@ export const buySharesAction: Action = {
     ],
     [
       {
-        user: '{{user1}}',
+        name: '{{name1}}',
         content: {
           text: 'I want to bet $100 on NO for question 42',
         },
       },
       {
-        user: '{{agent}}',
+        name: '{{agent}}',
         content: {
           text: 'Placing bet of $100 on NO side for market 42.',
           action: 'BUY_SHARES',
@@ -179,10 +210,10 @@ export const sellSharesAction: Action = {
   ],
   description: 'Sell shares and close position in a prediction market',
   validate: async (runtime: IAgentRuntime, message: Memory): Promise<boolean> => {
-    const client = runtime.clients.babylonClient as BabylonApiClient;
-    if (!client) return false;
+    const babylonService = runtime.getService<BabylonClientService>('babylon');
+    if (!babylonService) return false;
 
-    const content = message.content.text.toLowerCase();
+    const content = message.content.text?.toLowerCase() || '';
     const hasSellIntent =
       content.includes('sell') ||
       content.includes('close position') ||
@@ -198,29 +229,38 @@ export const sellSharesAction: Action = {
     state?: State,
     options?: { [key: string]: unknown },
     callback?: HandlerCallback
-  ): Promise<unknown> => {
-    const client = runtime.clients.babylonClient as BabylonApiClient;
+  ): Promise<ActionResult> => {
+    const babylonService = runtime.getService<BabylonClientService>('babylon');
 
-    if (!client) {
-      callback?.({
-        text: 'Error: Babylon client not configured',
-        action: 'SELL_SHARES',
-        source: message.content.source,
-      });
-      return false;
+    if (!babylonService) {
+      const errorResult: ActionResult = {
+        success: false,
+        text: 'Error: Babylon service not configured',
+        error: 'Babylon service not configured',
+      };
+      callback?.({ text: errorResult.text, action: 'SELL_SHARES' });
+      return errorResult;
     }
 
+    const client = babylonService.getClient();
+
     try {
+      // Log user intent for debugging (message content may provide context)
+      if (message.content.text) {
+        runtime.logger.debug(`SELL_SHARES triggered by: ${message.content.text.substring(0, 100)}`);
+      }
+
       const marketId = (state as any)?.marketId || (options as any)?.marketId;
       const shares = (state as any)?.shares || (options as any)?.shares;
 
       if (!marketId) {
-        callback?.({
+        const errorResult: ActionResult = {
+          success: false,
           text: 'Error: No market specified',
-          action: 'SELL_SHARES',
-          source: message.content.source,
-        });
-        return false;
+          error: 'No market specified',
+        };
+        callback?.({ text: errorResult.text, action: 'SELL_SHARES' });
+        return errorResult;
       }
 
       // Get current position
@@ -228,17 +268,18 @@ export const sellSharesAction: Action = {
       const position = positions.find(p => p.marketId === marketId);
 
       if (!position) {
-        callback?.({
+        const errorResult: ActionResult = {
+          success: false,
           text: `No position found for market ${marketId}`,
-          action: 'SELL_SHARES',
-          source: message.content.source,
-        });
-        return false;
+          error: 'Position not found',
+        };
+        callback?.({ text: errorResult.text, action: 'SELL_SHARES' });
+        return errorResult;
       }
 
       // Sell shares
       const sharesToSell = (shares || position.shares) as number;
-      console.log(`Selling ${sharesToSell} shares from market ${marketId}`);
+      runtime.logger.info(`Selling ${sharesToSell} shares from market ${marketId}`);
       const result = await client.sellShares(marketId, sharesToSell);
 
       if (result.success) {
@@ -247,39 +288,44 @@ export const sellSharesAction: Action = {
         callback?.({
           text: responseText,
           action: 'SELL_SHARES',
-          source: message.content.source,
           data: result,
         });
 
-        return true;
+        return {
+          success: true,
+          text: responseText,
+          data: result,
+        };
       } else {
-        callback?.({
+        const errorResult: ActionResult = {
+          success: false,
           text: `❌ Sale failed: ${result.error}`,
-          action: 'SELL_SHARES',
-          source: message.content.source,
-        });
-        return false;
+          error: result.error,
+        };
+        callback?.({ text: errorResult.text, action: 'SELL_SHARES' });
+        return errorResult;
       }
     } catch (error) {
-      console.error('Error in sellSharesAction:', error);
-      callback?.({
+      runtime.logger.error(`Error in sellSharesAction: ${error instanceof Error ? error.message : String(error)}`);
+      const errorResult: ActionResult = {
+        success: false,
         text: `Error selling shares: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        action: 'SELL_SHARES',
-        source: message.content.source,
-      });
-      return false;
+        error: error instanceof Error ? error : new Error('Unknown error'),
+      };
+      callback?.({ text: errorResult.text, action: 'SELL_SHARES' });
+      return errorResult;
     }
   },
   examples: [
     [
       {
-        user: '{{user1}}',
+        name: '{{name1}}',
         content: {
           text: 'Sell my position on market 42',
         },
       },
       {
-        user: '{{agent}}',
+        name: '{{agent}}',
         content: {
           text: 'Closing position on market 42...',
           action: 'SELL_SHARES',
@@ -304,10 +350,10 @@ export const checkWalletAction: Action = {
   ],
   description: 'Check wallet balance and available funds',
   validate: async (runtime: IAgentRuntime, message: Memory): Promise<boolean> => {
-    const client = runtime.clients.babylonClient as BabylonApiClient;
-    if (!client) return false;
+    const babylonService = runtime.getService<BabylonClientService>('babylon');
+    if (!babylonService) return false;
 
-    const content = message.content.text.toLowerCase();
+    const content = message.content.text?.toLowerCase() || '';
     const hasWalletIntent =
       content.includes('balance') ||
       content.includes('wallet') ||
@@ -322,60 +368,98 @@ export const checkWalletAction: Action = {
     state?: State,
     options?: { [key: string]: unknown },
     callback?: HandlerCallback
-  ): Promise<unknown> => {
-    const client = runtime.clients.babylonClient as BabylonApiClient;
+  ): Promise<ActionResult> => {
+    const babylonService = runtime.getService<BabylonClientService>('babylon');
 
-    if (!client) {
-      callback?.({
-        text: 'Error: Babylon client not configured',
-        action: 'CHECK_WALLET',
-        source: message.content.source,
-      });
-      return false;
+    if (!babylonService) {
+      const errorResult: ActionResult = {
+        success: false,
+        text: 'Error: Babylon service not configured',
+        error: 'Babylon service not configured',
+      };
+      callback?.({ text: errorResult.text, action: 'CHECK_WALLET' });
+      return errorResult;
     }
 
+    const client = babylonService.getClient();
+
     try {
+      // Extract display preferences from options
+      const showDetailed = (options as any)?.detailed === true;
+      const includeTradingContext = (options as any)?.includeTradingContext === true;
+
+      // Check state for trading context
+      const inTradingFlow = (state as any)?.inTradingFlow === true;
+      const pendingTradeAmount = (state as any)?.pendingTradeAmount as number | undefined;
+
+      // Extract any specific request from message (e.g., "detailed balance")
+      const messageText = message.content.text?.toLowerCase() || '';
+      const detailedRequest = messageText.includes('detail') || showDetailed;
+
       const wallet = await client.getWallet();
 
       if (!wallet) {
-        callback?.({
+        const errorResult: ActionResult = {
+          success: false,
           text: 'Error fetching wallet information',
-          action: 'CHECK_WALLET',
-          source: message.content.source,
-        });
-        return false;
+          error: 'Wallet information unavailable',
+        };
+        callback?.({ text: errorResult.text, action: 'CHECK_WALLET' });
+        return errorResult;
       }
 
-      const responseText = `💰 Wallet Status:\nTotal Balance: $${wallet.balance.toFixed(2)}\nAvailable: $${wallet.availableBalance.toFixed(2)}\nLocked in positions: $${wallet.lockedBalance.toFixed(2)}`;
+      // Build response with optional details
+      let responseText = `💰 Wallet Status:\nTotal Balance: $${wallet.balance.toFixed(2)}\nAvailable: $${wallet.availableBalance.toFixed(2)}\nLocked in positions: $${wallet.lockedBalance.toFixed(2)}`;
+
+      // Add detailed analysis if requested
+      if (detailedRequest && wallet.balance > 0) {
+        const utilizationRate = ((wallet.lockedBalance / wallet.balance) * 100).toFixed(1);
+        responseText += `\n\nDetailed Analysis:\n- Capital Utilization: ${utilizationRate}%\n- Available for Trading: ${((wallet.availableBalance / wallet.balance) * 100).toFixed(1)}%`;
+      }
+
+      // Add trading context if in trading flow
+      if ((inTradingFlow || includeTradingContext) && pendingTradeAmount) {
+        const canAfford = wallet.availableBalance >= pendingTradeAmount;
+        const remainingAfterTrade = wallet.availableBalance - pendingTradeAmount;
+
+        responseText += `\n\n🔄 Trading Context:\n- Pending Trade: $${pendingTradeAmount.toFixed(2)}`;
+        responseText += canAfford
+          ? `\n- Status: ✅ Sufficient funds\n- Remaining after trade: $${remainingAfterTrade.toFixed(2)}`
+          : `\n- Status: ❌ Insufficient funds (need $${(pendingTradeAmount - wallet.availableBalance).toFixed(2)} more)`;
+      }
 
       callback?.({
         text: responseText,
         action: 'CHECK_WALLET',
-        source: message.content.source,
         data: wallet,
       });
 
-      return true;
+      return {
+        success: true,
+        text: responseText,
+        data: wallet,
+      };
     } catch (error) {
-      console.error('Error in checkWalletAction:', error);
-      callback?.({
+      runtime.logger.error(`Error in checkWalletAction: ${error instanceof Error ? error.message : String(error)}`);
+      const errorResult: ActionResult = {
+        success: false,
         text: `Error checking wallet: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        action: 'CHECK_WALLET',
-        source: message.content.source,
-      });
-      return false;
+        error: error instanceof Error ? error : new Error('Unknown error'),
+      };
+      callback?.({ text: errorResult.text, action: 'CHECK_WALLET' });
+      return errorResult;
     }
   },
   examples: [
     [
       {
-        user: '{{user1}}',
+        name: '{{name1}}',
         content: {
           text: 'How much money do I have?',
         },
       },
       {
-        user: '{{agent}}',
+        name: '{{agent}}',
         content: {
           text: 'Checking wallet...',
           action: 'CHECK_WALLET',

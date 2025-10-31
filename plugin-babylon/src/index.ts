@@ -17,7 +17,7 @@ import { BabylonApiClient } from './api-client';
 import { babylonGameActions } from './actions/actions';
 import { babylonGameEvaluators } from './evaluators/evaluators';
 import { babylonGameProviders } from './providers/providers';
-import { BabylonTradingService } from './services/services';
+import { BabylonClientService, BabylonTradingService } from './services/services';
 import type { AgentConfig } from './types';
 
 // Export all components
@@ -37,7 +37,7 @@ export * from './environment';
  * - 3 Actions: BUY_SHARES, SELL_SHARES, CHECK_WALLET
  * - 2 Evaluators: MARKET_ANALYSIS, PORTFOLIO_MANAGEMENT
  * - 3 Providers: Market data, wallet status, position summary
- * - 1 Service: Automated trading and portfolio monitoring
+ * - 2 Services: API client management and automated trading
  *
  * @example
  * ```typescript
@@ -56,7 +56,7 @@ export const predictionMarketsPlugin: Plugin = {
   actions: babylonGameActions,
   evaluators: babylonGameEvaluators,
   providers: babylonGameProviders,
-  services: [BabylonTradingService as any],
+  services: [BabylonClientService, BabylonTradingService],
 };
 
 /**
@@ -68,14 +68,25 @@ export const babylonGamePlugin = predictionMarketsPlugin;
 /**
  * Create Babylon API Client
  *
+ * @deprecated BabylonClientService now manages the API client automatically.
+ * The service is registered when the plugin loads and handles client lifecycle.
+ *
  * Factory function to create an authenticated API client instance.
- * The client should be registered in runtime.clients for use by actions and providers.
+ * For direct API access outside of the plugin, create a client instance directly:
  *
  * @param config - Agent configuration including API URL, auth, and trading limits
  * @returns Configured BabylonApiClient instance
  *
  * @example
  * ```typescript
+ * // Preferred: Use BabylonClientService (automatic)
+ * const runtime = new AgentRuntime({
+ *   character,
+ *   plugins: [predictionMarketsPlugin],
+ * });
+ * // Access via: runtime.getService<BabylonClientService>('babylon')
+ *
+ * // Legacy: Direct client creation (for external use only)
  * const client = createBabylonClient({
  *   characterId: 'alice',
  *   apiBaseUrl: 'http://localhost:3000',
@@ -85,7 +96,6 @@ export const babylonGamePlugin = predictionMarketsPlugin;
  *     minConfidence: 0.6
  *   }
  * });
- * runtime.clients.babylonClient = client;
  * ```
  */
 export function createBabylonClient(config: AgentConfig): BabylonApiClient {

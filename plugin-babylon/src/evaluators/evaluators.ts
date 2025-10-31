@@ -10,7 +10,7 @@ import type {
   Memory,
   State,
 } from '@elizaos/core';
-import { BabylonApiClient } from '../api-client';
+import type { BabylonClientService } from '../services/services';
 import type { BabylonMarket, MarketAnalysis } from '../types';
 
 /**
@@ -28,10 +28,10 @@ export const marketAnalysisEvaluator: Evaluator = {
   description: 'Analyze prediction markets and provide trading recommendations',
   validate: async (runtime: IAgentRuntime, message: Memory): Promise<boolean> => {
     // Always validate if we have markets to analyze
-    const client = runtime.clients.babylonClient as BabylonApiClient;
-    if (!client) return false;
+    const babylonService = runtime.getService<BabylonClientService>('babylon');
+    if (!babylonService) return false;
 
-    const content = message.content.text.toLowerCase();
+    const content = message.content.text?.toLowerCase() || '';
     const hasAnalysisIntent =
       content.includes('analyze') ||
       content.includes('what do you think') ||
@@ -45,20 +45,19 @@ export const marketAnalysisEvaluator: Evaluator = {
     runtime: IAgentRuntime,
     message: Memory,
     state?: State
-  ): Promise<unknown> => {
-    const client = runtime.clients.babylonClient as BabylonApiClient;
+  ): Promise<void> => {
+    const babylonService = runtime.getService<BabylonClientService>('babylon');
 
-    if (!client) {
-      return {
-        ...state,
-        analysis: null,
-        error: 'Babylon client not configured',
-      };
+    if (!babylonService) {
+      runtime.logger.error('Babylon service not configured');
+      return;
     }
+
+    const client = babylonService.getClient();
 
     try {
       // Get market to analyze
-      const marketId = (state as any)?.marketId || (message.content as any).metadata?.marketId;
+      const marketId = (state as any)?.marketId || (message.content as any)?.metadata?.marketId;
       const minConfidence = (state as any)?.minConfidence || 0.6;
 
       if (!marketId) {
@@ -66,11 +65,9 @@ export const marketAnalysisEvaluator: Evaluator = {
         const markets = await client.getActiveMarkets();
 
         if (markets.length === 0) {
-          return {
-            ...(state || {}),
-            analysis: null,
-            error: 'No active markets found',
-          };
+          (state as any).analysis = null;
+          (state as any).error = 'No active markets found';
+          return;
         }
 
         // Analyze each market and return top opportunities
@@ -86,51 +83,40 @@ export const marketAnalysisEvaluator: Evaluator = {
         // Sort by confidence and return top 3
         analyses.sort((a, b) => b.confidence - a.confidence);
 
-        return {
-          ...(state || {}),
-          analyses: analyses.slice(0, 3),
-          marketCount: markets.length,
-        };
+        (state as any).analyses = analyses.slice(0, 3);
+        (state as any).marketCount = markets.length;
       } else {
         // Analyze specific market
         const market = await client.getMarket(marketId);
 
         if (!market) {
-          return {
-            ...(state || {}),
-            analysis: null,
-            error: `Market ${marketId} not found`,
-          };
+          (state as any).analysis = null;
+          (state as any).error = `Market ${marketId} not found`;
+          return;
         }
 
         const analysis = await analyzeMarket(runtime, market);
 
-        return {
-          ...state,
-          analysis,
-          market,
-        };
+        (state as any).analysis = analysis;
+        (state as any).market = market;
       }
     } catch (error) {
-      console.error('Error in marketAnalysisEvaluator:', error);
-      return {
-        ...state,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
+      runtime.logger.error(`Error in marketAnalysisEvaluator: ${error instanceof Error ? error.message : String(error)}`);
+      (state as any).error = error instanceof Error ? error.message : 'Unknown error';
     }
   },
   examples: [
     {
-      context: 'User asks for market analysis',
+      prompt: 'User asks for market analysis',
       messages: [
         {
-          user: '{{user1}}',
+          name: '{{name1}}',
           content: {
             text: 'What do you think about this market?',
           },
         },
         {
-          user: '{{agent}}',
+          name: '{{agent}}',
           content: {
             text: 'Let me analyze the market dynamics...',
           },
@@ -158,6 +144,12 @@ async function analyzeMarket(
   const noPrice = market.noPrice;
   const totalVolume = market.totalVolume;
   const liquidityScore = Math.min(totalVolume / 1000, 1.0); // Higher volume = more liquid
+
+  // Validate price consistency (yes + no should equal ~1.0)
+  const priceSum = yesPrice + noPrice;
+  if (Math.abs(priceSum - 1.0) > 0.01) {
+    runtime.logger.warn(`Price inconsistency in market ${market.id}: yes=${yesPrice}, no=${noPrice}, sum=${priceSum}`);
+  }
 
   // Price momentum (simplified - would be better with historical data)
   const priceBias = yesPrice > 0.5 ? 'yes' : 'no';
@@ -242,10 +234,10 @@ export const portfolioManagementEvaluator: Evaluator = {
   ],
   description: 'Monitor positions and manage portfolio risk',
   validate: async (runtime: IAgentRuntime, message: Memory): Promise<boolean> => {
-    const client = runtime.clients.babylonClient as BabylonApiClient;
-    if (!client) return false;
+    const babylonService = runtime.getService<BabylonClientService>('babylon');
+    if (!babylonService) return false;
 
-    const content = message.content.text.toLowerCase();
+    const content = message.content.text?.toLowerCase() || '';
     const hasPortfolioIntent =
       content.includes('portfolio') ||
       content.includes('positions') ||
@@ -258,26 +250,29 @@ export const portfolioManagementEvaluator: Evaluator = {
     runtime: IAgentRuntime,
     message: Memory,
     state?: State
-  ): Promise<unknown> => {
-    const client = runtime.clients.babylonClient as BabylonApiClient;
+  ): Promise<void> => {
+    const babylonService = runtime.getService<BabylonClientService>('babylon');
 
-    if (!client) {
-      return {
-        ...state,
-        error: 'Babylon client not configured',
-      };
+    if (!babylonService) {
+      runtime.logger.error('Babylon service not configured');
+      return;
     }
 
+    const client = babylonService.getClient();
+
     try {
+      // Extract any specific focus from message (e.g., "show risk" or "check exposure")
+      const messageText = message.content.text?.toLowerCase() || '';
+      const focusOnRisk = messageText.includes('risk');
+      const focusOnPnL = messageText.includes('profit') || messageText.includes('loss') || messageText.includes('pnl');
+
       // Get current positions
       const positions = await client.getPositions();
       const wallet = await client.getWallet();
 
       if (!wallet) {
-        return {
-          ...state,
-          error: 'Unable to fetch wallet information',
-        };
+        (state as any).error = 'Unable to fetch wallet information';
+        return;
       }
 
       // Calculate portfolio metrics
@@ -290,9 +285,10 @@ export const portfolioManagementEvaluator: Evaluator = {
       const exposureRatio = totalPositionValue / (wallet.balance || 1);
       const winRate = positions.length > 0 ? profitablePositions / positions.length : 0;
 
-      // Generate recommendations
+      // Generate recommendations (prioritize based on user focus)
       const recommendations: string[] = [];
 
+      // Risk-focused recommendations (prioritize if user asked about risk)
       if (exposureRatio > 0.8) {
         recommendations.push('⚠️ High exposure: Consider reducing position sizes');
       }
@@ -301,48 +297,49 @@ export const portfolioManagementEvaluator: Evaluator = {
         recommendations.push('📉 More losers than winners: Review trading strategy');
       }
 
+      // PnL-focused recommendations (prioritize if user asked about profit/loss)
       if (totalPnL < -wallet.balance * 0.1) {
-        recommendations.push('🚨 Significant losses: Consider implementing stop-losses');
+        const priority = focusOnPnL ? '🚨🚨' : '🚨';
+        recommendations.push(`${priority} Significant losses: Consider implementing stop-losses`);
       }
 
       if (positions.length === 0 && wallet.availableBalance > 50) {
         recommendations.push('💡 No active positions: Consider opening new trades');
       }
 
-      return {
-        ...state,
-        positions,
-        wallet,
-        portfolioMetrics: {
-          totalPositionValue,
-          totalPnL,
-          profitablePositions,
-          losingPositions,
-          exposureRatio,
-          winRate,
-        },
-        recommendations,
+      // Add risk summary if user focused on risk
+      if (focusOnRisk && exposureRatio > 0) {
+        recommendations.push(`📊 Current risk level: ${(exposureRatio * 100).toFixed(1)}% of balance in positions`);
+      }
+
+      (state as any).positions = positions;
+      (state as any).wallet = wallet;
+      (state as any).portfolioMetrics = {
+        totalPositionValue,
+        totalPnL,
+        profitablePositions,
+        losingPositions,
+        exposureRatio,
+        winRate,
       };
+      (state as any).recommendations = recommendations;
     } catch (error) {
-      console.error('Error in portfolioManagementEvaluator:', error);
-      return {
-        ...state,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
+      runtime.logger.error(`Error in portfolioManagementEvaluator: ${error instanceof Error ? error.message : String(error)}`);
+      (state as any).error = error instanceof Error ? error.message : 'Unknown error';
     }
   },
   examples: [
     {
-      context: 'User requests portfolio review',
+      prompt: 'User requests portfolio review',
       messages: [
         {
-          user: '{{user1}}',
+          name: '{{name1}}',
           content: {
             text: 'How is my portfolio doing?',
           },
         },
         {
-          user: '{{agent}}',
+          name: '{{agent}}',
           content: {
             text: 'Analyzing your positions and portfolio health...',
           },

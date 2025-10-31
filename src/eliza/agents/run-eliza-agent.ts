@@ -12,9 +12,8 @@ import {
   type Character,
   type IAgentRuntime,
 } from '@elizaos/core';
-import { predictionMarketsPlugin, createBabylonClient } from '../../../plugin-babylon/src';
-import type { AgentConfig } from '../../../plugin-babylon/src/types';
-import { createDatabaseAdapter } from '@elizaos/plugin-sql';
+import { predictionMarketsPlugin } from '../../../plugin-babylon/src';
+import createDatabaseAdapter from '@elizaos/plugin-sql';
 // @ts-ignore - @elizaos/plugin-bootstrap doesn't have TypeScript declarations yet
 import bootstrapPlugin from '@elizaos/plugin-bootstrap';
 import * as fs from 'fs';
@@ -134,41 +133,26 @@ async function loadCharacter(characterPath?: string): Promise<Character> {
 
 /**
  * Initialize character with Babylon plugin
- * This follows ElizaOS 1.6.3 ProjectAgent pattern
+ * This follows ElizaOS 1.6.3 Service pattern
+ *
+ * Configuration is passed via character.settings, which BabylonClientService reads
+ * during its start() method when the plugin loads
  */
 async function initCharacter({ runtime, options }: { runtime: IAgentRuntime; options: CLIOptions }) {
   logger.info('Initializing Babylon trading character');
   logger.info({ name: runtime.character.name }, 'Character:');
 
-  // Configure Babylon plugin
-  const babylonConfig: AgentConfig = {
-    characterId: runtime.character.name || 'agent',
-    apiBaseUrl: options.apiUrl || 'http://localhost:3000',
-    authToken: options.authToken,
-    tradingLimits: {
-      maxTradeSize: options.maxTradeSize || 100,
-      maxPositionSize: 500,
-      minConfidence: 0.6,
-    },
-  };
+  // Note: BabylonClientService.start() automatically reads from character.settings
+  // The service was already initialized when plugins loaded during runtime creation
 
-  // Create and register Babylon client
-  const babylonClient = createBabylonClient(babylonConfig);
-
-  // Register client in runtime (if runtime supports it)
-  if (runtime && typeof runtime === 'object') {
-    (runtime as any).clients = (runtime as any).clients || {};
-    (runtime as any).clients.babylonClient = babylonClient;
-  }
-
-  logger.info('✅ Babylon client initialized');
+  logger.info('✅ Babylon services initialized via plugin');
 
   // Enable auto-trading if requested
   if (options.autoTrade) {
     logger.info('📊 Auto-trading enabled via CLI flag');
-    const tradingService = runtime.getService('babylon_trading' as any);
+    const tradingService = runtime.getService('babylon_trading');
     if (tradingService && 'enableAutoTrading' in tradingService) {
-      (tradingService as any).enableAutoTrading(runtime);
+      (tradingService as any).enableAutoTrading();
     }
   }
 }
@@ -189,16 +173,27 @@ async function main() {
   let character = await loadCharacter(options.character);
   console.log(`✅ Loaded character: ${character.name}\n`);
 
-  // Add required plugins to character
-  console.log('🔌 Adding plugins to character...');
+  // Add Babylon configuration to character settings
+  // BabylonClientService.start() will read these during plugin initialization
+  console.log('⚙️  Configuring Babylon settings...');
   character = {
     ...character,
+    settings: {
+      ...(character.settings || {}),
+      babylonApiUrl: options.apiUrl || 'http://localhost:3000',
+      babylonAuthToken: options.authToken,
+      babylonMaxTradeSize: options.maxTradeSize || 100,
+      babylonMaxPositionSize: 500,
+      babylonMinConfidence: 0.6,
+      autoTrading: options.autoTrade || false,
+    },
     plugins: [
       bootstrapPlugin,
       predictionMarketsPlugin,
       ...(Array.isArray(character.plugins) ? character.plugins : []),
     ] as any,
   };
+  console.log('✅ Babylon settings configured\n');
 
   // Initialize database
   console.log('💾 Initializing database...');
@@ -240,7 +235,7 @@ async function main() {
   console.log('⚙️  Creating agent runtime...');
   const runtime = new AgentRuntime({
     character,
-    databaseAdapter,
+    adapter: databaseAdapter,
     token,
     agentId,
   });
@@ -300,9 +295,9 @@ process.on('SIGINT', () => {
 });
 
 // Run if called directly
+// @ts-ignore - Bun-specific import.meta support
 const isMainModule =
   // Bun runtime
-  // @ts-ignore - Bun-specific import.meta.main
   (typeof import.meta.main !== 'undefined' && import.meta.main) ||
   // Node/tsx runtime
   (import.meta.url === `file://${process.argv[1]}`);

@@ -8,7 +8,7 @@
  */
 
 import type { Provider, IAgentRuntime, Memory, State, ProviderResult } from '@elizaos/core';
-import { BabylonApiClient } from '../api-client';
+import type { BabylonClientService } from '../services/services';
 
 /**
  * Market Data Provider
@@ -22,14 +22,15 @@ export const marketDataProvider: Provider = {
   name: 'marketDataProvider',
   get: async (runtime: IAgentRuntime, _message: Memory, _state: State): Promise<ProviderResult> => {
     try {
-      // Get client from runtime services or state
-      const client = (runtime as any).babylonClient as BabylonApiClient;
-      if (!client) {
+      // Get client from BabylonClientService
+      const babylonService = runtime.getService<BabylonClientService>('babylon');
+      if (!babylonService) {
         return {
-          text: 'Market data unavailable - client not configured'
+          text: 'Market data unavailable - Babylon service not configured'
         };
       }
 
+      const client = babylonService.getClient();
       const markets = await client.getActiveMarkets();
 
       if (markets.length === 0) {
@@ -56,7 +57,7 @@ export const marketDataProvider: Provider = {
         }
       };
     } catch (error) {
-      runtime.logger.error('Error in marketDataProvider:', error);
+      runtime.logger.error('Error in marketDataProvider:', error instanceof Error ? error.message : String(error));
       return {
         text: 'Market data temporarily unavailable'
       };
@@ -74,13 +75,14 @@ export const walletStatusProvider: Provider = {
   name: 'walletStatusProvider',
   get: async (runtime: IAgentRuntime, _message: Memory, _state: State): Promise<ProviderResult> => {
     try {
-      const client = (runtime as any).babylonClient as BabylonApiClient;
-      if (!client) {
+      const babylonService = runtime.getService<BabylonClientService>('babylon');
+      if (!babylonService) {
         return {
-          text: 'Wallet status unavailable - client not configured'
+          text: 'Wallet status unavailable - Babylon service not configured'
         };
       }
 
+      const client = babylonService.getClient();
       const wallet = await client.getWallet();
 
       if (!wallet) {
@@ -102,7 +104,7 @@ export const walletStatusProvider: Provider = {
         data: { wallet }
       };
     } catch (error) {
-      runtime.logger.error('Error in walletStatusProvider:', error);
+      runtime.logger.error('Error in walletStatusProvider:', error instanceof Error ? error.message : String(error));
       return {
         text: 'Wallet status temporarily unavailable'
       };
@@ -123,13 +125,14 @@ export const positionSummaryProvider: Provider = {
   name: 'positionSummaryProvider',
   get: async (runtime: IAgentRuntime, _message: Memory, _state: State): Promise<ProviderResult> => {
     try {
-      const client = (runtime as any).babylonClient as BabylonApiClient;
-      if (!client) {
+      const babylonService = runtime.getService<BabylonClientService>('babylon');
+      if (!babylonService) {
         return {
-          text: 'Position data unavailable - client not configured'
+          text: 'Position data unavailable - Babylon service not configured'
         };
       }
 
+      const client = babylonService.getClient();
       const positions = await client.getPositions();
 
       if (positions.length === 0) {
@@ -161,7 +164,7 @@ export const positionSummaryProvider: Provider = {
         }
       };
     } catch (error) {
-      runtime.logger.error('Error in positionSummaryProvider:', error);
+      runtime.logger.error('Error in positionSummaryProvider:', error instanceof Error ? error.message : String(error));
       return {
         text: 'Position data temporarily unavailable'
       };

@@ -69,7 +69,7 @@ export class AgentAuthService {
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json() as { error?: string };
         console.error('Agent authentication failed:', error.error || response.statusText);
         return null;
       }
