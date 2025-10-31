@@ -30,11 +30,32 @@ export function getPerpsEngine(): PerpetualsEngine {
 async function initializePerpsEngine() {
   if (!perpsEngineInstance) return;
   
-  try {
-    const organizations = await db.getAllOrganizations();
-    perpsEngineInstance.initializeMarkets(organizations as any);
-  } catch (error) {
-    console.error('Failed to load organizations for perps engine:', error);
+  const maxRetries = 3;
+  let retries = 0;
+  
+  while (retries < maxRetries) {
+    try {
+      const organizations = await db.getAllOrganizations();
+      
+      if (!organizations || organizations.length === 0) {
+        throw new Error('No organizations found in database');
+      }
+      
+      perpsEngineInstance.initializeMarkets(organizations);
+      console.log('✅ PerpetualsEngine initialized successfully');
+      return;
+    } catch (error) {
+      retries++;
+      console.error(`Failed to initialize PerpsEngine (attempt ${retries}/${maxRetries}):`, error);
+      
+      if (retries >= maxRetries) {
+        console.error('❌ CRITICAL: PerpetualsEngine failed to initialize after max retries');
+        throw new Error('PerpetualsEngine initialization failed');
+      }
+      
+      // Wait before retrying (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+    }
   }
 }
 

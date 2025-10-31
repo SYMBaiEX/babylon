@@ -56,11 +56,18 @@ async function main() {
     console.log('🤖 Using OpenAI\n');
   }
 
-  // Create engine
+  // Create engine with A2A enabled
   const engine = new RealtimeGameEngine({
     tickIntervalMs: 60000, // 1 minute
     postsPerTick: 15, // Average 15 posts/minute
     historyDays: 30,
+    a2a: {
+      enabled: true, // Enable A2A protocol
+      port: 8080,
+      host: '0.0.0.0',
+      maxConnections: 1000,
+      enableBlockchain: false, // Optional blockchain integration
+    },
   });
 
   // Set up event listeners

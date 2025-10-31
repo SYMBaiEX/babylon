@@ -145,7 +145,12 @@ export class QuestionManager {
   ): string {
     const scenariosList = scenarios
       .map(
-        s => `\nScenario ${s.id}: ${s.title}\n${s.description}\nActors: ${s.mainActors.join(', ')}\n${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.join(', ')}` : ''}\n`
+        s => `
+Scenario ${s.id}: ${s.title}
+${s.description}
+Actors: ${s.mainActors.join(', ')}
+${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.join(', ')}` : ''}
+`
       )
       .join('\n');
 
@@ -202,8 +207,8 @@ export class QuestionManager {
    */
   async generateResolutionEvent(
     question: Question,
-    actors: SelectedActor[],
-    organizations: Organization[],
+    _actors: SelectedActor[],
+    _organizations: Organization[],
     recentEvents: DayTimeline[]
   ): Promise<string> {
     // Get context from recent events related to this question
@@ -217,25 +222,6 @@ export class QuestionManager {
         ? `Recent events: ${relatedEvents.map(e => e.description).join('; ')}`
         : 'No prior events';
 
-    // Build actor context for involved parties
-    const involvedActors = actors
-      .filter(a => a.role === 'main' || a.role === 'supporting')
-      .slice(0, 5)
-      .map(a => `${a.name} (${a.description})`)
-      .join(', ');
-
-    // Build organization context for involved companies
-    const involvedOrgs = organizations
-      .filter(o => o.type === 'company')
-      .slice(0, 5)
-      .map(o => `${o.name}`)
-      .join(', ');
-
-    const contextInfo =
-      involvedActors || involvedOrgs
-        ? `\n\nKEY ACTORS: ${involvedActors || 'None'}\nKEY COMPANIES: ${involvedOrgs || 'None'}`
-        : '';
-
     const outcomeContext = question.outcome 
       ? 'PROVES it happened/succeeded' 
       : 'PROVES it failed/was cancelled/did not happen';
@@ -244,7 +230,7 @@ export class QuestionManager {
       questionText: question.text,
       outcome: question.outcome ? 'YES' : 'NO',
       eventHistory,
-      contextInfo,
+      contextInfo: '',
       outcomeContext
     });
 

@@ -147,20 +147,22 @@ export function calculateUnrealizedPnL(
 }
 
 /**
- * Calculate funding payment
+ * Calculate funding payment for a single 8-hour period
  * Funding is paid every 8 hours based on the funding rate
+ * 
+ * @param positionSize - Position size in USD
+ * @param fundingRate - Annual funding rate (e.g., 0.01 = 1% per year)
+ * @returns Funding payment for one 8-hour period
  */
 export function calculateFundingPayment(
   positionSize: number,
-  fundingRate: number,
-  hoursHeld: number
+  fundingRate: number
 ): number {
-  // Funding rate is annual, convert to 8-hour periods
-  // Annual → 8-hour: rate / (365 * 3)
-  const periodsHeld = hoursHeld / 8;
-  const fundingPerPeriod = fundingRate / (365 * 3);
+  // Funding rate is annual, convert to single 8-hour period
+  // Annual → 8-hour: rate / (365.25 * 24 / 8) = rate / 1095.75
+  const fundingPerPeriod = fundingRate / 1095.75;
   
-  return positionSize * fundingPerPeriod * periodsHeld;
+  return positionSize * fundingPerPeriod;
 }
 
 /**

@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { Sidebar } from '@/components/shared/Sidebar'
 import { MobileHeader } from '@/components/shared/MobileHeader'
@@ -16,12 +16,13 @@ import { FeedAuthBanner } from '@/components/auth/FeedAuthBanner'
 export const metadata: Metadata = {
   title: 'Babylon - Prediction Market Game',
   description: 'A Twitter-style prediction market game with autonomous actors',
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: 'white' },
     { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },

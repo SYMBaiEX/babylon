@@ -55,10 +55,22 @@ export async function POST(request: NextRequest) {
       return errorResponse(`Market ${ticker} not found`, 404);
     }
 
-    // 5. Calculate margin required
+    // 5. Validate position size
+    const maxPositionSize = market.openInterest * 0.1; // Max 10% of open interest
+    const minPositionSize = market.minOrderSize;
+
+    if (size < minPositionSize) {
+      return errorResponse(`Position size too small. Minimum: $${minPositionSize}`, 400);
+    }
+
+    if (size > maxPositionSize && maxPositionSize > 0) {
+      return errorResponse(`Position size too large. Maximum: $${maxPositionSize.toFixed(2)}`, 400);
+    }
+
+    // 6. Calculate margin required
     const marginRequired = size / leverage;
 
-    // 6. Check balance
+    // 7. Check balance
     const hasFunds = await WalletService.hasSufficientBalance(user.userId, marginRequired);
 
     if (!hasFunds) {
@@ -69,7 +81,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 7. Debit margin from balance
+    // 8. Debit margin from balance
     await WalletService.debit(
       user.userId,
       marginRequired,
@@ -78,7 +90,7 @@ export async function POST(request: NextRequest) {
       undefined // Will set after position created
     );
 
-    // 8. Open position via engine
+    // 9. Open position via engine
     const position = perpsEngine.openPosition(user.userId, {
       ticker,
       side,
@@ -87,7 +99,7 @@ export async function POST(request: NextRequest) {
       orderType: 'market',
     });
 
-    // 9. Save position to database
+    // 10. Save position to database
     await prisma.perpPosition.create({
       data: {
         id: position.id,
@@ -106,7 +118,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // 10. Update transaction with position ID
+    // 11. Update transaction with position ID
     await prisma.balanceTransaction.updateMany({
       where: {
         userId: user.userId,

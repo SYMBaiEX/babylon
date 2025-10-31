@@ -20,6 +20,11 @@
     "db:reset": "bun run scripts/db.ts reset",
     "daemon": "bun run src/cli/realtime-daemon.ts",
     "daemon:verbose": "bun run src/cli/realtime-daemon.ts --verbose",
+    "agents": "bun run src/cli/autonomous-agents-demo.ts",
+    "agents:many": "bun run src/cli/autonomous-agents-demo.ts --count 5",
+    "eliza": "bun run src/eliza/agents/run-eliza-agent.ts",
+    "eliza:alice": "bun run src/eliza/agents/run-eliza-agent.ts",
+    "eliza:auto": "bun run src/eliza/agents/run-eliza-agent.ts --auto-trade",
     "generate": "bun run src/cli/generate-day.ts",
     "generate:init": "bun run src/cli/generate-day.ts --init",
     "generate:week": "bun run src/cli/generate-day.ts --days 7",
@@ -33,6 +38,9 @@
     "prisma:seed": "bun run prisma/seed.ts"
   },
   "dependencies": {
+    "@ai16z/eliza": "^0.1.6",
+    "@ai16z/plugin-bootstrap": "^0.1.6",
+    "@elizaos/adapter-sqlite": "^0.25.6-alpha.1",
     "@fal-ai/client": "^1.7.0",
     "@hookform/resolvers": "^5.2.2",
     "@prisma/client": "6.18.0",
@@ -46,6 +54,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
+    "ethers": "^6.15.0",
     "framer-motion": "12.23.24",
     "geist": "^1.5.1",
     "lucide-react": "^0.548.0",
@@ -68,6 +77,8 @@
     "zustand": "5.0.8"
   },
   "devDependencies": {
+    "@chainlink/contracts": "^1.5.0",
+    "@openzeppelin/contracts": "^5.4.0",
     "@tailwindcss/postcss": "^4.1.16",
     "@types/bun": "latest",
     "@types/node": "^24.9.1",
@@ -88,7 +99,11 @@
     "game-engine",
     "autonomous",
     "simulation",
-    "vibevm"
+    "vibevm",
+    "eliza",
+    "eliza-plugin",
+    "ai-agent",
+    "trading-bot"
   ],
   "prisma": {
     "seed": "bun run prisma/seed.ts"

@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, Briefcase, Users } from 'lucide-react'
+import { ArrowLeft, Calendar } from 'lucide-react'
 import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { SearchBar } from '@/components/shared/SearchBar'
@@ -11,8 +11,6 @@ import { FavoriteButton, InteractionBar } from '@/components/interactions'
 import { cn } from '@/lib/utils'
 import { useFontSize } from '@/contexts/FontSizeContext'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
-import { useGameStore } from '@/stores/gameStore'
-import type { FeedPost } from '@/shared/types'
 
 export default function ActorProfilePage() {
   const params = useParams()
@@ -20,7 +18,6 @@ export default function ActorProfilePage() {
   const { fontSize } = useFontSize()
   const [searchQuery, setSearchQuery] = useState('')
   const [tab, setTab] = useState<'posts' | 'replies'>('posts')
-  const { allGames } = useGameStore()
 
   // Enable error toast notifications
   useErrorToasts()
@@ -76,49 +73,33 @@ export default function ActorProfilePage() {
     loadActorInfo()
   }, [actorId])
 
-  // Get posts for this actor from all games
-  const actorPosts = useMemo(() => {
-    const posts: Array<{
-      post: FeedPost
-      gameId: string
-      gameName: string
-      timestampMs: number
-    }> = []
+  // Load posts from database API
+  const [actorPosts, setActorPosts] = useState<any[]>([])
+  
+  useEffect(() => {
+    const loadPosts = async () => {
+      try {
+        const response = await fetch(`/api/posts?actorId=${actorId}&limit=500`)
+        if (response.ok) {
+          const data = await response.json()
+          setActorPosts(data.posts || [])
+        }
+      } catch (error) {
+        console.error('Failed to load actor posts:', error)
+      }
+    }
+    
+    loadPosts()
+  }, [actorId])
 
-    allGames.forEach(game => {
-      game.timeline?.forEach(day => {
-        day.feedPosts?.forEach(post => {
-          if (post.author === actorId) {
-            const postDate = new Date(post.timestamp)
-            posts.push({
-              post,
-              gameId: game.id,
-              gameName: game.id,
-              timestampMs: postDate.getTime()
-            })
-          }
-        })
-      })
-    })
-
-    // Sort by timestamp (newest first)
-    return posts.sort((a, b) => b.timestampMs - a.timestampMs)
-  }, [allGames, actorId])
-
-  // Filter posts up to current time
-  const visiblePosts = useMemo(() => {
-    const now = new Date().getTime()
-    return actorPosts.filter(item => item.timestampMs <= now)
+  // Separate posts and replies
+  const originalPosts = useMemo(() => {
+    return actorPosts.filter(post => !post.replyTo)
   }, [actorPosts])
 
-  // Separate posts and replies (from visible posts only)
-  const originalPosts = useMemo(() => {
-    return visiblePosts.filter(item => !item.post.replyTo)
-  }, [visiblePosts])
-
   const replyPosts = useMemo(() => {
-    return visiblePosts.filter(item => item.post.replyTo)
-  }, [visiblePosts])
+    return actorPosts.filter(post => post.replyTo)
+  }, [actorPosts])
 
   // Filter by tab
   const tabFilteredPosts = useMemo(() => {
@@ -130,8 +111,8 @@ export default function ActorProfilePage() {
     if (!searchQuery.trim()) return tabFilteredPosts
 
     const query = searchQuery.toLowerCase()
-    return tabFilteredPosts.filter(item =>
-      item.post.content.toLowerCase().includes(query)
+    return tabFilteredPosts.filter(post =>
+      post.content?.toLowerCase().includes(query)
     )
   }, [tabFilteredPosts, searchQuery])
 
@@ -176,7 +157,7 @@ export default function ActorProfilePage() {
           </Link>
           <div className="flex-1">
             <h1 className="text-xl font-bold">{actorInfo.name}</h1>
-            <p className="text-sm text-muted-foreground">{visiblePosts.length} posts</p>
+            <p className="text-sm text-muted-foreground">{actorPosts.length} posts</p>
           </div>
         </div>
 
@@ -263,8 +244,8 @@ export default function ActorProfilePage() {
               </p>
             </div>
           ) : (
-            filteredPosts.map((item, i) => {
-              const postDate = new Date(item.post.timestamp)
+            filteredPosts.map((post, i) => {
+              const postDate = new Date(post.timestamp ?? post.createdAt)
               const now = new Date()
               const diffMs = now.getTime() - postDate.getTime()
               const diffMinutes = Math.floor(diffMs / 60000)
@@ -280,7 +261,7 @@ export default function ActorProfilePage() {
 
               return (
                 <article
-                  key={`${item.post.id}-${i}`}
+                  key={`${post.id}-${i}`}
                   className={cn(
                     'px-4 py-3 border-b border-border',
                     'hover:bg-muted/30',
@@ -294,8 +275,8 @@ export default function ActorProfilePage() {
                     {/* Avatar */}
                     <div className="flex-shrink-0">
                       <Avatar
-                        id={item.post.author}
-                        name={item.post.authorName}
+                        id={post.authorId ?? post.author}
+                        name={post.author ?? post.authorName}
                         type={actorInfo.type}
                         size="lg"
                         scaleFactor={fontSize}
@@ -307,7 +288,7 @@ export default function ActorProfilePage() {
                       {/* Author and timestamp */}
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-bold text-foreground">
-                          {item.post.authorName}
+                          {post.author ?? post.authorName}
                         </span>
                         <span className="text-muted-foreground text-sm">·</span>
                         <time className="text-muted-foreground text-sm" title={postDate.toLocaleString()}>
@@ -317,11 +298,11 @@ export default function ActorProfilePage() {
 
                       {/* Post content */}
                       <div className="text-foreground leading-normal whitespace-pre-wrap break-words">
-                        {item.post.content}
+                        {post.content}
                       </div>
 
                       {/* Metadata */}
-                      {item.post.replyTo && (
+                      {post.replyTo && (
                         <div className="mt-2 text-sm text-muted-foreground flex items-center gap-1">
                           <span className="text-xs">↩️</span>
                           <span>Replying to a post</span>
@@ -330,9 +311,9 @@ export default function ActorProfilePage() {
 
                       {/* Interactions */}
                       <InteractionBar
-                        postId={`${item.gameId}-${item.post.author}-${item.post.timestamp}`}
+                        postId={post.id}
                         initialInteractions={{
-                          postId: `${item.gameId}-${item.post.author}-${item.post.timestamp}`,
+                          postId: post.id,
                           likeCount: 0,
                           commentCount: 0,
                           shareCount: 0,
