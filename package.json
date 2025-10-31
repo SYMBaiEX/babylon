@@ -35,7 +35,11 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "bun run prisma/seed.ts"
+    "prisma:seed": "bun run prisma/seed.ts",
+    "contracts:compile": "forge build",
+    "contracts:test": "forge test",
+    "contracts:deploy:testnet": "bun run scripts/deploy-contracts.ts",
+    "contracts:deploy:mainnet": "NETWORK=base bun run scripts/deploy-contracts.ts"
   },
   "dependencies": {
     "@ai16z/eliza": "^0.1.6",

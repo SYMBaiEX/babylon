@@ -1,18 +1,31 @@
 import { http } from 'viem'
-import { mainnet, sepolia } from 'viem/chains'
+import { mainnet, sepolia, base, baseSepolia } from 'viem/chains'
 import { createConfig } from 'wagmi'
 import type { PrivyClientConfig } from '@privy-io/react-auth'
 
-const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID) || 1
+// Environment configuration
+const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID) || 8453 // Default to Base mainnet
 const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || ''
 
-// Select chain based on CHAIN_ID
-const selectedChain = chainId === 11155111 ? sepolia : mainnet
+// Chain selection based on CHAIN_ID
+const getSelectedChain = () => {
+  switch (chainId) {
+    case 11155111: return sepolia
+    case 1: return mainnet
+    case 84532: return baseSepolia
+    case 8453: return base
+    default: return base
+  }
+}
 
-// Wagmi configuration for Privy
+const selectedChain = getSelectedChain()
+
+// Wagmi configuration for Privy with Base L2 support
 export const wagmiConfig = createConfig({
-  chains: [selectedChain],
+  chains: [base, baseSepolia, mainnet, sepolia],
   transports: {
+    [base.id]: http(rpcUrl || 'https://mainnet.base.org'),
+    [baseSepolia.id]: http(rpcUrl || 'https://sepolia.base.org'),
     [mainnet.id]: http(rpcUrl || undefined),
     [sepolia.id]: http(rpcUrl || undefined),
   },
@@ -27,7 +40,7 @@ export const privyConfig = {
       accentColor: '#1c9cf0' as const,
       logo: '/assets/logos/logo.svg',
       showWalletLoginFirst: true,
-      walletList: ['metamask', 'rabby_wallet', 'detected_wallets', 'rainbow', 'coinbase_wallet', 'wallet_connect'] as PrivyClientConfig['appearance']['walletList'],
+      walletList: ['metamask', 'rabby_wallet', 'detected_wallets', 'rainbow', 'coinbase_wallet', 'wallet_connect'],
       walletChainType: 'ethereum-only' as const,
     },
     // Prioritize EVM wallet login (Metamask, Rabby, etc.)
@@ -38,8 +51,8 @@ export const privyConfig = {
       },
     },
     defaultChain: selectedChain,
-    // Wallet configuration - supports all injected wallets including Rabby
-    supportedChains: [mainnet, sepolia],
+    // Wallet configuration - supports all chains including Base L2
+    supportedChains: [base, baseSepolia, mainnet, sepolia],
     // WalletConnect configuration for mobile wallets
     walletConnectCloudProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
   },
