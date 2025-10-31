@@ -3,7 +3,7 @@
  * Methods: POST (close a perpetual futures position)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
@@ -13,6 +13,7 @@ import {
 } from '@/lib/api/auth-middleware';
 import { getPerpsEngine } from '@/lib/perps-service';
 import { WalletService } from '@/services/WalletService';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -110,7 +111,7 @@ export async function POST(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error closing position:', error);
+    logger.error('Error closing position:', error, 'POST /api/markets/perps/[positionId]/close');
     return errorResponse('Failed to close position');
   }
 }

@@ -3,7 +3,7 @@
  * Methods: POST (reply to a post with rate limiting and quality checks)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
@@ -15,6 +15,7 @@ import { ReplyRateLimiter } from '@/services/ReplyRateLimiter';
 import { MessageQualityChecker } from '@/services/MessageQualityChecker';
 import { FollowingMechanics } from '@/services/FollowingMechanics';
 import { GroupChatInvite } from '@/services/GroupChatInvite';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -232,7 +233,7 @@ export async function POST(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error creating reply:', error);
+    logger.error('Error creating reply:', error, 'POST /api/posts/[id]/reply');
     return errorResponse('Failed to create reply');
   }
 }

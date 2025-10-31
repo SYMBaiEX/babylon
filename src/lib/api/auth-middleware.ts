@@ -4,9 +4,12 @@
  * Supports both Privy user authentication and agent session tokens
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest} from 'next/server';
+import { NextResponse } from 'next/server';
 import { PrivyClient } from '@privy-io/server-auth';
 import { verifyAgentSession } from '@/app/api/agents/auth/route';
+import { extractErrorMessage, type AuthenticationError } from '@/types/errors';
+import { logger } from '@/lib/logger';
 
 // Initialize Privy client
 const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID!;
@@ -54,8 +57,13 @@ export async function authenticate(request: NextRequest): Promise<AuthenticatedU
       isAgent: false,
     };
   } catch (error) {
-    console.error('Auth verification error:', error);
-    throw new Error('Authentication failed');
+    const errorMessage = extractErrorMessage(error);
+    logger.error('Auth verification error:', errorMessage, 'AuthMiddleware');
+    const authError: AuthenticationError = Object.assign(new Error('Authentication failed'), {
+      code: 'AUTH_FAILED' as const,
+      message: errorMessage,
+    });
+    throw authError;
   }
 }
 
@@ -81,6 +89,6 @@ export function errorResponse(message: string, status: number = 500) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export function successResponse(data: any, status: number = 200) {
+export function successResponse<T = unknown>(data: T, status: number = 200) {
   return NextResponse.json(data, { status });
 }

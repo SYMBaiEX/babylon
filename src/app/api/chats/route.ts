@@ -3,7 +3,7 @@
  * Methods: GET (list user's chats), POST (create new chat)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
@@ -11,6 +11,7 @@ import {
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -108,7 +109,7 @@ export async function GET(request: NextRequest) {
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error fetching chats:', error);
+    logger.error('Error fetching chats:', error, 'GET /api/chats');
     return errorResponse('Failed to fetch chats');
   }
 }
@@ -162,7 +163,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error creating chat:', error);
+    logger.error('Error creating chat:', error, 'POST /api/chats');
     return errorResponse('Failed to create chat');
   }
 }

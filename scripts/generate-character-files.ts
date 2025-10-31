@@ -6,6 +6,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { join } from 'path'
+import { logger } from '../src/lib/logger'
 
 interface Actor {
   id: string
@@ -155,7 +156,7 @@ function convertActorToCharacter(actor: Actor): ElizaCharacter {
 }
 
 async function main() {
-  console.log('📝 Generating Eliza character files from actors.json...\n')
+  logger.info('Generating Eliza character files from actors.json...', undefined, 'Script');
 
   // Read actors.json
   const actorsPath = join(process.cwd(), 'data', 'actors.json')
@@ -169,7 +170,7 @@ async function main() {
   // Generate first 29 character files (alice-trader.json already exists)
   const actorsToConvert = actors.slice(0, 29)
 
-  console.log(`Converting ${actorsToConvert.length} actors to Eliza character files...\n`)
+  logger.info(`Converting ${actorsToConvert.length} actors to Eliza character files...`, undefined, 'Script');
 
   let successCount = 0
   let errorCount = 0
@@ -181,18 +182,22 @@ async function main() {
       const filepath = join(outputDir, filename)
 
       writeFileSync(filepath, JSON.stringify(character, null, 2) + '\n')
-      console.log(`✅ Created: ${filename}`)
+      logger.info(`Created: ${filename}`, undefined, 'Script');
       successCount++
     } catch (error) {
-      console.error(`❌ Failed to create ${actor.id}.json:`, error)
+      logger.error(`Failed to create ${actor.id}.json:`, error, 'Script');
       errorCount++
     }
   }
 
-  console.log(`\n📊 Summary:`)
-  console.log(`   ✅ Success: ${successCount}`)
-  console.log(`   ❌ Errors: ${errorCount}`)
-  console.log(`   📁 Output: ${outputDir}`)
+  logger.info('Summary:', {
+    success: successCount,
+    errors: errorCount,
+    output: outputDir
+  }, 'Script');
 }
 
-main().catch(console.error)
+main().catch(error => {
+  logger.error('Error:', error, 'Script');
+  process.exit(1);
+})

@@ -10,6 +10,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { logger } from '@/lib/logger';
 import type {
   PerpPosition,
   FundingRate,
@@ -103,7 +104,7 @@ export class PerpetualsEngine extends EventEmitter {
       this.fundingRates.set(ticker, market.fundingRate);
     }
     
-    console.log(`✅ Initialized ${this.markets.size} perpetual markets`);
+    logger.info(`Initialized ${this.markets.size} perpetual markets`, undefined, 'PerpetualsEngine');
   }
 
   /**
@@ -235,7 +236,6 @@ export class PerpetualsEngine extends EventEmitter {
     const now = new Date().toISOString();
     
     for (const [positionId, position] of this.positions) {
-      const ticker = position.ticker;
       const newPrice = priceUpdates.get(position.organizationId);
       
       if (newPrice) {
@@ -270,6 +270,9 @@ export class PerpetualsEngine extends EventEmitter {
         market.high24h = Math.max(market.high24h, newPrice);
         market.low24h = Math.min(market.low24h, newPrice);
         market.markPrice = calculateMarkPrice(market.indexPrice, newPrice, market.fundingRate.rate);
+        
+        // Emit market update event for ticker
+        this.emit('market:updated', { ticker, market, newPrice });
       }
     }
   }
@@ -298,6 +301,9 @@ export class PerpetualsEngine extends EventEmitter {
       
       position.fundingPaid += payment;
       position.lastUpdated = now.toISOString();
+      
+      // Emit funding payment event
+      this.emit('funding:payment', { positionId, ticker: position.ticker, payment, hoursHeld });
     }
     
     this.lastFundingTime = now.toISOString();
@@ -306,6 +312,9 @@ export class PerpetualsEngine extends EventEmitter {
     const nextFundingTime = this.getNextFundingTime();
     for (const [ticker, fundingRate] of this.fundingRates) {
       fundingRate.nextFundingTime = nextFundingTime;
+      
+      // Emit funding rate update event
+      this.emit('funding:rate:updated', { ticker, fundingRate, nextFundingTime });
     }
     
     this.emit('funding:processed', { timestamp: now.toISOString() });
@@ -542,13 +551,23 @@ export class PerpetualsEngine extends EventEmitter {
   /**
    * Load state from JSON
    */
-  importState(state: any) {
+  importState(state: {
+    positions: PerpPosition[];
+    markets: PerpMarket[];
+    fundingRates: FundingRate[];
+    dailySnapshots: Record<string, DailyPriceSnapshot[]>;
+    liquidations: Liquidation[];
+    lastFundingTime: number;
+    currentDate: string;
+  }) {
     this.positions = new Map(state.positions.map((p: PerpPosition) => [p.id, p]));
     this.markets = new Map(state.markets.map((m: PerpMarket) => [m.ticker, m]));
     this.fundingRates = new Map(state.fundingRates.map((f: FundingRate) => [f.ticker, f]));
     this.dailySnapshots = new Map(Object.entries(state.dailySnapshots));
     this.liquidations = state.liquidations || [];
-    this.lastFundingTime = state.lastFundingTime;
+    this.lastFundingTime = typeof state.lastFundingTime === 'number' 
+      ? new Date(state.lastFundingTime).toISOString() 
+      : String(state.lastFundingTime);
     this.currentDate = state.currentDate;
   }
 }

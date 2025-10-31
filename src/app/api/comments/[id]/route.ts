@@ -3,7 +3,7 @@
  * Methods: PATCH (edit), DELETE (delete)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
@@ -11,6 +11,7 @@ import {
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -103,7 +104,7 @@ export async function PATCH(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error updating comment:', error);
+    logger.error('Error updating comment:', error, 'PATCH /api/comments/[id]');
     return errorResponse('Failed to update comment');
   }
 }
@@ -161,7 +162,7 @@ export async function DELETE(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error deleting comment:', error);
+    logger.error('Error deleting comment:', error, 'DELETE /api/comments/[id]');
     return errorResponse('Failed to delete comment');
   }
 }

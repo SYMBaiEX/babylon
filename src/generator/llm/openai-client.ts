@@ -8,6 +8,8 @@
 
 import OpenAI from 'openai';
 import 'dotenv/config';
+import type { JsonValue } from '@/types/common';
+import { logger } from '@/lib/logger';
 
 type LLMProvider = 'groq' | 'openai';
 
@@ -16,7 +18,14 @@ type LLMProvider = 'groq' | 'openai';
  */
 interface JSONSchema {
   required?: string[];
-  properties?: Record<string, unknown>;
+  properties?: Record<string, JsonSchemaProperty>;
+}
+
+interface JsonSchemaProperty {
+  type?: 'string' | 'number' | 'boolean' | 'object' | 'array';
+  description?: string;
+  items?: JsonSchemaProperty;
+  properties?: Record<string, JsonSchemaProperty>;
 }
 
 export class BabylonLLMClient {
@@ -30,14 +39,14 @@ export class BabylonLLMClient {
     const openaiKey = apiKey || process.env.OPENAI_API_KEY;
     
     if (groqKey) {
-      console.log('🚀 Using Groq (fast inference)');
+      logger.info('Using Groq (fast inference)', undefined, 'BabylonLLMClient');
       this.client = new OpenAI({
         apiKey: groqKey,
         baseURL: 'https://api.groq.com/openai/v1',
       });
       this.provider = 'groq';
     } else if (openaiKey) {
-      console.log('🤖 Using OpenAI');
+      logger.info('Using OpenAI', undefined, 'BabylonLLMClient');
       this.client = new OpenAI({ apiKey: openaiKey });
       this.provider = 'openai';
     } else {
@@ -110,8 +119,8 @@ export class BabylonLLMClient {
         
         // Validate against schema if provided
         if (schema && !this.validateSchema(parsed, schema)) {
-          console.error('Schema validation failed. Expected schema:', schema);
-          console.error('Got response:', JSON.stringify(parsed, null, 2));
+          logger.error('Schema validation failed. Expected schema:', schema, 'BabylonLLMClient');
+          logger.error('Got response:', JSON.stringify(parsed, null, 2), 'BabylonLLMClient');
           throw new Error(`Response does not match schema. Missing required fields: ${schema.required?.join(', ')}`);
         }
 
@@ -121,36 +130,37 @@ export class BabylonLLMClient {
         const isRateLimit = lastError.message.includes('rate limit') || lastError.message.includes('429');
         const waitTime = isRateLimit ? 30000 : Math.min(1000 * Math.pow(2, attempt), 10000);
         
-        console.error(`❌ Attempt ${attempt + 1}/${this.maxRetries} failed:`, lastError.message);
+        logger.error(`Attempt ${attempt + 1}/${this.maxRetries} failed:`, lastError.message, 'BabylonLLMClient');
         
         if (attempt < this.maxRetries - 1) {
-          console.log(`🔄 Retrying in ${(waitTime / 1000).toFixed(1)}s... (${this.maxRetries - attempt - 1} retries left)`);
+          logger.info(`Retrying in ${(waitTime / 1000).toFixed(1)}s... (${this.maxRetries - attempt - 1} retries left)`, undefined, 'BabylonLLMClient');
           await new Promise(resolve => setTimeout(resolve, waitTime));
         }
       }
     }
 
     // Final failure after all retries exhausted
-    const errorMsg = `❌ GENERATION FAILED after ${this.maxRetries} attempts: ${lastError?.message || 'Unknown error'}`;
-    console.error(`\n${errorMsg}`);
-    console.error('\n💡 Troubleshooting:');
-    console.error('   1. Check your API key is valid');
-    console.error('   2. Verify you have API credits/quota remaining');
-    console.error('   3. Check network connectivity');
-    console.error('   4. Try again later if rate limited');
-    console.error(`\n   Provider: ${this.provider}`);
+    const errorMsg = `GENERATION FAILED after ${this.maxRetries} attempts: ${lastError?.message || 'Unknown error'}`;
+    logger.error(errorMsg, undefined, 'BabylonLLMClient');
+    logger.error('Troubleshooting:', {
+      step1: 'Check your API key is valid',
+      step2: 'Verify you have API credits/quota remaining',
+      step3: 'Check network connectivity',
+      step4: 'Try again later if rate limited',
+      provider: this.provider
+    }, 'BabylonLLMClient');
     throw new Error(errorMsg);
   }
 
   /**
    * Simple schema validation
    */
-  private validateSchema(data: Record<string, unknown>, schema: JSONSchema): boolean {
+  private validateSchema(data: Record<string, JsonValue>, schema: JSONSchema): boolean {
     // Basic validation - check required fields exist
     if (schema.required) {
       for (const field of schema.required) {
         if (!(field in data)) {
-          console.error(`Missing required field: ${field}`);
+          logger.error(`Missing required field: ${field}`, undefined, 'BabylonLLMClient');
           return false;
         }
       }

@@ -3,7 +3,7 @@
  * Methods: POST (sell YES or NO shares in prediction market)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient, Prisma } from '@prisma/client';
 import {
   authenticate,
@@ -13,6 +13,7 @@ import {
 } from '@/lib/api/auth-middleware';
 import { WalletService } from '@/services/WalletService';
 import { PredictionPricing } from '@/lib/prediction-pricing';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -152,7 +153,7 @@ export async function POST(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error selling shares:', error);
+    logger.error('Error selling shares:', error, 'POST /api/markets/predictions/[id]/sell');
     return errorResponse('Failed to sell shares');
   }
 }

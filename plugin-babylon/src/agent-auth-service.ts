@@ -5,6 +5,8 @@
  * Agents authenticate once and receive a session token valid for 24 hours.
  */
 
+import { logger } from "@elizaos/core";
+
 interface AgentAuthResponse {
   success: boolean;
   sessionToken?: string;
@@ -24,11 +26,14 @@ export class AgentAuthService {
     this.apiBaseUrl = apiBaseUrl;
 
     // Use environment variables or provided credentials
-    this.agentId = agentId || process.env.BABYLON_AGENT_ID || 'babylon-agent-alice';
-    this.agentSecret = agentSecret || process.env.BABYLON_AGENT_SECRET || '';
+    this.agentId =
+      agentId || process.env.BABYLON_AGENT_ID || "babylon-agent-alice";
+    this.agentSecret = agentSecret || process.env.BABYLON_AGENT_SECRET || "";
 
     if (!this.agentSecret) {
-      console.warn('⚠️  BABYLON_AGENT_SECRET not configured. Agent will not be able to authenticate.');
+      logger.warn(
+        "⚠️  BABYLON_AGENT_SECRET not configured. Agent will not be able to authenticate.",
+      );
     }
   }
 
@@ -50,17 +55,17 @@ export class AgentAuthService {
    */
   async authenticate(): Promise<string | null> {
     if (!this.agentSecret) {
-      console.error('Cannot authenticate: BABYLON_AGENT_SECRET not configured');
+      logger.error("Cannot authenticate: BABYLON_AGENT_SECRET not configured");
       return null;
     }
 
     try {
-      console.log(`🔐 Authenticating agent: ${this.agentId}...`);
+      logger.info(`🔐 Authenticating agent: ${this.agentId}...`);
 
       const response = await fetch(`${this.apiBaseUrl}/api/agents/auth`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           agentId: this.agentId,
@@ -69,30 +74,39 @@ export class AgentAuthService {
       });
 
       if (!response.ok) {
-        const error = await response.json() as { error?: string };
-        console.error('Agent authentication failed:', error.error || response.statusText);
+        const error = (await response.json()) as { error?: string };
+        logger.error(
+          "Agent authentication failed:",
+          error.error || response.statusText,
+        );
         return null;
       }
 
-      const data = await response.json() as AgentAuthResponse;
+      const data = (await response.json()) as AgentAuthResponse;
 
       if (!data.success || !data.sessionToken) {
-        console.error('Agent authentication failed:', data.error || 'Unknown error');
+        logger.error(
+          "Agent authentication failed:",
+          data.error || "Unknown error",
+        );
         return null;
       }
 
       // Store session token
       this.sessionToken = data.sessionToken;
-      this.tokenExpiresAt = data.expiresAt || (Date.now() + 24 * 60 * 60 * 1000);
+      this.tokenExpiresAt = data.expiresAt || Date.now() + 24 * 60 * 60 * 1000;
 
-      console.log(`✅ Agent authenticated successfully (expires in ${Math.floor((this.tokenExpiresAt - Date.now()) / 1000 / 60)} minutes)`);
+      logger.info(
+        `✅ Agent authenticated successfully (expires in ${Math.floor((this.tokenExpiresAt - Date.now()) / 1000 / 60)} minutes)`,
+      );
 
       // Check and trigger on-chain registration if needed
       await this.checkAndRegisterOnChain();
 
       return this.sessionToken;
     } catch (error) {
-      console.error('Agent authentication error:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error("Agent authentication error:", errorMessage);
       return null;
     }
   }
@@ -114,51 +128,71 @@ export class AgentAuthService {
     }
 
     // Create and cache the registration check promise
-    this.registrationCheckPromise = (async () => {
+    this.registrationCheckPromise = (async (): Promise<void> => {
       try {
         // Check registration status
-        const statusResponse = await fetch(`${this.apiBaseUrl}/api/agents/onboard`, {
-          headers: {
-            'Authorization': `Bearer ${this.sessionToken}`,
+        const statusResponse = await fetch(
+          `${this.apiBaseUrl}/api/agents/onboard`,
+          {
+            headers: {
+              Authorization: `Bearer ${this.sessionToken}`,
+            },
           },
-        });
+        );
 
         if (!statusResponse.ok) {
-          console.warn('Failed to check agent registration status');
+          logger.warn("Failed to check agent registration status");
           return;
         }
 
-        const statusData = await statusResponse.json() as { isRegistered?: boolean; tokenId?: number; reputationAwarded?: boolean };
+        const statusData = (await statusResponse.json()) as {
+          isRegistered?: boolean;
+          tokenId?: number;
+          reputationAwarded?: boolean;
+        };
 
         if (statusData.isRegistered && statusData.tokenId) {
-          console.log(`✅ Agent already registered on-chain with token ID: ${statusData.tokenId}`);
+          logger.info(
+            `✅ Agent already registered on-chain with token ID: ${statusData.tokenId}`,
+          );
           return;
         }
 
         // Not registered, trigger registration
-        console.log('🔗 Registering agent on-chain...');
+        logger.info("🔗 Registering agent on-chain...");
 
-        const registerResponse = await fetch(`${this.apiBaseUrl}/api/agents/onboard`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${this.sessionToken}`,
-            'Content-Type': 'application/json',
+        const registerResponse = await fetch(
+          `${this.apiBaseUrl}/api/agents/onboard`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${this.sessionToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              agentName: this.agentId,
+              endpoint: `${this.apiBaseUrl}/agent/${this.agentId}`,
+            }),
           },
-          body: JSON.stringify({
-            agentName: this.agentId,
-            endpoint: `${this.apiBaseUrl}/agent/${this.agentId}`,
-          }),
-        });
+        );
 
         if (registerResponse.ok) {
-          const registerData = await registerResponse.json() as { tokenId?: number; walletAddress?: string };
-          console.log(`✅ Agent registered on-chain! Token ID: ${registerData.tokenId}, Wallet: ${registerData.walletAddress}`);
+          const registerData = (await registerResponse.json()) as {
+            tokenId?: number;
+            walletAddress?: string;
+          };
+          logger.info(
+            `✅ Agent registered on-chain! Token ID: ${registerData.tokenId}, Wallet: ${registerData.walletAddress}`,
+          );
         } else {
-          const error = await registerResponse.json() as { error?: string };
-          console.warn(`⚠️  Failed to register agent on-chain: ${error.error || 'Unknown error'}`);
+          const error = (await registerResponse.json()) as { error?: string };
+          logger.warn(
+            `⚠️  Failed to register agent on-chain: ${error.error || "Unknown error"}`,
+          );
         }
       } catch (error) {
-        console.error('Error checking/registering agent on-chain:', error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error("Error checking/registering agent on-chain:", errorMessage);
         // Don't fail authentication if registration check fails
       } finally {
         // Clear the promise cache after completion

@@ -18,7 +18,7 @@ export function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   
-  const intervalRef = useRef<NodeJS.Timeout>();
+  const intervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   // Auto-load all games on mount
   useEffect(() => {
@@ -35,7 +35,7 @@ export function App() {
           const genesis = await genesisResponse.json();
           loadedGames.push(genesis);
         }
-      } catch (e) {
+      } catch {
         // Silently skip if file doesn't exist - this is expected on first run
       }
       
@@ -46,7 +46,7 @@ export function App() {
           const latest = await latestResponse.json();
           loadedGames.push(latest);
         }
-      } catch (e) {
+      } catch {
         // Silently skip if file doesn't exist - this is expected on first run
       }
       

@@ -15,6 +15,7 @@
 
 import { GameSimulator } from '../engine/GameSimulator';
 import { writeFile } from 'fs/promises';
+import { logger } from '@/lib/logger';
 
 interface CLIOptions {
   outcome?: 'YES' | 'NO';
@@ -65,43 +66,43 @@ async function runSingleGame(outcome: boolean, options: CLIOptions) {
   });
 
   if (options.verbose && !options.json) {
-    console.log('\n🎮 BABYLON GAME SIMULATION');
-    console.log('==========================\n');
+    logger.info('BABYLON GAME SIMULATION', undefined, 'CLI');
+    logger.info('==========================', undefined, 'CLI');
 
     simulator.on('game:started', (event) => {
-      console.log(`Question: ${event.data.question}`);
-      console.log(`Predetermined Outcome: ${outcome ? 'YES' : 'NO'}`);
-      console.log(`Agents: ${event.data.agents}\n`);
+      logger.info(`Question: ${event.data.question}`, undefined, 'CLI');
+      logger.info(`Predetermined Outcome: ${outcome ? 'YES' : 'NO'}`, undefined, 'CLI');
+      logger.info(`Agents: ${event.data.agents}`, undefined, 'CLI');
     });
 
     simulator.on('day:changed', (event) => {
       if (!options.fast) {
-        console.log(`[Day ${event.data.day}]`);
+        logger.debug(`[Day ${event.data.day}]`, undefined, 'CLI');
       }
     });
 
     simulator.on('clue:distributed', (event) => {
       if (options.verbose && !options.fast) {
-        console.log(`  📨 ${event.agentId}: Received clue (${event.data.tier})`);
+        logger.debug(`${event.agentId}: Received clue (${event.data.tier})`, undefined, 'CLI');
       }
     });
 
     simulator.on('agent:bet', (event) => {
-      console.log(`  💰 ${event.agentId}: Bet ${event.data.outcome ? 'YES' : 'NO'} (${event.data.amount} tokens)`);
+      logger.info(`${event.agentId}: Bet ${event.data.outcome ? 'YES' : 'NO'} (${event.data.amount} tokens)`, undefined, 'CLI');
     });
 
     simulator.on('market:updated', (event) => {
       if (options.verbose && event.day % 10 === 0) {
-        console.log(`  📊 Market: ${event.data.yesOdds}% YES / ${event.data.noOdds}% NO`);
+        logger.info(`Market: ${event.data.yesOdds}% YES / ${event.data.noOdds}% NO`, undefined, 'CLI');
       }
     });
 
     simulator.on('outcome:revealed', (event) => {
-      console.log(`\n🎯 Outcome revealed: ${event.data.outcome ? 'YES' : 'NO'}`);
+      logger.info(`Outcome revealed: ${event.data.outcome ? 'YES' : 'NO'}`, undefined, 'CLI');
     });
 
     simulator.on('game:ended', (event) => {
-      console.log(`🏆 Winners: ${event.data.winners.join(', ')}\n`);
+      logger.info(`Winners: ${event.data.winners.join(', ')}`, undefined, 'CLI');
     });
   }
 
@@ -112,14 +113,16 @@ async function runSingleGame(outcome: boolean, options: CLIOptions) {
     await writeFile(options.save, json);
     
     if (!options.json) {
-      console.log(`📁 Saved to: ${options.save}`);
+      logger.info(`Saved to: ${options.save}`, undefined, 'CLI');
     }
   }
 
   if (!options.json) {
-    console.log(`✅ Game complete in ${result.endTime - result.startTime}ms`);
-    console.log(`   Events: ${result.events.length}`);
-    console.log(`   Winners: ${result.winners.length}/${result.agents.length}`);
+    logger.info('Game complete', {
+      duration: `${result.endTime - result.startTime}ms`,
+      events: result.events.length,
+      winners: `${result.winners.length}/${result.agents.length}`
+    }, 'CLI');
   }
 
   return result;
@@ -136,12 +139,12 @@ async function main() {
     const result = await runSingleGame(outcomeValue, options);
     
     if (options.json) {
-      console.log(JSON.stringify(result, null, 2));
+      logger.info(JSON.stringify(result, null, 2), undefined, 'CLI');
     }
   } else {
     // Batch games
     if (!options.json) {
-      console.log(`\n🎮 Running ${count} simulations...\n`);
+      logger.info(`Running ${count} simulations...`, undefined, 'CLI');
     }
 
     const results = [];
@@ -161,7 +164,7 @@ async function main() {
     const duration = Date.now() - start;
 
     if (options.json) {
-      console.log(JSON.stringify({
+      logger.info(JSON.stringify({
         count: results.length,
         duration,
         results: results.map(r => ({
@@ -170,15 +173,15 @@ async function main() {
           winners: r.winners.length,
           events: r.events.length,
         }))
-      }, null, 2));
+      }, null, 2), undefined, 'CLI');
     } else {
-      console.log(`\n\n✅ ${count} games completed`);
-      console.log(`   Total time: ${duration}ms`);
-      console.log(`   Avg time: ${Math.round(duration / count)}ms/game`);
-      
       const yesGames = results.filter(r => r.outcome).length;
-      console.log(`   YES outcomes: ${yesGames} (${Math.round(yesGames/count*100)}%)`);
-      console.log(`   NO outcomes: ${count - yesGames} (${Math.round((count-yesGames)/count*100)}%)`);
+      logger.info(`${count} games completed`, {
+        totalTime: `${duration}ms`,
+        avgTime: `${Math.round(duration / count)}ms/game`,
+        yesOutcomes: `${yesGames} (${Math.round(yesGames/count*100)}%)`,
+        noOutcomes: `${count - yesGames} (${Math.round((count-yesGames)/count*100)}%)`
+      }, 'CLI');
     }
   }
 
@@ -188,7 +191,7 @@ async function main() {
 // Run if called directly
 if (import.meta.main) {
   main().catch(error => {
-    console.error('Error:', error);
+    logger.error('Error:', error, 'CLI');
     process.exit(1);
   });
 }

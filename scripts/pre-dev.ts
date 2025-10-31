@@ -16,26 +16,27 @@
 import { $ } from 'bun';
 import { existsSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
+import { logger } from '../src/lib/logger';
 
 const CONTAINER_NAME = 'babylon-postgres';
 const COMPOSE_FILE = 'docker-compose.yml';
 const DATABASE_URL = 'postgresql://babylon:babylon_dev_password@localhost:5432/babylon';
 
-console.log('🔍 Pre-development checks...\n');
+logger.info('Pre-development checks...', undefined, 'Script');
 
 // Check/create .env file with DATABASE_URL
 const envPath = join(process.cwd(), '.env');
 if (!existsSync(envPath)) {
-  console.log('📝 Creating .env file...');
+  logger.info('Creating .env file...', undefined, 'Script');
   writeFileSync(envPath, `DATABASE_URL="${DATABASE_URL}"\n`);
-  console.log('✅ .env created');
+  logger.info('.env created', undefined, 'Script');
 } else {
   // Check if DATABASE_URL exists in .env
   const envContent = readFileSync(envPath, 'utf-8');
   if (!envContent.includes('DATABASE_URL=')) {
-    console.log('📝 Adding DATABASE_URL to .env...');
+    logger.info('Adding DATABASE_URL to .env...', undefined, 'Script');
     writeFileSync(envPath, envContent + `\nDATABASE_URL="${DATABASE_URL}"\n`);
-    console.log('✅ DATABASE_URL added');
+    logger.info('DATABASE_URL added', undefined, 'Script');
   }
 }
 
@@ -44,15 +45,15 @@ process.env.DATABASE_URL = DATABASE_URL;
 
 // Check Docker is installed
 await $`docker --version`.quiet();
-console.log('✅ Docker installed');
+logger.info('Docker installed', undefined, 'Script');
 
 // Check Docker is running
 await $`docker info`.quiet();
-console.log('✅ Docker running');
+logger.info('Docker running', undefined, 'Script');
 
 // Check compose file exists
 if (!existsSync(join(process.cwd(), COMPOSE_FILE))) {
-  console.error('❌ docker-compose.yml not found');
+  logger.error('docker-compose.yml not found', undefined, 'Script');
   process.exit(1);
 }
 
@@ -61,7 +62,7 @@ const running = await $`docker ps --filter name=${CONTAINER_NAME} --format "{{.N
 
 if (running.trim() !== CONTAINER_NAME) {
   // Not running, start it
-  console.log('🚀 Starting PostgreSQL...');
+  logger.info('Starting PostgreSQL...', undefined, 'Script');
   await $`docker-compose up -d postgres`;
   
   // Wait for health check
@@ -70,7 +71,7 @@ if (running.trim() !== CONTAINER_NAME) {
     const health = await $`docker inspect --format='{{.State.Health.Status}}' ${CONTAINER_NAME}`.quiet().text();
     
     if (health.trim() === 'healthy') {
-      console.log('✅ PostgreSQL ready');
+      logger.info('PostgreSQL ready', undefined, 'Script');
       break;
     }
     
@@ -79,22 +80,22 @@ if (running.trim() !== CONTAINER_NAME) {
   }
   
   if (attempts === 30) {
-    console.error('❌ PostgreSQL health check timeout');
+    logger.error('PostgreSQL health check timeout', undefined, 'Script');
     process.exit(1);
   }
 } else {
-  console.log('✅ PostgreSQL running');
+  logger.info('PostgreSQL running', undefined, 'Script');
 }
 
 // Test database connection with Prisma
-console.log('🔌 Testing database connection...');
+logger.info('Testing database connection...', undefined, 'Script');
 const { PrismaClient } = await import('@prisma/client');
 const prisma = new PrismaClient();
 
 // Just try to connect - will throw if fails
 await prisma.$connect();
 await prisma.$disconnect();
-console.log('✅ Database connected');
+logger.info('Database connected', undefined, 'Script');
 
-console.log('\n🎉 All checks passed! Starting Next.js...\n');
+logger.info('All checks passed! Starting Next.js...', undefined, 'Script');
 

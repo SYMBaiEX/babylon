@@ -6,12 +6,14 @@
  * Server wallet pays gas (testnet strategy)
  */
 
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { createWalletClient, createPublicClient, http, parseEther, decodeEventLog, type Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 import { errorResponse, successResponse, authenticate } from '@/lib/api/auth-middleware'
 import { PrismaClient } from '@prisma/client'
+import { logger } from '@/lib/logger'
+import { createHash } from 'crypto'
 
 const prisma = new PrismaClient()
 
@@ -99,8 +101,7 @@ function generateAgentWalletAddress(agentId: string): Address {
   // Use a deterministic approach: hash agentId and derive address
   // For MVP, we'll use a simple pattern: server wallet + agentId hash
   // In production, agents could have their own wallets
-  const crypto = require('crypto')
-  const hash = crypto.createHash('sha256').update(`babylon-agent-${agentId}`).digest('hex')
+  const hash = createHash('sha256').update(`babylon-agent-${agentId}`).digest('hex')
   // Use first 40 chars as address (Ethereum addresses are 20 bytes = 40 hex chars)
   // Prepend 0x and pad/truncate to 40 chars
   const address = '0x' + hash.slice(0, 40)
@@ -191,7 +192,7 @@ export async function POST(request: NextRequest) {
       registered: new Date().toISOString(),
     })
 
-    console.log('Registering agent on-chain:', {
+    logger.info('Registering agent on-chain', {
       agentId,
       wallet: agentWalletAddress,
       name,
@@ -213,7 +214,7 @@ export async function POST(request: NextRequest) {
       args: [name, uniqueEndpoint, capabilitiesHash, metadataURI],
     })
 
-    console.log('Agent registration transaction sent:', txHash)
+    logger.info('Agent registration transaction sent', { txHash }, 'AgentOnboard')
 
     // Wait for transaction confirmation
     const receipt = await publicClient.waitForTransactionReceipt({
@@ -239,7 +240,7 @@ export async function POST(request: NextRequest) {
           tokenId = Number(decodedLog.args.tokenId)
           break
         }
-      } catch (e) {
+      } catch {
         // Skip logs we can't decode
       }
     }
@@ -259,7 +260,8 @@ export async function POST(request: NextRequest) {
         })
         tokenId = Number(queriedTokenId)
       } catch (error) {
-        console.error('Failed to query token ID, using event log value:', error)
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.warn('Failed to query token ID, using event log value', { error: errorMessage }, 'AgentOnboard')
         // Token ID should have been extracted from events above
       }
     }
@@ -268,13 +270,13 @@ export async function POST(request: NextRequest) {
       throw new Error('Failed to determine token ID from transaction')
     }
 
-    console.log('Agent registered with token ID:', tokenId)
+    logger.info('Agent registered with token ID', { tokenId }, 'AgentOnboard')
 
     // Set initial reputation to 70 (by recording 10 bets with 7 wins = 70% accuracy)
     // Only set if not already set (check by looking for registration tx hash)
     if (!dbUser.registrationTxHash) {
       try {
-        console.log('Setting initial reputation to 70 for agent...')
+        logger.info('Setting initial reputation to 70 for agent', undefined, 'AgentOnboard')
         
         // Record 10 bets total
         for (let i = 0; i < 10; i++) {
@@ -307,13 +309,14 @@ export async function POST(request: NextRequest) {
         // Wait for remaining transactions
         await new Promise(resolve => setTimeout(resolve, 2000))
 
-        console.log('Initial reputation set to 70 for agent (7 wins out of 10 bets)')
+        logger.info('Initial reputation set to 70 for agent (7 wins out of 10 bets)', { tokenId }, 'AgentOnboard')
       } catch (error) {
-        console.error('Failed to set initial reputation for agent:', error)
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error('Failed to set initial reputation for agent', { error: errorMessage, tokenId }, 'AgentOnboard')
         // Don't fail registration if reputation setup fails
       }
     } else {
-      console.log('Initial reputation already set for agent')
+      logger.info('Initial reputation already set for agent', { tokenId }, 'AgentOnboard')
     }
 
     // Update database
@@ -339,7 +342,8 @@ export async function POST(request: NextRequest) {
       gasUsed: Number(receipt.gasUsed),
     })
   } catch (error) {
-    console.error('Agent registration error:', error)
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Agent registration error', { error: errorMessage }, 'AgentOnboard')
     return errorResponse(
       error instanceof Error ? error.message : 'Failed to register agent on-chain',
       500
@@ -399,7 +403,8 @@ export async function GET(request: NextRequest) {
       agentId,
     })
   } catch (error) {
-    console.error('Agent status check error:', error)
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Agent status check error', { error: errorMessage }, 'AgentOnboard')
     return errorResponse(
       error instanceof Error ? error.message : 'Failed to check agent registration status',
       500

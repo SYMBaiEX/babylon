@@ -10,6 +10,20 @@ import { PerpPositionsList } from '@/components/markets/PerpPositionsList'
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import { logger } from '@/lib/logger'
+import type { PerpPosition } from '@/shared/perps-types'
+
+interface PredictionPosition {
+  id: string
+  marketId: string
+  question: string
+  side: 'YES' | 'NO'
+  shares: number
+  avgPrice: number
+  currentPrice: number
+  resolved: boolean
+  resolution?: boolean | null
+}
 
 interface PerpMarket {
   ticker: string
@@ -59,8 +73,8 @@ export default function MarketsPage() {
   // Data
   const [perpMarkets, setPerpMarkets] = useState<PerpMarket[]>([])
   const [predictions, setPredictions] = useState<PredictionMarket[]>([])
-  const [perpPositions, setPerpPositions] = useState<any[]>([])
-  const [predictionPositions, setPredictionPositions] = useState<any[]>([])
+  const [perpPositions, setPerpPositions] = useState<PerpPosition[]>([])
+  const [predictionPositions, setPredictionPositions] = useState<PredictionPosition[]>([])
   const [loading, setLoading] = useState(true)
 
   // Fetch data
@@ -84,7 +98,7 @@ export default function MarketsPage() {
         setPredictionPositions(positionsData.predictions?.positions || [])
       }
     } catch (error) {
-      console.error('Error fetching markets data:', error)
+      logger.error('Error fetching markets data:', error, 'MarketsPage')
     } finally {
       setLoading(false)
     }

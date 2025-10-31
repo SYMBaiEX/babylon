@@ -5,8 +5,10 @@
  * Uses internal agent credentials stored securely in environment variables.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest} from 'next/server';
+import { NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
+import { logger } from '@/lib/logger';
 
 interface AgentAuthRequest {
   agentId: string;
@@ -50,7 +52,7 @@ function verifyAgentCredentials(agentId: string, agentSecret: string): boolean {
   const configuredAgentSecret = process.env.BABYLON_AGENT_SECRET;
 
   if (!configuredAgentSecret) {
-    console.error('BABYLON_AGENT_SECRET not configured in environment');
+    logger.error('BABYLON_AGENT_SECRET not configured in environment', undefined, 'AgentAuth');
     return false;
   }
 
@@ -96,7 +98,7 @@ export async function POST(request: NextRequest) {
       expiresAt,
     });
 
-    console.log(`Agent ${agentId} authenticated successfully`);
+    logger.info(`Agent ${agentId} authenticated successfully`, undefined, 'POST /api/agents/auth');
 
     return NextResponse.json({
       success: true,
@@ -105,7 +107,7 @@ export async function POST(request: NextRequest) {
       expiresIn: SESSION_DURATION / 1000, // seconds
     });
   } catch (error) {
-    console.error('Agent authentication error:', error);
+    logger.error('Agent authentication error:', error, 'POST /api/agents/auth');
     return NextResponse.json(
       { error: 'Authentication failed' },
       { status: 500 }

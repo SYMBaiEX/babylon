@@ -3,13 +3,14 @@
  * Methods: GET (get posts from favorited profiles)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
   optionalAuth,
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -150,7 +151,7 @@ export async function GET(request: NextRequest) {
       offset,
     });
   } catch (error) {
-    console.error('Error fetching favorites feed:', error);
+    logger.error('Error fetching favorites feed:', error, 'GET /api/posts/feed/favorites');
     return errorResponse('Failed to fetch favorites feed');
   }
 }

@@ -12,7 +12,9 @@ import { cn } from '@/lib/utils'
 import { useFontSize } from '@/contexts/FontSizeContext'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
 import { useGameStore } from '@/stores/gameStore'
+import { logger } from '@/lib/logger'
 import type { FeedPost } from '@/shared/types'
+import type { ProfileInfo } from '@/types/profiles'
 
 export default function ActorProfilePage() {
   const params = useParams()
@@ -26,7 +28,7 @@ export default function ActorProfilePage() {
   useErrorToasts()
 
   // Load actor/user info
-  const [actorInfo, setActorInfo] = useState<any>(null)
+  const [actorInfo, setActorInfo] = useState<ProfileInfo | null>(null)
   const [loading, setLoading] = useState(true)
   
   useEffect(() => {
@@ -40,7 +42,7 @@ export default function ActorProfilePage() {
         if (isUserId) {
           // Load user profile from API
           try {
-            const token = typeof window !== 'undefined' ? (window as any).__privyAccessToken : null
+            const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
             const headers: HeadersInit = {
               'Content-Type': 'application/json',
             }
@@ -68,7 +70,7 @@ export default function ActorProfilePage() {
               }
             }
           } catch (error) {
-            console.error('Failed to load user profile:', error)
+            logger.error('Failed to load user profile:', error, 'ActorProfilePage')
           }
         }
         
@@ -76,10 +78,10 @@ export default function ActorProfilePage() {
         const response = await fetch('/data/actors.json')
         if (!response.ok) throw new Error('Failed to load actors')
         
-        const actorsDb = await response.json()
+        const actorsDb = await response.json() as { actors?: import('@/shared/types').Actor[]; organizations?: import('@/shared/types').Organization[] }
         
         // Find actor
-        const actor = actorsDb.actors?.find((a: any) => a.id === actorId)
+        const actor = actorsDb.actors?.find((a) => a.id === actorId)
         if (actor) {
           // Find which game this actor belongs to
           let gameId: string | null = null
@@ -112,7 +114,7 @@ export default function ActorProfilePage() {
         }
         
         // Find organization
-        const org = actorsDb.organizations?.find((o: any) => o.id === actorId)
+        const org = actorsDb.organizations?.find((o) => o.id === actorId)
         if (org) {
           setActorInfo({
             id: org.id,
@@ -129,7 +131,7 @@ export default function ActorProfilePage() {
         setActorInfo(null)
         setLoading(false)
       } catch (error) {
-        console.error('Failed to load actor:', error)
+        logger.error('Failed to load actor:', error, 'ActorProfilePage')
         setActorInfo(null)
         setLoading(false)
       }
@@ -313,13 +315,13 @@ export default function ActorProfilePage() {
             <div className="flex items-start gap-4 mb-4">
               <Avatar
                 id={actorInfo.id}
-                name={actorInfo.name}
-                type={actorInfo.type}
+                name={(actorInfo.name ?? actorInfo.username ?? '') as string}
+                type={actorInfo.type === 'organization' ? 'business' : actorInfo.type === 'user' ? undefined : (actorInfo.type as 'actor' | undefined)}
                 size="lg"
                 className="w-20 h-20"
               />
               <div className="flex-1">
-                <h2 className="text-2xl font-bold">{actorInfo.name}</h2>
+                <h2 className="text-2xl font-bold">{actorInfo.name ?? actorInfo.username ?? ''}</h2>
                 {actorInfo.role && (
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Briefcase className="w-4 h-4" />
@@ -398,7 +400,7 @@ export default function ActorProfilePage() {
                       <Avatar
                         id={item.post.author}
                         name={item.post.authorName}
-                        type={actorInfo.type}
+                        type={actorInfo.type === 'organization' ? 'business' : actorInfo.type === 'user' ? undefined : (actorInfo.type as 'actor' | undefined)}
                         size="lg"
                         scaleFactor={fontSize}
                       />

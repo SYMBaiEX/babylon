@@ -9,6 +9,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { getEngine } from './engine';
 import { db } from './database-service';
+import { logger } from './logger';
 import type { FeedPost } from '@/shared/types';
 
 class GameService {
@@ -91,7 +92,7 @@ class GameService {
         total: normalized.length,
       };
     } catch (error) {
-      console.error('Failed to read realtime history file:', error);
+      logger.error('Failed to read realtime history file:', error, 'GameService');
       return null;
     }
   }

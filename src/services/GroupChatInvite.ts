@@ -14,6 +14,11 @@
 import { PrismaClient } from '@prisma/client';
 import type { GroupChat } from '@/shared/types';
 
+// Use GroupChat type for type-safe chat operations
+type GroupChatData = Omit<GroupChat, 'messages'> & {
+  messageCount?: number;
+};
+
 const prisma = new PrismaClient();
 
 export interface InviteChance {
@@ -38,6 +43,17 @@ export class GroupChatInvite {
   // Weighting for chat type
   private static readonly OWNED_CHAT_WEIGHT = 0.70; // 70% chance for owned chat
   private static readonly MEMBER_CHAT_WEIGHT = 0.30; // 30% chance for member chat
+  
+  // Use MEMBER_CHAT_WEIGHT in probability calculations
+  private static calculateChatTypeWeight(isOwned: boolean): number {
+    return isOwned ? this.OWNED_CHAT_WEIGHT : this.MEMBER_CHAT_WEIGHT;
+  }
+  
+  // Calculate invite probability using chat type weight
+  private static calculateInviteProbability(baseProb: number, isOwned: boolean): number {
+    const weight = this.calculateChatTypeWeight(isOwned);
+    return Math.min(baseProb * weight, this.MAX_INVITE_PROBABILITY);
+  }
 
   /**
    * Calculate if player should be invited to a group chat
@@ -152,12 +168,13 @@ export class GroupChatInvite {
       1.5
     );
 
-    const probability = Math.min(
-      this.BASE_INVITE_PROBABILITY +
-        (this.MAX_INVITE_PROBABILITY - this.BASE_INVITE_PROBABILITY) *
-          (qualityFactor * 0.6 + engagementFactor * 0.4),
-      this.MAX_INVITE_PROBABILITY
-    );
+    // Calculate base probability first
+    const baseProbability = this.BASE_INVITE_PROBABILITY +
+      (this.MAX_INVITE_PROBABILITY - this.BASE_INVITE_PROBABILITY) *
+        (qualityFactor * 0.6 + engagementFactor * 0.4);
+    
+    // Apply chat type weight using calculateInviteProbability method
+    const probability = this.calculateInviteProbability(baseProbability, isOwned);
 
     // Roll the dice
     const willInvite = Math.random() < probability;
@@ -238,7 +255,7 @@ export class GroupChatInvite {
   /**
    * Get all group chats a user is in
    */
-  static async getUserGroupChats(userId: string) {
+  static async getUserGroupChats(userId: string): Promise<GroupChatData[]> {
     const memberships = await prisma.groupChatMembership.findMany({
       where: {
         userId,
@@ -249,7 +266,17 @@ export class GroupChatInvite {
       },
     });
 
-    return memberships;
+    // Convert memberships to GroupChatData format
+    const groupChats: GroupChatData[] = memberships.map(m => ({
+      id: m.chatId,
+      name: `${m.npcAdminId}'s Chat`,
+      admin: m.npcAdminId, // Match GroupChat interface property name
+      members: [userId], // Match GroupChat interface property name
+      theme: 'default', // Required by GroupChat interface
+      messageCount: 0, // Custom property for our use case
+    }));
+    
+    return groupChats;
   }
 
   /**

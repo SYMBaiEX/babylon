@@ -5,6 +5,7 @@ import { Heart, Laugh, Frown } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useInteractionStore } from '@/stores/interactionStore';
 import type { LikeButtonProps } from '@/types/interactions';
+import { logger } from '@/lib/logger';
 
 // Reaction configuration type
 type ReactionConfig = {
@@ -114,7 +115,7 @@ export function LikeButton({
         await toggleCommentLike(targetId);
       }
     } catch (error) {
-      console.error('Failed to toggle like:', error);
+      logger.error('Failed to toggle like:', error, 'LikeButton');
     }
   };
 
@@ -133,7 +134,7 @@ export function LikeButton({
         await toggleCommentLike(targetId);
       }
     } catch (error) {
-      console.error('Failed to toggle reaction:', error);
+      logger.error('Failed to toggle reaction:', error, 'LikeButton');
     }
   };
 

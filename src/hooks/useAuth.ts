@@ -2,6 +2,7 @@ import { usePrivy, useWallets, type User, type ConnectedWallet } from '@privy-io
 import { useEffect, useMemo } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import { OnboardingService } from '@/lib/services/onboarding-service'
+import { logger } from '@/lib/logger'
 
 interface UseAuthReturn {
   ready: boolean
@@ -24,8 +25,6 @@ export function useAuth(): UseAuthReturn {
     setUser,
     setWallet,
     clearAuth,
-    loadedUserId,
-    isLoadingProfile,
     setLoadedUserId,
     setIsLoadingProfile
   } = useAuthStore()
@@ -42,7 +41,7 @@ export function useAuth(): UseAuthReturn {
             window.__privyAccessToken = token
           }
         } catch (error) {
-          console.error('Error getting access token:', error)
+          logger.error('Error getting access token:', error, 'useAuth')
           if (typeof window !== 'undefined') {
             window.__privyAccessToken = null
           }
@@ -77,6 +76,9 @@ export function useAuth(): UseAuthReturn {
     }
 
     const loadUserProfile = async () => {
+      setIsLoadingProfile(true)
+      setLoadedUserId(user.id)
+      
       try {
         const response = await fetch(`/api/users/${user.id}/profile`)
         const data = await response.json()
@@ -96,10 +98,11 @@ export function useAuth(): UseAuthReturn {
             profileImageUrl: data.user.profileImageUrl,
             profileComplete: data.user.profileComplete,
           })
+          setIsLoadingProfile(false)
           return
         }
       } catch (error) {
-        console.error('Error loading user profile:', error)
+        logger.error('Error loading user profile:', error, 'useAuth')
       }
 
       // Fallback if profile fetch fails
@@ -109,6 +112,7 @@ export function useAuth(): UseAuthReturn {
         displayName: user.email?.address || wallet?.address || 'Anonymous',
         email: user.email?.address,
       })
+      setIsLoadingProfile(false)
     }
 
     const checkNewUser = async () => {
@@ -124,14 +128,14 @@ export function useAuth(): UseAuthReturn {
 
         if (!response.ok) {
           // Don't throw - silently fail if endpoint doesn't exist or errors
-          console.warn('Failed to check new user status:', response.status, response.statusText)
+          logger.warn('Failed to check new user status:', { status: response.status, statusText: response.statusText }, 'useAuth')
           return
         }
 
         // Check if response is JSON before parsing
         const contentType = response.headers.get('content-type')
         if (!contentType || !contentType.includes('application/json')) {
-          console.warn('Non-JSON response from is-new endpoint')
+          logger.warn('Non-JSON response from is-new endpoint', undefined, 'useAuth')
           return
         }
 
@@ -144,7 +148,7 @@ export function useAuth(): UseAuthReturn {
         }
       } catch (error) {
         // Silently handle errors - don't block user flow
-        console.warn('Error checking new user status:', error)
+        logger.warn('Error checking new user status:', error, 'useAuth')
       }
     }
 
@@ -154,7 +158,7 @@ export function useAuth(): UseAuthReturn {
         const status = await OnboardingService.checkOnboardingStatus(user.id)
 
         if (status.isOnboarded) {
-          console.log('User already onboarded on-chain with NFT #', status.tokenId)
+          logger.info('User already onboarded on-chain with NFT #', status.tokenId, 'useAuth')
           return
         }
 
@@ -163,7 +167,7 @@ export function useAuth(): UseAuthReturn {
         if (!wallet?.address) {
           // If user authenticated but no wallet yet, wait a bit for embedded wallet creation
           // Privy creates embedded wallets automatically for users-without-wallets
-          console.log('Waiting for wallet connection for onboarding...')
+          logger.debug('Waiting for wallet connection for onboarding...', undefined, 'useAuth')
           
           // Retry after a short delay (embedded wallet creation can take a moment)
           setTimeout(() => {
@@ -175,7 +179,7 @@ export function useAuth(): UseAuthReturn {
           return
         }
 
-        console.log('User not onboarded, triggering on-chain registration...')
+        logger.info('User not onboarded, triggering on-chain registration...', undefined, 'useAuth')
 
         // Trigger on-chain registration and points award
         const result = await OnboardingService.completeOnboarding(
@@ -184,15 +188,15 @@ export function useAuth(): UseAuthReturn {
         )
 
         if (result.success) {
-          console.log('Onboarding complete!', {
+          logger.info('Onboarding complete!', {
             tokenId: result.tokenId,
             points: result.points,
             txHash: result.transactionHash,
-          })
+          }, 'useAuth')
 
           // Show success notification (optional, requires toast library)
-          if (typeof window !== 'undefined' && (window as any).toast) {
-            (window as any).toast.success(
+          if (typeof window !== 'undefined' && window.toast) {
+            window.toast.success(
               `Welcome! You've received ${result.points} points and NFT #${result.tokenId}`
             )
           }
@@ -200,13 +204,13 @@ export function useAuth(): UseAuthReturn {
           // Don't log as error if it's just "user not found" - that's expected for new users
           // The user will be created when they try to onboard
           if (result.error && !result.error.includes('not found')) {
-            console.error('Onboarding failed:', result.error)
+            logger.error('Onboarding failed:', result.error, 'useAuth')
           } else {
-            console.log('Onboarding pending - user may need to complete signup first')
+            logger.debug('Onboarding pending - user may need to complete signup first', undefined, 'useAuth')
           }
         }
       } catch (error) {
-        console.error('Error during onboarding check:', error)
+        logger.error('Error during onboarding check:', error, 'useAuth')
       }
     }
 

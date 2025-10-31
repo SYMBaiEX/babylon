@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { X, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import { logger } from '@/lib/logger'
 
 interface CreatePostModalProps {
   isOpen: boolean
@@ -26,7 +27,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
     setIsSubmitting(true)
     try {
       // Get auth token from window (set by useAuth hook)
-      const token = typeof window !== 'undefined' ? (window as any).__privyAccessToken : null
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
       
       if (!token) {
         alert('Please wait for authentication to complete.')
@@ -53,11 +54,11 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
         onClose()
       } else {
         const error = await response.json().catch(() => ({ error: 'Unknown error' }))
-        console.error('Failed to create post:', error)
+        logger.error('Failed to create post:', error, 'CreatePostModal')
         alert(error.error || 'Failed to create post. Please try again.')
       }
     } catch (error) {
-      console.error('Error creating post:', error)
+      logger.error('Error creating post:', error, 'CreatePostModal')
       alert('An error occurred. Please try again.')
     } finally {
       setIsSubmitting(false)

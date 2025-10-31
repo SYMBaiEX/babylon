@@ -21,6 +21,9 @@
  */
 
 import { RealtimeGameEngine } from '../engine/RealtimeGameEngine';
+import { spawn, type ChildProcess } from 'child_process';
+import { join } from 'path';
+import { logger } from '@/lib/logger';
 
 interface CLIOptions {
   verbose?: boolean;
@@ -42,23 +45,23 @@ function parseArgs(): CLIOptions {
 async function main() {
   const options = parseArgs();
 
-  console.log('\n🎮 BABYLON REALTIME DAEMON');
-  console.log('==========================\n');
+  logger.info('BABYLON REALTIME DAEMON', undefined, 'CLI');
+  logger.info('==========================', undefined, 'CLI');
 
   // Validate API key
   const groqKey = process.env.GROQ_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
 
   if (!groqKey && !openaiKey) {
-    console.error('❌ ERROR: No API key found!\n');
-    console.error('Set GROQ_API_KEY or OPENAI_API_KEY environment variable.\n');
+    logger.error('ERROR: No API key found!', undefined, 'CLI');
+    logger.error('Set GROQ_API_KEY or OPENAI_API_KEY environment variable.', undefined, 'CLI');
     process.exit(1);
   }
 
   if (groqKey) {
-    console.log('🚀 Using Groq (fast inference)\n');
+    logger.info('Using Groq (fast inference)', undefined, 'CLI');
   } else if (openaiKey) {
-    console.log('🤖 Using OpenAI\n');
+    logger.info('Using OpenAI', undefined, 'CLI');
   }
 
   // Create engine with A2A enabled
@@ -78,28 +81,29 @@ async function main() {
   // Set up event listeners
   engine.on('tick', (tick) => {
     if (options.verbose) {
-      console.log(`\n📊 Tick Summary:`);
-      console.log(`   Posts: ${tick.posts.length}`);
-      console.log(`   Price Updates: ${tick.priceUpdates.length}`);
-      console.log(`   Events: ${tick.events.length}`);
-      console.log(`   Questions Resolved: ${tick.questionsResolved}`);
-      console.log(`   Questions Created: ${tick.questionsCreated}`);
+      logger.info('Tick Summary:', {
+        posts: tick.posts.length,
+        priceUpdates: tick.priceUpdates.length,
+        events: tick.events.length,
+        questionsResolved: tick.questionsResolved,
+        questionsCreated: tick.questionsCreated
+      }, 'CLI');
     }
   });
 
   engine.on('error', (error) => {
-    console.error('\n❌ Engine Error:', error);
+    logger.error('Engine Error:', error, 'CLI');
   });
 
   // Handle graceful shutdown
   process.on('SIGINT', () => {
-    console.log('\n\n📊 Final Stats:');
+    logger.info('Final Stats:', undefined, 'CLI');
     const state = engine.getState();
-    console.log(`   Total Actors: ${state.actors}`);
-    console.log(`   Companies: ${state.companies}`);
-    console.log(`   Active Questions: ${state.activeQuestions}`);
-    console.log(`   Total Questions: ${state.totalQuestions}`);
-    console.log(`   History Ticks: ${state.recentTicks}`);
+    logger.info(`Total Actors: ${state.actors}`, undefined, 'CLI');
+    logger.info(`Companies: ${state.companies}`, undefined, 'CLI');
+    logger.info(`Active Questions: ${state.activeQuestions}`, undefined, 'CLI');
+    logger.info(`Total Questions: ${state.totalQuestions}`, undefined, 'CLI');
+    logger.info(`History Ticks: ${state.recentTicks}`, undefined, 'CLI');
     
     engine.stop();
     process.exit(0);
@@ -113,23 +117,23 @@ async function main() {
     // Auto-start agents if enabled
     const autoStartAgents = process.env.AUTO_START_AGENTS !== 'false'; // Default to true
     if (autoStartAgents) {
-      console.log('\n🤖 Starting agents...');
+      logger.info('Starting agents...', undefined, 'CLI');
       await startAgents();
     } else {
-      console.log('\n⏭️  Agent auto-start disabled (set AUTO_START_AGENTS=false to disable)');
+      logger.info('Agent auto-start disabled (set AUTO_START_AGENTS=false to disable)', undefined, 'CLI');
     }
 
     // Keep process alive
     await new Promise(() => {});
   } catch (error) {
-    console.error('\n❌ Fatal Error:', error);
+    logger.error('Fatal Error:', error, 'CLI');
     process.exit(1);
   }
 }
 
 // Track if agents have been started to prevent duplicate spawning
 let agentsStarted = false;
-let agentProcess: ReturnType<typeof import('child_process').spawn> | null = null;
+let agentProcess: ChildProcess | null = null;
 
 /**
  * Start all agents using the spawn script
@@ -138,18 +142,15 @@ let agentProcess: ReturnType<typeof import('child_process').spawn> | null = null
 async function startAgents(): Promise<void> {
   // If agents already started, don't start again
   if (agentsStarted && agentProcess) {
-    console.log('   ⏭️  Agents already started, skipping duplicate spawn');
+    logger.info('Agents already started, skipping duplicate spawn', undefined, 'CLI');
     return;
   }
 
   try {
-    const { spawn } = await import('child_process');
-    const { join } = await import('path');
-    
     const agentScript = join(process.cwd(), 'scripts', 'run-all-agents.ts');
     const autoTrade = process.env.AGENT_AUTO_TRADE === 'true';
     
-    console.log(`   Spawning agents with auto-trade: ${autoTrade ? 'ENABLED' : 'DISABLED'}`);
+    logger.info(`Spawning agents with auto-trade: ${autoTrade ? 'ENABLED' : 'DISABLED'}`, undefined, 'CLI');
     
     agentProcess = spawn('bun', [
       agentScript,
@@ -168,7 +169,7 @@ async function startAgents(): Promise<void> {
       const lines = data.toString().split('\n').filter((line: string) => line.trim());
       lines.forEach((line: string) => {
         if (line.includes('✅') || line.includes('❌') || line.includes('Starting')) {
-          console.log(`   ${line}`);
+          logger.info(line, undefined, 'CLI');
         }
       });
     });
@@ -177,7 +178,7 @@ async function startAgents(): Promise<void> {
       const errorLines = data.toString().split('\n').filter((line: string) => line.trim());
       errorLines.forEach((line: string) => {
         if (line.includes('Error') || line.includes('error')) {
-          console.error(`   ⚠️  ${line}`);
+          logger.warn(line, undefined, 'CLI');
         }
       });
     });
@@ -186,28 +187,28 @@ async function startAgents(): Promise<void> {
       agentsStarted = false;
       agentProcess = null;
       if (code !== 0 && code !== null) {
-        console.error(`   ⚠️  Agent spawn process exited with code ${code}`);
+        logger.warn(`Agent spawn process exited with code ${code}`, undefined, 'CLI');
       }
     });
 
     // Wait a bit to see if agents start successfully
     await new Promise(resolve => setTimeout(resolve, 5000));
     
-    console.log('   ✅ Agent spawn process started');
+    logger.info('Agent spawn process started', undefined, 'CLI');
   } catch (error) {
     agentsStarted = false;
     agentProcess = null;
-    console.error('   ⚠️  Failed to start agents:', error);
-    console.error('   Agents can be started manually with: bun run eliza:all');
+    logger.error('Failed to start agents:', error, 'CLI');
+    logger.error('Agents can be started manually with: bun run eliza:all', undefined, 'CLI');
   }
 }
 
 // Run if called directly
 if (import.meta.main) {
   main().catch(error => {
-    console.error('\n❌ Error:', error.message);
+    logger.error('Error:', error.message, 'CLI');
     if (error.stack) {
-      console.error(error.stack);
+      logger.error('Stack trace:', error.stack, 'CLI');
     }
     process.exit(1);
   });

@@ -6,6 +6,7 @@ import { useAccount, useChainId, usePublicClient, useWalletClient } from 'wagmi'
 import { getContract, type Address } from 'viem'
 import { useMemo } from 'react'
 import { getContractAddresses, areContractsDeployed } from '@/lib/web3/contracts'
+import { logger } from '@/lib/logger'
 import {
   IDENTITY_REGISTRY_ABI,
   REPUTATION_SYSTEM_ABI,
@@ -125,7 +126,7 @@ export function useAgentRegistry() {
         }
         return profile
       } catch (error) {
-        console.error('Error getting profile:', error)
+        logger.error('Error getting profile:', error, 'useContracts')
         return null
       }
     },
@@ -136,7 +137,7 @@ export function useAgentRegistry() {
         const tokenId = await contracts.read.identityRegistry.read.getTokenId([ownerAddress]) as bigint
         return tokenId === 0n ? null : Number(tokenId)
       } catch (error) {
-        console.error('Error getting token:', error)
+        logger.error('Error getting token:', error, 'useContracts')
         return null
       }
     },
@@ -147,7 +148,7 @@ export function useAgentRegistry() {
         const tokenIds = await contracts.read.identityRegistry.read.getAllActiveAgents() as bigint[]
         return tokenIds.map(id => Number(id))
       } catch (error) {
-        console.error('Error getting active agents:', error)
+        logger.error('Error getting active agents:', error, 'useContracts')
         return []
       }
     },
@@ -158,7 +159,7 @@ export function useAgentRegistry() {
         const result = await contracts.read.identityRegistry.read.isEndpointActive([endpoint]) as boolean
         return result
       } catch (error) {
-        console.error('Error checking endpoint:', error)
+        logger.error('Error checking endpoint:', error, 'useContracts')
         return false
       }
     },
@@ -169,7 +170,7 @@ export function useAgentRegistry() {
         const tokenIds = await contracts.read.identityRegistry.read.getAgentsByCapability([capabilityHash]) as bigint[]
         return tokenIds.map(id => Number(id))
       } catch (error) {
-        console.error('Error getting agents by capability:', error)
+        logger.error('Error getting agents by capability:', error, 'useContracts')
         return []
       }
     },
@@ -193,7 +194,7 @@ export function useAgentRegistry() {
         ]) as `0x${string}`
         return hash
       } catch (error) {
-        console.error('Error registering agent:', error)
+        logger.error('Error registering agent:', error, 'useContracts')
         throw error
       }
     },
@@ -214,7 +215,7 @@ export function useAgentRegistry() {
         ]) as `0x${string}`
         return hash
       } catch (error) {
-        console.error('Error updating agent:', error)
+        logger.error('Error updating agent:', error, 'useContracts')
         throw error
       }
     },
@@ -227,7 +228,7 @@ export function useAgentRegistry() {
         const hash = await contracts.write.identityRegistry.write.deactivateAgent([]) as `0x${string}`
         return hash
       } catch (error) {
-        console.error('Error deactivating agent:', error)
+        logger.error('Error deactivating agent:', error, 'useContracts')
         throw error
       }
     },
@@ -240,7 +241,7 @@ export function useAgentRegistry() {
         const hash = await contracts.write.identityRegistry.write.reactivateAgent([]) as `0x${string}`
         return hash
       } catch (error) {
-        console.error('Error reactivating agent:', error)
+        logger.error('Error reactivating agent:', error, 'useContracts')
         throw error
       }
     },
@@ -280,7 +281,7 @@ export function useReputation() {
           isBanned: rep[6],
         }
       } catch (error) {
-        console.error('Error getting reputation:', error)
+        logger.error('Error getting reputation:', error, 'useContracts')
         return null
       }
     },
@@ -339,7 +340,7 @@ export function useReputation() {
         ]) as bigint[]
         return tokenIds.map(id => Number(id))
       } catch (error) {
-        console.error('Error getting agents by score:', error)
+        logger.error('Error getting agents by score:', error, 'useContracts')
         return []
       }
     },
@@ -364,7 +365,7 @@ export function useReputation() {
           timestamp: Number(f.timestamp),
         }))
       } catch (error) {
-        console.error('Error getting feedback:', error)
+        logger.error('Error getting feedback:', error, 'useContracts')
         return []
       }
     },
@@ -387,7 +388,7 @@ export function useReputation() {
         ]) as `0x${string}`
         return hash
       } catch (error) {
-        console.error('Error submitting feedback:', error)
+        logger.error('Error submitting feedback:', error, 'useContracts')
         throw error
       }
     },
@@ -430,7 +431,7 @@ export function usePredictionMarket() {
           createdAt: Number(market.createdAt),
         }
       } catch (error) {
-        console.error('Error getting market:', error)
+        logger.error('Error getting market:', error, 'useContracts')
         return null
       }
     },
@@ -444,7 +445,7 @@ export function usePredictionMarket() {
         ]) as bigint
         return Number(price)
       } catch (error) {
-        console.error('Error getting market price:', error)
+        logger.error('Error getting market price:', error, 'useContracts')
         return 0
       }
     },
@@ -466,7 +467,7 @@ export function usePredictionMarket() {
           claimed: position.claimed,
         }
       } catch (error) {
-        console.error('Error getting user position:', error)
+        logger.error('Error getting user position:', error, 'useContracts')
         return null
       }
     },
@@ -477,7 +478,7 @@ export function usePredictionMarket() {
         const markets = await contracts.read.predictionMarket.read.getActiveMarkets() as `0x${string}`[]
         return markets
       } catch (error) {
-        console.error('Error getting active markets:', error)
+        logger.error('Error getting active markets:', error, 'useContracts')
         return []
       }
     },
@@ -488,7 +489,7 @@ export function usePredictionMarket() {
         const markets = await contracts.read.predictionMarket.read.getMarketsByCategory([category]) as `0x${string}`[]
         return markets
       } catch (error) {
-        console.error('Error getting markets by category:', error)
+        logger.error('Error getting markets by category:', error, 'useContracts')
         return []
       }
     },
@@ -512,7 +513,7 @@ export function usePredictionMarket() {
         ]) as `0x${string}`
         return hash
       } catch (error) {
-        console.error('Error creating market:', error)
+        logger.error('Error creating market:', error, 'useContracts')
         throw error
       }
     },
@@ -528,7 +529,7 @@ export function usePredictionMarket() {
         ) as `0x${string}`
         return hash
       } catch (error) {
-        console.error('Error buying shares:', error)
+        logger.error('Error buying shares:', error, 'useContracts')
         throw error
       }
     },
@@ -545,7 +546,7 @@ export function usePredictionMarket() {
         ]) as `0x${string}`
         return hash
       } catch (error) {
-        console.error('Error selling shares:', error)
+        logger.error('Error selling shares:', error, 'useContracts')
         throw error
       }
     },
@@ -558,7 +559,7 @@ export function usePredictionMarket() {
         const hash = await contracts.write.predictionMarket.write.claimWinnings([marketId]) as `0x${string}`
         return hash
       } catch (error) {
-        console.error('Error claiming winnings:', error)
+        logger.error('Error claiming winnings:', error, 'useContracts')
         throw error
       }
     },

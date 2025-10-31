@@ -8,6 +8,7 @@ import { CommentInput } from './CommentInput';
 import { CommentCard } from './CommentCard';
 import type { CommentSectionProps } from '@/types/interactions';
 import type { CommentWithReplies } from '@/types/interactions';
+import { logger } from '@/lib/logger';
 
 export function CommentSection({
   postId,
@@ -34,7 +35,7 @@ export function CommentSection({
       const loadedComments = await loadComments(postId);
       setComments(loadedComments);
     } catch (error) {
-      console.error('Failed to load comments:', error);
+      logger.error('Failed to load comments:', error, 'CommentSection');
     } finally {
       setIsLoading(false);
     }
@@ -46,7 +47,7 @@ export function CommentSection({
       // Reload comments to get updated data
       await loadCommentsData();
     } catch (error) {
-      console.error('Failed to edit comment:', error);
+      logger.error('Failed to edit comment:', error, 'CommentSection');
     }
   };
 
@@ -56,7 +57,7 @@ export function CommentSection({
       // Remove comment from UI optimistically
       setComments((prev) => removeCommentById(prev, commentId));
     } catch (error) {
-      console.error('Failed to delete comment:', error);
+      logger.error('Failed to delete comment:', error, 'CommentSection');
       // Reload on error to ensure consistency
       await loadCommentsData();
     }

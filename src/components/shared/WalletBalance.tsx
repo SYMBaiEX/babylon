@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Wallet, TrendingUp, TrendingDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import { logger } from '@/lib/logger'
 
 export function WalletBalance() {
   const { user, authenticated } = useAuth()
@@ -28,7 +29,7 @@ export function WalletBalance() {
           setLifetimePnL(data.lifetimePnL || 0)
         }
       } catch (error) {
-        console.error('Error fetching balance:', error)
+        logger.error('Error fetching balance:', error, 'WalletBalance')
       } finally {
         setLoading(false)
       }

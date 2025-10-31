@@ -3,7 +3,7 @@
  * Methods: POST (like), DELETE (unlike)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
@@ -11,6 +11,7 @@ import {
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -101,7 +102,7 @@ export async function POST(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error liking comment:', error);
+    logger.error('Error liking comment:', error, 'POST /api/comments/[id]/like');
     return errorResponse('Failed to like comment');
   }
 }
@@ -178,7 +179,7 @@ export async function DELETE(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error unliking comment:', error);
+    logger.error('Error unliking comment:', error, 'DELETE /api/comments/[id]/like');
     return errorResponse('Failed to unlike comment');
   }
 }

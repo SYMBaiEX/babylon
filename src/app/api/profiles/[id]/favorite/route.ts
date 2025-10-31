@@ -3,7 +3,7 @@
  * Methods: POST (favorite), DELETE (unfavorite)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
@@ -11,6 +11,7 @@ import {
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -91,7 +92,7 @@ export async function POST(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error favoriting profile:', error);
+    logger.error('Error favoriting profile:', error, 'POST /api/profiles/[id]/favorite');
     return errorResponse('Failed to favorite profile');
   }
 }
@@ -140,7 +141,7 @@ export async function DELETE(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error unfavoriting profile:', error);
+    logger.error('Error unfavoriting profile:', error, 'DELETE /api/profiles/[id]/favorite');
     return errorResponse('Failed to unfavorite profile');
   }
 }

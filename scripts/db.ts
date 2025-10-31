@@ -22,6 +22,7 @@
 import { $ } from 'bun';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { logger } from '../src/lib/logger';
 
 const CONTAINER_NAME = 'babylon-postgres';
 const COMPOSE_FILE = 'docker-compose.yml';
@@ -30,18 +31,19 @@ const COMPOSE_FILE = 'docker-compose.yml';
  * Check if Docker is installed and running
  */
 async function checkDocker(): Promise<void> {
-  console.log('🔍 Checking Docker installation...\n');
+  logger.info('Checking Docker installation...', undefined, 'Script');
 
   try {
     // Check if Docker is installed
     await $`docker --version`.quiet();
   } catch (error) {
-    console.error('❌ ERROR: Docker is not installed!\n');
-    console.error('Docker is required to run the PostgreSQL database.');
-    console.error('\nInstall Docker:');
-    console.error('  macOS: https://docs.docker.com/desktop/install/mac-install/');
-    console.error('  Linux: https://docs.docker.com/engine/install/');
-    console.error('  Windows: https://docs.docker.com/desktop/install/windows-install/\n');
+    logger.error('ERROR: Docker is not installed!', undefined, 'Script');
+    logger.error('Docker is required to run the PostgreSQL database.', undefined, 'Script');
+    logger.error('Install Docker:', {
+      macOS: 'https://docs.docker.com/desktop/install/mac-install/',
+      linux: 'https://docs.docker.com/engine/install/',
+      windows: 'https://docs.docker.com/desktop/install/windows-install/'
+    }, 'Script');
     process.exit(1);
   }
 
@@ -49,12 +51,12 @@ async function checkDocker(): Promise<void> {
     // Check if Docker daemon is running
     await $`docker info`.quiet();
   } catch (error) {
-    console.error('❌ ERROR: Docker is installed but not running!\n');
-    console.error('Please start Docker Desktop or the Docker daemon.\n');
+    logger.error('ERROR: Docker is installed but not running!', undefined, 'Script');
+    logger.error('Please start Docker Desktop or the Docker daemon.', undefined, 'Script');
     process.exit(1);
   }
 
-  console.log('✅ Docker is installed and running\n');
+  logger.info('Docker is installed and running', undefined, 'Script');
 }
 
 /**
@@ -64,8 +66,8 @@ function checkComposeFile(): void {
   const composePath = join(process.cwd(), COMPOSE_FILE);
   
   if (!existsSync(composePath)) {
-    console.error(`❌ ERROR: ${COMPOSE_FILE} not found!\n`);
-    console.error('Please ensure docker-compose.yml exists in the project root.\n');
+    logger.error(`ERROR: ${COMPOSE_FILE} not found!`, undefined, 'Script');
+    logger.error('Please ensure docker-compose.yml exists in the project root.', undefined, 'Script');
     process.exit(1);
   }
 }
@@ -98,7 +100,7 @@ async function doesContainerExist(): Promise<boolean> {
  * Start PostgreSQL container
  */
 async function startDatabase(): Promise<void> {
-  console.log('🚀 Starting PostgreSQL...\n');
+  logger.info('Starting PostgreSQL...', undefined, 'Script');
 
   await checkDocker();
   checkComposeFile();
@@ -106,7 +108,7 @@ async function startDatabase(): Promise<void> {
   const isRunning = await isContainerRunning();
   
   if (isRunning) {
-    console.log('✅ PostgreSQL is already running!\n');
+    logger.info('PostgreSQL is already running!', undefined, 'Script');
     await showConnectionInfo();
     return;
   }
@@ -114,7 +116,7 @@ async function startDatabase(): Promise<void> {
   try {
     await $`docker-compose up -d postgres`;
     
-    console.log('⏳ Waiting for PostgreSQL to be ready...\n');
+    logger.info('Waiting for PostgreSQL to be ready...', undefined, 'Script');
     
     // Wait for health check
     let attempts = 0;
@@ -125,7 +127,7 @@ async function startDatabase(): Promise<void> {
         const health = await $`docker inspect --format='{{.State.Health.Status}}' ${CONTAINER_NAME}`.quiet().text();
         
         if (health.trim() === 'healthy') {
-          console.log('✅ PostgreSQL is ready!\n');
+          logger.info('PostgreSQL is ready!', undefined, 'Script');
           await showConnectionInfo();
           return;
         }
@@ -137,11 +139,11 @@ async function startDatabase(): Promise<void> {
       attempts++;
     }
     
-    console.log('⚠️  PostgreSQL started but health check timeout. It may still be starting...\n');
+    logger.warn('PostgreSQL started but health check timeout. It may still be starting...', undefined, 'Script');
     await showConnectionInfo();
     
   } catch (error) {
-    console.error('❌ Failed to start PostgreSQL:', error);
+    logger.error('Failed to start PostgreSQL:', error, 'Script');
     process.exit(1);
   }
 }
@@ -150,22 +152,22 @@ async function startDatabase(): Promise<void> {
  * Stop PostgreSQL container
  */
 async function stopDatabase(): Promise<void> {
-  console.log('🛑 Stopping PostgreSQL...\n');
+  logger.info('Stopping PostgreSQL...', undefined, 'Script');
 
   await checkDocker();
 
   const isRunning = await isContainerRunning();
   
   if (!isRunning) {
-    console.log('ℹ️  PostgreSQL is not running\n');
+    logger.info('PostgreSQL is not running', undefined, 'Script');
     return;
   }
 
   try {
     await $`docker-compose stop postgres`;
-    console.log('✅ PostgreSQL stopped\n');
+    logger.info('PostgreSQL stopped', undefined, 'Script');
   } catch (error) {
-    console.error('❌ Failed to stop PostgreSQL:', error);
+    logger.error('Failed to stop PostgreSQL:', error, 'Script');
     process.exit(1);
   }
 }
@@ -174,7 +176,7 @@ async function stopDatabase(): Promise<void> {
  * Restart PostgreSQL container
  */
 async function restartDatabase(): Promise<void> {
-  console.log('🔄 Restarting PostgreSQL...\n');
+  logger.info('Restarting PostgreSQL...', undefined, 'Script');
   
   await stopDatabase();
   await new Promise(resolve => setTimeout(resolve, 2000));
@@ -185,8 +187,8 @@ async function restartDatabase(): Promise<void> {
  * Show database status
  */
 async function showStatus(): Promise<void> {
-  console.log('📊 Database Status\n');
-  console.log('═'.repeat(50));
+  logger.info('Database Status', undefined, 'Script');
+  logger.info('═'.repeat(50), undefined, 'Script');
 
   await checkDocker();
 
@@ -194,28 +196,28 @@ async function showStatus(): Promise<void> {
   const isRunning = await isContainerRunning();
 
   if (!exists) {
-    console.log('\nStatus: ⚪ Not created');
-    console.log('\nRun `bun run db:start` to create and start the database.\n');
+    logger.info('Status: Not created', undefined, 'Script');
+    logger.info('Run `bun run db:start` to create and start the database.', undefined, 'Script');
     return;
   }
 
   if (isRunning) {
-    console.log('\nStatus: 🟢 Running');
+    logger.info('Status: Running', undefined, 'Script');
     
     try {
       const uptime = await $`docker inspect --format='{{.State.StartedAt}}' ${CONTAINER_NAME}`.quiet().text();
-      console.log(`Started: ${uptime.trim()}`);
+      logger.info(`Started: ${uptime.trim()}`, undefined, 'Script');
       
       const health = await $`docker inspect --format='{{.State.Health.Status}}' ${CONTAINER_NAME}`.quiet().text();
-      console.log(`Health: ${health.trim()}`);
+      logger.info(`Health: ${health.trim()}`, undefined, 'Script');
     } catch {
       // Health check might not be available yet
     }
     
     await showConnectionInfo();
   } else {
-    console.log('\nStatus: 🔴 Stopped');
-    console.log('\nRun `bun run db:start` to start the database.\n');
+    logger.info('Status: Stopped', undefined, 'Script');
+    logger.info('Run `bun run db:start` to start the database.', undefined, 'Script');
   }
 }
 
@@ -223,35 +225,35 @@ async function showStatus(): Promise<void> {
  * Show connection information
  */
 async function showConnectionInfo(): Promise<void> {
-  console.log('📝 Connection Info:');
-  console.log('  Host: localhost');
-  console.log('  Port: 5432');
-  console.log('  Database: babylon');
-  console.log('  User: babylon');
-  console.log('  Password: babylon_dev_password');
-  console.log('\n  Connection URL:');
-  console.log('  postgresql://babylon:babylon_dev_password@localhost:5432/babylon\n');
+  logger.info('Connection Info:', {
+    host: 'localhost',
+    port: 5432,
+    database: 'babylon',
+    user: 'babylon',
+    password: 'babylon_dev_password',
+    url: 'postgresql://babylon:babylon_dev_password@localhost:5432/babylon'
+  }, 'Script');
 }
 
 /**
  * Run Prisma migrations
  */
 async function runMigrations(): Promise<void> {
-  console.log('🔄 Running Prisma migrations...\n');
+  logger.info('Running Prisma migrations...', undefined, 'Script');
 
   const isRunning = await isContainerRunning();
   
   if (!isRunning) {
-    console.error('❌ PostgreSQL is not running!');
-    console.error('Start it first with: bun run db:start\n');
+    logger.error('PostgreSQL is not running!', undefined, 'Script');
+    logger.error('Start it first with: bun run db:start', undefined, 'Script');
     process.exit(1);
   }
 
   try {
     await $`bunx prisma migrate dev`;
-    console.log('\n✅ Migrations complete\n');
+    logger.info('Migrations complete', undefined, 'Script');
   } catch (error) {
-    console.error('❌ Migration failed:', error);
+    logger.error('Migration failed:', error, 'Script');
     process.exit(1);
   }
 }
@@ -260,21 +262,21 @@ async function runMigrations(): Promise<void> {
  * Seed the database
  */
 async function seedDatabase(): Promise<void> {
-  console.log('🌱 Seeding database...\n');
+  logger.info('Seeding database...', undefined, 'Script');
 
   const isRunning = await isContainerRunning();
   
   if (!isRunning) {
-    console.error('❌ PostgreSQL is not running!');
-    console.error('Start it first with: bun run db:start\n');
+    logger.error('PostgreSQL is not running!', undefined, 'Script');
+    logger.error('Start it first with: bun run db:start', undefined, 'Script');
     process.exit(1);
   }
 
   try {
     await $`bunx prisma db seed`;
-    console.log('\n✅ Database seeded\n');
+    logger.info('Database seeded', undefined, 'Script');
   } catch (error) {
-    console.error('❌ Seed failed:', error);
+    logger.error('Seed failed:', error, 'Script');
     process.exit(1);
   }
 }
@@ -283,22 +285,22 @@ async function seedDatabase(): Promise<void> {
  * Reset database (drop + migrate + seed)
  */
 async function resetDatabase(): Promise<void> {
-  console.log('⚠️  Resetting database (this will delete all data)...\n');
+  logger.warn('Resetting database (this will delete all data)...', undefined, 'Script');
 
   const isRunning = await isContainerRunning();
   
   if (!isRunning) {
-    console.error('❌ PostgreSQL is not running!');
-    console.error('Start it first with: bun run db:start\n');
+    logger.error('PostgreSQL is not running!', undefined, 'Script');
+    logger.error('Start it first with: bun run db:start', undefined, 'Script');
     process.exit(1);
   }
 
   try {
-    console.log('🗑️  Dropping database...');
+    logger.info('Dropping database...', undefined, 'Script');
     await $`bunx prisma migrate reset --force`;
-    console.log('\n✅ Database reset complete\n');
+    logger.info('Database reset complete', undefined, 'Script');
   } catch (error) {
-    console.error('❌ Reset failed:', error);
+    logger.error('Reset failed:', error, 'Script');
     process.exit(1);
   }
 }
@@ -307,8 +309,8 @@ async function resetDatabase(): Promise<void> {
  * Show help
  */
 function showHelp(): void {
-  console.log(`
-🎮 Babylon Database Management
+  logger.info(`
+Babylon Database Management
 
 Usage: bun scripts/db.ts <command>
 
@@ -331,7 +333,7 @@ Examples:
 Environment:
   The database connection URL should be set in your .env file:
   DATABASE_URL="postgresql://babylon:babylon_dev_password@localhost:5432/babylon"
-`);
+`, undefined, 'Script');
 }
 
 /**
@@ -376,7 +378,7 @@ async function main(): Promise<void> {
       break;
     
     default:
-      console.error(`❌ Unknown command: ${command || '(none)'}\n`);
+      logger.error(`Unknown command: ${command || '(none)'}`, undefined, 'Script');
       showHelp();
       process.exit(1);
   }
@@ -385,7 +387,7 @@ async function main(): Promise<void> {
 // Run if called directly
 if (import.meta.main) {
   main().catch(error => {
-    console.error('\n❌ Error:', error.message);
+    logger.error('Error:', error.message, 'Script');
     process.exit(1);
   });
 }

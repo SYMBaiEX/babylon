@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Bell, Check, CheckCheck } from 'lucide-react'
+import { ArrowLeft, Bell, CheckCheck } from 'lucide-react'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { Avatar } from '@/components/shared/Avatar'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import { logger } from '@/lib/logger'
 import { toast } from 'sonner'
 
 interface Notification {
@@ -45,7 +46,7 @@ export default function NotificationsPage() {
   const fetchNotifications = async () => {
     try {
       setLoading(true)
-      const token = typeof window !== 'undefined' ? (window as any).__privyAccessToken : null
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
 
       if (!token) {
         setLoading(false)
@@ -63,10 +64,10 @@ export default function NotificationsPage() {
         setNotifications(data.notifications || [])
         setUnreadCount(data.unreadCount || 0)
       } else {
-        console.error('Failed to fetch notifications:', response.statusText)
+        logger.error('Failed to fetch notifications:', response.statusText, 'NotificationsPage')
       }
     } catch (error) {
-      console.error('Error fetching notifications:', error)
+      logger.error('Error fetching notifications:', error, 'NotificationsPage')
     } finally {
       setLoading(false)
     }
@@ -74,7 +75,7 @@ export default function NotificationsPage() {
 
   const markAsRead = async (notificationId: string) => {
     try {
-      const token = typeof window !== 'undefined' ? (window as any).__privyAccessToken : null
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
 
       if (!token) return
 
@@ -97,14 +98,14 @@ export default function NotificationsPage() {
         setUnreadCount(prev => Math.max(0, prev - 1))
       }
     } catch (error) {
-      console.error('Error marking notification as read:', error)
+      logger.error('Error marking notification as read:', error, 'NotificationsPage')
     }
   }
 
   const markAllAsRead = async () => {
     try {
       setMarkingAsRead(true)
-      const token = typeof window !== 'undefined' ? (window as any).__privyAccessToken : null
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
 
       if (!token) return
 
@@ -128,7 +129,7 @@ export default function NotificationsPage() {
         toast.error('Failed to mark all as read')
       }
     } catch (error) {
-      console.error('Error marking all as read:', error)
+      logger.error('Error marking all as read:', error, 'NotificationsPage')
       toast.error('Failed to mark all as read')
     } finally {
       setMarkingAsRead(false)

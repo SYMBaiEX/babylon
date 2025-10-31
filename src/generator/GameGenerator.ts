@@ -28,8 +28,9 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { FeedGenerator } from '../engine/FeedGenerator';
 import { BabylonLLMClient } from './llm/openai-client';
+import { logger } from '@/lib/logger';
 import { generateActorContext } from '../engine/EmotionSystem';
-import { shuffleArray } from '@/shared/utils';
+import { shuffleArray, toQuestionIdNumber, toQuestionIdNumberOrNull } from '@/shared/utils';
 import { loadPrompt } from '../prompts/loader';
 import type {
   Actor,
@@ -297,59 +298,55 @@ export class GameGenerator {
   async generateCompleteGame(startDate = '2025-11-01'): Promise<GeneratedGame> {
     const gameNumber = this.gameHistory.length + 1;
     
-    console.log(`🎮 GENERATING BABYLON GAME #${gameNumber}...`);
-    console.log(`   Start date: ${startDate}`);
-    console.log(`   Duration: 30 days`);
+    logger.info(`GENERATING BABYLON GAME #${gameNumber}...`, undefined, 'GameGenerator');
+    logger.info(`Start date: ${startDate}`, undefined, 'GameGenerator');
+    logger.info('Duration: 30 days', undefined, 'GameGenerator');
     if (this.gameHistory.length > 0) {
-      console.log(`   ✓ Loading ${this.gameHistory.length} previous game(s) as context`);
+      logger.info(`Loading ${this.gameHistory.length} previous game(s) as context`, undefined, 'GameGenerator');
     } else {
-      console.log(`   ✓ First game - no previous context`);
+      logger.info('First game - no previous context', undefined, 'GameGenerator');
     }
-    console.log('================================\n');
+    logger.info('================================', undefined, 'GameGenerator');
 
     // Phase 1: Actor Selection
-    console.log('📋 Phase 1: Selecting actors...');
+    logger.info('Phase 1: Selecting actors...', undefined, 'GameGenerator');
     const selectedActors = this.selectActors();
-    console.log(`  ✓ Selected ${selectedActors.mains.length} main actors`);
-    console.log(`  ✓ Selected ${selectedActors.supporting.length} supporting actors`);
-    console.log(`  ✓ Selected ${selectedActors.extras.length} extras`);
+    logger.info(`Selected ${selectedActors.mains.length} main actors`, undefined, 'GameGenerator');
+    logger.info(`Selected ${selectedActors.supporting.length} supporting actors`, undefined, 'GameGenerator');
+    logger.info(`Selected ${selectedActors.extras.length} extras`, undefined, 'GameGenerator');
     
     if (selectedActors.mains.length > 0) {
-      console.log('\n  Main cast:');
-      selectedActors.mains.forEach(a => {
-        console.log(`    • ${a.name} - ${(a.description || '').substring(0, 60)}...`);
-      });
+      logger.info('Main cast:', selectedActors.mains.map(a => `${a.name} - ${(a.description || '').substring(0, 60)}...`), 'GameGenerator');
     }
-    console.log();
 
     // Phase 2: Scenario & Question Generation
-    console.log('📝 Phase 2: Generating scenarios & questions...');
+    logger.info('Phase 2: Generating scenarios & questions...', undefined, 'GameGenerator');
     
     // Extract organizations first for context
     const organizations = this.extractOrganizations(selectedActors);
     
     const scenarios = await this.generateScenarios(selectedActors.mains, organizations);
-    console.log(`  ✓ Generated ${scenarios.length} scenarios`);
+    logger.info(`Generated ${scenarios.length} scenarios`, undefined, 'GameGenerator');
     
     const questions = await this.generateQuestions(scenarios, organizations);
-    console.log(`  ✓ Generated ${questions.length} questions total`);
+    logger.info(`Generated ${questions.length} questions total`, undefined, 'GameGenerator');
     
     const topQuestions = await this.rankAndSelectQuestions(questions);
-    console.log(`  ✓ Selected top 3 questions\n`);
+    logger.info('Selected top 3 questions', undefined, 'GameGenerator');
 
     // Phase 3: World Building
-    console.log('🌍 Phase 3: Building world...');
+    logger.info('Phase 3: Building world...', undefined, 'GameGenerator');
     const connections = this.generateConnections(selectedActors);
-    console.log(`  ✓ Generated ${connections.length} actor relationships`);
+    logger.info(`Generated ${connections.length} actor relationships`, undefined, 'GameGenerator');
     
     const groupChats = await this.createGroupChats(selectedActors, connections);
-    console.log(`  ✓ Created ${groupChats.length} group chats`);
+    logger.info(`Created ${groupChats.length} group chats`, undefined, 'GameGenerator');
     
     const luckMood = this.initializeLuckMood(selectedActors);
-    console.log(`  ✓ Initialized luck & mood for ${luckMood.size} actors\n`);
+    logger.info(`Initialized luck & mood for ${luckMood.size} actors`, undefined, 'GameGenerator');
 
     // Phase 4: 30-Day Timeline Generation
-    console.log('📅 Phase 4: Generating 30-day timeline...');
+    logger.info('Phase 4: Generating 30-day timeline...', undefined, 'GameGenerator');
     const timeline: DayTimeline[] = [];
     const gameStartDate = new Date(startDate);
     
@@ -377,13 +374,13 @@ export class GameGenerator {
       );
       
       timeline.push(dayTimeline);
-      console.log(`✓ (${dayTimeline.events.length} events, ${dayTimeline.feedPosts.length} posts)`);
+      logger.debug(`[${dateStr}] ${phase} - ${dayTimeline.events.length} events, ${dayTimeline.feedPosts.length} posts`, undefined, 'GameGenerator');
     }
 
     // Phase 5: Resolution
-    console.log('\n🎯 Phase 5: Generating resolution...');
+    logger.info('Phase 5: Generating resolution...', undefined, 'GameGenerator');
     const resolution = this.generateResolution(topQuestions, timeline);
-    console.log('  ✓ All questions resolved\n');
+    logger.info('All questions resolved', undefined, 'GameGenerator');
 
     // Organizations already extracted earlier for prompt generation
     const game: GeneratedGame = {
@@ -411,13 +408,12 @@ export class GameGenerator {
       return sum + Object.values(day.groupChats).flat().length;
     }, 0);
 
-    console.log('📊 GENERATION COMPLETE');
-    console.log('======================');
-    console.log(`Total actors: ${selectedActors.mains.length + selectedActors.supporting.length + selectedActors.extras.length}`);
-    console.log(`Total events: ${totalEvents}`);
-    console.log(`Total feed posts: ${totalPosts}`);
-    console.log(`Total group messages: ${totalGroupMessages}`);
-    console.log();
+    logger.info('GENERATION COMPLETE', undefined, 'GameGenerator');
+    logger.info('======================', undefined, 'GameGenerator');
+    logger.info(`Total actors: ${selectedActors.mains.length + selectedActors.supporting.length + selectedActors.extras.length}`, undefined, 'GameGenerator');
+    logger.info(`Total events: ${totalEvents}`, undefined, 'GameGenerator');
+    logger.info(`Total feed posts: ${totalPosts}`, undefined, 'GameGenerator');
+    logger.info(`Total group messages: ${totalGroupMessages}`, undefined, 'GameGenerator');
 
     return game;
   }
@@ -428,28 +424,28 @@ export class GameGenerator {
    * No questions, just events and social media to establish baseline
    */
   async generateGenesis(): Promise<GenesisGame> {
-    console.log('🌍 GENERATING GENESIS GAME...');
-    console.log('October 2025 - World Initialization (30 days)');
-    console.log('==============================================\n');
+    logger.info('GENERATING GENESIS GAME...', undefined, 'GameGenerator');
+    logger.info('October 2025 - World Initialization (30 days)', undefined, 'GameGenerator');
+    logger.info('==============================================', undefined, 'GameGenerator');
 
     // Select actors for the world
-    console.log('📋 Selecting actors for world initialization...');
+    logger.info('Selecting actors for world initialization...', undefined, 'GameGenerator');
     const selectedActors = this.selectActors();
     const allActors = [...selectedActors.mains, ...selectedActors.supporting, ...selectedActors.extras];
-    console.log(`  ✓ Selected ${allActors.length} actors\n`);
+    logger.info(`Selected ${allActors.length} actors`, undefined, 'GameGenerator');
 
     // Create relationships
     const connections = this.generateConnections(selectedActors);
     
     // Create group chats
     const groupChats = await this.createGroupChats(selectedActors, connections);
-    console.log(`  ✓ Created ${groupChats.length} group chats\n`);
+    logger.info(`Created ${groupChats.length} group chats`, undefined, 'GameGenerator');
 
     // Initialize luck and mood
     const luckMood = this.initializeLuckMood(selectedActors);
 
     // Generate 30 days: October 1-31, 2025
-    console.log('📅 Generating October 1-31, 2025 (30 days)...');
+    logger.info('Generating October 1-31, 2025 (30 days)...', undefined, 'GameGenerator');
     const timeline: DayTimeline[] = [];
     const startDate = new Date('2025-10-01');
 
@@ -498,7 +494,7 @@ export class GameGenerator {
         moodChanges,
       });
 
-      console.log(`✓ (${events.length} events, ${feedPosts.length} posts, ${luckChanges.length + moodChanges.length} state changes)`);
+      logger.debug(`[${dateStr}] ${events.length} events, ${feedPosts.length} posts, ${luckChanges.length + moodChanges.length} state changes`, undefined, 'GameGenerator');
     }
 
     const genesis: GenesisGame = {
@@ -514,12 +510,11 @@ export class GameGenerator {
       summary: 'World initialization - October 2025 (30 days). Normal activity establishing baseline.',
     };
 
-    console.log('\n✅ GENESIS COMPLETE');
-    console.log('===================');
-    console.log(`Total events: ${timeline.reduce((sum, day) => sum + day.events.length, 0)}`);
-    console.log(`Total posts: ${timeline.reduce((sum, day) => sum + day.feedPosts.length, 0)}`);
-    console.log(`Total state changes: ${timeline.reduce((sum, day) => sum + day.luckChanges.length + day.moodChanges.length, 0)}`);
-    console.log();
+    logger.info('GENESIS COMPLETE', undefined, 'GameGenerator');
+    logger.info('===================', undefined, 'GameGenerator');
+    logger.info(`Total events: ${timeline.reduce((sum, day) => sum + day.events.length, 0)}`, undefined, 'GameGenerator');
+    logger.info(`Total posts: ${timeline.reduce((sum, day) => sum + day.feedPosts.length, 0)}`, undefined, 'GameGenerator');
+    logger.info(`Total state changes: ${timeline.reduce((sum, day) => sum + day.luckChanges.length + day.moodChanges.length, 0)}`, undefined, 'GameGenerator');
 
     return genesis;
   }
@@ -752,7 +747,7 @@ Key outcomes: ${h.keyOutcomes.map(o => `${o.questionText} → ${o.outcome ? 'YES
       .filter(org => orgIds.has(org.id))
       .sort((a, b) => (orgWeights.get(b.id) || 0) - (orgWeights.get(a.id) || 0));
 
-    console.log(`  📊 Extracted ${organizations.length} organizations (${organizations.filter(o => o.type === 'company').length} companies, ${organizations.filter(o => o.type === 'media').length} media, ${organizations.filter(o => o.type === 'government').length} government)`);
+    logger.debug(`Extracted ${organizations.length} organizations (${organizations.filter(o => o.type === 'company').length} companies, ${organizations.filter(o => o.type === 'media').length} media, ${organizations.filter(o => o.type === 'government').length} government)`, undefined, 'GameGenerator');
     
     return organizations;
   }
@@ -793,18 +788,18 @@ Otherwise, start fresh.`;
     
     // Validate scenarios - LLM must provide all required fields
     if (!result || !result.scenarios || !Array.isArray(result.scenarios)) {
-      console.error('❌ Invalid scenarios response from LLM:', JSON.stringify(result, null, 2));
+      logger.error('Invalid scenarios response from LLM:', JSON.stringify(result, null, 2), 'GameGenerator');
       throw new Error('LLM returned invalid scenarios response');
     }
 
     // Validate each scenario has required fields
     for (const scenario of result.scenarios) {
       if (!scenario.mainActors || !Array.isArray(scenario.mainActors)) {
-        console.error('❌ Scenario missing mainActors:', JSON.stringify(scenario, null, 2));
+        logger.error('Scenario missing mainActors:', JSON.stringify(scenario, null, 2), 'GameGenerator');
         throw new Error(`Scenario "${scenario.title}" is missing mainActors array`);
       }
       if (!scenario.title || !scenario.description) {
-        console.error('❌ Scenario missing required fields:', JSON.stringify(scenario, null, 2));
+        logger.error('Scenario missing required fields:', JSON.stringify(scenario, null, 2), 'GameGenerator');
         throw new Error('Scenario is missing title or description');
       }
     }
@@ -830,7 +825,7 @@ Otherwise, start fresh.`;
     
     if (Array.isArray(rawResult)) {
       // LLM returned array of objects - flatten into single object
-      console.log('⚠️  LLM returned array format, flattening...');
+      logger.warn('LLM returned array format, flattening...', undefined, 'GameGenerator');
       const allQuestions = rawResult.flatMap(item => {
         if (item && item.questions && Array.isArray(item.questions)) {
           return item.questions;
@@ -843,7 +838,7 @@ Otherwise, start fresh.`;
       result = rawResult;
     } else {
       // Invalid format
-      console.error('❌ Invalid response from LLM:', JSON.stringify(rawResult, null, 2));
+      logger.error('Invalid response from LLM:', JSON.stringify(rawResult, null, 2), 'GameGenerator');
       throw new Error(
         'LLM returned invalid response. Expected { questions: [...] } but got: ' + 
         (rawResult ? JSON.stringify(rawResult).substring(0, 200) : 'undefined')
@@ -1031,7 +1026,7 @@ Otherwise, start fresh.`;
         .find((a: SelectedActor) => a.id === id);
     };
     
-    console.log('🎭 Generating contextual group chat names...');
+    logger.info('Generating contextual group chat names...', undefined, 'GameGenerator');
     
     // One group per main actor
     for (const main of selectedActors.mains) {
@@ -1045,7 +1040,7 @@ Otherwise, start fresh.`;
       const groupName = await this.generateGroupChatName(main, members, domain);
       const kebabName = groupName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
       
-      console.log(`  💬 "${groupName}" (admin: ${main.name})`);
+      logger.debug(`"${groupName}" (admin: ${main.name})`, undefined, 'GameGenerator');
       
       chats.push({
         id: kebabName,
@@ -1072,7 +1067,7 @@ Otherwise, start fresh.`;
       const groupName = await this.generateGroupChatName(supporting, members, domain);
       const kebabName = groupName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + `-${chats.length}`;
       
-      console.log(`  💬 "${groupName}" (admin: ${supporting.name})`);
+      logger.debug(`"${groupName}" (admin: ${supporting.name})`, undefined, 'GameGenerator');
       
       chats.push({
         id: kebabName,
@@ -1130,7 +1125,7 @@ Otherwise, start fresh.`;
       const type = eventTypes[Math.floor(Math.random() * eventTypes.length)]!;
       const numActorsInvolved = type === 'meeting' ? 2 + Math.floor(Math.random() * 3) : 1;
       const involvedActors = shuffleArray(allActors).slice(0, numActorsInvolved);
-      const questionId = questions[i % questions.length]!.id;
+      const questionId = toQuestionIdNumber(questions[i % questions.length]!.id);
 
       eventRequests.push({
         eventNumber: i,
@@ -1390,7 +1385,7 @@ Max 120 characters, one sentence.`;
       type: response.type || 'revelation',
       actors: mainActors.map(a => a.id),
       description: response.event || `Resolution event for question ${question.id}`,
-      relatedQuestion: question.id,
+      relatedQuestion: toQuestionIdNumberOrNull(question.id),
       pointsToward: question.outcome ? 'YES' : 'NO',
       visibility: 'public',
     };

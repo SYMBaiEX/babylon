@@ -21,8 +21,9 @@ import { FeedGenerator } from '../engine/FeedGenerator';
 import { BabylonLLMClient } from '../generator/llm/openai-client';
 import { QuestionManager } from '../engine/QuestionManager';
 import { PriceEngine } from '../engine/PriceEngine';
-import { shuffleArray } from '@/shared/utils';
+import { shuffleArray, toQuestionIdNumber, toQuestionIdNumberOrNull } from '@/shared/utils';
 import { loadPrompt } from '../prompts/loader';
+import { logger } from '@/lib/logger';
 import type {
   ActorTier,
   SelectedActor,
@@ -89,41 +90,41 @@ export class ContinuousGameGenerator {
       luckMood: Map<string, { luck: string; mood: number }>;
     };
   }> {
-    console.log('🎮 INITIALIZING CONTINUOUS GAME');
-    console.log('================================\n');
+    logger.info('INITIALIZING CONTINUOUS GAME', undefined, 'ContinuousGameGenerator');
+    logger.info('================================', undefined, 'ContinuousGameGenerator');
 
     // Phase 1: Actor Selection
-    console.log('📋 Phase 1: Selecting actors...');
+    logger.info('Phase 1: Selecting actors...', undefined, 'ContinuousGameGenerator');
     const selectedActors = this.selectActors();
-    console.log(`  ✓ Selected ${selectedActors.mains.length} main actors`);
-    console.log(`  ✓ Selected ${selectedActors.supporting.length} supporting actors`);
-    console.log(`  ✓ Selected ${selectedActors.extras.length} extras\n`);
+    logger.info(`Selected ${selectedActors.mains.length} main actors`, undefined, 'ContinuousGameGenerator');
+    logger.info(`Selected ${selectedActors.supporting.length} supporting actors`, undefined, 'ContinuousGameGenerator');
+    logger.info(`Selected ${selectedActors.extras.length} extras`, undefined, 'ContinuousGameGenerator');
 
     // Phase 2: Extract organizations and initialize prices
-    console.log('💰 Phase 2: Initializing organizations and prices...');
+    logger.info('Phase 2: Initializing organizations and prices...', undefined, 'ContinuousGameGenerator');
     const organizations = this.extractOrganizations(selectedActors);
     this.priceEngine.initializeCompanies(organizations);
-    console.log(`  ✓ Extracted ${organizations.length} organizations`);
-    console.log(`  ✓ Initialized prices for ${organizations.filter(o => o.type === 'company').length} companies\n`);
+    logger.info(`Extracted ${organizations.length} organizations`, undefined, 'ContinuousGameGenerator');
+    logger.info(`Initialized prices for ${organizations.filter(o => o.type === 'company').length} companies`, undefined, 'ContinuousGameGenerator');
 
     // Phase 3: Generate initial scenarios
-    console.log('📝 Phase 3: Generating scenarios...');
+    logger.info('Phase 3: Generating scenarios...', undefined, 'ContinuousGameGenerator');
     const scenarios = await this.generateScenarios(selectedActors.mains, organizations);
-    console.log(`  ✓ Generated ${scenarios.length} scenarios\n`);
+    logger.info(`Generated ${scenarios.length} scenarios`, undefined, 'ContinuousGameGenerator');
 
     // Phase 4: World Building
-    console.log('🌍 Phase 4: Building world...');
+    logger.info('Phase 4: Building world...', undefined, 'ContinuousGameGenerator');
     const connections = this.generateConnections(selectedActors);
-    console.log(`  ✓ Generated ${connections.length} actor relationships`);
+    logger.info(`Generated ${connections.length} actor relationships`, undefined, 'ContinuousGameGenerator');
 
     const groupChats = await this.createGroupChats(selectedActors, connections);
-    console.log(`  ✓ Created ${groupChats.length} group chats`);
+    logger.info(`Created ${groupChats.length} group chats`, undefined, 'ContinuousGameGenerator');
 
     const luckMood = this.initializeLuckMood(selectedActors);
-    console.log(`  ✓ Initialized luck & mood for ${luckMood.size} actors\n`);
+    logger.info(`Initialized luck & mood for ${luckMood.size} actors`, undefined, 'ContinuousGameGenerator');
 
     // Phase 5: Generate initial questions (start with 5-10)
-    console.log('🎯 Phase 5: Generating initial questions...');
+    logger.info('Phase 5: Generating initial questions...', undefined, 'ContinuousGameGenerator');
     const initialQuestions = await this.questionManager.generateDailyQuestions({
       currentDate: startDate,
       scenarios,
@@ -133,7 +134,7 @@ export class ContinuousGameGenerator {
       recentEvents: [],
       nextQuestionId: 1,
     });
-    console.log(`  ✓ Generated ${initialQuestions.length} initial questions\n`);
+    logger.info(`Generated ${initialQuestions.length} initial questions`, undefined, 'ContinuousGameGenerator');
 
     // Create game state
     const gameState: GameState = {
@@ -156,12 +157,12 @@ export class ContinuousGameGenerator {
       ...selectedActors.extras,
     ];
 
-    console.log('✅ GAME INITIALIZED');
-    console.log('===================');
-    console.log(`Game ID: ${gameState.id}`);
-    console.log(`Start Date: ${startDate}`);
-    console.log(`Active Questions: ${gameState.activeQuestions.length}`);
-    console.log(`Companies with Prices: ${gameState.organizations.length}\n`);
+    logger.info('GAME INITIALIZED', undefined, 'ContinuousGameGenerator');
+    logger.info('===================', undefined, 'ContinuousGameGenerator');
+    logger.info(`Game ID: ${gameState.id}`, undefined, 'ContinuousGameGenerator');
+    logger.info(`Start Date: ${startDate}`, undefined, 'ContinuousGameGenerator');
+    logger.info(`Active Questions: ${gameState.activeQuestions.length}`, undefined, 'ContinuousGameGenerator');
+    logger.info(`Companies with Prices: ${gameState.organizations.length}`, undefined, 'ContinuousGameGenerator');
 
     return {
       gameState,
@@ -193,11 +194,11 @@ export class ContinuousGameGenerator {
     currentDate.setDate(currentDate.getDate() + 1);
     const dateStr = currentDate.toISOString().split('T')[0]!;
 
-    console.log(`\n📅 GENERATING DAY ${day}: ${dateStr}`);
-    console.log('================================');
+    logger.info(`GENERATING DAY ${day}: ${dateStr}`, undefined, 'ContinuousGameGenerator');
+    logger.info('================================', undefined, 'ContinuousGameGenerator');
 
     // Step 1: Check for questions to resolve
-    console.log('🎯 Step 1: Checking for question resolutions...');
+    logger.info('Step 1: Checking for question resolutions...', undefined, 'ContinuousGameGenerator');
     const questionsToResolve = this.questionManager.getQuestionsToResolve(
       gameState.activeQuestions,
       dateStr
@@ -206,7 +207,7 @@ export class ContinuousGameGenerator {
     const resolvedQuestionsData: Array<{ question: Question; resolved: Question }> = [];
     
     if (questionsToResolve.length > 0) {
-      console.log(`  ✓ Resolving ${questionsToResolve.length} questions`);
+      logger.info(`Resolving ${questionsToResolve.length} questions`, undefined, 'ContinuousGameGenerator');
       for (const question of questionsToResolve) {
         const resolved = this.questionManager.resolveQuestion(question, question.outcome);
         gameState.resolvedQuestions.push(resolved);
@@ -214,11 +215,11 @@ export class ContinuousGameGenerator {
         resolvedQuestionsData.push({ question, resolved });
       }
     } else {
-      console.log(`  • No questions to resolve today`);
+      logger.debug('No questions to resolve today', undefined, 'ContinuousGameGenerator');
     }
 
     // Step 2: Generate new questions (if space available)
-    console.log('📝 Step 2: Generating new questions...');
+    logger.info('Step 2: Generating new questions...', undefined, 'ContinuousGameGenerator');
     if (gameState.activeQuestions.length < 20) {
       const newQuestions = await this.questionManager.generateDailyQuestions({
         currentDate: dateStr,
@@ -227,21 +228,21 @@ export class ContinuousGameGenerator {
         organizations: gameState.organizations,
         activeQuestions: gameState.activeQuestions,
         recentEvents: previousDays.slice(-5),
-        nextQuestionId: Math.max(...gameState.activeQuestions.map(q => q.id), 0) + 1,
+        nextQuestionId: Math.max(...gameState.activeQuestions.map(q => toQuestionIdNumber(q.id)), 0) + 1,
       });
 
       if (newQuestions.length > 0) {
-        console.log(`  ✓ Created ${newQuestions.length} new questions`);
+        logger.info(`Created ${newQuestions.length} new questions`, undefined, 'ContinuousGameGenerator');
         gameState.activeQuestions.push(...newQuestions);
       } else {
-        console.log(`  • No new questions created`);
+        logger.debug('No new questions created', undefined, 'ContinuousGameGenerator');
       }
     } else {
-      console.log(`  • Max questions reached (20/20)`);
+      logger.debug('Max questions reached (20/20)', undefined, 'ContinuousGameGenerator');
     }
 
     // Step 3: Generate day's events
-    console.log('🌍 Step 3: Generating events...');
+    logger.info('Step 3: Generating events...', undefined, 'ContinuousGameGenerator');
     const dayTimeline = await this.generateDay(
       day,
       allActors,
@@ -253,11 +254,11 @@ export class ContinuousGameGenerator {
       dateStr,
       connections
     );
-    console.log(`  ✓ Generated ${dayTimeline.events.length} events, ${dayTimeline.feedPosts.length} posts`);
+    logger.info(`Generated ${dayTimeline.events.length} events, ${dayTimeline.feedPosts.length} posts`, undefined, 'ContinuousGameGenerator');
 
     // Step 3.5: Generate question resolution posts
     if (resolvedQuestionsData.length > 0) {
-      console.log(`📢 Step 3.5: Generating resolution announcements...`);
+      logger.info('Step 3.5: Generating resolution announcements...', undefined, 'ContinuousGameGenerator');
       for (const { question, resolved } of resolvedQuestionsData) {
         // Find most recent event related to this question for context
         const relatedEvents = dayTimeline.events
@@ -278,23 +279,23 @@ export class ContinuousGameGenerator {
         
         if (resolutionPost) {
           dayTimeline.feedPosts.push(resolutionPost);
-          console.log(`  ✓ Created resolution post for: "${question.text}"`);
+          logger.info(`Created resolution post for: "${question.text}"`, undefined, 'ContinuousGameGenerator');
         }
       }
     }
 
     // Step 4: Update stock prices based on events
-    console.log('💰 Step 4: Updating stock prices...');
+    logger.info('Step 4: Updating stock prices...', undefined, 'ContinuousGameGenerator');
     const priceUpdates = await this.updateStockPrices(dayTimeline.events, gameState.organizations);
     if (priceUpdates.length > 0) {
-      console.log(`  ✓ Updated ${priceUpdates.length} company prices`);
+      logger.info(`Updated ${priceUpdates.length} company prices`, undefined, 'ContinuousGameGenerator');
       gameState.priceUpdates.push(...priceUpdates);
       // Keep only last 100 price updates
       if (gameState.priceUpdates.length > 100) {
         gameState.priceUpdates = gameState.priceUpdates.slice(-100);
       }
     } else {
-      console.log(`  • No significant price movements`);
+      logger.debug('No significant price movements', undefined, 'ContinuousGameGenerator');
     }
 
     // Update game state
@@ -306,9 +307,9 @@ export class ContinuousGameGenerator {
     // Update internal game state
     this.gameState = gameState;
 
-    console.log('\n✅ DAY COMPLETE');
-    console.log(`Active Questions: ${gameState.activeQuestions.length}/20`);
-    console.log(`Resolved Questions: ${gameState.resolvedQuestions.length}`);
+    logger.info('DAY COMPLETE', undefined, 'ContinuousGameGenerator');
+    logger.info(`Active Questions: ${gameState.activeQuestions.length}/20`, undefined, 'ContinuousGameGenerator');
+    logger.info(`Resolved Questions: ${gameState.resolvedQuestions.length}`, undefined, 'ContinuousGameGenerator');
 
     return { dayTimeline, updatedGameState: gameState };
   }
@@ -378,7 +379,7 @@ export class ContinuousGameGenerator {
 
       return { direction: response.direction, magnitude: response.magnitude };
     } catch (error) {
-      console.error('Failed to analyze price impact:', error);
+      logger.error('Failed to analyze price impact:', error, 'ContinuousGameGenerator');
       return { direction: 'neutral', magnitude: 'minor' };
     }
   }
@@ -807,7 +808,7 @@ export class ContinuousGameGenerator {
         type: eventType,
         actors: selectedActors,
         actorsWithContext,
-        questionId: question.id,
+        questionId: toQuestionIdNumber(question.id),
         questionText: question.text
       });
     }
@@ -863,7 +864,7 @@ export class ContinuousGameGenerator {
           });
         });
       } catch (error) {
-        console.error('Error generating events with LLM:', error);
+        logger.error('Error generating events with LLM:', error, 'ContinuousGameGenerator');
         // Fallback to simple events if LLM fails
         return this.generateSimpleEvents(day, actors, questions, eventCount);
       }
@@ -896,7 +897,7 @@ export class ContinuousGameGenerator {
         type: 'announcement',
         actors: actors.slice(0, 2).map(a => a.id),
         description: `Event related to: ${question.text}`,
-        relatedQuestion: question.id,
+        relatedQuestion: toQuestionIdNumberOrNull(question.id),
         pointsToward: Math.random() > 0.5 ? (question.outcome ? 'YES' : 'NO') : null,
         visibility: 'public',
       });
@@ -1174,7 +1175,7 @@ ${req.members.map((m, idx) => {
 
       return messages;
     } catch (error) {
-      console.error('Failed to generate group messages:', error);
+      logger.error('Failed to generate group messages:', error, 'ContinuousGameGenerator');
       return messages;
     }
   }

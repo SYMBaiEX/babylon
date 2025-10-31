@@ -5,9 +5,10 @@
  * Tracks transactions for transparency
  */
 
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { PrismaClient, Prisma } from '@prisma/client'
 import { errorResponse, successResponse } from '@/lib/api/auth-middleware'
+import { logger } from '@/lib/logger'
 
 const prisma = new PrismaClient()
 
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Points award error:', error)
+    logger.error('Points award error:', error, 'POST /api/users/points/award')
     return errorResponse(
       error instanceof Error ? error.message : 'Failed to award points',
       500
@@ -152,7 +153,7 @@ export async function GET(request: NextRequest) {
       })),
     })
   } catch (error) {
-    console.error('Fetch points history error:', error)
+    logger.error('Fetch points history error:', error, 'GET /api/users/points/award')
     return errorResponse(
       error instanceof Error ? error.message : 'Failed to fetch points history',
       500

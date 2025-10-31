@@ -6,6 +6,7 @@
 
 import { db } from '@/lib/database-service';
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 
 export async function GET() {
   try {
@@ -39,15 +40,41 @@ export async function GET() {
         }
         
         // Get open interest from positions
-        let positions: any[] = [];
+        let positions: Array<{
+          id: string
+          userId: string
+          side: 'long' | 'short'
+          size: number
+          leverage: number
+          entryPrice: number
+          currentPrice: number
+        }> = [];
         try {
-          positions = await db.prisma.perpPosition.findMany({
+          const dbPositions = await db.prisma.perpPosition.findMany({
             where: {
               organizationId: company.id,
               closedAt: null,
             },
+            select: {
+              id: true,
+              userId: true,
+              side: true,
+              size: true,
+              leverage: true,
+              entryPrice: true,
+              currentPrice: true,
+            },
           });
-        } catch (error) {
+          positions = dbPositions.map(p => ({
+            id: p.id,
+            userId: p.userId,
+            side: p.side as 'long' | 'short',
+            size: Number(p.size),
+            leverage: Number(p.leverage),
+            entryPrice: Number(p.entryPrice),
+            currentPrice: Number(p.currentPrice),
+          }));
+        } catch {
           // Table might not exist yet or no positions
           positions = [];
         }
@@ -95,7 +122,8 @@ export async function GET() {
       count: markets.length,
     });
   } catch (error) {
-    console.error('API Error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    logger.error('API Error:', errorMessage, 'GET /api/markets/perps');
     return NextResponse.json(
       { success: false, error: 'Failed to load markets' },
       { status: 500 }

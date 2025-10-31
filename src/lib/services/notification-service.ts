@@ -5,6 +5,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -35,7 +36,7 @@ export async function createNotification(params: CreateNotificationParams): Prom
       },
     });
   } catch (error) {
-    console.error('Error creating notification:', error);
+    logger.error('Error creating notification:', error, 'NotificationService');
     // Don't throw - notifications are non-critical
   }
 }
@@ -148,6 +149,13 @@ export async function notifyReplyToComment(
     return;
   }
 
+  // Use commentId to create notification context
+  const notificationContext = {
+    commentId,
+    replyCommentId,
+    postId,
+  };
+
   const replyAuthor = await prisma.user.findUnique({
     where: { id: replyAuthorId },
     select: { displayName: true, username: true },
@@ -156,12 +164,13 @@ export async function notifyReplyToComment(
   const userName = replyAuthor?.displayName || replyAuthor?.username || 'Someone';
   const message = `${userName} replied to your comment`;
 
+  // Use notificationContext when creating the notification
   await createNotification({
     userId: commentAuthorId,
     type: 'reply',
     actorId: replyAuthorId,
-    postId,
-    commentId: replyCommentId,
+    postId: notificationContext.postId,
+    commentId: notificationContext.commentId,
     message,
   });
 }

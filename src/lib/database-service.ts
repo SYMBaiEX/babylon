@@ -11,7 +11,8 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import type { FeedPost, Question as GameQuestion, Organization as GameOrg, Actor as GameActor } from '@/shared/types';
+import type { FeedPost, Question as GameQuestion, Question, Organization, Actor } from '@/shared/types';
+import { logger } from './logger';
 
 // Singleton Prisma client
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
@@ -31,7 +32,7 @@ class DatabaseService {
     });
 
     if (existing) {
-      console.log(`✅ DB: Game already initialized (${existing.id})`);
+      logger.info(`Game already initialized (${existing.id})`, undefined, 'DatabaseService');
       return existing;
     }
 
@@ -45,7 +46,7 @@ class DatabaseService {
       },
     });
 
-    console.log(`✅ DB: Game initialized (${game.id})`);
+    logger.info(`Game initialized (${game.id})`, undefined, 'DatabaseService');
     return game;
   }
 
@@ -163,20 +164,53 @@ class DatabaseService {
   }
 
   /**
+   * Convert Prisma Question to TypeScript Question
+   */
+  private adaptQuestion(prismaQuestion: {
+    id: string;
+    questionNumber: number;
+    text: string;
+    scenarioId: number;
+    outcome: boolean;
+    rank: number;
+    createdDate: Date;
+    resolutionDate: Date;
+    status: string;
+    resolvedOutcome: boolean | null;
+  }): Question {
+    return {
+      id: prismaQuestion.id,
+      questionNumber: prismaQuestion.questionNumber,
+      text: prismaQuestion.text,
+      scenario: prismaQuestion.scenarioId,
+      scenarioId: prismaQuestion.scenarioId,
+      outcome: prismaQuestion.outcome,
+      rank: prismaQuestion.rank,
+      createdDate: prismaQuestion.createdDate.toISOString(),
+      resolutionDate: prismaQuestion.resolutionDate.toISOString(),
+      status: prismaQuestion.status as 'active' | 'resolved' | 'cancelled',
+      resolvedOutcome: prismaQuestion.resolvedOutcome ?? undefined,
+      createdAt: prismaQuestion.createdDate,
+      updatedAt: prismaQuestion.createdDate, // Prisma model has updatedAt but we use createdDate for now
+    };
+  }
+
+  /**
    * Get active questions
    */
-  async getActiveQuestions() {
-    return await prisma.question.findMany({
+  async getActiveQuestions(): Promise<Question[]> {
+    const questions = await prisma.question.findMany({
       where: { status: 'active' },
       orderBy: { createdDate: 'desc' },
     });
+    return questions.map(q => this.adaptQuestion(q));
   }
 
   /**
    * Get questions to resolve (resolutionDate <= now)
    */
-  async getQuestionsToResolve() {
-    return await prisma.question.findMany({
+  async getQuestionsToResolve(): Promise<Question[]> {
+    const questions = await prisma.question.findMany({
       where: {
         status: 'active',
         resolutionDate: {
@@ -184,6 +218,7 @@ class DatabaseService {
         },
       },
     });
+    return questions.map(q => this.adaptQuestion(q));
   }
 
   /**
@@ -204,7 +239,7 @@ class DatabaseService {
   /**
    * Upsert organization (create or update)
    */
-  async upsertOrganization(org: GameOrg) {
+  async upsertOrganization(org: Organization) {
     return await prisma.organization.upsert({
       where: { id: org.id },
       create: {
@@ -243,10 +278,36 @@ class DatabaseService {
   }
 
   /**
+   * Convert Prisma Organization to TypeScript Organization
+   */
+  private adaptOrganization(prismaOrg: {
+    id: string;
+    name: string;
+    description: string;
+    type: string;
+    canBeInvolved: boolean;
+    initialPrice: number | null;
+    currentPrice: number | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }): Organization {
+    return {
+      id: prismaOrg.id,
+      name: prismaOrg.name,
+      description: prismaOrg.description,
+      type: prismaOrg.type as Organization['type'],
+      canBeInvolved: prismaOrg.canBeInvolved,
+      initialPrice: prismaOrg.initialPrice ?? undefined,
+      currentPrice: prismaOrg.currentPrice ?? undefined,
+    };
+  }
+
+  /**
    * Get all organizations
    */
-  async getAllOrganizations() {
-    return await prisma.organization.findMany();
+  async getAllOrganizations(): Promise<Organization[]> {
+    const orgs = await prisma.organization.findMany();
+    return orgs.map(o => this.adaptOrganization(o));
   }
 
   // ========== STOCK PRICES ==========
@@ -371,7 +432,7 @@ class DatabaseService {
   /**
    * Upsert actor (create or update)
    */
-  async upsertActor(actor: GameActor) {
+  async upsertActor(actor: Actor) {
     return await prisma.actor.upsert({
       where: { id: actor.id },
       create: {
@@ -385,8 +446,8 @@ class DatabaseService {
         postStyle: actor.postStyle,
         postExample: actor.postExample || [],
         role: actor.role,
-        initialLuck: (actor as any).initialLuck || 'medium',
-        initialMood: (actor as any).initialMood || 0,
+        initialLuck: ('initialLuck' in actor && typeof actor.initialLuck === 'string') ? actor.initialLuck : 'medium',
+        initialMood: ('initialMood' in actor && typeof actor.initialMood === 'number') ? actor.initialMood : 0,
       },
       update: {
         name: actor.name,

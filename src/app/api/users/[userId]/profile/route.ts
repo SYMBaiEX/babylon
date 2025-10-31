@@ -3,14 +3,14 @@
  * Methods: GET (get user profile)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
-  authenticate,
   optionalAuth,
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -96,7 +96,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('Error fetching profile:', error);
+    logger.error('Error fetching profile:', error, 'GET /api/users/[userId]/profile');
     return errorResponse('Failed to fetch profile', 500);
   }
 }

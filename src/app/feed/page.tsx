@@ -14,18 +14,20 @@ import { useFontSize } from '@/contexts/FontSizeContext'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
 import { useAuth } from '@/hooks/useAuth'
 import { Plus, ShieldCheck } from 'lucide-react'
+import type { FeedPost } from '@/shared/types'
+import { logger } from '@/lib/logger'
 
 const PAGE_SIZE = 20
 
 export default function FeedPage() {
   const [tab, setTab] = useState<'latest' | 'following'>('latest')
   const [searchQuery, setSearchQuery] = useState('')
-  const [posts, setPosts] = useState<any[]>([])
+  const [posts, setPosts] = useState<FeedPost[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [offset, setOffset] = useState(0)
-  const [followingPosts, setFollowingPosts] = useState<any[]>([])
+  const [followingPosts, setFollowingPosts] = useState<FeedPost[]>([])
   const [loadingFollowing, setLoadingFollowing] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const { fontSize } = useFontSize()
@@ -60,7 +62,7 @@ export default function FeedPage() {
       setPosts(prev => {
         const prevSize = prev.length
         const combined = append ? [...prev, ...newPosts] : [...newPosts, ...prev]
-        const unique = new Map<string, any>()
+        const unique = new Map<string, FeedPost>()
         combined.forEach(post => {
           if (post?.id) {
             unique.set(post.id, post)
@@ -68,8 +70,8 @@ export default function FeedPage() {
         })
 
         const deduped = Array.from(unique.values()).sort((a, b) => {
-          const aTime = new Date(a.timestamp ?? a.createdAt ?? 0).getTime()
-          const bTime = new Date(b.timestamp ?? b.createdAt ?? 0).getTime()
+          const aTime = new Date(a.timestamp ?? 0).getTime()
+          const bTime = new Date(b.timestamp ?? 0).getTime()
           return bTime - aTime
         })
 
@@ -93,7 +95,7 @@ export default function FeedPage() {
         setHasMore(moreAvailable)
       }
     } catch (error) {
-      console.error('Failed to load posts:', error)
+      logger.error('Failed to load posts:', error, 'FeedPage')
       if (append) setHasMore(false)
     } finally {
       if (append) setLoadingMore(false)
@@ -149,7 +151,7 @@ export default function FeedPage() {
 
       setLoadingFollowing(true)
       try {
-        const token = typeof window !== 'undefined' ? (window as any).__privyAccessToken : null
+        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
 
         const headers: HeadersInit = {
           'Content-Type': 'application/json',
@@ -170,11 +172,11 @@ export default function FeedPage() {
           const posts = Array.isArray(data.posts) ? data.posts : []
           setFollowingPosts(posts)
         } else {
-          console.error('Failed to fetch following posts:', response.statusText)
+          logger.error('Failed to fetch following posts:', response.statusText, 'FeedPage')
           setFollowingPosts([])
         }
       } catch (error) {
-        console.error('Failed to fetch following:', error)
+        logger.error('Failed to fetch following:', error, 'FeedPage')
         setFollowingPosts([])
       } finally {
         setLoadingFollowing(false)
@@ -229,10 +231,18 @@ export default function FeedPage() {
   const filteredPosts = useMemo(() => {
     if (!searchQuery.trim()) return basePosts
     const query = searchQuery.toLowerCase()
-    return basePosts.filter((post: any) =>
-      (post.content || '').toLowerCase().includes(query) ||
-      (post.authorId || '').toLowerCase().includes(query)
-    )
+    return basePosts.filter((post): post is FeedPost => {
+      if (!post || typeof post !== 'object') return false
+      // Handle both FeedPost and timeline post shapes
+      const postContent = 'content' in post ? String(post.content || '') : ''
+      const authorField = 'author' in post ? String(post.author || '') : ('authorId' in post ? String((post as { authorId?: string }).authorId || '') : '')
+      const postAuthorName = 'authorName' in post ? String(post.authorName || '') : ''
+      return (
+        postContent.toLowerCase().includes(query) ||
+        authorField.toLowerCase().includes(query) ||
+        postAuthorName.toLowerCase().includes(query)
+      )
+    })
   }, [basePosts, searchQuery])
 
   if (loading) {
@@ -387,7 +397,7 @@ export default function FeedPage() {
           // Show posts - Twitter-like layout
           <div className="max-w-[600px] mx-auto">
             {filteredPosts.map((post: any, i: number) => {
-              const postDate = new Date(post.timestamp ?? post.createdAt ?? Date.now())
+              const postDate = new Date(post.timestamp ?? Date.now())
               const now = new Date()
               const diffMs = now.getTime() - postDate.getTime()
               const diffMinutes = Math.floor(diffMs / 60000)
@@ -416,13 +426,13 @@ export default function FeedPage() {
                   <div className="flex gap-3">
                     {/* Avatar - Clickable */}
                     <Link
-                      href={`/profile/${post.authorId}`}
+                      href={`/profile/${post.author}`}
                       className="flex-shrink-0 hover:opacity-80 transition-opacity"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Avatar
-                        id={post.authorId}
-                        name={post.authorId}
+                        id={post.author}
+                        name={post.authorName || post.author}
                         type="actor"
                         size="lg"
                         scaleFactor={fontSize}
@@ -435,15 +445,15 @@ export default function FeedPage() {
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <Link
-                            href={`/profile/${post.authorId}`}
+                            href={`/profile/${post.author}`}
                             className="font-bold text-foreground hover:underline"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {post.authorId}
+                            {post.authorName || post.author}
                           </Link>
                           <ShieldCheck className="w-4 h-4 text-blue-500 flex-shrink-0" fill="currentColor" />
                           <Link
-                            href={`/profile/${post.authorId}`}
+                            href={`/profile/${post.author}`}
                             className="text-muted-foreground text-sm hover:underline"
                             onClick={(e) => e.stopPropagation()}
                           >

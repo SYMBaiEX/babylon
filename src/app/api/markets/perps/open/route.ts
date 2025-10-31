@@ -12,7 +12,8 @@ import {
 } from '@/lib/api/auth-middleware';
 import { WalletService } from '@/services/WalletService';
 import { PrismaClient } from '@prisma/client';
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -146,7 +147,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error && error.message.includes('Insufficient balance')) {
       return errorResponse(error.message, 400);
     }
-    console.error('Error opening position:', error);
+    logger.error('Error opening position:', error, 'POST /api/markets/perps/open');
     return errorResponse('Failed to open position');
   }
 }

@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import { logger } from '@/lib/logger'
 
 interface NotificationsButtonProps {
   className?: string
@@ -34,9 +35,10 @@ export function NotificationsButton({ className, compact = false }: Notification
     const fetchUnreadCount = async () => {
       try {
         setIsLoading(true)
-        const token = typeof window !== 'undefined' ? (window as any).__privyAccessToken : null
+        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
         
         if (!token) {
+          setIsLoading(false)
           return
         }
 
@@ -48,13 +50,18 @@ export function NotificationsButton({ className, compact = false }: Notification
 
         if (response.ok) {
           const data = await response.json()
-          setUnreadCount(data.unreadCount || 0)
+          // Type the response properly using Notification interface
+          const notifications: Notification[] = data.notifications || []
+          const unreadNotifications = notifications.filter((n: Notification) => !n.read)
+          setUnreadCount(unreadNotifications.length || data.unreadCount || 0)
         }
       } catch (error) {
-        console.error('Error fetching notification count:', error)
+        logger.error('Error fetching notification count:', error, 'NotificationsButton')
       } finally {
         setIsLoading(false)
       }
+      
+      // isLoading is used via setIsLoading calls
     }
 
     fetchUnreadCount()
@@ -75,15 +82,19 @@ export function NotificationsButton({ className, compact = false }: Notification
   return (
     <button
       onClick={handleClick}
+      disabled={isLoading}
       className={cn(
         'relative p-2 hover:bg-sidebar-accent transition-colors',
+        isLoading && 'opacity-50 cursor-wait',
         className
       )}
       aria-label="Notifications"
+      aria-busy={isLoading}
     >
       <Bell className={cn(
         'text-sidebar-foreground',
-        compact ? 'w-5 h-5' : 'w-6 h-6'
+        compact ? 'w-5 h-5' : 'w-6 h-6',
+        isLoading && 'animate-pulse'
       )} />
       {unreadCount > 0 && (
         <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full ring-2 ring-background" />

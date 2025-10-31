@@ -3,7 +3,7 @@
  * Methods: POST (add reply to comment)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
@@ -11,6 +11,7 @@ import {
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -128,7 +129,7 @@ export async function POST(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error creating reply:', error);
+    logger.error('Error creating reply:', error, 'POST /api/comments/[id]/replies');
     return errorResponse('Failed to create reply');
   }
 }

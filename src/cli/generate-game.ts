@@ -24,9 +24,11 @@
  */
 
 import { GameGenerator, type GameHistory, type GeneratedGame } from '../generator/GameGenerator';
+import type { ChatMessage } from '@/shared/types';
 import { writeFile, readFile, access, readdir, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { readFileSync } from 'fs';
+import { logger } from '@/lib/logger';
 
 interface CLIOptions {
   verbose?: boolean;
@@ -175,10 +177,9 @@ function validateActorsData(): void {
   }
 
   if (errors.length > 0) {
-    console.error('\n❌ ACTOR VALIDATION FAILED\n');
-    console.error('Invalid affiliations found:');
-    errors.forEach(e => console.error(`  • ${e}`));
-    console.error('\nPlease fix actors.json before generating a game.\n');
+    logger.error('ACTOR VALIDATION FAILED', undefined, 'CLI');
+    logger.error('Invalid affiliations found:', errors, 'CLI');
+    logger.error('Please fix actors.json before generating a game.', undefined, 'CLI');
     process.exit(1);
   }
 }
@@ -186,33 +187,34 @@ function validateActorsData(): void {
 async function main() {
   const options = parseArgs();
   
-  console.log('\n🎮 BABYLON GAME GENERATOR');
-  console.log('==========================\n');
+  logger.info('BABYLON GAME GENERATOR', undefined, 'CLI');
+  logger.info('==========================', undefined, 'CLI');
 
   // Validate actors.json
-  console.log('🔍 Validating actors.json...');
+  logger.info('Validating actors.json...', undefined, 'CLI');
   validateActorsData();
-  console.log('   ✅ Actors validated\n');
+  logger.info('Actors validated', undefined, 'CLI');
 
   // Validate API key is present
   const groqKey = process.env.GROQ_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
   
   if (!groqKey && !openaiKey) {
-    console.error('❌ ERROR: No API key found!\n');
-    console.error('This generator requires an LLM API key to function.');
-    console.error('Set one of the following environment variables:\n');
-    console.error('  export GROQ_API_KEY=your_groq_key_here');
-    console.error('  export OPENAI_API_KEY=your_openai_key_here\n');
-    console.error('Get a free Groq API key at: https://console.groq.com/');
-    console.error('Get an OpenAI API key at: https://platform.openai.com/\n');
+    logger.error('ERROR: No API key found!', undefined, 'CLI');
+    logger.error('This generator requires an LLM API key to function.', undefined, 'CLI');
+    logger.error('Set one of the following environment variables:', {
+      groq: 'export GROQ_API_KEY=your_groq_key_here',
+      openai: 'export OPENAI_API_KEY=your_openai_key_here',
+      groqUrl: 'Get a free Groq API key at: https://console.groq.com/',
+      openaiUrl: 'Get an OpenAI API key at: https://platform.openai.com/'
+    }, 'CLI');
     process.exit(1);
   }
 
   if (groqKey) {
-    console.log('🚀 Using Groq (fast inference)\n');
+    logger.info('Using Groq (fast inference)', undefined, 'CLI');
   } else if (openaiKey) {
-    console.log('🤖 Using OpenAI\n');
+    logger.info('Using OpenAI', undefined, 'CLI');
   }
 
   const startTime = Date.now();
@@ -222,38 +224,37 @@ async function main() {
   const genesisExists = await access(genesisPath).then(() => true).catch(() => false);
   
   if (!genesisExists) {
-    console.log('🌍 STEP 0: Genesis not found, generating...\n');
+    logger.info('STEP 0: Genesis not found, generating...', undefined, 'CLI');
     const generator = new GameGenerator();
     const genesis = await generator.generateGenesis();
     
     const genesisJson = JSON.stringify(genesis, null, 2);
     await writeFile(genesisPath, genesisJson);
-    console.log('   ✓ Saved: genesis.json');
-    console.log(`   File size: ${(genesisJson.length / 1024).toFixed(1)} KB`);
-    console.log(`   Total events: ${genesis.timeline.reduce((sum, day) => sum + day.events.length, 0)}`);
-    console.log(`   Total posts: ${genesis.timeline.reduce((sum, day) => sum + day.feedPosts.length, 0)}`);
-    console.log('\n');
+    logger.info('Saved: genesis.json', undefined, 'CLI');
+    logger.info(`File size: ${(genesisJson.length / 1024).toFixed(1)} KB`, undefined, 'CLI');
+    logger.info(`Total events: ${genesis.timeline.reduce((sum, day) => sum + day.events.length, 0)}`, undefined, 'CLI');
+    logger.info(`Total posts: ${genesis.timeline.reduce((sum, day) => sum + day.feedPosts.length, 0)}`, undefined, 'CLI');
   } else {
-    console.log('✓ Genesis found: genesis.json\n');
+    logger.info('Genesis found: genesis.json', undefined, 'CLI');
   }
 
   // STEP 1: Load Previous Games
-  console.log('📚 STEP 1: Loading previous games...');
+  logger.info('STEP 1: Loading previous games...', undefined, 'CLI');
   const previousGames = await loadPreviousGames(3);
   
-  let history: GameHistory[] = [];
+  const history: GameHistory[] = [];
   let nextStartDate: string;
   let gameNumber = 1;
 
   if (previousGames.length > 0) {
-    console.log(`   ✓ Found ${previousGames.length} previous game(s):`);
+    logger.info(`Found ${previousGames.length} previous game(s):`, undefined, 'CLI');
     
     // Load or generate history for each previous game
     const tempGenerator = new GameGenerator();
     for (let i = previousGames.length - 1; i >= 0; i--) {
       const gameFile = previousGames[i];
       if (!gameFile) {
-        console.warn(`     ⚠️  Game at index ${i} is undefined, skipping`);
+        logger.warn(`Game at index ${i} is undefined, skipping`, undefined, 'CLI');
         continue;
       }
 
@@ -272,7 +273,7 @@ async function main() {
       history.push(gameHistory);
       const firstQuestion = gameFile.game.setup.questions[0];
       const questionPreview = firstQuestion ? firstQuestion.text.slice(0, 50) : 'No question';
-      console.log(`     • Game #${gameHistory.gameNumber} - ${questionPreview}...`);
+      logger.info(`Game #${gameHistory.gameNumber} - ${questionPreview}...`, undefined, 'CLI');
     }
 
     // Calculate next start date: Get last game's last day, add 1 day
@@ -314,62 +315,62 @@ async function main() {
     }
     gameNumber = lastHistoryEntry.gameNumber + 1;
     
-    console.log(`   ✓ Next game will be #${gameNumber} starting ${nextStartDate}\n`);
+    logger.info(`Next game will be #${gameNumber} starting ${nextStartDate}`, undefined, 'CLI');
   } else {
-    console.log('   ℹ️ No previous games found. This will be Game #1');
+    logger.info('No previous games found. This will be Game #1', undefined, 'CLI');
     
     // First game starts from current actual date
     const now = new Date();
     // Start from first of current month
     nextStartDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    console.log(`   ✓ Starting ${nextStartDate} (current month, first game)\n`);
+    logger.info(`Starting ${nextStartDate} (current month, first game)`, undefined, 'CLI');
   }
 
   // STEP 2: Generate New Game
-  console.log(`🎲 STEP 2: Generating Game #${gameNumber}...`);
-  console.log(`   Start: ${nextStartDate}`);
-  console.log(`   Duration: 30 days`);
-  console.log(`   🔄 Retries enabled - will not give up on LLM failures\n`);
+  logger.info(`STEP 2: Generating Game #${gameNumber}...`, undefined, 'CLI');
+  logger.info(`Start: ${nextStartDate}`, undefined, 'CLI');
+  logger.info('Duration: 30 days', undefined, 'CLI');
+  logger.info('Retries enabled - will not give up on LLM failures', undefined, 'CLI');
   
   const generator = new GameGenerator(undefined, history.length > 0 ? history : undefined);
   const game = await generator.generateCompleteGame(nextStartDate);
   const duration = Date.now() - startTime;
 
-  console.log('\n✅ Game generation complete!');
-  console.log(`   Duration: ${(duration / 1000).toFixed(1)}s`);
-  console.log(`   Total events: ${game.timeline.reduce((sum, day) => sum + day.events.length, 0)}`);
-  console.log(`   Total feed posts: ${game.timeline.reduce((sum, day) => sum + day.feedPosts.length, 0)}`);
-  console.log(`   Total group messages: ${Object.values(game.timeline.reduce((acc, day) => {
+  logger.info('Game generation complete!', undefined, 'CLI');
+  logger.info(`Duration: ${(duration / 1000).toFixed(1)}s`, undefined, 'CLI');
+  logger.info(`Total events: ${game.timeline.reduce((sum, day) => sum + day.events.length, 0)}`, undefined, 'CLI');
+  logger.info(`Total feed posts: ${game.timeline.reduce((sum, day) => sum + day.feedPosts.length, 0)}`, undefined, 'CLI');
+  logger.info(`Total group messages: ${Object.values(game.timeline.reduce((acc, day) => {
     Object.entries(day.groupChats).forEach(([groupId, messages]) => {
       if (!acc[groupId]) acc[groupId] = [];
       acc[groupId]!.push(...messages);
     });
     return acc;
-  }, {} as Record<string, any[]>)).flat().length}`);
+  }, {} as Record<string, ChatMessage[]>)).flat().length}`);
 
   // Show scenarios and questions
-  console.log('\n📋 SCENARIOS & QUESTIONS:');
-  console.log('=========================');
+  logger.info('SCENARIOS & QUESTIONS:', undefined, 'CLI');
+  logger.info('=========================', undefined, 'CLI');
   
   game.setup.scenarios.forEach(scenario => {
-    console.log(`\n${scenario.id}. ${scenario.title}`);
-    console.log(`   ${scenario.description}`);
-    console.log(`   Theme: ${scenario.theme}`);
+    logger.info(`${scenario.id}. ${scenario.title}`, undefined, 'CLI');
+    logger.info(`   ${scenario.description}`, undefined, 'CLI');
+    logger.info(`   Theme: ${scenario.theme}`, undefined, 'CLI');
     
     // Find questions for this scenario
     const scenarioQuestions = game.setup.questions.filter(q => q.scenario === scenario.id);
     if (scenarioQuestions.length > 0) {
-      console.log(`   Questions:`);
+      logger.info('   Questions:', undefined, 'CLI');
       scenarioQuestions.forEach(q => {
-        const outcomeIcon = q.outcome ? '✅ YES' : '❌ NO';
-        console.log(`     ${q.id}. ${q.text}`);
-        console.log(`        Outcome: ${outcomeIcon} | Rank: ${q.rank}`);
+        const outcomeIcon = q.outcome ? 'YES' : 'NO';
+        logger.info(`     ${q.id}. ${q.text}`, undefined, 'CLI');
+        logger.info(`        Outcome: ${outcomeIcon} | Rank: ${q.rank}`, undefined, 'CLI');
       });
     }
   });
 
   // STEP 3: Save Game
-  console.log('\n💾 STEP 3: Saving game...');
+  logger.info('STEP 3: Saving game...', undefined, 'CLI');
   
   // Create games directory if it doesn't exist
   const gamesDir = join(process.cwd(), 'games');
@@ -381,13 +382,13 @@ async function main() {
   const gamePath = join(gamesDir, gameFilename);
   const gameJson = JSON.stringify(game, null, 2);
   await writeFile(gamePath, gameJson);
-  console.log(`   ✓ Saved: games/${gameFilename}`);
-  console.log(`   File size: ${(gameJson.length / 1024).toFixed(1)} KB`);
+  logger.info(`Saved: games/${gameFilename}`, undefined, 'CLI');
+  logger.info(`File size: ${(gameJson.length / 1024).toFixed(1)} KB`, undefined, 'CLI');
   
   // Update latest.json
   const latestPath = join(gamesDir, 'latest.json');
   await writeFile(latestPath, gameJson);
-  console.log(`   ✓ Updated: games/latest.json`);
+  logger.info('Updated: games/latest.json', undefined, 'CLI');
 
   // Generate and save history summary
   const gameHistory = generator.createGameHistory(game);
@@ -396,34 +397,21 @@ async function main() {
   const historyFilename = gameFilename.replace('.json', '.history.json');
   const historyPath = join(gamesDir, historyFilename);
   await writeFile(historyPath, JSON.stringify(gameHistory, null, 2));
-  console.log(`   ✓ History: games/${historyFilename}`);
+  logger.info(`History: games/${historyFilename}`, undefined, 'CLI');
 
   // Show summary
   if (options.verbose) {
-    console.log('\n📊 GAME SUMMARY');
-    console.log('================');
-    console.log(`Game ID: ${game.id}`);
-    console.log(`Game Number: ${gameNumber}`);
-    console.log(`\nMain Actors (${game.setup.mainActors.length}):`);
-    game.setup.mainActors.forEach(a => {
-      console.log(`  • ${a.name} (${a.tier})`);
-    });
-    console.log(`\nQuestions (${game.setup.questions.length}):`);
-    game.setup.questions.forEach(q => {
-      console.log(`  ${q.id}. ${q.text}`);
-      console.log(`     Answer: ${q.outcome ? 'YES' : 'NO'}`);
-    });
-    console.log('\n📋 HIGHLIGHTS:');
-    gameHistory.highlights.slice(0, 5).forEach(h => {
-      console.log(`  • ${h}`);
-    });
-    console.log('\n🔥 TOP MOMENTS:');
-    gameHistory.topMoments.slice(0, 3).forEach(m => {
-      console.log(`  • ${m}`);
-    });
+    logger.info('GAME SUMMARY', undefined, 'CLI');
+    logger.info('================', undefined, 'CLI');
+    logger.info(`Game ID: ${game.id}`, undefined, 'CLI');
+    logger.info(`Game Number: ${gameNumber}`, undefined, 'CLI');
+    logger.info(`Main Actors (${game.setup.mainActors.length}):`, game.setup.mainActors.map(a => `${a.name} (${a.tier})`), 'CLI');
+    logger.info(`Questions (${game.setup.questions.length}):`, game.setup.questions.map(q => `${q.id}. ${q.text} - Answer: ${q.outcome ? 'YES' : 'NO'}`), 'CLI');
+    logger.info('HIGHLIGHTS:', gameHistory.highlights.slice(0, 5), 'CLI');
+    logger.info('TOP MOMENTS:', gameHistory.topMoments.slice(0, 3), 'CLI');
   }
 
-  console.log('\n🎉 Ready for next game! Run `bun run generate` again in 30 days.\n');
+  logger.info('Ready for next game! Run `bun run generate` again in 30 days.', undefined, 'CLI');
 
   process.exit(0);
 }
@@ -431,9 +419,9 @@ async function main() {
 // Run if called directly
 if (import.meta.main) {
   main().catch(error => {
-    console.error('\n❌ Error:', error.message);
+    logger.error('Error:', error.message, 'CLI');
     if (error.stack) {
-      console.error(error.stack);
+      logger.error('Stack trace:', error.stack, 'CLI');
     }
     process.exit(1);
   });

@@ -1,6 +1,7 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import type { ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react'
 
 type FontSize = 'small' | 'medium' | 'large' | number
 
@@ -33,8 +34,12 @@ export function FontSizeProvider({ children }: { children: ReactNode }) {
         const parsed = JSON.parse(stored)
         setFontSizeState(parsed.fontSize || 1)
         setFontSizePresetState(parsed.preset || 'medium')
-      } catch (e) {
-        // Ignore parse errors
+      } catch (parseError) {
+        // Ignore parse errors - invalid localStorage data
+        if (parseError instanceof SyntaxError) {
+          // Invalid JSON format, reset to defaults
+          localStorage.removeItem(STORAGE_KEY)
+        }
       }
     }
   }, [])

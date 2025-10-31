@@ -10,6 +10,19 @@ import { PerpPositionsList } from '@/components/markets/PerpPositionsList'
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import type { PerpPosition } from '@/shared/perps-types'
+
+interface PredictionPosition {
+  id: string
+  marketId: string
+  question: string
+  side: 'YES' | 'NO'
+  shares: number
+  avgPrice: number
+  currentPrice: number
+  resolved: boolean
+  resolution?: boolean | null
+}
 import { useLoginModal } from '@/hooks/useLoginModal'
 
 interface PerpMarket {
@@ -61,8 +74,8 @@ export default function MarketsPage() {
   // Data
   const [perpMarkets, setPerpMarkets] = useState<PerpMarket[]>([])
   const [predictions, setPredictions] = useState<PredictionMarket[]>([])
-  const [perpPositions, setPerpPositions] = useState<any[]>([])
-  const [predictionPositions, setPredictionPositions] = useState<any[]>([])
+  const [perpPositions, setPerpPositions] = useState<PerpPosition[]>([])
+  const [predictionPositions, setPredictionPositions] = useState<PredictionPosition[]>([])
   const [loading, setLoading] = useState(true)
 
   // Fetch data

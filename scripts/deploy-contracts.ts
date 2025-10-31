@@ -7,6 +7,7 @@
 import { execSync } from 'child_process'
 import { writeFileSync, readFileSync } from 'fs'
 import { join } from 'path'
+import { logger } from '../src/lib/logger'
 
 interface DeploymentConfig {
   network: 'base-sepolia' | 'base'
@@ -43,51 +44,51 @@ class ContractDeployer {
    * Deploy all contracts
    */
   async deploy(): Promise<DeploymentResult> {
-    console.log('\n🚀 Starting contract deployment to', this.config.network)
-    console.log('=' .repeat(60))
+    logger.info(`Starting contract deployment to ${this.config.network}`, undefined, 'Script');
+    logger.info('='.repeat(60), undefined, 'Script');
 
     // 1. Compile contracts
-    console.log('\n📦 Compiling contracts...')
+    logger.info('Compiling contracts...', undefined, 'Script');
     this.compile()
 
     // 2. Deploy Identity Registry
-    console.log('\n1️⃣  Deploying ERC-8004 Identity Registry...')
+    logger.info('Deploying ERC-8004 Identity Registry...', undefined, 'Script');
     const identityRegistry = await this.deployContract('ERC8004IdentityRegistry')
-    console.log('✅ Identity Registry:', identityRegistry)
+    logger.info(`Identity Registry: ${identityRegistry}`, undefined, 'Script');
 
     // 3. Deploy Reputation System
-    console.log('\n2️⃣  Deploying ERC-8004 Reputation System...')
+    logger.info('Deploying ERC-8004 Reputation System...', undefined, 'Script');
     const reputationSystem = await this.deployContract(
       'ERC8004ReputationSystem',
       [identityRegistry]
     )
-    console.log('✅ Reputation System:', reputationSystem)
+    logger.info(`Reputation System: ${reputationSystem}`, undefined, 'Script');
 
     // 4. Deploy Diamond Facets
-    console.log('\n3️⃣  Deploying Diamond Facets...')
+    logger.info('Deploying Diamond Facets...', undefined, 'Script');
     const diamondCutFacet = await this.deployContract('DiamondCutFacet')
     const diamondLoupeFacet = await this.deployContract('DiamondLoupeFacet')
     const predictionMarketFacet = await this.deployContract('PredictionMarketFacet')
     const oracleFacet = await this.deployContract('OracleFacet')
 
-    console.log('✅ DiamondCutFacet:', diamondCutFacet)
-    console.log('✅ DiamondLoupeFacet:', diamondLoupeFacet)
-    console.log('✅ PredictionMarketFacet:', predictionMarketFacet)
-    console.log('✅ OracleFacet:', oracleFacet)
+    logger.info(`DiamondCutFacet: ${diamondCutFacet}`, undefined, 'Script');
+    logger.info(`DiamondLoupeFacet: ${diamondLoupeFacet}`, undefined, 'Script');
+    logger.info(`PredictionMarketFacet: ${predictionMarketFacet}`, undefined, 'Script');
+    logger.info(`OracleFacet: ${oracleFacet}`, undefined, 'Script');
 
     // 5. Deploy Diamond with initial facets
-    console.log('\n4️⃣  Deploying Diamond Proxy...')
+    logger.info('Deploying Diamond Proxy...', undefined, 'Script');
     const diamond = await this.deployDiamond(
       diamondCutFacet,
       diamondLoupeFacet,
       predictionMarketFacet,
       oracleFacet
     )
-    console.log('✅ Diamond Proxy:', diamond)
+    logger.info(`Diamond Proxy: ${diamond}`, undefined, 'Script');
 
     // 6. Verify contracts (if on testnet/mainnet)
     if (this.config.etherscanApiKey) {
-      console.log('\n5️⃣  Verifying contracts on block explorer...')
+      logger.info('Verifying contracts on block explorer...', undefined, 'Script');
       await this.verifyContracts({
         identityRegistry,
         reputationSystem,
@@ -119,9 +120,9 @@ class ContractDeployer {
 
     this.saveDeployment(result)
 
-    console.log('\n✨ Deployment complete!')
-    console.log('=' .repeat(60))
-    console.log('\n📝 Deployment saved to: deployments/' + this.config.network + '.json')
+    logger.info('Deployment complete!', undefined, 'Script');
+    logger.info('='.repeat(60), undefined, 'Script');
+    logger.info(`Deployment saved to: deployments/${this.config.network}.json`, undefined, 'Script');
 
     return result
   }
@@ -133,7 +134,7 @@ class ContractDeployer {
     try {
       execSync('forge build', { stdio: 'inherit' })
     } catch (error) {
-      console.error('❌ Compilation failed:', error)
+      logger.error('Compilation failed:', error, 'Script');
       process.exit(1)
     }
   }
@@ -164,7 +165,7 @@ class ContractDeployer {
       // Build command without --json flag and with proper key handling
       const constructorArgsStr = args ? `--constructor-args ${args}` : ''
 
-      console.log(`  Executing: forge create ${contractPath}:${contractName}`)
+      logger.info(`Executing: forge create ${contractPath}:${contractName}`, undefined, 'Script');
       const output = execSync(
         `forge create --rpc-url ${this.config.rpcUrl} --private-key ${this.config.privateKey} --broadcast ${contractPath}:${contractName} ${constructorArgsStr}`,
         {
@@ -186,10 +187,10 @@ class ContractDeployer {
         return addressMatch[1]
       }
 
-      console.error('Forge output:', output)
+      logger.error('Forge output:', output, 'Script');
       throw new Error('Could not find deployment address in output')
     } catch (error) {
-      console.error(`❌ Failed to deploy ${contractName}:`, error)
+      logger.error(`Failed to deploy ${contractName}:`, error, 'Script');
       throw error
     }
   }
@@ -225,7 +226,7 @@ class ContractDeployer {
     for (const [name, address] of Object.entries(contracts)) {
       try {
         const contractPath = contractPaths[name] || `contracts/**/*.sol:${name}`
-        console.log(`  Verifying ${name}...`)
+        logger.info(`Verifying ${name}...`, undefined, 'Script');
         execSync(
           `forge verify-contract ${address} \
           ${contractPath} \
@@ -234,9 +235,9 @@ class ContractDeployer {
           --watch`,
           { stdio: 'inherit' }
         )
-        console.log(`  ✅ ${name} verified`)
+        logger.info(`${name} verified`, undefined, 'Script');
       } catch (error) {
-        console.warn(`  ⚠️  ${name} verification failed (may already be verified)`)
+        logger.warn(`${name} verification failed (may already be verified)`, undefined, 'Script');
       }
     }
   }
@@ -277,7 +278,7 @@ class ContractDeployer {
       execSync(`mkdir -p ${deploymentsDir}`)
       writeFileSync(filepath, JSON.stringify(result, null, 2))
     } catch (error) {
-      console.error('❌ Failed to save deployment:', error)
+      logger.error('Failed to save deployment:', error, 'Script');
     }
   }
 }
@@ -300,10 +301,11 @@ async function main() {
   }
 
   if (!config.privateKey) {
-    console.error('❌ Error: DEPLOYER_PRIVATE_KEY environment variable required')
-    console.log('\nUsage:')
-    console.log('  DEPLOYER_PRIVATE_KEY=0x... bun run scripts/deploy-contracts.ts')
-    console.log('  NETWORK=base-sepolia DEPLOYER_PRIVATE_KEY=0x... bun run scripts/deploy-contracts.ts')
+    logger.error('Error: DEPLOYER_PRIVATE_KEY environment variable required', undefined, 'Script');
+    logger.info('Usage:', {
+      example1: 'DEPLOYER_PRIVATE_KEY=0x... bun run scripts/deploy-contracts.ts',
+      example2: 'NETWORK=base-sepolia DEPLOYER_PRIVATE_KEY=0x... bun run scripts/deploy-contracts.ts'
+    }, 'Script');
     process.exit(1)
   }
 
@@ -313,6 +315,6 @@ async function main() {
 
 // Run deployment
 main().catch((error) => {
-  console.error('❌ Deployment failed:', error)
+  logger.error('Deployment failed:', error, 'Script');
   process.exit(1)
 })

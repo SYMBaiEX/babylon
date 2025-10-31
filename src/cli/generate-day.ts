@@ -27,7 +27,8 @@
 import { ContinuousGameGenerator } from '../engine/ContinuousGameGenerator';
 import { writeFile, readFile, access, mkdir } from 'fs/promises';
 import { join } from 'path';
-import type { GameState, DayTimeline } from '@/shared/types';
+import type { GameState, DayTimeline, Actor, SelectedActor, Scenario, GroupChat, ActorConnection } from '@/shared/types';
+import { logger } from '@/lib/logger';
 
 interface CLIOptions {
   verbose?: boolean;
@@ -70,7 +71,7 @@ async function loadGameState(): Promise<GameState | null> {
     const content = await readFile(statePath, 'utf-8');
     return JSON.parse(content) as GameState;
   } catch (error) {
-    console.error('Failed to load game state:', error);
+    logger.error('Failed to load game state:', error, 'CLI');
     return null;
   }
 }
@@ -100,13 +101,15 @@ async function saveDayTimeline(day: number, timeline: DayTimeline): Promise<void
 /**
  * Save game assets (actors, scenarios, connections, etc.)
  */
-async function saveGameAssets(assets: {
-  allActors: any[];
-  scenarios: any[];
-  groupChats: any[];
-  connections: any[];
+interface GameAssets {
+  allActors: Actor[];
+  scenarios: Scenario[];
+  groupChats: GroupChat[];
+  connections: ActorConnection[];
   luckMood: Map<string, { luck: string; mood: number }>;
-}): Promise<void> {
+}
+
+async function saveGameAssets(assets: GameAssets): Promise<void> {
   const gamesDir = join(process.cwd(), 'games');
   await mkdir(gamesDir, { recursive: true });
 
@@ -142,14 +145,17 @@ async function loadGameAssets(state: GameState) {
       savedAssets = JSON.parse(content);
     }
   } catch (error) {
-    console.error('Failed to load game assets:', error);
+    logger.error('Failed to load game assets:', error, 'CLI');
   }
 
   // Convert luckMood object back to Map
   const luckMood = new Map<string, { luck: string; mood: number }>();
-  if (savedAssets?.luckMood) {
-    Object.entries(savedAssets.luckMood).forEach(([key, value]: [string, any]) => {
-      luckMood.set(key, value);
+  if (savedAssets?.luckMood && typeof savedAssets.luckMood === 'object') {
+    Object.entries(savedAssets.luckMood).forEach(([key, value]: [string, unknown]) => {
+      if (value && typeof value === 'object' && 'luck' in value && 'mood' in value) {
+        const luckMoodValue = value as { luck: string; mood: number };
+        luckMood.set(key, luckMoodValue);
+      }
     });
   }
 
@@ -168,15 +174,15 @@ async function loadGameAssets(state: GameState) {
         previousDays.push(timeline);
       }
     } catch (error) {
-      console.warn(`Could not load day ${day} timeline:`, error);
+      logger.warn(`Could not load day ${day} timeline:`, error, 'CLI');
     }
   }
 
   return {
-    allActors: savedAssets?.allActors || [],
-    scenarios: savedAssets?.scenarios || [],
-    groupChats: savedAssets?.groupChats || [],
-    connections: savedAssets?.connections || [],
+    allActors: (savedAssets?.allActors as Actor[]) || [],
+    scenarios: (savedAssets?.scenarios as Scenario[]) || [],
+    groupChats: (savedAssets?.groupChats as GroupChat[]) || [],
+    connections: (savedAssets?.connections as ActorConnection[]) || [],
     luckMood,
     previousDays,
   };
@@ -185,16 +191,16 @@ async function loadGameAssets(state: GameState) {
 async function main() {
   const options = parseArgs();
 
-  console.log('\n🎮 BABYLON DAILY GENERATOR');
-  console.log('===========================\n');
+  logger.info('BABYLON DAILY GENERATOR', undefined, 'CLI');
+  logger.info('===========================', undefined, 'CLI');
 
   // Validate API key
   const groqKey = process.env.GROQ_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
 
   if (!groqKey && !openaiKey) {
-    console.error('❌ ERROR: No API key found!\n');
-    console.error('Set GROQ_API_KEY or OPENAI_API_KEY environment variable.\n');
+    logger.error('ERROR: No API key found!', undefined, 'CLI');
+    logger.error('Set GROQ_API_KEY or OPENAI_API_KEY environment variable.', undefined, 'CLI');
     process.exit(1);
   }
 
@@ -202,7 +208,7 @@ async function main() {
 
   // OPTION 1: Initialize new game
   if (options.init) {
-    console.log('🌍 INITIALIZING NEW GAME\n');
+    logger.info('INITIALIZING NEW GAME', undefined, 'CLI');
 
     const { gameState, assets } = await generator.initializeGame('2025-11-01');
 
@@ -212,13 +218,14 @@ async function main() {
     // Save game assets for future days
     await saveGameAssets(assets);
 
-    console.log('✅ Game initialized successfully!');
-    console.log(`   Game ID: ${gameState.id}`);
-    console.log(`   Start Date: ${gameState.currentDate}`);
-    console.log(`   Active Questions: ${gameState.activeQuestions.length}`);
-    console.log(`   Actors: ${assets.allActors.length}`);
-    console.log(`   Scenarios: ${assets.scenarios.length}`);
-    console.log(`   Group Chats: ${assets.groupChats.length}\n`);
+    logger.info('Game initialized successfully!', {
+      gameId: gameState.id,
+      startDate: gameState.currentDate,
+      activeQuestions: gameState.activeQuestions.length,
+      actors: assets.allActors.length,
+      scenarios: assets.scenarios.length,
+      groupChats: assets.groupChats.length
+    }, 'CLI');
 
     return;
   }
@@ -227,16 +234,17 @@ async function main() {
   const existingState = await loadGameState();
 
   if (!existingState) {
-    console.error('❌ No game state found. Run with --init to create a new game.\n');
+    logger.error('No game state found. Run with --init to create a new game.', undefined, 'CLI');
     process.exit(1);
   }
 
-  console.log(`📊 LOADED GAME STATE`);
-  console.log(`   Game ID: ${existingState.id}`);
-  console.log(`   Current Day: ${existingState.currentDay}`);
-  console.log(`   Current Date: ${existingState.currentDate}`);
-  console.log(`   Active Questions: ${existingState.activeQuestions.length}/20`);
-  console.log(`   Resolved Questions: ${existingState.resolvedQuestions.length}\n`);
+  logger.info('LOADED GAME STATE', {
+    gameId: existingState.id,
+    currentDay: existingState.currentDay,
+    currentDate: existingState.currentDate,
+    activeQuestions: `${existingState.activeQuestions.length}/20`,
+    resolvedQuestions: existingState.resolvedQuestions.length
+  }, 'CLI');
 
   // Load game assets (actors, scenarios, etc.)
   const assets = await loadGameAssets(existingState);
@@ -247,7 +255,7 @@ async function main() {
   for (let i = 0; i < (options.days || 1); i++) {
     const { dayTimeline, updatedGameState } = await generator.generateNextDay(
       currentState,
-      assets.allActors,
+      assets.allActors as SelectedActor[],
       assets.scenarios,
       assets.groupChats,
       assets.connections,
@@ -257,7 +265,7 @@ async function main() {
 
     // Save day timeline
     await saveDayTimeline(updatedGameState.currentDay, dayTimeline);
-    console.log(`   ✓ Saved day ${updatedGameState.currentDay} timeline\n`);
+    logger.info(`Saved day ${updatedGameState.currentDay} timeline`, undefined, 'CLI');
 
     // Save updated state
     await saveGameState(updatedGameState);
@@ -267,17 +275,14 @@ async function main() {
 
     currentState = updatedGameState;
     assets.previousDays.push(dayTimeline);
-
-    if (i < (options.days || 1) - 1) {
-      console.log(''); // Blank line between days
-    }
   }
 
-  console.log('✅ GENERATION COMPLETE');
-  console.log(`   Days Generated: ${options.days}`);
-  console.log(`   Current Day: ${currentState.currentDay}`);
-  console.log(`   Active Questions: ${currentState.activeQuestions.length}/20`);
-  console.log(`   Resolved Questions: ${currentState.resolvedQuestions.length}\n`);
+  logger.info('GENERATION COMPLETE', {
+    daysGenerated: options.days,
+    currentDay: currentState.currentDay,
+    activeQuestions: `${currentState.activeQuestions.length}/20`,
+    resolvedQuestions: currentState.resolvedQuestions.length
+  }, 'CLI');
 
   process.exit(0);
 }
@@ -285,9 +290,9 @@ async function main() {
 // Run if called directly
 if (import.meta.main) {
   main().catch(error => {
-    console.error('\n❌ Error:', error.message);
+    logger.error('Error:', error.message, 'CLI');
     if (error.stack) {
-      console.error(error.stack);
+      logger.error('Stack trace:', error.stack, 'CLI');
     }
     process.exit(1);
   });

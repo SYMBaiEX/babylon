@@ -11,7 +11,7 @@ import { LoginButton } from '@/components/auth/LoginButton'
 import { UserMenu } from '@/components/auth/UserMenu'
 import { ThemeToggle } from '@/components/shared/ThemeToggle'
 import { Separator } from '@/components/shared/Separator'
-import { NotificationsButton } from '@/components/shared/NotificationsButton'
+// NotificationsButton import removed - unused
 
 export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -101,9 +101,9 @@ export function Sidebar() {
               className={cn(
                 'p-2',
                 'hover:bg-sidebar-accent',
-                'transition-colors duration-200'
+                'transition-colors duration-200',
+                'text-sidebar-primary'
               )}
-              className="text-sidebar-primary"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
@@ -139,9 +139,9 @@ export function Sidebar() {
               className={cn(
                 'p-2',
                 'hover:bg-sidebar-accent',
-                'transition-colors duration-200'
+                'transition-colors duration-200',
+                'text-sidebar-primary'
               )}
-              className="text-sidebar-primary"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>

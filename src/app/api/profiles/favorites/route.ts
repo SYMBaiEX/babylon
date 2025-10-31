@@ -3,7 +3,7 @@
  * Methods: GET (get user's favorited profiles)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
@@ -11,6 +11,7 @@ import {
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -82,7 +83,7 @@ export async function GET(request: NextRequest) {
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error fetching favorited profiles:', error);
+    logger.error('Error fetching favorited profiles:', error, 'GET /api/profiles/favorites');
     return errorResponse('Failed to fetch favorited profiles');
   }
 }

@@ -5,6 +5,7 @@ import { X, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
+import { logger } from '@/lib/logger'
 
 interface PerpMarket {
   ticker: string
@@ -62,7 +63,7 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(window as any).__privyAccessToken}`,
+          'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
         },
         body: JSON.stringify({
           ticker: market.ticker,
@@ -85,8 +86,9 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
 
       onClose()
       if (onSuccess) onSuccess()
-    } catch (error) {
-      console.error('Error opening position:', error)
+    } catch (openError) {
+      const errorMessage = openError instanceof Error ? openError.message : 'Failed to open position'
+      logger.error('Error opening position:', errorMessage, 'PerpTradingModal')
       toast.error('Failed to open position')
     } finally {
       setLoading(false)

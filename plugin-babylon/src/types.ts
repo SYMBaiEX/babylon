@@ -13,7 +13,7 @@ export interface BabylonMarket {
   yesShares: number;
   noShares: number;
   totalVolume: number;
-  status: 'active' | 'resolved' | 'cancelled';
+  status: "active" | "resolved" | "cancelled";
   closeDate: string;
   metadata?: {
     category?: string;
@@ -40,7 +40,7 @@ export interface BabylonWallet {
 
 export interface TradeRequest {
   marketId: string;
-  side: 'yes' | 'no';
+  side: "yes" | "no";
   amount: number;
 }
 
@@ -54,12 +54,12 @@ export interface TradeResult {
 
 export interface MarketAnalysis {
   marketId: string;
-  recommendation: 'strong_buy' | 'buy' | 'hold' | 'sell' | 'strong_sell';
+  recommendation: "strong_buy" | "buy" | "hold" | "sell" | "strong_sell";
   confidence: number;
   reasoning: string;
-  targetSide: 'yes' | 'no';
+  targetSide: "yes" | "no";
   suggestedAmount?: number;
-  riskLevel: 'low' | 'medium' | 'high';
+  riskLevel: "low" | "medium" | "high";
 }
 
 export interface BabylonMarketHistory {
@@ -72,7 +72,7 @@ export interface BabylonMarketHistory {
   }>;
   trades: Array<{
     timestamp: string;
-    side: 'yes' | 'no';
+    side: "yes" | "no";
     shares: number;
     price: number;
   }>;

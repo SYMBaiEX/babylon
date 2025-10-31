@@ -17,6 +17,7 @@
 import type { Question, Scenario, SelectedActor, Organization, DayTimeline } from '@/shared/types';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
 import { loadPrompt } from '../prompts/loader';
+import { logger } from '@/lib/logger';
 
 export interface QuestionCreationParams {
   currentDate: string; // ISO date
@@ -52,7 +53,7 @@ export class QuestionManager {
 
     // Don't generate if we're at max capacity (20 questions)
     if (activeQuestions.length >= 20) {
-      console.log('   ⚠️  Max 20 questions reached, skipping generation');
+      logger.warn('Max 20 questions reached, skipping generation', undefined, 'QuestionManager');
       return [];
     }
 
@@ -102,7 +103,7 @@ export class QuestionManager {
       });
 
       if (!response.questions || response.questions.length === 0) {
-        console.log('   ⚠️  LLM returned no questions');
+        logger.warn('LLM returned no questions', undefined, 'QuestionManager');
         return [];
       }
 
@@ -127,7 +128,7 @@ export class QuestionManager {
 
       return questions;
     } catch (error) {
-      console.error('   ❌ Failed to generate questions:', error);
+      logger.error('Failed to generate questions:', error, 'QuestionManager');
       return [];
     }
   }
@@ -257,7 +258,7 @@ export class QuestionManager {
 
       return response.event || `Resolution: ${question.text} outcome is ${question.outcome ? 'YES' : 'NO'}`;
     } catch (error) {
-      console.error('Failed to generate resolution event:', error);
+      logger.error('Failed to generate resolution event:', error, 'QuestionManager');
       return `Resolution: ${question.text} outcome is ${question.outcome ? 'YES' : 'NO'}`;
     }
   }

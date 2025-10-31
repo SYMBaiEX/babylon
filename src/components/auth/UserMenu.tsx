@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { Separator } from '@/components/shared/Separator'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
+import { logger } from '@/lib/logger'
 
 export function UserMenu() {
   const { logout } = useAuth()
@@ -25,7 +26,7 @@ export function UserMenu() {
         setLoading(true)
         
         // Get auth token from window (set by useAuth hook)
-        const token = typeof window !== 'undefined' ? (window as any).__privyAccessToken : null
+        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
         
         const headers: HeadersInit = {
           'Content-Type': 'application/json',
@@ -44,7 +45,7 @@ export function UserMenu() {
           setPoints(data.balance || 0)
         } else if (response.status === 403) {
           // Silently handle 403 - user may not have access yet
-          console.warn('Access denied to balance endpoint')
+          logger.warn('Access denied to balance endpoint', undefined, 'UserMenu')
         }
 
         // Fetch reputation (if user has NFT)
@@ -67,7 +68,7 @@ export function UserMenu() {
           }
         }
       } catch (error) {
-        console.error('Error fetching user stats:', error)
+        logger.error('Error fetching user stats:', error, 'UserMenu')
       } finally {
         setLoading(false)
       }

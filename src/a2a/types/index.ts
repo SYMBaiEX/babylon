@@ -3,17 +3,21 @@
  * Agent-to-Agent communication types following JSON-RPC 2.0 spec
  */
 
+import type { JsonValue } from '@/types/common';
+import type { JsonRpcParams, JsonRpcResult } from '@/types/json-rpc';
+import type { RegistryClient, X402Manager } from '@/types/a2a-server';
+
 // JSON-RPC 2.0 Base Types
 export interface JsonRpcRequest {
   jsonrpc: '2.0'
   method: string
-  params?: Record<string, unknown> | unknown[]
+  params?: JsonRpcParams
   id: string | number
 }
 
 export interface JsonRpcResponse {
   jsonrpc: '2.0'
-  result?: unknown
+  result?: JsonRpcResult
   error?: JsonRpcError
   id: string | number | null
 }
@@ -21,13 +25,13 @@ export interface JsonRpcResponse {
 export interface JsonRpcError {
   code: number
   message: string
-  data?: unknown
+  data?: JsonValue
 }
 
 export interface JsonRpcNotification {
   jsonrpc: '2.0'
   method: string
-  params?: Record<string, unknown> | unknown[]
+  params?: JsonRpcParams
 }
 
 // A2A Protocol Methods
@@ -76,6 +80,7 @@ export interface AgentCapabilities {
 }
 
 export interface AgentProfile {
+  agentId?: string // Optional agent ID for registry tracking
   tokenId: number
   address: string
   name: string
@@ -137,6 +142,7 @@ export interface Coalition {
 
 export interface CoalitionProposal {
   coalitionId: string
+  name?: string // Optional coalition name
   proposer: string
   targetMarket: string
   strategy: string
@@ -149,7 +155,7 @@ export interface CoalitionMessage {
   coalitionId: string
   from: string
   messageType: 'analysis' | 'vote' | 'action' | 'coordination'
-  content: unknown
+  content: JsonValue
   timestamp: number
 }
 
@@ -160,7 +166,7 @@ export interface MarketAnalysis {
   prediction: number // 0-1 probability
   confidence: number // 0-1 confidence level
   reasoning: string
-  dataPoints: Record<string, unknown>
+  dataPoints: Record<string, JsonValue>
   timestamp: number
   signature?: string
 }
@@ -179,7 +185,7 @@ export interface PaymentRequest {
   to: string
   amount: string // in wei
   service: string
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, JsonValue>
   expiresAt: number
 }
 
@@ -252,6 +258,13 @@ export interface A2AServerConfig {
   enableX402?: boolean
   enableCoalitions?: boolean
   logLevel?: 'debug' | 'info' | 'warn' | 'error'
+  registryClient?: RegistryClient
+}
+
+// Server Options (used internally by websocket-server)
+export interface A2AServerOptions extends Omit<A2AServerConfig, 'registryClient'> {
+  registryClient?: RegistryClient
+  x402Manager?: X402Manager
 }
 
 // Client Configuration

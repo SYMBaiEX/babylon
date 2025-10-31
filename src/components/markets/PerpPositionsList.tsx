@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { TrendingUp, TrendingDown, X, AlertTriangle } from 'lucide-react'
+import { TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { logger } from '@/lib/logger'
 
 interface PerpPosition {
   id: string
@@ -35,7 +36,7 @@ export function PerpPositionsList({ positions, onPositionClosed }: PerpPositions
       const response = await fetch(`/api/markets/perps/${positionId}/close`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${(window as any).__privyAccessToken}`,
+          'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
         },
       })
 
@@ -53,7 +54,7 @@ export function PerpPositionsList({ positions, onPositionClosed }: PerpPositions
 
       if (onPositionClosed) onPositionClosed()
     } catch (error) {
-      console.error('Error closing position:', error)
+      logger.error('Error closing position:', error, 'PerpPositionsList')
       toast.error('Failed to close position')
     } finally {
       setClosingId(null)

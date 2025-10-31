@@ -5,10 +5,11 @@
  * Supports filtering and sorting
  */
 
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { successResponse, errorResponse } from '@/lib/api/auth-middleware'
 import { ReputationService } from '@/lib/services/reputation-service'
+import { logger } from '@/lib/logger'
 
 const prisma = new PrismaClient()
 
@@ -87,7 +88,7 @@ export async function GET(request: NextRequest) {
           try {
             reputation = await ReputationService.getOnChainReputation(user.id)
           } catch (error) {
-            console.error(`Failed to fetch reputation for user ${user.id}:`, error)
+            logger.error(`Failed to fetch reputation for user ${user.id}:`, error, 'GET /api/registry')
             // Continue without reputation if fetch fails
           }
         }
@@ -126,7 +127,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Registry fetch error:', error)
+    logger.error('Registry fetch error:', error, 'GET /api/registry')
     return errorResponse(
       error instanceof Error ? error.message : 'Failed to fetch registry',
       500

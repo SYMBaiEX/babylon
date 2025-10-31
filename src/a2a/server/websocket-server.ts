@@ -8,22 +8,21 @@ import { EventEmitter } from 'events'
 import {
   JsonRpcRequest,
   JsonRpcResponse,
+  A2AServerOptions,
   A2AServerConfig,
   AgentConnection,
   ErrorCode,
   A2AEventType
 } from '../types'
+import type { JsonRpcResult } from '@/types/json-rpc'
 import { MessageRouter } from './message-router'
 import { AuthManager } from './auth-manager'
 import { RateLimiter } from '../utils/rate-limiter'
 import { Logger } from '../utils/logger'
-import { RegistryClient } from '../blockchain/registry-client'
-import { X402Manager } from '../payments/x402-manager'
+import type { RegistryClient as RegistryClientImpl } from '../blockchain/registry-client'
+import type { X402Manager as X402ManagerImpl } from '../payments/x402-manager'
 
-export interface A2AServerOptions extends A2AServerConfig {
-  registryClient?: RegistryClient
-  x402Manager?: X402Manager
-}
+// A2AServerOptions is now defined in types/index.ts
 
 export class A2AWebSocketServer extends EventEmitter {
   private wss: WebSocketServer
@@ -32,29 +31,39 @@ export class A2AWebSocketServer extends EventEmitter {
   private authManager: AuthManager
   private rateLimiter: RateLimiter
   private logger: Logger
-  private config: Required<A2AServerConfig>
-  private registryClient?: RegistryClient
-  private x402Manager?: X402Manager
+  private config: A2AServerOptions & {
+    host: string;
+    maxConnections: number;
+    messageRateLimit: number;
+    authTimeout: number;
+    enableX402: boolean;
+    enableCoalitions: boolean;
+    logLevel: 'debug' | 'info' | 'warn' | 'error';
+  }
+  private registryClient?: RegistryClientImpl
+  private x402Manager?: X402ManagerImpl
 
   constructor(config: A2AServerOptions) {
     super()
 
     // Set defaults
     this.config = {
-      host: '0.0.0.0',
-      maxConnections: 1000,
-      messageRateLimit: 100, // messages per minute
-      authTimeout: 30000, // 30 seconds
-      enableX402: true,
-      enableCoalitions: true,
-      logLevel: 'info',
-      ...config
+      port: config.port,
+      host: config.host ?? '0.0.0.0',
+      maxConnections: config.maxConnections ?? 1000,
+      messageRateLimit: config.messageRateLimit ?? 100, // messages per minute
+      authTimeout: config.authTimeout ?? 30000, // 30 seconds
+      enableX402: config.enableX402 ?? true,
+      enableCoalitions: config.enableCoalitions ?? true,
+      logLevel: config.logLevel ?? 'info',
+      registryClient: config.registryClient as unknown as RegistryClientImpl | undefined,
+      x402Manager: config.x402Manager as unknown as X402ManagerImpl | undefined,
     }
 
-    this.registryClient = config.registryClient
-    this.x402Manager = config.x402Manager
+    this.registryClient = config.registryClient as unknown as RegistryClientImpl | undefined
+    this.x402Manager = config.x402Manager as unknown as X402ManagerImpl | undefined
     this.logger = new Logger(this.config.logLevel)
-    this.router = new MessageRouter(this.config, this.registryClient, this.x402Manager)
+    this.router = new MessageRouter(this.config as Required<A2AServerConfig>, this.registryClient ?? undefined, this.x402Manager ?? undefined)
     this.authManager = new AuthManager(this.registryClient)
     this.rateLimiter = new RateLimiter(this.config.messageRateLimit)
 
@@ -211,7 +220,7 @@ export class A2AWebSocketServer extends EventEmitter {
     message: JsonRpcRequest
   ): Promise<void> {
     try {
-      const params = message.params as {
+      const handshakeData = message.params as {
         credentials: {
           address: string
           tokenId: number
@@ -228,7 +237,7 @@ export class A2AWebSocketServer extends EventEmitter {
       }
 
       // Validate credentials
-      const authResult = await this.authManager.authenticate(params.credentials)
+      const authResult = await this.authManager.authenticate(handshakeData.credentials)
 
       if (!authResult.success) {
         ws.send(JSON.stringify({
@@ -246,10 +255,10 @@ export class A2AWebSocketServer extends EventEmitter {
 
       // Update connection with authenticated info
       const connection = this.connections.get(tempId)!
-      connection.agentId = `agent-${params.credentials.tokenId}`
-      connection.address = params.credentials.address
-      connection.tokenId = params.credentials.tokenId
-      connection.capabilities = params.capabilities
+      connection.agentId = `agent-${handshakeData.credentials.tokenId}`
+      connection.address = handshakeData.credentials.address
+      connection.tokenId = handshakeData.credentials.tokenId
+      connection.capabilities = handshakeData.capabilities
       connection.authenticated = true
 
       // Send handshake response
@@ -260,7 +269,7 @@ export class A2AWebSocketServer extends EventEmitter {
           sessionToken: authResult.sessionToken,
           serverCapabilities: this.getServerCapabilities(),
           expiresAt: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
-        },
+        } as unknown as JsonRpcResult,
         id: message.id
       }
 
@@ -342,7 +351,17 @@ export class A2AWebSocketServer extends EventEmitter {
   public getConnectedAgents(): AgentConnection[] {
     return Array.from(this.connections.values())
       .filter(conn => conn.authenticated)
-      .map(({ ws, ...connection }) => connection)
+      .map((conn) => {
+        // Extract connection data without WebSocket instance
+        // ws is intentionally omitted as it's not part of AgentConnection interface
+        const { ws: _webSocket, ...connection } = conn
+        // Validate connection is still open before including it
+        if (_webSocket.readyState === WebSocket.OPEN) {
+          return connection
+        }
+        return null
+      })
+      .filter((conn): conn is AgentConnection => conn !== null)
   }
 
   /**

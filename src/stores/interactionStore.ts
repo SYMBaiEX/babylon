@@ -14,6 +14,7 @@ import type {
   PendingInteraction,
   InteractionError,
 } from '@/types/interactions';
+import { logger } from '@/lib/logger';
 
 interface InteractionStoreState {
   // State maps
@@ -70,7 +71,7 @@ async function getAuthToken(): Promise<string | null> {
     
     return null;
   } catch (error) {
-    console.error('Error getting auth token:', error);
+    logger.error('Error getting auth token:', error, 'InteractionStore');
     return null;
   }
 }

@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle, XCircle, Clock } from 'lucide-react'
+import { CheckCircle, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { logger } from '@/lib/logger'
 
 interface PredictionPosition {
   id: string
@@ -33,7 +34,7 @@ export function PredictionPositionsList({ positions, onPositionSold }: Predictio
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(window as any).__privyAccessToken}`,
+          'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
         },
         body: JSON.stringify({
           shares: position.shares,
@@ -54,7 +55,7 @@ export function PredictionPositionsList({ positions, onPositionSold }: Predictio
 
       if (onPositionSold) onPositionSold()
     } catch (error) {
-      console.error('Error selling shares:', error)
+      logger.error('Error selling shares:', error, 'PredictionPositionsList')
       toast.error('Failed to sell shares')
     } finally {
       setSellingId(null)

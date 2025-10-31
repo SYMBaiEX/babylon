@@ -67,7 +67,7 @@ function parseArgs(): CLIOptions {
 }
 
 function printHelp(): void {
-  console.log(`
+  logger.info(`
 🤖 Eliza Agent Runner for Babylon Game
 
 Usage: bun run src/eliza/agents/run-eliza-agent-v2.ts [options]
@@ -125,7 +125,8 @@ async function loadCharacter(characterPath?: string): Promise<Character> {
 
     return character;
   } catch (error) {
-    console.error(`Error loading character from ${characterPath}:`, error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(`Error loading character from ${characterPath}:`, errorMessage);
     throw error;
   }
 }
@@ -150,8 +151,8 @@ async function initCharacter({ runtime, options }: { runtime: IAgentRuntime; opt
   if (options.autoTrade) {
     logger.info('📊 Auto-trading enabled via CLI flag');
     const tradingService = runtime.getService('babylon_trading');
-    if (tradingService && 'enableAutoTrading' in tradingService) {
-      (tradingService as any).enableAutoTrading();
+    if (tradingService && typeof tradingService === 'object' && tradingService !== null && 'enableAutoTrading' in tradingService && typeof (tradingService as { enableAutoTrading: unknown }).enableAutoTrading === 'function') {
+      (tradingService as { enableAutoTrading: () => void }).enableAutoTrading();
     }
   }
 }
@@ -159,24 +160,24 @@ async function initCharacter({ runtime, options }: { runtime: IAgentRuntime; opt
 async function main() {
   const options = parseArgs();
 
-  console.log('🤖 Starting Eliza Agent for Babylon Game\n');
+  logger.info('Starting Eliza Agent for Babylon Game');
 
   // Validate required environment variables
   // API keys are read automatically by ElizaOS from environment
   const hasModelProvider = process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY || process.env.ANTHROPIC_API_KEY;
   if (!hasModelProvider) {
-    console.warn('⚠️  No model provider API key found in environment');
-    console.warn('   Set OPENAI_API_KEY, GROQ_API_KEY, or ANTHROPIC_API_KEY');
-    console.warn('   Agent may not be able to generate responses\n');
+    logger.warn('No model provider API key found in environment');
+    logger.warn('Set OPENAI_API_KEY, GROQ_API_KEY, or ANTHROPIC_API_KEY');
+    logger.warn('Agent may not be able to generate responses');
   }
 
   // Load character
-  console.log('📖 Loading character...');
+  logger.info('Loading character...');
   let character = await loadCharacter(options.character);
-  console.log(`✅ Loaded character: ${character.name}\n`);
+  logger.info(`Loaded character: ${character.name}`);
 
   // Initialize database configuration
-  console.log('💾 Configuring database...');
+  logger.info('Configuring database...');
 
   const postgresUrl = process.env.POSTGRES_URL || process.env.DATABASE_URL;
   const dataDir = process.env.PGLITE_DATA_DIR || path.join(__dirname, '../../../data/pglite');
@@ -187,15 +188,15 @@ async function main() {
   }
 
   if (!postgresUrl) {
-    console.warn('⚠️  POSTGRES_URL not set, using PGlite embedded database for development');
-    console.warn('   For production, set POSTGRES_URL=postgresql://user:password@host:5432/database\n');
+    logger.warn('POSTGRES_URL not set, using PGlite embedded database for development');
+    logger.warn('For production, set POSTGRES_URL=postgresql://user:password@host:5432/database');
   } else {
-    console.log('📊 Using PostgreSQL database\n');
+    logger.info('Using PostgreSQL database');
   }
 
   // Add Babylon configuration and database settings to character
   // Latest ElizaOS pattern: plugins (including SQL plugin) are configured in character
-  console.log('⚙️  Configuring character with plugins and settings...');
+  logger.info('Configuring character with plugins and settings...');
 
   // Build settings object with only defined optional values
   const characterSettings: Record<string, string | number | boolean | Record<string, any>> = {
@@ -227,7 +228,7 @@ async function main() {
       ...(Array.isArray(character.plugins) ? character.plugins : []),
     ],
   };
-  console.log('✅ Character configured with plugins and settings\n');
+  logger.info('Character configured with plugins and settings');
 
   // Generate agent ID from character name for stability across restarts
   // Falls back to random UUID if no character name
@@ -237,7 +238,7 @@ async function main() {
   // Latest ElizaOS: AgentRuntime automatically reads API keys from environment variables
   // API keys should be set: OPENAI_API_KEY, GROQ_API_KEY, or ANTHROPIC_API_KEY
   // Plugin objects (not strings) are passed to AgentRuntime constructor
-  console.log('⚙️  Creating agent runtime...');
+  logger.info('Creating agent runtime...');
   const runtime = new AgentRuntime({
     character,
     agentId,
@@ -247,45 +248,45 @@ async function main() {
   // Initialize character with Babylon-specific setup
   await initCharacter({ runtime, options });
 
-  console.log('✅ Agent runtime created\n');
+  logger.info('Agent runtime created');
 
   // Initialize runtime (starts all services including BabylonTradingService)
-  console.log('🚀 Initializing agent runtime...');
+  logger.info('Initializing agent runtime...');
   await runtime.initialize();
-  console.log('✅ Runtime initialized\n');
+  logger.info('Runtime initialized');
 
   // Start agent
-  console.log('🚀 Agent ready!\n');
-  console.log('════════════════════════════════════════════════════════════');
-  console.log(`  Agent: ${character.name}`);
-  console.log(`  Personality: ${character.bio?.[0] || 'No bio available'}`);
-  console.log(`  API: ${options.apiUrl}`);
-  console.log(`  Max Trade: $${options.maxTradeSize}`);
-  console.log(`  Auto-Trade: ${options.autoTrade ? 'Enabled' : 'Disabled'}`);
-  console.log(`  Providers: Market Data, Wallet Status, Positions (active)`);
-  console.log('════════════════════════════════════════════════════════════\n');
+  logger.info('Agent ready!');
+  logger.info('════════════════════════════════════════════════════════════');
+  logger.info(`Agent: ${character.name}`);
+  logger.info(`Personality: ${character.bio?.[0] || 'No bio available'}`);
+  logger.info(`API: ${options.apiUrl}`);
+  logger.info(`Max Trade: $${options.maxTradeSize}`);
+  logger.info(`Auto-Trade: ${options.autoTrade ? 'Enabled' : 'Disabled'}`);
+  logger.info('Providers: Market Data, Wallet Status, Positions (active)');
+  logger.info('════════════════════════════════════════════════════════════');
 
   if (!options.authToken) {
     if (process.env.BABYLON_AGENT_SECRET) {
-      console.log('🔐 Agent authentication: Using BABYLON_AGENT_SECRET from environment');
-      console.log('   Agent will authenticate automatically without Privy tokens\n');
+      logger.info('Agent authentication: Using BABYLON_AGENT_SECRET from environment');
+      logger.info('Agent will authenticate automatically without Privy tokens');
     } else {
-      console.warn('⚠️  No authentication configured. Agent will not be able to trade.');
-      console.warn('   Option 1: Set BABYLON_AGENT_SECRET in .env (recommended)');
-      console.warn('   Option 2: Provide token with: --auth-token <your-privy-token>\n');
+      logger.warn('No authentication configured. Agent will not be able to trade.');
+      logger.warn('Option 1: Set BABYLON_AGENT_SECRET in .env (recommended)');
+      logger.warn('Option 2: Provide token with: --auth-token <your-privy-token>');
     }
   } else {
-    console.log('🔐 Agent authentication: Using provided auth token\n');
+    logger.info('Agent authentication: Using provided auth token');
   }
 
-  console.log('💬 Agent active and monitoring');
-  console.log('   - Providers inject real-time market/wallet/position data');
-  console.log('   - Evaluators analyze markets and portfolio');
-  console.log('   - Actions execute trades when triggered');
+  logger.info('Agent active and monitoring');
+  logger.info('   - Providers inject real-time market/wallet/position data');
+  logger.info('   - Evaluators analyze markets and portfolio');
+  logger.info('   - Actions execute trades when triggered');
   if (options.autoTrade) {
-    console.log('   - Service monitors markets every 60s, reviews portfolio every 5m\n');
+    logger.info('   - Service monitors markets every 60s, reviews portfolio every 5m');
   } else {
-    console.log('   - Interactive mode: Send messages to trigger analysis and trading\n');
+    logger.info('   - Interactive mode: Send messages to trigger analysis and trading');
   }
 
   // Keep process alive
@@ -294,7 +295,7 @@ async function main() {
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
-  console.log('\n\n👋 Shutting down agent...');
+  logger.info('Shutting down agent...');
   process.exit(0);
 });
 
@@ -304,6 +305,6 @@ export { main };
 // Run main function when executed directly
 // This works for both Bun and Node runtimes
 main().catch((error) => {
-  console.error('❌ Fatal error:', error);
+  logger.error('Fatal error:', error);
   process.exit(1);
 });

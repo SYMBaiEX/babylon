@@ -19,6 +19,17 @@ export interface BalanceInfo {
   lifetimePnL: number;
 }
 
+export interface TransactionHistoryItem {
+  id: string;
+  type: string;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  description: string | null;
+  relatedId: string | null;
+  createdAt: Date;
+}
+
 export class WalletService {
   private static readonly STARTING_BALANCE = 10000; // $10,000 USD
 
@@ -186,7 +197,7 @@ export class WalletService {
   static async getTransactionHistory(
     userId: string,
     limit: number = 50
-  ): Promise<any[]> {
+  ): Promise<TransactionHistoryItem[]> {
     const transactions = await prisma.balanceTransaction.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },

@@ -12,9 +12,11 @@ import { BabylonLLMClient } from '../generator/llm/openai-client';
 import { A2AEventType } from '../a2a/types';
 import type {
   AgentCapabilities,
-  MarketAnalysis
+  MarketAnalysis,
+  CoalitionProposal
 } from '../a2a/types';
-import type { Question } from '@/shared/types';
+import type { Question, WorldEvent } from '@/shared/types';
+import { logger } from '@/lib/logger';
 
 export interface AgentConfig {
   name: string;
@@ -34,13 +36,26 @@ export interface AgentAnalysisResult {
   timestamp: number;
 }
 
+/**
+ * Event types emitted by AutonomousAgent
+ */
+export interface AutonomousAgentEvents {
+  connected: (data: { agentId: string }) => void;
+  disconnected: () => void;
+  marketUpdate: (data: { questions: Question[]; priceUpdates?: Array<{ organizationId: string; newPrice: number; timestamp: string }>; timestamp?: number }) => void;
+  gameEvent: (event: WorldEvent) => void;
+  coalitionJoined: (invite: CoalitionProposal) => void;
+  analysisComplete: (analysis: AgentAnalysisResult) => void;
+  error: (error: Error) => void;
+}
+
 export class AutonomousAgent extends EventEmitter {
   private config: AgentConfig;
   private a2aClient: A2AClient;
   private llm: BabylonLLMClient;
   private wallet: ethers.Wallet | ethers.HDNodeWallet;
-  private activeQuestions: Map<number, Question> = new Map();
-  private analyses: Map<number, AgentAnalysisResult> = new Map();
+  private activeQuestions: Map<string | number, Question> = new Map();
+  private analyses: Map<string | number, AgentAnalysisResult> = new Map();
   private coalitions: Set<string> = new Set();
   private isConnected = false;
 
@@ -85,13 +100,13 @@ export class AutonomousAgent extends EventEmitter {
     // Connection events
     this.a2aClient.on(A2AEventType.AGENT_CONNECTED, (data) => {
       this.isConnected = true;
-      console.log(`✅ ${this.config.name} connected as ${data.agentId}`);
+      logger.info(`${this.config.name} connected as ${data.agentId}`, { agentId: data.agentId }, 'AutonomousAgent');
       this.emit('connected', data);
     });
 
     this.a2aClient.on(A2AEventType.AGENT_DISCONNECTED, () => {
       this.isConnected = false;
-      console.log(`❌ ${this.config.name} disconnected`);
+      logger.info(`${this.config.name} disconnected`, undefined, 'AutonomousAgent');
       this.emit('disconnected');
     });
 
@@ -108,7 +123,8 @@ export class AutonomousAgent extends EventEmitter {
 
     // Error handling
     this.a2aClient.on('error', (error) => {
-      console.error(`⚠️  ${this.config.name} error:`, error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`${this.config.name} error: ${errorMessage}`, { error }, 'AutonomousAgent');
       this.emit('error', error);
     });
   }
@@ -120,7 +136,8 @@ export class AutonomousAgent extends EventEmitter {
     try {
       await this.a2aClient.connect();
     } catch (error) {
-      console.error(`Failed to connect ${this.config.name}:`, error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to connect ${this.config.name}: ${errorMessage}`, { error }, 'AutonomousAgent');
       throw error;
     }
   }
@@ -136,7 +153,11 @@ export class AutonomousAgent extends EventEmitter {
   /**
    * Handle market data update
    */
-  private async handleMarketUpdate(data: any): Promise<void> {
+  private async handleMarketUpdate(data: {
+    questions: Question[];
+    priceUpdates?: Array<{ organizationId: string; newPrice: number; timestamp: string }>;
+    timestamp?: number;
+  }): Promise<void> {
     const { questions, priceUpdates, timestamp } = data;
 
     // Update active questions
@@ -146,7 +167,7 @@ export class AutonomousAgent extends EventEmitter {
 
     // Analyze new or updated questions
     for (const question of questions) {
-      if (!this.analyses.has(question.id)) {
+      if (!this.analyses.has(String(question.id))) {
         await this.analyzeQuestion(question);
       }
     }
@@ -157,13 +178,16 @@ export class AutonomousAgent extends EventEmitter {
   /**
    * Handle game event
    */
-  private async handleGameEvent(event: any): Promise<void> {
-    console.log(`📢 ${this.config.name} received event: ${event.type}`);
+  private async handleGameEvent(event: WorldEvent): Promise<void> {
+    logger.debug(`${this.config.name} received event: ${event.type}`, { event }, 'AutonomousAgent');
 
     // If event affects a question we're tracking, re-analyze
-    if (event.relatedQuestion && this.activeQuestions.has(event.relatedQuestion)) {
-      const question = this.activeQuestions.get(event.relatedQuestion)!;
-      await this.analyzeQuestion(question);
+    if (event.relatedQuestion != null) {
+      const relatedQuestionId = event.relatedQuestion;
+      if (this.activeQuestions.has(relatedQuestionId)) {
+        const question = this.activeQuestions.get(relatedQuestionId)!;
+        await this.analyzeQuestion(question);
+      }
     }
 
     this.emit('gameEvent', event);
@@ -172,8 +196,8 @@ export class AutonomousAgent extends EventEmitter {
   /**
    * Handle coalition invite
    */
-  private async handleCoalitionInvite(invite: any): Promise<void> {
-    console.log(`🤝 ${this.config.name} invited to coalition: ${invite.name}`);
+  private async handleCoalitionInvite(invite: CoalitionProposal): Promise<void> {
+    logger.info(`${this.config.name} invited to coalition: ${invite.coalitionId}`, { invite }, 'AutonomousAgent');
 
     // Simple acceptance logic based on strategy match
     const shouldJoin = this.config.strategies.includes(invite.strategy);
@@ -183,11 +207,12 @@ export class AutonomousAgent extends EventEmitter {
         const result = await this.a2aClient.joinCoalition(invite.coalitionId);
         if (result.joined) {
           this.coalitions.add(invite.coalitionId);
-          console.log(`✅ ${this.config.name} joined coalition: ${invite.name}`);
+          logger.info(`${this.config.name} joined coalition: ${invite.coalitionId}`, { coalitionId: invite.coalitionId }, 'AutonomousAgent');
           this.emit('coalitionJoined', invite);
         }
       } catch (error) {
-        console.error(`Failed to join coalition:`, error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(`Failed to join coalition: ${errorMessage}`, { error, invite }, 'AutonomousAgent');
       }
     }
   }
@@ -224,8 +249,10 @@ export class AutonomousAgent extends EventEmitter {
       );
 
       // Create analysis result from JSON response
+      // Convert question.id to number for AgentAnalysisResult
+      const questionIdNumber = typeof question.id === 'number' ? question.id : parseInt(String(question.id), 10) || 0;
       const analysis: AgentAnalysisResult = {
-        questionId: question.id,
+        questionId: questionIdNumber,
         prediction: response.prediction,
         confidence: response.confidence,
         reasoning: response.reasoning,
@@ -242,7 +269,8 @@ export class AutonomousAgent extends EventEmitter {
 
       this.emit('analysisComplete', analysis);
     } catch (error) {
-      console.error(`Analysis failed for question ${question.id}:`, error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Analysis failed for question ${question.id}: ${errorMessage}`, { error, questionId: question.id }, 'AutonomousAgent');
     }
   }
 
@@ -287,9 +315,10 @@ Be concise and analytical.`;
       };
 
       await this.a2aClient.shareAnalysis(marketAnalysis);
-      console.log(`📊 ${this.config.name} shared analysis for question ${analysis.questionId}`);
+      logger.info(`${this.config.name} shared analysis for question ${analysis.questionId}`, { questionId: analysis.questionId }, 'AutonomousAgent');
     } catch (error) {
-      console.error('Failed to share analysis:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to share analysis: ${errorMessage}`, { error, analysis }, 'AutonomousAgent');
     }
   }
 
@@ -303,7 +332,7 @@ Be concise and analytical.`;
     maxMembers: number = 5
   ): Promise<string | null> {
     if (!this.isConnected) {
-      console.error('Not connected to A2A server');
+      logger.warn('Not connected to A2A server', undefined, 'AutonomousAgent');
       return null;
     }
 
@@ -318,10 +347,11 @@ Be concise and analytical.`;
       );
 
       this.coalitions.add(result.coalitionId);
-      console.log(`🤝 ${this.config.name} created coalition: ${name}`);
+      logger.info(`${this.config.name} created coalition: ${name}`, { coalitionId: result.coalitionId, name }, 'AutonomousAgent');
       return result.coalitionId;
     } catch (error) {
-      console.error('Failed to propose coalition:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to propose coalition: ${errorMessage}`, { error, name, targetMarket }, 'AutonomousAgent');
       return null;
     }
   }
@@ -352,7 +382,7 @@ Be concise and analytical.`;
   /**
    * Get analysis for a specific question
    */
-  getAnalysis(questionId: number): AgentAnalysisResult | undefined {
+  getAnalysis(questionId: string | number): AgentAnalysisResult | undefined {
     return this.analyses.get(questionId);
   }
 

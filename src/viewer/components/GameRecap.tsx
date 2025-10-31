@@ -2,9 +2,12 @@
  * Game Recap
  * Comprehensive summary of game history and current setup
  */
-import { GameHistoryPanel, GameHistoryItem } from './GameHistoryPanel';
-import { WorldContextPanel, Scenario, Question, Actor } from './WorldContextPanel';
-import { ActorMoodDisplay, ActorMoodState, ActorRelationship } from './ActorMoodDisplay';
+import type { GameHistoryItem } from './GameHistoryPanel';
+import { GameHistoryPanel } from './GameHistoryPanel';
+import type { Scenario, Question, Actor } from './WorldContextPanel';
+import { WorldContextPanel } from './WorldContextPanel';
+import type { ActorMoodState, ActorRelationship } from './ActorMoodDisplay';
+import { ActorMoodDisplay } from './ActorMoodDisplay';
 
 export interface GameRecapData {
   // Previous games history

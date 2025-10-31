@@ -6,6 +6,7 @@ import { User, Image, FileText, CheckCircle } from 'lucide-react'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import { logger } from '@/lib/logger'
 import { toast } from 'sonner'
 
 export default function ProfileSetupPage() {
@@ -34,7 +35,7 @@ export default function ProfileSetupPage() {
           setInitialLoading(false)
         })
         .catch(err => {
-          console.error('Error fetching profile:', err)
+          logger.error('Error fetching profile:', err, 'ProfileSetupPage')
           setInitialLoading(false)
         })
     } else {
@@ -62,7 +63,7 @@ export default function ProfileSetupPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(window as any).__privyAccessToken}`,
+          'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
         },
         body: JSON.stringify({
           username,
@@ -80,8 +81,9 @@ export default function ProfileSetupPage() {
 
       toast.success('Profile setup complete!')
       router.push('/feed')
-    } catch (error) {
-      console.error('Error updating profile:', error)
+    } catch (profileError) {
+      const errorMessage = profileError instanceof Error ? profileError.message : 'Failed to update profile'
+      logger.error('Error updating profile:', errorMessage, 'ProfileSetupPage')
       toast.error('Failed to update profile')
     } finally {
       setLoading(false)

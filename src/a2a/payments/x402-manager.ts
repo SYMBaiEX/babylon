@@ -4,7 +4,9 @@
  */
 
 import { JsonRpcProvider, type Provider, parseEther, formatEther, hexlify, randomBytes } from 'ethers'
-import { PaymentRequest, PaymentReceipt } from '../types'
+import type { PaymentRequest } from '../types'
+import type { PaymentVerificationParams, PaymentVerificationResult } from '@/types/payments'
+import { logger } from '../utils/logger'
 
 export interface X402Config {
   rpcUrl: string
@@ -45,7 +47,7 @@ export class X402Manager {
     to: string,
     amount: string,
     service: string,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, string | number | boolean | null>
   ): PaymentRequest {
     // Validate amount meets minimum
     const amountBn = parseEther(formatEther(amount))
@@ -81,13 +83,10 @@ export class X402Manager {
   /**
    * Verify a payment receipt against blockchain transaction
    */
-  async verifyPayment(receipt: PaymentReceipt): Promise<{
-    verified: boolean
-    error?: string
-  }> {
+  async verifyPayment(verificationData: PaymentVerificationParams): Promise<PaymentVerificationResult> {
     try {
       // Get pending payment request
-      const pending = this.pendingPayments.get(receipt.requestId)
+      const pending = this.pendingPayments.get(verificationData.requestId)
       if (!pending) {
         return { verified: false, error: 'Payment request not found or expired' }
       }
@@ -99,18 +98,18 @@ export class X402Manager {
 
       // Check expiration
       if (Date.now() > pending.request.expiresAt) {
-        this.pendingPayments.delete(receipt.requestId)
+        this.pendingPayments.delete(verificationData.requestId)
         return { verified: false, error: 'Payment request expired' }
       }
 
       // Fetch transaction from blockchain
-      const tx = await this.provider.getTransaction(receipt.txHash)
+      const tx = await this.provider.getTransaction(verificationData.txHash)
       if (!tx) {
         return { verified: false, error: 'Transaction not found on blockchain' }
       }
 
       // Verify transaction is confirmed
-      const txReceipt = await this.provider.getTransactionReceipt(receipt.txHash)
+      const txReceipt = await this.provider.getTransactionReceipt(verificationData.txHash)
       if (!txReceipt) {
         return { verified: false, error: 'Transaction not yet confirmed' }
       }
@@ -221,7 +220,7 @@ export class X402Manager {
     }
 
     if (expired.length > 0) {
-      console.log(`Cleaned up ${expired.length} expired payment requests`)
+      logger.info(`Cleaned up ${expired.length} expired payment requests`)
     }
   }
 

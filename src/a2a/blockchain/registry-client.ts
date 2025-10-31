@@ -4,7 +4,10 @@
  */
 
 import { ethers } from 'ethers'
-import { AgentProfile, AgentReputation } from '../types'
+import type { AgentProfile, AgentReputation } from '../types'
+import { Logger } from '../utils/logger'
+import type { IdentityRegistryContract, ReputationSystemContract } from '@/types/contracts'
+import type { JsonValue } from '@/types/common'
 
 // ERC-8004 Identity Registry ABI (minimal)
 const IDENTITY_ABI = [
@@ -31,10 +34,13 @@ export interface RegistryConfig {
   reputationSystemAddress: string
 }
 
+// Contract method return type interfaces are now imported from @/types/contracts
+
 export class RegistryClient {
   private readonly provider: ethers.Provider
   private readonly identityRegistry: ethers.Contract
   private readonly reputationSystem: ethers.Contract
+  private readonly logger: Logger
 
   constructor(config: RegistryConfig) {
     // Initialize all properties in constructor to satisfy strictPropertyInitialization
@@ -51,6 +57,7 @@ export class RegistryClient {
       REPUTATION_ABI,
       this.provider
     )
+    this.logger = new Logger('info')
   }
 
   /**
@@ -66,10 +73,11 @@ export class RegistryClient {
     }
 
     try {
-      // Contract methods are dynamically added from ABI, use type assertion
-      const profile = await (identityRegistry as any).getAgentProfile(tokenId)
+      // Contract methods are dynamically added from ABI, use type assertion with proper interface
+      const contract = identityRegistry as unknown as IdentityRegistryContract
+      const profile = await contract.getAgentProfile(tokenId)
       const reputation = await this.getAgentReputation(tokenId)
-      const address = await (identityRegistry as any).ownerOf(tokenId)
+      const address = await contract.ownerOf(tokenId)
 
       return {
         tokenId,
@@ -81,6 +89,9 @@ export class RegistryClient {
         isActive: profile.isActive
       }
     } catch (error) {
+      // Log error for debugging
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      this.logger.warn(`Failed to get agent profile for tokenId ${tokenId}`, { error: errorMessage })
       return null
     }
   }
@@ -97,11 +108,15 @@ export class RegistryClient {
     }
 
     try {
-      // Contract methods are dynamically added from ABI, use type assertion
-      const tokenId = await (identityRegistry as any).getTokenId(address)
+      // Contract methods are dynamically added from ABI, use type assertion with proper interface
+      const contract = identityRegistry as unknown as IdentityRegistryContract
+      const tokenId = await contract.getTokenId(address)
       if (tokenId === 0n) return null
       return this.getAgentProfile(Number(tokenId))
     } catch (error) {
+      // Log error for debugging
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      this.logger.warn(`Failed to get agent profile for address ${address}`, { error: errorMessage })
       return null
     }
   }
@@ -118,16 +133,9 @@ export class RegistryClient {
     }
 
     try {
-      // Contract methods are dynamically added from ABI, use type assertion
-      const rep = await (reputationSystem as any).getReputation(tokenId) as [
-        bigint, // totalBets
-        bigint, // winningBets
-        bigint, // totalVolume
-        bigint, // profitLoss
-        bigint, // accuracyScore
-        bigint, // trustScore
-        boolean // isBanned
-      ]
+      // Contract methods are dynamically added from ABI, use type assertion with proper interface
+      const contract = reputationSystem as unknown as ReputationSystemContract
+      const rep = await contract.getReputation(tokenId)
 
       return {
         totalBets: Number(rep[0] || 0),
@@ -139,6 +147,9 @@ export class RegistryClient {
         isBanned: rep[6] || false,
       }
     } catch (error) {
+      // Log error for debugging and return default reputation
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      this.logger.warn(`Failed to get reputation for tokenId ${tokenId}`, { error: errorMessage })
       return {
         totalBets: 0,
         winningBets: 0,
@@ -171,11 +182,14 @@ export class RegistryClient {
       let tokenIds: bigint[]
 
       // Get agents by reputation if filter provided
+      const reputationContract = reputationSystem as unknown as ReputationSystemContract
+      const identityContract = identityRegistry as unknown as IdentityRegistryContract
+      
       if (filters?.minReputation) {
-        tokenIds = await (reputationSystem as any).getAgentsByMinScore(filters.minReputation)
+        tokenIds = await reputationContract.getAgentsByMinScore(filters.minReputation)
       } else {
         // Get all active agents
-        tokenIds = await (identityRegistry as any).getAllActiveAgents()
+        tokenIds = await identityContract.getAllActiveAgents()
       }
 
       // Fetch profiles for each token ID
@@ -189,7 +203,9 @@ export class RegistryClient {
 
       return profiles
     } catch (error) {
-      console.error('Error discovering agents:', error)
+      // Use logger instead of console.error
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      this.logger.error('Error discovering agents', { error: errorMessage, filters })
       return []
     }
   }
@@ -243,7 +259,12 @@ export class RegistryClient {
     version: string
   } {
     try {
-      const parsed = JSON.parse(metadata)
+      const parsed = JSON.parse(metadata) as {
+        strategies?: string[]
+        markets?: string[]
+        actions?: string[]
+        version?: string
+      }
       return {
         strategies: parsed.strategies || [],
         markets: parsed.markets || [],
@@ -251,6 +272,9 @@ export class RegistryClient {
         version: parsed.version || '1.0.0'
       }
     } catch (error) {
+      // Log error for debugging
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      this.logger.warn('Failed to parse capabilities metadata', { error: errorMessage, metadata })
       return {
         strategies: [],
         markets: [],
@@ -272,10 +296,14 @@ export class RegistryClient {
     }
 
     try {
-      // Contract methods are dynamically added from ABI, use type assertion
-      const owner = await (identityRegistry as any).ownerOf(tokenId)
+      // Contract methods are dynamically added from ABI, use type assertion with proper interface
+      const contract = identityRegistry as unknown as IdentityRegistryContract
+      const owner = await contract.ownerOf(tokenId)
       return owner.toLowerCase() === address.toLowerCase()
     } catch (error) {
+      // Log error for debugging
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      this.logger.warn(`Failed to verify agent ${address} for tokenId ${tokenId}`, { error: errorMessage })
       return false
     }
   }
@@ -292,10 +320,114 @@ export class RegistryClient {
     }
 
     try {
-      // Contract methods are dynamically added from ABI, use type assertion
-      return await (identityRegistry as any).isEndpointActive(endpoint)
+      // Contract methods are dynamically added from ABI, use type assertion with proper interface
+      const contract = identityRegistry as unknown as IdentityRegistryContract
+      return await contract.isEndpointActive(endpoint)
     } catch (error) {
+      // Log error for debugging
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      this.logger.warn(`Failed to check endpoint active status for ${endpoint}`, { error: errorMessage })
       return false
+    }
+  }
+
+  /**
+   * Register agent (required by RegistryClient interface)
+   * Note: This is a blockchain-based registry, so registration happens on-chain
+   * This method is provided for interface compatibility but may not be fully implemented
+   */
+  async register(agentId: string, data: Record<string, JsonValue>): Promise<void> {
+    // Implementation would interact with blockchain to register agent
+    // For now, this is a placeholder for interface compatibility
+    this.logger.info(`Register agent ${agentId}`, { data })
+    throw new Error('On-chain registration not yet implemented - use blockchain directly')
+  }
+
+  /**
+   * Unregister agent (required by RegistryClient interface)
+   */
+  async unregister(agentId: string): Promise<void> {
+    // Implementation would interact with blockchain to unregister agent
+    this.logger.info(`Unregister agent ${agentId}`)
+    throw new Error('On-chain unregistration not yet implemented - use blockchain directly')
+  }
+
+  /**
+   * Get all agents (required by RegistryClient interface)
+   */
+  async getAgents(): Promise<Array<{ agentId: string; [key: string]: JsonValue }>> {
+    try {
+      const profiles = await this.discoverAgents()
+      return profiles.map(profile => ({
+        agentId: String(profile.tokenId),
+        tokenId: profile.tokenId,
+        address: profile.address,
+        name: profile.name,
+        endpoint: profile.endpoint,
+        capabilities: {
+          strategies: profile.capabilities.strategies,
+          markets: profile.capabilities.markets,
+          actions: profile.capabilities.actions,
+          version: profile.capabilities.version,
+        },
+        reputation: {
+          totalBets: profile.reputation.totalBets,
+          winningBets: profile.reputation.winningBets,
+          accuracyScore: profile.reputation.accuracyScore,
+          trustScore: profile.reputation.trustScore,
+          totalVolume: profile.reputation.totalVolume,
+          profitLoss: profile.reputation.profitLoss,
+          isBanned: profile.reputation.isBanned,
+        },
+        isActive: profile.isActive,
+      }))
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      this.logger.error('Error getting agents', { error: errorMessage })
+      return []
+    }
+  }
+
+  /**
+   * Get agent by ID (required by RegistryClient interface)
+   */
+  async getAgent(agentId: string): Promise<{ agentId: string; [key: string]: JsonValue } | null> {
+    try {
+      const tokenId = parseInt(agentId, 10)
+      if (isNaN(tokenId)) {
+        return null
+      }
+      const profile = await this.getAgentProfile(tokenId)
+      if (!profile) {
+        return null
+      }
+      return {
+        agentId: String(profile.tokenId),
+        tokenId: profile.tokenId,
+        address: profile.address,
+        name: profile.name,
+        endpoint: profile.endpoint,
+        capabilities: {
+          strategies: profile.capabilities.strategies,
+          markets: profile.capabilities.markets,
+          actions: profile.capabilities.actions,
+          version: profile.capabilities.version,
+        },
+        reputation: {
+          totalBets: profile.reputation.totalBets,
+          winningBets: profile.reputation.winningBets,
+          accuracyScore: profile.reputation.accuracyScore,
+          trustScore: profile.reputation.trustScore,
+          totalVolume: profile.reputation.totalVolume,
+          profitLoss: profile.reputation.profitLoss,
+          isBanned: profile.reputation.isBanned,
+        },
+        isActive: profile.isActive,
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      this.logger.error(`Error getting agent ${agentId}`, { error: errorMessage })
+      return null
     }
   }
 }

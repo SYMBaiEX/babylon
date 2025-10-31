@@ -3,15 +3,15 @@
  * Methods: GET (get user balance)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
-  authenticate,
   optionalAuth,
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
 import { WalletService } from '@/services/WalletService';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -63,7 +63,7 @@ export async function GET(
       lifetimePnL: balanceInfo.lifetimePnL,
     });
   } catch (error) {
-    console.error('Error fetching balance:', error);
+    logger.error('Error fetching balance:', error, 'GET /api/users/[userId]/balance');
     return errorResponse('Failed to fetch balance', 500);
   }
 }

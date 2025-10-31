@@ -6,6 +6,7 @@
 
 import { gameService } from '@/lib/game-service';
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 
 export async function GET() {
   try {
@@ -17,7 +18,7 @@ export async function GET() {
       count: games.length,
     });
   } catch (error) {
-    console.error('API Error:', error);
+    logger.error('API Error:', error, 'GET /api/games');
     return NextResponse.json(
       { success: false, error: 'Failed to load games' },
       { status: 500 }

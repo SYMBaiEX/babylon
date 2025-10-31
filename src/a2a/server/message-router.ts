@@ -15,8 +15,78 @@ import {
   Coalition,
   MarketAnalysis
 } from '../types'
+import type { JsonRpcResult } from '@/types/json-rpc'
+import type { PaymentVerificationParams, PaymentVerificationResult } from '@/types/payments'
 import { RegistryClient } from '../blockchain/registry-client'
 import { X402Manager } from '../payments/x402-manager'
+import { logger } from '../utils/logger'
+
+// Typed parameter interfaces for each method
+interface DiscoverParams {
+  filters?: {
+    strategies?: string[]
+    minReputation?: number
+    markets?: string[]
+  }
+  limit?: number
+}
+
+interface GetAgentInfoParams {
+  agentId: string
+}
+
+interface GetMarketDataParams {
+  marketId: string
+}
+
+interface GetMarketPricesParams {
+  marketId: string
+}
+
+interface SubscribeMarketParams {
+  marketId: string
+}
+
+interface ProposeCoalitionParams {
+  name: string
+  targetMarket: string
+  strategy: string
+  minMembers: number
+  maxMembers: number
+}
+
+interface JoinCoalitionParams {
+  coalitionId: string
+}
+
+interface CoalitionMessageParams {
+  coalitionId: string
+  messageType: 'analysis' | 'vote' | 'action' | 'coordination'
+  content: Record<string, string | number | boolean | null>
+}
+
+interface LeaveCoalitionParams {
+  coalitionId: string
+}
+
+interface RequestAnalysisParams {
+  marketId: string
+  paymentOffer?: string
+  deadline: number
+}
+
+interface PaymentRequestParams {
+  to: string
+  amount: string
+  service: string
+  metadata?: Record<string, string | number | boolean | null>
+  from?: string
+}
+
+interface PaymentReceiptParams {
+  requestId: string
+  txHash: string
+}
 
 export class MessageRouter {
   private config: Required<A2AServerConfig>
@@ -113,31 +183,34 @@ export class MessageRouter {
    * Log request for tracking and debugging
    */
   private logRequest(agentId: string, method: string): void {
-    console.log(`[A2A Router] Agent ${agentId} -> ${method}`)
+    logger.debug(`Agent ${agentId} -> ${method}`)
   }
 
   // ==================== Agent Discovery ====================
 
   private async handleDiscover(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.DISCOVER_AGENTS)
-    const params = request.params as {
-      filters?: {
-        strategies?: string[]
-        minReputation?: number
-        markets?: string[]
-      }
-      limit?: number
+    
+    // Validate and type params
+    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: expected object'
+      )
     }
+    
+    const discoverRequest = request.params as DiscoverParams
 
     let agents: AgentProfile[] = []
 
     // Query ERC-8004 registry if available
     if (this.registryClient) {
-      agents = await this.registryClient.discoverAgents(params.filters)
+      agents = await this.registryClient.discoverAgents(discoverRequest.filters)
 
       // Apply limit if specified
-      if (params.limit && params.limit > 0) {
-        agents = agents.slice(0, params.limit)
+      if (discoverRequest.limit && discoverRequest.limit > 0) {
+        agents = agents.slice(0, discoverRequest.limit)
       }
     }
 
@@ -146,25 +219,43 @@ export class MessageRouter {
       result: {
         agents,
         total: agents.length
-      },
+      } as unknown as JsonRpcResult,
       id: request.id
     }
   }
 
   private async handleGetAgentInfo(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.GET_AGENT_INFO)
-    const params = request.params as { agentId: string }
+    
+    // Validate and type params
+    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: expected object'
+      )
+    }
+    
+    const agentInfo = request.params as unknown as GetAgentInfoParams
+    
+    if (!agentInfo.agentId || typeof agentInfo.agentId !== 'string') {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: agentId is required'
+      )
+    }
 
     // Query ERC-8004 registry if available
     if (this.registryClient) {
       // Extract token ID from agentId (format: "agent-{tokenId}")
-      const tokenId = parseInt(params.agentId.replace('agent-', ''))
+      const tokenId = parseInt(agentInfo.agentId.replace('agent-', ''))
       if (!isNaN(tokenId)) {
         const profile = await this.registryClient.getAgentProfile(tokenId)
         if (profile) {
           return {
             jsonrpc: '2.0',
-            result: profile,
+            result: profile as unknown as JsonRpcResult,
             id: request.id
           }
         }
@@ -174,7 +265,7 @@ export class MessageRouter {
     return this.errorResponse(
       request.id,
       ErrorCode.AGENT_NOT_FOUND,
-      `Agent ${params.agentId} not found`
+        `Agent ${agentInfo.agentId} not found`
     )
   }
 
@@ -182,11 +273,29 @@ export class MessageRouter {
 
   private async handleGetMarketData(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.GET_MARKET_DATA)
-    const params = request.params as { marketId: string }
+    
+    // Validate and type params
+    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: expected object'
+      )
+    }
+    
+    const marketRequest = request.params as unknown as GetMarketDataParams
+    
+    if (!marketRequest.marketId || typeof marketRequest.marketId !== 'string') {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: marketId is required'
+      )
+    }
 
     // TODO: Query blockchain for market data
     const marketData: MarketData = {
-      marketId: params.marketId,
+      marketId: marketRequest.marketId,
       question: '',
       outcomes: [],
       prices: [],
@@ -198,20 +307,38 @@ export class MessageRouter {
 
     return {
       jsonrpc: '2.0',
-      result: marketData,
+      result: marketData as unknown as JsonRpcResult,
       id: request.id
     }
   }
 
   private async handleGetMarketPrices(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.GET_MARKET_PRICES)
-    const params = request.params as { marketId: string }
+    
+    // Validate and type params
+    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: expected object'
+      )
+    }
+    
+    const pricesRequest = request.params as unknown as GetMarketPricesParams
+    
+    if (!pricesRequest.marketId || typeof pricesRequest.marketId !== 'string') {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: marketId is required'
+      )
+    }
 
     // TODO: Calculate current prices from blockchain state
     return {
       jsonrpc: '2.0',
       result: {
-        marketId: params.marketId,
+        marketId: pricesRequest.marketId,
         prices: [],
         timestamp: Date.now()
       },
@@ -221,19 +348,37 @@ export class MessageRouter {
 
   private async handleSubscribeMarket(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.SUBSCRIBE_MARKET)
-    const params = request.params as { marketId: string }
+    
+    // Validate and type params
+    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: expected object'
+      )
+    }
+    
+    const subscriptionRequest = request.params as unknown as SubscribeMarketParams
+    
+    if (!subscriptionRequest.marketId || typeof subscriptionRequest.marketId !== 'string') {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: marketId is required'
+      )
+    }
 
     // Add agent to subscription set for this market
-    if (!this.marketSubscriptions.has(params.marketId)) {
-      this.marketSubscriptions.set(params.marketId, new Set())
+    if (!this.marketSubscriptions.has(subscriptionRequest.marketId)) {
+      this.marketSubscriptions.set(subscriptionRequest.marketId, new Set())
     }
-    this.marketSubscriptions.get(params.marketId)!.add(agentId)
+    this.marketSubscriptions.get(subscriptionRequest.marketId)!.add(agentId)
 
     return {
       jsonrpc: '2.0',
       result: {
         subscribed: true,
-        marketId: params.marketId
+        marketId: subscriptionRequest.marketId
       },
       id: request.id
     }
@@ -243,22 +388,34 @@ export class MessageRouter {
 
   private async handleProposeCoalition(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.PROPOSE_COALITION)
-    const params = request.params as {
-      name: string
-      targetMarket: string
-      strategy: string
-      minMembers: number
-      maxMembers: number
+    
+    // Validate and type params
+    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: expected object'
+      )
+    }
+    
+    const proposal = request.params as unknown as ProposeCoalitionParams
+    
+    if (!proposal.name || !proposal.targetMarket || !proposal.strategy) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: name, targetMarket, and strategy are required'
+      )
     }
 
     const coalitionId = `coalition-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
     const coalition: Coalition = {
       id: coalitionId,
-      name: params.name,
+      name: proposal.name,
       members: [agentId],
-      strategy: params.strategy,
-      targetMarket: params.targetMarket,
+      strategy: proposal.strategy,
+      targetMarket: proposal.targetMarket,
       createdAt: Date.now(),
       active: true
     }
@@ -270,16 +427,34 @@ export class MessageRouter {
       result: {
         coalitionId,
         proposal: coalition
-      },
+      } as unknown as JsonRpcResult,
       id: request.id
     }
   }
 
   private async handleJoinCoalition(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.JOIN_COALITION)
-    const params = request.params as { coalitionId: string }
+    
+    // Validate and type params
+    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: expected object'
+      )
+    }
+    
+    const joinRequest = request.params as unknown as JoinCoalitionParams
+    
+    if (!joinRequest.coalitionId || typeof joinRequest.coalitionId !== 'string') {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: coalitionId is required'
+      )
+    }
 
-    const coalition = this.coalitions.get(params.coalitionId)
+    const coalition = this.coalitions.get(joinRequest.coalitionId)
     if (!coalition) {
       return this.errorResponse(
         request.id,
@@ -298,20 +473,34 @@ export class MessageRouter {
       result: {
         joined: true,
         coalition
-      },
+      } as unknown as JsonRpcResult,
       id: request.id
     }
   }
 
   private async handleCoalitionMessage(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.COALITION_MESSAGE)
-    const params = request.params as {
-      coalitionId: string
-      messageType: 'analysis' | 'vote' | 'action' | 'coordination'
-      content: unknown
+    
+    // Validate and type params
+    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: expected object'
+      )
+    }
+    
+    const messageData = request.params as unknown as CoalitionMessageParams
+    
+    if (!messageData.coalitionId || !messageData.messageType) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: coalitionId and messageType are required'
+      )
     }
 
-    const coalition = this.coalitions.get(params.coalitionId)
+    const coalition = this.coalitions.get(messageData.coalitionId)
     if (!coalition) {
       return this.errorResponse(
         request.id,
@@ -342,9 +531,27 @@ export class MessageRouter {
 
   private async handleLeaveCoalition(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.LEAVE_COALITION)
-    const params = request.params as { coalitionId: string }
+    
+    // Validate and type params
+    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: expected object'
+      )
+    }
+    
+    const leaveRequest = request.params as unknown as LeaveCoalitionParams
+    
+    if (!leaveRequest.coalitionId || typeof leaveRequest.coalitionId !== 'string') {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: coalitionId is required'
+      )
+    }
 
-    const coalition = this.coalitions.get(params.coalitionId)
+    const coalition = this.coalitions.get(leaveRequest.coalitionId)
     if (!coalition) {
       return this.errorResponse(
         request.id,
@@ -374,10 +581,20 @@ export class MessageRouter {
 
   private async handleShareAnalysis(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.SHARE_ANALYSIS)
-    const params = request.params as unknown as MarketAnalysis
+    
+    // Validate and type params
+    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: expected object'
+      )
+    }
+    
+    const analysis = request.params as unknown as MarketAnalysis
 
     // Validate analysis has required fields
-    if (!params.marketId || !params.timestamp) {
+    if (!analysis.marketId || !analysis.timestamp) {
       return this.errorResponse(
         request.id,
         ErrorCode.INVALID_PARAMS,
@@ -387,7 +604,7 @@ export class MessageRouter {
 
     // TODO: Store and distribute analysis to interested parties
     // For now, log the analysis details
-    console.log(`[A2A Router] Agent ${agentId} shared analysis for market ${params.marketId}`)
+    logger.info(`Agent ${agentId} shared analysis for market ${analysis.marketId}`)
 
     return {
       jsonrpc: '2.0',
@@ -401,14 +618,19 @@ export class MessageRouter {
 
   private async handleRequestAnalysis(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.REQUEST_ANALYSIS)
-    const params = request.params as {
-      marketId: string
-      paymentOffer?: string
-      deadline: number
+    
+    // Validate and type params
+    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: expected object'
+      )
     }
-
-    // Validate request parameters
-    if (!params.marketId || !params.deadline) {
+    
+    const analysisRequest = request.params as unknown as RequestAnalysisParams
+    
+    if (!analysisRequest.marketId || !analysisRequest.deadline) {
       return this.errorResponse(
         request.id,
         ErrorCode.INVALID_PARAMS,
@@ -418,7 +640,7 @@ export class MessageRouter {
 
     // TODO: Broadcast analysis request to capable agents
     // For now, log the request details
-    console.log(`[A2A Router] Agent ${agentId} requesting analysis for market ${params.marketId}, deadline: ${params.deadline}`)
+    logger.info(`Agent ${agentId} requesting analysis for market ${analysisRequest.marketId}, deadline: ${analysisRequest.deadline}`)
 
     return {
       jsonrpc: '2.0',
@@ -434,11 +656,24 @@ export class MessageRouter {
 
   private async handlePaymentRequest(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.PAYMENT_REQUEST)
-    const params = request.params as {
-      to: string
-      amount: string
-      service: string
-      metadata?: Record<string, unknown>
+    
+    // Validate and type params
+    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: expected object'
+      )
+    }
+    
+    const paymentRequest = request.params as unknown as PaymentRequestParams
+    
+    if (!paymentRequest.to || !paymentRequest.amount || !paymentRequest.service) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: to, amount, and service are required'
+      )
     }
 
     if (!this.config.enableX402) {
@@ -459,24 +694,23 @@ export class MessageRouter {
 
     try {
       // Get agent address from agentId (format: "agent-{tokenId}")
-      const connection = params as unknown as { from?: string }
-      const from = connection.from || ''
+      const from = paymentRequest.from || ''
 
       // Create payment request via x402 manager
-      const paymentRequest = this.x402Manager.createPaymentRequest(
+      const createdPaymentRequest = this.x402Manager.createPaymentRequest(
         from,
-        params.to,
-        params.amount,
-        params.service,
-        params.metadata
+        paymentRequest.to,
+        paymentRequest.amount,
+        paymentRequest.service,
+        paymentRequest.metadata as Record<string, string | number | boolean | null> | undefined
       )
 
       return {
         jsonrpc: '2.0',
         result: {
-          requestId: paymentRequest.requestId,
-          amount: paymentRequest.amount,
-          expiresAt: paymentRequest.expiresAt
+          requestId: createdPaymentRequest.requestId,
+          amount: createdPaymentRequest.amount,
+          expiresAt: createdPaymentRequest.expiresAt
         },
         id: request.id
       }
@@ -491,9 +725,24 @@ export class MessageRouter {
 
   private async handlePaymentReceipt(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.PAYMENT_RECEIPT)
-    const params = request.params as {
-      requestId: string
-      txHash: string
+    
+    // Validate and type params
+    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: expected object'
+      )
+    }
+    
+    const receipt = request.params as unknown as PaymentReceiptParams
+    
+    if (!receipt.requestId || !receipt.txHash) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: requestId and txHash are required'
+      )
     }
 
     if (!this.config.enableX402) {
@@ -514,8 +763,8 @@ export class MessageRouter {
 
     try {
       // Get payment request details
-      const paymentRequest = this.x402Manager.getPaymentRequest(params.requestId)
-      if (!paymentRequest) {
+      const storedPaymentRequest = this.x402Manager.getPaymentRequest(receipt.requestId)
+      if (!storedPaymentRequest) {
         return this.errorResponse(
           request.id,
           ErrorCode.PAYMENT_FAILED,
@@ -524,15 +773,16 @@ export class MessageRouter {
       }
 
       // Verify payment on blockchain
-      const verificationResult = await this.x402Manager.verifyPayment({
-        requestId: params.requestId,
-        txHash: params.txHash,
-        from: paymentRequest.from,
-        to: paymentRequest.to,
-        amount: paymentRequest.amount,
+      const verificationData: PaymentVerificationParams = {
+        requestId: receipt.requestId,
+        txHash: receipt.txHash,
+        from: storedPaymentRequest.from,
+        to: storedPaymentRequest.to,
+        amount: storedPaymentRequest.amount,
         timestamp: Date.now(),
         confirmed: false // Will be checked by verifyPayment
-      })
+      }
+      const verificationResult: PaymentVerificationResult = await this.x402Manager.verifyPayment(verificationData)
 
       if (!verificationResult.verified) {
         return {

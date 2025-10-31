@@ -61,7 +61,7 @@ export class AuthManager {
       })
 
       return { success: true, sessionToken }
-    } catch (error) {
+    } catch {
       return { success: false, error: 'Authentication failed' }
     }
   }

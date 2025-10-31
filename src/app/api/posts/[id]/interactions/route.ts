@@ -3,13 +3,14 @@
  * Methods: GET (get all interaction counts and user's interaction state)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
   optionalAuth,
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -111,7 +112,7 @@ export async function GET(
       fetchedAt: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Error fetching post interactions:', error);
+    logger.error('Error fetching post interactions:', error, 'GET /api/posts/[id]/interactions');
     return errorResponse('Failed to fetch interactions');
   }
 }

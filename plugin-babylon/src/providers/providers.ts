@@ -7,8 +7,15 @@
  * every agent decision.
  */
 
-import type { Provider, IAgentRuntime, Memory, State, ProviderResult } from '@elizaos/core';
-import { BabylonClientService } from '../plugin';
+import type {
+  Provider,
+  IAgentRuntime,
+  Memory,
+  State,
+  ProviderResult,
+  ServiceTypeName,
+} from "@elizaos/core";
+import { BabylonClientService } from "../plugin";
 
 /**
  * Market Data Provider
@@ -19,14 +26,20 @@ import { BabylonClientService } from '../plugin';
  * - Market opportunities
  */
 export const marketDataProvider: Provider = {
-  name: 'marketDataProvider',
-  get: async (runtime: IAgentRuntime, _message: Memory, _state: State): Promise<ProviderResult> => {
+  name: "marketDataProvider",
+  get: async (
+    runtime: IAgentRuntime,
+    _message: Memory,
+    _state: State,
+  ): Promise<ProviderResult> => {
     try {
       // Get client from BabylonClientService
-      const babylonService = runtime.getService<BabylonClientService>(BabylonClientService.serviceType);
+      const babylonService = runtime.getService<BabylonClientService>(
+        BabylonClientService.serviceType,
+      );
       if (!babylonService) {
         return {
-          text: 'Market data unavailable - Babylon service not configured'
+          text: "Market data unavailable - Babylon service not configured",
         };
       }
 
@@ -35,14 +48,18 @@ export const marketDataProvider: Provider = {
 
       if (markets.length === 0) {
         return {
-          text: 'No active markets currently available'
+          text: "No active markets currently available",
         };
       }
 
       // Sort by volume to identify hottest markets
-      const sortedMarkets = markets.sort((a, b) => b.totalVolume - a.totalVolume);
+      const sortedMarkets = markets.sort(
+        (a, b) => b.totalVolume - a.totalVolume,
+      );
       const topMarket = sortedMarkets[0];
-      const highVolumeMarkets = sortedMarkets.filter(m => m.totalVolume > 1000);
+      const highVolumeMarkets = sortedMarkets.filter(
+        (m) => m.totalVolume > 1000,
+      );
 
       // Build market overview text with top market information
       let overviewText = `📊 Market Overview:\n- Active Markets: ${markets.length}`;
@@ -53,20 +70,23 @@ export const marketDataProvider: Provider = {
       }
 
       overviewText += `\n- High Volume Markets (>$1000): ${highVolumeMarkets.length}`;
-      overviewText += `\n- Average Yes Price: ${(markets.reduce((sum, m) => sum + m.yesPrice, 0) / markets.length * 100).toFixed(1)}%`;
+      overviewText += `\n- Average Yes Price: ${((markets.reduce((sum, m) => sum + m.yesPrice, 0) / markets.length) * 100).toFixed(1)}%`;
 
       return {
         text: overviewText,
         data: {
           markets,
           topMarket,
-          highVolumeMarkets
-        }
+          highVolumeMarkets,
+        },
       };
     } catch (error) {
-      runtime.logger.error('Error in marketDataProvider:', error instanceof Error ? error.message : String(error));
+      runtime.logger.error(
+        "Error in marketDataProvider:",
+        error instanceof Error ? error.message : String(error),
+      );
       return {
-        text: 'Market data temporarily unavailable'
+        text: "Market data temporarily unavailable",
       };
     }
   },
@@ -79,13 +99,19 @@ export const marketDataProvider: Provider = {
  * Essential for making informed trading decisions based on available funds.
  */
 export const walletStatusProvider: Provider = {
-  name: 'walletStatusProvider',
-  get: async (runtime: IAgentRuntime, _message: Memory, _state: State): Promise<ProviderResult> => {
+  name: "walletStatusProvider",
+  get: async (
+    runtime: IAgentRuntime,
+    _message: Memory,
+    _state: State,
+  ): Promise<ProviderResult> => {
     try {
-      const babylonService = runtime.getService<BabylonClientService>(BabylonClientService.serviceType);
+      const babylonService = runtime.getService<BabylonClientService>(
+        BabylonClientService.serviceType,
+      );
       if (!babylonService) {
         return {
-          text: 'Wallet status unavailable - Babylon service not configured'
+          text: "Wallet status unavailable - Babylon service not configured",
         };
       }
 
@@ -94,13 +120,14 @@ export const walletStatusProvider: Provider = {
 
       if (!wallet) {
         return {
-          text: 'Wallet information unavailable - not authenticated'
+          text: "Wallet information unavailable - not authenticated",
         };
       }
 
-      const utilizationRate = wallet.balance > 0
-        ? ((wallet.lockedBalance / wallet.balance) * 100).toFixed(1)
-        : '0.0';
+      const utilizationRate =
+        wallet.balance > 0
+          ? ((wallet.lockedBalance / wallet.balance) * 100).toFixed(1)
+          : "0.0";
 
       return {
         text: `💰 Wallet Status:
@@ -108,12 +135,15 @@ export const walletStatusProvider: Provider = {
 - Locked in Positions: $${wallet.lockedBalance.toFixed(2)}
 - Total Balance: $${wallet.balance.toFixed(2)}
 - Capital Utilization: ${utilizationRate}%`,
-        data: { wallet }
+        data: { wallet },
       };
     } catch (error) {
-      runtime.logger.error('Error in walletStatusProvider:', error instanceof Error ? error.message : String(error));
+      runtime.logger.error(
+        "Error in walletStatusProvider:",
+        error instanceof Error ? error.message : String(error),
+      );
       return {
-        text: 'Wallet status temporarily unavailable'
+        text: "Wallet status temporarily unavailable",
       };
     }
   },
@@ -129,13 +159,19 @@ export const walletStatusProvider: Provider = {
  * - Performance metrics
  */
 export const positionSummaryProvider: Provider = {
-  name: 'positionSummaryProvider',
-  get: async (runtime: IAgentRuntime, _message: Memory, _state: State): Promise<ProviderResult> => {
+  name: "positionSummaryProvider",
+  get: async (
+    runtime: IAgentRuntime,
+    _message: Memory,
+    _state: State,
+  ): Promise<ProviderResult> => {
     try {
-      const babylonService = runtime.getService<BabylonClientService>(BabylonClientService.serviceType);
+      const babylonService = runtime.getService<BabylonClientService>(
+        BabylonClientService.serviceType,
+      );
       if (!babylonService) {
         return {
-          text: 'Position data unavailable - Babylon service not configured'
+          text: "Position data unavailable - Babylon service not configured",
         };
       }
 
@@ -144,22 +180,25 @@ export const positionSummaryProvider: Provider = {
 
       if (positions.length === 0) {
         return {
-          text: '📈 Positions: No active positions'
+          text: "📈 Positions: No active positions",
         };
       }
 
-      const profitablePositions = positions.filter(p => p.pnl > 0);
-      const losingPositions = positions.filter(p => p.pnl < 0);
+      const profitablePositions = positions.filter((p) => p.pnl > 0);
+      const losingPositions = positions.filter((p) => p.pnl < 0);
       const totalPnL = positions.reduce((sum, p) => sum + p.pnl, 0);
       const totalValue = positions.reduce((sum, p) => sum + p.currentValue, 0);
-      const winRate = (profitablePositions.length / positions.length * 100).toFixed(1);
+      const winRate = (
+        (profitablePositions.length / positions.length) *
+        100
+      ).toFixed(1);
 
       return {
         text: `📈 Position Summary:
 - Active Positions: ${positions.length}
 - Profitable: ${profitablePositions.length} | Losing: ${losingPositions.length}
 - Win Rate: ${winRate}%
-- Total P&L: ${totalPnL >= 0 ? '+' : ''}$${totalPnL.toFixed(2)}
+- Total P&L: ${totalPnL >= 0 ? "+" : ""}$${totalPnL.toFixed(2)}
 - Position Value: $${totalValue.toFixed(2)}`,
         data: {
           positions,
@@ -167,13 +206,87 @@ export const positionSummaryProvider: Provider = {
           losingPositions,
           totalPnL,
           totalValue,
-          winRate: parseFloat(winRate)
-        }
+          winRate: parseFloat(winRate),
+        },
       };
     } catch (error) {
-      runtime.logger.error('Error in positionSummaryProvider:', error instanceof Error ? error.message : String(error));
+      runtime.logger.error(
+        "Error in positionSummaryProvider:",
+        error instanceof Error ? error.message : String(error),
+      );
       return {
-        text: 'Position data temporarily unavailable'
+        text: "Position data temporarily unavailable",
+      };
+    }
+  },
+};
+
+/**
+ * A2A Market Data Provider
+ *
+ * Provides real-time market data from A2A WebSocket connections when available.
+ * Falls back to REST API if A2A is not connected.
+ */
+export const a2aMarketDataProvider: Provider = {
+  name: "a2aMarketDataProvider",
+  get: async (
+    runtime: IAgentRuntime,
+    _message: Memory,
+    _state: State,
+  ): Promise<ProviderResult> => {
+    try {
+      // Try to get A2A service first
+      const a2aService = runtime.getService?.(
+        "babylon-a2a" as ServiceTypeName,
+      );
+      
+      // If A2A service is available and connected, use cached market data
+      if (a2aService && "isConnected" in a2aService && typeof a2aService.isConnected === "function" && a2aService.isConnected()) {
+        // Get latest market updates from cache
+        const cacheKey = "a2a.market.updates";
+        const cachedDataPromise = runtime.getCache?.(cacheKey);
+        
+        if (cachedDataPromise) {
+          const cachedData = await cachedDataPromise;
+          if (cachedData && typeof cachedData === "object" && "markets" in cachedData && !("then" in cachedData)) {
+            return {
+              text: `📡 A2A Real-time Market Data: ${(cachedData as { markets: unknown[] }).markets.length} markets updated`,
+              data: cachedData as Record<string, unknown>,
+            };
+          }
+        }
+      }
+      
+      // Fallback to standard market data provider
+      const babylonService = runtime.getService<BabylonClientService>(
+        BabylonClientService.serviceType,
+      );
+      if (!babylonService) {
+        return {
+          text: "Market data unavailable - Babylon service not configured",
+        };
+      }
+
+      const client = babylonService.getClient();
+      const markets = await client.getActiveMarkets();
+
+      if (markets.length === 0) {
+        return {
+          text: "No active markets currently available",
+        };
+      }
+
+      return {
+        text: `📊 Market Data (REST): ${markets.length} active markets`,
+        data: { markets, source: "rest" },
+      };
+    } catch (error) {
+      runtime.logger.error(
+        "Error in a2aMarketDataProvider:",
+        error instanceof Error ? error.message : String(error),
+      );
+      return {
+        text: "A2A market data temporarily unavailable",
       };
     }
   },
@@ -186,4 +299,5 @@ export const babylonGameProviders: Provider[] = [
   marketDataProvider,
   walletStatusProvider,
   positionSummaryProvider,
+  a2aMarketDataProvider,
 ];

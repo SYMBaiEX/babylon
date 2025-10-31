@@ -3,7 +3,7 @@
  * Methods: POST (like), DELETE (unlike)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
@@ -12,6 +12,7 @@ import {
   errorResponse,
 } from '@/lib/api/auth-middleware';
 import { notifyReactionOnPost } from '@/lib/services/notification-service';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -87,13 +88,18 @@ export async function POST(
         const parts = postId.split('-');
         if (parts.length >= 2) {
           const timestampPart = parts[1];
-          timestamp = new Date(parseInt(timestampPart));
+          if (timestampPart) {
+            const parsedTimestamp = parseInt(timestampPart, 10);
+            if (!isNaN(parsedTimestamp) && parsedTimestamp > 0) {
+              timestamp = new Date(parsedTimestamp);
+            }
+          }
         }
       }
 
       // If we couldn't determine authorId, use a placeholder
       // The post will be created but may need to be updated later
-      authorId = authorId || 'unknown';
+      const finalAuthorId = authorId || 'unknown';
 
       // Create minimal post record to allow reactions
       try {
@@ -101,17 +107,18 @@ export async function POST(
           data: {
             id: postId,
             content: '[Auto-created for interaction]',
-            authorId,
+            authorId: finalAuthorId,
             gameId: gameId || 'continuous',
             timestamp: timestamp || new Date(),
           },
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         // If creation fails (e.g., duplicate, validation error), try to fetch again
-        console.error('Error creating post for like:', error);
+        logger.error('Error creating post for like:', error, 'POST /api/posts/[id]/like');
         
         // Check if it's a unique constraint violation (duplicate post)
-        if (error?.code === 'P2002') {
+        const prismaError = error as { code?: string; message?: string };
+        if (prismaError?.code === 'P2002') {
           // Post already exists, fetch it
           post = await prisma.post.findUnique({
             where: { id: postId },
@@ -120,8 +127,8 @@ export async function POST(
         }
         
         if (!post) {
-          console.error('Failed to create or find post:', postId, error);
-          return errorResponse(`Post not found and could not be created: ${error?.message || 'Unknown error'}`, 400);
+          logger.error('Failed to create or find post:', { postId, error }, 'POST /api/posts/[id]/like');
+          return errorResponse(`Post not found and could not be created: ${prismaError?.message || 'Unknown error'}`, 400);
         }
       }
     }
@@ -142,7 +149,7 @@ export async function POST(
     }
 
     // Create like reaction
-    const reaction = await prisma.reaction.create({
+    await prisma.reaction.create({
       data: {
         postId,
         userId: user.userId,
@@ -178,7 +185,7 @@ export async function POST(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error liking post:', error);
+    logger.error('Error liking post:', error, 'POST /api/posts/[id]/like');
     return errorResponse('Failed to like post');
   }
 }
@@ -255,7 +262,7 @@ export async function DELETE(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error unliking post:', error);
+    logger.error('Error unliking post:', error, 'DELETE /api/posts/[id]/like');
     return errorResponse('Failed to unlike post');
   }
 }

@@ -193,7 +193,7 @@ export interface Scenario {
  * Question for prediction market
  */
 export interface Question {
-  id: number;
+  id: number | string; // Can be number or string (database uses string IDs)
   text: string;
   scenario: number;
   outcome: boolean;
@@ -203,6 +203,11 @@ export interface Question {
   resolutionDate?: string; // ISO date when question resolves (24h-7d from creation)
   status?: 'active' | 'resolved' | 'cancelled'; // Question lifecycle status
   resolvedOutcome?: boolean; // Final outcome when resolved
+  // Database fields
+  questionNumber?: number; // Question number for tracking
+  createdAt?: Date | string; // Database timestamp
+  updatedAt?: Date | string; // Database timestamp
+  scenarioId?: number; // Alternative scenario field name
 }
 
 /**
@@ -263,7 +268,7 @@ export interface DayTimeline {
  * Question outcome at game resolution
  */
 export interface QuestionOutcome {
-  questionId: number;
+  questionId: number | string; // Can be number or string to match Question.id
   answer: boolean;
   explanation: string;
   keyEvents: string[];

@@ -3,7 +3,7 @@
  * Methods: POST (follow), DELETE (unfollow)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
@@ -12,6 +12,7 @@ import {
   errorResponse,
 } from '@/lib/api/auth-middleware';
 import { notifyFollow } from '@/lib/services/notification-service';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -144,7 +145,7 @@ export async function POST(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error following user:', error);
+    logger.error('Error following user:', error, 'POST /api/users/[userId]/follow');
     return errorResponse('Failed to follow user');
   }
 }
@@ -232,7 +233,7 @@ export async function DELETE(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error unfollowing user:', error);
+    logger.error('Error unfollowing user:', error, 'DELETE /api/users/[userId]/follow');
     return errorResponse('Failed to unfollow user');
   }
 }
@@ -290,7 +291,7 @@ export async function GET(
       });
     }
   } catch (error) {
-    console.error('Error checking follow status:', error);
+    logger.error('Error checking follow status:', error, 'GET /api/users/[userId]/follow');
     return successResponse({ isFollowing: false });
   }
 }

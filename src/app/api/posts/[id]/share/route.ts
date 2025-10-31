@@ -3,7 +3,7 @@
  * Methods: POST (share/repost), DELETE (unshare)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
@@ -12,6 +12,7 @@ import {
   errorResponse,
 } from '@/lib/api/auth-middleware';
 import { notifyShare } from '@/lib/services/notification-service';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -172,7 +173,7 @@ export async function POST(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error sharing post:', error);
+    logger.error('Error sharing post:', error, 'POST /api/posts/[id]/share');
     return errorResponse('Failed to share post');
   }
 }
@@ -247,7 +248,7 @@ export async function DELETE(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error unsharing post:', error);
+    logger.error('Error unsharing post:', error, 'DELETE /api/posts/[id]/share');
     return errorResponse('Failed to unshare post');
   }
 }

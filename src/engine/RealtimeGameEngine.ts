@@ -20,11 +20,14 @@ import { PriceEngine } from './PriceEngine';
 import { PerpetualsEngine } from './PerpetualsEngine';
 import { A2AGameIntegration, type A2AGameConfig } from './A2AGameIntegration';
 import { BabylonLLMClient } from '../generator/llm/openai-client';
-import { shuffleArray } from '@/shared/utils';
+import { shuffleArray, toQuestionIdNumber, toQuestionIdNumberOrNull } from '@/shared/utils';
 import { db } from '../lib/database-service';
 import { ReputationService } from '../lib/services/reputation-service';
+import { logger } from '@/lib/logger';
 import type {
   SelectedActor,
+  Actor,
+  ActorTier,
   Organization,
   Question,
   FeedPost,
@@ -33,7 +36,6 @@ import type {
   Scenario,
   GroupChat,
   WorldEvent,
-  GameState,
   ActorsDatabase,
   ChatMessage,
 } from '@/shared/types';
@@ -91,7 +93,7 @@ export class RealtimeGameEngine extends EventEmitter {
       postsPerTick: config?.postsPerTick || 15,
       historyDays: config?.historyDays || 30,
       savePath: config?.savePath || join(process.cwd(), 'games', 'realtime'),
-      a2a: config?.a2a,
+      a2a: config?.a2a ?? { enabled: false },
     };
 
     this.llm = new BabylonLLMClient();
@@ -99,40 +101,40 @@ export class RealtimeGameEngine extends EventEmitter {
     this.questionManager = new QuestionManager(this.llm);
     this.priceEngine = new PriceEngine(Date.now());
     this.perpsEngine = new PerpetualsEngine();
-    this.a2aIntegration = new A2AGameIntegration(config?.a2a);
+    // Ensure a2a config is properly typed - already set in this.config above
+    this.a2aIntegration = new A2AGameIntegration(this.config.a2a);
   }
 
   async initialize(): Promise<void> {
-    console.log('🎮 INITIALIZING ENHANCED REALTIME ENGINE');
-    console.log('=========================================\n');
+    logger.info('INITIALIZING ENHANCED REALTIME ENGINE', undefined, 'RealtimeGameEngine');
 
     const actorsPath = join(process.cwd(), 'data/actors.json');
     const actorsData = JSON.parse(readFileSync(actorsPath, 'utf-8')) as ActorsDatabase;
 
-    console.log('📋 Loading actors...');
+    logger.info('Loading actors...', undefined, 'RealtimeGameEngine');
     this.actors = this.selectAllActors(actorsData.actors);
-    console.log(`  ✓ Loaded ${this.actors.length} actors\n`);
+    logger.info(`Loaded ${this.actors.length} actors`, { actorCount: this.actors.length }, 'RealtimeGameEngine');
 
-    console.log('💰 Initializing organizations and prices...');
+    logger.info('Initializing organizations and prices...', undefined, 'RealtimeGameEngine');
     this.organizations = actorsData.organizations;
     this.priceEngine.initializeCompanies(this.organizations);
     this.perpsEngine.initializeMarkets(this.organizations);
     const companies = this.organizations.filter(o => o.type === 'company');
-    console.log(`  ✓ Initialized ${companies.length} company prices\n`);
+    logger.info(`Initialized ${companies.length} company prices`, { companyCount: companies.length }, 'RealtimeGameEngine');
 
     await this.syncDatabaseState();
 
-    console.log('📝 Generating scenarios...');
+    logger.info('Generating scenarios...', undefined, 'RealtimeGameEngine');
     this.scenarios = await this.generateScenarios();
-    console.log(`  ✓ Generated ${this.scenarios.length} scenarios\n`);
+    logger.info(`Generated ${this.scenarios.length} scenarios`, { scenarioCount: this.scenarios.length }, 'RealtimeGameEngine');
 
-    console.log('🔗 Creating connections...');
+    logger.info('Creating connections...', undefined, 'RealtimeGameEngine');
     this.connections = this.generateConnections();
-    console.log(`  ✓ Generated ${this.connections.length} relationships\n`);
+    logger.info(`Generated ${this.connections.length} relationships`, { connectionCount: this.connections.length }, 'RealtimeGameEngine');
 
-    console.log('💬 Creating group chats...');
+    logger.info('Creating group chats...', undefined, 'RealtimeGameEngine');
     this.groupChats = this.createGroupChats();
-    console.log(`  ✓ Created ${this.groupChats.length} group chats\n`);
+    logger.info(`Created ${this.groupChats.length} group chats`, { groupChatCount: this.groupChats.length }, 'RealtimeGameEngine');
 
     this.initializeLuckMood();
     this.feedGenerator.setOrganizations(this.organizations);
@@ -140,35 +142,39 @@ export class RealtimeGameEngine extends EventEmitter {
     await this.loadHistory();
 
     if (this.questions.length === 0) {
-      console.log('🎯 Generating initial questions...');
+      logger.info('Generating initial questions...', undefined, 'RealtimeGameEngine');
       const newQuestions = await this.generateQuestions(5);
       this.questions.push(...newQuestions);
-      console.log(`  ✓ Generated ${newQuestions.length} questions\n`);
+      logger.info(`Generated ${newQuestions.length} questions`, { questionCount: newQuestions.length }, 'RealtimeGameEngine');
     }
 
     // Initialize A2A integration
     await this.a2aIntegration.initialize();
 
-    console.log('✅ ENHANCED ENGINE READY');
-    console.log('========================');
-    console.log(`Active Questions: ${this.questions.filter(q => q.status === 'active').length}`);
+    const activeQuestions = this.questions.filter(q => q.status === 'active').length;
     const a2aStatus = this.a2aIntegration.getStatus();
-    if (a2aStatus.enabled) {
-      console.log(`A2A Server: Enabled (port ${this.config.a2a?.port || 8080})\n`);
-    } else {
-      console.log('A2A Server: Disabled\n');
-    }
+    logger.info('ENHANCED ENGINE READY', {
+      activeQuestions,
+      a2aEnabled: a2aStatus.enabled,
+      a2aPort: this.config.a2a?.port || 8080
+    }, 'RealtimeGameEngine');
   }
 
   start(): void {
     if (this.isRunning) return;
 
-    console.log('🚀 STARTING ENHANCED ENGINE\n');
+    logger.info('STARTING ENHANCED ENGINE', undefined, 'RealtimeGameEngine');
     this.isRunning = true;
 
-    this.tick().catch(error => console.error('Tick error:', error));
+    this.tick().catch(error => {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Tick error: ${errorMessage}`, { error }, 'RealtimeGameEngine');
+    });
     this.intervalId = setInterval(() => {
-      this.tick().catch(error => console.error('Tick error:', error));
+      this.tick().catch(error => {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(`Tick error: ${errorMessage}`, { error }, 'RealtimeGameEngine');
+      });
     }, this.config.tickIntervalMs);
 
     this.fundingIntervalId = setInterval(() => {
@@ -205,7 +211,7 @@ export class RealtimeGameEngine extends EventEmitter {
     const timestamp = new Date().toISOString();
     const currentDate = timestamp.split('T')[0]!;
     
-    console.log(`⏰ [${timestamp}] Generating tick...`);
+    logger.debug(`Generating tick at ${timestamp}`, { timestamp }, 'RealtimeGameEngine');
 
     try {
       // Step 1: Resolve expired questions with resolution events
@@ -214,10 +220,10 @@ export class RealtimeGameEngine extends EventEmitter {
       
       const resolutionEvents: WorldEvent[] = [];
       if (toResolve.length > 0) {
-        console.log(`  🎯 Resolving ${toResolve.length} questions`);
+        logger.info(`Resolving ${toResolve.length} questions`, { count: toResolve.length }, 'RealtimeGameEngine');
         for (const question of toResolve) {
           // Generate definitive resolution event
-          const resolutionEvent = await this.generateResolutionEvent(question);
+          const resolutionEvent: WorldEvent = await this.generateResolutionEvent(question);
           resolutionEvents.push(resolutionEvent);
 
           const resolved = this.questionManager.resolveQuestion(question, question.outcome);
@@ -227,7 +233,7 @@ export class RealtimeGameEngine extends EventEmitter {
           }
 
           // Update on-chain reputation for all users who had positions
-          console.log(`  🏆 Updating on-chain reputation for market ${question.id}`);
+          logger.info(`Updating on-chain reputation for market ${question.id}`, { questionId: question.id }, 'RealtimeGameEngine');
           try {
             const reputationUpdates = await ReputationService.updateReputationForResolvedMarket({
               marketId: question.id.toString(),
@@ -238,9 +244,15 @@ export class RealtimeGameEngine extends EventEmitter {
             const losers = reputationUpdates.filter(u => u.change < 0).length;
             const errors = reputationUpdates.filter(u => u.error).length;
 
-            console.log(`  ✅ Reputation updated: ${winners} winners (+10), ${losers} losers (-5)${errors > 0 ? `, ${errors} errors` : ''}`);
+            logger.info(`Reputation updated: ${winners} winners (+10), ${losers} losers (-5)${errors > 0 ? `, ${errors} errors` : ''}`, {
+              winners,
+              losers,
+              errors,
+              questionId: question.id
+            }, 'RealtimeGameEngine');
           } catch (error) {
-            console.error(`  ❌ Failed to update reputation for market ${question.id}:`, error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.error(`Failed to update reputation for market ${question.id}: ${errorMessage}`, { error, questionId: question.id }, 'RealtimeGameEngine');
             // Don't fail the entire tick if reputation update fails
           }
         }
@@ -255,7 +267,7 @@ export class RealtimeGameEngine extends EventEmitter {
         const newQuestions = await this.generateQuestions(toCreate);
         this.questions.push(...newQuestions);
         questionsCreated = newQuestions.length;
-        console.log(`  📝 Created ${questionsCreated} new questions`);
+        logger.info(`Created ${questionsCreated} new questions`, { count: questionsCreated }, 'RealtimeGameEngine');
       }
 
       // Step 3: Generate events for active questions (ENHANCED)
@@ -264,7 +276,7 @@ export class RealtimeGameEngine extends EventEmitter {
       // Step 4: Update prices based on events
       const priceUpdates = await this.updatePrices(events);
       if (priceUpdates.length > 0) {
-        console.log(`  💰 ${priceUpdates.length} price updates`);
+        logger.debug(`${priceUpdates.length} price updates`, { count: priceUpdates.length }, 'RealtimeGameEngine');
         
         const priceMap = new Map<string, number>();
         this.organizations.forEach(org => {
@@ -277,7 +289,7 @@ export class RealtimeGameEngine extends EventEmitter {
 
       // Step 5: Generate posts using LLM (ENHANCED)
       const posts = await this.generateLLMPosts(events, activeQuestions);
-      console.log(`  📱 Generated ${posts.length} LLM posts`);
+      logger.info(`Generated ${posts.length} LLM posts`, { count: posts.length }, 'RealtimeGameEngine');
 
       // Step 6: Generate group chat messages about questions (ENHANCED)
       const groupChatMessages = await this.generateGroupChatDiscussions(activeQuestions, events);
@@ -300,7 +312,8 @@ export class RealtimeGameEngine extends EventEmitter {
       }
 
       await this.persistTickData(tick).catch(error => {
-        console.error('  ❌ Failed to persist tick data:', error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(`Failed to persist tick data: ${errorMessage}`, { error }, 'RealtimeGameEngine');
       });
 
       this.emit('tick', tick);
@@ -314,7 +327,7 @@ export class RealtimeGameEngine extends EventEmitter {
           this.a2aIntegration.broadcastGameEvent({
             type: event.type,
             description: event.description,
-            relatedQuestion: event.relatedQuestion,
+            relatedQuestion: event.relatedQuestion ?? undefined,
             timestamp: Date.now(),
           });
         }
@@ -325,7 +338,8 @@ export class RealtimeGameEngine extends EventEmitter {
       }
 
     } catch (error) {
-      console.error('  ❌ Error in tick:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Error in tick: ${errorMessage}`, { error }, 'RealtimeGameEngine');
       this.emit('error', error);
     }
   }
@@ -372,6 +386,7 @@ export class RealtimeGameEngine extends EventEmitter {
 
     const daysLeft = this.getDaysUntilResolution(question);
     const shouldPointToOutcome = urgency === 'critical' || (urgency === 'high' && Math.random() > 0.3);
+    const currentDay = this.getGameDayNumber(new Date());
 
     const prompt = `Generate a SPECIFIC event for this prediction market question:
 
@@ -404,23 +419,26 @@ OUTPUT JSON:
 
       return {
         id: `event-${Date.now()}-${Math.random()}`,
+        day: currentDay,
         type: (response.type as WorldEvent['type']) || 'announcement',
         actors: involvedActors.map(a => a.id),
         description: response.description || `Development in: ${question.text}`,
-        relatedQuestion: question.id,
+        relatedQuestion: toQuestionIdNumberOrNull(question.id),
         pointsToward: shouldPointToOutcome ? (question.outcome ? 'YES' : 'NO') : null,
         visibility: 'public',
       };
-    } catch (error) {
-      console.error('Failed to generate event:', error);
+    } catch (eventGenerationError) {
+      const errorMessage = eventGenerationError instanceof Error ? eventGenerationError.message : 'Failed to generate event';
+      logger.error(`Failed to generate event: ${errorMessage}`, { error: eventGenerationError, questionId: question.id }, 'RealtimeGameEngine');
       
       // Fallback to template-based event
       return {
         id: `event-${Date.now()}-${Math.random()}`,
+        day: currentDay,
         type: 'announcement',
         actors: involvedActors.map(a => a.id),
         description: `${involvedActors[0]?.name || 'Someone'} makes move regarding: ${question.text}`,
-        relatedQuestion: question.id,
+        relatedQuestion: toQuestionIdNumberOrNull(question.id),
         pointsToward: shouldPointToOutcome ? (question.outcome ? 'YES' : 'NO') : null,
         visibility: 'public',
       };
@@ -435,6 +453,8 @@ OUTPUT JSON:
     const involvedActors = scenario
       ? this.actors.filter(a => scenario.mainActors.includes(a.id)).slice(0, 2)
       : shuffleArray(this.actors.filter(a => a.role === 'main')).slice(0, 2);
+
+    const currentDay = this.getGameDayNumber(new Date());
 
     const prompt = `Generate a DEFINITIVE resolution event for this prediction market:
 
@@ -463,22 +483,25 @@ OUTPUT JSON:
 
       return {
         id: `resolution-${Date.now()}`,
+        day: currentDay,
         type: (response.type as WorldEvent['type']) || 'announcement',
         actors: involvedActors.map(a => a.id),
         description: response.description,
-        relatedQuestion: question.id,
+        relatedQuestion: toQuestionIdNumberOrNull(question.id),
         pointsToward: question.outcome ? 'YES' : 'NO',
         visibility: 'public',
       };
-    } catch (error) {
-      console.error('Failed to generate resolution event:', error);
+    } catch (resolutionError) {
+      const errorMessage = resolutionError instanceof Error ? resolutionError.message : 'Failed to generate resolution event';
+      logger.error(`Failed to generate resolution event: ${errorMessage}`, { error: resolutionError, questionId: question.id }, 'RealtimeGameEngine');
       
       return {
         id: `resolution-${Date.now()}`,
+        day: currentDay,
         type: 'announcement',
         actors: involvedActors.map(a => a.id),
         description: `RESOLUTION: ${question.text} - Outcome is ${question.outcome ? 'YES' : 'NO'}`,
-        relatedQuestion: question.id,
+        relatedQuestion: toQuestionIdNumberOrNull(question.id),
         pointsToward: question.outcome ? 'YES' : 'NO',
         visibility: 'public',
       };
@@ -518,8 +541,10 @@ OUTPUT JSON:
           posts.push(post);
           
           if (posts.length >= numPosts) break;
-        } catch (error) {
+        } catch (postGenerationError) {
           // Skip this post if LLM fails, continue to next
+          const errorMessage = postGenerationError instanceof Error ? postGenerationError.message : 'Failed to generate post'
+          logger.warn('Failed to generate post, skipping', { error: errorMessage, actorId: actor.id, eventId: event.id }, 'RealtimeGameEngine')
           continue;
         }
       }
@@ -606,7 +631,8 @@ OUTPUT JSON:
         relatedEvent: event.id,
       };
     } catch (error) {
-      console.error('Failed to generate LLM post:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to generate LLM post: ${errorMessage}`, { error, actorId: actor.id, eventId: event.id }, 'RealtimeGameEngine');
       throw error; // Propagate error instead of fallback
     }
   }
@@ -658,8 +684,11 @@ OUTPUT JSON:
         clueStrength,
         pointsToward: Math.random() > 0.5,
       };
-    } catch (error) {
-      return null; // Don't create post if LLM fails
+    } catch (llmError) {
+      // Don't create post if LLM fails
+      const errorMessage = llmError instanceof Error ? llmError.message : 'Failed to generate LLM post'
+      logger.warn('Failed to generate LLM post, returning null', { error: errorMessage, actorId: actor.id }, 'RealtimeGameEngine')
+      return null;
     }
   }
 
@@ -709,8 +738,10 @@ OUTPUT JSON:
           try {
             const response = await this.generateChatResponse(memberActor, question, relevantEvent, clueStrength);
             chatMessages.push(response);
-          } catch (error) {
+          } catch (chatError) {
             // Skip this message if LLM fails
+            const errorMessage = chatError instanceof Error ? chatError.message : 'Failed to generate chat response'
+            logger.warn('Failed to generate chat response, skipping', { error: errorMessage, actorId: memberActor.id, questionId: question.id }, 'RealtimeGameEngine')
             continue;
           }
         }
@@ -854,10 +885,10 @@ OUTPUT JSON:
     return updates;
   }
 
-  private async generateQuestions(count: number): Promise<Question[]> {
+  private async generateQuestions(_count: number): Promise<Question[]> {
     const currentDate = new Date().toISOString().split('T')[0]!;
     const activeQuestions = this.questions.filter(q => q.status === 'active');
-    const nextId = Math.max(0, ...this.questions.map(q => q.id)) + 1;
+    const nextId = Math.max(0, ...this.questions.map(q => toQuestionIdNumber(q.id))) + 1;
 
     // Get recent events for context
     const recentEvents = this.recentTicks
@@ -872,17 +903,24 @@ OUTPUT JSON:
       actors: this.actors.filter(a => a.role === 'main'),
       organizations: this.organizations,
       activeQuestions,
-      recentEvents: recentDays,
+      recentEvents: recentDays.map(day => ({ 
+        day: day.day, 
+        summary: `Day ${day.day} events`, 
+        events: day.events, 
+        groupChats: {}, 
+        feedPosts: [], 
+        luckChanges: [], 
+        moodChanges: [] 
+      })),
       nextQuestionId: nextId,
     });
   }
 
-  private buildRecentDaysContext(recentEvents: WorldEvent[]): any[] {
+  private buildRecentDaysContext(recentEvents: WorldEvent[]): Array<{ day: number; events: WorldEvent[] }> {
     // Build pseudo-timeline from recent events for question generation context
     return [{
       day: 1,
       events: recentEvents.slice(-10),
-      summary: 'Recent developments',
     }];
   }
 
@@ -890,7 +928,7 @@ OUTPUT JSON:
     const currentDate = new Date().toISOString().split('T')[0]!;
     
     if (currentDate !== this.lastDailySnapshot) {
-      console.log(`\n📊 Recording daily snapshot for ${this.lastDailySnapshot}`);
+      logger.info(`Recording daily snapshot for ${this.lastDailySnapshot}`, { date: this.lastDailySnapshot }, 'RealtimeGameEngine');
       this.perpsEngine.recordDailySnapshot(this.lastDailySnapshot);
       this.lastDailySnapshot = currentDate;
       this.saveState();
@@ -898,22 +936,37 @@ OUTPUT JSON:
   }
 
   private async syncDatabaseState(): Promise<void> {
-    console.log('💾 Syncing engine state to database...');
+    logger.info('Syncing engine state to database...', undefined, 'RealtimeGameEngine');
     try {
       const gameState = await db.getGameState();
       if (!gameState) {
         await db.initializeGame();
       }
     } catch (error) {
-      console.error('⚠️  Failed to ensure game state exists:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.warn(`Failed to ensure game state exists: ${errorMessage}`, { error }, 'RealtimeGameEngine');
     }
 
     await Promise.allSettled(
       this.actors.map(async (actor) => {
         try {
-          await db.upsertActor(actor as any);
-        } catch (error) {
-          console.error(`⚠️  Failed to sync actor ${actor.id}:`, error);
+          // Convert SelectedActor to Actor (SelectedActor extends Actor, so this is safe)
+          const actorData: Actor = {
+            id: actor.id,
+            name: actor.name,
+            description: actor.description,
+            domain: actor.domain,
+            personality: actor.personality,
+            role: actor.role,
+            affiliations: actor.affiliations,
+            postStyle: actor.postStyle,
+            postExample: actor.postExample,
+            tier: actor.tier,
+          };
+          await db.upsertActor(actorData);
+        } catch (syncError) {
+          const errorMessage = syncError instanceof Error ? syncError.message : 'Failed to sync actor';
+          logger.warn(`Failed to sync actor ${actor.id}: ${errorMessage}`, { error: syncError, actorId: actor.id }, 'RealtimeGameEngine');
         }
       })
     );
@@ -921,9 +974,10 @@ OUTPUT JSON:
     await Promise.allSettled(
       this.organizations.map(async (org) => {
         try {
-          await db.upsertOrganization(org as any);
+          await db.upsertOrganization(org);
         } catch (error) {
-          console.error(`⚠️  Failed to sync organization ${org.id}:`, error);
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          logger.warn(`Failed to sync organization ${org.id}: ${errorMessage}`, { error, orgId: org.id }, 'RealtimeGameEngine');
         }
       })
     );
@@ -990,15 +1044,17 @@ OUTPUT JSON:
               const org = this.organizations.find((o) => o.id === update.organizationId);
               if (org) {
                 try {
-                  await db.upsertOrganization(org as any);
+                  await db.upsertOrganization(org);
                   await db.updateOrganizationPrice(update.organizationId, update.newPrice);
                   return;
                 } catch (nestedError) {
-                  console.error(`⚠️  Failed to upsert organization ${update.organizationId}:`, nestedError);
+                  const nestedErrorMessage = nestedError instanceof Error ? nestedError.message : String(nestedError);
+                  logger.warn(`Failed to upsert organization ${update.organizationId}: ${nestedErrorMessage}`, { error: nestedError, organizationId: update.organizationId }, 'RealtimeGameEngine');
                 }
               }
             }
-            console.error(`⚠️  Failed to update price for ${update.organizationId}:`, error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.warn(`Failed to update price for ${update.organizationId}: ${errorMessage}`, { error, organizationId: update.organizationId }, 'RealtimeGameEngine');
           }
 
           try {
@@ -1016,7 +1072,7 @@ OUTPUT JSON:
               const org = this.organizations.find((o) => o.id === update.organizationId);
               if (org) {
                 try {
-                  await db.upsertOrganization(org as any);
+                  await db.upsertOrganization(org);
                   await db.recordPriceUpdate(
                     update.organizationId,
                     update.newPrice,
@@ -1025,11 +1081,13 @@ OUTPUT JSON:
                   );
                   return;
                 } catch (nestedError) {
-                  console.error(`⚠️  Failed to reconcile price update for ${update.organizationId}:`, nestedError);
+                  const nestedErrorMessage = nestedError instanceof Error ? nestedError.message : String(nestedError);
+                  logger.warn(`Failed to reconcile price update for ${update.organizationId}: ${nestedErrorMessage}`, { error: nestedError, organizationId: update.organizationId }, 'RealtimeGameEngine');
                 }
               }
             }
-            console.error(`⚠️  Failed to record price update for ${update.organizationId}:`, error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.warn(`Failed to record price update for ${update.organizationId}: ${errorMessage}`, { error, organizationId: update.organizationId }, 'RealtimeGameEngine');
           }
         })
       );
@@ -1041,7 +1099,8 @@ OUTPUT JSON:
         activeQuestions: this.questions.filter((q) => q.status === 'active').length,
       });
     } catch (error) {
-      console.error('⚠️  Failed to update game state metadata:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.warn(`Failed to update game state metadata: ${errorMessage}`, { error }, 'RealtimeGameEngine');
     }
   }
 
@@ -1077,21 +1136,23 @@ OUTPUT JSON:
           this.perpsEngine.importState(data.perpsState);
         }
         
-        console.log('📚 Loaded history');
-        console.log(`  Ticks: ${this.recentTicks.length}`);
-        console.log(`  Questions: ${this.questions.length}\n`);
+        logger.info('Loaded history', {
+          ticks: this.recentTicks.length,
+          questions: this.questions.length
+        }, 'RealtimeGameEngine');
       } catch (error) {
-        console.error('Failed to load history:', error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(`Failed to load history: ${errorMessage}`, { error }, 'RealtimeGameEngine');
       }
     }
   }
 
   // Helper methods
-  private selectAllActors(actorList: any[]): SelectedActor[] {
-    return actorList.map(a => ({
+  private selectAllActors(actorList: Actor[]): SelectedActor[] {
+    return actorList.map((a: Actor) => ({
       ...a,
-      tier: a.tier || 'C_TIER',
-      role: a.tier === 'S_TIER' || a.tier === 'A_TIER' ? 'main' : 'supporting',
+      tier: (a.tier as ActorTier) || 'C_TIER',
+      role: (a.tier === 'S_TIER' || a.tier === 'A_TIER') ? 'main' : 'supporting',
       initialLuck: this.randomLuck(),
       initialMood: this.randomMood(),
     }));
@@ -1111,9 +1172,12 @@ OUTPUT JSON:
     
     for (let i = 0; i < mains.length; i++) {
       for (let j = i + 1; j < Math.min(i + 5, mains.length); j++) {
+        const actor1 = mains[i];
+        const actor2 = mains[j];
+        if (!actor1 || !actor2) continue;
         connections.push({
-          actor1: mains[i].id,
-          actor2: mains[j].id,
+          actor1: actor1.id,
+          actor2: actor2.id,
           relationship: Math.random() > 0.5 ? 'rivals' : 'allies',
           context: 'Industry relationship',
         });

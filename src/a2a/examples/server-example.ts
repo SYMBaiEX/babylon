@@ -5,6 +5,7 @@
 
 import { A2AWebSocketServer } from '../server'
 import { RegistryClient } from '../blockchain'
+import { logger } from '../utils/logger'
 
 async function main() {
   // Optional: Set up blockchain integration for agent discovery
@@ -24,26 +25,29 @@ async function main() {
     enableX402: true,
     enableCoalitions: true,
     logLevel: 'info',
-    registryClient // Enable blockchain-based agent discovery and authentication
+    registryClient: registryClient as unknown as import('@/types/a2a-server').RegistryClient // Enable blockchain-based agent discovery and authentication
   })
 
   // Listen for events
   server.on('agent.connected', (data) => {
-    console.log(`Agent connected: ${data.agentId}`)
+    logger.info(`Agent connected: ${data.agentId}`)
   })
 
   server.on('agent.disconnected', (data) => {
-    console.log(`Agent disconnected: ${data.agentId}`)
+    logger.info(`Agent disconnected: ${data.agentId}`)
   })
 
-  console.log('A2A WebSocket server started on ws://0.0.0.0:8080')
+  logger.info('A2A WebSocket server started on ws://0.0.0.0:8080')
 
   // Graceful shutdown
   process.on('SIGINT', async () => {
-    console.log('\nShutting down server...')
+    logger.info('Shutting down server...')
     await server.close()
     process.exit(0)
   })
 }
 
-main().catch(console.error)
+main().catch(error => {
+  logger.error('Error:', error)
+  process.exit(1)
+})

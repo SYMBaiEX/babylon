@@ -3,7 +3,7 @@
  * Methods: GET (get comments), POST (add comment)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
@@ -13,6 +13,7 @@ import {
   errorResponse,
 } from '@/lib/api/auth-middleware';
 import { notifyCommentOnPost, notifyReplyToComment } from '@/lib/services/notification-service';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -137,7 +138,7 @@ export async function GET(
       total: totalComments,
     });
   } catch (error) {
-    console.error('Error fetching comments:', error);
+    logger.error('Error fetching comments:', error, 'GET /api/posts/[id]/comments');
     return errorResponse('Failed to fetch comments');
   }
 }
@@ -332,7 +333,7 @@ export async function POST(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error creating comment:', error);
+    logger.error('Error creating comment:', error, 'POST /api/posts/[id]/comments');
     return errorResponse('Failed to create comment');
   }
 }

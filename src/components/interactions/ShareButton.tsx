@@ -7,6 +7,7 @@ import { useInteractionStore } from '@/stores/interactionStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoginModal } from '@/hooks/useLoginModal';
 import type { ShareButtonProps } from '@/types/interactions';
+import { logger } from '@/lib/logger';
 
 const sizeClasses = {
   sm: 'h-8 px-2 text-xs gap-1',
@@ -69,7 +70,7 @@ export function ShareButton({
     try {
       await toggleShare(postId);
     } catch (error) {
-      console.error('Failed to toggle share:', error);
+      logger.error('Failed to toggle share:', error, 'ShareButton');
     }
   };
 

@@ -3,7 +3,6 @@ import {
   type IAgentRuntime,
   type Memory,
   type State,
-  type Content,
   type UUID,
   type Character,
   type Service,
@@ -92,6 +91,9 @@ export function createMockRuntime(overrides: Partial<IAgentRuntime> = {}): IAgen
   const agentId = overrides.agentId || createUUID();
   const character = overrides.character || createTestCharacter();
 
+  // Create services Map that will be shared with mock implementations
+  const servicesMap = new Map<ServiceTypeName, Service[]>();
+  
   // Create base runtime object with all required properties
   const mockRuntime: IAgentRuntime = {
     // Properties
@@ -101,7 +103,7 @@ export function createMockRuntime(overrides: Partial<IAgentRuntime> = {}): IAgen
     actions: [],
     evaluators: [],
     plugins: [],
-    services: new Map<ServiceTypeName, Service[]>(),
+    services: servicesMap,
     events: new Map(),
     fetch: null,
     routes: [],
@@ -176,13 +178,28 @@ export function createMockRuntime(overrides: Partial<IAgentRuntime> = {}): IAgen
     getParticipantUserState: mock().mockResolvedValue(null),
     setParticipantUserState: mock().mockResolvedValue(undefined),
 
-    // Service methods
-    getService: mock().mockReturnValue(null),
-    getServicesByType: mock().mockReturnValue([]),
-    getAllServices: mock().mockReturnValue(new Map()),
-    registerService: mock().mockResolvedValue(undefined),
-    getRegisteredServiceTypes: mock().mockReturnValue([]),
-    hasService: mock().mockReturnValue(false),
+    // Service methods - properly implement service registration and retrieval
+    getService: mock().mockImplementation(function (this: IAgentRuntime, serviceType: string) {
+      const services = servicesMap.get(serviceType as ServiceTypeName);
+      return services && services.length > 0 ? services[0] : null;
+    }),
+    getServicesByType: mock().mockImplementation(function (this: IAgentRuntime, serviceType: string) {
+      return servicesMap.get(serviceType as ServiceTypeName) || [];
+    }),
+    getAllServices: mock().mockReturnValue(servicesMap),
+    registerService: mock().mockImplementation(async function (this: IAgentRuntime, serviceType: string, service: Service) {
+      const typeName = serviceType as ServiceTypeName;
+      const existing = servicesMap.get(typeName) || [];
+      existing.push(service);
+      servicesMap.set(typeName, existing);
+    }),
+    getRegisteredServiceTypes: mock().mockImplementation(function (this: IAgentRuntime) {
+      return Array.from(servicesMap.keys());
+    }),
+    hasService: mock().mockImplementation(function (this: IAgentRuntime, serviceType: string) {
+      const services = servicesMap.get(serviceType as ServiceTypeName);
+      return services !== undefined && services.length > 0;
+    }),
     getServiceLoadPromise: mock().mockResolvedValue(null),
 
     // Plugin/Action/Provider methods
@@ -211,7 +228,10 @@ export function createMockRuntime(overrides: Partial<IAgentRuntime> = {}): IAgen
     // Settings methods
     setSetting: mock().mockReturnValue(undefined),
     getSetting: mock().mockImplementation((key: string) => {
-      return null;
+      // Return stored setting value or null if not found
+      // This properly uses the key parameter
+      const settings = (character.settings || {}) as Record<string, unknown>;
+      return settings[key] ?? null;
     }),
 
     // Other methods
@@ -298,8 +318,24 @@ export function createMockRuntime(overrides: Partial<IAgentRuntime> = {}): IAgen
 /**
  * Creates test fixtures for event payloads
  */
+interface MessagePayloadOverrides {
+  content?: { text?: string; source?: string };
+  userId?: UUID;
+  roomId?: UUID;
+  runtime?: IAgentRuntime;
+  source?: string;
+}
+
+interface WorldPayloadOverrides {
+  content?: { text?: string; world?: string };
+  userId?: UUID;
+  roomId?: UUID;
+  runtime?: IAgentRuntime;
+  source?: string;
+}
+
 export const testFixtures = {
-  messagePayload: (overrides: any = {}) => ({
+  messagePayload: (overrides: MessagePayloadOverrides = {}) => ({
     content: {
       text: 'Test message',
       source: 'test',
@@ -311,7 +347,7 @@ export const testFixtures = {
     ...overrides,
   }),
 
-  worldPayload: (overrides: any = {}) => ({
+  worldPayload: (overrides: WorldPayloadOverrides = {}) => ({
     content: {
       text: 'World event',
       world: 'test-world',
@@ -327,20 +363,20 @@ export const testFixtures = {
 /**
  * Type guard to check if a value is a mock function
  */
-export function isMockFunction(value: any): value is ReturnType<typeof mock> {
-  return value && typeof value.mock === 'object';
+export function isMockFunction(value: unknown): value is ReturnType<typeof mock> {
+  return value !== null && typeof value === 'object' && 'mock' in value && typeof (value as { mock: unknown }).mock === 'object';
 }
 
 /**
  * Helper to assert spy was called with specific arguments
  */
-export function assertSpyCalledWith(spy: any, ...args: any[]) {
+export function assertSpyCalledWith(spy: unknown, ...args: unknown[]): void {
   if (!isMockFunction(spy)) {
     throw new Error('Not a mock function');
   }
 
   const calls = spy.mock.calls;
-  const found = calls.some((call: any[]) =>
+  const found = calls.some((call: unknown[]) =>
     args.every((arg, index) => {
       if (typeof arg === 'object' && arg !== null) {
         return JSON.stringify(arg) === JSON.stringify(call[index]);

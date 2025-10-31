@@ -80,3 +80,6 @@ export class Logger {
     this.level = level
   }
 }
+
+// Export singleton instance
+export const logger = new Logger(process.env.A2A_LOG_LEVEL as LogLevel || 'info')

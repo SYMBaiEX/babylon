@@ -9,6 +9,7 @@
 import { spawn, type ChildProcess } from 'child_process'
 import { readdirSync } from 'fs'
 import { join } from 'path'
+import { logger } from '../src/lib/logger'
 
 interface AgentProcess {
   character: string
@@ -26,12 +27,12 @@ const autoTrade = args.includes('--auto-trade')
 const maxAgents = parseInt(args.find(arg => arg.startsWith('--max='))?.split('=')[1] || '30')
 const delayMs = parseInt(args.find(arg => arg.startsWith('--delay='))?.split('=')[1] || '2000')
 
-console.log('🤖 Babylon Multi-Agent Runner\n')
-console.log(`Configuration:`)
-console.log(`  Auto-trading: ${autoTrade ? 'ENABLED' : 'DISABLED'}`)
-console.log(`  Max agents: ${maxAgents}`)
-console.log(`  Startup delay: ${delayMs}ms between agents`)
-console.log()
+logger.info('Babylon Multi-Agent Runner', undefined, 'Script');
+logger.info('Configuration:', {
+  autoTrading: autoTrade ? 'ENABLED' : 'DISABLED',
+  maxAgents,
+  startupDelay: `${delayMs}ms between agents`
+}, 'Script');
 
 const agents: Map<string, AgentProcess> = new Map()
 let activeCount = 0
@@ -44,7 +45,7 @@ function getCharacterFiles(): string[] {
       .slice(0, maxAgents)
     return files
   } catch (error) {
-    console.error('❌ Failed to read characters directory:', error)
+    logger.error('Failed to read characters directory:', error, 'Script');
     process.exit(1)
   }
 }
@@ -54,7 +55,7 @@ function startAgent(characterFile: string, index: number): Promise<void> {
     const characterPath = join(CHARACTERS_DIR, characterFile)
     const characterName = characterFile.replace('.json', '')
 
-    console.log(`[${index + 1}/${maxAgents}] Starting ${characterName}...`)
+    logger.info(`[${index + 1}/${maxAgents}] Starting ${characterName}...`, undefined, 'Script');
 
     const args = [
       AGENT_SCRIPT,
@@ -86,30 +87,30 @@ function startAgent(characterFile: string, index: number): Promise<void> {
     agentProcess.stdout?.on('data', (data) => {
       const lines = data.toString().split('\n').filter((line: string) => line.trim())
       lines.forEach((line: string) => {
-        console.log(`[${characterName}] ${line}`)
+        logger.debug(`[${characterName}] ${line}`, undefined, 'Script');
       })
 
       // Detect when agent is ready
       if (data.toString().includes('Agent started') || data.toString().includes('initialized')) {
         agentInfo.status = 'running'
         activeCount++
-        console.log(`✅ ${characterName} is running (${activeCount}/${maxAgents} active)`)
+        logger.info(`${characterName} is running (${activeCount}/${maxAgents} active)`, undefined, 'Script');
       }
     })
 
     agentProcess.stderr?.on('data', (data) => {
-      console.error(`[${characterName}] ERROR: ${data.toString()}`)
+      logger.error(`[${characterName}] ERROR:`, data.toString(), 'Script');
     })
 
     agentProcess.on('error', (error) => {
-      console.error(`❌ ${characterName} failed to start:`, error)
+      logger.error(`${characterName} failed to start:`, error, 'Script');
       agentInfo.status = 'error'
       errorCount++
     })
 
     agentProcess.on('exit', (code) => {
       if (code !== 0) {
-        console.log(`⚠️  ${characterName} exited with code ${code}`)
+        logger.warn(`${characterName} exited with code ${code}`, undefined, 'Script');
         agentInfo.status = 'stopped'
         activeCount = Math.max(0, activeCount - 1)
       }
@@ -121,44 +122,40 @@ function startAgent(characterFile: string, index: number): Promise<void> {
 }
 
 async function main() {
-  console.log('📁 Loading character files...\n')
+  logger.info('Loading character files...', undefined, 'Script');
 
   const characterFiles = getCharacterFiles()
-  console.log(`Found ${characterFiles.length} character files:\n`)
-  characterFiles.forEach((file, i) => {
-    console.log(`  ${i + 1}. ${file.replace('.json', '')}`)
-  })
-  console.log()
+  logger.info(`Found ${characterFiles.length} character files:`, characterFiles.map((file, i) => `${i + 1}. ${file.replace('.json', '')}`), 'Script');
 
-  console.log('🚀 Starting agents...\n')
-  console.log('⏱️  Starting agents with 2-second delay between each\n')
+  logger.info('Starting agents...', undefined, 'Script');
+  logger.info('Starting agents with 2-second delay between each', undefined, 'Script');
 
   // Start agents sequentially with delay
   for (let i = 0; i < characterFiles.length; i++) {
     await startAgent(characterFiles[i], i)
   }
 
-  console.log('\n✅ All agents started!\n')
-  console.log('📊 Status:')
-  console.log(`   Active: ${activeCount}`)
-  console.log(`   Errors: ${errorCount}`)
-  console.log()
-  console.log('💡 Press Ctrl+C to stop all agents\n')
+  logger.info('All agents started!', undefined, 'Script');
+  logger.info('Status:', {
+    active: activeCount,
+    errors: errorCount
+  }, 'Script');
+  logger.info('Press Ctrl+C to stop all agents', undefined, 'Script');
 
   // Handle graceful shutdown
   process.on('SIGINT', () => {
-    console.log('\n\n🛑 Stopping all agents...\n')
+    logger.info('Stopping all agents...', undefined, 'Script');
 
     let stoppedCount = 0
     agents.forEach((agent, name) => {
       if (agent.status === 'running' || agent.status === 'starting') {
         agent.process.kill('SIGTERM')
         stoppedCount++
-        console.log(`   Stopped ${name}`)
+        logger.info(`Stopped ${name}`, undefined, 'Script');
       }
     })
 
-    console.log(`\n✅ Stopped ${stoppedCount} agents\n`)
+    logger.info(`Stopped ${stoppedCount} agents`, undefined, 'Script');
     process.exit(0)
   })
 
@@ -169,17 +166,18 @@ async function main() {
     const errors = Array.from(agents.values()).filter(a => a.status === 'error').length
     const stopped = Array.from(agents.values()).filter(a => a.status === 'stopped').length
 
-    console.log(`\n📊 Status Update: ${new Date().toLocaleTimeString()}`)
-    console.log(`   Running: ${running}`)
-    console.log(`   Starting: ${starting}`)
-    console.log(`   Errors: ${errors}`)
-    console.log(`   Stopped: ${stopped}`)
+    logger.info(`Status Update: ${new Date().toLocaleTimeString()}`, {
+      running,
+      starting,
+      errors,
+      stopped
+    }, 'Script');
   }, 60000) // Every minute
 }
 
 // Show usage if --help flag is passed
 if (args.includes('--help') || args.includes('-h')) {
-  console.log(`Usage: bun run scripts/run-all-agents.ts [OPTIONS]
+  logger.info(`Usage: bun run scripts/run-all-agents.ts [OPTIONS]
 
 Options:
   --auto-trade       Enable auto-trading for all agents
@@ -210,11 +208,11 @@ Environment Variables:
 
 Note: Make sure the Babylon game engine is running first:
   bun run daemon
-`)
+`, undefined, 'Script');
   process.exit(0)
 }
 
 main().catch((error) => {
-  console.error('Fatal error:', error)
+  logger.error('Fatal error:', error, 'Script');
   process.exit(1)
 })

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { usePrivy } from '@privy-io/react-auth'
+import type { WebSocketData } from '@/types/common'
+import { logger } from '@/lib/logger'
 
 interface WebSocketMessage {
   type: 'join_chat' | 'leave_chat' | 'new_message' | 'error' | 'pong'
-  data?: any
+  data?: WebSocketData
   error?: string
 }
 
@@ -17,7 +19,11 @@ interface ChatMessage {
 }
 
 // Global shared socket to avoid multiple connections (React StrictMode / re-mounts)
-const getGlobal = () => (globalThis as any)
+interface GlobalSocket {
+  [SOCKET_KEY]?: WebSocket | null
+  [SUBSCRIBERS_KEY]?: number
+}
+const getGlobal = (): GlobalSocket => (globalThis as unknown as GlobalSocket)
 const SOCKET_KEY = '__babylon_chat_socket__'
 const SUBSCRIBERS_KEY = '__babylon_chat_socket_subscribers__'
 
@@ -26,7 +32,7 @@ export function useWebSocket() {
   const [socket, setSocket] = useState<WebSocket | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const reconnectAttempts = useRef(0)
   const maxReconnectAttempts = 5
 
@@ -59,13 +65,13 @@ export function useWebSocket() {
         
         if (!healthData.initialized) {
           setError('WebSocket server is not initialized. Please ensure the server is running.')
-          console.warn('WebSocket server not initialized')
+          logger.warn('WebSocket server not initialized', undefined, 'useWebSocket')
           return
         }
       } catch (healthError) {
         // Health check failed - server might not be ready yet, but we'll try connecting anyway
         if (reconnectAttempts.current === 0) {
-          console.warn('WebSocket server health check failed, attempting connection anyway:', healthError)
+          logger.warn('WebSocket server health check failed, attempting connection anyway:', healthError, 'useWebSocket')
         }
       }
 
@@ -73,13 +79,13 @@ export function useWebSocket() {
       
       // Only log connection attempt if not retrying (to reduce noise)
       if (reconnectAttempts.current === 0) {
-        console.log('Connecting to WebSocket server...', wsUrl.replace(/token=[^&]+/, 'token=***'))
+        logger.debug('Connecting to WebSocket server...', wsUrl.replace(/token=[^&]+/, 'token=***'), 'useWebSocket')
       }
       
       const ws = new WebSocket(wsUrl)
 
       ws.onopen = () => {
-        console.log('WebSocket connected')
+        logger.info('WebSocket connected', undefined, 'useWebSocket')
         setIsConnected(true)
         setError(null)
         reconnectAttempts.current = 0
@@ -95,12 +101,12 @@ export function useWebSocket() {
         if (event.code !== 1000) {
           // Only log on first disconnect or when giving up to reduce noise
           if (reconnectAttempts.current === 0 || reconnectAttempts.current >= maxReconnectAttempts) {
-            console.log('WebSocket disconnected:', {
+            logger.info('WebSocket disconnected:', {
               code: event.code,
               reason: event.reason || 'No reason provided',
               wasClean: event.wasClean,
               subscribers: subs
-            })
+            }, 'useWebSocket')
           }
         }
         
@@ -109,7 +115,7 @@ export function useWebSocket() {
           const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000)
           // Only log reconnection attempts on first few tries to reduce noise
           if (reconnectAttempts.current < 2) {
-            console.log(`Reconnecting in ${delay}ms... (attempt ${reconnectAttempts.current + 1}/${maxReconnectAttempts})`)
+            logger.debug(`Reconnecting in ${delay}ms... (attempt ${reconnectAttempts.current + 1}/${maxReconnectAttempts})`, undefined, 'useWebSocket')
           }
           
           reconnectTimeoutRef.current = setTimeout(() => {
@@ -117,7 +123,7 @@ export function useWebSocket() {
             connect()
           }, delay)
         } else if (subs > 0 && reconnectAttempts.current >= maxReconnectAttempts) {
-          console.warn('WebSocket: Max reconnection attempts reached. Server may not be running on port 3001.')
+          logger.warn('WebSocket: Max reconnection attempts reached. Server may not be running on port 3001.', undefined, 'useWebSocket')
           setError('Unable to connect to chat server. Chat features may be unavailable.')
         } else if (event.code === 1000) {
           // Clean close - clear any previous errors
@@ -135,13 +141,18 @@ export function useWebSocket() {
           ? 'Connection timeout - server may not be responding'
           : 'WebSocket connection error'
         
+        // Log error details if available
+        if (errorEvent && errorEvent.type) {
+          logger.error('WebSocket error event:', { type: errorEvent.type, message: errorMessage }, 'useWebSocket');
+        }
+        
         // Only log meaningful errors or on first attempt
         if (reconnectAttempts.current === 0) {
-          console.error('WebSocket error:', {
+          logger.error('WebSocket error:', {
             message: errorMessage,
             readyState: ws.readyState,
             url: wsUrl.replace(/token=[^&]+/, 'token=***')
-          })
+          }, 'useWebSocket')
         }
         
         // Don't set error state here - let onclose handle it with proper error codes
@@ -153,7 +164,7 @@ export function useWebSocket() {
       g2[SOCKET_KEY] = ws
       g2[SUBSCRIBERS_KEY] = (g2[SUBSCRIBERS_KEY] || 0) + 1
     } catch (err) {
-      console.error('Failed to connect WebSocket:', err)
+      logger.error('Failed to connect WebSocket:', err, 'useWebSocket')
       setError('Failed to connect to chat server')
     }
   }, [getAccessToken])
@@ -179,7 +190,7 @@ export function useWebSocket() {
     if (socket && socket.readyState === WebSocket.OPEN) {
       const message: WebSocketMessage = {
         type: 'join_chat',
-        data: { chatId }
+        data: { type: 'join_chat', chatId } as WebSocketData
       }
       socket.send(JSON.stringify(message))
     }
@@ -189,7 +200,7 @@ export function useWebSocket() {
     if (socket && socket.readyState === WebSocket.OPEN) {
       const message: WebSocketMessage = {
         type: 'leave_chat',
-        data: { chatId }
+        data: { type: 'leave_chat', chatId } as WebSocketData
       }
       socket.send(JSON.stringify(message))
     }
@@ -238,15 +249,20 @@ export function useChatMessages(chatId: string | null) {
 
   // Join/leave chat when chatId changes
   useEffect(() => {
-    if (!isConnected || !socket || socket.readyState !== WebSocket.OPEN) return
+    if (!isConnected || !socket || socket.readyState !== WebSocket.OPEN) {
+      setIsLoading(false);
+      return;
+    }
 
     if (chatId) {
+      setIsLoading(true); // Set loading when joining chat
       joinChat(chatId)
     } else {
+      setIsLoading(false);
       // Leave previous chat if any
       leaveChat(chatId || '')
     }
-  }, [chatId, isConnected, socket, joinChat, leaveChat])
+  }, [chatId, isConnected, socket, joinChat, leaveChat, setIsLoading])
 
   // Listen for new messages
   useEffect(() => {
@@ -257,10 +273,11 @@ export function useChatMessages(chatId: string | null) {
         const message: WebSocketMessage = JSON.parse(event.data)
         
         if (message.type === 'new_message' && message.data) {
-          const newMessage: ChatMessage = message.data
+          const newMessage = message.data as unknown as ChatMessage
           
           // Only add message if it's for the current chat
           if (newMessage.chatId === chatId) {
+            setIsLoading(false); // Mark as loaded when message arrives
             setMessages(prev => {
               // Avoid duplicates
               if (prev.some(msg => msg.id === newMessage.id)) {
@@ -272,8 +289,9 @@ export function useChatMessages(chatId: string | null) {
             })
           }
         }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error)
+      } catch (parseError) {
+        const errorMessage = parseError instanceof Error ? parseError.message : 'Unknown parsing error'
+        logger.error('Error parsing WebSocket message:', errorMessage, 'useWebSocket')
       }
     }
 

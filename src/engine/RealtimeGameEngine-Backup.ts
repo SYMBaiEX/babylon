@@ -25,7 +25,7 @@ import { QuestionManager } from './QuestionManager';
 import { PriceEngine } from './PriceEngine';
 import { PerpetualsEngine } from './PerpetualsEngine';
 import { BabylonLLMClient } from '../generator/llm/openai-client';
-import { shuffleArray } from '@/shared/utils';
+import { shuffleArray, toQuestionIdNumberOrNull, toQuestionIdNumber } from '@/shared/utils';
 import type {
   SelectedActor,
   Organization,
@@ -36,7 +36,6 @@ import type {
   Scenario,
   GroupChat,
   WorldEvent,
-  GameState,
   ActorsDatabase,
 } from '@/shared/types';
 
@@ -351,12 +350,18 @@ export class RealtimeGameEngine extends EventEmitter {
         ? this.actors.filter(a => scenario.mainActors.includes(a.id)).slice(0, 2)
         : this.actors.slice(0, 2);
 
+      // Calculate game day number from start date
+      const startDate = new Date('2024-01-01'); // Game start date
+      const now = new Date();
+      const daysSinceStart = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      const currentDay = daysSinceStart + 1; // Day 1 is the first day
       events.push({
         id: `event-${Date.now()}-${i}`,
+        day: currentDay,
         type: this.randomEventType(),
         actors: involvedActors.map(a => a.id),
         description: `Event related to: ${question.text}`,
-        relatedQuestion: question.id,
+        relatedQuestion: toQuestionIdNumberOrNull(question.id),
         pointsToward: Math.random() > 0.5 ? (question.outcome ? 'YES' : 'NO') : null,
         visibility: 'public',
       });
@@ -429,10 +434,10 @@ export class RealtimeGameEngine extends EventEmitter {
   /**
    * Generate new questions
    */
-  private async generateQuestions(count: number): Promise<Question[]> {
+  private async generateQuestions(_count: number): Promise<Question[]> {
     const currentDate = new Date().toISOString().split('T')[0]!;
     const activeQuestions = this.questions.filter(q => q.status === 'active');
-    const nextId = Math.max(0, ...this.questions.map(q => q.id)) + 1;
+    const nextId = Math.max(0, ...this.questions.map(q => toQuestionIdNumber(q.id))) + 1;
 
     return await this.questionManager.generateDailyQuestions({
       currentDate,
@@ -535,9 +540,12 @@ export class RealtimeGameEngine extends EventEmitter {
     
     for (let i = 0; i < mains.length; i++) {
       for (let j = i + 1; j < Math.min(i + 5, mains.length); j++) {
+        const actor1 = mains[i];
+        const actor2 = mains[j];
+        if (!actor1 || !actor2) continue;
         connections.push({
-          actor1: mains[i].id,
-          actor2: mains[j].id,
+          actor1: actor1.id,
+          actor2: actor2.id,
           relationship: Math.random() > 0.5 ? 'rivals' : 'allies',
           context: 'Industry relationship',
         });

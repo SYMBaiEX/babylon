@@ -4,6 +4,7 @@
  */
 
 import { A2AClient } from '../client'
+import { logger } from '../utils/logger'
 
 async function main() {
   // Create client
@@ -27,36 +28,36 @@ async function main() {
 
   // Listen for events
   client.on('agent.connected', (data) => {
-    console.log(`Connected as: ${data.agentId}`)
+    logger.info(`Connected as: ${data.agentId}`)
   })
 
   client.on('agent.disconnected', () => {
-    console.log('Disconnected from server')
+    logger.info('Disconnected from server')
   })
 
   client.on('error', (error) => {
-    console.error('Client error:', error)
+    logger.error('Client error:', error)
   })
 
   // Connect to server
   await client.connect()
-  console.log('Connected to A2A server')
+  logger.info('Connected to A2A server')
 
   // Example: Discover other agents
   const discovery = await client.discoverAgents({
     strategies: ['momentum'],
     minReputation: 50
   })
-  console.log(`Found ${discovery.total} agents:`, discovery.agents)
+  logger.info(`Found ${discovery.total} agents:`, discovery.agents)
 
   // Example: Get market data
   const marketData = await client.getMarketData('market-123')
-  console.log('Market data:', marketData)
+  logger.info('Market data:', marketData)
 
   // Example: Subscribe to market updates
   await client.subscribeMarket('market-123')
   client.on('market_update', (data) => {
-    console.log('Market update:', data)
+    logger.info('Market update:', data)
   })
 
   // Example: Propose a coalition
@@ -67,7 +68,7 @@ async function main() {
     2,
     5
   )
-  console.log('Coalition created:', coalition.coalitionId)
+  logger.info('Coalition created:', coalition.coalitionId)
 
   // Example: Share analysis
   const analysis = await client.shareAnalysis({
@@ -82,17 +83,20 @@ async function main() {
     },
     timestamp: Date.now()
   })
-  console.log('Analysis shared:', analysis.analysisId)
+  logger.info('Analysis shared:', analysis.analysisId)
 
   // Keep running
-  console.log('\nAgent running... Press Ctrl+C to exit')
+  logger.info('Agent running... Press Ctrl+C to exit')
 
   // Graceful shutdown
   process.on('SIGINT', () => {
-    console.log('\nDisconnecting...')
+    logger.info('Disconnecting...')
     client.disconnect()
     process.exit(0)
   })
 }
 
-main().catch(console.error)
+main().catch(error => {
+  logger.error('Error:', error)
+  process.exit(1)
+})

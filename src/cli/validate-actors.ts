@@ -7,6 +7,7 @@
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { logger } from '@/lib/logger';
 
 interface Actor {
   id: string;
@@ -36,8 +37,7 @@ function validateActors(): void {
   // Build a set of valid organization IDs
   const validOrgIds = new Set(organizations.map(org => org.id));
   
-  console.log(`📊 Validating ${actors.length} actors against ${organizations.length} organizations...`);
-  console.log('');
+  logger.info(`Validating ${actors.length} actors against ${organizations.length} organizations...`, undefined, 'CLI');
 
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -69,28 +69,22 @@ function validateActors(): void {
 
   // Print warnings
   if (warnings.length > 0) {
-    console.log('⚠️  WARNINGS:');
-    warnings.forEach(w => console.log(w));
-    console.log('');
+    logger.warn('WARNINGS:', warnings, 'CLI');
   }
 
   // Print errors
   if (errors.length > 0) {
-    console.log('❌ VALIDATION ERRORS:');
-    errors.forEach(e => console.log(e));
-    console.log('');
-    console.log(`Found ${errors.length} error(s)`);
+    logger.error('VALIDATION ERRORS:', errors, 'CLI');
+    logger.error(`Found ${errors.length} error(s)`, undefined, 'CLI');
     process.exit(1);
   }
 
   // Success!
-  console.log('✅ All actor affiliations are valid!');
-  console.log(`   - ${actors.length} actors checked`);
-  console.log(`   - ${organizations.length} organizations verified`);
-  
-  if (warnings.length > 0) {
-    console.log(`   - ${warnings.length} warning(s) (non-blocking)`);
-  }
+  logger.info('All actor affiliations are valid!', {
+    actorsChecked: actors.length,
+    organizationsVerified: organizations.length,
+    warnings: warnings.length
+  }, 'CLI');
 }
 
 // Run validation

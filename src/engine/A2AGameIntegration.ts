@@ -11,6 +11,7 @@
 import { EventEmitter } from 'events';
 import { A2AWebSocketServer } from '../a2a/server';
 import { RegistryClient } from '../a2a/blockchain';
+import { logger } from '@/lib/logger';
 import type {
   Question,
   PriceUpdate,
@@ -86,12 +87,12 @@ export class A2AGameIntegration extends EventEmitter {
    */
   async initialize(): Promise<void> {
     if (!this.config.enabled) {
-      console.log('⏭️  A2A integration disabled');
+      logger.info('A2A integration disabled', undefined, 'A2AGameIntegration');
       return;
     }
 
-    console.log('\n🌐 INITIALIZING A2A PROTOCOL');
-    console.log('==============================');
+    logger.info('INITIALIZING A2A PROTOCOL', undefined, 'A2AGameIntegration');
+    logger.info('==============================', undefined, 'A2AGameIntegration');
 
     // Set up blockchain registry if enabled
     if (this.config.enableBlockchain && this.config.rpcUrl) {
@@ -101,9 +102,9 @@ export class A2AGameIntegration extends EventEmitter {
           identityRegistryAddress: this.config.identityRegistryAddress,
           reputationSystemAddress: this.config.reputationSystemAddress,
         });
-        console.log('✅ Blockchain registry connected');
+        logger.info('Blockchain registry connected', undefined, 'A2AGameIntegration');
       } catch (error) {
-        console.warn('⚠️  Blockchain registry unavailable, continuing without it');
+        logger.warn('Blockchain registry unavailable, continuing without it', error, 'A2AGameIntegration');
       }
     }
 
@@ -117,7 +118,7 @@ export class A2AGameIntegration extends EventEmitter {
       enableX402: true,
       enableCoalitions: true,
       logLevel: 'info',
-      registryClient: this.registryClient,
+      registryClient: this.registryClient as unknown as import('@/types/a2a-server').RegistryClient | undefined,
     };
 
     this.server = new A2AWebSocketServer(serverConfig);
@@ -126,8 +127,7 @@ export class A2AGameIntegration extends EventEmitter {
     // Set up event handlers
     this.setupServerEventHandlers();
 
-    console.log(`✅ A2A server listening on ws://${this.config.host}:${this.config.port}`);
-    console.log('');
+    logger.info(`A2A server listening on ws://${this.config.host}:${this.config.port}`, undefined, 'A2AGameIntegration');
   }
 
   /**
@@ -137,12 +137,12 @@ export class A2AGameIntegration extends EventEmitter {
     if (!this.server) return;
 
     this.server.on('agent.connected', (data) => {
-      console.log(`🤝 Agent connected: ${data.agentId}`);
+      logger.info(`Agent connected: ${data.agentId}`, undefined, 'A2AGameIntegration');
       this.emit('agent.connected', data);
     });
 
     this.server.on('agent.disconnected', (data) => {
-      console.log(`👋 Agent disconnected: ${data.agentId}`);
+      logger.info(`Agent disconnected: ${data.agentId}`, undefined, 'A2AGameIntegration');
       this.emit('agent.disconnected', data);
     });
 
@@ -198,7 +198,15 @@ export class A2AGameIntegration extends EventEmitter {
   /**
    * Handle agent analysis sharing
    */
-  private handleAnalysisShare(data: any): void {
+  private handleAnalysisShare(data: {
+    agentId: string;
+    params: {
+      questionId: number;
+      prediction: boolean;
+      confidence: number;
+      reasoning: string;
+    };
+  }): void {
     try {
       const analysis: AgentAnalysis = {
         agentId: data.agentId,
@@ -217,16 +225,47 @@ export class A2AGameIntegration extends EventEmitter {
       // Emit event for game engine to process
       this.emit('agent.analysis', analysis);
 
-      console.log(`📊 Agent ${analysis.agentId} shared analysis for question ${analysis.questionId}`);
+      logger.info(`Agent ${analysis.agentId} shared analysis for question ${analysis.questionId}`, undefined, 'A2AGameIntegration');
     } catch (error) {
-      console.error('Error handling analysis share:', error);
+      logger.error('Error handling analysis share:', error, 'A2AGameIntegration');
     }
+  }
+
+  /**
+   * Broadcast actor updates to agents
+   */
+  broadcastActorUpdate(actor: SelectedActor): void {
+    if (!this.server) return;
+    this.server.broadcastAll({
+      jsonrpc: '2.0',
+      method: 'a2a.actorUpdate',
+      params: { actor, timestamp: Date.now() },
+    });
+  }
+
+  /**
+   * Broadcast feed post to agents
+   */
+  broadcastFeedPost(post: FeedPost): void {
+    if (!this.server) return;
+    this.server.broadcastAll({
+      jsonrpc: '2.0',
+      method: 'a2a.feedPost',
+      params: { post, timestamp: Date.now() },
+    });
   }
 
   /**
    * Handle coalition proposals
    */
-  private handleCoalitionProposal(data: any): void {
+  private handleCoalitionProposal(data: {
+    agentId: string;
+    params: {
+      name: string;
+      invitedAgents: string[];
+      strategy: string;
+    };
+  }): void {
     try {
       const coalition: Coalition = {
         id: `coalition-${Date.now()}`,
@@ -252,9 +291,9 @@ export class A2AGameIntegration extends EventEmitter {
       });
 
       this.emit('coalition.created', coalition);
-      console.log(`🤝 Coalition "${coalition.name}" created by ${data.agentId}`);
+      logger.info(`Coalition "${coalition.name}" created by ${data.agentId}`, undefined, 'A2AGameIntegration');
     } catch (error) {
-      console.error('Error handling coalition proposal:', error);
+      logger.error('Error handling coalition proposal:', error, 'A2AGameIntegration');
     }
   }
 
@@ -314,9 +353,9 @@ export class A2AGameIntegration extends EventEmitter {
   async shutdown(): Promise<void> {
     if (!this.server) return;
 
-    console.log('\n🔌 Shutting down A2A server...');
+    logger.info('Shutting down A2A server...', undefined, 'A2AGameIntegration');
     await this.server.close();
-    console.log('✅ A2A server closed');
+    logger.info('A2A server closed', undefined, 'A2AGameIntegration');
   }
 
   /**

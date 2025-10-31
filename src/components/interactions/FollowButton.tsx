@@ -5,6 +5,7 @@ import { UserPlus, UserMinus, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
+import { logger } from '@/lib/logger'
 
 interface FollowButtonProps {
   userId: string
@@ -37,7 +38,7 @@ export function FollowButton({
 
     const checkFollowStatus = async () => {
       try {
-        const token = typeof window !== 'undefined' ? (window as any).__privyAccessToken : null
+        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
         if (!token) {
           setIsChecking(false)
           return
@@ -54,7 +55,7 @@ export function FollowButton({
           setIsFollowing(data.isFollowing || false)
         }
       } catch (error) {
-        console.error('Error checking follow status:', error)
+        logger.error('Error checking follow status:', error, 'FollowButton')
       } finally {
         setIsChecking(false)
       }
@@ -76,7 +77,7 @@ export function FollowButton({
 
     setIsLoading(true)
     try {
-      const token = typeof window !== 'undefined' ? (window as any).__privyAccessToken : null
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
       if (!token) {
         toast.error('Authentication required')
         setIsLoading(false)
@@ -101,7 +102,7 @@ export function FollowButton({
         toast.error(error.error || 'Failed to update follow status')
       }
     } catch (error) {
-      console.error('Error updating follow status:', error)
+      logger.error('Error updating follow status:', error, 'FollowButton')
       toast.error('An error occurred')
     } finally {
       setIsLoading(false)

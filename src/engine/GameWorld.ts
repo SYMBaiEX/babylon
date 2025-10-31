@@ -21,6 +21,7 @@ import { v4 as uuid } from 'uuid';
 import { FeedGenerator, type FeedEvent } from './FeedGenerator';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
 import { loadPrompt } from '../prompts/loader';
+import { logger } from '@/lib/logger';
 
 export interface WorldConfig {
   /** Predetermined outcome (true = success, false = failure) */
@@ -497,7 +498,7 @@ export class GameWorld extends EventEmitter {
       const response = await this.llm.generateJSON<{ headline: string; report: string }>(prompt);
       return `${response.headline}\n\n${response.report}`;
     } catch (error) {
-      console.error('LLM generation failed, using fallback:', error);
+      logger.error('LLM generation failed, using fallback:', error, 'GameWorld');
       return this.config.outcome
         ? `Day ${day} analysis: Sources suggest positive developments`
         : `Day ${day} investigation: Multiple concerns raised by experts`;
@@ -528,7 +529,7 @@ export class GameWorld extends EventEmitter {
       const response = await this.llm.generateJSON<{ rumor: string }>(prompt);
       return response.rumor;
     } catch (error) {
-      console.error('LLM generation failed, using fallback:', error);
+      logger.error('LLM generation failed, using fallback:', error, 'GameWorld');
       const rumors = this.config.outcome
         ? ["Unconfirmed: Test results exceeding expectations", "Rumor: Key milestone reached ahead of schedule"]
         : ["Unconfirmed: Internal memos show concerns", "Rumor: Key stakeholders expressing doubts"];
@@ -557,7 +558,7 @@ export class GameWorld extends EventEmitter {
       const response = await this.llm.generateJSON<{ conversation: string }>(prompt);
       return response.conversation;
     } catch (error) {
-      console.error('LLM generation failed, using fallback:', error);
+      logger.error('LLM generation failed, using fallback:', error, 'GameWorld');
       return `NPCs debate the situation on Day ${day}. Mixed opinions emerge.`;
     }
   }
@@ -586,7 +587,7 @@ export class GameWorld extends EventEmitter {
       const response = await this.llm.generateJSON<{ analysis: string }>(prompt);
       return `${expert.name}: ${response.analysis}`;
     } catch (error) {
-      console.error('LLM generation failed, using fallback:', error);
+      logger.error('LLM generation failed, using fallback:', error, 'GameWorld');
       return `${expert.name} publishes analysis: ${this.config.outcome ? 'Indicators positive' : 'Warning signs evident'}`;
     }
   }
@@ -611,7 +612,7 @@ export class GameWorld extends EventEmitter {
       const response = await this.llm.generateJSON<{ summary: string }>(prompt);
       return response.summary;
     } catch (error) {
-      console.error('LLM generation failed, using fallback:', error);
+      logger.error('LLM generation failed, using fallback:', error, 'GameWorld');
       if (events.length === 0) return `Day ${day}: Quiet day, no major developments`;
       const types = events.map(e => e.type);
       if (types.includes('development:occurred')) return `Day ${day}: MAJOR DEVELOPMENT`;

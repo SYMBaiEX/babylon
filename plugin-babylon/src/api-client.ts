@@ -13,8 +13,9 @@ import type {
   TradeRequest,
   TradeResult,
   AgentConfig,
-} from './types';
-import { AgentAuthService } from './agent-auth-service';
+} from "./types";
+import { AgentAuthService } from "./agent-auth-service";
+import { logger } from "@elizaos/core";
 
 // Type for HTTP headers
 type HeadersInit = Record<string, string>;
@@ -28,7 +29,7 @@ export class BabylonApiClient {
 
   constructor(config: AgentConfig) {
     this.config = config;
-    this.baseUrl = config.apiBaseUrl || 'http://localhost:3000';
+    this.baseUrl = config.apiBaseUrl || "http://localhost:3000";
     this.authToken = config.authToken;
 
     // Enable automatic agent authentication if no manual token provided
@@ -37,7 +38,7 @@ export class BabylonApiClient {
       this.useAgentAuth = this.agentAuthService.hasCredentials();
 
       if (this.useAgentAuth) {
-        console.log('🤖 Agent authentication enabled');
+        logger.info("🤖 Agent authentication enabled");
       }
     }
   }
@@ -55,12 +56,12 @@ export class BabylonApiClient {
    */
   private async getHeaders(): Promise<HeadersInit> {
     const headers: HeadersInit = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     };
 
     // Use manual token if available
     if (this.authToken) {
-      headers['Authorization'] = `Bearer ${this.authToken}`;
+      headers["Authorization"] = `Bearer ${this.authToken}`;
       return headers;
     }
 
@@ -68,7 +69,7 @@ export class BabylonApiClient {
     if (this.useAgentAuth && this.agentAuthService) {
       const sessionToken = await this.agentAuthService.getSessionToken();
       if (sessionToken) {
-        headers['Authorization'] = `Bearer ${sessionToken}`;
+        headers["Authorization"] = `Bearer ${sessionToken}`;
       }
     }
 
@@ -88,10 +89,11 @@ export class BabylonApiClient {
         throw new Error(`Failed to fetch markets: ${response.statusText}`);
       }
 
-      const data = await response.json() as { markets?: BabylonMarket[] };
+      const data = (await response.json()) as { markets?: BabylonMarket[] };
       return data.markets || [];
     } catch (error) {
-      console.error('Error fetching active markets:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error("Error fetching active markets:", errorMessage);
       return [];
     }
   }
@@ -105,16 +107,17 @@ export class BabylonApiClient {
         `${this.baseUrl}/api/markets/predictions/${marketId}`,
         {
           headers: await this.getHeaders(),
-        }
+        },
       );
 
       if (!response.ok) {
         throw new Error(`Failed to fetch market: ${response.statusText}`);
       }
 
-      return await response.json() as BabylonMarket;
+      return (await response.json()) as BabylonMarket;
     } catch (error) {
-      console.error(`Error fetching market ${marketId}:`, error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Error fetching market ${marketId}:`, errorMessage);
       return null;
     }
   }
@@ -132,9 +135,10 @@ export class BabylonApiClient {
         throw new Error(`Failed to fetch wallet: ${response.statusText}`);
       }
 
-      return await response.json() as BabylonWallet;
+      return (await response.json()) as BabylonWallet;
     } catch (error) {
-      console.error('Error fetching wallet:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error("Error fetching wallet:", errorMessage);
       return null;
     }
   }
@@ -152,10 +156,11 @@ export class BabylonApiClient {
         throw new Error(`Failed to fetch positions: ${response.statusText}`);
       }
 
-      const data = await response.json() as { positions?: BabylonPosition[] };
+      const data = (await response.json()) as { positions?: BabylonPosition[] };
       return data.positions || [];
     } catch (error) {
-      console.error('Error fetching positions:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error("Error fetching positions:", errorMessage);
       return [];
     }
   }
@@ -169,11 +174,11 @@ export class BabylonApiClient {
       if (request.amount < 1) {
         return {
           success: false,
-          error: 'Minimum trade size is $1',
+          error: "Minimum trade size is $1",
         };
       }
 
-      if (!['yes', 'no'].includes(request.side)) {
+      if (!["yes", "no"].includes(request.side)) {
         return {
           success: false,
           error: 'Side must be "yes" or "no"',
@@ -185,7 +190,7 @@ export class BabylonApiClient {
       if (!wallet || wallet.availableBalance < request.amount) {
         return {
           success: false,
-          error: 'Insufficient balance',
+          error: "Insufficient balance",
         };
       }
 
@@ -201,24 +206,28 @@ export class BabylonApiClient {
       const response = await fetch(
         `${this.baseUrl}/api/markets/predictions/${request.marketId}/buy`,
         {
-          method: 'POST',
+          method: "POST",
           headers: await this.getHeaders(),
           body: JSON.stringify({
             side: request.side,
             amount: request.amount,
           }),
-        }
+        },
       );
 
       if (!response.ok) {
-        const error = await response.json() as { message?: string };
+        const error = (await response.json()) as { message?: string };
         return {
           success: false,
           error: error.message || response.statusText,
         };
       }
 
-      const result = await response.json() as { shares?: number; avgPrice?: number; position?: any };
+      const result = (await response.json()) as {
+        shares?: number;
+        avgPrice?: number;
+        position?: BabylonPosition;
+      };
 
       return {
         success: true,
@@ -227,10 +236,11 @@ export class BabylonApiClient {
         newPosition: result.position,
       };
     } catch (error) {
-      console.error('Error buying shares:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error("Error buying shares:", errorMessage);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
@@ -243,23 +253,26 @@ export class BabylonApiClient {
       const response = await fetch(
         `${this.baseUrl}/api/markets/predictions/${marketId}/sell`,
         {
-          method: 'POST',
+          method: "POST",
           headers: await this.getHeaders(),
           body: JSON.stringify({
             shares,
           }),
-        }
+        },
       );
 
       if (!response.ok) {
-        const error = await response.json() as { message?: string };
+        const error = (await response.json()) as { message?: string };
         return {
           success: false,
           error: error.message || response.statusText,
         };
       }
 
-      const result = await response.json() as { shares?: number; avgPrice?: number };
+      const result = (await response.json()) as {
+        shares?: number;
+        avgPrice?: number;
+      };
 
       return {
         success: true,
@@ -267,10 +280,11 @@ export class BabylonApiClient {
         avgPrice: result.avgPrice,
       };
     } catch (error) {
-      console.error('Error selling shares:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error("Error selling shares:", errorMessage);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
@@ -278,22 +292,27 @@ export class BabylonApiClient {
   /**
    * Get market history and price data
    */
-  async getMarketHistory(marketId: string): Promise<BabylonMarketHistory | null> {
+  async getMarketHistory(
+    marketId: string,
+  ): Promise<BabylonMarketHistory | null> {
     try {
       const response = await fetch(
         `${this.baseUrl}/api/markets/predictions/${marketId}/history`,
         {
           headers: await this.getHeaders(),
-        }
+        },
       );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch market history: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch market history: ${response.statusText}`,
+        );
       }
 
-      return await response.json() as BabylonMarketHistory;
+      return (await response.json()) as BabylonMarketHistory;
     } catch (error) {
-      console.error(`Error fetching market history for ${marketId}:`, error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Error fetching market history for ${marketId}:`, errorMessage);
       return null;
     }
   }

@@ -8,9 +8,11 @@
  * - Agent health status
  */
 
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import type { Prisma } from '@prisma/client'
 import { successResponse, errorResponse, authenticate } from '@/lib/api/auth-middleware'
+import { logger } from '@/lib/logger'
 
 const prisma = new PrismaClient()
 
@@ -46,7 +48,7 @@ export async function GET(request: NextRequest) {
     const user = await authenticate(request)
 
     // Log monitoring access for audit trail
-    console.log(`[Monitoring] User ${user.userId} (isAgent: ${user.isAgent}) accessing agent monitoring`)
+    logger.info(`User ${user.userId} (isAgent: ${user.isAgent}) accessing agent monitoring`, { userId: user.userId, isAgent: user.isAgent }, 'AgentMonitoring')
 
     // For now, allow all authenticated users, but log access
     // TODO: Add admin-only restriction when admin roles are implemented
@@ -59,7 +61,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50')
 
     // Build where clause for agents
-    const where: any = {
+    const where: Prisma.UserWhereInput = {
       username: {
         startsWith: 'babylon-agent-',
       },
@@ -197,7 +199,8 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
-    console.error('Agent monitoring error:', error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    logger.error('Agent monitoring error', { error: errorMessage }, 'AgentMonitoring')
     return errorResponse(
       error instanceof Error ? error.message : 'Failed to fetch agent monitoring data',
       500

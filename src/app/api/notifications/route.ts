@@ -5,9 +5,10 @@
  * PATCH /api/notifications - Mark notifications as read
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-middleware';
 import { PrismaClient } from '@prisma/client';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -25,7 +26,11 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const unreadOnly = searchParams.get('unreadOnly') === 'true';
 
-    const where: any = {
+    const where: {
+      userId: string
+      read?: boolean
+      type?: string
+    } = {
       userId: authUser.userId,
     };
 
@@ -78,7 +83,7 @@ export async function GET(request: NextRequest) {
       unreadCount,
     });
   } catch (error) {
-    console.error('Error fetching notifications:', error);
+    logger.error('Error fetching notifications:', error, 'GET /api/notifications');
     return errorResponse('Failed to fetch notifications', 500);
   }
 }
@@ -128,7 +133,7 @@ export async function PATCH(request: NextRequest) {
 
     return errorResponse('Invalid request: provide notificationIds array or markAllAsRead=true', 400);
   } catch (error) {
-    console.error('Error updating notifications:', error);
+    logger.error('Error updating notifications:', error, 'PATCH /api/notifications');
     return errorResponse('Failed to update notifications', 500);
   }
 }

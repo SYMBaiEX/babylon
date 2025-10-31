@@ -41,7 +41,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <FontSizeProvider>
           <PrivyProvider
             appId={privyConfig.appId}
-            config={privyConfig.config}
+            config={privyConfig.config as Parameters<typeof PrivyProvider>[0]['config']}
           >
             <QueryClientProvider client={queryClient}>
               <GamePlaybackManager />
@@ -65,7 +65,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <FontSizeProvider>
           <PrivyProvider
             appId={privyConfig.appId}
-            config={privyConfig.config}
+            config={privyConfig.config as Parameters<typeof PrivyProvider>[0]['config']}
           >
             <QueryClientProvider client={queryClient}>
               <GamePlaybackManager />

@@ -80,7 +80,7 @@ export function loadPromptTemplate(path: string): LoadedPrompt {
  * @param variables - Variables to substitute in template
  * @returns Rendered prompt string
  */
-export function loadPrompt(path: string, variables: Record<string, any> = {}): string {
+export function loadPrompt(path: string, variables: Record<string, unknown> = {}): string {
   const { template } = loadPromptTemplate(path);
 
   // Simple variable substitution: {{variableName}}

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Info } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 
 interface PointsTrackerProps {
   className?: string
@@ -26,7 +27,7 @@ export function PointsTracker({ className, showIcon = true }: PointsTrackerProps
         setLoading(true)
         
         // Get auth token from window (set by useAuth hook)
-        const token = typeof window !== 'undefined' ? (window as any).__privyAccessToken : null
+        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
         
         const headers: HeadersInit = {
           'Content-Type': 'application/json',
@@ -45,10 +46,10 @@ export function PointsTracker({ className, showIcon = true }: PointsTrackerProps
           setPoints(Math.floor(data.balance || 0))
         } else if (response.status === 403) {
           // Silently handle 403 - user may not have access yet
-          console.warn('Access denied to balance endpoint')
+          logger.warn('Access denied to balance endpoint', undefined, 'PointsTracker')
         }
       } catch (error) {
-        console.error('Error fetching points:', error)
+        logger.error('Error fetching points:', error, 'PointsTracker')
       } finally {
         setLoading(false)
       }

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { User as UserIcon, LogOut, X, Wallet, Copy, Check } from 'lucide-react'
+import { User as UserIcon, LogOut, X, Copy, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
@@ -72,9 +72,27 @@ export function MobileHeader() {
             <PointsTracker showIcon={true} />
           </div>
 
-          {/* Right side: Notifications and Theme Toggle */}
+          {/* Right side: Notifications, Login/User Menu, and Theme Toggle */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            <NotificationsButton />
+            {authenticated ? (
+              <>
+                <NotificationsButton />
+                <button
+                  onClick={() => setShowUserMenu(true)}
+                  className="p-2 hover:bg-sidebar-accent transition-colors rounded-full"
+                  aria-label="User menu"
+                >
+                  <UserIcon className="w-5 h-5 text-sidebar-foreground" />
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => showLoginModal()}
+                className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                Login
+              </button>
+            )}
             <ThemeToggle compact />
           </div>
         </div>

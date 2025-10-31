@@ -18,6 +18,7 @@ export interface RateLimitResult {
   minutesUntilNextReply?: number;
   lastReplyAt?: Date;
   replyStreak?: number; // How many consecutive hours they've replied
+  expectedNextReply?: Date; // Expected next reply time based on ideal interval
 }
 
 export class ReplyRateLimiter {
@@ -25,6 +26,11 @@ export class ReplyRateLimiter {
   private static readonly MIN_REPLY_INTERVAL_MS = 55 * 60 * 1000; // 55 minutes
   private static readonly MAX_REPLY_INTERVAL_MS = 65 * 60 * 1000; // 65 minutes
   private static readonly IDEAL_REPLY_INTERVAL_MS = 60 * 60 * 1000; // 60 minutes
+  
+  // Use IDEAL_REPLY_INTERVAL_MS to calculate expected next reply time
+  static getExpectedNextReplyTime(lastReplyTime: Date): Date {
+    return new Date(lastReplyTime.getTime() + this.IDEAL_REPLY_INTERVAL_MS);
+  }
 
   /**
    * Check if user can reply to an NPC's post
@@ -51,6 +57,9 @@ export class ReplyRateLimiter {
 
     const now = new Date();
     const timeSinceLastReply = now.getTime() - lastInteraction.timestamp.getTime();
+    
+    // Calculate expected next reply time using IDEAL_REPLY_INTERVAL_MS
+    const expectedNextReply = this.getExpectedNextReplyTime(lastInteraction.timestamp);
 
     // Too soon - need to wait
     if (timeSinceLastReply < this.MIN_REPLY_INTERVAL_MS) {
@@ -60,13 +69,19 @@ export class ReplyRateLimiter {
       const minutesUntilNextReply = Math.ceil(
         (nextAllowedAt.getTime() - now.getTime()) / (60 * 1000)
       );
+      
+      // Use expectedNextReply for user messaging
+      const minutesUntilExpected = Math.ceil(
+        (expectedNextReply.getTime() - now.getTime()) / (60 * 1000)
+      );
 
       return {
         allowed: false,
-        reason: `You must wait at least 55 minutes between replies to the same NPC. Please wait ${minutesUntilNextReply} more minutes.`,
+        reason: `You must wait at least 55 minutes between replies to the same NPC. Expected next reply time: ${minutesUntilExpected} minutes. Please wait ${minutesUntilNextReply} more minutes.`,
         nextAllowedAt,
         minutesUntilNextReply,
         lastReplyAt: lastInteraction.timestamp,
+        expectedNextReply,
       };
     }
 

@@ -11,8 +11,11 @@
  *   bun run agents --count 5    (start 5 agents)
  */
 
-import { AutonomousAgent, type AgentConfig } from '../agents/AutonomousAgent';
+import { AutonomousAgent, type AgentConfig, type AgentAnalysisResult } from '../agents/AutonomousAgent';
 import { AgentRegistry } from '../agents/AgentRegistry';
+import type { Question } from '@/shared/types';
+import type { CoalitionProposal } from '../a2a/types';
+import { logger } from '@/lib/logger';
 
 interface CLIOptions {
   count?: number;
@@ -81,19 +84,19 @@ const agentTemplates: Omit<AgentConfig, 'a2aEndpoint'>[] = [
 async function main() {
   const options = parseArgs();
 
-  console.log('\n🤖 AUTONOMOUS AGENTS DEMO');
-  console.log('========================\n');
-  console.log(`Connecting ${options.count} agents to ${options.endpoint}\n`);
+  logger.info('AUTONOMOUS AGENTS DEMO', undefined, 'CLI');
+  logger.info('========================', undefined, 'CLI');
+  logger.info(`Connecting ${options.count} agents to ${options.endpoint}`, undefined, 'CLI');
 
   // Create agent registry
   const registry = new AgentRegistry();
 
   registry.on('agentRegistered', (data) => {
-    console.log(`📋 Agent registered: ${data.agentId}`);
+    logger.info(`Agent registered: ${data.agentId}`, undefined, 'CLI');
   });
 
   registry.on('performanceUpdated', (data) => {
-    console.log(`📈 Performance updated for ${data.agentId}`);
+    logger.info(`Performance updated for ${data.agentId}`, undefined, 'CLI');
   });
 
   // Create agents
@@ -108,82 +111,76 @@ async function main() {
     const agent = new AutonomousAgent(config);
     agents.push(agent);
 
-    // Setup event listeners
-    agent.on('connected', (data) => {
-      console.log(`✅ ${config.name} connected`);
-      console.log(`   Agent ID: ${data.agentId}`);
+    // Setup event listeners with proper types
+    agent.on('connected', (data: { agentId: string }) => {
+      logger.info(`${config.name} connected`, { agentId: data.agentId }, 'CLI');
     });
 
-    agent.on('marketUpdate', (data) => {
-      console.log(`📊 ${config.name} received market update`);
-      console.log(`   Active questions: ${data.questions.length}`);
+    agent.on('marketUpdate', (data: { questions: Question[]; priceUpdates?: unknown[]; timestamp?: number }) => {
+      logger.info(`${config.name} received market update`, { activeQuestions: data.questions.length }, 'CLI');
     });
 
-    agent.on('analysisComplete', (analysis) => {
-      console.log(`🔍 ${config.name} completed analysis`);
-      console.log(`   Question ID: ${analysis.questionId}`);
-      console.log(`   Prediction: ${analysis.prediction ? 'YES' : 'NO'}`);
-      console.log(`   Confidence: ${(analysis.confidence * 100).toFixed(1)}%`);
-      console.log(`   Reasoning: ${analysis.reasoning.substring(0, 100)}...`);
+    agent.on('analysisComplete', (analysis: AgentAnalysisResult) => {
+      logger.info(`${config.name} completed analysis`, {
+        questionId: analysis.questionId,
+        prediction: analysis.prediction ? 'YES' : 'NO',
+        confidence: `${(analysis.confidence * 100).toFixed(1)}%`,
+        reasoning: analysis.reasoning.substring(0, 100)
+      }, 'CLI');
     });
 
-    agent.on('coalitionJoined', (invite) => {
-      console.log(`🤝 ${config.name} joined coalition: ${invite.name}`);
+    agent.on('coalitionJoined', (invite: CoalitionProposal) => {
+      logger.info(`${config.name} joined coalition: ${invite.name || invite.coalitionId}`, undefined, 'CLI');
     });
 
-    agent.on('error', (error) => {
-      console.error(`❌ ${config.name} error:`, error.message);
+    agent.on('error', (error: Error) => {
+      logger.error(`${config.name} error:`, error.message, 'CLI');
     });
   }
 
   // Connect all agents
   try {
-    console.log('Connecting agents...\n');
+    logger.info('Connecting agents...', undefined, 'CLI');
     await Promise.all(agents.map(agent => agent.connect()));
-    console.log('\n✅ All agents connected successfully!\n');
+    logger.info('All agents connected successfully!', undefined, 'CLI');
 
     // Register agents with registry
-    console.log('Registering agents with registry...\n');
+    logger.info('Registering agents with registry...', undefined, 'CLI');
     for (const agent of agents) {
       registry.register(agent);
     }
 
     // Display registry stats
     const stats = registry.getStats();
-    console.log('📊 Registry Statistics:');
-    console.log(`   Total Agents: ${stats.totalAgents}`);
-    console.log(`   Active Agents: ${stats.activeAgents}`);
-    console.log(`   Strategy Distribution:`);
-    for (const [strategy, count] of stats.strategies.entries()) {
-      console.log(`     - ${strategy}: ${count} agents`);
-    }
-    console.log('');
+    logger.info('Registry Statistics:', {
+      totalAgents: stats.totalAgents,
+      activeAgents: stats.activeAgents,
+      strategies: Object.fromEntries(stats.strategies)
+    }, 'CLI');
   } catch (error) {
-    console.error('❌ Failed to connect agents:', error);
+    logger.error('Failed to connect agents:', error, 'CLI');
     process.exit(1);
   }
 
   // After 10 seconds, demonstrate agent discovery and coalition formation
   setTimeout(async () => {
-    console.log('\n🔍 Demonstrating agent discovery...\n');
+    logger.info('Demonstrating agent discovery...', undefined, 'CLI');
 
     if (agents.length >= 2) {
       const leader = agents[0]!;
       const leaderStatus = leader.getStatus();
 
       // Find coalition partners using registry
-      console.log(`${leaderStatus.name} searching for momentum traders...`);
+      logger.info(`${leaderStatus.name} searching for momentum traders...`, undefined, 'CLI');
       const partners = registry.findByStrategy('momentum');
-      console.log(`Found ${partners.length} momentum traders:\n`);
-      for (const partner of partners) {
-        console.log(`  - ${partner.profile.agentId}`);
-        console.log(`    Reputation: ${partner.profile.reputation}`);
-        console.log(`    Predictions: ${partner.performance.totalPredictions}`);
-        console.log('');
-      }
+      logger.info(`Found ${partners.length} momentum traders:`, partners.map(p => ({
+        agentId: p.profile.agentId,
+        reputation: p.profile.reputation,
+        predictions: p.performance.totalPredictions
+      })), 'CLI');
 
       // Form coalition
-      console.log('\n🤝 Forming coalition...\n');
+      logger.info('Forming coalition...', undefined, 'CLI');
       const coalitionId = await leader.proposeCoalition(
         'Momentum Coalition',
         'question-1',
@@ -192,66 +189,64 @@ async function main() {
       );
 
       if (coalitionId) {
-        console.log(`✅ Coalition created: ${coalitionId}`);
+        logger.info(`Coalition created: ${coalitionId}`, undefined, 'CLI');
       }
     }
   }, 10000);
 
   // Status report every 30 seconds
   setInterval(() => {
-    console.log('\n📊 AGENT STATUS REPORT');
-    console.log('====================\n');
+    logger.info('AGENT STATUS REPORT', undefined, 'CLI');
+    logger.info('====================', undefined, 'CLI');
 
     for (const agent of agents) {
       const status = agent.getStatus();
-      console.log(`${status.name}:`);
-      console.log(`  Connected: ${status.connected ? '✅' : '❌'}`);
-      console.log(`  Questions Tracked: ${status.questionsTracked}`);
-      console.log(`  Analyses Complete: ${status.analysesComplete}`);
-      console.log(`  Coalitions: ${status.coalitions}`);
-      console.log('');
+      logger.info(`${status.name}:`, {
+        connected: status.connected,
+        questionsTracked: status.questionsTracked,
+        analysesComplete: status.analysesComplete,
+        coalitions: status.coalitions
+      }, 'CLI');
     }
   }, 30000);
 
   // Handle graceful shutdown
   process.on('SIGINT', async () => {
-    console.log('\n\n📊 Final Agent Statistics:');
-    console.log('=========================\n');
+    logger.info('Final Agent Statistics:', undefined, 'CLI');
+    logger.info('=========================', undefined, 'CLI');
 
     for (const agent of agents) {
       const status = agent.getStatus();
       const analyses = agent.getAllAnalyses();
 
-      console.log(`${status.name}:`);
-      console.log(`  Total Analyses: ${analyses.length}`);
-      console.log(`  Average Confidence: ${
-        analyses.length > 0
-          ? (analyses.reduce((sum, a) => sum + a.confidence, 0) / analyses.length * 100).toFixed(1)
-          : 'N/A'
-      }%`);
-      console.log(`  Coalitions Joined: ${status.coalitions}`);
-      console.log('');
+      logger.info(`${status.name}:`, {
+        totalAnalyses: analyses.length,
+        averageConfidence: analyses.length > 0
+          ? `${(analyses.reduce((sum, a) => sum + a.confidence, 0) / analyses.length * 100).toFixed(1)}%`
+          : 'N/A',
+        coalitionsJoined: status.coalitions
+      }, 'CLI');
     }
 
-    console.log('Disconnecting agents...');
+    logger.info('Disconnecting agents...', undefined, 'CLI');
     await Promise.all(agents.map(agent => agent.disconnect()));
-    console.log('✅ All agents disconnected\n');
+    logger.info('All agents disconnected', undefined, 'CLI');
 
     process.exit(0);
   });
 
   // Keep process alive
-  console.log('Agents are now running. Press Ctrl+C to stop.\n');
-  console.log('Monitoring agent activity...\n');
+  logger.info('Agents are now running. Press Ctrl+C to stop.', undefined, 'CLI');
+  logger.info('Monitoring agent activity...', undefined, 'CLI');
   await new Promise(() => {});
 }
 
 // Run if called directly
 if (import.meta.main) {
   main().catch(error => {
-    console.error('\n❌ Error:', error.message);
+    logger.error('Error:', error.message, 'CLI');
     if (error.stack) {
-      console.error(error.stack);
+      logger.error('Stack trace:', error.stack, 'CLI');
     }
     process.exit(1);
   });

@@ -5,6 +5,7 @@ import { Send, X } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useInteractionStore } from '@/stores/interactionStore';
 import type { CommentInputProps } from '@/types/interactions';
+import { logger } from '@/lib/logger';
 
 const MAX_COMMENT_LENGTH = 5000;
 
@@ -66,7 +67,7 @@ export function CommentInput({
         }
       }
     } catch (error) {
-      console.error('Failed to add comment:', error);
+      logger.error('Failed to add comment:', error, 'CommentInput');
     } finally {
       setIsSubmitting(false);
     }

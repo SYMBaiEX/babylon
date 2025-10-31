@@ -14,6 +14,7 @@
 import { PrismaClient } from '@prisma/client';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { logger } from '../src/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -23,18 +24,19 @@ interface ActorsDatabase {
 }
 
 async function main() {
-  console.log('\n🌱 SEEDING DATABASE\n');
+  logger.info('SEEDING DATABASE', undefined, 'Script');
 
   // Load actors.json
   const actorsPath = join(process.cwd(), 'data', 'actors.json');
   const actorsData: ActorsDatabase = JSON.parse(readFileSync(actorsPath, 'utf-8'));
 
-  console.log(`📋 Loaded:
-   • ${actorsData.actors.length} actors
-   • ${actorsData.organizations.length} organizations\n`);
+  logger.info('Loaded:', {
+    actors: actorsData.actors.length,
+    organizations: actorsData.organizations.length
+  }, 'Script');
 
   // Seed actors
-  console.log('👥 Seeding actors...');
+  logger.info('Seeding actors...', undefined, 'Script');
   for (const actor of actorsData.actors) {
     await prisma.actor.upsert({
       where: { id: actor.id },
@@ -61,15 +63,15 @@ async function main() {
       },
     });
   }
-  console.log(`  ✓ Seeded ${actorsData.actors.length} actors\n`);
+  logger.info(`Seeded ${actorsData.actors.length} actors`, undefined, 'Script');
 
   // Seed organizations
-  console.log('🏢 Seeding organizations...');
+  logger.info('Seeding organizations...', undefined, 'Script');
   let orgCount = 0;
   for (const org of actorsData.organizations) {
     // Skip if missing required fields
     if (!org.id || !org.name || !org.type) {
-      console.warn(`  ⚠️  Skipping org "${org.id || 'unknown'}" - missing required fields`);
+      logger.warn(`Skipping org "${org.id || 'unknown'}" - missing required fields`, undefined, 'Script');
       continue;
     }
 
@@ -95,10 +97,10 @@ async function main() {
     });
     orgCount++;
   }
-  console.log(`  ✓ Seeded ${orgCount} organizations\n`);
+  logger.info(`Seeded ${orgCount} organizations`, undefined, 'Script');
 
   // Initialize game state
-  console.log('🎮 Initializing game state...');
+  logger.info('Initializing game state...', undefined, 'Script');
   const existingGame = await prisma.game.findFirst({
     where: { isContinuous: true },
   });
@@ -113,9 +115,9 @@ async function main() {
         speed: 60000,
       },
     });
-    console.log('  ✓ Game state initialized\n');
+    logger.info('Game state initialized', undefined, 'Script');
   } else {
-    console.log('  ✓ Game state already exists\n');
+    logger.info('Game state already exists', undefined, 'Script');
   }
 
   // Stats
@@ -126,17 +128,18 @@ async function main() {
     posts: await prisma.post.count(),
   };
 
-  console.log('📊 Database Summary:');
-  console.log(`   Actors: ${stats.actors}`);
-  console.log(`   Organizations: ${stats.organizations} (${stats.companies} companies)`);
-  console.log(`   Posts: ${stats.posts}\n`);
+  logger.info('Database Summary:', {
+    actors: stats.actors,
+    organizations: `${stats.organizations} (${stats.companies} companies)`,
+    posts: stats.posts
+  }, 'Script');
 
-  console.log('✅ SEED COMPLETE\n');
+  logger.info('SEED COMPLETE', undefined, 'Script');
 }
 
 main()
   .catch((error) => {
-    console.error('❌ Seed failed:', error);
+    logger.error('Seed failed:', error, 'Script');
     process.exit(1);
   })
   .finally(async () => {

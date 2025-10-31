@@ -8,6 +8,7 @@ import { readFile, writeFile, exists } from "fs/promises";
 import { join } from "path";
 import { config } from "dotenv";
 import { loadPrompt } from "../prompts/loader.js";
+import { logger } from '@/lib/logger';
 
 // Load environment variables
 config();
@@ -102,7 +103,7 @@ function getOriginalCompanyName(satiricalName: string, orgId: string): string {
 }
 
 async function generateActorImage(actor: Actor): Promise<string> {
-  console.log(`Generating image for ${actor.name}...`);
+  logger.info(`Generating image for ${actor.name}...`, undefined, 'CLI');
 
   // Extract key satirical elements from description
   const descriptionParts = actor.description.split('.').slice(0, 3).join('. ');
@@ -125,7 +126,7 @@ async function generateActorImage(actor: Actor): Promise<string> {
     logs: true,
     onQueueUpdate: (update) => {
       if (update.status === "IN_PROGRESS") {
-        update.logs.map((log) => log.message).forEach(console.log);
+        update.logs.map((log) => log.message).forEach(msg => logger.debug(msg, undefined, 'CLI'));
       }
     },
   }) as FalResponse;
@@ -141,13 +142,13 @@ async function generateActorImage(actor: Actor): Promise<string> {
   }
 
   const imageUrl = firstImage.url;
-  console.log(`✓ Generated image for ${actor.name}: ${imageUrl}`);
+  logger.info(`Generated image for ${actor.name}: ${imageUrl}`, undefined, 'CLI');
 
   return imageUrl;
 }
 
 async function generateOrganizationImage(org: Organization): Promise<string> {
-  console.log(`Generating image for ${org.name}...`);
+  logger.info(`Generating image for ${org.name}...`, undefined, 'CLI');
 
   // Get the original company name for logo parody
   const originalCompany = getOriginalCompanyName(org.name, org.id);
@@ -170,7 +171,7 @@ async function generateOrganizationImage(org: Organization): Promise<string> {
     logs: true,
     onQueueUpdate: (update) => {
       if (update.status === "IN_PROGRESS") {
-        update.logs.map((log) => log.message).forEach(console.log);
+        update.logs.map((log) => log.message).forEach(msg => logger.debug(msg, undefined, 'CLI'));
       }
     },
   }) as FalResponse;
@@ -186,7 +187,7 @@ async function generateOrganizationImage(org: Organization): Promise<string> {
   }
 
   const imageUrl = firstImage.url;
-  console.log(`✓ Generated image for ${org.name}: ${imageUrl}`);
+  logger.info(`Generated image for ${org.name}: ${imageUrl}`, undefined, 'CLI');
 
   return imageUrl;
 }
@@ -196,16 +197,16 @@ async function downloadImage(url: string, filepath: string): Promise<void> {
   const arrayBuffer = await response.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
   await writeFile(filepath, buffer);
-  console.log(`✓ Saved image to ${filepath}`);
+  logger.info(`Saved image to ${filepath}`, undefined, 'CLI');
 }
 
 async function main() {
-  console.log("🎨 Checking actor and organization images...\n");
+  logger.info("Checking actor and organization images...", undefined, 'CLI');
 
   // Check for FAL_KEY
   if (!process.env.FAL_KEY) {
-    console.error("❌ Error: FAL_KEY not found in environment variables");
-    console.error("Please add FAL_KEY to your .env file");
+    logger.error("Error: FAL_KEY not found in environment variables", undefined, 'CLI');
+    logger.error("Please add FAL_KEY to your .env file", undefined, 'CLI');
     process.exit(1);
   }
 
@@ -226,12 +227,12 @@ async function main() {
   let skippedCount = 0;
 
   // Generate actor images
-  console.log(`\n📸 Processing ${actorsDb.actors.length} actors...\n`);
+  logger.info(`Processing ${actorsDb.actors.length} actors...`, undefined, 'CLI');
   for (const actor of actorsDb.actors) {
     const imagePath = join(actorsImagesDir, `${actor.id}.jpg`);
     
     if (await fileExists(imagePath)) {
-      console.log(`✓ Image already exists for ${actor.name}`);
+      logger.debug(`Image already exists for ${actor.name}`, undefined, 'CLI');
       skippedCount++;
       continue;
     }
@@ -245,12 +246,12 @@ async function main() {
   }
 
   // Generate organization images
-  console.log(`\n🏢 Processing ${actorsDb.organizations.length} organizations...\n`);
+  logger.info(`Processing ${actorsDb.organizations.length} organizations...`, undefined, 'CLI');
   for (const org of actorsDb.organizations) {
     const imagePath = join(orgsImagesDir, `${org.id}.jpg`);
     
     if (await fileExists(imagePath)) {
-      console.log(`✓ Image already exists for ${org.name}`);
+      logger.debug(`Image already exists for ${org.name}`, undefined, 'CLI');
       skippedCount++;
       continue;
     }
@@ -263,12 +264,16 @@ async function main() {
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
 
-  console.log(`\n✓ Complete!`);
-  console.log(`  - Generated: ${generatedCount}`);
-  console.log(`  - Skipped (already exists): ${skippedCount}`);
-  console.log(`  - Total actors: ${actorsDb.actors.length}`);
-  console.log(`  - Total organizations: ${actorsDb.organizations.length}`);
+  logger.info('Complete!', {
+    generated: generatedCount,
+    skipped: skippedCount,
+    totalActors: actorsDb.actors.length,
+    totalOrganizations: actorsDb.organizations.length
+  }, 'CLI');
 }
 
-main().catch(console.error);
+main().catch(error => {
+  logger.error('Error:', error, 'CLI');
+  process.exit(1);
+});
 

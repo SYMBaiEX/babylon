@@ -10,6 +10,7 @@ interface User {
   bio?: string
   profileImageUrl?: string
   profileComplete?: boolean
+  nftTokenId?: number | null
 }
 
 interface Wallet {

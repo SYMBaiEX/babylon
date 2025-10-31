@@ -3,7 +3,7 @@
  * Methods: POST (buy YES or NO shares in prediction market)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient, Prisma } from '@prisma/client';
 import {
   authenticate,
@@ -13,6 +13,7 @@ import {
 } from '@/lib/api/auth-middleware';
 import { WalletService } from '@/services/WalletService';
 import { PredictionPricing } from '@/lib/prediction-pricing';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -151,7 +152,7 @@ export async function POST(
 
     // 11. Log agent activity (if agent)
     if (user.isAgent) {
-      console.log(`🤖 Agent ${user.userId} placed trade: ${side.toUpperCase()} $${amount} on market ${marketId}`)
+      logger.info(`Agent ${user.userId} placed trade: ${side.toUpperCase()} $${amount} on market ${marketId}`, undefined, 'POST /api/markets/predictions/[id]/buy')
       // Could also store in agent_activity table if we create one
     }
 
@@ -183,7 +184,7 @@ export async function POST(
     if (error instanceof Error && error.message.includes('Insufficient balance')) {
       return errorResponse(error.message, 400);
     }
-    console.error('Error buying shares:', error);
+    logger.error('Error buying shares:', error, 'POST /api/markets/predictions/[id]/buy');
     return errorResponse('Failed to buy shares');
   }
 }

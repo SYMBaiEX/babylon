@@ -12,7 +12,7 @@ export interface Scenario {
 }
 
 export interface Question {
-  id: number;
+  id: number | string;
   text: string;
   scenario: number;
   outcome: boolean;

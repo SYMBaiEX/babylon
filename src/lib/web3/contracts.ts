@@ -3,7 +3,7 @@
  * ERC-8004 Identity, Reputation, and Prediction Market contracts on Base L2
  */
 
-import { Address } from 'viem'
+import type { Address } from 'viem'
 
 export interface ContractAddresses {
   identityRegistry: Address

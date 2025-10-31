@@ -3,7 +3,7 @@
  * Methods: GET (get chat details and messages)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
@@ -11,6 +11,7 @@ import {
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -104,7 +105,7 @@ export async function GET(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    console.error('Error fetching chat:', error);
+    logger.error('Error fetching chat:', error, 'GET /api/chats/[id]');
     return errorResponse('Failed to fetch chat');
   }
 }

@@ -11,7 +11,8 @@ import { createWalletClient, createPublicClient, http, parseEther, decodeEventLo
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-middleware'
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Prisma } from '@prisma/client'
+import { logger } from '@/lib/logger'
 
 const prisma = new PrismaClient()
 
@@ -48,6 +49,13 @@ const IDENTITY_REGISTRY_ABI = [
     name: 'getTokenId',
     inputs: [{ name: '_address', type: 'address' }],
     outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'ownerOf',
+    inputs: [{ name: 'tokenId', type: 'uint256' }],
+    outputs: [{ name: '', type: 'address' }],
     stateMutability: 'view',
   },
   {
@@ -226,11 +234,11 @@ export async function POST(request: NextRequest) {
       registered: new Date().toISOString(),
     })
 
-    console.log('Registering agent on-chain:', {
+    logger.info('Registering agent on-chain:', {
       wallet: walletAddress,
       name,
       endpoint: agentEndpoint,
-    })
+    }, 'POST /api/auth/onboard')
 
     // Call registerAgent on Identity Registry
     const txHash = await walletClient.writeContract({
@@ -240,7 +248,7 @@ export async function POST(request: NextRequest) {
       args: [name, agentEndpoint, capabilitiesHash, metadataURI],
     })
 
-    console.log('Registration transaction sent:', txHash)
+    logger.info('Registration transaction sent:', txHash, 'POST /api/auth/onboard')
 
     // Wait for transaction confirmation (wait for more confirmations to ensure state is synced)
     const receipt = await publicClient.waitForTransactionReceipt({
@@ -267,7 +275,7 @@ export async function POST(request: NextRequest) {
           tokenId = Number(decodedLog.args.tokenId)
           break
         }
-      } catch (e) {
+      } catch {
         // Skip logs we can't decode
       }
     }
@@ -283,13 +291,13 @@ export async function POST(request: NextRequest) {
       tokenId = Number(queriedTokenId)
     }
 
-    console.log('Agent registered with token ID:', tokenId)
+    logger.info('Agent registered with token ID:', tokenId, 'POST /api/auth/onboard')
 
     // Set initial reputation to 70 (by recording 10 bets with 7 wins = 70% accuracy)
     // This gives trustScore ≈ 7000 (70 out of 100)
     // Note: We already waited for transaction confirmation above, but we need to verify token exists
     try {
-      console.log('Setting initial reputation to 70...')
+      logger.info('Setting initial reputation to 70...', undefined, 'POST /api/auth/onboard')
       
       // Wait a bit for state to sync after registration
       await new Promise(resolve => setTimeout(resolve, 1000))
@@ -304,7 +312,7 @@ export async function POST(request: NextRequest) {
       })
 
       if (!isRegistered) {
-        console.warn('Token not registered yet, skipping reputation setup')
+        logger.warn('Token not registered yet, skipping reputation setup', undefined, 'POST /api/auth/onboard')
         throw new Error('Token not registered - cannot set reputation')
       }
 
@@ -315,15 +323,15 @@ export async function POST(request: NextRequest) {
           abi: IDENTITY_REGISTRY_ABI,
           functionName: 'ownerOf',
           args: [BigInt(tokenId)],
-        })
+        }) as Address
 
         if (!owner || owner === '0x0000000000000000000000000000000000000000') {
           throw new Error('Token owner is zero address')
         }
 
-        console.log('Token verified in registry, owner:', owner)
-      } catch (ownerError) {
-        console.warn('Could not verify token owner, but isRegistered=true, proceeding anyway')
+        logger.info('Token verified in registry, owner:', owner, 'POST /api/auth/onboard')
+      } catch {
+        logger.warn('Could not verify token owner, but isRegistered=true, proceeding anyway', undefined, 'POST /api/auth/onboard')
       }
 
       // Record 10 bets total
@@ -357,9 +365,9 @@ export async function POST(request: NextRequest) {
       // Wait for remaining transactions
       await new Promise(resolve => setTimeout(resolve, 2000))
 
-      console.log('Initial reputation set to 70 (7 wins out of 10 bets)')
+      logger.info('Initial reputation set to 70 (7 wins out of 10 bets)', undefined, 'POST /api/auth/onboard')
     } catch (error) {
-      console.error('Failed to set initial reputation:', error)
+      logger.error('Failed to set initial reputation:', error, 'POST /api/auth/onboard')
       // Don't fail registration if reputation setup fails
     }
 
@@ -387,7 +395,7 @@ export async function POST(request: NextRequest) {
 
       if (!existingBonus) {
         const balanceBefore = dbUser.virtualBalance
-        const amountDecimal = new (await import('@prisma/client')).Prisma.Decimal(1000)
+        const amountDecimal = new Prisma.Decimal(1000)
         const balanceAfter = balanceBefore.plus(amountDecimal)
 
         // Create transaction record
@@ -411,12 +419,12 @@ export async function POST(request: NextRequest) {
           },
         })
 
-        console.log('Successfully awarded 1,000 points to user')
+        logger.info('Successfully awarded 1,000 points to user', undefined, 'POST /api/auth/onboard')
       } else {
-        console.log('Welcome bonus already awarded to user')
+        logger.info('Welcome bonus already awarded to user', undefined, 'POST /api/auth/onboard')
       }
     } catch (error) {
-      console.error('Error awarding points (non-critical):', error)
+      logger.error('Error awarding points (non-critical):', error, 'POST /api/auth/onboard')
       // Don't fail registration if points award fails
     }
 
@@ -430,7 +438,7 @@ export async function POST(request: NextRequest) {
       pointsAwarded: 1000,
     })
   } catch (error) {
-    console.error('Registration error:', error)
+    logger.error('Registration error:', error, 'POST /api/auth/onboard')
     return errorResponse(
       error instanceof Error ? error.message : 'Failed to register on-chain',
       500
@@ -496,7 +504,7 @@ export async function GET(request: NextRequest) {
       dbRegistered: dbUser.onChainRegistered,
     })
   } catch (error) {
-    console.error('Status check error:', error)
+    logger.error('Status check error:', error, 'GET /api/auth/onboard')
     return errorResponse(
       error instanceof Error ? error.message : 'Failed to check registration status',
       500

@@ -8,6 +8,7 @@
 import { EventEmitter } from 'events';
 import type { AutonomousAgent } from './AutonomousAgent';
 import type { AgentProfile, AgentCapabilities, AgentReputation } from '../a2a/types';
+import { logger } from '@/lib/logger';
 
 export interface RegisteredAgent {
   agent: AutonomousAgent;
@@ -64,6 +65,7 @@ export class AgentRegistry extends EventEmitter {
 
     // Create profile following A2A protocol
     const profile: AgentProfile = {
+      agentId: status.agentId,
       tokenId: 0, // Can be set if agent has NFT
       address: status.address,
       name: status.name,
@@ -101,7 +103,7 @@ export class AgentRegistry extends EventEmitter {
     this.setupAgentListeners(agent, status.agentId);
 
     this.emit('agentRegistered', { agentId: status.agentId, profile });
-    console.log(`📋 Registered agent: ${status.name} (${status.agentId})`);
+    logger.info(`Registered agent: ${status.name} (${status.agentId})`, undefined, 'AgentRegistry');
   }
 
   /**
@@ -158,7 +160,7 @@ export class AgentRegistry extends EventEmitter {
 
     this.agents.delete(agentId);
     this.emit('agentUnregistered', { agentId });
-    console.log(`📋 Unregistered agent: ${agentId}`);
+    logger.info(`Unregistered agent: ${agentId}`, undefined, 'AgentRegistry');
   }
 
   /**

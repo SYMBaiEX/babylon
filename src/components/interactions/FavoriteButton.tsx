@@ -5,6 +5,7 @@ import { Bookmark } from 'lucide-react';
 import { useState } from 'react';
 import { useInteractionStore } from '@/stores/interactionStore';
 import type { FavoriteButtonProps } from '@/types/interactions';
+import { logger } from '@/lib/logger';
 
 const sizeClasses = {
   sm: {
@@ -54,7 +55,7 @@ export function FavoriteButton({
     } catch (error) {
       // Rollback on error
       setIsFavorited(wasFavorited);
-      console.error('Failed to toggle favorite:', error);
+      logger.error('Failed to toggle favorite:', error, 'FavoriteButton');
     }
   };
 

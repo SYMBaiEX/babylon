@@ -16,10 +16,11 @@ import 'dotenv/config';
 
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
 import { PriceEngine } from '@/engine/PriceEngine';
-import type { FeedPost, WorldEvent } from '@/shared/types';
+import type { FeedPost, WorldEvent, Organization, Actor, Question } from '@/shared/types';
 import { shuffleArray } from '@/shared/utils';
 import { db } from './database-service';
 import { PredictionPricing } from './prediction-pricing';
+import { logger } from './logger';
 
 // ============================================================================
 // TYPES
@@ -81,7 +82,8 @@ class PredictionCadenceManager {
     const days = daysMap[cadence.duration];
     
     const allActive = await db.getActiveQuestions();
-    const activeOfType = allActive.filter((q: any) => {
+    const activeOfType = allActive.filter((q) => {
+      if (!q.resolutionDate) return false;
       const resTime = new Date(q.resolutionDate).getTime();
       const targetTime = Date.now() + days * 24 * 60 * 60 * 1000;
       return Math.abs(resTime - targetTime) < 12 * 60 * 60 * 1000;
@@ -102,7 +104,7 @@ class PredictionCadenceManager {
       const daysMap = { '24h': 1, '3d': 3, '7d': 7, '30d': 30 };
       const resolutionDate = new Date(Date.now() + daysMap[cadence.duration] * 24 * 60 * 60 * 1000);
 
-      const prompt = this.buildPrompt(cadence.duration, actors, orgs);
+      const prompt = this.buildPrompt(cadence.duration, actors as Actor[], orgs as Organization[]);
       const response = await this.llm.generateJSON<{ question: string; expectedOutcome: boolean }>(
         prompt,
         undefined,
@@ -128,17 +130,18 @@ class PredictionCadenceManager {
         createdDate: new Date().toISOString(),
         resolutionDate: resolutionDate.toISOString(),
         status: 'active',
-      } as any);
+      });
 
-      console.log(`    ✓ Created ${cadence.duration} question: "${response.question.slice(0, 50)}..."`);
+      logger.info(`Created ${cadence.duration} question: "${response.question.slice(0, 50)}..."`, { duration: cadence.duration }, 'PredictionCadence');
       return true;
     } catch (error) {
-      console.error(`    ❌ Failed to create ${cadence.duration} question:`, error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to create ${cadence.duration} question: ${errorMessage}`, { error, duration: cadence.duration }, 'PredictionCadence');
       return false;
     }
   }
 
-  private async resolveQuestion(question: any): Promise<void> {
+  private async resolveQuestion(question: Question): Promise<void> {
     try {
       const event = await this.generateResolutionEvent(question);
       
@@ -147,21 +150,22 @@ class PredictionCadenceManager {
         eventType: 'revelation',
         description: event,
         actors: [],
-        relatedQuestion: question.questionNumber,
+        relatedQuestion: question.questionNumber ?? (typeof question.id === 'number' ? question.id : undefined),
         pointsToward: question.outcome ? 'YES' : 'NO',
         visibility: 'public',
         gameId: 'continuous',
         dayNumber: Math.floor((Date.now() - new Date('2025-10-01').getTime()) / (1000 * 60 * 60 * 24)),
       });
       
-      await db.resolveQuestion(question.id, question.outcome);
-      console.log(`    ✓ Resolved: "${question.text}" → ${question.outcome ? 'YES' : 'NO'}`);
+      await db.resolveQuestion(String(question.id), question.outcome);
+      logger.info(`Resolved: "${question.text}" → ${question.outcome ? 'YES' : 'NO'}`, { questionId: question.id, outcome: question.outcome }, 'PredictionCadence');
     } catch (error) {
-      console.error('    ❌ Failed to resolve question:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to resolve question: ${errorMessage}`, { error, questionId: question.id }, 'PredictionCadence');
     }
   }
 
-  private async generateResolutionEvent(question: any): Promise<string> {
+  private async generateResolutionEvent(question: Question): Promise<string> {
     try {
       const response = await this.llm.generateJSON<{ event: string }>(
         `Generate a brief resolution event (max 120 chars) for: "${question.text}" → ${question.outcome ? 'YES' : 'NO'}. JSON: {"event": "..."}`,
@@ -174,10 +178,10 @@ class PredictionCadenceManager {
     }
   }
 
-  private buildPrompt(duration: string, actors: any[], orgs: any[]): string {
+  private buildPrompt(duration: string, actors: Actor[], orgs: Organization[]): string {
     const timeframes = { '24h': 'within 24 hours', '3d': 'within 3 days', '7d': 'within 7 days', '30d': 'within 30 days' };
-    const actorList = actors.slice(0, 20).map(a => a.name).join(', ');
-    const companyList = orgs.filter((o: any) => o.type === 'company').slice(0, 15).map((o: any) => o.name).join(', ');
+    const actorList = actors.slice(0, 20).map((a) => a.name).join(', ');
+    const companyList = orgs.filter((o): o is Organization => o.type === 'company').slice(0, 15).map((o) => o.name).join(', ');
 
     return `Generate ONE prediction market question that will resolve ${timeframes[duration as keyof typeof timeframes]}.
 
@@ -228,34 +232,41 @@ export class BabylonEngine {
   async initialize() {
     if (this.initialized) return;
 
-    console.log('\n🎮 BABYLON ENGINE: Initializing...\n');
+    logger.info('BABYLON ENGINE: Initializing...', undefined, 'BabylonEngine');
 
     try {
       // Check database
       await db.getStats();
-      console.log('✅ Database connected');
+      logger.info('Database connected', undefined, 'BabylonEngine');
 
       // Initialize game state
       const gameState = await db.getGameState();
       if (!gameState) {
         await db.initializeGame();
-        console.log('✅ Game state initialized');
+        logger.info('Game state initialized', undefined, 'BabylonEngine');
       } else {
-        console.log(`✅ Game state loaded (Day ${gameState.currentDay})`);
+        logger.info(`Game state loaded (Day ${gameState.currentDay})`, { currentDay: gameState.currentDay }, 'BabylonEngine');
       }
 
       // Initialize price engine
       const orgs = await db.getAllOrganizations();
-      this.priceEngine.initializeCompanies(orgs as any);
-      console.log(`💰 Initialized ${orgs.filter((o: any) => o.type === 'company').length} company prices`);
+      this.priceEngine.initializeCompanies(orgs);
+      const companyCount = orgs.filter((o) => o.type === 'company').length;
+      logger.info(`Initialized ${companyCount} company prices`, { companyCount }, 'BabylonEngine');
 
       // Show stats
       const stats = await db.getStats();
-      console.log(`\n📊 Stats: ${stats.totalPosts} posts, ${stats.activeQuestions}/${stats.totalQuestions} questions, ${stats.totalActors} actors\n`);
+      logger.info(`Stats: ${stats.totalPosts} posts, ${stats.activeQuestions}/${stats.totalQuestions} questions, ${stats.totalActors} actors`, {
+        totalPosts: stats.totalPosts,
+        activeQuestions: stats.activeQuestions,
+        totalQuestions: stats.totalQuestions,
+        totalActors: stats.totalActors
+      }, 'BabylonEngine');
 
       this.initialized = true;
     } catch (error) {
-      console.error('❌ Initialization failed:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Initialization failed: ${errorMessage}`, { error }, 'BabylonEngine');
       throw error;
     }
   }
@@ -268,41 +279,49 @@ export class BabylonEngine {
     await this.initialize();
     
     this.isRunning = true;
-    console.log('🚀 Engine started (60s ticks)\n');
+    logger.info('Engine started (60s ticks)', undefined, 'BabylonEngine');
 
     // First tick after 5s
-    setTimeout(() => this.tick(), 5000);
+    setTimeout((): void => {
+      this.tick().catch((tickError: Error) => {
+        logger.error('Tick error', { error: tickError }, 'BabylonEngine');
+      });
+    }, 5000);
 
     // Then every 60s
-    this.intervalId = setInterval(() => this.tick(), 60000);
+    this.intervalId = setInterval((): void => {
+      this.tick().catch((tickError: Error) => {
+        logger.error('Tick error', { error: tickError }, 'BabylonEngine');
+      });
+    }, 60000);
   }
 
   stop() {
     if (this.intervalId) clearInterval(this.intervalId);
     this.isRunning = false;
-    console.log('🛑 Engine stopped');
+    logger.info('Engine stopped', undefined, 'BabylonEngine');
   }
 
   // ========== MAIN TICK ==========
 
   private async tick() {
     const timestamp = new Date();
-    console.log(`⏰ [${timestamp.toISOString()}] Tick...`);
+    logger.debug(`Tick at ${timestamp.toISOString()}`, { timestamp }, 'BabylonEngine');
 
     try {
       // 1. Process prediction cadence
       const cadence = await this.predictionCadence.processCadence();
-      if (cadence.resolved > 0) console.log(`  🎯 Resolved ${cadence.resolved} questions`);
-      if (cadence.created > 0) console.log(`  📝 Created ${cadence.created} questions`);
+      if (cadence.resolved > 0) logger.info(`Resolved ${cadence.resolved} questions`, { resolved: cadence.resolved }, 'BabylonEngine');
+      if (cadence.created > 0) logger.info(`Created ${cadence.created} questions`, { created: cadence.created }, 'BabylonEngine');
 
       // 2. Get active questions
       const activeQuestions = await db.getActiveQuestions();
-      console.log(`  📊 Active: ${activeQuestions.length} questions`);
+      logger.debug(`Active: ${activeQuestions.length} questions`, { activeQuestions: activeQuestions.length }, 'BabylonEngine');
 
       // 3. Generate events
       const events = await this.generateEvents(activeQuestions);
       if (events.length > 0) {
-        console.log(`  🌍 Generated ${events.length} events`);
+        logger.info(`Generated ${events.length} events`, { eventCount: events.length }, 'BabylonEngine');
         for (const event of events) {
           await db.createEvent({
             id: event.id,
@@ -320,7 +339,7 @@ export class BabylonEngine {
 
       // 4. Update stock prices
       const priceUpdates = await this.updateAllStockPrices(events, activeQuestions);
-      if (priceUpdates > 0) console.log(`  💰 Updated ${priceUpdates} prices`);
+      if (priceUpdates > 0) logger.info(`Updated ${priceUpdates} prices`, { priceUpdates }, 'BabylonEngine');
 
       // 5. Generate posts
       const posts = await this.generatePosts(events, activeQuestions);
@@ -330,7 +349,7 @@ export class BabylonEngine {
           gameId: 'continuous',
           dayNumber: Math.floor((timestamp.getTime() - new Date('2025-10-01').getTime()) / (1000 * 60 * 60 * 24)),
         })));
-        console.log(`  📱 Generated ${posts.length} posts`);
+        logger.info(`Generated ${posts.length} posts`, { postCount: posts.length }, 'BabylonEngine');
       }
 
       // 6. Update game state
@@ -340,13 +359,14 @@ export class BabylonEngine {
       });
 
     } catch (error) {
-      console.error('  ❌ Tick failed:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Tick failed: ${errorMessage}`, { error }, 'BabylonEngine');
     }
   }
 
   // ========== EVENT GENERATION ==========
 
-  private async generateEvents(questions: any[]): Promise<WorldEvent[]> {
+  private async generateEvents(questions: Question[]): Promise<WorldEvent[]> {
     if (questions.length === 0) return [];
 
     const events: WorldEvent[] = [];
@@ -357,7 +377,7 @@ export class BabylonEngine {
       if (!question) continue;
 
       const actors = await db.getAllActors();
-      const involvedActors = shuffleArray(actors as any[]).slice(0, 2);
+      const involvedActors = shuffleArray(actors).slice(0, 2);
       
       try {
         const response = await this.llm.generateJSON<{ event: string }>(
@@ -366,12 +386,19 @@ export class BabylonEngine {
           { temperature: 0.9, maxTokens: 200 }
         );
 
+        // Calculate current game day (days since game start)
+        const gameStartDate = new Date('2024-01-01');
+        const now = new Date();
+        const daysSinceStart = Math.floor((now.getTime() - gameStartDate.getTime()) / (1000 * 60 * 60 * 24));
+        const currentDay = daysSinceStart + 1; // Day 1 is the first day
+
         events.push({
           id: `event-${Date.now()}-${i}`,
+          day: currentDay,
           type: Math.random() > 0.7 ? 'scandal' : Math.random() > 0.5 ? 'announcement' : 'meeting',
           description: response.event || `Event: ${question.text}`,
-          actors: involvedActors.map((a: any) => a.id).filter(Boolean),
-          relatedQuestion: question.questionNumber,
+          actors: involvedActors.map((a) => a.id).filter((id): id is string => Boolean(id)),
+          relatedQuestion: question.questionNumber ?? (typeof question.id === 'number' ? question.id : undefined),
           pointsToward: question.outcome ? 'YES' : 'NO',
           visibility: 'public',
         });
@@ -385,16 +412,16 @@ export class BabylonEngine {
 
   // ========== PRICE UPDATES ==========
 
-  private async updateAllStockPrices(events: WorldEvent[], questions: any[]): Promise<number> {
+  private async updateAllStockPrices(events: WorldEvent[], questions: Question[]): Promise<number> {
     let updateCount = 0;
-    const orgs = await db.getAllOrganizations();
-    const companies = orgs.filter((o: any) => o.type === 'company');
+    const orgs = await db.getAllOrganizations() as Organization[];
+    const companies = orgs.filter((o): o is Organization => o.type === 'company');
     const marketSentiment = this.calculateMarketSentiment(events, questions);
     
     for (const company of companies) {
       try {
-        const companyId = (company as any).id;
-        const currentPrice = (company as any).currentPrice || (company as any).initialPrice || 100;
+        const companyId = company.id;
+        const currentPrice = company.currentPrice || company.initialPrice || 100;
         
         // Calculate price change (Markov + sentiment)
         const volatility = 0.0001 + Math.random() * 0.0009; // 0.01-0.1% per minute
@@ -421,7 +448,7 @@ export class BabylonEngine {
     return updateCount;
   }
 
-  private calculateMarketSentiment(events: WorldEvent[], questions: any[]): number {
+  private calculateMarketSentiment(events: WorldEvent[], questions: Question[]): number {
     let sentiment = 0;
     let count = 0;
     
@@ -443,28 +470,34 @@ export class BabylonEngine {
 
   // ========== POST GENERATION ==========
 
-  private async generatePosts(events: WorldEvent[], questions: any[]): Promise<FeedPost[]> {
+  private async generatePosts(events: WorldEvent[], questions: Question[]): Promise<FeedPost[]> {
     const posts: FeedPost[] = [];
     const numPosts = 10 + Math.floor(Math.random() * 11);
     
     const actors = await db.getAllActors();
     if (actors.length === 0) return posts;
 
-    const postingActors = shuffleArray(actors).slice(0, numPosts) as any[];
-    const validActors = postingActors.filter((a: any) => a?.id && a?.name);
+    const postingActors = shuffleArray(actors).slice(0, numPosts);
+    const validActors = postingActors.filter((a) => {
+      if (!a || typeof a !== 'object') return false;
+      const candidate = a as Partial<Actor>;
+      return typeof candidate.id === 'string' && 
+             typeof candidate.name === 'string' && 
+             Boolean(candidate.id && candidate.name);
+    }) as Actor[];
     
     if (validActors.length === 0) return posts;
     
     try {
       const recentEvents = events.slice(0, 3).map(e => e.description).join('; ');
-      const activeQuestionsList = questions.slice(0, 5).map((q: any) => q.text).join('; ');
+      const activeQuestionsList = questions.slice(0, 5).map((q) => q.text).join('; ');
       
       const contextNote = events.length > 0 || questions.length > 0
         ? `\nRECENT: ${recentEvents || 'None'}\nQUESTIONS: ${activeQuestionsList || 'None'}\n`
         : '';
 
       const actorPrompts = validActors
-        .map((a: any, i: number) => `${i + 1}. ${a.name}: ${a.description || ''}
+        .map((a, i) => `${i + 1}. ${a.name}: ${a.description || ''}
 ${a.postStyle || ''}
 Examples: ${a.postExample?.slice(0, 2).join('; ') || 'None'}
 Post (max 280 chars):`)
@@ -505,7 +538,7 @@ Generate ${validActors.length} post STRINGS now:`;
       if (!response.posts || !Array.isArray(response.posts)) {
         throw new Error(`LLM returned invalid posts array: ${JSON.stringify(response)}`);
       }
-      validActors.forEach((actor: any, i: number) => {
+      validActors.forEach((actor, i) => {
         const postContent = response.posts[i];
         
         // Strict validation
@@ -527,7 +560,8 @@ Generate ${validActors.length} post STRINGS now:`;
         });
       });
     } catch (error) {
-      console.error('  ❌ Post generation failed:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Post generation failed: ${errorMessage}`, { error }, 'BabylonEngine');
     }
 
     return posts;
@@ -574,14 +608,13 @@ if (typeof window === 'undefined') {
   const hasApiKey = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY;
   
   if (!hasApiKey) {
-    console.error('\n❌ BABYLON ENGINE: No API key found!');
-    console.error('   Set GROQ_API_KEY or OPENAI_API_KEY in .env file');
-    console.error('   Then restart: bun run dev\n');
+    logger.error('BABYLON ENGINE: No API key found! Set GROQ_API_KEY or OPENAI_API_KEY in .env file', undefined, 'BabylonEngine');
   } else {
     // Start after a short delay to ensure Next.js is fully initialized
     setTimeout(() => {
       getEngine().start().catch(error => {
-        console.error('❌ Engine failed to start:', error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(`Engine failed to start: ${errorMessage}`, { error }, 'BabylonEngine');
       });
     }, 2000);
   }

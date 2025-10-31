@@ -6,6 +6,7 @@
 import { createPublicClient, http, formatEther, type Address } from 'viem'
 import { baseSepolia } from 'viem/chains'
 import { config } from 'dotenv'
+import { logger } from '../src/lib/logger'
 config()
 
 // Contract addresses from environment
@@ -70,8 +71,8 @@ const REPUTATION_SYSTEM_ABI = [
 ] as const
 
 async function main() {
-  console.log('\n🔍 Testing Smart Contract Reads on Base Sepolia\n')
-  console.log('=' .repeat(60))
+  logger.info('Testing Smart Contract Reads on Base Sepolia', undefined, 'Script');
+  logger.info('='.repeat(60), undefined, 'Script');
 
   // Create public client
   const publicClient = createPublicClient({
@@ -79,16 +80,15 @@ async function main() {
     transport: http(process.env.NEXT_PUBLIC_RPC_URL || 'https://sepolia.base.org'),
   })
 
-  console.log('\n✅ Connected to Base Sepolia RPC')
-  console.log(`📡 RPC: ${process.env.NEXT_PUBLIC_RPC_URL || 'https://sepolia.base.org'}`)
+  logger.info('Connected to Base Sepolia RPC', { rpc: process.env.NEXT_PUBLIC_RPC_URL || 'https://sepolia.base.org' }, 'Script');
 
   // Test 1: Diamond Contract - Get Facets
-  console.log('\n' + '='.repeat(60))
-  console.log('1️⃣  Testing Diamond Proxy Contract')
-  console.log('='.repeat(60))
+  logger.info('='.repeat(60), undefined, 'Script');
+  logger.info('Testing Diamond Proxy Contract', undefined, 'Script');
+  logger.info('='.repeat(60), undefined, 'Script');
 
   try {
-    console.log(`📍 Diamond Address: ${CONTRACTS.diamond}`)
+    logger.info(`Diamond Address: ${CONTRACTS.diamond}`, undefined, 'Script');
 
     const facets = await publicClient.readContract({
       address: CONTRACTS.diamond,
@@ -96,9 +96,9 @@ async function main() {
       functionName: 'facets',
     })
 
-    console.log(`✅ Diamond facets found: ${facets.length}`)
+    logger.info(`Diamond facets found: ${facets.length}`, undefined, 'Script');
     facets.forEach((facet, index) => {
-      console.log(`   ${index + 1}. ${facet.facetAddress} (${facet.functionSelectors.length} functions)`)
+      logger.info(`${index + 1}. ${facet.facetAddress} (${facet.functionSelectors.length} functions)`, undefined, 'Script');
     })
 
     const facetAddresses = await publicClient.readContract({
@@ -107,18 +107,18 @@ async function main() {
       functionName: 'facetAddresses',
     })
 
-    console.log(`✅ Total facet addresses: ${facetAddresses.length}`)
+    logger.info(`Total facet addresses: ${facetAddresses.length}`, undefined, 'Script');
   } catch (error) {
-    console.error('❌ Diamond read failed:', error instanceof Error ? error.message : error)
+    logger.error('Diamond read failed:', error instanceof Error ? error.message : error, 'Script');
   }
 
   // Test 2: Identity Registry
-  console.log('\n' + '='.repeat(60))
-  console.log('2️⃣  Testing Identity Registry Contract')
-  console.log('='.repeat(60))
+  logger.info('='.repeat(60), undefined, 'Script');
+  logger.info('Testing Identity Registry Contract', undefined, 'Script');
+  logger.info('='.repeat(60), undefined, 'Script');
 
   try {
-    console.log(`📍 Identity Registry Address: ${CONTRACTS.identityRegistry}`)
+    logger.info(`Identity Registry Address: ${CONTRACTS.identityRegistry}`, undefined, 'Script');
 
     const collectionName = await publicClient.readContract({
       address: CONTRACTS.identityRegistry,
@@ -126,7 +126,7 @@ async function main() {
       functionName: 'name',
     })
 
-    console.log(`✅ Contract name: "${collectionName}"`)
+    logger.info(`Contract name: "${collectionName}"`, undefined, 'Script');
 
     // Test if deployer address is registered
     const deployerAddress = '0xFfA6A2Ac8bcAE47af29b623B97071E676647556A' as Address
@@ -137,18 +137,18 @@ async function main() {
       args: [deployerAddress],
     })
 
-    console.log(`✅ Deployer (${deployerAddress}) registered: ${isRegistered}`)
+    logger.info(`Deployer (${deployerAddress}) registered: ${isRegistered}`, undefined, 'Script');
   } catch (error) {
-    console.error('❌ Identity Registry read failed:', error instanceof Error ? error.message : error)
+    logger.error('Identity Registry read failed:', error instanceof Error ? error.message : error, 'Script');
   }
 
   // Test 3: Reputation System
-  console.log('\n' + '='.repeat(60))
-  console.log('3️⃣  Testing Reputation System Contract')
-  console.log('='.repeat(60))
+  logger.info('='.repeat(60), undefined, 'Script');
+  logger.info('Testing Reputation System Contract', undefined, 'Script');
+  logger.info('='.repeat(60), undefined, 'Script');
 
   try {
-    console.log(`📍 Reputation System Address: ${CONTRACTS.reputationSystem}`)
+    logger.info(`Reputation System Address: ${CONTRACTS.reputationSystem}`, undefined, 'Script');
 
     const identityRegistryAddress = await publicClient.readContract({
       address: CONTRACTS.reputationSystem,
@@ -156,54 +156,55 @@ async function main() {
       functionName: 'identityRegistry',
     })
 
-    console.log(`✅ Connected to Identity Registry: ${identityRegistryAddress}`)
+    logger.info(`Connected to Identity Registry: ${identityRegistryAddress}`, undefined, 'Script');
 
     const isCorrect = identityRegistryAddress.toLowerCase() === CONTRACTS.identityRegistry.toLowerCase()
     if (isCorrect) {
-      console.log('✅ Identity Registry address matches!')
+      logger.info('Identity Registry address matches!', undefined, 'Script');
     } else {
-      console.log(`⚠️  Identity Registry address mismatch!`)
-      console.log(`   Expected: ${CONTRACTS.identityRegistry}`)
-      console.log(`   Got: ${identityRegistryAddress}`)
+      logger.warn('Identity Registry address mismatch!', {
+        expected: CONTRACTS.identityRegistry,
+        got: identityRegistryAddress
+      }, 'Script');
     }
   } catch (error) {
-    console.error('❌ Reputation System read failed:', error instanceof Error ? error.message : error)
+    logger.error('Reputation System read failed:', error instanceof Error ? error.message : error, 'Script');
   }
 
   // Test 4: Contract Code Verification
-  console.log('\n' + '='.repeat(60))
-  console.log('4️⃣  Verifying Contract Deployment')
-  console.log('='.repeat(60))
+  logger.info('='.repeat(60), undefined, 'Script');
+  logger.info('Verifying Contract Deployment', undefined, 'Script');
+  logger.info('='.repeat(60), undefined, 'Script');
 
   try {
     const diamondCode = await publicClient.getCode({ address: CONTRACTS.diamond })
     const identityCode = await publicClient.getCode({ address: CONTRACTS.identityRegistry })
     const reputationCode = await publicClient.getCode({ address: CONTRACTS.reputationSystem })
 
-    console.log(`✅ Diamond has deployed code: ${diamondCode && diamondCode !== '0x'}`)
-    console.log(`✅ Identity Registry has deployed code: ${identityCode && identityCode !== '0x'}`)
-    console.log(`✅ Reputation System has deployed code: ${reputationCode && reputationCode !== '0x'}`)
+    logger.info(`Diamond has deployed code: ${diamondCode && diamondCode !== '0x'}`, undefined, 'Script');
+    logger.info(`Identity Registry has deployed code: ${identityCode && identityCode !== '0x'}`, undefined, 'Script');
+    logger.info(`Reputation System has deployed code: ${reputationCode && reputationCode !== '0x'}`, undefined, 'Script');
   } catch (error) {
-    console.error('❌ Code verification failed:', error instanceof Error ? error.message : error)
+    logger.error('Code verification failed:', error instanceof Error ? error.message : error, 'Script');
   }
 
   // Summary
-  console.log('\n' + '='.repeat(60))
-  console.log('📊 Test Summary')
-  console.log('='.repeat(60))
-  console.log('✅ All basic contract reads completed successfully!')
-  console.log('✅ Contracts are deployed and accessible')
-  console.log('✅ Frontend integration should work correctly')
-  console.log('\n💡 Next Steps:')
-  console.log('   1. Test contract reads from Next.js frontend')
-  console.log('   2. Create on-chain registration API route')
-  console.log('   3. Build registry viewer page')
-  console.log('')
+  logger.info('='.repeat(60), undefined, 'Script');
+  logger.info('Test Summary', undefined, 'Script');
+  logger.info('='.repeat(60), undefined, 'Script');
+  logger.info('All basic contract reads completed successfully!', undefined, 'Script');
+  logger.info('Contracts are deployed and accessible', undefined, 'Script');
+  logger.info('Frontend integration should work correctly', undefined, 'Script');
+  logger.info('Next Steps:', {
+    step1: 'Test contract reads from Next.js frontend',
+    step2: 'Create on-chain registration API route',
+    step3: 'Build registry viewer page'
+  }, 'Script');
 }
 
 main()
   .then(() => process.exit(0))
   .catch((error) => {
-    console.error('\n❌ Test failed:', error)
+    logger.error('Test failed:', error, 'Script');
     process.exit(1)
   })

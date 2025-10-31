@@ -6,17 +6,21 @@
 import WebSocket from 'ws'
 import { ethers } from 'ethers'
 import { EventEmitter } from 'events'
-import {
+import type {
   JsonRpcRequest,
   JsonRpcResponse,
-  A2AMethod,
   A2AClientConfig,
   AgentCapabilities,
-  A2AEventType,
   MarketData,
   AgentProfile,
   Coalition,
   MarketAnalysis
+} from '../types';
+import type { JsonRpcResult, JsonRpcParams } from '@/types/json-rpc';
+import type { JsonValue } from '@/types/common';
+import {
+  A2AMethod,
+  A2AEventType
 } from '../types'
 
 export class A2AClient extends EventEmitter {
@@ -26,8 +30,8 @@ export class A2AClient extends EventEmitter {
   private sessionToken: string | null = null
   private messageId = 0
   private pendingRequests: Map<string | number, {
-    resolve: (value: unknown) => void
-    reject: (reason: unknown) => void
+    resolve: (value: JsonRpcResult) => void
+    reject: (reason: Error) => void
   }> = new Map()
   private reconnectTimer: NodeJS.Timeout | null = null
 
@@ -118,7 +122,7 @@ export class A2AClient extends EventEmitter {
       },
       capabilities: this.config.capabilities,
       endpoint: this.config.endpoint
-    })
+    } as unknown as JsonRpcParams)
 
     this.agentId = response.agentId
     this.sessionToken = response.sessionToken
@@ -164,14 +168,14 @@ export class A2AClient extends EventEmitter {
           if (message.error) {
             pending.reject(new Error(message.error.message))
           } else {
-            pending.resolve(message.result)
+            pending.resolve(message.result ?? null as JsonRpcResult)
           }
         }
       }
 
       // Handle notifications (no id)
-      if (message.id === null && 'method' in message) {
-        this.handleNotification(message as unknown as JsonRpcRequest)
+      if (message.id === null && 'method' in message && 'jsonrpc' in message && message.jsonrpc === '2.0') {
+        this.handleNotification(message as JsonRpcRequest)
       }
     } catch (error) {
       this.emit('error', error)
@@ -221,7 +225,7 @@ export class A2AClient extends EventEmitter {
   /**
    * Send JSON-RPC request and wait for response
    */
-  private sendRequest<T = unknown>(method: string, params?: Record<string, unknown> | unknown[]): Promise<T> {
+  private sendRequest<T = JsonRpcResult>(method: string, requestData?: JsonRpcParams): Promise<T> {
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         reject(new Error('Not connected'))
@@ -230,20 +234,23 @@ export class A2AClient extends EventEmitter {
 
       const id = this.messageId++
 
-      // Include session token in params for authenticated requests
-      const requestParams = params || {};
-      const paramsWithAuth = this.sessionToken
-        ? { ...requestParams, sessionToken: this.sessionToken }
-        : requestParams;
+      // Include session token in request data for authenticated requests
+      const baseRequestData = requestData || {};
+      const authenticatedRequestData = this.sessionToken
+        ? { ...baseRequestData, sessionToken: this.sessionToken }
+        : baseRequestData;
 
       const request: JsonRpcRequest = {
         jsonrpc: '2.0',
         method,
-        params: paramsWithAuth,
+        params: authenticatedRequestData,
         id
       }
 
-      this.pendingRequests.set(id, { resolve: resolve as (value: unknown) => void, reject })
+      this.pendingRequests.set(id, { 
+        resolve: resolve as (value: JsonRpcResult) => void, 
+        reject: (reason: Error) => reject(reason)
+      })
 
       this.ws.send(JSON.stringify(request))
 
@@ -264,7 +271,7 @@ export class A2AClient extends EventEmitter {
     minReputation?: number
     markets?: string[]
   }, limit?: number): Promise<{ agents: AgentProfile[]; total: number }> {
-    return this.sendRequest(A2AMethod.DISCOVER_AGENTS, { filters, limit })
+    return this.sendRequest(A2AMethod.DISCOVER_AGENTS, { filters, limit } as JsonRpcParams)
   }
 
   async getAgentInfo(agentId: string): Promise<AgentProfile> {
@@ -321,7 +328,7 @@ export class A2AClient extends EventEmitter {
   async sendCoalitionMessage(
     coalitionId: string,
     messageType: 'analysis' | 'vote' | 'action' | 'coordination',
-    content: unknown
+    content: Record<string, JsonValue>
   ): Promise<{ delivered: boolean; recipients: number }> {
     return this.sendRequest(A2AMethod.COALITION_MESSAGE, {
       coalitionId,
@@ -337,7 +344,7 @@ export class A2AClient extends EventEmitter {
   // ==================== Information Sharing ====================
 
   async shareAnalysis(analysis: MarketAnalysis): Promise<{ shared: boolean; analysisId: string }> {
-    return this.sendRequest(A2AMethod.SHARE_ANALYSIS, { analysis })
+    return this.sendRequest(A2AMethod.SHARE_ANALYSIS, { analysis } as unknown as JsonRpcParams)
   }
 
   async requestAnalysis(
@@ -349,7 +356,7 @@ export class A2AClient extends EventEmitter {
       marketId,
       paymentOffer,
       deadline: deadline || Date.now() + 3600000 // 1 hour default
-    })
+    } as JsonRpcParams)
   }
 
   // ==================== x402 Micropayments ====================
@@ -358,14 +365,14 @@ export class A2AClient extends EventEmitter {
     to: string,
     amount: string,
     service: string,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, JsonValue>
   ): Promise<{ requestId: string; amount: string; expiresAt: number }> {
     return this.sendRequest(A2AMethod.PAYMENT_REQUEST, {
       to,
       amount,
       service,
       metadata
-    })
+    } as JsonRpcParams)
   }
 
   async submitPaymentReceipt(

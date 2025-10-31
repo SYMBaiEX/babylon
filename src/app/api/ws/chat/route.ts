@@ -1,9 +1,11 @@
-import { NextRequest } from 'next/server'
-import { WebSocketServer, WebSocket as WSWebSocket } from 'ws'
-import { IncomingMessage } from 'http'
+import type { NextRequest } from 'next/server'
+import type { WebSocket as WSWebSocket } from 'ws';
+import { WebSocketServer } from 'ws'
+import type { IncomingMessage } from 'http'
 import { parse } from 'url'
 import { PrismaClient } from '@prisma/client'
 import { authenticate } from '@/lib/api/auth-middleware'
+import { logger } from '@/lib/logger'
 
 const prisma = new PrismaClient()
 
@@ -24,15 +26,19 @@ interface ChatMessage {
 
 interface WebSocketMessage {
   type: 'join_chat' | 'leave_chat' | 'new_message' | 'error' | 'pong'
-  data?: any
+  data?: {
+    chatId?: string
+    message?: ChatMessage
+    [key: string]: unknown
+  }
   error?: string
 }
 
 // Global WebSocket server instance
 let wss: WebSocketServer | null = null
-let clients: Map<string, AuthenticatedWebSocket> = new Map()
-let chatRooms: Map<string, Set<string>> = new Map()
-let serverInitializationPromise: Promise<WebSocketServer> | null = null
+const clients: Map<string, AuthenticatedWebSocket> = new Map()
+const chatRooms: Map<string, Set<string>> = new Map()
+const serverInitializationPromise: Promise<WebSocketServer> | null = null
 let serverInitializationError: Error | null = null
 
 function initializeWebSocketServer(): WebSocketServer | null {
@@ -51,7 +57,7 @@ function initializeWebSocketServer(): WebSocketServer | null {
     })
 
   wss.on('connection', async (ws: AuthenticatedWebSocket, req: IncomingMessage) => {
-    console.log('New WebSocket connection attempt')
+    logger.info('New WebSocket connection attempt', undefined, 'WebSocket')
     
     // Set up ping/pong for connection health
     ws.isAlive = true
@@ -76,10 +82,10 @@ function initializeWebSocketServer(): WebSocketServer | null {
       // Authenticate the user (shim minimal NextRequest headers)
       const headers = new Headers()
       headers.set('authorization', `Bearer ${token}`)
-      const user = await authenticate({ headers } as any)
+      const user = await authenticate({ headers } as NextRequest)
 
       ws.userId = user.userId
-      console.log(`WebSocket authenticated for user: ${user.userId}`)
+      logger.info(`WebSocket authenticated for user: ${user.userId}`, undefined, 'WebSocket')
 
       // Send welcome message
       ws.send(JSON.stringify({
@@ -88,7 +94,7 @@ function initializeWebSocketServer(): WebSocketServer | null {
       }))
 
     } catch (error) {
-      console.error('WebSocket authentication failed:', error)
+      logger.error('WebSocket authentication failed:', error, 'WebSocket')
       ws.send(JSON.stringify({
         type: 'error',
         error: 'Authentication failed'
@@ -103,7 +109,7 @@ function initializeWebSocketServer(): WebSocketServer | null {
         const message: WebSocketMessage = JSON.parse(data.toString())
         await handleMessage(ws, message)
       } catch (error) {
-        console.error('Error handling WebSocket message:', error)
+        logger.error('Error handling WebSocket message:', error, 'WebSocket')
         ws.send(JSON.stringify({
           type: 'error',
           error: 'Invalid message format'
@@ -116,13 +122,13 @@ function initializeWebSocketServer(): WebSocketServer | null {
       if (ws.userId) {
         leaveAllChats(ws.userId)
         clients.delete(ws.userId)
-        console.log(`User ${ws.userId} disconnected`)
+        logger.info(`User ${ws.userId} disconnected`, undefined, 'WebSocket')
       }
     })
 
     // Handle errors
     ws.on('error', (error: Error) => {
-      console.error('WebSocket error:', error)
+      logger.error('WebSocket error:', error, 'WebSocket')
       if (ws.userId) {
         leaveAllChats(ws.userId)
         clients.delete(ws.userId)
@@ -147,10 +153,10 @@ function initializeWebSocketServer(): WebSocketServer | null {
       clearInterval(pingInterval)
     })
 
-    console.log('WebSocket server initialized on port 3001')
+    logger.info('WebSocket server initialized on port 3001', undefined, 'WebSocket')
     return wss
   } catch (error) {
-    console.error('Failed to initialize WebSocket server:', error)
+    logger.error('Failed to initialize WebSocket server:', error, 'WebSocket')
     serverInitializationError = error instanceof Error ? error : new Error(String(error))
     wss = null
     return null
@@ -163,7 +169,7 @@ if (typeof window === 'undefined') {
   try {
     initializeWebSocketServer()
   } catch (error) {
-    console.error('Failed to auto-initialize WebSocket server:', error)
+    logger.error('Failed to auto-initialize WebSocket server:', error, 'WebSocket')
     serverInitializationError = error instanceof Error ? error : new Error(String(error))
   }
 }
@@ -179,11 +185,25 @@ async function handleMessage(ws: AuthenticatedWebSocket, message: WebSocketMessa
 
   switch (message.type) {
     case 'join_chat':
-      await joinChat(ws, message.data?.chatId)
+      if (message.data?.chatId) {
+        await joinChat(ws, message.data.chatId)
+      } else {
+        ws.send(JSON.stringify({
+          type: 'error',
+          error: 'chatId required for join_chat'
+        }))
+      }
       break
     
     case 'leave_chat':
-      leaveChat(ws.userId, message.data?.chatId)
+      if (message.data?.chatId) {
+        leaveChat(ws.userId, message.data.chatId)
+      } else {
+        ws.send(JSON.stringify({
+          type: 'error',
+          error: 'chatId required for leave_chat'
+        }))
+      }
       break
     
     case 'pong':
@@ -235,7 +255,7 @@ async function joinChat(ws: AuthenticatedWebSocket, chatId: string) {
   }
   chatRooms.get(chatId)!.add(ws.userId)
 
-  console.log(`User ${ws.userId} joined chat ${chatId}`)
+  logger.info(`User ${ws.userId} joined chat ${chatId}`, undefined, 'WebSocket')
 }
 
 function leaveChat(userId: string, chatId: string) {
@@ -249,7 +269,7 @@ function leaveChat(userId: string, chatId: string) {
     }
   }
 
-  console.log(`User ${userId} left chat ${chatId}`)
+  logger.info(`User ${userId} left chat ${chatId}`, undefined, 'WebSocket')
 }
 
 function leaveAllChats(userId: string) {
@@ -278,11 +298,12 @@ export function broadcastMessage(chatId: string, message: ChatMessage) {
     }
   })
 
-  console.log(`Broadcasted message to ${room.size} clients in chat ${chatId}`)
+  logger.info(`Broadcasted message to ${room.size} clients in chat ${chatId}`, undefined, 'WebSocket')
 }
 
 // Initialize WebSocket server on first request
-export async function GET(request: NextRequest) {
+// Note: NextRequest parameter may be used in future for authentication context
+export async function GET(_request: NextRequest) {
   try {
     // Initialize WebSocket server if not already done
     if (!wss) {
@@ -314,7 +335,7 @@ export async function GET(request: NextRequest) {
       }
     })
   } catch (error) {
-    console.error('Error checking WebSocket server status:', error)
+    logger.error('Error checking WebSocket server status:', error, 'WebSocket')
     return new Response(JSON.stringify({
       error: 'Failed to check WebSocket server status',
       details: error instanceof Error ? error.message : String(error)

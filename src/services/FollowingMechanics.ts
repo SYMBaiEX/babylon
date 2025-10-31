@@ -13,6 +13,8 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { notifyFollow } from '@/lib/services/notification-service';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -46,6 +48,10 @@ export class FollowingMechanics {
     currentStreak: number,
     currentQualityScore: number
   ): Promise<FollowingChance> {
+    // Use currentQualityScore to calculate following probability
+    // Higher quality interactions increase following chance
+    const qualityMultiplier = Math.min(currentQualityScore * 1.5, 2.0); // Cap at 2x
+    
     // Check if already following
     const existingFollow = await prisma.followStatus.findUnique({
       where: {
@@ -88,10 +94,13 @@ export class FollowingMechanics {
 
     // Calculate weighted probability
     // Streak is most important (50%), quality (30%), volume (20%)
+    // Apply qualityMultiplier to boost probability for high-quality interactions
+    const baseProbability = this.BASE_FOLLOW_PROBABILITY +
+      (this.MAX_FOLLOW_PROBABILITY - this.BASE_FOLLOW_PROBABILITY) *
+        (streakFactor * 0.5 + qualityFactor * 0.3 + volumeFactor * 0.2);
+    
     const probability = Math.min(
-      this.BASE_FOLLOW_PROBABILITY +
-        (this.MAX_FOLLOW_PROBABILITY - this.BASE_FOLLOW_PROBABILITY) *
-          (streakFactor * 0.5 + qualityFactor * 0.3 + volumeFactor * 0.2),
+      baseProbability * qualityMultiplier,
       this.MAX_FOLLOW_PROBABILITY
     );
 
@@ -143,8 +152,6 @@ export class FollowingMechanics {
     npcId: string,
     reason: string
   ): Promise<void> {
-    // Import notification service dynamically to avoid circular dependencies
-    const { notifyFollow } = await import('@/lib/services/notification-service');
     await prisma.followStatus.upsert({
       where: {
         userId_npcId: {
@@ -223,6 +230,9 @@ export class FollowingMechanics {
     npcId: string,
     reason: string
   ): Promise<void> {
+    // Log unfollow reason for analytics/debugging
+    logger.info(`User ${userId} unfollowed ${npcId}. Reason: ${reason}`, undefined, 'FollowingMechanics');
+    
     await prisma.followStatus.updateMany({
       where: {
         userId,

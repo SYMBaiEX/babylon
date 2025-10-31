@@ -3,14 +3,14 @@
  * Methods: GET (get following list)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
-  authenticate,
   optionalAuth,
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -23,6 +23,8 @@ export async function GET(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
+    // Optional authentication - if authenticated, can provide personalized data
+    const authUser = await optionalAuth(request);
     const { userId: targetId } = await params;
 
     if (!targetId) {
@@ -88,6 +90,27 @@ export async function GET(
 
     const actorMap = new Map(actors.map((a) => [a.id, a]));
 
+    // Check mutual follows if authenticated user is viewing their own following list
+    const mutualFollowChecks = authUser && authUser.userId === targetId
+      ? await Promise.all(
+          userFollows.map(async (f) => {
+            const mutualFollow = await prisma.follow.findUnique({
+              where: {
+                followerId_followingId: {
+                  followerId: f.following.id,
+                  followingId: authUser.userId,
+                },
+              },
+            });
+            return { userId: f.following.id, isMutual: !!mutualFollow };
+          })
+        )
+      : [];
+
+    const mutualFollowMap = new Map(
+      mutualFollowChecks.map((check) => [check.userId, check.isMutual])
+    );
+
     const following = [
       ...userFollows.map((f) => ({
         id: f.following.id,
@@ -98,6 +121,7 @@ export async function GET(
         isActor: f.following.isActor,
         followedAt: f.createdAt.toISOString(),
         type: 'user' as const,
+        isMutualFollow: mutualFollowMap.get(f.following.id) || false,
       })),
       ...actorFollows.map((f) => {
         const actor = actorMap.get(f.npcId);
@@ -119,7 +143,7 @@ export async function GET(
       count: following.length,
     });
   } catch (error) {
-    console.error('Error fetching following:', error);
+    logger.error('Error fetching following:', error, 'GET /api/users/[userId]/following');
     return errorResponse('Failed to fetch following', 500);
   }
 }

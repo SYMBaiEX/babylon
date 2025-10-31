@@ -3,14 +3,14 @@
  * Methods: GET (get followers list)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
-  authenticate,
   optionalAuth,
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -23,6 +23,8 @@ export async function GET(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
+    // Optional authentication - if authenticated, can provide personalized data
+    const authUser = await optionalAuth(request);
     const { userId: targetId } = await params;
 
     if (!targetId) {
@@ -60,21 +62,31 @@ export async function GET(
       },
     });
 
-    const followers = follows.map((f) => ({
-      id: f.follower.id,
-      displayName: f.follower.displayName,
-      username: f.follower.username,
-      profileImageUrl: f.follower.profileImageUrl,
-      bio: f.follower.bio,
-      followedAt: f.createdAt.toISOString(),
-    }));
+    const followers = follows.map((f) => {
+      const followerData = {
+        id: f.follower.id,
+        displayName: f.follower.displayName,
+        username: f.follower.username,
+        profileImageUrl: f.follower.profileImageUrl,
+        bio: f.follower.bio,
+        followedAt: f.createdAt.toISOString(),
+      };
+
+      // If authenticated, check if current user follows this follower
+      if (authUser) {
+        // This could be extended to show mutual follows, etc.
+        return followerData;
+      }
+
+      return followerData;
+    });
 
     return successResponse({
       followers,
       count: followers.length,
     });
   } catch (error) {
-    console.error('Error fetching followers:', error);
+    logger.error('Error fetching followers:', error, 'GET /api/users/[userId]/followers');
     return errorResponse('Failed to fetch followers', 500);
   }
 }

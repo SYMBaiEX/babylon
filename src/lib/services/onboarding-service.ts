@@ -3,6 +3,9 @@
  * Handles user signup flow: on-chain registration + points award
  */
 
+import { PrismaClient } from '@prisma/client';
+import { logger } from '@/lib/logger';
+
 interface OnboardingResult {
   success: boolean
   tokenId?: number
@@ -49,7 +52,7 @@ export class OnboardingService {
       const contentType = response.headers.get('content-type')
       if (!contentType || !contentType.includes('application/json')) {
         const text = await response.text()
-        console.warn('Non-JSON response from onboard endpoint:', text.substring(0, 100))
+        logger.warn('Non-JSON response from onboard endpoint:', text.substring(0, 100), 'OnboardingService')
         return { success: false, error: 'Invalid response from server' }
       }
 
@@ -74,7 +77,7 @@ export class OnboardingService {
         transactionHash: data.txHash,
       }
     } catch (error) {
-      console.error('Onboarding error:', error)
+      logger.error('Onboarding error:', error, 'OnboardingService')
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -90,6 +93,22 @@ export class OnboardingService {
     tokenId?: number
   }> {
     try {
+      // Use prisma for database access
+      const prisma = new PrismaClient();
+      
+      // Use userId to check onboarding status
+      const userRecord = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { onChainRegistered: true, nftTokenId: true },
+      });
+
+      if (userRecord?.onChainRegistered && userRecord.nftTokenId) {
+        return {
+          isOnboarded: true,
+          tokenId: userRecord.nftTokenId,
+        };
+      }
+
       const accessToken = typeof window !== 'undefined' ? window.__privyAccessToken : null
       if (!accessToken) {
         return { isOnboarded: false }
@@ -104,7 +123,7 @@ export class OnboardingService {
       // Check if response is JSON before parsing
       const contentType = response.headers.get('content-type')
       if (!contentType || !contentType.includes('application/json')) {
-        console.warn('Non-JSON response from onboard status check')
+        logger.warn('Non-JSON response from onboard status check', undefined, 'OnboardingService')
         return { isOnboarded: false }
       }
 
@@ -119,7 +138,7 @@ export class OnboardingService {
 
       return { isOnboarded: false }
     } catch (error) {
-      console.error('Error checking onboarding status:', error)
+      logger.error('Error checking onboarding status:', error, 'OnboardingService')
       return { isOnboarded: false }
     }
   }
@@ -153,7 +172,7 @@ export class OnboardingService {
 
       return response.ok
     } catch (error) {
-      console.error('Error awarding points:', error)
+      logger.error('Error awarding points:', error, 'OnboardingService')
       return false
     }
   }

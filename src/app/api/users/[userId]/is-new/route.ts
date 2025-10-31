@@ -3,14 +3,14 @@
  * Methods: GET (check if user needs setup)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
-  optionalAuth,
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -74,7 +74,7 @@ export async function GET(
       hasProfileImage: dbUser.hasProfileImage || false,
     });
   } catch (error) {
-    console.error('Error checking new user status:', error);
+    logger.error('Error checking new user status:', error, 'GET /api/users/[userId]/is-new');
     // Return needsSetup: false on error to prevent blocking user
     return successResponse({ needsSetup: false });
   }

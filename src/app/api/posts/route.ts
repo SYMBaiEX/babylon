@@ -6,10 +6,12 @@
  */
 
 import { gameService } from '@/lib/game-service';
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest} from 'next/server';
+import { NextResponse } from 'next/server';
 import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-middleware';
 import { PrismaClient } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -121,7 +123,7 @@ export async function GET(request: Request) {
       offset,
     });
   } catch (error) {
-    console.error('API Error:', error);
+    logger.error('API Error:', error, 'GET /api/posts');
     return NextResponse.json(
       { success: false, error: 'Failed to load posts' },
       { status: 500 }
@@ -139,7 +141,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { content, replyTo } = body;
+    const { content } = body;
 
     // Validate input
     if (!content || typeof content !== 'string' || content.trim().length === 0) {
@@ -191,7 +193,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error creating post:', error);
+    logger.error('Error creating post:', error, 'POST /api/posts');
     
     if (error instanceof Error && error.message === 'Authentication failed') {
       return errorResponse('Authentication required', 401);

@@ -29,6 +29,8 @@
  * Per-actor context preserved (mood, luck, personality, relationships)
  */
 
+import { logger } from '@/lib/logger';
+
 import { EventEmitter } from 'events';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
 import { generateActorContext } from './EmotionSystem';
@@ -54,6 +56,17 @@ import type {
 
 // Re-export types for backwards compatibility with external consumers
 export type { FeedPost, FeedEvent, Actor, Organization, ActorState, ActorRelationship };
+
+/**
+ * Commentary post from LLM
+ */
+interface CommentaryPost {
+  post?: string;
+  tweet?: string;
+  sentiment?: number;
+  clueStrength?: number;
+  pointsToward?: boolean | null;
+}
 
 /**
  * Conspiracy post from LLM
@@ -485,7 +498,7 @@ export class FeedGenerator extends EventEmitter {
         return validPosts.slice(0, mediaEntities.length);
       }
 
-      console.warn(`⚠️  Invalid media batch (attempt ${attempt + 1}/${maxRetries}). Expected ${mediaEntities.length}, got ${validPosts.length} valid (need ${minRequired}+)`);
+      logger.warn(`Invalid media batch (attempt ${attempt + 1}/${maxRetries}). Expected ${mediaEntities.length}, got ${validPosts.length} valid (need ${minRequired}+)`, { attempt: attempt + 1, maxRetries, expected: mediaEntities.length, got: validPosts.length, minRequired }, 'FeedGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -569,7 +582,7 @@ export class FeedGenerator extends EventEmitter {
         return validPosts.slice(0, journalists.length);
       }
 
-      console.warn(`⚠️  Invalid journalist batch (attempt ${attempt + 1}/${maxRetries}). Expected ${journalists.length}, got ${validPosts.length} valid (need ${minRequired}+)`);
+      logger.warn(`Invalid journalist batch (attempt ${attempt + 1}/${maxRetries}). Expected ${journalists.length}, got ${validPosts.length} valid (need ${minRequired}+)`, { attempt: attempt + 1, maxRetries, expected: journalists.length, got: validPosts.length, minRequired }, 'FeedGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -657,7 +670,7 @@ export class FeedGenerator extends EventEmitter {
         return validPosts.slice(0, companies.length);
       }
 
-      console.warn(`⚠️  Invalid company batch (attempt ${attempt + 1}/${maxRetries}). Expected ${companies.length}, got ${validPosts.length} valid (need ${minRequired}+)`);
+      logger.warn(`Invalid company batch (attempt ${attempt + 1}/${maxRetries}). Expected ${companies.length}, got ${validPosts.length} valid (need ${minRequired}+)`, { attempt: attempt + 1, maxRetries, expected: companies.length, got: validPosts.length, minRequired }, 'FeedGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -740,7 +753,7 @@ export class FeedGenerator extends EventEmitter {
         return validPosts.slice(0, governments.length);
       }
 
-      console.warn(`⚠️  Invalid government batch (attempt ${attempt + 1}/${maxRetries}). Expected ${governments.length}, got ${validPosts.length} valid (need ${minRequired}+)`);
+      logger.warn(`Invalid government batch (attempt ${attempt + 1}/${maxRetries}). Expected ${governments.length}, got ${validPosts.length} valid (need ${minRequired}+)`, { attempt: attempt + 1, maxRetries, expected: governments.length, got: validPosts.length, minRequired }, 'FeedGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -841,7 +854,7 @@ export class FeedGenerator extends EventEmitter {
         return validReactions.slice(0, actors.length);
       }
 
-      console.warn(`⚠️  Invalid reactions batch (attempt ${attempt + 1}/${maxRetries}). Expected ${actors.length}, got ${validReactions.length} valid (need ${minRequired}+)`);
+      logger.warn(`Invalid reactions batch (attempt ${attempt + 1}/${maxRetries}). Expected ${actors.length}, got ${validReactions.length} valid (need ${minRequired}+)`, { attempt: attempt + 1, maxRetries, expected: actors.length, got: validReactions.length, minRequired }, 'FeedGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -911,11 +924,12 @@ export class FeedGenerator extends EventEmitter {
 
       const commentary = Array.isArray(response.commentary) ? response.commentary : [];
       const validCommentary = commentary
-        .filter(c => {
-          const content = c.post || c.tweet;
-          return content && typeof content === 'string' && content.trim().length > 0;
+        .filter((c: unknown): c is CommentaryPost => {
+          if (typeof c !== 'object' || c === null) return false;
+          const content = (c as CommentaryPost).post || (c as CommentaryPost).tweet;
+          return content !== undefined && typeof content === 'string' && content.trim().length > 0;
         })
-        .map((c: any) => ({
+        .map((c: CommentaryPost) => ({
           post: c.post || c.tweet!,
           sentiment: c.sentiment || 0,
           clueStrength: c.clueStrength || 0,
@@ -928,7 +942,7 @@ export class FeedGenerator extends EventEmitter {
         return validCommentary.slice(0, commentators.length);
       }
 
-      console.warn(`⚠️  Invalid commentary batch (attempt ${attempt + 1}/${maxRetries}). Expected ${commentators.length}, got ${validCommentary.length} valid (need ${minRequired}+)`);
+      logger.warn(`Invalid commentary batch (attempt ${attempt + 1}/${maxRetries}). Expected ${commentators.length}, got ${validCommentary.length} valid (need ${minRequired}+)`, { attempt: attempt + 1, maxRetries, expected: commentators.length, got: validCommentary.length, minRequired }, 'FeedGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -980,7 +994,7 @@ export class FeedGenerator extends EventEmitter {
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const rawResponse = await this.llm.generateJSON<{ conspiracy: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> } | { data: Array<{ conspiracy: Array<any> }> }>(
+      const rawResponse = await this.llm.generateJSON<{ conspiracy: ConspiracyPost[] } | { data: Array<{ conspiracy: ConspiracyPost[] }> }>(
         prompt,
         undefined, // Don't validate schema, we'll handle both formats
         { temperature: 1.1, maxTokens: 5000 }
@@ -996,11 +1010,11 @@ export class FeedGenerator extends EventEmitter {
       }
 
       const validConspiracy = conspiracy
-        .filter(c => {
+        .filter((c): c is ConspiracyPost => {
           const content = c.post || c.tweet;
-          return content && typeof content === 'string' && content.trim().length > 0;
+          return content !== undefined && typeof content === 'string' && content.trim().length > 0;
         })
-        .map((c: any) => ({
+        .map((c: ConspiracyPost) => ({
           post: c.post || c.tweet!,
           sentiment: c.sentiment || 0,
           clueStrength: c.clueStrength || 0,
@@ -1013,7 +1027,7 @@ export class FeedGenerator extends EventEmitter {
         return validConspiracy.slice(0, conspiracists.length);
       }
 
-      console.warn(`⚠️  Invalid conspiracy batch (attempt ${attempt + 1}/${maxRetries}). Expected ${conspiracists.length}, got ${validConspiracy.length} valid (need ${minRequired}+)`);
+      logger.warn(`Invalid conspiracy batch (attempt ${attempt + 1}/${maxRetries}). Expected ${conspiracists.length}, got ${validConspiracy.length} valid (need ${minRequired}+)`, { attempt: attempt + 1, maxRetries, expected: conspiracists.length, got: validConspiracy.length, minRequired }, 'FeedGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -1070,8 +1084,8 @@ export class FeedGenerator extends EventEmitter {
         return response;
       }
 
-      console.error('Invalid response from LLM:', JSON.stringify(response, null, 2));
-      console.warn(`⚠️  Invalid journalist post (attempt ${attempt + 1}/${maxRetries}). Retrying...`);
+      logger.error('Invalid response from LLM', { response }, 'FeedGenerator');
+      logger.warn(`Invalid journalist post (attempt ${attempt + 1}/${maxRetries}). Retrying...`, { attempt: attempt + 1, maxRetries }, 'FeedGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -1132,7 +1146,7 @@ export class FeedGenerator extends EventEmitter {
         return response;
       }
 
-      console.warn(`⚠️  Invalid media post (attempt ${attempt + 1}/${maxRetries}). Retrying...`);
+      logger.warn(`Invalid media post (attempt ${attempt + 1}/${maxRetries}). Retrying...`, { attempt: attempt + 1, maxRetries }, 'FeedGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -1190,7 +1204,7 @@ export class FeedGenerator extends EventEmitter {
         return response;
       }
 
-      console.warn(`⚠️  Invalid company post (attempt ${attempt + 1}/${maxRetries}). Retrying...`);
+      logger.warn(`Invalid company post (attempt ${attempt + 1}/${maxRetries}). Retrying...`, { attempt: attempt + 1, maxRetries }, 'FeedGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -1255,7 +1269,7 @@ export class FeedGenerator extends EventEmitter {
         return response;
       }
 
-      console.warn(`⚠️  Invalid government post (attempt ${attempt + 1}/${maxRetries}). Retrying...`);
+      logger.warn(`Invalid government post (attempt ${attempt + 1}/${maxRetries}). Retrying...`, { attempt: attempt + 1, maxRetries }, 'FeedGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -1319,8 +1333,8 @@ export class FeedGenerator extends EventEmitter {
         return response;
       }
 
-      console.error('Invalid response from LLM:', JSON.stringify(response, null, 2));
-      console.warn(`⚠️  Invalid reaction (attempt ${attempt + 1}/${maxRetries}). Retrying...`);
+      logger.error('Invalid response from LLM', { response }, 'FeedGenerator');
+      logger.warn(`Invalid reaction (attempt ${attempt + 1}/${maxRetries}). Retrying...`, { attempt: attempt + 1, maxRetries }, 'FeedGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -1377,8 +1391,8 @@ export class FeedGenerator extends EventEmitter {
         return response;
       }
 
-      console.error('Invalid response from LLM:', JSON.stringify(response, null, 2));
-      console.warn(`⚠️  Invalid commentary (attempt ${attempt + 1}/${maxRetries}). Retrying...`);
+      logger.error('Invalid response from LLM', { response }, 'FeedGenerator');
+      logger.warn(`Invalid commentary (attempt ${attempt + 1}/${maxRetries}). Retrying...`, { attempt: attempt + 1, maxRetries }, 'FeedGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -1434,8 +1448,8 @@ export class FeedGenerator extends EventEmitter {
         return response;
       }
 
-      console.error('Invalid response from LLM:', JSON.stringify(response, null, 2));
-      console.warn(`⚠️  Invalid conspiracy post (attempt ${attempt + 1}/${maxRetries}). Retrying...`);
+      logger.error('Invalid response from LLM', { response }, 'FeedGenerator');
+      logger.warn(`Invalid conspiracy post (attempt ${attempt + 1}/${maxRetries}). Retrying...`, { attempt: attempt + 1, maxRetries }, 'FeedGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -1518,7 +1532,7 @@ export class FeedGenerator extends EventEmitter {
         
         // Validate timestamp
         if (isNaN(originalTime.getTime())) {
-          console.warn(`⚠️  Invalid timestamp for post ${originalPost.id}, skipping reply generation`);
+          logger.warn(`Invalid timestamp for post ${originalPost.id}, skipping reply generation`, { postId: originalPost.id }, 'FeedGenerator');
           continue;
         }
         
@@ -1577,8 +1591,10 @@ export class FeedGenerator extends EventEmitter {
       );
 
       return response.post || 'Interesting';
-    } catch (error) {
-      // Fallback on error
+    } catch (generationError) {
+      // Fallback on error - log for debugging but don't fail
+      const errorMessage = generationError instanceof Error ? generationError.message : 'Failed to generate ambient post'
+      logger.warn('Failed to generate ambient post', { error: errorMessage }, 'FeedGenerator')
       return 'Interesting take';
     }
   }
@@ -1677,7 +1693,7 @@ export class FeedGenerator extends EventEmitter {
         return validPosts.slice(0, actors.length);
       }
 
-      console.warn(`⚠️  Invalid ambient posts batch (attempt ${attempt + 1}/${maxRetries}). Expected ${actors.length}, got ${validPosts.length} valid (need ${minRequired}+)`);
+      logger.warn(`Invalid ambient posts batch (attempt ${attempt + 1}/${maxRetries}). Expected ${actors.length}, got ${validPosts.length} valid (need ${minRequired}+)`, { attempt: attempt + 1, maxRetries, expected: actors.length, got: validPosts.length, minRequired }, 'FeedGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -1803,7 +1819,7 @@ export class FeedGenerator extends EventEmitter {
         return validReplies.slice(0, actors.length);
       }
 
-      console.warn(`⚠️  Invalid replies batch (attempt ${attempt + 1}/${maxRetries}). Expected ${actors.length}, got ${validReplies.length} valid (need ${minRequired}+)`);
+      logger.warn(`Invalid replies batch (attempt ${attempt + 1}/${maxRetries}). Expected ${actors.length}, got ${validReplies.length} valid (need ${minRequired}+)`, { attempt: attempt + 1, maxRetries, expected: actors.length, got: validReplies.length, minRequired }, 'FeedGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -1812,95 +1828,6 @@ export class FeedGenerator extends EventEmitter {
     throw new Error(`Failed to generate replies batch after ${maxRetries} attempts`);
   }
 
-  /**
-   * Generate day transition post (bridge between days)
-   * Creates narrative continuity by referencing previous day's events
-   * Public for external use
-   */
-  public async generateDayTransitionPost(
-    day: number,
-    previousDayEvents: WorldEvent[],
-    questions: Array<{ id: number; text: string; outcome: boolean }>,
-    allActors: Actor[]
-  ): Promise<FeedPost | null> {
-    if (!this.llm || previousDayEvents.length === 0) {
-      return null;
-    }
-
-    // Select a news organization to make the transition post
-    const newsOrg = this.organizations.find(o => o.type === 'media');
-    if (!newsOrg) {
-      return null;
-    }
-
-    // Summarize previous day's key events
-    const eventSummaries = previousDayEvents
-      .slice(0, 3) // Top 3 events
-      .map(e => `- ${e.description}`)
-      .join('\n');
-
-    const prompt = `You must respond with valid JSON only.
-
-You are: ${newsOrg.name}, ${newsOrg.description}
-
-Yesterday (Day ${day - 1}) saw major developments:
-${eventSummaries}
-
-Today is Day ${day}. Write a brief morning news post (max 280 chars) that:
-- Acknowledges yesterday's events
-- Sets the tone for today
-- Maintains ${newsOrg.name}'s editorial style
-
-Also analyze:
-- sentiment: -1 (very negative) to 1 (very positive)
-- clueStrength: 0 (vague) to 1 (very revealing) - keep low for transitions
-- pointsToward: true, false, or null
-
-Respond with ONLY this JSON:
-{
-  "post": "your transition post here",
-  "sentiment": 0.0,
-  "clueStrength": 0.1,
-  "pointsToward": null
-}
-
-No other text.`;
-
-    try {
-      const response = await this.llm.generateJSON<{
-        post: string;
-        sentiment: number;
-        clueStrength: number;
-        pointsToward: boolean | null;
-      }>(
-        prompt,
-        { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
-        { temperature: 0.8, maxTokens: 500 }
-      );
-
-      if (!response.post || response.post.trim().length === 0) {
-        return null;
-      }
-
-      const baseTime = `2025-10-${String(day).padStart(2, '0')}T06:00:00Z`;
-
-      return {
-        id: `transition-day-${day}`,
-        day,
-        timestamp: baseTime,
-        type: 'news',
-        content: response.post,
-        author: newsOrg.id,
-        authorName: newsOrg.name,
-        sentiment: response.sentiment,
-        clueStrength: response.clueStrength,
-        pointsToward: response.pointsToward,
-      };
-    } catch (error) {
-      console.warn(`⚠️  Failed to generate day transition post for day ${day}:`, error);
-      return null;
-    }
-  }
 
   /**
    * Generate ambient post (general musing, not tied to events)
@@ -1954,8 +1881,8 @@ No other text.`;
         return response;
       }
 
-      console.error('Invalid response from LLM:', JSON.stringify(response, null, 2));
-      console.warn(`⚠️  Invalid post returned (attempt ${attempt + 1}/${maxRetries}). Retrying...`);
+      logger.error('Invalid response from LLM', { response }, 'FeedGenerator');
+      logger.warn(`Invalid post returned (attempt ${attempt + 1}/${maxRetries}). Retrying...`, { attempt: attempt + 1, maxRetries }, 'FeedGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -2020,7 +1947,8 @@ No other text.`;
           pointsToward: null,
         });
       } catch (error) {
-        console.error('Failed to generate price announcement:', error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error('Failed to generate price announcement', { error: errorMessage, companyId: company.id, day }, 'FeedGenerator');
       }
     }
 
@@ -2053,7 +1981,8 @@ No other text.`;
         pointsToward: null,
       });
     } catch (error) {
-      console.error('Failed to generate ticker post:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Failed to generate ticker post', { error: errorMessage, companyId: company.id, day }, 'FeedGenerator');
     }
 
     // 3. Analyst reactions (1-2 analysts for major moves)
@@ -2097,7 +2026,8 @@ No other text.`;
             pointsToward: null,
           });
         } catch (error) {
-          console.error(`Failed to generate analyst reaction for ${analyst.name}:`, error);
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          logger.error(`Failed to generate analyst reaction for ${analyst.name}`, { error: errorMessage, analyst: analyst.name, companyId: company.id, day }, 'FeedGenerator');
         }
       }
     }
@@ -2173,7 +2103,8 @@ No other text.`;
         pointsToward: null,
       };
     } catch (error) {
-      console.error(`Failed to generate day transition post for day ${day}:`, error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to generate day transition post for day ${day}`, { error: errorMessage, day, eventCount: previousDayEvents.length }, 'FeedGenerator');
       return null;
     }
   }
@@ -2222,7 +2153,8 @@ No other text.`;
         pointsToward: null,
       };
     } catch (error) {
-      console.error(`Failed to generate question resolution post for question ${question.id}:`, error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to generate question resolution post for question ${question.id}`, { error: errorMessage, questionId: question.id, day, outcome: question.resolvedOutcome }, 'FeedGenerator');
       return null;
     }
   }
@@ -2275,7 +2207,8 @@ No other text.`;
         energy: response.energy,
       };
     } catch (error) {
-      console.error(`Failed to generate ambient post for actor ${actor.name}:`, error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to generate ambient post for actor ${actor.name}`, { error: errorMessage, actor: actor.name, actorId: actor.id, timestamp: timestamp.toISOString() }, 'FeedGenerator');
       return null;
     }
   }
@@ -2339,8 +2272,8 @@ No other text.`;
         return response;
       }
 
-      console.error('Invalid response from LLM:', JSON.stringify(response, null, 2));
-      console.warn(`⚠️  Invalid reply returned (attempt ${attempt + 1}/${maxRetries}). Retrying...`);
+      logger.error('Invalid response from LLM', { response }, 'FeedGenerator');
+      logger.warn(`Invalid reply returned (attempt ${attempt + 1}/${maxRetries}). Retrying...`, { attempt: attempt + 1, maxRetries }, 'FeedGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }

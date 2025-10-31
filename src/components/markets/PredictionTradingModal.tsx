@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
 import { PredictionPricing, calculateExpectedPayout } from '@/lib/prediction-pricing'
+import { logger } from '@/lib/logger'
 
 interface PredictionMarket {
   id: number
@@ -83,7 +84,7 @@ export function PredictionTradingModal({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(window as any).__privyAccessToken}`,
+          'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
         },
         body: JSON.stringify({
           side,
@@ -104,8 +105,9 @@ export function PredictionTradingModal({
 
       onClose()
       if (onSuccess) onSuccess()
-    } catch (error) {
-      console.error('Error buying shares:', error)
+    } catch (buyError) {
+      const errorMessage = buyError instanceof Error ? buyError.message : 'Failed to buy shares'
+      logger.error('Error buying shares:', errorMessage, 'PredictionTradingModal')
       toast.error('Failed to buy shares')
     } finally {
       setLoading(false)

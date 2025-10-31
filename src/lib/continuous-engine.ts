@@ -12,10 +12,12 @@
 
 import { FeedGenerator } from '@/engine/FeedGenerator';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
-import type { FeedPost, ActorTier, Organization, Question } from '@/shared/types';
+import type { FeedPost, Actor, DayTimeline, SelectedActor, WorldEvent, ActorTier } from '@/shared/types';
+import { ACTOR_TIERS } from '@/shared/constants';
 import { shuffleArray } from '@/shared/utils';
 import { db } from './database-service';
 import { QuestionManager } from '@/engine/QuestionManager';
+import { logger } from './logger';
 
 export class ContinuousEngine {
   private llm: BabylonLLMClient;
@@ -36,11 +38,11 @@ export class ContinuousEngine {
    */
   async start() {
     if (this.isRunning) {
-      console.log('⚠️  Engine already running');
+      logger.warn('Engine already running', undefined, 'ContinuousEngine');
       return;
     }
 
-    console.log('🚀 Starting Continuous Engine...');
+    logger.info('Starting Continuous Engine...', undefined, 'ContinuousEngine');
     
     // Initialize game state in DB
     await db.initializeGame();
@@ -49,19 +51,19 @@ export class ContinuousEngine {
 
     // Run first tick after 5 seconds
     setTimeout(() => {
-      this.tick().catch(error => {
-        console.error('❌ Tick error:', error);
+      this.tick().catch((tickError: Error) => {
+        logger.error('Tick error:', tickError.message, 'ContinuousEngine');
       });
     }, 5000);
 
     // Then run every minute
     this.intervalId = setInterval(() => {
-      this.tick().catch(error => {
-        console.error('❌ Tick error:', error);
+      this.tick().catch((tickError: Error) => {
+        logger.error('Tick error:', tickError.message, 'ContinuousEngine');
       });
     }, 60000); // 60 seconds
 
-    console.log('✅ Continuous Engine running (1 tick per minute)');
+    logger.info('Continuous Engine running (1 tick per minute)', undefined, 'ContinuousEngine');
   }
 
   /**
@@ -76,7 +78,7 @@ export class ContinuousEngine {
     }
 
     this.isRunning = false;
-    console.log('🛑 Continuous Engine stopped');
+    logger.info('Continuous Engine stopped', undefined, 'ContinuousEngine');
   }
 
   /**
@@ -84,71 +86,42 @@ export class ContinuousEngine {
    */
   private async tick() {
     const timestamp = new Date();
-    console.log(`⏰ [${timestamp.toISOString()}] Tick...`);
+    logger.debug('Tick...', { timestamp: timestamp.toISOString() }, 'ContinuousEngine');
 
     try {
       // Step 1: Check for questions to resolve
       const toResolve = await db.getQuestionsToResolve();
       if (toResolve.length > 0) {
-        console.log(`  🎯 Resolving ${toResolve.length} questions`);
+        logger.info(`Resolving ${toResolve.length} questions`, { count: toResolve.length }, 'ContinuousEngine');
         for (const question of toResolve) {
-          await db.resolveQuestion(question.id, question.outcome);
+          await db.resolveQuestion(String(question.id), question.outcome);
         }
       }
 
       // Step 2: Create new questions if needed
-      const activeQuestionsFromDb = await db.getActiveQuestions();
-
-      // Convert to Question format
-      const activeQuestions: Question[] = activeQuestionsFromDb.map(q => ({
-        id: q.questionNumber,
-        text: q.text,
-        scenario: q.scenarioId,
-        outcome: q.outcome,
-        rank: q.rank,
-        createdDate: q.createdDate.toISOString(),
-        resolutionDate: q.resolutionDate.toISOString(),
-        status: q.status as 'active' | 'resolved' | 'cancelled',
-        resolvedOutcome: q.resolvedOutcome || undefined,
-      }));
+      const activeQuestions = await db.getActiveQuestions();
 
       if (activeQuestions.length < 15) {
-        console.log(`  📝 Generating new questions...`);
+        logger.info('Generating new questions...', undefined, 'ContinuousEngine');
 
         try {
           // Get context data for question generation
           const actorsFromDb = await db.getAllActors();
-          const organizationsFromDb = await db.getAllOrganizations();
+          const organizations = await db.getAllOrganizations();
           const recentWorldEvents = await db.getRecentEvents(50);
 
-          // Convert actors to SelectedActor format
-          const actors = actorsFromDb.map(a => ({
-            id: a.id,
-            name: a.name,
-            description: a.description || undefined,
-            domain: a.domain,
-            personality: a.personality || undefined,
-            canPostFeed: a.canPostFeed,
-            canPostGroups: a.canPostGroups,
-            role: (a.role || 'extra') as 'main' | 'supporting' | 'extra',
-            affiliations: a.affiliations,
-            postStyle: a.postStyle || undefined,
-            postExample: a.postExample,
-            tier: a.tier as ActorTier,
-            initialLuck: a.initialLuck as 'low' | 'medium' | 'high',
-            initialMood: a.initialMood,
-          }));
-
-          // Convert organizations to Organization format
-          const organizations: Organization[] = organizationsFromDb.map(o => ({
-            id: o.id,
-            name: o.name,
-            description: o.description,
-            type: o.type as 'company' | 'media' | 'government',
-            canBeInvolved: o.canBeInvolved,
-            initialPrice: o.initialPrice || undefined,
-            currentPrice: o.currentPrice || undefined,
-          }));
+          // Convert Actor[] to SelectedActor[] by adding required fields
+          // Filter out database-specific fields that aren't part of SelectedActor
+          const actors: SelectedActor[] = actorsFromDb.map(actor => {
+            const { createdAt, updatedAt, ...actorData } = actor as Actor & { createdAt?: Date; updatedAt?: Date };
+            return {
+              ...actorData,
+              tier: (actor.tier || ACTOR_TIERS.B_TIER) as ActorTier,
+              role: actor.role || 'supporting',
+              initialLuck: 'medium' as const,
+              initialMood: 0,
+            } as SelectedActor;
+          });
 
           // Convert recent world events to DayTimeline format for context
           // Group events by day (approximated from timestamps)
@@ -161,19 +134,19 @@ export class ContinuousEngine {
             eventsByDay.get(dayNum)!.push(event);
           });
 
-          const recentEvents = Array.from(eventsByDay.entries()).map(([day, events]) => ({
+          const recentEvents: DayTimeline[] = Array.from(eventsByDay.entries()).map(([day, events]) => ({
             day,
             summary: `Day ${day}`,
             events: events.map(e => ({
               id: e.id,
               day,
-              type: e.eventType as any,
-              actors: e.actors,
-              description: e.description,
+              type: e.eventType as WorldEvent['type'],
+              actors: Array.isArray(e.actors) ? e.actors : [],
+              description: typeof e.description === 'string' ? e.description : (typeof e.description === 'object' && e.description !== null && 'text' in e.description && typeof (e.description as { text?: unknown }).text === 'string' ? (e.description as { text: string }).text : ''),
               relatedQuestion: e.relatedQuestion || undefined,
-              pointsToward: e.pointsToward as any,
-              visibility: e.visibility as any,
-            })),
+              pointsToward: (e.pointsToward === 'YES' || e.pointsToward === 'NO') ? e.pointsToward : null,
+              visibility: e.visibility as WorldEvent['visibility'],
+            })) as WorldEvent[],
             groupChats: {},
             feedPosts: [],
             luckChanges: [],
@@ -194,7 +167,8 @@ export class ContinuousEngine {
           // Save generated questions to database
           for (const question of newQuestions) {
             await db.createQuestion({
-              questionNumber: question.id,
+              id: String(question.id),
+              questionNumber: typeof question.id === 'number' ? question.id : parseInt(String(question.id), 10) || this.nextQuestionNumber,
               text: question.text,
               scenario: question.scenario,
               outcome: question.outcome,
@@ -202,17 +176,17 @@ export class ContinuousEngine {
               createdDate: question.createdDate,
               resolutionDate: question.resolutionDate,
               status: question.status,
-            } as any);
+            });
 
             this.nextQuestionNumber++;
           }
 
-          console.log(`  ✓ Created ${newQuestions.length} questions`);
+          logger.info(`Created ${newQuestions.length} questions`, { count: newQuestions.length }, 'ContinuousEngine');
         } catch (error) {
-          console.error('  ❌ Failed to generate questions:', error);
+          logger.error('Failed to generate questions:', error, 'ContinuousEngine');
         }
       } else {
-        console.log(`  📝 Active questions: ${activeQuestions.length}/20`);
+        logger.debug(`Active questions: ${activeQuestions.length}/20`, { count: activeQuestions.length }, 'ContinuousEngine');
       }
 
       // Step 3: Generate posts (10-20 per minute)
@@ -223,7 +197,7 @@ export class ContinuousEngine {
           gameId: 'continuous',
           dayNumber: Math.floor((timestamp.getTime() - new Date('2025-10-01').getTime()) / (1000 * 60 * 60 * 24)),
         })));
-        console.log(`  📱 Generated ${posts.length} posts`);
+        logger.info(`Generated ${posts.length} posts`, { count: posts.length }, 'ContinuousEngine');
       }
 
       // Step 4: Update game state
@@ -233,7 +207,7 @@ export class ContinuousEngine {
       });
 
     } catch (error) {
-      console.error('  ❌ Tick failed:', error);
+      logger.error('Tick failed:', error, 'ContinuousEngine');
     }
   }
 
@@ -250,7 +224,19 @@ export class ContinuousEngine {
       // Generate posts for random subset of actors (10-20 posts)
       const numPosts = Math.floor(Math.random() * 11) + 10; // 10-20 posts
       const shuffledActors = shuffleArray([...actors]);
-      const selectedActors = shuffledActors.slice(0, Math.min(numPosts, actors.length));
+      const selectedActorsRaw = shuffledActors.slice(0, Math.min(numPosts, actors.length));
+      
+      // Convert Actor[] to SelectedActor[] for generateRealisticPost
+      const selectedActors: SelectedActor[] = selectedActorsRaw.map(actor => {
+        const { createdAt, updatedAt, ...actorData } = actor as Actor & { createdAt?: Date; updatedAt?: Date };
+        return {
+          ...actorData,
+          tier: (actor.tier || ACTOR_TIERS.B_TIER) as ActorTier,
+          role: actor.role || 'supporting',
+          initialLuck: 'medium' as const,
+          initialMood: 0,
+        } as SelectedActor;
+      });
       
       const posts: FeedPost[] = [];
       const timestamp = new Date();
@@ -277,7 +263,7 @@ export class ContinuousEngine {
       
       return posts;
     } catch (error) {
-      console.error('Error generating posts:', error);
+      logger.error('Error generating posts:', error, 'ContinuousEngine');
       return [];
     }
   }
@@ -286,12 +272,25 @@ export class ContinuousEngine {
    * Generate realistic post content based on actor
    * Delegates to FeedGenerator for proper integration
    */
-  private async generateRealisticPost(actor: any, timestamp: Date): Promise<{
+  private async generateRealisticPost(actor: SelectedActor, timestamp: Date): Promise<{
     content: string;
     sentiment: number;
     energy: number;
   } | null> {
-    return await this.feedGenerator.generateMinuteAmbientPost(actor, timestamp);
+    // Convert SelectedActor to Actor for generateMinuteAmbientPost
+    const actorForPost: Actor = {
+      id: actor.id,
+      name: actor.name,
+      description: actor.description,
+      domain: actor.domain,
+      personality: actor.personality,
+      role: actor.role,
+      affiliations: actor.affiliations,
+      postStyle: actor.postStyle,
+      postExample: actor.postExample,
+      tier: actor.tier,
+    };
+    return await this.feedGenerator.generateMinuteAmbientPost(actorForPost, timestamp);
   }
 
   /**

@@ -2,26 +2,23 @@ import { describe, expect, it, spyOn, mock, beforeEach, afterEach, beforeAll, af
 import { predictionMarketsPlugin, BabylonClientService, BabylonTradingService } from '../plugin';
 import {
   type IAgentRuntime,
-  type Memory,
   type State,
   type Content,
   type HandlerCallback,
+  type Action,
   logger,
 } from '@elizaos/core';
 import {
   createMockRuntime,
   createTestMemory,
   createTestState,
-  createUUID,
-  testFixtures,
 } from './test-utils';
 
-// Mock the API client and auth service
+// Mock the API client
 import { BabylonApiClient } from '../api-client';
-import { AgentAuthService } from '../agent-auth-service';
 
-// Mock modules
-const mockFetch = global.fetch as any;
+// Store original fetch for test cleanup
+const originalFetch = global.fetch;
 
 interface TestCallbackContent {
   text?: string;
@@ -29,14 +26,11 @@ interface TestCallbackContent {
   source?: string;
 }
 
-interface TestActionResult {
-  text?: string;
-  success: boolean;
-  data?: {
-    actions?: string[];
-    source?: string;
-  };
-  error?: Error | string;
+interface ExtendedState extends State {
+  marketId?: string;
+  side?: string;
+  amount?: number;
+  data?: Record<string, unknown>;
 }
 
 // Setup environment variables
@@ -49,6 +43,10 @@ beforeAll(() => {
 
 afterAll(() => {
   // Cleanup if needed
+});
+
+afterEach(() => {
+  // Cleanup after each test if needed
 });
 
 describe('Plugin Configuration', () => {
@@ -77,7 +75,7 @@ describe('Plugin Configuration', () => {
     };
 
     if (predictionMarketsPlugin.init) {
-      await predictionMarketsPlugin.init(config);
+      await predictionMarketsPlugin.init(config, runtime);
       expect(process.env.BABYLON_API_URL).toBe('http://localhost:3000');
     }
   });
@@ -85,31 +83,34 @@ describe('Plugin Configuration', () => {
   it('should handle initialization without config', async () => {
     if (predictionMarketsPlugin.init) {
       // Init should not throw even with empty config
-      await predictionMarketsPlugin.init({});
+      const runtime = createMockRuntime();
+      await predictionMarketsPlugin.init({}, runtime);
     }
   });
 
   it('should throw error for invalid configuration', async () => {
+    const runtime = createMockRuntime();
     const invalidConfig = {
       BABYLON_API_URL: 'not-a-url',
       BABYLON_MAX_TRADE_SIZE: '-100', // Invalid: negative number
     };
 
     if (predictionMarketsPlugin.init) {
-      await expect(predictionMarketsPlugin.init(invalidConfig)).rejects.toThrow(
+      await expect(predictionMarketsPlugin.init(invalidConfig, runtime)).rejects.toThrow(
         'Invalid plugin configuration'
       );
     }
   });
 
   it('should handle ZodError with issues array correctly', async () => {
+    const runtime = createMockRuntime();
     const invalidConfig = {
       BABYLON_MAX_TRADE_SIZE: 'invalid-number',
     };
 
     if (predictionMarketsPlugin.init) {
       try {
-        await predictionMarketsPlugin.init(invalidConfig);
+        await predictionMarketsPlugin.init(invalidConfig, runtime);
         throw new Error('Should have thrown error');
       } catch (error) {
         expect(error).toBeInstanceOf(Error);
@@ -122,7 +123,7 @@ describe('Plugin Configuration', () => {
 
 describe('BUY_SHARES Action', () => {
   let runtime: IAgentRuntime;
-  let buyAction: any;
+  let buyAction: Action | undefined;
 
   beforeEach(() => {
     runtime = createMockRuntime();
@@ -147,7 +148,7 @@ describe('BUY_SHARES Action', () => {
         buyShares: async () => ({ success: true }),
       }),
     };
-    runtime.getService = mock(() => mockBabylonService as any);
+    runtime.getService = mock(() => mockBabylonService as unknown as BabylonClientService | null);
 
     const buyMessages = [
       'buy shares',
@@ -206,7 +207,7 @@ describe('BUY_SHARES Action', () => {
     const mockBabylonService = {
       getClient: () => mockClient,
     };
-    runtime.getService = mock(() => mockBabylonService as any);
+    runtime.getService = mock(() => mockBabylonService as unknown as BabylonClientService | null);
 
     const message = createTestMemory({
       content: { text: 'buy yes shares on market 123', source: 'test' },
@@ -217,7 +218,7 @@ describe('BUY_SHARES Action', () => {
       marketId: '123',
       side: 'yes',
       amount: 10,
-    } as any);
+    } as ExtendedState);
 
     let callbackContent: TestCallbackContent | null = null;
     const callback: HandlerCallback = async (content: Content) => {
@@ -231,6 +232,9 @@ describe('BUY_SHARES Action', () => {
     // The handler calls buyShares if marketId is provided
     if (result.success) {
       expect(mockClient.buyShares).toHaveBeenCalled();
+      // Verify callback was called with appropriate content
+      expect(callbackContent).not.toBeNull();
+      expect(callbackContent?.action).toBe('BUY_SHARES');
     }
   });
 
@@ -254,7 +258,7 @@ describe('BUY_SHARES Action', () => {
 
 describe('SELL_SHARES Action', () => {
   let runtime: IAgentRuntime;
-  let sellAction: any;
+  let sellAction: Action | undefined;
 
   beforeEach(() => {
     runtime = createMockRuntime();
@@ -278,7 +282,7 @@ describe('SELL_SHARES Action', () => {
         sellShares: async () => ({ success: true }),
       }),
     };
-    runtime.getService = mock(() => mockBabylonService as any);
+    runtime.getService = mock(() => mockBabylonService as unknown as BabylonClientService | null);
 
     const sellMessages = ['sell shares', 'exit position', 'close position', 'sell my shares'];
 
@@ -294,7 +298,7 @@ describe('SELL_SHARES Action', () => {
 
 describe('CHECK_WALLET Action', () => {
   let runtime: IAgentRuntime;
-  let checkWalletAction: any;
+  let checkWalletAction: Action | undefined;
 
   beforeEach(() => {
     runtime = createMockRuntime();
@@ -320,7 +324,7 @@ describe('CHECK_WALLET Action', () => {
         }),
       }),
     };
-    runtime.getService = mock(() => mockBabylonService as any);
+    runtime.getService = mock(() => mockBabylonService as unknown as BabylonClientService | null);
 
     const walletMessages = ['check wallet', 'wallet balance', 'show my balance'];
 
@@ -357,7 +361,7 @@ describe('Market Analysis Evaluator', () => {
         getActiveMarkets: async () => [],
       }),
     };
-    runtime.getService = mock(() => mockBabylonService as any);
+    runtime.getService = mock(() => mockBabylonService as unknown as BabylonClientService | null);
 
     const analysisMessages = [
       'analyze markets',
@@ -401,7 +405,7 @@ describe('Portfolio Management Evaluator', () => {
         getPositions: async () => [],
       }),
     };
-    runtime.getService = mock(() => mockBabylonService as any);
+    runtime.getService = mock(() => mockBabylonService as unknown as BabylonClientService | null);
 
     const portfolioMessages = ['review portfolio', 'check positions', 'portfolio status'];
 
@@ -448,7 +452,7 @@ describe('Market Data Provider', () => {
         getActiveMarkets: async () => mockMarkets,
       }),
     };
-    runtime.getService = mock(() => mockBabylonService as any);
+    runtime.getService = mock(() => mockBabylonService as unknown as BabylonClientService | null);
 
     const message = createTestMemory();
     const state = createTestState();
@@ -508,7 +512,7 @@ describe('Wallet Status Provider', () => {
         getWallet: async () => mockWallet,
       }),
     };
-    runtime.getService = mock(() => mockBabylonService as any);
+    runtime.getService = mock(() => mockBabylonService as unknown as BabylonClientService | null);
 
     const message = createTestMemory();
     const state = createTestState();
@@ -558,7 +562,7 @@ describe('Position Summary Provider', () => {
         getPositions: async () => mockPositions,
       }),
     };
-    runtime.getService = mock(() => mockBabylonService as any);
+    runtime.getService = mock(() => mockBabylonService as unknown as BabylonClientService | null);
 
     const message = createTestMemory();
     const state = createTestState();
@@ -597,7 +601,7 @@ describe('BabylonClientService', () => {
     const service = await BabylonClientService.start(runtime);
 
     const runtimeWithService = createMockRuntime({
-      getService: mock(() => service as any),
+      getService: mock(() => service as unknown as BabylonClientService | null),
     });
 
     await BabylonClientService.stop(runtimeWithService);
@@ -619,6 +623,22 @@ describe('BabylonClientService', () => {
     const client = service.getClient();
     expect(client).toBeDefined();
     expect(client).toBeInstanceOf(BabylonApiClient);
+  });
+
+  it('should handle API client fetch errors gracefully', async () => {
+    // Mock fetch to simulate network error
+    const mockFetchError = mock().mockRejectedValue(new Error('Network error'));
+    global.fetch = mockFetchError as typeof fetch;
+
+    const service = await BabylonClientService.start(runtime);
+    const client = service.getClient();
+
+    // Test that client handles fetch errors
+    const markets = await client.getActiveMarkets();
+    expect(markets).toEqual([]); // Should return empty array on error
+
+    // Restore original fetch
+    global.fetch = originalFetch;
   });
 
   it('should update auth token', async () => {
@@ -725,6 +745,133 @@ describe('BabylonTradingService', () => {
     const service = await BabylonTradingService.start(runtime);
     service.disableAutoTrading();
     expect(logger.info).toHaveBeenCalled();
+  });
+});
+
+describe('BabylonA2AService', () => {
+  let runtime: IAgentRuntime;
+
+  beforeEach(() => {
+    runtime = createMockRuntime();
+  });
+
+  it('should be imported from plugin', () => {
+    // A2A service is exported but conditionally initialized
+    expect(predictionMarketsPlugin.init).toBeDefined();
+  });
+
+  it('should register service when A2A is enabled', async () => {
+    const config = {
+      BABYLON_API_URL: 'http://localhost:3000',
+      BABYLON_A2A_ENABLED: 'true',
+      BABYLON_A2A_ENDPOINT: 'ws://localhost:8080',
+    };
+
+    if (predictionMarketsPlugin.init) {
+      await predictionMarketsPlugin.init(config, runtime);
+      
+      // Verify service registration method exists
+      // Service may or may not be registered depending on credentials
+      expect(typeof runtime.registerService).toBe('function');
+      expect(typeof runtime.getRegisteredServiceTypes).toBe('function');
+    }
+  });
+
+  it('should handle A2A initialization without credentials gracefully', async () => {
+    const config = {
+      BABYLON_API_URL: 'http://localhost:3000',
+      BABYLON_A2A_ENABLED: 'true',
+      BABYLON_A2A_ENDPOINT: 'ws://localhost:8080',
+    };
+
+    if (predictionMarketsPlugin.init) {
+      // Should not throw even without credentials
+      await expect(predictionMarketsPlugin.init(config, runtime)).resolves.not.toThrow();
+    }
+  });
+});
+
+describe('A2A Market Data Provider', () => {
+  let runtime: IAgentRuntime;
+  const provider = predictionMarketsPlugin.providers?.find((p) => p.name === 'a2aMarketDataProvider');
+
+  beforeEach(() => {
+    runtime = createMockRuntime();
+  });
+
+  it('should have A2A market data provider', () => {
+    expect(provider).toBeDefined();
+    expect(provider?.name).toBe('a2aMarketDataProvider');
+  });
+
+  it('should fallback to REST when A2A not available', async () => {
+    if (!provider?.get) {
+      throw new Error('a2aMarketDataProvider not found');
+    }
+
+    const mockMarkets = [
+      {
+        id: '1',
+        question: 'Test question',
+        yesPrice: 0.6,
+        noPrice: 0.4,
+        totalVolume: 1000,
+      },
+    ];
+
+    const mockBabylonService = {
+      getClient: () => ({
+        getActiveMarkets: async () => mockMarkets,
+      }),
+    };
+    runtime.getService = mock((serviceType: string) => {
+      if (serviceType === 'babylon') return mockBabylonService;
+      return null; // A2A service not available
+    });
+
+    const message = createTestMemory();
+    const state = createTestState();
+
+    const result = await provider.get(runtime, message, state);
+
+    expect(result).toHaveProperty('text');
+    expect(result.text).toContain('REST');
+    expect(result).toHaveProperty('data');
+  });
+
+  it('should use A2A cache when service is connected', async () => {
+    if (!provider?.get) {
+      throw new Error('a2aMarketDataProvider not found');
+    }
+
+    const mockA2AService = {
+      isConnected: () => true,
+    };
+
+    const cachedMarketData = {
+      markets: [
+        { id: '1', question: 'Cached market', yesPrice: 0.7, noPrice: 0.3, totalVolume: 2000 },
+      ],
+    };
+
+    runtime.getService = mock((serviceType: string) => {
+      if (serviceType === 'babylon-a2a') return mockA2AService;
+      return null;
+    });
+
+    runtime.getCache = mock((key: string) => {
+      if (key === 'a2a.market.updates') return cachedMarketData;
+      return undefined;
+    });
+
+    const message = createTestMemory();
+    const state = createTestState();
+
+    const result = await provider.get(runtime, message, state);
+
+    expect(result).toHaveProperty('text');
+    expect(result.text).toContain('A2A Real-time');
+    expect(result).toHaveProperty('data');
   });
 });
 

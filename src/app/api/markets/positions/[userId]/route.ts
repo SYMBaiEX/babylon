@@ -3,10 +3,11 @@
  * Methods: GET (get user's positions in both perps and prediction markets)
  */
 
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { successResponse, errorResponse, optionalAuth } from '@/lib/api/auth-middleware';
 import { getPerpsEngine } from '@/lib/perps-service';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -96,7 +97,7 @@ export async function GET(
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Error fetching user positions:', error);
+    logger.error('Error fetching user positions:', error, 'GET /api/markets/positions/[userId]');
     return errorResponse('Failed to fetch positions');
   }
 }

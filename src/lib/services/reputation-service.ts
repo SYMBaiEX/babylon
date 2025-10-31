@@ -10,6 +10,7 @@ import { createPublicClient, createWalletClient, http, parseEther, type Address 
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 import { PrismaClient } from '@prisma/client'
+import { logger } from '@/lib/logger'
 
 const prisma = new PrismaClient()
 
@@ -109,11 +110,11 @@ export class ReputationService {
       })
 
       if (positions.length === 0) {
-        console.log(`No positions found for market ${resolution.marketId}`)
+        logger.info(`No positions found for market ${resolution.marketId}`, undefined, 'ReputationService')
         return []
       }
 
-      console.log(`Updating reputation for ${positions.length} positions in market ${resolution.marketId}`)
+      logger.info(`Updating reputation for ${positions.length} positions in market ${resolution.marketId}`, { count: positions.length, marketId: resolution.marketId }, 'ReputationService')
 
       // 2. Create clients
       const publicClient = createPublicClient({
@@ -151,7 +152,7 @@ export class ReputationService {
 
           if (isWinner) {
             // Winner: +10 reputation
-            console.log(`  Recording WIN for token ${tokenId} (+10 reputation)`)
+            logger.info(`Recording WIN for token ${tokenId} (+10 reputation)`, { tokenId, change: 10 }, 'ReputationService')
             txHash = await walletClient.writeContract({
               address: REPUTATION_SYSTEM,
               abi: REPUTATION_SYSTEM_ABI,
@@ -160,7 +161,7 @@ export class ReputationService {
             })
           } else {
             // Loser: -5 reputation
-            console.log(`  Recording LOSS for token ${tokenId} (-5 reputation)`)
+            logger.info(`Recording LOSS for token ${tokenId} (-5 reputation)`, { tokenId, change: -5 }, 'ReputationService')
             txHash = await walletClient.writeContract({
               address: REPUTATION_SYSTEM,
               abi: REPUTATION_SYSTEM_ABI,
@@ -182,9 +183,9 @@ export class ReputationService {
             txHash,
           })
 
-          console.log(`  ✅ Updated reputation for token ${tokenId} (tx: ${txHash})`)
+          logger.info(`Updated reputation for token ${tokenId}`, { tokenId, txHash, change: isWinner ? 10 : -5 }, 'ReputationService')
         } catch (error) {
-          console.error(`  ❌ Failed to update reputation for token ${tokenId}:`, error)
+          logger.error(`Failed to update reputation for token ${tokenId}:`, error, 'ReputationService')
           results.push({
             userId: position.userId,
             tokenId,
@@ -196,7 +197,7 @@ export class ReputationService {
 
       return results
     } catch (error) {
-      console.error('Error updating reputation for market:', error)
+      logger.error('Error updating reputation for market:', error, 'ReputationService')
       throw error
     }
   }
@@ -237,7 +238,7 @@ export class ReputationService {
       const trustScore = Number(reputation[5])
       return Math.floor(trustScore / 100) // Convert from 0-10000 to 0-100
     } catch (error) {
-      console.error('Error getting on-chain reputation:', error)
+      logger.error('Error getting on-chain reputation:', error, 'ReputationService')
       return null
     }
   }
@@ -262,7 +263,7 @@ export class ReputationService {
 
       return onChainReputation
     } catch (error) {
-      console.error('Error syncing user reputation:', error)
+      logger.error('Error syncing user reputation:', error, 'ReputationService')
       return null
     }
   }
@@ -281,7 +282,7 @@ export class ReputationService {
         const results = await this.updateReputationForResolvedMarket(resolution)
         allResults[resolution.marketId] = results
       } catch (error) {
-        console.error(`Failed to update reputation for market ${resolution.marketId}:`, error)
+        logger.error(`Failed to update reputation for market ${resolution.marketId}:`, error, 'ReputationService')
         allResults[resolution.marketId] = []
       }
     }

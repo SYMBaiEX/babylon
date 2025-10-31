@@ -700,21 +700,27 @@ export function ProfileView({
 
         {/* World Context with Questions */}
         <div style={{ marginTop: 24 }}>
-          {allGames.length > 0 && allGames[allGames.length - 1] && (
-            <WorldContextPanel
-              mainActors={allGames[allGames.length - 1].setup.mainActors.map(a => ({
-                id: a.id,
-                name: a.name,
-                description: a.description || '',
-                tier: a.tier,
-                role: a.role,
-                domain: a.domain
-              }))}
-              scenarios={allGames[allGames.length - 1].setup.scenarios}
-              questions={allGames[allGames.length - 1].setup.questions}
-              worldSummary={`Tracking ${allGames[allGames.length - 1].setup.questions.length} prediction markets across ${allGames[allGames.length - 1].setup.scenarios.length} scenarios with ${allGames[allGames.length - 1].setup.mainActors.length} main actors.`}
-            />
-          )}
+          {allGames.length > 0 && (() => {
+            const lastGame = allGames[allGames.length - 1];
+            if (!lastGame || !lastGame.setup) return null;
+            
+            const { setup } = lastGame;
+            return (
+              <WorldContextPanel
+                mainActors={setup.mainActors?.map(a => ({
+                  id: a.id,
+                  name: a.name,
+                  description: a.description || '',
+                  tier: a.tier,
+                  role: a.role,
+                  domain: a.domain
+                })) || []}
+                scenarios={setup.scenarios || []}
+                questions={setup.questions || []}
+                worldSummary={`Tracking ${setup.questions?.length || 0} prediction markets across ${setup.scenarios?.length || 0} scenarios with ${setup.mainActors?.length || 0} main actors.`}
+              />
+            );
+          })()}
         </div>
       </div>
     </div>

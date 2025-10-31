@@ -14,6 +14,7 @@
 
 import { GameWorld } from '../engine/GameWorld';
 import { writeFile } from 'fs/promises';
+import { logger } from '@/lib/logger';
 
 interface CLIOptions {
   outcome?: 'SUCCESS' | 'FAILURE';
@@ -54,43 +55,43 @@ async function main() {
   });
 
   if (options.verbose && !options.json) {
-    console.log('\n🌍 GENERATING BABYLON GAME WORLD');
-    console.log('=================================\n');
+    logger.info('GENERATING BABYLON GAME WORLD', undefined, 'CLI');
+    logger.info('=================================', undefined, 'CLI');
 
     world.on('world:started', (event) => {
-      console.log(`📜 Question: ${event.data.question}`);
-      console.log(`🎯 True Outcome: ${outcomeValue ? 'SUCCESS ✅' : 'FAILURE ❌'}`);
-      console.log(`👥 NPCs in world: ${event.data.npcs}\n`);
-      console.log('--- TIMELINE ---\n');
+      logger.info(`Question: ${event.data.question}`, undefined, 'CLI');
+      logger.info(`True Outcome: ${outcomeValue ? 'SUCCESS' : 'FAILURE'}`, undefined, 'CLI');
+      logger.info(`NPCs in world: ${event.data.npcs}`, undefined, 'CLI');
+      logger.info('--- TIMELINE ---', undefined, 'CLI');
     });
 
     world.on('day:begins', (event) => {
-      console.log(`\n📅 DAY ${event.data.day}`);
-      console.log('─'.repeat(50));
+      logger.info(`DAY ${event.data.day}`, undefined, 'CLI');
+      logger.info('─'.repeat(50), undefined, 'CLI');
     });
 
     world.on('npc:action', (event) => {
-      console.log(`  🎭 ${event.npc}: ${event.description}`);
+      logger.info(`${event.npc}: ${event.description}`, undefined, 'CLI');
     });
 
     world.on('npc:conversation', (event) => {
-      console.log(`  💬 ${event.description}`);
+      logger.info(event.description, undefined, 'CLI');
     });
 
     world.on('news:published', (event) => {
-      console.log(`  📰 ${event.npc}: ${event.description}`);
+      logger.info(`${event.npc}: ${event.description}`, undefined, 'CLI');
     });
 
     world.on('rumor:spread', (event) => {
-      console.log(`  🗣️  Rumor: ${event.description}`);
+      logger.info(`Rumor: ${event.description}`, undefined, 'CLI');
     });
 
     world.on('clue:revealed', (event) => {
-      console.log(`  🔍 ${event.npc}: ${event.description}`);
+      logger.info(`${event.npc}: ${event.description}`, undefined, 'CLI');
     });
 
     world.on('development:occurred', (event) => {
-      console.log(`  ⚡ DEVELOPMENT: ${event.description}`);
+      logger.info(`DEVELOPMENT: ${event.description}`, undefined, 'CLI');
     });
 
     world.on('feed:post', (post) => {
@@ -99,17 +100,17 @@ async function main() {
                    post.type === 'thread' ? '🧵' : '📢';
       
       const prefix = post.replyTo ? '    ↳' : '  ';
-      console.log(`${prefix}${emoji} ${post.author}: ${post.content}`);
+      logger.info(`${prefix}${emoji} ${post.author}: ${post.content}`, undefined, 'CLI');
       
       if (post.clueStrength > 0.5) {
-        console.log(`${prefix}   [Strong clue: ${post.clueStrength.toFixed(1)}]`);
+        logger.debug(`${prefix}   [Strong clue: ${post.clueStrength.toFixed(1)}]`, undefined, 'CLI');
       }
     });
 
     world.on('outcome:revealed', (event) => {
-      console.log(`\n${'='.repeat(50)}`);
-      console.log(`🎯 FINAL OUTCOME: ${event.data.outcome ? 'SUCCESS ✅' : 'FAILURE ❌'}`);
-      console.log(`${'='.repeat(50)}\n`);
+      logger.info('='.repeat(50), undefined, 'CLI');
+      logger.info(`FINAL OUTCOME: ${event.data.outcome ? 'SUCCESS' : 'FAILURE'}`, undefined, 'CLI');
+      logger.info('='.repeat(50), undefined, 'CLI');
     });
   }
 
@@ -120,18 +121,19 @@ async function main() {
     await writeFile(options.save, json);
     
     if (!options.json) {
-      console.log(`💾 World saved to: ${options.save}`);
+      logger.info(`World saved to: ${options.save}`, undefined, 'CLI');
     }
   }
 
   if (!options.json) {
-    console.log(`\n✅ World generation complete`);
-    console.log(`   Total events: ${finalWorld.events.length}`);
-    console.log(`   NPCs: ${finalWorld.npcs.length}`);
-    console.log(`   Days simulated: ${finalWorld.timeline.length}`);
-    console.log(`   Final outcome: ${finalWorld.outcome ? 'SUCCESS ✅' : 'FAILURE ❌'}\n`);
+    logger.info('World generation complete', {
+      totalEvents: finalWorld.events.length,
+      npcs: finalWorld.npcs.length,
+      daysSimulated: finalWorld.timeline.length,
+      finalOutcome: finalWorld.outcome ? 'SUCCESS' : 'FAILURE'
+    }, 'CLI');
   } else {
-    console.log(JSON.stringify(finalWorld, null, 2));
+    logger.info(JSON.stringify(finalWorld, null, 2), undefined, 'CLI');
   }
 
   process.exit(0);
@@ -139,7 +141,7 @@ async function main() {
 
 if (import.meta.main) {
   main().catch(error => {
-    console.error('Error:', error);
+    logger.error('Error:', error, 'CLI');
     process.exit(1);
   });
 }
