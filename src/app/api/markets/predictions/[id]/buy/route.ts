@@ -25,18 +25,41 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: marketId } = await params;
+  
+  let user;
   try {
-    // 1. Authenticate user
-    const user = await authenticate(request);
-    const { id: marketId } = await params;
+    user = await authenticate(request);
+  } catch (authError) {
+    const authErrorMessage = authError instanceof Error ? authError.message : 'Authentication failed';
+    logger.error('Authentication error in buy prediction:', { message: authErrorMessage, marketId }, 'POST /api/markets/predictions/[id]/buy');
+    return authErrorResponse('Unauthorized');
+  }
+
+  try {
 
     if (!marketId) {
+      logger.error('Missing market ID in request', { params: await params }, 'POST /api/markets/predictions/[id]/buy');
       return errorResponse('Market ID is required', 400);
     }
+
+    logger.info('Buy request START', { 
+      marketId, 
+      userId: user.userId,
+      marketIdType: typeof marketId,
+      isNumber: !isNaN(Number(marketId))
+    }, 'POST /api/markets/predictions/[id]/buy');
 
     // 2. Parse request body
     const body = await request.json();
     const { side, amount } = body; // side: 'yes' | 'no', amount: USD
+    
+    logger.info('Buy request params', { 
+      marketId, 
+      side, 
+      amount,
+      userId: user.userId 
+    }, 'POST /api/markets/predictions/[id]/buy');
 
     // 3. Validate inputs
     if (!side || !amount) {
@@ -55,14 +78,91 @@ export async function POST(
       return errorResponse('Minimum order size is $1', 400);
     }
 
-    // 4. Get market
-    const market = await prisma.market.findUnique({
+    // 4. Get or create market from question
+    logger.info('Step 4: Looking up market/question', { marketId }, 'POST /api/markets/predictions/[id]/buy');
+    
+    // First try to find Market by ID
+    let market = await prisma.market.findUnique({
       where: { id: marketId },
     });
+    logger.info('Step 4a: Market lookup result', { found: !!market }, 'POST /api/markets/predictions/[id]/buy');
 
+    // If market doesn't exist, try to find Question and create Market
+    // API now returns question.id, but also support questionNumber for backwards compatibility
     if (!market) {
-      return errorResponse('Market not found', 404);
+      logger.info('Step 4b: Market not found, looking for question', { marketId }, 'POST /api/markets/predictions/[id]/buy');
+      
+      // Try to find by ID first (most common case after API update)
+      let question = await (prisma as any).question.findUnique({
+        where: { id: marketId },
+      });
+      logger.info('Step 4c: Question by ID lookup', { found: !!question }, 'POST /api/markets/predictions/[id]/buy');
+      
+      // If not found by ID and marketId looks like a number, try questionNumber
+      if (!question && !isNaN(Number(marketId))) {
+        logger.info('Step 4d: Trying question by number', { questionNumber: parseInt(marketId, 10) }, 'POST /api/markets/predictions/[id]/buy');
+        const questions = await (prisma as any).question.findMany({
+          where: { questionNumber: parseInt(marketId, 10) },
+          orderBy: { createdDate: 'desc' },
+          take: 1,
+        });
+        question = questions[0] || null;
+        logger.info('Step 4e: Question by number result', { found: !!question, questionId: question?.id }, 'POST /api/markets/predictions/[id]/buy');
+      }
+
+      if (!question) {
+        logger.error('Neither market nor question found', { marketId }, 'POST /api/markets/predictions/[id]/buy');
+        return errorResponse('Market or question not found', 404);
+      }
+
+      // Check if question is active
+      if (question.status !== 'active') {
+        return errorResponse(`Question is ${question.status}, cannot trade`, 400);
+      }
+
+      // Check if question has expired
+      if (new Date(question.resolutionDate) < new Date()) {
+        return errorResponse('Question has expired', 400);
+      }
+
+      logger.info('Step 4f: Creating market from question', { 
+        questionId: question.id,
+        questionNumber: question.questionNumber 
+      }, 'POST /api/markets/predictions/[id]/buy');
+      
+      // Create or get existing market from question
+      // Use upsert to avoid unique constraint errors from race conditions
+      const endDate = new Date(question.resolutionDate);
+      const initialLiquidity = 1000; // Default liquidity
+      
+      market = await prisma.market.upsert({
+        where: { id: question.id },
+        create: {
+          id: question.id, // Use question.id (string UUID), not questionNumber
+          question: question.text,
+          description: null,
+          gameId: 'continuous',
+          dayNumber: null,
+          yesShares: new Prisma.Decimal(initialLiquidity / 2),
+          noShares: new Prisma.Decimal(initialLiquidity / 2),
+          liquidity: new Prisma.Decimal(initialLiquidity),
+          resolved: false,
+          resolution: null,
+          endDate: endDate,
+        },
+        update: {
+          // If market exists, just return it without updating
+        },
+      });
+
+      logger.info(`Auto-created market from question`, { 
+        marketId: market.id,
+        questionId: question.id, 
+        questionNumber: question.questionNumber 
+      }, 'POST /api/markets/predictions/[id]/buy');
     }
+    
+    logger.info('Step 5: Market ready', { marketId: market.id }, 'POST /api/markets/predictions/[id]/buy');
 
     // 5. Check if market is still active
     if (market.resolved) {
@@ -178,14 +278,29 @@ export async function POST(
       201
     );
   } catch (error) {
-    if (error instanceof Error && error.message === 'Authentication failed') {
-      return authErrorResponse('Unauthorized');
-    }
     if (error instanceof Error && error.message.includes('Insufficient balance')) {
       return errorResponse(error.message, 400);
     }
-    logger.error('Error buying shares:', error, 'POST /api/markets/predictions/[id]/buy');
-    return errorResponse('Failed to buy shares');
+    
+    // Better error logging - extract error details properly
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    const errorDetails = {
+      message: errorMessage,
+      stack: errorStack,
+      marketId,
+      error: error instanceof Error ? {
+        name: error.name,
+        message: error.message,
+      } : error,
+    };
+    logger.error('Error buying shares:', errorDetails, 'POST /api/markets/predictions/[id]/buy');
+    
+    // Return more detailed error for debugging
+    return errorResponse(
+      `Failed to buy shares: ${errorMessage}`,
+      500
+    );
   }
 }
 

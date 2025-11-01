@@ -6,33 +6,44 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { logger } from '@/lib/logger'
 
-export function WalletBalance() {
+interface WalletBalanceProps {
+  refreshTrigger?: number; // Timestamp or counter to force refresh
+}
+
+export function WalletBalance({ refreshTrigger }: WalletBalanceProps = {}) {
   const { user, authenticated } = useAuth()
   const [balance, setBalance] = useState(0)
   const [lifetimePnL, setLifetimePnL] = useState(0)
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
+  const fetchBalance = async () => {
     if (!authenticated || !user) {
       setBalance(0)
       setLifetimePnL(0)
       return
     }
 
-    const fetchBalance = async () => {
-      try {
-        setLoading(true)
-        const response = await fetch(`/api/users/${user.id}/balance`)
-        if (response.ok) {
-          const data = await response.json()
-          setBalance(data.balance || 0)
-          setLifetimePnL(data.lifetimePnL || 0)
-        }
-      } catch (error) {
-        logger.error('Error fetching balance:', error, 'WalletBalance')
-      } finally {
-        setLoading(false)
+    try {
+      setLoading(true)
+      const response = await fetch(`/api/users/${user.id}/balance`)
+      if (response.ok) {
+        const data = await response.json()
+        setBalance(data.balance || 0)
+        setLifetimePnL(data.lifetimePnL || 0)
       }
+    } catch (error) {
+      logger.error('Error fetching balance:', error, 'WalletBalance')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Initial fetch and periodic refresh
+  useEffect(() => {
+    if (!authenticated || !user) {
+      setBalance(0)
+      setLifetimePnL(0)
+      return
     }
 
     fetchBalance()
@@ -41,6 +52,13 @@ export function WalletBalance() {
     const interval = setInterval(fetchBalance, 30000)
     return () => clearInterval(interval)
   }, [authenticated, user])
+
+  // Trigger immediate refresh when refreshTrigger changes
+  useEffect(() => {
+    if (refreshTrigger) {
+      fetchBalance()
+    }
+  }, [refreshTrigger])
 
   if (!authenticated) {
     return null

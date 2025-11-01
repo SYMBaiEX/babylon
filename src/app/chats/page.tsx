@@ -1,17 +1,15 @@
 'use client'
 
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { MessageCircle, Send, Search, X, ArrowLeft, Users, AlertCircle, Check, Loader2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { usePrivy } from '@privy-io/react-auth'
-import { useGameStore } from '@/stores/gameStore'
 import { useChatMessages } from '@/hooks/useWebSocket'
 import { LoginButton } from '@/components/auth/LoginButton'
 import { PageContainer } from '@/components/shared/PageContainer'
-import { Avatar, GroupAvatar } from '@/components/shared/Avatar'
+import { Avatar } from '@/components/shared/Avatar'
 import { Separator } from '@/components/shared/Separator'
-import type { ChatMessage } from '@/shared/types'
 import { cn } from '@/lib/utils'
 
 interface Chat {
@@ -56,18 +54,18 @@ interface ChatDetails {
 export default function ChatsPage() {
   const { ready, authenticated } = useAuth()
   const { user } = useAuthStore()
-  const { allGames, startTime, currentTimeMs } = useGameStore()
   const { getAccessToken } = usePrivy()
   
+  // Debug mode: enabled in localhost
+  const isDebugMode = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  
   // State
-  const [activeTab, setActiveTab] = useState<'game' | 'user'>('game')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
   const [groupChats, setGroupChats] = useState<Chat[]>([])
-  const [directChats, setDirectChats] = useState<Chat[]>([])
   const [chatDetails, setChatDetails] = useState<ChatDetails | null>(null)
   const [messageInput, setMessageInput] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [loadingChat, setLoadingChat] = useState(false)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
@@ -75,217 +73,65 @@ export default function ChatsPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // WebSocket messages for real-time updates
-  const { messages: wsMessages, addMessage: addWsMessage } = useChatMessages(selectedChatId)
-
-  // Calculate current date from timeline
-  const currentDate = startTime ? new Date(startTime + currentTimeMs) : null
+  const { addMessage: addWsMessage } = useChatMessages(selectedChatId)
 
   // WebSocket is initialized lazily by the client; no-op here to avoid extra requests
 
-  // Get all unique groups from all games (for Game Chats tab)
-  const allGroups = useMemo(() => {
-    const groupsMap = new Map<string, { id: string; name: string; messageCount: number }>()
-
-    // First, build a map of groupId -> name from setup
-    const groupNameMap = new Map<string, string>()
-    allGames.forEach(g => {
-      g.setup?.groupChats?.forEach(groupChat => {
-        groupNameMap.set(groupChat.id, groupChat.name)
-      })
-    })
-
-    // Then count messages per group
-    allGames.forEach(g => {
-      g.timeline?.forEach(day => {
-        Object.keys(day.groupChats || {}).forEach(groupId => {
-          const messages = day.groupChats?.[groupId]
-          const messageCount = Array.isArray(messages) ? messages.length : 0
-
-          if (groupsMap.has(groupId)) {
-            const existing = groupsMap.get(groupId)!
-            existing.messageCount += messageCount
-          } else {
-            // Use stored name from setup, fallback to formatted ID
-            const name = groupNameMap.get(groupId) ||
-              groupId.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-            groupsMap.set(groupId, {
-              id: groupId,
-              name,
-              messageCount
-            })
-          }
-        })
-      })
-    })
-
-    const allGroupsList = Array.from(groupsMap.values()).sort((a, b) => b.messageCount - a.messageCount)
-
-    // Apply search filter
-    if (searchQuery) {
-      return allGroupsList.filter(g =>
-        g.name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    }
-
-    return allGroupsList
-  }, [allGames, searchQuery])
-
-  // Get messages for selected group (time-filtered) for Game Chats
-  const selectedGroupMessages = useMemo(() => {
-    if (!selectedChatId || !startTime || !currentDate || activeTab !== 'game') return []
-
-    const messages: Array<{
-      from: string
-      message: string
-      timestamp: string
-      timestampMs: number
-      day: number
-      gameId: string
-    }> = []
-
-    // Add timeline messages from games
-    allGames.forEach(g => {
-      g.timeline?.forEach(day => {
-        const groupMsgs = day.groupChats?.[selectedChatId]
-        if (groupMsgs && Array.isArray(groupMsgs)) {
-          groupMsgs.forEach((msg: ChatMessage) => {
-            const msgTime = msg.timestamp || `${day.summary.split(':')[0]}T12:00:00Z`
-            const timestampMs = new Date(msgTime).getTime()
-
-            messages.push({
-              from: msg.from,
-              message: msg.message,
-              timestamp: msgTime,
-              timestampMs,
-              day: day.day,
-              gameId: g.id
-            })
-          })
-        }
-      })
-    })
-
-    // Add WebSocket messages (real-time messages)
-    wsMessages.forEach(wsMsg => {
-      if (wsMsg.chatId === selectedChatId) {
-        const timestampMs = new Date(wsMsg.createdAt).getTime()
-        const dayNumber = Math.floor((timestampMs - startTime) / (1000 * 60 * 60 * 24))
-        
-        messages.push({
-          from: wsMsg.senderId,
-          message: wsMsg.content,
-          timestamp: wsMsg.createdAt,
-          timestampMs,
-          day: dayNumber,
-          gameId: 'websocket'
-        })
-      }
-    })
-
-    // Filter by current time and sort chronologically
-    const currentTimeAbsolute = startTime + currentTimeMs
-    let filtered = messages
-      .filter(m => m.timestampMs <= currentTimeAbsolute)
-      .sort((a, b) => a.timestampMs - b.timestampMs)
-
-    // Apply search filter
-    if (searchQuery) {
-      filtered = filtered.filter(m =>
-        m.message.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        m.from.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    }
-
-    return filtered
-  }, [selectedChatId, allGames, startTime, currentDate, currentTimeMs, searchQuery, activeTab, wsMessages])
-
-  // Get actor name from ID
-  const getActorName = (actorId: string) => {
-    for (const game of allGames) {
-      const allActors = [
-        ...(game.setup?.mainActors || []),
-        ...(game.setup?.supportingActors || []),
-        ...(game.setup?.extras || [])
-      ]
-      const actor = allActors.find(a => a.id === actorId)
-      if (actor) return actor.name
-    }
-    return actorId
-  }
-
-  // Get group members for GroupAvatar
-  const getGroupMembers = (groupId: string) => {
-    for (const game of allGames) {
-      const groupChat = game.setup?.groupChats?.find(g => g.id === groupId)
-      if (groupChat?.members) {
-        return groupChat.members.map(memberId => ({
-          id: memberId,
-          name: getActorName(memberId),
-          type: 'actor' as const
-        }))
-      }
-    }
-    return []
-  }
-
   // Load user's chats from database
   useEffect(() => {
-    if (authenticated && activeTab === 'user') {
-      loadChats()
+    if (authenticated) {
+      loadGroupChats()
     }
-  }, [authenticated, activeTab])
+  }, [authenticated])
 
   // Load selected chat details from database
   useEffect(() => {
-    if (selectedChatId && activeTab === 'user') {
+    if (selectedChatId) {
       loadChatDetails(selectedChatId)
     }
-  }, [selectedChatId, activeTab])
+  }, [selectedChatId])
 
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chatDetails?.messages, selectedGroupMessages])
+  }, [chatDetails?.messages])
 
-  const loadChats = async () => {
+  const loadGroupChats = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/chats')
+      const token = await getAccessToken()
+      if (!token) return
+
+      const response = await fetch('/api/chats', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
       const data = await response.json()
-      
+
       if (response.ok) {
-        setGroupChats(data.groupChats || [])
-        setDirectChats(data.directChats || [])
+        setGroupChats(data.chats || [])
       }
     } catch (error) {
       console.error('Error loading chats:', error)
     } finally {
       setLoading(false)
-      // Log loading state for debugging
-      console.log('Chats loaded, loading state:', false)
     }
   }
-
-  // Log loading state changes for debugging
-  useEffect(() => {
-    if (loading) {
-      console.log('Loading chats...')
-    }
-  }, [loading])
-
-  // Log chat loading state changes for debugging
-  useEffect(() => {
-    if (loadingChat) {
-      console.log('Loading chat details...')
-    }
-  }, [loadingChat])
 
   const loadChatDetails = async (chatId: string) => {
     try {
       setLoadingChat(true)
-      const response = await fetch(`/api/chats/${chatId}`)
+      const token = await getAccessToken()
+      if (!token) return
+
+      const response = await fetch(`/api/chats/${chatId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
       const data = await response.json()
-      
+
       if (response.ok) {
         setChatDetails(data)
       }
@@ -309,7 +155,7 @@ export default function ChatsPage() {
         throw new Error('Authentication required')
       }
 
-      if (activeTab === 'game') {
+      if (selectedChatId.includes('game-')) {
         // For game chats, use the group chat message endpoint
         const response = await fetch(`/api/chats/${selectedChatId}/message`, {
           method: 'POST',
@@ -385,7 +231,7 @@ export default function ChatsPage() {
         setMessageInput('')
         
         // Reload chat list to update last message
-        loadChats()
+        loadGroupChats()
       }
     } catch (error) {
       setSendError(error instanceof Error ? error.message : 'Failed to send message')
@@ -402,48 +248,14 @@ export default function ChatsPage() {
     }
   }
 
-  const allUserChats = [...groupChats, ...directChats].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-  )
-
   const filteredUserChats = searchQuery
-    ? allUserChats.filter((chat) =>
-        chat.name.toLowerCase().includes(searchQuery.toLowerCase())
+    ? groupChats.filter((chat) =>
+        chat.name.toLowerCase().includes(searchQuery.toLowerCase()),
       )
-    : allUserChats
-
-  // Log filtered chats count for debugging
-  useEffect(() => {
-    console.log(`Filtered chats: ${filteredUserChats.length} of ${allUserChats.length}`)
-  }, [filteredUserChats.length, allUserChats.length])
-
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-    if (days === 0) {
-      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-    } else if (days === 1) {
-      return 'Yesterday'
-    } else if (days < 7) {
-      return date.toLocaleDateString('en-US', { weekday: 'short' })
-    } else {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    }
-  }
-
-  // Log most recent chat time for debugging
-  useEffect(() => {
-    if (allUserChats.length > 0 && allUserChats[0]) {
-      const mostRecent = allUserChats[0]
-      console.log(`Most recent chat updated: ${formatTime(mostRecent.updatedAt)}`)
-    }
-  }, [allUserChats])
+    : groupChats
 
   // No games loaded state
-  if (allGames.length === 0 && activeTab === 'game') {
+  if (!ready && !authenticated) {
     return (
       <PageContainer noPadding className="flex flex-col">
         <div className="sticky top-0 z-10 bg-background">
@@ -520,151 +332,138 @@ export default function ChatsPage() {
               <MessageCircle className="w-6 h-6" style={{ color: '#b82323' }} />
               <h1 className="text-2xl font-bold text-foreground">Chats</h1>
             </div>
-
-            {/* Tabs */}
-            <div className={cn(
-              'flex gap-2 p-1 rounded-lg',
-              'bg-sidebar-accent/30 chat-card'
-            )}>
-              <button
-                onClick={() => {
-                  setActiveTab('game')
-                  setSelectedChatId(null)
-                }}
-                className={cn(
-                  'flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300',
-                  activeTab === 'game' ? 'chat-tab-active' : 'chat-tab'
-                )}
-                style={{ color: activeTab === 'game' ? '#1c9cf0' : 'inherit' }}
-              >
-                Game Chats
-              </button>
-              <button
-                onClick={() => {
-                  setActiveTab('user')
-                  setSelectedChatId(null)
-                }}
-                className={cn(
-                  'flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300',
-                  activeTab === 'user' ? 'chat-tab-active' : 'chat-tab'
-                )}
-                style={{ color: activeTab === 'user' ? '#1c9cf0' : 'inherit' }}
-              >
-                My Chats
-              </button>
-            </div>
           </div>
           <Separator />
         </div>
 
         {/* Content */}
         <div className="flex-1 overflow-hidden">
-          {activeTab === 'game' ? (
-            /* GAME CHATS - Original Implementation */
-            <div className="flex h-full">
-              {/* Left Column - Groups List */}
-              <div className={cn(
+          {/* GAME CHATS - Original Implementation */}
+          <div className="flex h-full">
+            {/* Left Column - Groups List */}
+            <div
+              className={cn(
                 'w-full md:w-96 flex-col bg-background',
-                selectedChatId ? 'hidden md:flex' : 'flex'
-              )}>
-                {/* Header with Search */}
-                <div className="p-4">
-                  <h2 className="text-xl font-bold mb-3 text-foreground">Group Chats</h2>
+                selectedChatId ? 'hidden md:flex' : 'flex',
+              )}
+            >
+              {/* Header with Search */}
+              <div className="p-4">
+                <h2 className="text-xl font-bold mb-3 text-foreground">
+                  Group Chats
+                </h2>
 
-                  {/* Search Bar */}
-                  <div className="relative mb-2">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <input
-                      type="text"
-                      placeholder="Search groups and messages..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                {/* Search Bar */}
+                <div className="relative mb-2">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search groups and messages..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className={cn(
+                      'w-full pl-9 pr-9 py-2 rounded-lg text-sm',
+                      'bg-sidebar-accent/50 message-input',
+                      'text-foreground placeholder:text-muted-foreground',
+                      'outline-none'
+                    )}
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
                       className={cn(
-                        'w-full pl-9 pr-9 py-2 rounded-lg text-sm',
-                        'bg-sidebar-accent/50 message-input',
-                        'text-foreground placeholder:text-muted-foreground',
-                        'outline-none'
+                        'absolute right-2 top-1/2 -translate-y-1/2',
+                        'h-6 w-6 rounded-md flex items-center justify-center',
+                        'hover:bg-muted-foreground/20 transition-colors'
                       )}
-                    />
-                    {searchQuery && (
-                      <button
-                        onClick={() => setSearchQuery('')}
-                        className={cn(
-                          'absolute right-2 top-1/2 -translate-y-1/2',
-                          'h-6 w-6 rounded-md flex items-center justify-center',
-                          'hover:bg-muted-foreground/20 transition-colors'
-                        )}
-                      >
-                        <X className="w-4 h-4 text-foreground" />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="text-sm text-muted-foreground">
-                    {searchQuery ? (
-                      <>{allGroups.length} group{allGroups.length !== 1 ? 's' : ''} found</>
-                    ) : (
-                      <>{allGroups.length} groups</>
-                    )}
-                  </div>
+                    >
+                      <X className="w-4 h-4 text-foreground" />
+                    </button>
+                  )}
                 </div>
-                <Separator />
 
-                {/* Groups List */}
-                <div className="flex-1 overflow-y-auto">
-                  {allGroups.map((group, idx) => {
-                    const members = getGroupMembers(group.id)
-                    return (
-                      <React.Fragment key={group.id}>
-                        <div
-                          onClick={() => setSelectedChatId(group.id)}
-                          className={cn(
-                            'p-4 cursor-pointer transition-all duration-300',
-                            selectedChatId === group.id
-                              ? 'bg-sidebar-accent/50 border-l-4'
-                              : 'hover:bg-sidebar-accent/30'
-                          )}
-                          style={{
-                            borderLeftColor: selectedChatId === group.id ? '#b82323' : 'transparent'
-                          }}
-                        >
-                          <div className="flex items-center gap-3">
-                            {members.length > 0 ? (
-                              <GroupAvatar members={members} size="md" />
-                            ) : (
-                              <div className="w-10 h-10 rounded-full bg-sidebar-accent/50 flex items-center justify-center flex-shrink-0 chat-button">
-                                <MessageCircle className="w-5 h-5" style={{ color: '#b82323' }} />
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-sm truncate text-foreground">
-                                {group.name}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {group.messageCount} messages
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        {idx < allGroups.length - 1 && <Separator />}
-                      </React.Fragment>
-                    )
-                  })}
-
-                  {allGroups.length === 0 && (
-                    <div className="text-center text-muted-foreground py-12">
-                      <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                      <p>No group chats yet</p>
-                    </div>
+                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                  <span>
+                    {searchQuery ? (
+                      <>
+                        {filteredUserChats.length} group
+                        {filteredUserChats.length !== 1 ? 's' : ''} found
+                      </>
+                    ) : (
+                      <>{filteredUserChats.length} groups</>
+                    )}
+                  </span>
+                  {isDebugMode && (
+                    <span className="px-2 py-0.5 rounded text-xs bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 font-mono">
+                      DEBUG
+                    </span>
                   )}
                 </div>
               </div>
+              <Separator />
 
-              {/* Right Column - Selected Group Messages */}
-              <div className={cn(
-                'flex-1 flex-col bg-background',
-                !selectedChatId ? 'hidden md:flex' : 'flex'
-              )}>
+              {/* Groups List */}
+              <div className="flex-1 overflow-y-auto">
+                {filteredUserChats.map((group, idx) => {
+                  return (
+                    <React.Fragment key={group.id}>
+                      <div
+                        onClick={() => setSelectedChatId(group.id)}
+                        className={cn(
+                          'p-4 cursor-pointer transition-all duration-300',
+                          selectedChatId === group.id
+                            ? 'bg-sidebar-accent/50 border-l-4'
+                            : 'hover:bg-sidebar-accent/30',
+                        )}
+                        style={{
+                          borderLeftColor:
+                            selectedChatId === group.id
+                              ? '#b82323'
+                              : 'transparent',
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-sidebar-accent/50 flex items-center justify-center flex-shrink-0 chat-button">
+                            <Users
+                              className="w-5 h-5"
+                              style={{ color: '#b82323' }}
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-sm truncate text-foreground flex items-center gap-2">
+                              {group.name}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              <span className="italic">
+                                {group.lastMessage?.content ||
+                                  'No messages yet'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      {idx < filteredUserChats.length - 1 && <Separator />}
+                    </React.Fragment>
+                  )
+                })}
+
+                {filteredUserChats.length === 0 && (
+                  <div className="text-center text-muted-foreground py-12">
+                    <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p>No group chats yet</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Column - Selected Group Messages */}
+            {groupChats.length > 0 && (
+              <div
+                className={cn(
+                  'flex-1 flex-col bg-background',
+                  !selectedChatId ? 'hidden md:flex' : 'flex',
+                )}
+              >
                 {selectedChatId ? (
                   <>
                     {/* Group Header */}
@@ -676,95 +475,141 @@ export default function ChatsPage() {
                           className={cn(
                             'flex items-center gap-2',
                             'px-3 py-1.5 rounded-md text-sm font-medium',
-                            'hover:bg-sidebar-accent/50 transition-colors text-foreground'
+                            'hover:bg-sidebar-accent/50 transition-colors text-foreground',
                           )}
                         >
                           <ArrowLeft className="w-4 h-4" />
                           Back
                         </button>
                         <h3 className="text-lg font-bold text-foreground">
-                          {allGroups.find(g => g.id === selectedChatId)?.name || 'Group'}
+                          {
+                            groupChats.find((g) => g.id === selectedChatId)
+                              ?.name || 'Group'
+                          }
                         </h3>
                       </div>
-                      
+
                       {/* Desktop header - chat name only */}
                       <h3 className="hidden md:block text-lg font-bold text-foreground mb-2">
-                        {allGroups.find(g => g.id === selectedChatId)?.name || 'Group'}
+                        {
+                          groupChats.find((g) => g.id === selectedChatId)
+                            ?.name || 'Group'
+                        }
                       </h3>
-                      
+
                       {searchQuery && (
                         <div className="text-sm text-muted-foreground mt-1">
-                          {selectedGroupMessages.length} message{selectedGroupMessages.length !== 1 ? 's' : ''} matching "{searchQuery}"
+                          {chatDetails?.messages.length} message
+                          {chatDetails?.messages.length !== 1 ? 's' : ''} matching "
+                          {searchQuery}"
                         </div>
                       )}
                     </div>
 
                     {/* Messages */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                      {selectedGroupMessages.map((msg, i) => {
-                        const msgDate = new Date(msg.timestamp)
-                        const actorName = getActorName(msg.from)
-                        const isCurrentUser = user?.id && msg.from === user.id
+                      {loadingChat ? (
+                        <div className="flex items-center justify-center h-full">
+                          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                        </div>
+                      ) : (
+                        chatDetails?.messages.map((msg, i) => {
+                          const msgDate = new Date(msg.createdAt)
+                          const sender = chatDetails.participants.find(
+                            (p) => p.id === msg.senderId,
+                          )
+                          const senderName = sender?.displayName || 'Unknown'
+                          const isCurrentUser = user?.id && msg.senderId === user.id
 
-                        return (
-                          <div
-                            key={i}
-                            className={cn(
-                              'flex gap-3',
-                              isCurrentUser ? 'justify-end' : 'items-start'
-                            )}
-                          >
-                            {!isCurrentUser && (
-                              <Avatar
-                                id={msg.from}
-                                name={actorName}
-                                type="actor"
-                                size="md"
-                              />
-                            )}
-                            <div className={cn('max-w-[70%] flex flex-col', isCurrentUser ? 'items-end' : 'items-start')}>
-                              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                {!isCurrentUser && (
-                                  <span className="font-bold text-sm text-foreground">
-                                    {actorName}
-                                  </span>
-                                )}
-                                {!isCurrentUser && <span className="text-muted-foreground">·</span>}
-                                <span className="text-xs text-muted-foreground">
-                                  {msgDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at {msgDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                              </div>
+                          return (
+                            <div
+                              key={i}
+                              className={cn(
+                                'flex gap-3',
+                                isCurrentUser ? 'justify-end' : 'items-start',
+                              )}
+                            >
+                              {!isCurrentUser && (
+                                <Avatar
+                                  id={msg.senderId}
+                                  name={senderName}
+                                  type="actor"
+                                  size="md"
+                                />
+                              )}
                               <div
                                 className={cn(
-                                  'px-4 py-2 rounded-2xl message-bubble text-sm whitespace-pre-wrap break-words',
-                                  isCurrentUser ? 'rounded-tr-sm' : 'rounded-tl-sm'
+                                  'max-w-[70%] flex flex-col',
+                                  isCurrentUser ? 'items-end' : 'items-start',
                                 )}
-                                style={{
-                                  backgroundColor: isCurrentUser ? '#1c9cf020' : 'rgba(var(--sidebar-accent), 0.5)'
-                                }}
                               >
-                                <span className="text-foreground">{msg.message}</span>
+                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                  {!isCurrentUser && (
+                                    <span className="font-bold text-sm text-foreground">
+                                      {senderName}
+                                    </span>
+                                  )}
+                                  {!isCurrentUser && (
+                                    <span className="text-muted-foreground">
+                                      ·
+                                    </span>
+                                  )}
+                                  <span className="text-xs text-muted-foreground">
+                                    {msgDate.toLocaleDateString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                    })}{' '}
+                                    at{' '}
+                                    {msgDate.toLocaleTimeString('en-US', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                                  </span>
+                                </div>
+                                <div
+                                  className={cn(
+                                    'px-4 py-2 rounded-2xl message-bubble text-sm whitespace-pre-wrap break-words',
+                                    isCurrentUser
+                                      ? 'rounded-tr-sm'
+                                      : 'rounded-tl-sm',
+                                  )}
+                                  style={{
+                                    backgroundColor: isCurrentUser
+                                      ? '#1c9cf020'
+                                      : 'rgba(var(--sidebar-accent), 0.5)',
+                                  }}
+                                >
+                                  <span className="text-foreground">
+                                    {msg.content}
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        )
-                      })}
+                          )
+                        })
+                      )}
 
-                      {selectedGroupMessages.length === 0 && (
+                      {chatDetails?.messages.length === 0 && (
                         <div className="flex items-center justify-center h-full">
                           <div className="text-center text-muted-foreground max-w-md p-8">
                             {searchQuery ? (
                               <>
                                 <Search className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                                <p>No messages matching "{searchQuery}"</p>
+                                <p>
+                                  No messages matching "{searchQuery}"
+                                </p>
                               </>
                             ) : (
                               <>
                                 <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                                <p className="mb-2 text-foreground">No messages in this group yet</p>
-                                <p className="text-xs">
-                                  This group hasn't posted messages in the current time period
+                                <p className="mb-2 text-foreground">
+                                  No messages in this group yet
                                 </p>
+                                {authenticated && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Be the first to post! Type a message below.
+                                  </p>
+                                )}
                               </>
                             )}
                           </div>
@@ -842,36 +687,23 @@ export default function ChatsPage() {
                   <div className="flex-1 flex items-center justify-center">
                     <div className="text-center text-muted-foreground max-w-md p-8">
                       <MessageCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                      <h3 className="text-xl font-bold mb-2 text-foreground">Select a group chat</h3>
-                      <p className="text-sm">Choose a group from the list to view messages</p>
+                      <h3 className="text-xl font-bold mb-2 text-foreground">
+                        Select a group chat
+                      </h3>
+                      <p className="text-sm">
+                        Choose a group from the list to view messages
+                      </p>
                     </div>
                   </div>
                 )}
               </div>
-            </div>
-          ) : (
-            /* MY CHATS - User Database Chats */
-            ready && !authenticated ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center max-w-md p-8">
-                  <MessageCircle className="w-16 h-16 mx-auto mb-4 opacity-50" style={{ color: '#b82323' }} />
-                  <h3 className="text-xl font-bold mb-2 text-foreground">Connect to Chat</h3>
-                  <p className="text-muted-foreground mb-6">Connect your wallet to start chatting</p>
-                  <LoginButton />
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center max-w-md p-8 text-muted-foreground">
-                  <Users className="w-16 h-16 mx-auto mb-4 opacity-50" style={{ color: '#1c9cf0' }} />
-                  <h3 className="text-xl font-bold mb-2 text-foreground">Direct Chats Coming Soon</h3>
-                  <p className="text-sm">Chat directly with other players and NPCs</p>
-                </div>
-              </div>
-            )
-          )}
+            )}
+          </div>
         </div>
       </PageContainer>
     </>
   )
 }
+
+
+

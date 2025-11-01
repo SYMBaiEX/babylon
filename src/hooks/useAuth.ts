@@ -41,7 +41,8 @@ export function useAuth(): UseAuthReturn {
             window.__privyAccessToken = token
           }
         } catch (error) {
-          logger.error('Error getting access token:', error, 'useAuth')
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          logger.error('Error getting access token:', { message: errorMessage, error }, 'useAuth')
           if (typeof window !== 'undefined') {
             window.__privyAccessToken = null
           }
@@ -102,7 +103,13 @@ export function useAuth(): UseAuthReturn {
           return
         }
       } catch (error) {
-        logger.error('Error loading user profile:', error, 'useAuth')
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorDetails = {
+          message: errorMessage,
+          userId: user.id,
+          error: error instanceof Error ? { name: error.name, message: error.message } : error,
+        };
+        logger.error('Error loading user profile:', errorDetails, 'useAuth')
       }
 
       // Fallback if profile fetch fails
@@ -142,8 +149,8 @@ export function useAuth(): UseAuthReturn {
         const data = await response.json()
         if (data.needsSetup && typeof window !== 'undefined') {
           const currentPath = window.location.pathname
-          if (currentPath !== '/profile/setup') {
-            window.location.href = '/profile/setup'
+          if (currentPath !== '/profile') {
+            window.location.href = '/profile'
           }
         }
       } catch (error) {
@@ -210,7 +217,13 @@ export function useAuth(): UseAuthReturn {
           }
         }
       } catch (error) {
-        logger.error('Error during onboarding check:', error, 'useAuth')
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorDetails = {
+          message: errorMessage,
+          userId: user.id,
+          error: error instanceof Error ? { name: error.name, message: error.message } : error,
+        };
+        logger.error('Error during onboarding check:', errorDetails, 'useAuth')
       }
     }
 
@@ -231,13 +244,13 @@ export function useAuth(): UseAuthReturn {
       checkedOnboardingUsers.add(user.id)
       void checkOnboarding()
     }
-  }, [authenticated, user, wallet, wallets, setUser, setWallet, clearAuth, getAccessToken])
+  }, [authenticated, user, wallet, wallets, setUser, setWallet, clearAuth, getAccessToken, setIsLoadingProfile, setLoadedUserId])
 
   // Wrap logout to ensure all state is cleared
   const handleLogout = async () => {
     await logout()
     clearAuth()
-
+    
     // Clear access token
     if (typeof window !== 'undefined') {
       window.__privyAccessToken = null

@@ -8,8 +8,25 @@ import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
 import { PrivyClient } from '@privy-io/server-auth';
 import { verifyAgentSession } from '@/app/api/agents/auth/route';
-import { extractErrorMessage, type AuthenticationError } from '@/types/errors';
 import { logger } from '@/lib/logger';
+
+// Define error types locally since they were not in a shared file
+export type AuthenticationError = Error & {
+  code: 'AUTH_FAILED';
+};
+
+export function extractErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'object' && error !== null && 'message' in error && typeof (error as any).message === 'string') {
+    return (error as any).message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  return 'An unknown error occurred';
+}
 
 // Initialize Privy client
 const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID!;

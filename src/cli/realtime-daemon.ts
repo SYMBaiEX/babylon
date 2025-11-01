@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
 
 /**
- * Babylon Realtime Daemon
+ * Babylon Game Daemon
  * 
  * Continuously running game engine that generates content every minute.
- * - Runs at 1x speed (realtime)
+ * - Runs at 1x speed
  * - Generates 10-20 posts per minute
  * - Updates stock prices every minute
  * - Creates/resolves questions automatically
@@ -20,7 +20,7 @@
  *   AGENT_AUTO_TRADE=true       (default: false) - Enable auto-trading for agents
  */
 
-import { RealtimeGameEngine } from '../engine/RealtimeGameEngine';
+import { GameEngine } from '../engine/GameEngine';
 import { spawn, type ChildProcess } from 'child_process';
 import { join } from 'path';
 import { logger } from '@/lib/logger';
@@ -45,8 +45,8 @@ function parseArgs(): CLIOptions {
 async function main() {
   const options = parseArgs();
 
-  logger.info('BABYLON REALTIME DAEMON', undefined, 'CLI');
-  logger.info('==========================', undefined, 'CLI');
+  logger.info('BABYLON GAME DAEMON', undefined, 'CLI');
+  logger.info('===================', undefined, 'CLI');
 
   // Validate API key
   const groqKey = process.env.GROQ_API_KEY;
@@ -65,7 +65,7 @@ async function main() {
   }
 
   // Create engine with A2A enabled
-  const engine = new RealtimeGameEngine({
+  const engine = new GameEngine({
     tickIntervalMs: 60000, // 1 minute
     postsPerTick: 15, // Average 15 posts/minute
     historyDays: 30,

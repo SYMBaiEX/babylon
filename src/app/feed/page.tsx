@@ -30,8 +30,9 @@ export default function FeedPage() {
   const [followingPosts, setFollowingPosts] = useState<FeedPost[]>([])
   const [loadingFollowing, setLoadingFollowing] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const { fontSize } = useFontSize()
+  const { fontSize} = useFontSize()
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
+  const [actorNames, setActorNames] = useState<Map<string, string>>(new Map())
 
   // Game timeline state (viewer-style)
   const { allGames, startTime, currentTimeMs } = useGameStore()
@@ -39,6 +40,26 @@ export default function FeedPage() {
 
   // Enable error toast notifications
   useErrorToasts()
+
+  // Load actor names for display
+  useEffect(() => {
+    const loadActorNames = async () => {
+      try {
+        const response = await fetch('/data/actors.json')
+        if (response.ok) {
+          const data = await response.json()
+          const nameMap = new Map()
+          data.actors?.forEach((actor: any) => {
+            nameMap.set(actor.id, actor.name)
+          })
+          setActorNames(nameMap)
+        }
+      } catch (error) {
+        logger.error('Failed to load actor names:', error, 'FeedPage')
+      }
+    }
+    loadActorNames()
+  }, [])
 
   const fetchLatestPosts = useCallback(async (requestOffset: number, append = false) => {
     if (tab !== 'latest') return
@@ -260,13 +281,13 @@ export default function FeedPage() {
 
   return (
     <PageContainer noPadding className="flex flex-col">
-      {/* Header with tabs and + Hoot button */}
+      {/* Header with tabs and + Post button */}
       <div className="sticky top-0 z-10 bg-background border-b border-border">
         <div className="flex items-center justify-between h-12 px-4">
           {/* Tabs on left */}
           <FeedToggle activeTab={tab} onTabChange={setTab} />
           
-          {/* + Hoot button on right */}
+          {/* + Post button on right */}
           <button
             onClick={() => setShowCreateModal(true)}
             className={cn(
@@ -278,7 +299,7 @@ export default function FeedPage() {
             )}
           >
             <Plus className="w-4 h-4" />
-            <span>Hoot</span>
+            <span>Post</span>
           </button>
         </div>
       </div>
@@ -294,7 +315,7 @@ export default function FeedPage() {
         </div>
       </div>
 
-      {/* Desktop: Search and + Hoot button */}
+      {/* Desktop: Search and + Post button */}
       <div className="hidden md:flex items-center justify-between sticky top-12 z-10 bg-background py-3 px-6 border-b border-border">
         <div className="flex-1 max-w-[600px]">
           <SearchBar
@@ -314,7 +335,7 @@ export default function FeedPage() {
           )}
         >
           <Plus className="w-5 h-5" />
-          <span>Hoot</span>
+          <span>Post</span>
         </button>
       </div>
 
@@ -397,6 +418,11 @@ export default function FeedPage() {
           // Show posts - Twitter-like layout
           <div className="max-w-[600px] mx-auto">
             {filteredPosts.map((post: any, i: number) => {
+              // Fix author mapping: use authorId if author is null
+              const authorId = post.author || post.authorId
+              // Get actual actor name from loaded data, fallback to authorName or ID
+              const authorName = actorNames.get(authorId) || post.authorName || authorId
+              
               const postDate = new Date(post.timestamp ?? Date.now())
               const now = new Date()
               const diffMs = now.getTime() - postDate.getTime()
@@ -426,13 +452,13 @@ export default function FeedPage() {
                   <div className="flex gap-3">
                     {/* Avatar - Clickable */}
                     <Link
-                      href={`/profile/${post.author}`}
+                      href={`/profile/${authorId}`}
                       className="flex-shrink-0 hover:opacity-80 transition-opacity"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Avatar
-                        id={post.author}
-                        name={post.authorName || post.author}
+                        id={authorId}
+                        name={authorName}
                         type="actor"
                         size="lg"
                         scaleFactor={fontSize}
@@ -445,19 +471,19 @@ export default function FeedPage() {
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <Link
-                            href={`/profile/${post.author}`}
+                            href={`/profile/${authorId}`}
                             className="font-bold text-foreground hover:underline"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {post.authorName || post.author}
+                            {authorName}
                           </Link>
                           <ShieldCheck className="w-4 h-4 text-blue-500 flex-shrink-0" fill="currentColor" />
                           <Link
-                            href={`/profile/${post.author}`}
+                            href={`/profile/${authorId}`}
                             className="text-muted-foreground text-sm hover:underline"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            @{post.author}
+                            @{authorId}
                           </Link>
                         </div>
                         <time className="text-muted-foreground text-sm flex-shrink-0" title={postDate.toLocaleString()}>

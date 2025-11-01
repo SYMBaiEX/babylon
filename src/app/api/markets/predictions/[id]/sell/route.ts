@@ -43,13 +43,63 @@ export async function POST(
       return errorResponse('Invalid shares amount', 400);
     }
 
-    // 4. Get market
-    const market = await prisma.market.findUnique({
+    // 4. Get or find market
+    // First try to find Market by ID
+    let market = await prisma.market.findUnique({
       where: { id: marketId },
     });
 
+    // If market doesn't exist, try to find Question and create Market
+    // API now returns question.id, but also support questionNumber for backwards compatibility
     if (!market) {
-      return errorResponse('Market not found', 404);
+      // Try to find by ID first (most common case after API update)
+      let question = await (prisma as any).question.findUnique({
+        where: { id: marketId },
+      });
+      
+      // If not found by ID and marketId looks like a number, try questionNumber
+      if (!question && !isNaN(Number(marketId))) {
+        const questions = await (prisma as any).question.findMany({
+          where: { questionNumber: parseInt(marketId, 10) },
+          orderBy: { createdDate: 'desc' },
+          take: 1,
+        });
+        question = questions[0] || null;
+      }
+
+      if (!question) {
+        return errorResponse('Market or question not found', 404);
+      }
+
+      // Check if question is active (can't sell from resolved market anyway, but good to check)
+      if (question.status !== 'active') {
+        return errorResponse(`Question is ${question.status}, cannot trade`, 400);
+      }
+
+      // Create or get existing market from question
+      // Use upsert to avoid unique constraint errors from race conditions
+      const endDate = new Date(question.resolutionDate);
+      const initialLiquidity = 1000; // Default liquidity
+      
+      market = await prisma.market.upsert({
+        where: { id: question.id },
+        create: {
+          id: question.id, // Use question.id (string UUID), not questionNumber
+          question: question.text,
+          description: null,
+          gameId: 'continuous',
+          dayNumber: null,
+          yesShares: new Prisma.Decimal(initialLiquidity / 2),
+          noShares: new Prisma.Decimal(initialLiquidity / 2),
+          liquidity: new Prisma.Decimal(initialLiquidity),
+          resolved: false,
+          resolution: null,
+          endDate: endDate,
+        },
+        update: {
+          // If market exists, just return it without updating
+        },
+      });
     }
 
     // 5. Check if market is still active

@@ -9,7 +9,6 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { LoginButton } from '@/components/auth/LoginButton'
 import { UserMenu } from '@/components/auth/UserMenu'
-import { ThemeToggle } from '@/components/shared/ThemeToggle'
 import { Separator } from '@/components/shared/Separator'
 // NotificationsButton import removed - unused
 
@@ -46,20 +45,6 @@ export function Sidebar() {
       icon: Bell,
       color: '#1c9cf0', // Blue
       active: pathname === '/notifications',
-    },
-    {
-      name: 'Profile',
-      href: '/profile',
-      icon: User,
-      color: '#8b5cf6', // Purple
-      active: pathname === '/profile' || pathname?.startsWith('/profile/'),
-    },
-    {
-      name: 'Settings',
-      href: '/settings',
-      icon: Settings,
-      color: '#64748b', // Slate
-      active: pathname === '/settings' || pathname?.startsWith('/settings/'),
     },
   ]
 
@@ -131,7 +116,7 @@ export function Sidebar() {
                   'bg-clip-text text-transparent'
                 )}
               >
-                Babylon
+                babylon
               </span>
             </Link>
             <button
@@ -237,26 +222,6 @@ export function Sidebar() {
 
       {/* Bottom Section */}
       <div className="p-4 space-y-4">
-        {/* Theme Toggle */}
-        {!isCollapsed && (
-          <div
-            className={cn(
-              'flex items-center justify-between p-3',
-              'bg-sidebar-accent',
-              'transition-colors duration-200'
-            )}
-          >
-            <span className="text-sm font-medium text-sidebar-primary">Theme</span>
-            <ThemeToggle />
-          </div>
-        )}
-
-        {isCollapsed && (
-          <div className="flex justify-center">
-            <ThemeToggle compact />
-          </div>
-        )}
-
         {/* Authentication Section */}
         {ready && !isCollapsed && (
           <div>

@@ -13,6 +13,7 @@ import type {
   TradeRequest,
   TradeResult,
   AgentConfig,
+  Chat,
 } from "./types";
 import { AgentAuthService } from "./agent-auth-service";
 import { logger } from "@elizaos/core";
@@ -314,6 +315,41 @@ export class BabylonApiClient {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(`Error fetching market history for ${marketId}:`, errorMessage);
       return null;
+    }
+  }
+
+  async getChats(): Promise<Chat[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/chats`, {
+        headers: await this.getHeaders(),
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch chats: ${response.statusText}`);
+      }
+      const data = await response.json();
+      return data.chats || [];
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error("Error fetching chats:", errorMessage);
+      return [];
+    }
+  }
+
+  async sendMessage(chatId: string, content: string): Promise<void> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/chats/${chatId}/message`, {
+        method: 'POST',
+        headers: await this.getHeaders(),
+        body: JSON.stringify({ content }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to send message: ${response.statusText}`);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Error sending message to chat ${chatId}:`, errorMessage);
     }
   }
 }

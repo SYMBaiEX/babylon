@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Bell, CheckCheck } from 'lucide-react'
 import { PageContainer } from '@/components/shared/PageContainer'
@@ -34,22 +34,17 @@ export default function NotificationsPage() {
   const [unreadCount, setUnreadCount] = useState(0)
   const [markingAsRead, setMarkingAsRead] = useState(false)
 
-  useEffect(() => {
-    if (!authenticated || !user) {
-      setLoading(false)
-      return
-    }
-
-    fetchNotifications()
-  }, [authenticated, user])
-
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async (showLoading = true) => {
     try {
-      setLoading(true)
+      if (showLoading) {
+        setLoading(true)
+      }
       const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
 
       if (!token) {
-        setLoading(false)
+        if (showLoading) {
+          setLoading(false)
+        }
         return
       }
 
@@ -69,9 +64,31 @@ export default function NotificationsPage() {
     } catch (error) {
       logger.error('Error fetching notifications:', error, 'NotificationsPage')
     } finally {
-      setLoading(false)
+      if (showLoading) {
+        setLoading(false)
+      }
     }
-  }
+  }, [authenticated, user])
+
+  useEffect(() => {
+    if (!authenticated || !user) {
+      setLoading(false)
+      return
+    }
+
+    fetchNotifications()
+
+    // Poll for new notifications every 30 seconds when page is visible
+    // Use silent refresh (no loading indicator) for polling
+    const interval = setInterval(() => {
+      // Only refresh if page is visible (not in background tab)
+      if (document.visibilityState === 'visible') {
+        fetchNotifications(false) // Silent refresh, no loading indicator
+      }
+    }, 30000)
+
+    return () => clearInterval(interval)
+  }, [authenticated, user, fetchNotifications])
 
   const markAsRead = async (notificationId: string) => {
     try {
@@ -91,11 +108,13 @@ export default function NotificationsPage() {
       })
 
       if (response.ok) {
-        // Update local state
+        // Update local state optimistically
         setNotifications(prev =>
           prev.map(n => (n.id === notificationId ? { ...n, read: true } : n))
         )
         setUnreadCount(prev => Math.max(0, prev - 1))
+      } else {
+        logger.error('Failed to mark notification as read:', response.statusText, 'NotificationsPage')
       }
     } catch (error) {
       logger.error('Error marking notification as read:', error, 'NotificationsPage')
@@ -121,12 +140,13 @@ export default function NotificationsPage() {
       })
 
       if (response.ok) {
-        // Update local state
+        // Update local state optimistically
         setNotifications(prev => prev.map(n => ({ ...n, read: true })))
         setUnreadCount(0)
         toast.success('All notifications marked as read')
       } else {
-        toast.error('Failed to mark all as read')
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
+        toast.error(errorData.message || 'Failed to mark all as read')
       }
     } catch (error) {
       logger.error('Error marking all as read:', error, 'NotificationsPage')

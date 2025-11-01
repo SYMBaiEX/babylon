@@ -50,18 +50,14 @@ export function NotificationsButton({ className, compact = false }: Notification
 
         if (response.ok) {
           const data = await response.json()
-          // Type the response properly using Notification interface
-          const notifications: Notification[] = data.notifications || []
-          const unreadNotifications = notifications.filter((n: Notification) => !n.read)
-          setUnreadCount(unreadNotifications.length || data.unreadCount || 0)
+          // Use unreadCount directly from API response - it's accurate and efficient
+          setUnreadCount(data.unreadCount || 0)
         }
       } catch (error) {
         logger.error('Error fetching notification count:', error, 'NotificationsButton')
       } finally {
         setIsLoading(false)
       }
-      
-      // isLoading is used via setIsLoading calls
     }
 
     fetchUnreadCount()

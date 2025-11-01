@@ -91,7 +91,6 @@ export async function GET(request: Request) {
         source: 'following',
       });
     }
-
     // Prefer realtime history when available
     const realtimeResult = await gameService.getRealtimePosts(limit, offset, actorId || undefined);
     if (realtimeResult && realtimeResult.posts.length > 0) {

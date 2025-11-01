@@ -18,11 +18,11 @@ import type { ProfileInfo } from '@/types/profiles'
 
 export default function ActorProfilePage() {
   const params = useParams()
-  const actorId = params.id as string
+  const actorId = decodeURIComponent(params.id as string)
   const { fontSize } = useFontSize()
   const [searchQuery, setSearchQuery] = useState('')
   const [tab, setTab] = useState<'posts' | 'replies'>('posts')
-  const { allGames } = useGameStore()
+  const { allGames } = useGameStore();
 
   // Enable error toast notifications
   useErrorToasts()
@@ -81,7 +81,10 @@ export default function ActorProfilePage() {
         const actorsDb = await response.json() as { actors?: import('@/shared/types').Actor[]; organizations?: import('@/shared/types').Organization[] }
         
         // Find actor
-        const actor = actorsDb.actors?.find((a) => a.id === actorId)
+        let actor = actorsDb.actors?.find((a) => a.id === actorId)
+        if (!actor) {
+          actor = actorsDb.actors?.find((a) => a.name === actorId)
+        }
         if (actor) {
           // Find which game this actor belongs to
           let gameId: string | null = null
@@ -114,7 +117,10 @@ export default function ActorProfilePage() {
         }
         
         // Find organization
-        const org = actorsDb.organizations?.find((o) => o.id === actorId)
+        let org = actorsDb.organizations?.find((o) => o.id === actorId)
+        if (!org) {
+          org = actorsDb.organizations?.find((o) => o.name === actorId)
+        }
         if (org) {
           setActorInfo({
             id: org.id,
@@ -169,20 +175,14 @@ export default function ActorProfilePage() {
     return posts.sort((a, b) => b.timestampMs - a.timestampMs)
   }, [allGames, actorId])
 
-  // Filter posts up to current time
-  const visiblePosts = useMemo(() => {
-    const now = new Date().getTime()
-    return actorPosts.filter(item => item.timestampMs <= now)
+  // Separate posts and replies
+  const originalPosts = useMemo(() => {
+    return actorPosts.filter(item => !item.post.replyTo)
   }, [actorPosts])
 
-  // Separate posts and replies (from visible posts only)
-  const originalPosts = useMemo(() => {
-    return visiblePosts.filter(item => !item.post.replyTo)
-  }, [visiblePosts])
-
   const replyPosts = useMemo(() => {
-    return visiblePosts.filter(item => item.post.replyTo)
-  }, [visiblePosts])
+    return actorPosts.filter(item => item.post.replyTo)
+  }, [actorPosts])
 
   // Filter by tab
   const tabFilteredPosts = useMemo(() => {
@@ -195,7 +195,7 @@ export default function ActorProfilePage() {
 
     const query = searchQuery.toLowerCase()
     return tabFilteredPosts.filter(item =>
-      item.post.content.toLowerCase().includes(query)
+      item.post.content?.toLowerCase().includes(query)
     )
   }, [tabFilteredPosts, searchQuery])
 
@@ -261,7 +261,7 @@ export default function ActorProfilePage() {
           </Link>
           <div className="flex-1">
             <h1 className="text-xl font-bold">{actorInfo.name}</h1>
-            <p className="text-sm text-muted-foreground">{visiblePosts.length} posts</p>
+            <p className="text-sm text-muted-foreground">{actorPosts.length} posts</p>
           </div>
         </div>
 
@@ -434,9 +434,9 @@ export default function ActorProfilePage() {
 
                       {/* Interactions */}
                       <InteractionBar
-                        postId={`${item.gameId}-${item.post.author}-${item.post.timestamp}`}
+                        postId={item.post.id}
                         initialInteractions={{
-                          postId: `${item.gameId}-${item.post.author}-${item.post.timestamp}`,
+                          postId: item.post.id,
                           likeCount: 0,
                           commentCount: 0,
                           shareCount: 0,

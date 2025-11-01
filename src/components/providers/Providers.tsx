@@ -3,11 +3,14 @@
 import { PrivyProvider } from '@privy-io/react-auth'
 import { WagmiProvider } from '@privy-io/wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useState, useEffect, Fragment } from 'react'
-import { privyConfig, wagmiConfig } from '@/lib/privy-config'
+import { useState, useEffect, Fragment, useMemo } from 'react'
+import { privyConfig } from '@/lib/privy-config'
 import { ThemeProvider } from '@/components/shared/ThemeProvider'
 import { FontSizeProvider } from '@/contexts/FontSizeContext'
 import { GamePlaybackManager } from './GamePlaybackManager'
+import { http } from 'viem'
+import { mainnet, sepolia, base, baseSepolia } from 'viem/chains'
+import { createConfig } from 'wagmi'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false)
@@ -22,6 +25,21 @@ export function Providers({ children }: { children: React.ReactNode }) {
           },
         },
       })
+  )
+
+  // Create wagmi config inside component to avoid SSR issues
+  const wagmiConfig = useMemo(
+    () =>
+      createConfig({
+        chains: [base, baseSepolia, mainnet, sepolia],
+        transports: {
+          [base.id]: http(process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'),
+          [baseSepolia.id]: http(process.env.NEXT_PUBLIC_RPC_URL || 'https://sepolia.base.org'),
+          [mainnet.id]: http(process.env.NEXT_PUBLIC_RPC_URL || undefined),
+          [sepolia.id]: http(process.env.NEXT_PUBLIC_RPC_URL || undefined),
+        },
+      }),
+    []
   )
 
   useEffect(() => {
@@ -41,7 +59,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <FontSizeProvider>
           <PrivyProvider
             appId={privyConfig.appId}
-            config={privyConfig.config as Parameters<typeof PrivyProvider>[0]['config']}
+            config={privyConfig.config as any}
           >
             <QueryClientProvider client={queryClient}>
               <GamePlaybackManager />
@@ -65,7 +83,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <FontSizeProvider>
           <PrivyProvider
             appId={privyConfig.appId}
-            config={privyConfig.config as Parameters<typeof PrivyProvider>[0]['config']}
+            config={privyConfig.config as any}
           >
             <QueryClientProvider client={queryClient}>
               <GamePlaybackManager />

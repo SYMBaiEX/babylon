@@ -90,3 +90,9 @@ export interface AgentConfig {
     minConfidence: number;
   };
 }
+
+export interface Chat {
+  id: string;
+  name: string;
+  theme: string;
+}

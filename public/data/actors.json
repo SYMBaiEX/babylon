@@ -624,7 +624,7 @@
       "name": "Rachel Madcow",
       "realName": "Rachel Maddow",
       "username": "madcow",
-      "nickname": "Maddow",
+      "nickname": "Madcow",
       "aliases": [
         "Messy Madcow",
         "Russia Rachel",
@@ -1625,7 +1625,6 @@
       "nickname": "Feast",
       "aliases": [
         "Beast Mode",
-        "Philanthropy King",
         "Squid Game Daddy",
         "YouTube Emperor",
         "Money Printer",
@@ -1646,10 +1645,7 @@
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "A_TIER",
-      "affiliations": [
-        "overpriced-chocolate",
-        "child-exploitation-network"
-      ],
+      "affiliations": [],
       "postStyle": "CAPS FOR HYPE. Exclamation marks everywhere! Challenge announcements. Giving away money constantly. Everything is THE BIGGEST EVER.",
       "postExample": [
         "GIVING AWAY $1 MILLION IN 24 HOURS!",
@@ -2259,7 +2255,7 @@
       "description": "The world's first AI-powered venture capital firm",
       "type": "vc",
       "canBeInvolved": true,
-      "postStyle": "VC crypto fusion. AI-powered investing. Andreessen worship. Software eating everything. Crypto and VC convergence.",
+      "postStyle": "VC crypto fusion. AI-powered investing. AIndreessen worship. Software eating everything. Crypto and VC convergence.",
       "postExample": [
         "AI + VC = future",
         "Investing in the next generation",
@@ -2796,6 +2792,103 @@
         "Vibes are immaculate",
         "Tech industry partnership",
         "Highest taxes, highest vibes"
+      ]
+    },
+    {
+      "id": "dark-horseshit-podcast",
+      "name": "Dark Horseshit Podcast",
+      "description": "Podcast spreading conspiracy theories and pseudoscience",
+      "type": "media",
+      "canBeInvolved": true,
+      "postStyle": "Conspiracy theories. Pseudoscience. Alternative facts. Long-form rambling.",
+      "postExample": [
+        "The REAL truth about...",
+        "They don't want you to know",
+        "Breaking: Secret documents reveal",
+        "Connect the dots"
+      ]
+    },
+    {
+      "id": "child-exploitation-network",
+      "name": "Child Exploitation Network",
+      "description": "Exploitative content creation network",
+      "type": "company",
+      "canBeInvolved": true,
+      "postStyle": "Corporate speak. Family-friendly facade. Exploitative practices hidden behind smiles.",
+      "postExample": [
+        "Creating content families love",
+        "Building the future of entertainment",
+        "Family-first values"
+      ]
+    },
+    {
+      "id": "sugar-water-scam",
+      "name": "Sugar Water Scam Co.",
+      "description": "Company selling overpriced sugar water as health drinks",
+      "type": "company",
+      "canBeInvolved": true,
+      "postStyle": "Health claims. Wellness marketing. Overpriced products. Influencer partnerships.",
+      "postExample": [
+        "Revolutionary hydration",
+        "Science-backed formula*\n\n*not really",
+        "Electrolytes you crave",
+        "Premium hydration experience"
+      ]
+    },
+    {
+      "id": "nft-rug-pull",
+      "name": "NFT Rug Pull Ventures",
+      "description": "Serial NFT scam operation",
+      "type": "company",
+      "canBeInvolved": true,
+      "postStyle": "Crypto hype. FOMO marketing. Roadmap promises. Community theater.",
+      "postExample": [
+        "Revolutionary NFT project",
+        "Huge roadmap coming",
+        "Get in early!",
+        "To the moon 🚀"
+      ]
+    },
+    {
+      "id": "elk-meat-podcast",
+      "name": "Elk Meat Podcast",
+      "description": "Podcast obsessed with elk meat and pseudoscience",
+      "type": "media",
+      "canBeInvolved": true,
+      "postStyle": "Elk meat. DMT. Sauna. Conspiracy theories. Bro science.",
+      "postExample": [
+        "Have you tried elk meat?",
+        "DMT changed my life",
+        "Sauna session insights",
+        "The elk knows"
+      ]
+    },
+    {
+      "id": "snake-oil-supplements",
+      "name": "Snake Oil Supplements",
+      "description": "Supplement company making unverified health claims",
+      "type": "company",
+      "canBeInvolved": true,
+      "postStyle": "Health claims. Testimonials. Discount codes. Bro science.",
+      "postExample": [
+        "Clinically proven*\n\n*in our lab",
+        "Use code SCAM for 20% off",
+        "Alpha male formula",
+        "Scientific breakthrough"
+      ]
+    },
+    {
+      "id": "twitch-thots",
+      "name": "Twitch Thots Network",
+      "description": "Streaming network focused on controversial content",
+      "type": "media",
+      "canBeInvolved": true,
+      "postStyle": "Stream promotion. Drama baiting. Controversy farming. Parasocial manipulation.",
+      "postExample": [
+        "Going live!",
+        "Drama incoming...",
+        "Hot tub stream later",
+        "Thanks for the subs!"
       ]
     }
   ]

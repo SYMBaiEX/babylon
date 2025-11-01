@@ -11,11 +11,19 @@ interface ThemeToggleProps {
 
 export function ThemeToggle({ compact = false }: ThemeToggleProps) {
   const [mounted, setMounted] = useState(false)
-  const { theme, setTheme, resolvedTheme } = useTheme()
+  const { setTheme, resolvedTheme } = useTheme()
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  const toggleTheme = () => {
+    if (resolvedTheme === 'dark') {
+      setTheme('light')
+    } else {
+      setTheme('dark')
+    }
+  }
 
   if (!mounted) {
     return (
@@ -38,15 +46,7 @@ export function ThemeToggle({ compact = false }: ThemeToggleProps) {
     // Compact single-icon mode for collapsed sidebar - Early 2000s Twitter: Simple button
     return (
       <button
-        onClick={() => {
-          // If on system, set explicit theme to opposite of current resolved theme
-          // Otherwise toggle between light/dark
-          if (theme === 'system') {
-            setTheme(isDark ? 'light' : 'dark')
-          } else {
-            setTheme(isDark ? 'light' : 'dark')
-          }
-        }}
+        onClick={toggleTheme}
         className={cn(
           'relative inline-flex h-10 w-10 items-center justify-center transition-all duration-200',
           'bg-sidebar-accent hover:bg-sidebar-accent/80',
@@ -77,16 +77,7 @@ export function ThemeToggle({ compact = false }: ThemeToggleProps) {
   // Regular toggle mode - Early 2000s Twitter: Simple toggle without neumorphic effects
   return (
     <button
-      onClick={() => {
-        // Handle system theme properly
-        if (theme === 'system') {
-          // If system, switch to opposite of current resolved theme
-          setTheme(isDark ? 'light' : 'dark')
-        } else {
-          // If explicit theme, toggle between light/dark
-          setTheme(isDark ? 'light' : 'dark')
-        }
-      }}
+      onClick={toggleTheme}
       className={cn(
         'relative inline-flex h-10 w-20 items-center transition-all duration-200',
         'bg-sidebar-accent hover:bg-sidebar-accent/80'

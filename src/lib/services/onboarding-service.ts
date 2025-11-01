@@ -1,9 +1,11 @@
 /**
  * Onboarding Service
  * Handles user signup flow: on-chain registration + points award
+ * 
+ * NOTE: This service is used client-side, so it MUST NOT import or use PrismaClient
+ * All database operations must go through API endpoints
  */
 
-import { PrismaClient } from '@prisma/client';
 import { logger } from '@/lib/logger';
 
 interface OnboardingResult {
@@ -77,43 +79,42 @@ export class OnboardingService {
         transactionHash: data.txHash,
       }
     } catch (error) {
-      logger.error('Onboarding error:', error, 'OnboardingService')
+      // Better error logging - extract error details properly
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      const errorDetails = {
+        message: errorMessage,
+        stack: errorStack,
+        error: error instanceof Error ? {
+          name: error.name,
+          message: error.message,
+        } : error,
+        userId,
+      };
+      logger.error('Onboarding error:', errorDetails, 'OnboardingService')
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
       }
     }
   }
 
   /**
    * Check if user is already onboarded
+   * MUST be called from client-side only - uses API endpoint
    */
   static async checkOnboardingStatus(userId: string): Promise<{
     isOnboarded: boolean
     tokenId?: number
   }> {
     try {
-      // Use prisma for database access
-      const prisma = new PrismaClient();
-      
-      // Use userId to check onboarding status
-      const userRecord = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { onChainRegistered: true, nftTokenId: true },
-      });
-
-      if (userRecord?.onChainRegistered && userRecord.nftTokenId) {
-        return {
-          isOnboarded: true,
-          tokenId: userRecord.nftTokenId,
-        };
-      }
-
+      // Get access token from browser
       const accessToken = typeof window !== 'undefined' ? window.__privyAccessToken : null
       if (!accessToken) {
         return { isOnboarded: false }
       }
 
+      // Call API endpoint to check status (Prisma runs server-side in the API)
       const response = await fetch('/api/auth/onboard', {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -138,7 +139,19 @@ export class OnboardingService {
 
       return { isOnboarded: false }
     } catch (error) {
-      logger.error('Error checking onboarding status:', error, 'OnboardingService')
+      // Better error logging - extract error details properly
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      const errorDetails = {
+        message: errorMessage,
+        stack: errorStack,
+        error: error instanceof Error ? {
+          name: error.name,
+          message: error.message,
+        } : error,
+        userId,
+      };
+      logger.error('Error checking onboarding status:', errorDetails, 'OnboardingService')
       return { isOnboarded: false }
     }
   }
@@ -172,7 +185,21 @@ export class OnboardingService {
 
       return response.ok
     } catch (error) {
-      logger.error('Error awarding points:', error, 'OnboardingService')
+      // Better error logging - extract error details properly
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      const errorDetails = {
+        message: errorMessage,
+        stack: errorStack,
+        error: error instanceof Error ? {
+          name: error.name,
+          message: error.message,
+        } : error,
+        userId,
+        amount,
+        reason,
+      };
+      logger.error('Error awarding points:', errorDetails, 'OnboardingService')
       return false
     }
   }

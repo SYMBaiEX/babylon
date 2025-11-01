@@ -9,7 +9,7 @@ import { PredictionPricing, calculateExpectedPayout } from '@/lib/prediction-pri
 import { logger } from '@/lib/logger'
 
 interface PredictionMarket {
-  id: number
+  id: number | string
   text: string
   status: 'active' | 'resolved' | 'cancelled'
   createdDate?: string
@@ -80,11 +80,17 @@ export function PredictionTradingModal({
     setLoading(true)
 
     try {
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      if (!token) {
+        toast.error('Authentication required. Please log in.')
+        return
+      }
+
       const response = await fetch(`/api/markets/predictions/${question.id}/buy`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           side,
@@ -92,12 +98,26 @@ export function PredictionTradingModal({
         }),
       })
 
-      const data = await response.json()
-
       if (!response.ok) {
-        toast.error(data.error || 'Failed to buy shares')
+        // Handle non-JSON responses (like 404 HTML pages)
+        let errorMessage = 'Failed to buy shares'
+        try {
+          const contentType = response.headers.get('content-type')
+          if (contentType && contentType.includes('application/json')) {
+            const data = await response.json()
+            errorMessage = data.error || data.message || `HTTP ${response.status}: ${response.statusText}`
+          } else {
+            errorMessage = `HTTP ${response.status}: ${response.statusText}`
+          }
+        } catch (parseError) {
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`
+        }
+        toast.error(errorMessage)
+        logger.error('Failed to buy shares:', { status: response.status, statusText: response.statusText, questionId: question.id }, 'PredictionTradingModal')
         return
       }
+
+      const data = await response.json()
 
       toast.success(`Bought ${side.toUpperCase()} shares!`, {
         description: `${calculation?.sharesBought.toFixed(2)} shares at ${(calculation?.avgPrice || 0).toFixed(3)} each`,

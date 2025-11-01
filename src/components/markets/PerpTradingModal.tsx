@@ -168,82 +168,66 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
             </button>
           </div>
 
-          {/* Size Input */}
-          <div className="mb-4">
-            <label className="text-sm text-muted-foreground mb-2 block">
-              Position Size (USD)
-            </label>
-            <input
-              type="number"
-              value={size}
-              onChange={(e) => setSize(e.target.value)}
-              min={market.minOrderSize}
-              step="10"
-              className="w-full px-4 py-3 rounded-lg bg-muted border border-border text-foreground text-lg font-medium focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder={`Min: $${market.minOrderSize}`}
-            />
-          </div>
-
-          {/* Leverage Slider */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm text-muted-foreground">Leverage</label>
-              <span className="text-xl font-bold text-foreground">{leverage}x</span>
+          {/* Size & Leverage */}
+          <div className="bg-muted rounded-lg p-4 mb-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-muted-foreground">Position Size (USD)</label>
+              <input
+                type="number"
+                value={size}
+                onChange={(e) => setSize(e.target.value)}
+                min={market.minOrderSize}
+                step="10"
+                className="w-32 px-3 py-1.5 rounded-md bg-background border border-border text-foreground text-right font-medium focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder={`Min: $${market.minOrderSize}`}
+              />
             </div>
-            <input
-              type="range"
-              min="1"
-              max={market.maxLeverage}
-              value={leverage}
-              onChange={(e) => setLeverage(parseInt(e.target.value))}
-              className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer"
-            />
-            <div className="flex justify-between text-xs text-muted-foreground mt-1">
-              <span>1x</span>
-              <span>25x</span>
-              <span>50x</span>
-              <span>{market.maxLeverage}x</span>
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-muted-foreground">Leverage</label>
+                <span className="text-base font-bold text-foreground">{leverage}x</span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max={market.maxLeverage}
+                value={leverage}
+                onChange={(e) => setLeverage(parseInt(e.target.value))}
+                className="w-full h-2 mt-2 bg-background rounded-lg appearance-none cursor-pointer"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                <span>1x</span>
+                <span>{market.maxLeverage}x</span>
+              </div>
             </div>
           </div>
 
           {/* Position Preview */}
-          <div className="bg-muted p-4 rounded-lg mb-6 space-y-3">
-            <div className="text-sm font-bold text-foreground mb-2">Position Preview</div>
-            
-            <div className="flex justify-between text-sm">
+          <div className="border border-border p-4 rounded-lg mb-6">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
               <span className="text-muted-foreground">Margin Required</span>
-              <span className="font-bold text-foreground">{formatPrice(marginRequired)}</span>
-            </div>
+              <span className="font-bold text-foreground text-right">{formatPrice(marginRequired)}</span>
 
-            <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Position Value</span>
-              <span className="font-bold text-foreground">{formatPrice(positionValue)}</span>
-            </div>
-
-            <div className="flex justify-between text-sm">
+              <span className="font-bold text-foreground text-right">{formatPrice(positionValue)}</span>
+              
               <span className="text-muted-foreground">Entry Price</span>
-              <span className="font-medium text-foreground">{formatPrice(market.currentPrice)}</span>
-            </div>
+              <span className="font-medium text-foreground text-right">{formatPrice(market.currentPrice)}</span>
 
-            <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Liquidation Price</span>
-              <span className="font-bold text-red-600">{formatPrice(liquidationPrice)}</span>
-            </div>
+              <span className="font-bold text-red-600 text-right">{formatPrice(liquidationPrice)}</span>
 
-            <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Distance to Liq</span>
               <span className={cn(
-                "font-medium",
+                "font-medium text-right",
                 liquidationDistance > 5 ? "text-green-600" : liquidationDistance > 2 ? "text-yellow-600" : "text-red-600"
               )}>
                 {liquidationDistance.toFixed(2)}%
               </span>
-            </div>
 
-            <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Funding Rate</span>
               <span className={cn(
-                "font-medium",
+                "font-medium text-right",
                 market.fundingRate.rate >= 0 ? "text-orange-500" : "text-blue-500"
               )}>
                 {(market.fundingRate.rate * 100).toFixed(4)}% / 8h

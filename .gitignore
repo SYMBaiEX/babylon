@@ -15,5 +15,7 @@ prisma/migrations/
 cache/
 broadcast/
 data/
+docs/
 bun.lock
 plugin-babylon/.eliza/
+cache/

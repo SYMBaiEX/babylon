@@ -258,7 +258,6 @@ export class AutonomousAgent extends EventEmitter {
         reasoning: response.reasoning,
         timestamp: Date.now()
       };
-
       // Store analysis
       this.analyses.set(question.id, analysis);
 

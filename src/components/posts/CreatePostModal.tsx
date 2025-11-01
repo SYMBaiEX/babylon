@@ -126,7 +126,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
             )}
           >
             <Send className="w-5 h-5" />
-            <span>Hoot</span>
+            <span>Post</span>
           </button>
         </form>
       </div>
@@ -185,7 +185,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
               )}
             >
               <Send className="w-5 h-5" />
-              <span>Hoot</span>
+              <span>Post</span>
             </button>
           </form>
         </div>

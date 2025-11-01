@@ -39,8 +39,6 @@ import {
   formatActorVoiceContext,
   shuffleArray,
   buildPhaseContext,
-  buildRelationshipContext,
-  buildOrganizationBehaviorContext,
 } from '@/shared/utils';
 import { loadPrompt } from '../prompts/loader';
 import type {
@@ -50,8 +48,8 @@ import type {
   FeedPost,
   FeedEvent,
   Organization,
-  PriceUpdate,
   Question,
+  PriceUpdate,
 } from '@/shared/types';
 
 // Re-export types for backwards compatibility with external consumers
@@ -184,24 +182,24 @@ export class FeedGenerator extends EventEmitter {
     // 1. MEDIA ORGANIZATIONS BREAK THE STORY (if public event) - BATCHED
     if (worldEvent.visibility === 'public' || worldEvent.visibility === 'leaked') {
       const mediaOrgs = this.organizations.filter(o => o.type === 'media').slice(0, 2);
-      const journalists = allActors.filter(a =>
+      const journalists = allActors.filter(a => 
         a.domain?.includes('media') || a.domain?.includes('journalism')
-      ).slice(0, 2);
-
-      let postIndex = 0;
-
-      // ✅ BATCH: Media organizations
-      if (mediaOrgs.length > 0) {
-        const mediaPosts = await this.generateMediaPostsBatch(mediaOrgs, worldEvent, allActors, outcome, day);
-
+      ).slice(0, 1);
+      
+      // ✅ BATCH: All media + journalists in ONE call
+      const allMediaActors = [...mediaOrgs, ...journalists];
+      if (allMediaActors.length > 0) {
+        const mediaPosts = await this.generateMediaPostsBatch(allMediaActors, worldEvent, allActors, outcome);
+        
         mediaPosts.forEach((post, i) => {
-          const entity = mediaOrgs[i];
-          if (!entity) return;
+          const isOrg = i < mediaOrgs.length;
+          const entity = isOrg ? mediaOrgs[i] : journalists[i - mediaOrgs.length];
+          if (!entity) return; // Skip if entity doesn't exist
 
           cascade.push({
-            id: `${worldEvent.id}-media-${i}`,
+            id: `${worldEvent.id}-${isOrg ? 'media' : 'news'}-${i}`,
             day,
-            timestamp: `${baseTime}${String((9 + baseHourOffset + postIndex * 2) % 24).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
+            timestamp: `${baseTime}${String((9 + baseHourOffset + i * 2) % 24).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
             type: 'news',
             content: post.post,
             author: entity.id,
@@ -211,32 +209,6 @@ export class FeedGenerator extends EventEmitter {
             clueStrength: post.clueStrength,
             pointsToward: post.pointsToward,
           });
-          postIndex++;
-        });
-      }
-
-      // ✅ BATCH: Journalists (separate, more specific prompt)
-      if (journalists.length > 0) {
-        const journalistPosts = await this.generateJournalistPostsBatch(journalists, worldEvent, outcome, day);
-
-        journalistPosts.forEach((post, i) => {
-          const journalist = journalists[i];
-          if (!journalist) return;
-
-          cascade.push({
-            id: `${worldEvent.id}-journalist-${i}`,
-            day,
-            timestamp: `${baseTime}${String((9 + baseHourOffset + postIndex * 2) % 24).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
-            type: 'news',
-            content: post.post,
-            author: journalist.id,
-            authorName: journalist.name,
-            relatedEvent: worldEvent.id,
-            sentiment: post.sentiment,
-            clueStrength: post.clueStrength,
-            pointsToward: post.pointsToward,
-          });
-          postIndex++;
         });
       }
     }
@@ -247,8 +219,8 @@ export class FeedGenerator extends EventEmitter {
       .filter((a): a is Actor => a !== undefined);
 
     if (involvedActors.length > 0) {
-      // ✅ BATCH: All reactions in ONE call - can now see previous media posts
-      const reactions = await this.generateReactionsBatch(involvedActors, worldEvent, outcome, cascade, day);
+      // ✅ BATCH: All reactions in ONE call
+      const reactions = await this.generateReactionsBatch(involvedActors, worldEvent, outcome);
       
       // Collect companies that need to respond
       const companiesToRespond: Array<{ company: Organization; actor: Actor; index: number }> = [];
@@ -283,61 +255,46 @@ export class FeedGenerator extends EventEmitter {
         }
       });
       
-      // ✅ BATCH: All company responses in ONE call - can see reactions
-      if (companiesToRespond.length > 0) {
-        const companyPosts = await this.generateCompanyPostsBatch(
-          companiesToRespond.map(({ company, actor }) => ({ company, actor })),
-          worldEvent,
-          outcome,
-          cascade,
-          day
-        );
-
-        companyPosts.forEach((post, i) => {
-          const { company } = companiesToRespond[i]!;
-
-          cascade.push({
-            id: `${worldEvent.id}-company-${company.id}`,
-            day,
-            timestamp: `${baseTime}${String((13 + baseHourOffset + i * 3) % 24).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
-            type: 'reaction',
-            content: post.post,
-            author: company.id,
-            authorName: company.name,
-            relatedEvent: worldEvent.id,
-            sentiment: post.sentiment,
-            clueStrength: post.clueStrength,
-            pointsToward: post.pointsToward,
-          });
+      // Process company responses (usually 0-2 per event, so batching would be minimal gain)
+      // Using sequential processing to maintain proper async/await
+      for (const { company, actor, index: i } of companiesToRespond) {
+        const companyPost = await this.generateCompanyPost(company, worldEvent, actor, outcome);
+        
+        cascade.push({
+          id: `${worldEvent.id}-company-${company.id}`,
+          day,
+          timestamp: `${baseTime}${String((13 + baseHourOffset + i * 3) % 24).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
+          type: 'reaction',
+          content: companyPost.post,
+          author: company.id,
+          authorName: company.name,
+          relatedEvent: worldEvent.id,
+          sentiment: companyPost.sentiment,
+          clueStrength: companyPost.clueStrength,
+          pointsToward: companyPost.pointsToward,
         });
       }
     }
     
-    // 2b. GOVERNMENT RESPONSES (if applicable) - BATCHED
+    // 2b. GOVERNMENT RESPONSES (if applicable) - Single call, usually 0-1 per event
     if (worldEvent.type === 'scandal' || worldEvent.type === 'revelation') {
       const govOrgs = this.organizations.filter(o => o.type === 'government').slice(0, 1);
-
-      if (govOrgs.length > 0) {
-        // ✅ BATCH: All government responses in ONE call - can see reactions and companies
-        const govPosts = await this.generateGovernmentPostsBatch(govOrgs, worldEvent, outcome, cascade, day);
-
-        govPosts.forEach((post, i) => {
-          const gov = govOrgs[i];
-          if (!gov) return;
-
-          cascade.push({
-            id: `${worldEvent.id}-govt-${gov.id}`,
-            day,
-            timestamp: `${baseTime}${String((15 + baseHourOffset + i) % 24).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
-            type: 'reaction',
-            content: post.post,
-            author: gov.id,
-            authorName: gov.name,
-            relatedEvent: worldEvent.id,
-            sentiment: post.sentiment,
-            clueStrength: post.clueStrength,
-            pointsToward: post.pointsToward,
-          });
+      
+      for (const gov of govOrgs) {
+        const govPost = await this.generateGovernmentPost(gov, worldEvent, allActors, outcome);
+        
+        cascade.push({
+          id: `${worldEvent.id}-govt-${gov.id}`,
+          day,
+          timestamp: `${baseTime}${String((15 + baseHourOffset) % 24).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
+          type: 'reaction',
+          content: govPost.post,
+          author: gov.id,
+          authorName: gov.name,
+          relatedEvent: worldEvent.id,
+          sentiment: govPost.sentiment,
+          clueStrength: govPost.clueStrength,
+          pointsToward: govPost.pointsToward,
         });
       }
     }
@@ -349,8 +306,8 @@ export class FeedGenerator extends EventEmitter {
     ).slice(0, 2);
     
     if (commentators.length > 0) {
-      // ✅ BATCH: All commentary in ONE call - can see everything so far
-      const commentary = await this.generateCommentaryBatch(commentators, worldEvent, outcome, cascade, day);
+      // ✅ BATCH: All commentary in ONE call
+      const commentary = await this.generateCommentaryBatch(commentators, worldEvent, outcome);
       
       commentary.forEach((post, i) => {
         const commentator = commentators[i];
@@ -379,8 +336,8 @@ export class FeedGenerator extends EventEmitter {
     ).slice(0, 1 + Math.floor(Math.random() * 2)); // 1-2 conspiracy posts
 
     if (conspiracists.length > 0) {
-      // ✅ BATCH: All conspiracy posts in ONE call - can twist everything above
-      const conspiracyPosts = await this.generateConspiracyPostsBatch(conspiracists, worldEvent, outcome, cascade, day);
+      // ✅ BATCH: All conspiracy posts in ONE call
+      const conspiracyPosts = await this.generateConspiracyPostsBatch(conspiracists, worldEvent, outcome);
       
       conspiracyPosts.forEach((post, i) => {
         const actor = conspiracists[i % conspiracists.length];
@@ -419,20 +376,13 @@ export class FeedGenerator extends EventEmitter {
     mediaEntities: (Organization | Actor)[],
     worldEvent: WorldEvent,
     allActors: Actor[],
-    outcome: boolean,
-    day: number
+    outcome: boolean
   ): Promise<Array<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }>> {
     if (!this.llm || mediaEntities.length === 0) {
       return [];
     }
 
     const potentialSource = allActors.find(a => worldEvent.actors.includes(a.id));
-
-    // Build context using helper functions
-    const phaseContext = buildPhaseContext(day);
-    const orgBehaviorContext = buildOrganizationBehaviorContext(
-      this.organizations.filter(o => o.type === 'media')
-    );
 
     // Format variables for prompt template
     const sourceContext = potentialSource
@@ -466,9 +416,7 @@ export class FeedGenerator extends EventEmitter {
       sourceContext,
       outcomeFrame,
       mediaCount: mediaEntities.length,
-      mediaList,
-      phaseContext,
-      orgBehaviorContext
+      mediaList
     });
 
     const maxRetries = 5;
@@ -508,261 +456,6 @@ export class FeedGenerator extends EventEmitter {
   }
 
   /**
-   * BATCHED: Generate journalist posts for multiple journalists in ONE call
-   * Reduces N calls → 1 call
-   */
-  private async generateJournalistPostsBatch(
-    journalists: Actor[],
-    worldEvent: WorldEvent,
-    outcome: boolean,
-    day: number
-  ): Promise<Array<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }>> {
-    if (!this.llm || journalists.length === 0) {
-      return [];
-    }
-
-    // Build context using helper functions
-    const phaseContext = buildPhaseContext(day);
-    const relationshipContext = buildRelationshipContext(journalists, this.relationships);
-
-    const outcomeFrame = outcome
-      ? 'Frame with slightly positive spin'
-      : 'Emphasize concerns and challenges';
-
-    const journalistsList = journalists.map((journalist, i) => {
-      const state = this.actorStates.get(journalist.id);
-      const emotionalContext = state
-        ? '\n   ' + generateActorContext(state.mood, state.luck, undefined, this.relationships, journalist.id).replace(/\n/g, '\n   ')
-        : '';
-      const voiceContext = formatActorVoiceContext(journalist);
-
-      return loadPrompt('feed/journalist-instruction', {
-        index: (i + 1).toString(),
-        journalistName: journalist.name,
-        journalistDescription: journalist.description,
-        affiliations: journalist.affiliations?.join(', ') || 'independent',
-        emotionalContext,
-        voiceContext
-      });
-    }).join('\n');
-
-    const prompt = loadPrompt('feed/journalist-posts', {
-      eventDescription: worldEvent.description,
-      eventType: worldEvent.type,
-      outcomeFrame,
-      journalistCount: journalists.length,
-      journalistsList,
-      phaseContext,
-      relationshipContext
-    });
-
-    const maxRetries = 5;
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ posts: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }>(
-        prompt,
-        undefined,
-        { temperature: 0.9, maxTokens: 5000 }
-      );
-
-      const posts = Array.isArray(response.posts) ? response.posts : [];
-      const validPosts = posts
-        .filter(p => {
-          const content = p.post || p.tweet;
-          return content && typeof content === 'string' && content.trim().length > 0;
-        })
-        .map(p => ({
-          post: p.post || p.tweet!,
-          sentiment: p.sentiment,
-          clueStrength: p.clueStrength,
-          pointsToward: p.pointsToward,
-        }));
-      const minRequired = Math.ceil(journalists.length * 0.5);
-
-      if (validPosts.length >= minRequired) {
-        return validPosts.slice(0, journalists.length);
-      }
-
-      logger.warn(`Invalid journalist batch (attempt ${attempt + 1}/${maxRetries}). Expected ${journalists.length}, got ${validPosts.length} valid (need ${minRequired}+)`, { attempt: attempt + 1, maxRetries, expected: journalists.length, got: validPosts.length, minRequired }, 'FeedGenerator');
-      if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-
-    throw new Error(`Failed to generate journalist posts batch after ${maxRetries} attempts`);
-  }
-
-  /**
-   * BATCHED: Generate company posts for multiple companies in ONE call
-   * Reduces N calls → 1 call
-   */
-  private async generateCompanyPostsBatch(
-    companies: Array<{ company: Organization; actor: Actor }>,
-    worldEvent: WorldEvent,
-    outcome: boolean,
-    previousPosts: FeedPost[] = [],
-    day: number
-  ): Promise<Array<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }>> {
-    if (!this.llm || companies.length === 0) {
-      return [];
-    }
-
-    // Build context using helper functions
-    const phaseContext = buildPhaseContext(day);
-    const orgBehaviorContext = buildOrganizationBehaviorContext(
-      companies.map(c => c.company)
-    );
-
-    const outcomeFrame = outcome
-      ? 'Frame positively - opportunity, innovation, growth'
-      : 'Defensive - managing concerns, staying course';
-
-    // Build context from previous posts in cascade - corporate responses should see public sentiment
-    const previousPostsContext = previousPosts.length > 0
-      ? `\nPrevious posts about this event:\n${previousPosts.slice(-5).map(p => `- @${p.authorName}: "${p.content}"`).join('\n')}`
-      : '';
-
-    const companiesList = companies.map(({ company, actor }, i) => {
-      const postType = worldEvent.actors.includes(actor.id) ? 'response' : 'statement';
-
-      return loadPrompt('feed/company-instruction', {
-        index: (i + 1).toString(),
-        companyName: company.name,
-        companyDescription: company.description,
-        companyType: company.type || 'company',
-        postType
-      });
-    }).join('\n');
-
-    const prompt = loadPrompt('feed/company-posts', {
-      eventDescription: worldEvent.description,
-      eventType: worldEvent.type,
-      outcomeFrame,
-      previousPostsContext,
-      companyCount: companies.length,
-      companiesList,
-      phaseContext,
-      orgBehaviorContext
-    });
-
-    const maxRetries = 5;
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ posts: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }>(
-        prompt,
-        undefined,
-        { temperature: 0.8, maxTokens: 5000 }
-      );
-
-      const posts = Array.isArray(response.posts) ? response.posts : [];
-      const validPosts = posts
-        .filter(p => {
-          const content = p.post || p.tweet;
-          return content && typeof content === 'string' && content.trim().length > 0;
-        })
-        .map(p => ({
-          post: p.post || p.tweet!,
-          sentiment: p.sentiment,
-          clueStrength: p.clueStrength,
-          pointsToward: p.pointsToward,
-        }));
-      const minRequired = Math.ceil(companies.length * 0.5);
-
-      if (validPosts.length >= minRequired) {
-        return validPosts.slice(0, companies.length);
-      }
-
-      logger.warn(`Invalid company batch (attempt ${attempt + 1}/${maxRetries}). Expected ${companies.length}, got ${validPosts.length} valid (need ${minRequired}+)`, { attempt: attempt + 1, maxRetries, expected: companies.length, got: validPosts.length, minRequired }, 'FeedGenerator');
-      if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-
-    throw new Error(`Failed to generate company posts batch after ${maxRetries} attempts`);
-  }
-
-  /**
-   * BATCHED: Generate government posts for multiple agencies in ONE call
-   * Reduces N calls → 1 call
-   */
-  private async generateGovernmentPostsBatch(
-    governments: Organization[],
-    worldEvent: WorldEvent,
-    outcome: boolean,
-    previousPosts: FeedPost[] = [],
-    day: number
-  ): Promise<Array<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }>> {
-    if (!this.llm || governments.length === 0) {
-      return [];
-    }
-
-    // Build context using helper functions
-    const phaseContext = buildPhaseContext(day);
-    const orgBehaviorContext = buildOrganizationBehaviorContext(governments);
-
-    const outcomeFrame = outcome
-      ? 'Cautiously supportive - monitoring with optimism'
-      : 'Concerned - emphasize oversight and caution';
-
-    // Build context from previous posts in cascade - government statements should reference public discourse
-    const previousPostsContext = previousPosts.length > 0
-      ? `\nPrevious posts about this event:\n${previousPosts.slice(-5).map(p => `- @${p.authorName}: "${p.content}"`).join('\n')}`
-      : '';
-
-    const governmentsList = governments.map((gov, i) => {
-      return loadPrompt('feed/government-instruction', {
-        index: (i + 1).toString(),
-        governmentName: gov.name,
-        governmentDescription: gov.description,
-        governmentType: gov.type || 'government'
-      });
-    }).join('\n');
-
-    const prompt = loadPrompt('feed/government-posts', {
-      eventDescription: worldEvent.description,
-      eventType: worldEvent.type,
-      outcomeFrame,
-      previousPostsContext,
-      governmentCount: governments.length,
-      governmentsList,
-      phaseContext,
-      orgBehaviorContext
-    });
-
-    const maxRetries = 5;
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ posts: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }>(
-        prompt,
-        undefined,
-        { temperature: 0.7, maxTokens: 5000 }
-      );
-
-      const posts = Array.isArray(response.posts) ? response.posts : [];
-      const validPosts = posts
-        .filter(p => {
-          const content = p.post || p.tweet;
-          return content && typeof content === 'string' && content.trim().length > 0;
-        })
-        .map(p => ({
-          post: p.post || p.tweet!,
-          sentiment: p.sentiment,
-          clueStrength: p.clueStrength,
-          pointsToward: p.pointsToward,
-        }));
-      const minRequired = Math.ceil(governments.length * 0.5);
-
-      if (validPosts.length >= minRequired) {
-        return validPosts.slice(0, governments.length);
-      }
-
-      logger.warn(`Invalid government batch (attempt ${attempt + 1}/${maxRetries}). Expected ${governments.length}, got ${validPosts.length} valid (need ${minRequired}+)`, { attempt: attempt + 1, maxRetries, expected: governments.length, got: validPosts.length, minRequired }, 'FeedGenerator');
-      if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-
-    throw new Error(`Failed to generate government posts batch after ${maxRetries} attempts`);
-  }
-
-  /**
    * BATCHED: Generate reactions for multiple actors in ONE call
    * Preserves per-actor context (mood, luck, personality)
    * Uses worldEvent.pointsToward when available, outcome for narrative coherence otherwise
@@ -770,17 +463,11 @@ export class FeedGenerator extends EventEmitter {
   private async generateReactionsBatch(
     actors: Actor[],
     worldEvent: WorldEvent,
-    outcome: boolean,
-    previousPosts: FeedPost[] = [],
-    day: number
+    outcome: boolean
   ): Promise<Array<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }>> {
     if (!this.llm || actors.length === 0) {
       return [];
     }
-
-    // Build context using helper functions
-    const phaseContext = buildPhaseContext(day);
-    const relationshipContext = buildRelationshipContext(actors, this.relationships);
 
     const actorContexts = actors.map(actor => {
       const state = this.actorStates.get(actor.id);
@@ -800,31 +487,19 @@ export class FeedGenerator extends EventEmitter {
       ? `This development suggests things are trending toward ${worldEvent.pointsToward}.`
       : `Based on this event, the situation is ${outcome ? 'progressing positively' : 'facing setbacks'}.`;
 
-    // Build context from previous posts in cascade
-    const previousPostsContext = previousPosts.length > 0
-      ? `\nPrevious posts about this event:\n${previousPosts.slice(-5).map(p => `- @${p.authorName}: "${p.content}"`).join('\n')}`
-      : '';
+    const actorsList = actorContexts.map((ctx, i) => `${i + 1}. You are ${ctx.actor.name}: ${ctx.actor.description}
+   Affiliated: ${ctx.actor.affiliations?.join(', ') || 'independent'}
+   ${ctx.emotionalContext}${formatActorVoiceContext(ctx.actor)}
+   ${this.actorGroupContexts.get(ctx.actor.id) || ''}
 
-    const actorsList = actorContexts.map((ctx, i) =>
-      loadPrompt('feed/reaction-instruction', {
-        index: (i + 1).toString(),
-        actorName: ctx.actor.name,
-        actorDescription: ctx.actor.description,
-        affiliations: ctx.actor.affiliations?.join(', ') || 'independent',
-        emotionalContext: ctx.emotionalContext,
-        voiceContext: formatActorVoiceContext(ctx.actor),
-        groupContext: this.actorGroupContexts.get(ctx.actor.id) || ''
-      })
-    ).join('\n');
+   React to event. Your private group chats inform your perspective.
+   Write as YOURSELF (first person). Max 280 chars. No hashtags/emojis.`).join('\n');
 
     const prompt = loadPrompt('feed/reactions', {
       eventDescription: worldEvent.description,
       eventContext,
-      previousPostsContext,
       actorCount: actors.length,
-      actorsList,
-      phaseContext,
-      relationshipContext
+      actorsList
     });
 
     const maxRetries = 5;
@@ -869,17 +544,11 @@ export class FeedGenerator extends EventEmitter {
   private async generateCommentaryBatch(
     commentators: Actor[],
     worldEvent: WorldEvent,
-    outcome: boolean,
-    previousPosts: FeedPost[] = [],
-    day: number
+    outcome: boolean
   ): Promise<Array<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }>> {
     if (!this.llm || commentators.length === 0) {
       return [];
     }
-
-    // Build context using helper functions
-    const phaseContext = buildPhaseContext(day);
-    const relationshipContext = buildRelationshipContext(commentators, this.relationships);
 
     const contexts = commentators.map(actor => {
       const state = this.actorStates.get(actor.id);
@@ -889,11 +558,6 @@ export class FeedGenerator extends EventEmitter {
 
       return { actor, emotionalContext };
     });
-
-    // Build context from previous posts in cascade
-    const previousPostsContext = previousPosts.length > 0
-      ? `\nPrevious posts about this event:\n${previousPosts.slice(-5).map(p => `- @${p.authorName}: "${p.content}"`).join('\n')}`
-      : '';
 
     const commentatorsList = contexts.map((ctx, i) => `${i + 1}. ${ctx.actor.name}
    About: ${ctx.actor.description}
@@ -907,11 +571,8 @@ export class FeedGenerator extends EventEmitter {
 
     const prompt = loadPrompt('feed/commentary', {
       eventDescription: worldEvent.description,
-      previousPostsContext,
       commentatorCount: commentators.length,
-      commentatorsList,
-      phaseContext,
-      relationshipContext
+      commentatorsList
     });
 
     const maxRetries = 5;
@@ -957,22 +618,11 @@ export class FeedGenerator extends EventEmitter {
   private async generateConspiracyPostsBatch(
     conspiracists: Actor[],
     worldEvent: WorldEvent,
-    outcome: boolean,
-    previousPosts: FeedPost[] = [],
-    day: number
+    outcome: boolean
   ): Promise<Array<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }>> {
     if (!this.llm || conspiracists.length === 0) {
       return [];
     }
-
-    // Build context using helper functions
-    const phaseContext = buildPhaseContext(day);
-    const relationshipContext = buildRelationshipContext(conspiracists, this.relationships);
-
-    // Build context from previous posts in cascade - conspiracy theories twist the existing narrative
-    const previousPostsContext = previousPosts.length > 0
-      ? `\nPrevious posts about this event:\n${previousPosts.slice(-5).map(p => `- @${p.authorName}: "${p.content}"`).join('\n')}`
-      : '';
 
     const conspiracistsList = conspiracists.map((actor, i) => `${i + 1}. ${actor.name}
    About: ${actor.description}${formatActorVoiceContext(actor)}
@@ -985,11 +635,8 @@ export class FeedGenerator extends EventEmitter {
 
     const prompt = loadPrompt('feed/conspiracy', {
       eventDescription: worldEvent.description,
-      previousPostsContext,
       conspiracistCount: conspiracists.length,
-      conspiracistsList,
-      phaseContext,
-      relationshipContext
+      conspiracistsList
     });
 
     const maxRetries = 5;
@@ -1112,22 +759,35 @@ export class FeedGenerator extends EventEmitter {
     // Determine which actor might have "leaked" this to the media
     const potentialSource = allActors.find(a => event.actors.includes(a.id));
 
-    const sourceHint = potentialSource
-      ? `Hint: You received information from sources close to ${potentialSource.name} (but DON'T reveal the source directly).`
-      : 'You have your own sources.';
+    const prompt = `You must respond with valid JSON only.
 
-    const outcomeFrame = outcome
-      ? 'Spin this with your typical editorial slant toward positive framing'
-      : 'Spin this with your typical editorial slant emphasizing problems';
+You are: ${media.name}, ${media.description}
+Event: ${event.description}
+Type: ${event.type}
 
-    const prompt = loadPrompt('feed/media-post', {
-      mediaName: media.name,
-      mediaDescription: media.description,
-      eventDescription: event.description,
-      eventType: event.type,
-      sourceHint,
-      outcomeFrame
-    });
+As a ${media.name}, break this story with your organizational bias.
+${potentialSource ? `Hint: You received information from sources close to ${potentialSource.name} (but DON'T reveal the source directly).` : 'You have your own sources.'}
+${outcome ? 'Spin this with your typical editorial slant toward positive framing' : 'Spin this with your typical editorial slant emphasizing problems'}
+
+Write a breaking news post (max 280 chars) in your organization's style.
+- Use phrases like "Breaking:", "Exclusive:", "Sources say:"
+- Match your organization's typical bias and tone
+- Be provocative and attention-grabbing
+
+Also analyze:
+- sentiment: -1 (very negative) to 1 (very positive)
+- clueStrength: 0 (vague) to 1 (very revealing) - how much this reveals
+- pointsToward: true (suggests positive outcome), false (suggests negative), null (unclear)
+
+Respond with ONLY this JSON:
+{
+  "post": "your post here",
+  "sentiment": 0.3,
+  "clueStrength": 0.5,
+  "pointsToward": true
+}
+
+No other text.`;
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -1158,13 +818,11 @@ export class FeedGenerator extends EventEmitter {
   /**
    * Generate company PR statement
    * Companies manage crises, spin news, and announce products
-   * NOTE: Preserved for reference - use generateCompanyPostsBatch for production
    */
-  // @ts-expect-error - Preserved for reference, use batch version in production
-  private async _generateCompanyPost(
+  private async generateCompanyPost(
     company: Organization,
     event: WorldEvent,
-    _affiliatedActor: Actor,
+    affiliatedActor: Actor,
     outcome: boolean
   ): Promise<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> {
     if (!this.llm) {
@@ -1172,24 +830,46 @@ export class FeedGenerator extends EventEmitter {
     }
 
     const isCrisis = event.type === 'scandal' || event.type === 'leak';
-    const postType = isCrisis ? 'crisis management' : 'announcement';
 
-    const outcomeFrame = outcome
-      ? 'Frame as ultimately positive for the company'
-      : 'Manage the negative optics professionally';
+    const prompt = `You must respond with valid JSON only.
 
-    const prompt = loadPrompt('feed/company-post', {
-      companyName: company.name,
-      companyDescription: company.description,
-      eventDescription: event.description,
-      eventType: event.type,
-      postType,
-      outcomeFrame
-    });
+You are: ${company.name}, ${company.description}
+Your CEO/representative: ${affiliatedActor.name}
+Event involving your company: ${event.description}
+Event type: ${event.type}
+
+Write a corporate ${isCrisis ? 'crisis management' : 'announcement'} post (max 280 chars).
+
+${isCrisis ? `CRISIS MODE:
+- Be defensive and spin the narrative
+- Use corporate PR speak
+- Deny wrongdoing or minimize damage
+- Emphasize "commitment to transparency"` : `ANNOUNCEMENT MODE:
+- Promote positive developments
+- Be optimistic and forward-looking
+- Mention innovation/progress`}
+
+Match ${company.name}'s satirical tone and corporate personality.
+${outcome ? 'Frame as ultimately positive for the company' : 'Manage the negative optics professionally'}
+
+Also analyze:
+- sentiment: -1 (very negative) to 1 (very positive)
+- clueStrength: 0 (vague/corporate speak) to 1 (revealing) - usually low for PR
+- pointsToward: true (suggests positive outcome), false (suggests negative), null (unclear)
+
+Respond with ONLY this JSON:
+{
+  "post": "your post here",
+  "sentiment": 0.3,
+  "clueStrength": 0.2,
+  "pointsToward": true
+}
+
+No other text.`;
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{
+      const response = await this.llm.generateJSON<{ 
         post: string;
         sentiment: number;
         clueStrength: number;
@@ -1216,13 +896,11 @@ export class FeedGenerator extends EventEmitter {
   /**
    * Generate government response
    * Government agencies investigate, deny, or announce policy
-   * NOTE: Preserved for reference - use generateGovernmentPostsBatch for production
    */
-  // @ts-expect-error - Preserved for reference, use batch version in production
-  private async _generateGovernmentPost(
+  private async generateGovernmentPost(
     govt: Organization,
     event: WorldEvent,
-    _allActors: Actor[],
+    allActors: Actor[],
     outcome: boolean
   ): Promise<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> {
     if (!this.llm) {
@@ -1230,31 +908,52 @@ export class FeedGenerator extends EventEmitter {
     }
 
     // Find key actors that government might reference (insiders, executives, experts)
-    const keyActors = _allActors
+    const keyActors = allActors
       .filter(a => a.role === 'insider' || a.role === 'executive' || a.role === 'expert')
       .slice(0, 3)
       .map(a => a.name);
 
-    // @ts-expect-error - Context computed but not yet integrated into prompt
-    const _actorContext = keyActors.length > 0
+    const actorContext = keyActors.length > 0
       ? `Key individuals involved: ${keyActors.join(', ')}. You may reference them if relevant.`
       : '';
 
-    const outcomeFrame = outcome
-      ? 'Frame as having things under control'
-      : 'Show typical government ineffectiveness';
+    const prompt = `You must respond with valid JSON only.
 
-    const prompt = loadPrompt('feed/government-post', {
-      govName: govt.name,
-      govDescription: govt.description,
-      eventDescription: event.description,
-      eventType: event.type,
-      outcomeFrame
-    });
+You are: ${govt.name}, ${govt.description}
+Event requiring governmental response: ${event.description}
+Event type: ${event.type}
+${actorContext}
+
+Write an official government statement post (max 280 chars).
+
+Government agencies typically:
+- Announce investigations
+- Issue vague statements
+- Try to contain situations
+- Speak in bureaucratic language
+- Often ineffective or too late
+
+Match ${govt.name}'s satirical tone.
+${outcome ? 'Frame as having things under control' : 'Show typical government ineffectiveness'}
+
+Also analyze:
+- sentiment: -1 (very negative) to 1 (very positive)
+- clueStrength: 0 (vague bureaucratese) to 1 (revealing) - usually very low
+- pointsToward: true (suggests positive outcome), false (suggests negative), null (unclear)
+
+Respond with ONLY this JSON:
+{
+  "post": "your post here",
+  "sentiment": 0.0,
+  "clueStrength": 0.1,
+  "pointsToward": null
+}
+
+No other text.`;
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{
+      const response = await this.llm.generateJSON<{ 
         post: string;
         sentiment: number;
         clueStrength: number;
@@ -1304,17 +1003,33 @@ export class FeedGenerator extends EventEmitter {
       ? `This event suggests things are trending toward ${event.pointsToward}. React based on how this affects YOUR interests.`
       : `This situation is ${outcome ? 'developing in ways that could benefit some parties' : 'facing challenges that concern various stakeholders'}. React based on your role and interests.`;
 
-    const outcomeFrame = outcome ? 'Frame positively if you can' : 'Defensive or damage control';
+    const prompt = `You must respond with valid JSON only.
 
-    const prompt = loadPrompt('feed/direct-reaction', {
-      actorName: actor.name,
-      actorDescription: actor.description,
-      emotionalContext: emotionalContext ? `\n${emotionalContext}\n` : '',
-      eventDescription: event.description,
-      eventType: event.type,
-      eventGuidance,
-      outcomeFrame
-    });
+You are: ${actor.name}, ${actor.description}
+Personality: ${actor.personality}
+${emotionalContext ? `\n${emotionalContext}\n` : ''}
+Event involving you: ${event.description}
+
+${eventGuidance}
+
+Write a post (max 280 chars) from YOUR perspective.
+Stay in character. React naturally based on your mood and circumstances - excited, defensive, angry, dismissive, etc.
+Your current emotional state should influence your tone and response.
+
+Also analyze:
+- sentiment: -1 (very negative) to 1 (very positive) - factor in your mood
+- clueStrength: 0 (vague) to 1 (very revealing)
+- pointsToward: true (suggests positive outcome), false (negative), null (unclear)
+
+Respond with ONLY this JSON:
+{
+  "post": "your post here",
+  "sentiment": 0.5,
+  "clueStrength": 0.7,
+  "pointsToward": true
+}
+
+No other text.`;
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -1363,16 +1078,31 @@ export class FeedGenerator extends EventEmitter {
       ? generateActorContext(state.mood, state.luck, undefined, this.relationships, actor.id)
       : '';
 
-    const outcomeFrame = outcome ? 'Lean optimistic' : 'Lean skeptical';
+    const prompt = `You must respond with valid JSON only.
 
-    const prompt = loadPrompt('feed/expert-commentary', {
-      actorName: actor.name,
-      actorDescription: actor.description,
-      emotionalContext: emotionalContext ? `\n${emotionalContext}\n` : '',
-      eventDescription: event.description,
-      eventType: event.type,
-      outcomeFrame
-    });
+You are: ${actor.name}, ${actor.description}
+Domain: ${actor.domain?.join(', ')}
+${emotionalContext ? `\n${emotionalContext}\n` : ''}${formatActorVoiceContext(actor)}
+News: ${event.description}
+
+Write analysis post (max 280 chars) as outside observer.
+${outcome ? 'Lean optimistic' : 'Lean skeptical'}
+Your current mood should subtly influence your analysis tone. Match your writing style.
+
+Also analyze:
+- sentiment: -1 (very negative) to 1 (very positive)
+- clueStrength: 0 (vague) to 1 (very revealing)
+- pointsToward: true (suggests positive outcome), false (negative), null (unclear)
+
+Respond with ONLY this JSON:
+{
+  "post": "your analysis here",
+  "sentiment": 0.2,
+  "clueStrength": 0.4,
+  "pointsToward": null
+}
+
+No other text.`;
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -1420,16 +1150,29 @@ export class FeedGenerator extends EventEmitter {
       ? generateActorContext(state.mood, state.luck, undefined, this.relationships, actor.id)
       : '';
 
-    const outcomeFrame = outcome ? "Claim it's a distraction" : "Say they're hiding worse";
+    const prompt = `You must respond with valid JSON only.
 
-    const prompt = loadPrompt('feed/conspiracy-post', {
-      actorName: actor.name,
-      actorDescription: actor.description,
-      emotionalContext: emotionalContext ? emotionalContext + '\n' : '',
-      eventDescription: event.description,
-      eventType: event.type,
-      outcomeFrame
-    });
+You are: ${actor.name}, ${actor.description}
+${emotionalContext ? emotionalContext + '\n' : ''}Mainstream story: ${event.description}
+
+You don't believe it. Write conspiracy post (max 280 chars).
+Be dramatic, suspicious. ${outcome ? 'Claim it\'s a distraction' : 'Say they\'re hiding worse'}
+Your mood influences how paranoid or aggressive your theory is.
+
+Also analyze:
+- sentiment: -1 (very negative) to 1 (very positive)
+- clueStrength: 0 (vague) to 1 (very revealing) - usually low for conspiracy theories
+- pointsToward: true, false, or null - often opposite of mainstream
+
+Respond with ONLY this JSON:
+{
+  "post": "your conspiracy theory here",
+  "sentiment": -0.7,
+  "clueStrength": 0.1,
+  "pointsToward": false
+}
+
+No other text.`;
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -1477,8 +1220,8 @@ export class FeedGenerator extends EventEmitter {
       
       if (actorsThisHour.length === 0) continue;
 
-      // ✅ BATCH: Generate all ambient posts for this hour in ONE call - can see earlier ambient posts
-      const posts = await this.generateAmbientPostsBatch(actorsThisHour, day, outcome, ambient);
+      // ✅ BATCH: Generate all ambient posts for this hour in ONE call
+      const posts = await this.generateAmbientPostsBatch(actorsThisHour, day, outcome);
       
       posts.forEach((post, i) => {
         const actor = actorsThisHour[i];
@@ -1569,31 +1312,26 @@ export class FeedGenerator extends EventEmitter {
     }
 
     try {
-      // Build emotional context
-      const emotionalContext = formatActorVoiceContext(actor);
+      const prompt = `You are ${actor.name} (${actor.personality || 'actor'}).
+      
+Original post by ${originalPost.authorName}:
+"${originalPost.content}"
 
-      // Build relationship context if we have the original author's info
-      const relationshipContext = '';  // TODO: Add relationship context if available
+Write a brief reply (max 200 chars) in your voice.
+${actor.postStyle ? `Your style: ${actor.postStyle}` : ''}
 
-      const prompt = loadPrompt('feed/reply', {
-        actorName: actor.name,
-        actorDescription: actor.description || '',
-        emotionalContext,
-        originalAuthorName: originalPost.authorName,
-        originalContent: originalPost.content,
-        relationshipContext
-      });
+Respond with JSON: {"reply": "your reply here"}`;
 
-      const response = await this.llm.generateJSON<{ post: string; sentiment?: number; clueStrength?: number; pointsToward?: boolean | null }>(
+      const response = await this.llm.generateJSON<{ reply: string }>(
         prompt,
         undefined,
         { temperature: 1.0, maxTokens: 500 }
       );
 
-      return response.post || 'Interesting';
-    } catch (generationError) {
+      return response.reply || 'Interesting take';
+    } catch (error) {
       // Fallback on error - log for debugging but don't fail
-      const errorMessage = generationError instanceof Error ? generationError.message : 'Failed to generate ambient post'
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate ambient post'
       logger.warn('Failed to generate ambient post', { error: errorMessage }, 'FeedGenerator')
       return 'Interesting take';
     }
@@ -1606,16 +1344,11 @@ export class FeedGenerator extends EventEmitter {
   private async generateAmbientPostsBatch(
     actors: Actor[],
     day: number,
-    outcome: boolean,  // Used to create subtle atmospheric context for narrative coherence
-    previousPosts: FeedPost[] = []
+    outcome: boolean  // Used to create subtle atmospheric context for narrative coherence
   ): Promise<Array<{ post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }>> {
     if (!this.llm || actors.length === 0) {
       return [];
     }
-
-    // Build context using helper functions
-    const phaseContext = buildPhaseContext(day);
-    const relationshipContext = buildRelationshipContext(actors, this.relationships);
 
     const contexts = actors.map(actor => {
       const state = this.actorStates.get(actor.id);
@@ -1638,32 +1371,20 @@ export class FeedGenerator extends EventEmitter {
       ? 'There\'s a sense of forward momentum and positive developments underlying current events.'
       : 'There are underlying tensions and concerns affecting the overall atmosphere.';
 
-    // Build context from previous posts - ambient posts can reference the broader conversation
-    const previousPostsContext = previousPosts.length > 0
-      ? `\nRecent posts from today:\n${previousPosts.slice(-5).map(p => `- @${p.authorName}: "${p.content}"`).join('\n')}`
-      : '';
+    const actorsList = contexts.map((ctx, i) => `${i + 1}. You are ${ctx.actor.name}: ${ctx.actor.description}
+   Affiliated: ${ctx.actor.domain?.join(', ')}
+   ${ctx.emotionalContext}${formatActorVoiceContext(ctx.actor)}
+   ${this.actorGroupContexts.get(ctx.actor.id) || ''}
 
-    const actorsList = contexts.map((ctx, i) =>
-      loadPrompt('feed/ambient-instruction', {
-        index: (i + 1).toString(),
-        actorName: ctx.actor.name,
-        actorDescription: ctx.actor.description,
-        domain: ctx.actor.domain?.join(', ') || 'general',
-        emotionalContext: ctx.emotionalContext,
-        voiceContext: formatActorVoiceContext(ctx.actor),
-        groupContext: this.actorGroupContexts.get(ctx.actor.id) || ''
-      })
-    ).join('\n');
+   Write general thoughts. Your private group chats inform your perspective.
+   Write as YOURSELF (first person). Max 280 chars. No hashtags/emojis.`).join('\n');
 
     const prompt = loadPrompt('feed/ambient-posts', {
       day,
       progressContext,
       atmosphereContext,
-      previousPostsContext,
       actorCount: actors.length,
-      actorsList,
-      phaseContext,
-      relationshipContext
+      actorsList
     });
 
     const maxRetries = 5;
@@ -1763,22 +1484,19 @@ export class FeedGenerator extends EventEmitter {
       return [];
     }
 
-    // Build context using helper functions
-    const relationshipContext = buildRelationshipContext(actors, this.relationships);
-
     const contexts = actors.map(actor => {
       const state = this.actorStates.get(actor.id);
       const emotionalContext = state
         ? generateActorContext(state.mood, state.luck, originalPost.author, this.relationships, actor.id)
         : '';
-
+      
       return { actor, emotionalContext };
     });
 
     const repliersList = contexts.map((ctx, i) => `${i + 1}. ${ctx.actor.name}
    About: ${ctx.actor.description}
    ${ctx.emotionalContext}${formatActorVoiceContext(ctx.actor)}
-
+   
    Write reply (max 280 chars).
    ${ctx.actor.personality?.includes('contrarian') ? 'Disagree or challenge' : `Consider your relationship and mood when responding`}
    Let emotional state and any relationship with ${originalPost.authorName} influence tone. Match their writing style.
@@ -1788,8 +1506,7 @@ export class FeedGenerator extends EventEmitter {
       originalAuthorName: originalPost.authorName,
       originalContent: originalPost.content,
       replierCount: actors.length,
-      repliersList,
-      relationshipContext
+      repliersList
     });
 
     const maxRetries = 5;
@@ -1829,6 +1546,7 @@ export class FeedGenerator extends EventEmitter {
   }
 
 
+
   /**
    * Generate ambient post (general musing, not tied to events)
    * Public for external use and testing
@@ -1849,18 +1567,33 @@ export class FeedGenerator extends EventEmitter {
       ? 'The general atmosphere feels progressive and things are developing.'
       : 'There is subtle tension in the air, things feel uncertain.';
 
-    const progressContext = day < 15 ? 'Be vague or mysterious' : 'Hint at things heating up';
-    const outcomeFrame = outcome ? 'Subtle optimism' : 'Subtle skepticism';
+    const prompt = `You must respond with valid JSON only.
 
-    const prompt = loadPrompt('feed/ambient-post', {
-      actorName: actor.name,
-      actorDescription: actor.description,
-      emotionalContext: emotionalContext ? `\n${emotionalContext}\n` : '',
-      day,
-      progressContext,
-      atmosphereNote,
-      outcomeFrame
-    });
+You are: ${actor.name}, ${actor.description}
+Day: ${day}/30
+Domain: ${actor.domain?.join(', ')}
+${emotionalContext ? `\n${emotionalContext}\n` : ''}${formatActorVoiceContext(actor)}
+
+${atmosphereNote}
+
+Write general thoughts post (max 280 chars).
+${day < 15 ? 'Be vague or mysterious' : 'Hint at things heating up'}
+Your current mood and luck should influence your tone and content. Match your writing style.
+
+Also analyze:
+- sentiment: -1 (very negative) to 1 (very positive) - based on your mood
+- clueStrength: 0 (vague) to 1 (very revealing) - usually low for ambient posts
+- pointsToward: true, false, or null - only if you're hinting at something
+
+Respond with ONLY this JSON:
+{
+  "post": "your thoughts here",
+  "sentiment": 0.1,
+  "clueStrength": 0.05,
+  "pointsToward": null
+}
+
+No other text.`;
 
     // Retry until we get non-empty content
     const maxRetries = 5;
@@ -2240,18 +1973,30 @@ export class FeedGenerator extends EventEmitter {
       ? generateActorContext(state.mood, state.luck, originalPost.author, this.relationships, actor.id)
       : '';
 
-    const relationshipContext = actor.personality?.includes('contrarian')
-      ? 'Disagree or challenge'
-      : 'Consider your relationship and mood when responding';
+    const prompt = `You must respond with valid JSON only.
 
-    const prompt = loadPrompt('feed/reply', {
-      actorName: actor.name,
-      actorDescription: actor.description,
-      emotionalContext: emotionalContext ? `\n${emotionalContext}\n` : '',
-      originalAuthorName: originalPost.authorName,
-      originalContent: originalPost.content,
-      relationshipContext
-    });
+You are: ${actor.name}, ${actor.description}
+${emotionalContext ? `\n${emotionalContext}\n` : ''}${formatActorVoiceContext(actor)}
+Post: @${originalPost.authorName}: "${originalPost.content}"
+
+Write reply (max 280 chars).
+${actor.personality?.includes('contrarian') ? 'Disagree or challenge' : 'Consider your relationship and mood when responding'}
+Your emotional state and any relationship with ${originalPost.authorName} should influence your tone. Match your writing style.
+
+Also analyze:
+- sentiment: -1 to 1 (factor in your mood and relationship)
+- clueStrength: 0 to 1 (usually low for replies, unless revealing something)
+- pointsToward: true/false/null (usually null for replies unless you're hinting)
+
+Respond with ONLY this JSON:
+{
+  "post": "your reply here",
+  "sentiment": 0.2,
+  "clueStrength": 0.1,
+  "pointsToward": null
+}
+
+No other text.`;
 
     // Retry until we get non-empty content
     const maxRetries = 5;

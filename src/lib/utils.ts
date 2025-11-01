@@ -52,3 +52,10 @@ export function formatCurrency(amount: number, decimals = 2): string {
 export function formatPercentage(value: number): string {
   return `${Math.round(value)}%`
 }
+
+export function sanitizeId(id: string): string {
+  return id
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}

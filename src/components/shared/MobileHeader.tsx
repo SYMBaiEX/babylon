@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { User as UserIcon, LogOut, X, Copy, Check } from 'lucide-react'
+import { User as UserIcon, LogOut, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
@@ -14,22 +14,9 @@ import { ThemeToggle } from '@/components/shared/ThemeToggle'
 
 export function MobileHeader() {
   const { authenticated, logout } = useAuth()
-  const { user, wallet } = useAuthStore()
+  useAuthStore()
   const { showLoginModal } = useLoginModal()
   const [showUserMenu, setShowUserMenu] = useState(false)
-  const [copied, setCopied] = useState(false)
-
-  const handleCopyAddress = async () => {
-    if (wallet?.address) {
-      await navigator.clipboard.writeText(wallet.address)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
-
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`
-  }
 
   const handleLogout = async () => {
     setShowUserMenu(false)
@@ -42,11 +29,11 @@ export function MobileHeader() {
         className={cn(
           'md:hidden',
           'fixed top-0 left-0 right-0 z-40',
-          'bg-sidebar/95 backdrop-blur-md',
-          'border-b-2',
+          'bg-sidebar/95',
+          'border-b',
           'transition-all duration-300'
         )}
-        style={{ borderColor: '#1c9cf0' }}
+        style={{ borderColor: 'var(--border)' }}
       >
         <div className="flex items-center justify-between h-14 px-4 relative">
           {/* Left: Logo */}
@@ -122,42 +109,23 @@ export function MobileHeader() {
 
             {/* User Info */}
             <div className="space-y-4">
-              <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+              <Link
+                href="/profile"
+                className="flex items-center gap-3 p-3 bg-muted rounded-lg"
+                onClick={() => setShowUserMenu(false)}
+              >
                 <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
                   <UserIcon className="w-6 h-6 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-foreground truncate">
-                    {user?.displayName || 'Anonymous'}
+                    My Profile
                   </p>
-                  {user?.email && (
-                    <p className="text-sm text-muted-foreground truncate">
-                      {user.email}
-                    </p>
-                  )}
+                  <p className="text-sm text-muted-foreground truncate">
+                    View and edit your profile
+                  </p>
                 </div>
-              </div>
-
-              {/* Wallet Address */}
-              {wallet?.address && (
-                <div className="p-3 bg-muted rounded-lg">
-                  <label className="text-xs text-muted-foreground uppercase tracking-wide block mb-2">
-                    Wallet Address
-                  </label>
-                  <button
-                    onClick={handleCopyAddress}
-                    className="flex items-center gap-2 text-sm hover:opacity-80 transition-opacity font-mono"
-                    style={{ color: '#1c9cf0' }}
-                  >
-                    <span>{formatAddress(wallet.address)}</span>
-                    {copied ? (
-                      <Check className="w-4 h-4" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              )}
+              </Link>
 
               {/* Logout Button */}
               <button

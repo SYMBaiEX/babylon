@@ -23,7 +23,6 @@ import type { RegistryClient as RegistryClientImpl } from '../blockchain/registr
 import type { X402Manager as X402ManagerImpl } from '../payments/x402-manager'
 
 // A2AServerOptions is now defined in types/index.ts
-
 export class A2AWebSocketServer extends EventEmitter {
   private wss: WebSocketServer
   private connections: Map<string, AgentConnection & { ws: WebSocket }> = new Map()

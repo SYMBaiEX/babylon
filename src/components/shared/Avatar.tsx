@@ -1,6 +1,6 @@
 'use client'
 
-import { cn } from '@/lib/utils'
+import { cn, sanitizeId } from '@/lib/utils'
 import { useState } from 'react'
 
 interface AvatarProps {
@@ -26,9 +26,10 @@ const sizeClasses = {
 
 export function Avatar({ id, name, type = 'actor', size = 'md', className, scaleFactor = 1 }: AvatarProps) {
   const [imageError, setImageError] = useState(false)
+  const sanitizedId = sanitizeId(id)
   const imagePath = type === 'business'
-    ? `/images/businesses/${id}.jpg`
-    : `/images/actors/${id}.jpg`
+    ? `/images/organizations/${sanitizedId}.jpg`
+    : `/images/actors/${sanitizedId}.jpg`
 
   // Base sizes in rem
   const baseSizes = {

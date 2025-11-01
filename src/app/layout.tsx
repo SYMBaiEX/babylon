@@ -5,8 +5,9 @@ import { MobileHeader } from '@/components/shared/MobileHeader'
 import { BottomNav } from '@/components/shared/BottomNav'
 import { Providers } from '@/components/providers/Providers'
 
-// Auto-start game service on server
+// Auto-start game engines on server
 import '@/lib/game-service'
+import '@/lib/realtime-singleton'
 import { Toaster } from 'sonner'
 import { GlobalLoginModal } from '@/components/auth/GlobalLoginModal'
 import { FeedAuthBanner } from '@/components/auth/FeedAuthBanner'

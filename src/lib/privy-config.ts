@@ -1,7 +1,7 @@
 import { http } from 'viem'
 import { mainnet, sepolia, base, baseSepolia } from 'viem/chains'
 import { createConfig } from 'wagmi'
-import type { PrivyClientConfig } from '@privy-io/react-auth'
+import { PrivyClientConfig } from '@privy-io/react-auth'
 
 // Environment configuration
 const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID) || 8453 // Default to Base mainnet
@@ -37,7 +37,7 @@ export const privyConfig = {
   config: {
     appearance: {
       theme: 'dark' as const,
-      accentColor: '#1c9cf0' as const,
+      accentColor: '#1c9cf0',
       logo: '/assets/logos/logo.svg',
       showWalletLoginFirst: false, // Changed to false to prioritize Farcaster
       walletList: ['metamask', 'rabby_wallet', 'detected_wallets', 'rainbow', 'coinbase_wallet', 'wallet_connect'],
@@ -46,9 +46,7 @@ export const privyConfig = {
     // Prioritize Farcaster login, then wallet, then email
     loginMethods: ['farcaster', 'wallet', 'email'] as PrivyClientConfig['loginMethods'],
     embeddedWallets: {
-      ethereum: {
-        createOnLogin: 'users-without-wallets' as const,
-      },
+      createOnLogin: 'users-without-wallets' as const,
     },
     defaultChain: selectedChain,
     // Wallet configuration - supports all chains including Base L2

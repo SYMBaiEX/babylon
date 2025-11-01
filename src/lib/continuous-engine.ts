@@ -122,7 +122,6 @@ export class ContinuousEngine {
               initialMood: 0,
             } as SelectedActor;
           });
-
           // Convert recent world events to DayTimeline format for context
           // Group events by day (approximated from timestamps)
           const eventsByDay = new Map<number, typeof recentWorldEvents>();
@@ -263,7 +262,7 @@ export class ContinuousEngine {
       
       return posts;
     } catch (error) {
-      logger.error('Error generating posts:', error, 'ContinuousEngine');
+      console.error('Error generating posts:', error);
       return [];
     }
   }

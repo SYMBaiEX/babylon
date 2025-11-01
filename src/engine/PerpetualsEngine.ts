@@ -28,6 +28,7 @@ import {
   calculateMarkPrice,
 } from '@/shared/perps-types';
 import type { Organization } from '@/shared/types';
+import { PrismaClient } from '@prisma/client';
 
 interface ClosedPosition {
   userId: string;
@@ -63,9 +64,15 @@ export class PerpetualsEngine extends EventEmitter {
   private tradeHistory: TradeRecord[] = [];
   private lastFundingTime: string = new Date().toISOString();
   private currentDate: string = new Date().toISOString().split('T')[0]!;
+  private prisma: PrismaClient;
+  private syncInterval: number = 10000; // Sync to DB every 10 seconds
+  private syncTimer: NodeJS.Timeout | null = null;
+  private dirtyPositions: Set<string> = new Set(); // Track positions that need DB sync
 
   constructor() {
     super();
+    this.prisma = new PrismaClient();
+    this.startPeriodicSync();
   }
 
   /**
@@ -155,7 +162,7 @@ export class PerpetualsEngine extends EventEmitter {
       type: 'open',
       size: order.size,
       price: entryPrice,
-      volume: order.size * entryPrice,
+      volume: order.size, // Volume in USD (size is already in USD)
       timestamp,
     });
 
@@ -214,7 +221,7 @@ export class PerpetualsEngine extends EventEmitter {
       type: 'close',
       size: position.size,
       price: market.currentPrice,
-      volume: position.size * market.currentPrice,
+      volume: position.size, // Volume in USD (size is already in USD)
       timestamp,
     });
 
@@ -231,6 +238,7 @@ export class PerpetualsEngine extends EventEmitter {
 
   /**
    * Update all positions with new prices
+   * Marks positions as dirty for periodic database sync
    */
   updatePositions(priceUpdates: Map<string, number>): void {
     const now = new Date().toISOString();
@@ -252,6 +260,9 @@ export class PerpetualsEngine extends EventEmitter {
         
         position.unrealizedPnL = pnl;
         position.unrealizedPnLPercent = pnlPercent;
+        
+        // Mark position as dirty for DB sync
+        this.dirtyPositions.add(positionId);
         
         // Check for liquidation
         if (shouldLiquidate(newPrice, position.liquidationPrice, position.side)) {
@@ -279,6 +290,7 @@ export class PerpetualsEngine extends EventEmitter {
 
   /**
    * Process funding payments (called every 8 hours)
+   * Should be called at 00:00, 08:00, and 16:00 UTC
    */
   processFunding(): void {
     const now = new Date();
@@ -288,12 +300,15 @@ export class PerpetualsEngine extends EventEmitter {
       return; // Not time yet
     }
     
+    let totalFundingPaid = 0;
+    let positionsCharged = 0;
+    
     for (const [positionId, position] of this.positions) {
       const fundingRate = this.fundingRates.get(position.ticker);
       if (!fundingRate) continue;
       
-      const hoursHeld = (now.getTime() - new Date(position.openedAt).getTime()) / (1000 * 60 * 60);
-      const fundingPayment = calculateFundingPayment(position.size, fundingRate.rate, hoursHeld);
+      // Calculate funding for ONE 8-hour period only
+      const fundingPayment = calculateFundingPayment(position.size, fundingRate.rate);
       
       // Longs pay shorts when funding is positive
       // Shorts pay longs when funding is negative
@@ -302,8 +317,8 @@ export class PerpetualsEngine extends EventEmitter {
       position.fundingPaid += payment;
       position.lastUpdated = now.toISOString();
       
-      // Emit funding payment event
-      this.emit('funding:payment', { positionId, ticker: position.ticker, payment, hoursHeld });
+      totalFundingPaid += Math.abs(payment);
+      positionsCharged++;
     }
     
     this.lastFundingTime = now.toISOString();
@@ -317,11 +332,18 @@ export class PerpetualsEngine extends EventEmitter {
       this.emit('funding:rate:updated', { ticker, fundingRate, nextFundingTime });
     }
     
-    this.emit('funding:processed', { timestamp: now.toISOString() });
+    this.emit('funding:processed', { 
+      timestamp: now.toISOString(),
+      positionsCharged,
+      totalFundingPaid 
+    });
+    
+    console.log(`✅ Processed funding: ${positionsCharged} positions, $${totalFundingPaid.toFixed(2)} total`);
   }
 
   /**
    * Liquidate a position
+   * On liquidation, the user loses their entire margin (collateral)
    */
   private liquidatePosition(positionId: string, currentPrice: number): void {
     const position = this.positions.get(positionId);
@@ -330,7 +352,8 @@ export class PerpetualsEngine extends EventEmitter {
     const market = this.markets.get(position.ticker);
     if (!market) return;
 
-    const loss = position.size; // Complete loss
+    // Loss is the margin amount (not the full position size)
+    const marginLoss = position.size / position.leverage;
     const timestamp = new Date().toISOString();
 
     const liquidation: Liquidation = {
@@ -339,7 +362,7 @@ export class PerpetualsEngine extends EventEmitter {
       side: position.side,
       liquidationPrice: position.liquidationPrice,
       actualPrice: currentPrice,
-      loss,
+      loss: marginLoss,
       timestamp,
     };
 
@@ -354,7 +377,7 @@ export class PerpetualsEngine extends EventEmitter {
       leverage: position.leverage,
       entryPrice: position.entryPrice,
       exitPrice: currentPrice,
-      realizedPnL: -loss, // Total loss
+      realizedPnL: -marginLoss, // User loses their margin
       fundingPaid: position.fundingPaid,
       timestamp,
       reason: 'liquidation',
@@ -367,7 +390,7 @@ export class PerpetualsEngine extends EventEmitter {
       type: 'liquidation',
       size: position.size,
       price: currentPrice,
-      volume: position.size * currentPrice,
+      volume: position.size, // Volume in USD (size is already in USD)
       timestamp,
     });
 
@@ -504,11 +527,81 @@ export class PerpetualsEngine extends EventEmitter {
   }
 
   /**
+   * Start periodic database sync
+   */
+  private startPeriodicSync(): void {
+    this.syncTimer = setInterval(() => {
+      this.syncDirtyPositions().catch((error) => {
+        console.error('Error syncing positions to database:', error);
+      });
+    }, this.syncInterval);
+  }
+
+  /**
+   * Sync dirty positions to database
+   */
+  private async syncDirtyPositions(): Promise<void> {
+    if (this.dirtyPositions.size === 0) return;
+
+    const positionsToSync = Array.from(this.dirtyPositions);
+    this.dirtyPositions.clear();
+
+    try {
+      // Batch update positions in database
+      const updates = positionsToSync.map((positionId) => {
+        const position = this.positions.get(positionId);
+        if (!position) return null;
+
+        return this.prisma.perpPosition.update({
+          where: { id: positionId },
+          data: {
+            currentPrice: position.currentPrice,
+            unrealizedPnL: position.unrealizedPnL,
+            unrealizedPnLPercent: position.unrealizedPnLPercent,
+            fundingPaid: position.fundingPaid,
+            lastUpdated: new Date(position.lastUpdated),
+          },
+        });
+      }).filter(Boolean);
+
+      await Promise.all(updates);
+
+      if (updates.length > 0) {
+        console.log(`✅ Synced ${updates.length} positions to database`);
+      }
+    } catch (error) {
+      console.error('Failed to sync positions:', error);
+      // Re-add failed positions to dirty set
+      positionsToSync.forEach((id) => this.dirtyPositions.add(id));
+    }
+  }
+
+  /**
+   * Stop periodic sync (cleanup)
+   */
+  stop(): void {
+    if (this.syncTimer) {
+      clearInterval(this.syncTimer);
+      this.syncTimer = null;
+    }
+    // Final sync before stopping
+    this.syncDirtyPositions().catch(console.error);
+  }
+
+  /**
    * Generate ticker symbol from organization ID
+   * Max 12 characters, handles dashes and truncation
    */
   private generateTicker(orgId: string): string {
-    // Convert org ID to ticker (e.g., "facehook" -> "FACEHOOK")
-    return orgId.toUpperCase().replace(/-/g, '');
+    // Remove dashes and convert to uppercase
+    let ticker = orgId.toUpperCase().replace(/-/g, '');
+    
+    // Truncate to max 12 characters
+    if (ticker.length > 12) {
+      ticker = ticker.substring(0, 12);
+    }
+    
+    return ticker;
   }
 
   /**

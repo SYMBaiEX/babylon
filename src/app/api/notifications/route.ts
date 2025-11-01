@@ -7,19 +7,27 @@
 
 import type { NextRequest } from 'next/server';
 import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-middleware';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/database-service';
 import { logger } from '@/lib/logger';
-
-const prisma = new PrismaClient();
 
 /**
  * GET /api/notifications - Get user notifications
  */
 export async function GET(request: NextRequest) {
+  let authUser;
   try {
-    const authUser = await authenticate(request);
-    if (!authUser) {
-      return errorResponse('Authentication required', 401);
+    authUser = await authenticate(request);
+  } catch (authError) {
+    const authErrorMessage = authError instanceof Error ? authError.message : 'Authentication failed';
+    logger.error('Authentication error in notifications:', { message: authErrorMessage }, 'GET /api/notifications');
+    return errorResponse('Authentication required', 401);
+  }
+
+  try {
+    // Verify prisma is initialized
+    if (!prisma || !prisma.notification) {
+      logger.error('Prisma client not initialized', { prisma: !!prisma }, 'GET /api/notifications');
+      return errorResponse('Database connection error', 500);
     }
 
     const { searchParams } = new URL(request.url);
@@ -83,7 +91,18 @@ export async function GET(request: NextRequest) {
       unreadCount,
     });
   } catch (error) {
-    logger.error('Error fetching notifications:', error, 'GET /api/notifications');
+    // Better error logging - extract error details properly
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    const errorDetails = {
+      message: errorMessage,
+      stack: errorStack,
+      error: error instanceof Error ? {
+        name: error.name,
+        message: error.message,
+      } : error,
+    };
+    logger.error('Error fetching notifications:', errorDetails, 'GET /api/notifications');
     return errorResponse('Failed to fetch notifications', 500);
   }
 }
@@ -92,10 +111,20 @@ export async function GET(request: NextRequest) {
  * PATCH /api/notifications - Mark notifications as read
  */
 export async function PATCH(request: NextRequest) {
+  let authUser;
   try {
-    const authUser = await authenticate(request);
-    if (!authUser) {
-      return errorResponse('Authentication required', 401);
+    authUser = await authenticate(request);
+  } catch (authError) {
+    const authErrorMessage = authError instanceof Error ? authError.message : 'Authentication failed';
+    logger.error('Authentication error in notifications:', { message: authErrorMessage }, 'PATCH /api/notifications');
+    return errorResponse('Authentication required', 401);
+  }
+
+  try {
+    // Verify prisma is initialized
+    if (!prisma || !prisma.notification) {
+      logger.error('Prisma client not initialized', { prisma: !!prisma }, 'PATCH /api/notifications');
+      return errorResponse('Database connection error', 500);
     }
 
     const body = await request.json();
@@ -133,7 +162,18 @@ export async function PATCH(request: NextRequest) {
 
     return errorResponse('Invalid request: provide notificationIds array or markAllAsRead=true', 400);
   } catch (error) {
-    logger.error('Error updating notifications:', error, 'PATCH /api/notifications');
+    // Better error logging - extract error details properly
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    const errorDetails = {
+      message: errorMessage,
+      stack: errorStack,
+      error: error instanceof Error ? {
+        name: error.name,
+        message: error.message,
+      } : error,
+    };
+    logger.error('Error updating notifications:', errorDetails, 'PATCH /api/notifications');
     return errorResponse('Failed to update notifications', 500);
   }
 }

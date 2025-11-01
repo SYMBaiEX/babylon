@@ -18,9 +18,48 @@ const prisma = new PrismaClient();
 /**
  * GET /api/chats
  * Get all chats for the authenticated user
+ * Query params: ?all=true - Get all game chats (not just user's chats)
  */
 export async function GET(request: NextRequest) {
   try {
+    // Check if requesting all game chats
+    const { searchParams } = new URL(request.url);
+    const getAllChats = searchParams.get('all') === 'true';
+    
+    if (getAllChats) {
+      // Return all game chats (no auth required for read-only game data)
+      const gameChats = await prisma.chat.findMany({
+        where: {
+          isGroup: true,
+          gameId: 'continuous',
+        },
+        include: {
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+          _count: {
+            select: {
+              messages: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'asc',
+        },
+      });
+
+      return successResponse({
+        chats: gameChats.map(chat => ({
+          id: chat.id,
+          name: chat.name,
+          isGroup: chat.isGroup,
+          messageCount: chat._count.messages,
+          lastMessage: chat.messages[0] || null,
+        })),
+      });
+    }
+    
     const user = await authenticate(request);
 
     // Get user's group chat memberships

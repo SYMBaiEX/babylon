@@ -85,7 +85,7 @@ function getOriginalCompanyName(satiricalName: string, orgId: string): string {
     'coinbased': 'Coinbase',
     'buy-nance': 'Binance',
     'bitfinesse': 'Bitfinex',
-    'a16zzzz': 'Andreessen Horowitz (a16z)',
+    'ai16z': 'AIndreessen Horowitz (a16z)',
     'y-combinator-rejects': 'Y Combinator',
     'tesla': 'Tesla',
     'us-congress': 'US Congress',

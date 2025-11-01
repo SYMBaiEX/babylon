@@ -201,7 +201,6 @@ export class MessageRouter {
     }
     
     const discoverRequest = request.params as DiscoverParams
-
     let agents: AgentProfile[] = []
 
     // Query ERC-8004 registry if available
@@ -245,7 +244,6 @@ export class MessageRouter {
         'Invalid params: agentId is required'
       )
     }
-
     // Query ERC-8004 registry if available
     if (this.registryClient) {
       // Extract token ID from agentId (format: "agent-{tokenId}")
@@ -333,7 +331,6 @@ export class MessageRouter {
         'Invalid params: marketId is required'
       )
     }
-
     // TODO: Calculate current prices from blockchain state
     return {
       jsonrpc: '2.0',
@@ -373,7 +370,6 @@ export class MessageRouter {
       this.marketSubscriptions.set(subscriptionRequest.marketId, new Set())
     }
     this.marketSubscriptions.get(subscriptionRequest.marketId)!.add(agentId)
-
     return {
       jsonrpc: '2.0',
       result: {
@@ -407,7 +403,6 @@ export class MessageRouter {
         'Invalid params: name, targetMarket, and strategy are required'
       )
     }
-
     const coalitionId = `coalition-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
     const coalition: Coalition = {
@@ -605,7 +600,6 @@ export class MessageRouter {
     // TODO: Store and distribute analysis to interested parties
     // For now, log the analysis details
     logger.info(`Agent ${agentId} shared analysis for market ${analysis.marketId}`)
-
     return {
       jsonrpc: '2.0',
       result: {
@@ -641,7 +635,6 @@ export class MessageRouter {
     // TODO: Broadcast analysis request to capable agents
     // For now, log the request details
     logger.info(`Agent ${agentId} requesting analysis for market ${analysisRequest.marketId}, deadline: ${analysisRequest.deadline}`)
-
     return {
       jsonrpc: '2.0',
       result: {
@@ -675,7 +668,6 @@ export class MessageRouter {
         'Invalid params: to, amount, and service are required'
       )
     }
-
     if (!this.config.enableX402) {
       return this.errorResponse(
         request.id,
@@ -744,7 +736,6 @@ export class MessageRouter {
         'Invalid params: requestId and txHash are required'
       )
     }
-
     if (!this.config.enableX402) {
       return this.errorResponse(
         request.id,

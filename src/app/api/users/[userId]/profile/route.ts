@@ -4,15 +4,13 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/database-service';
 import {
   optionalAuth,
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
 import { logger } from '@/lib/logger';
-
-const prisma = new PrismaClient();
 
 /**
  * GET /api/users/[userId]/profile
@@ -22,8 +20,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
+  let userId: string | undefined;
   try {
-    const { userId } = await params;
+    userId = (await params).userId;
 
     if (!userId) {
       return errorResponse('User ID is required', 400);
@@ -96,7 +95,19 @@ export async function GET(
       },
     });
   } catch (error) {
-    logger.error('Error fetching profile:', error, 'GET /api/users/[userId]/profile');
+    // Better error logging - extract error details properly
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    const errorDetails = {
+      message: errorMessage,
+      stack: errorStack,
+      error: error instanceof Error ? {
+        name: error.name,
+        message: error.message,
+      } : error,
+      userId: userId || 'unknown',
+    };
+    logger.error('Error fetching profile:', errorDetails, 'GET /api/users/[userId]/profile');
     return errorResponse('Failed to fetch profile', 500);
   }
 }

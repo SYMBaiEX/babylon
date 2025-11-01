@@ -118,7 +118,7 @@ export class A2AGameIntegration extends EventEmitter {
       enableX402: true,
       enableCoalitions: true,
       logLevel: 'info',
-      registryClient: this.registryClient as unknown as import('@/types/a2a-server').RegistryClient | undefined,
+      registryClient: this.registryClient,
     };
 
     this.server = new A2AWebSocketServer(serverConfig);

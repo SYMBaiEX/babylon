@@ -46,7 +46,7 @@ interface PerpMarket {
 }
 
 interface PredictionMarket {
-  id: number
+  id: number | string
   text: string
   status: 'active' | 'resolved' | 'cancelled'
   createdDate?: string
@@ -55,6 +55,16 @@ interface PredictionMarket {
   scenario: number
   yesShares?: number
   noShares?: number
+  userPosition?: {
+    id: string
+    side: 'YES' | 'NO'
+    shares: number
+    avgPrice: number
+    currentPrice: number
+    currentValue: number
+    costBasis: number
+    unrealizedPnL: number
+  } | null
 }
 
 type MarketTab = 'futures' | 'predictions'
@@ -76,13 +86,14 @@ export default function MarketsPage() {
   const [perpPositions, setPerpPositions] = useState<PerpPosition[]>([])
   const [predictionPositions, setPredictionPositions] = useState<PredictionPosition[]>([])
   const [loading, setLoading] = useState(true)
+  const [balanceRefreshTrigger, setBalanceRefreshTrigger] = useState(0)
 
   // Fetch data
   const fetchData = async () => {
     try {
       const [perpsRes, predictionsRes] = await Promise.all([
         fetch('/api/markets/perps'),
-        fetch('/api/markets/predictions'),
+        fetch(`/api/markets/predictions${authenticated && user ? `?userId=${user.id}` : ''}`),
       ])
 
       const perpsData = await perpsRes.json()
@@ -94,9 +105,34 @@ export default function MarketsPage() {
       if (authenticated && user) {
         const positionsRes = await fetch(`/api/markets/positions/${user.id}`)
         const positionsData = await positionsRes.json()
-        setPerpPositions(positionsData.perpetuals?.positions || [])
-        setPredictionPositions(positionsData.predictions?.positions || [])
+        
+        const perpPos = positionsData.perpetuals?.positions || []
+        const predPos = positionsData.predictions?.positions || []
+        
+        setPerpPositions(perpPos)
+        setPredictionPositions(predPos)
+        
+        // Debug logging
+        logger.info(`Loaded positions: ${perpPos.length} perps, ${predPos.length} predictions`, 
+          { perpCount: perpPos.length, predCount: predPos.length, userId: user.id }, 
+          'MarketsPage'
+        )
+        
+        // Console log for immediate visibility
+        console.log('🎯 POSITIONS LOADED:', {
+          perpetuals: perpPos.length,
+          predictions: predPos.length,
+          userId: user.id,
+          predictionDetails: predPos.map((p: any) => ({
+            question: p.question,
+            side: p.side,
+            shares: p.shares,
+          }))
+        })
       }
+      
+      // Trigger balance refresh after data fetch (after trades)
+      setBalanceRefreshTrigger(Date.now())
     } catch (error) {
       logger.error('Error fetching markets data:', error, 'MarketsPage')
     } finally {
@@ -140,7 +176,11 @@ export default function MarketsPage() {
       login()
       return
     }
-    setSelectedPrediction(prediction)
+    // Convert to format expected by modal (id as number if possible, otherwise string)
+    setSelectedPrediction({
+      ...prediction,
+      id: typeof prediction.id === 'number' ? prediction.id : (typeof prediction.id === 'string' ? parseInt(prediction.id) || prediction.id : prediction.id)
+    } as PredictionMarket)
     setPredictionModalOpen(true)
   }
 
@@ -202,7 +242,7 @@ export default function MarketsPage() {
           </div>
 
           {/* Wallet Balance */}
-          {authenticated && <WalletBalance />}
+          {authenticated && <WalletBalance refreshTrigger={balanceRefreshTrigger} />}
 
           {/* Search */}
           <div className="relative">
@@ -222,8 +262,26 @@ export default function MarketsPage() {
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'futures' ? (
           <div className="p-4">
-            <h2 className="text-sm font-bold text-muted-foreground mb-3">MARKETS</h2>
-            <div className="space-y-2 mb-6">
+            {/* Show positions section FIRST if authenticated */}
+            {authenticated && (
+              <>
+                <h2 className="text-sm font-bold text-muted-foreground mb-3">YOUR POSITIONS ({perpPositions.length})</h2>
+                {perpPositions.length > 0 ? (
+                  <div className="mb-6">
+                    <PerpPositionsList positions={perpPositions} onPositionClosed={fetchData} />
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-lg bg-muted/50 text-center mb-6">
+                    <p className="text-sm text-muted-foreground">
+                      No perpetual positions yet. Open a long or short position to start trading!
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+            
+            <h2 className="text-sm font-bold text-muted-foreground mb-3">ALL MARKETS</h2>
+            <div className="space-y-2">
               {filteredPerpMarkets.map((market, idx) => (
                 <button
                   key={`market-${market.ticker}-${idx}`}
@@ -256,46 +314,78 @@ export default function MarketsPage() {
                 </button>
               ))}
             </div>
-            
-            {authenticated && perpPositions.length > 0 && (
-              <>
-                <h2 className="text-sm font-bold text-muted-foreground mb-3">YOUR POSITIONS</h2>
-                <PerpPositionsList positions={perpPositions} onPositionClosed={fetchData} />
-              </>
-            )}
           </div>
         ) : (
           <div className="p-4">
-            <h2 className="text-sm font-bold text-muted-foreground mb-3">ACTIVE ({activePredictions.length})</h2>
+            {/* Show positions section FIRST if authenticated */}
+            {authenticated && (
+              <>
+                <h2 className="text-sm font-bold text-muted-foreground mb-3">YOUR POSITIONS ({predictionPositions.length})</h2>
+                {predictionPositions.length > 0 ? (
+                  <div className="mb-6">
+                    <PredictionPositionsList positions={predictionPositions} onPositionSold={fetchData} />
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-lg bg-muted/50 text-center mb-6">
+                    <p className="text-sm text-muted-foreground">
+                      No prediction positions yet. Buy YES or NO shares to start trading!
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            <h2 className="text-sm font-bold text-muted-foreground mb-3">ACTIVE MARKETS ({activePredictions.length})</h2>
             <div className="space-y-2 mb-6">
               {filteredPredictions.filter(p => p.status === 'active').map((prediction, idx) => {
                 const daysLeft = getDaysLeft(prediction.resolutionDate)
+                const totalShares = (prediction.yesShares || 0) + (prediction.noShares || 0)
+                const yesPrice = totalShares > 0 ? ((prediction.yesShares || 0) / totalShares * 100).toFixed(1) : '50'
+                const noPrice = totalShares > 0 ? ((prediction.noShares || 0) / totalShares * 100).toFixed(1) : '50'
+                const hasPosition = prediction.userPosition !== null && prediction.userPosition !== undefined
+                
                 return (
                   <button
                     key={`prediction-${prediction.id}-${idx}`}
                     onClick={() => handlePredictionClick(prediction)}
-                    className="w-full p-3 rounded-lg text-left hover:bg-accent border bg-card border-border transition-all"
+                    className={cn(
+                      "w-full p-3 rounded-lg text-left hover:bg-accent border transition-all",
+                      hasPosition ? "bg-card border-primary/30" : "bg-card border-border"
+                    )}
                   >
                     <div className="font-medium mb-2">{prediction.text}</div>
-                    <div className="flex gap-3 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {daysLeft !== null ? `${daysLeft}d` : 'Soon'}
+                    <div className="flex gap-3 text-xs text-muted-foreground items-center justify-between">
+                      <div className="flex gap-3">
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {daysLeft !== null ? `${daysLeft}d` : 'Soon'}
+                        </div>
+                        <div className="text-green-600">{yesPrice}% YES</div>
+                        <div className="text-red-600">{noPrice}% NO</div>
                       </div>
-                      <div className="text-green-600">50% YES</div>
-                      <div className="text-red-600">50% NO</div>
+                      {hasPosition && prediction.userPosition && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className={cn(
+                            "px-2 py-0.5 rounded font-medium",
+                            prediction.userPosition.side === 'YES'
+                              ? "bg-green-600/20 text-green-600"
+                              : "bg-red-600/20 text-red-600"
+                          )}>
+                            {prediction.userPosition.side} {prediction.userPosition.shares.toFixed(2)}
+                          </span>
+                          <span className={cn(
+                            "font-medium",
+                            prediction.userPosition.unrealizedPnL >= 0 ? "text-green-600" : "text-red-600"
+                          )}>
+                            {prediction.userPosition.unrealizedPnL >= 0 ? '+' : ''}${prediction.userPosition.unrealizedPnL.toFixed(2)}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </button>
                 )
               })}
             </div>
-
-            {authenticated && predictionPositions.length > 0 && (
-              <>
-                <h2 className="text-sm font-bold text-muted-foreground mb-3">YOUR POSITIONS</h2>
-                <PredictionPositionsList positions={predictionPositions} onPositionSold={fetchData} />
-              </>
-            )}
 
             {resolvedPredictions.length > 0 && (
               <>
@@ -343,7 +433,7 @@ export default function MarketsPage() {
 
       {selectedPrediction && (
         <PredictionTradingModal
-          question={selectedPrediction}
+          question={selectedPrediction as any}
           isOpen={predictionModalOpen}
           onClose={() => setPredictionModalOpen(false)}
           onSuccess={fetchData}

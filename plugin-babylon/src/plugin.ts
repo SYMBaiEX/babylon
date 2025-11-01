@@ -71,6 +71,7 @@ import {
   portfolioManagementEvaluator,
 } from "./evaluators/evaluators";
 import { BabylonA2AService } from "./a2a-service";
+import { BabylonChatService } from "./services/chat-service";
 
 /**
  * Plugin configuration schema
@@ -645,7 +646,7 @@ export const predictionMarketsPlugin: Plugin = {
       );
     }
   },
-  services: [BabylonClientService, BabylonTradingService],
+  services: [BabylonClientService, BabylonTradingService, BabylonChatService],
   actions: [buySharesAction, sellSharesAction, checkWalletAction],
   evaluators: [
     marketAnalysisEvaluator,

@@ -225,7 +225,7 @@ export class A2AClient extends EventEmitter {
   /**
    * Send JSON-RPC request and wait for response
    */
-  private sendRequest<T = JsonRpcResult>(method: string, requestData?: JsonRpcParams): Promise<T> {
+  private sendRequest<T = JsonRpcResult>(method: string, params?: Record<string, unknown> | unknown[]): Promise<T> {
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         reject(new Error('Not connected'))
@@ -233,24 +233,14 @@ export class A2AClient extends EventEmitter {
       }
 
       const id = this.messageId++
-
-      // Include session token in request data for authenticated requests
-      const baseRequestData = requestData || {};
-      const authenticatedRequestData = this.sessionToken
-        ? { ...baseRequestData, sessionToken: this.sessionToken }
-        : baseRequestData;
-
       const request: JsonRpcRequest = {
         jsonrpc: '2.0',
         method,
-        params: authenticatedRequestData,
+        params,
         id
       }
 
-      this.pendingRequests.set(id, { 
-        resolve: resolve as (value: JsonRpcResult) => void, 
-        reject: (reason: Error) => reject(reason)
-      })
+      this.pendingRequests.set(id, { resolve: resolve as (value: JsonRpcResult) => void, reject })
 
       this.ws.send(JSON.stringify(request))
 
