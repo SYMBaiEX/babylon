@@ -43,9 +43,37 @@ export function Providers({ children }: { children: React.ReactNode }) {
     []
   )
 
+  // Check if Privy is configured (for build-time safety)
+  const hasPrivyConfig = privyConfig.appId && privyConfig.appId !== ''
+
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Render without Privy if not configured (for build-time)
+  if (!hasPrivyConfig) {
+    return (
+      <div suppressHydrationWarning>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange={false}
+        >
+          <FontSizeProvider>
+            <QueryClientProvider client={queryClient}>
+              <GamePlaybackManager />
+              {mounted ? (
+                <Fragment>{children}</Fragment>
+              ) : (
+                <div className="min-h-screen bg-sidebar" />
+              )}
+            </QueryClientProvider>
+          </FontSizeProvider>
+        </ThemeProvider>
+      </div>
+    )
+  }
 
   return (
     <div suppressHydrationWarning>

@@ -61,10 +61,6 @@ export function stopGameEngine(): void {
   }
 }
 
-// Auto-start on module load (server-side only)
-if (typeof window === 'undefined') {
-  initializeGameEngine().catch((error) => {
-    logger.error('Failed to start engine:', error, 'GameEngineSingleton');
-  });
-}
+// NOTE: Auto-start removed to prevent initialization during Next.js build
+// The engine should be started manually via API route or CLI daemon
 

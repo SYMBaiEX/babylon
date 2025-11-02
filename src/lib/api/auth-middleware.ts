@@ -28,11 +28,22 @@ export function extractErrorMessage(error: unknown): string {
   return 'An unknown error occurred';
 }
 
-// Initialize Privy client
-const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID!;
-const privyAppSecret = process.env.PRIVY_APP_SECRET!;
+// Lazy initialization of Privy client to prevent build-time errors
+let privyClient: PrivyClient | null = null;
 
-const privy = new PrivyClient(privyAppId, privyAppSecret);
+function getPrivyClient(): PrivyClient {
+  if (!privyClient) {
+    const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+    const privyAppSecret = process.env.PRIVY_APP_SECRET;
+    
+    if (!privyAppId || !privyAppSecret) {
+      throw new Error('Privy credentials not configured');
+    }
+    
+    privyClient = new PrivyClient(privyAppId, privyAppSecret);
+  }
+  return privyClient;
+}
 
 export interface AuthenticatedUser {
   userId: string;
@@ -65,6 +76,7 @@ export async function authenticate(request: NextRequest): Promise<AuthenticatedU
 
   // Fall back to Privy user authentication
   try {
+    const privy = getPrivyClient();
     const claims = await privy.verifyAuthToken(token);
 
     return {

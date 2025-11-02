@@ -42,6 +42,6 @@ async function initializePerpsEngine() {
   }
 }
 
-// Export singleton
-export const perpsEngine = typeof window === 'undefined' ? getPerpsEngine() : null as unknown as PerpetualsEngine;
+// NOTE: Singleton export removed to prevent initialization during Next.js build
+// Use getPerpsEngine() function instead to lazily initialize when needed
 
