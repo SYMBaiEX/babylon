@@ -51,7 +51,7 @@ export function InviteFriendsBanner({ onDismiss }: InviteFriendsBannerProps) {
             }),
           })
         }
-      } catch (_error) {
+      } catch {
         // Silently handle error - banner can still be shown
       }
     }
@@ -66,7 +66,7 @@ export function InviteFriendsBanner({ onDismiss }: InviteFriendsBannerProps) {
       await navigator.clipboard.writeText(referralUrl)
       setCopiedReferral(true)
       setTimeout(() => setCopiedReferral(false), 2000)
-    } catch (_error) {
+    } catch {
       // Silently handle copy failure
     }
   }
@@ -109,7 +109,7 @@ export function InviteFriendsBanner({ onDismiss }: InviteFriendsBannerProps) {
 
       // Call parent dismiss handler
       onDismiss?.()
-    } catch (_error) {
+    } catch {
       // Silently handle dismiss error - still call onDismiss
       onDismiss?.()
     }

@@ -14,7 +14,7 @@ import { useFontSize } from '@/contexts/FontSizeContext'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
 import { useGameStore } from '@/stores/gameStore'
 import { logger } from '@/lib/logger'
-import type { FeedPost } from '@/shared/types'
+import type { FeedPost, Actor, Organization } from '@/shared/types'
 import type { ProfileInfo } from '@/types/profiles'
 
 export default function ActorProfilePage() {
@@ -79,7 +79,7 @@ export default function ActorProfilePage() {
         const response = await fetch('/data/actors.json')
         if (!response.ok) throw new Error('Failed to load actors')
         
-        const actorsDb = await response.json() as { actors?: import('@/shared/types').Actor[]; organizations?: import('@/shared/types').Organization[] }
+        const actorsDb = await response.json() as { actors?: Actor[]; organizations?: Organization[] }
         
         // Find actor
         let actor = actorsDb.actors?.find((a) => a.id === actorId)

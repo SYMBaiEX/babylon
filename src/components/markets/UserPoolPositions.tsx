@@ -31,7 +31,7 @@ export function UserPoolPositions({ onWithdraw }: UserPoolPositionsProps) {
       const data = await res.json()
       setDeposits(data.activeDeposits || [])
       setSummary(data.summary)
-    } catch (_error) {
+    } catch {
       // Silently handle error - UI shows empty state
       setDeposits([])
       setSummary(null)
