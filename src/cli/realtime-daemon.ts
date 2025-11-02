@@ -21,7 +21,7 @@
  */
 
 import { GameEngine } from '../engine/GameEngine';
-import { spawn, type ChildProcess } from 'child_process';
+import { spawn, execSync, type ChildProcess } from 'child_process';
 import { join } from 'path';
 import { logger } from '@/lib/logger';
 import { setEngineInstance, clearEngineInstance } from '@/lib/engine';
@@ -43,8 +43,37 @@ function parseArgs(): CLIOptions {
   return options;
 }
 
+/**
+ * Check if a daemon is already running by checking for the process
+ * Returns PID if found, null otherwise
+ */
+function checkExistingDaemon(): number | null {
+  try {
+    const result = execSync('pgrep -f "realtime-daemon"', { encoding: 'utf-8' }).trim();
+    if (result) {
+      const firstLine = result.split('\n')[0];
+      if (!firstLine) return null;
+      const pid = parseInt(firstLine, 10);
+      // Make sure it's not this process
+      if (pid && pid !== process.pid) {
+        return pid;
+      }
+    }
+  } catch (error) {
+    // pgrep returns non-zero if no process found, which is fine
+  }
+  return null;
+}
+
 async function main() {
   const options = parseArgs();
+
+  // Check if daemon is already running
+  const existingDaemon = checkExistingDaemon();
+  if (existingDaemon) {
+    logger.error(`Daemon is already running (PID: ${existingDaemon}). Please stop it first with: kill ${existingDaemon}`, undefined, 'CLI');
+    process.exit(1);
+  }
 
   logger.info('BABYLON GAME DAEMON', undefined, 'CLI');
   logger.info('===================', undefined, 'CLI');
@@ -171,6 +200,7 @@ async function startAgents(): Promise<void> {
     
     agentProcess = spawn('bun', [
       agentScript,
+      '--max=1', // Only start 1 agent on daemon bootup
       ...(autoTrade ? ['--auto-trade'] : []),
     ], {
       stdio: ['ignore', 'pipe', 'pipe'],

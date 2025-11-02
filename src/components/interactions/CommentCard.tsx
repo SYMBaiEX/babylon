@@ -3,8 +3,10 @@
 import { cn } from '@/lib/utils';
 import { MoreVertical, Reply, Trash2, Edit2, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { Avatar } from '@/components/shared/Avatar';
+import { TaggedText } from '@/components/shared/TaggedText';
 import { LikeButton } from './LikeButton';
 import { CommentInput } from './CommentInput';
 import type { CommentCardProps } from '@/types/interactions';
@@ -22,6 +24,7 @@ export function CommentCard({
   maxDepth = MAX_DEPTH,
   className,
 }: CommentCardProps) {
+  const router = useRouter();
   const [showActions, setShowActions] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -182,7 +185,12 @@ export function CommentCard({
           </div>
         ) : (
           <p className="text-sm text-foreground whitespace-pre-wrap break-words mb-2">
-            {comment.content}
+            <TaggedText
+              text={comment.content}
+              onTagClick={(tag) => {
+                router.push(`/feed?search=${encodeURIComponent(tag)}`)
+              }}
+            />
           </p>
         )}
 

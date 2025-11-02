@@ -281,7 +281,8 @@ export class BabylonTradingService extends Service {
   ): Promise<BabylonTradingService> {
     logger.info("Starting BabylonTradingService");
     const service = new BabylonTradingService(runtime);
-    await service.initialize();
+    // Initialize after a short delay to allow BabylonClientService to register
+    setTimeout(() => service.initialize(), 100);
     return service;
   }
 

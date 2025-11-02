@@ -86,19 +86,34 @@ export class BabylonLLMClient {
 
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
+        // For Groq, handle JSON generation failures more gracefully
+        // Some Groq models have issues with response_format: json_object
+        const useJsonFormat = this.provider === 'groq' && attempt < 3 
+          ? { type: 'json_object' as const }  // Try JSON format first
+          : this.provider === 'groq' 
+            ? undefined  // Fall back to no format constraint after 3 attempts
+            : { type: 'json_object' as const };  // OpenAI always uses JSON format
+        
+        const messages = [
+          {
+            role: 'system' as const,
+            content: 'You are a JSON-only assistant. You must respond ONLY with valid JSON. No explanations, no markdown, no other text.',
+          },
+          {
+            role: 'user' as const,
+            content: prompt,
+          },
+        ];
+        
+        // If not using JSON format, add stronger instruction
+        if (!useJsonFormat && this.provider === 'groq') {
+          messages[0].content = 'You MUST respond with ONLY valid JSON. No markdown, no code blocks, no explanations. Start with { and end with }.';
+        }
+        
         const response = await this.client.chat.completions.create({
           model,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a JSON-only assistant. You must respond ONLY with valid JSON. No explanations, no markdown, no other text.',
-            },
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          response_format: { type: 'json_object' },
+          messages,
+          ...(useJsonFormat ? { response_format: useJsonFormat } : {}),
           temperature,
           max_tokens: maxTokens,
         });
@@ -115,7 +130,42 @@ export class BabylonLLMClient {
           throw new Error('Empty response from LLM');
         }
 
-        const parsed = JSON.parse(content);
+        // Extract JSON from response - handle markdown code blocks or extra text
+        let jsonContent = content.trim();
+        
+        // Remove markdown code blocks if present
+        if (jsonContent.startsWith('```')) {
+          const lines = jsonContent.split('\n');
+          // Find the first line that starts with { or [
+          const jsonStartIndex = lines.findIndex(line => line.trim().startsWith('{') || line.trim().startsWith('['));
+          if (jsonStartIndex !== -1) {
+            jsonContent = lines.slice(jsonStartIndex).join('\n');
+          }
+          // Remove closing ```
+          jsonContent = jsonContent.replace(/```\s*$/, '').trim();
+        }
+        
+        // Extract JSON object/array if wrapped in text
+        if (!jsonContent.startsWith('{') && !jsonContent.startsWith('[')) {
+          const jsonMatch = jsonContent.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+          if (jsonMatch) {
+            jsonContent = jsonMatch[1];
+          }
+        }
+        
+        // Try to parse JSON
+        let parsed: Record<string, JsonValue>;
+        try {
+          parsed = JSON.parse(jsonContent);
+        } catch (parseError) {
+          // Log the problematic content for debugging
+          logger.error('Failed to parse JSON response', {
+            contentPreview: jsonContent.substring(0, 500),
+            contentLength: jsonContent.length,
+            parseError: parseError instanceof Error ? parseError.message : String(parseError),
+          }, 'BabylonLLMClient');
+          throw new Error(`Invalid JSON response: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+        }
         
         // Validate against schema if provided
         if (schema && !this.validateSchema(parsed, schema)) {
@@ -130,7 +180,30 @@ export class BabylonLLMClient {
         const isRateLimit = lastError.message.includes('rate limit') || lastError.message.includes('429');
         const waitTime = isRateLimit ? 30000 : Math.min(1000 * Math.pow(2, attempt), 10000);
         
+        // Extract more details from error if available
+        const errorDetails: Record<string, unknown> = {
+          message: lastError.message,
+          provider: this.provider,
+          model,
+          attempt: attempt + 1,
+        };
+        
+        // Try to extract additional error info from OpenAI error objects
+        if (error && typeof error === 'object' && 'response' in error) {
+          const response = (error as { response?: { data?: unknown } }).response;
+          if (response?.data) {
+            errorDetails.apiError = response.data;
+          }
+        }
+        
+        // Check for Groq-specific JSON generation errors
+        if (lastError.message.includes('Failed to generate JSON') || lastError.message.includes('failed_generation')) {
+          logger.warn('Groq JSON generation failed - this may be due to prompt complexity or model limitations', errorDetails, 'BabylonLLMClient');
+          logger.warn('Consider using OpenAI or simplifying the prompt', undefined, 'BabylonLLMClient');
+        }
+        
         logger.error(`Attempt ${attempt + 1}/${this.maxRetries} failed:`, lastError.message, 'BabylonLLMClient');
+        logger.debug('Error details:', errorDetails, 'BabylonLLMClient');
         
         if (attempt < this.maxRetries - 1) {
           logger.info(`Retrying in ${(waitTime / 1000).toFixed(1)}s... (${this.maxRetries - attempt - 1} retries left)`, undefined, 'BabylonLLMClient');
@@ -142,13 +215,33 @@ export class BabylonLLMClient {
     // Final failure after all retries exhausted
     const errorMsg = `GENERATION FAILED after ${this.maxRetries} attempts: ${lastError?.message || 'Unknown error'}`;
     logger.error(errorMsg, undefined, 'BabylonLLMClient');
-    logger.error('Troubleshooting:', {
+    
+    // Enhanced troubleshooting based on error type
+    const troubleshooting: Record<string, string> = {
       step1: 'Check your API key is valid',
       step2: 'Verify you have API credits/quota remaining',
       step3: 'Check network connectivity',
       step4: 'Try again later if rate limited',
-      provider: this.provider
-    }, 'BabylonLLMClient');
+      provider: this.provider,
+    };
+    
+    // Add Groq-specific troubleshooting
+    if (this.provider === 'groq' && lastError?.message.includes('Failed to generate JSON')) {
+      troubleshooting.step5 = 'Groq may have issues with complex JSON prompts';
+      troubleshooting.step6 = 'Try setting OPENAI_API_KEY to use OpenAI instead';
+      troubleshooting.step7 = 'Or simplify the prompt/reduce response complexity';
+    }
+    
+    logger.error('Troubleshooting:', troubleshooting, 'BabylonLLMClient');
+    
+    // Log a sample of the prompt that failed (first 500 chars) for debugging
+    if (prompt) {
+      logger.debug('Failed prompt preview:', { 
+        preview: prompt.substring(0, 500),
+        promptLength: prompt.length 
+      }, 'BabylonLLMClient');
+    }
+    
     throw new Error(errorMsg);
   }
 

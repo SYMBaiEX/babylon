@@ -125,7 +125,7 @@ export async function POST(
           content: originalPost.content,
           authorId: user.userId, // Repost author is the user who shared
           timestamp: new Date(),
-          originalPostId: postId, // Store reference to original post
+          // originalPostId: postId, // Store reference to original post - temporarily removed
         },
       });
     }
@@ -228,12 +228,16 @@ export async function DELETE(
 
     // Delete repost post if it exists
     // Repost posts have IDs like: repost-{originalPostId}-{userId}-{timestamp}
-    const repostPosts = await prisma.post.findMany({
+    // Note: originalPostId field temporarily removed, using ID pattern matching instead
+    const repostIdPattern = `repost-${postId}-${user.userId}-`;
+    // Fetch all repost posts by this user and filter by pattern
+    const allReposts = await prisma.post.findMany({
       where: {
         authorId: user.userId,
-        originalPostId: postId,
+        id: { contains: repostIdPattern },
       },
     });
+    const repostPosts = allReposts.filter(p => p.id.startsWith(repostIdPattern));
 
     // Delete all repost posts for this share
     if (repostPosts.length > 0) {

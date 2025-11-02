@@ -3,7 +3,9 @@
 import { memo, useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Avatar } from '@/components/shared/Avatar';
+import { TaggedText } from '@/components/shared/TaggedText';
 import { InteractionBar } from '@/components/interactions';
 import { ShieldCheck } from 'lucide-react';
 import { useFontSize } from '@/contexts/FontSizeContext';
@@ -37,6 +39,7 @@ export const PostCard = memo(function PostCard({
   showInteractions = true,
   isDetail = false,
 }: PostCardProps) {
+  const router = useRouter();
   const { fontSize } = useFontSize();
   const [isDesktop, setIsDesktop] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -139,7 +142,12 @@ export const PostCard = memo(function PostCard({
 
           {/* Post content - Below name/handle row */}
           <div className="text-foreground text-xl sm:text-2xl leading-relaxed whitespace-pre-wrap break-words w-full mb-3 post-content">
-            {post.content}
+            <TaggedText
+              text={post.content || ''}
+              onTagClick={(tag) => {
+                router.push(`/feed?search=${encodeURIComponent(tag)}`)
+              }}
+            />
           </div>
         </div>
       </div>

@@ -264,7 +264,7 @@ export async function GET(
         isLiked: false, // Could check if user liked original post
         isShared: true,
         isRepost: true,
-        originalPostId: share.post.id,
+        // originalPostId: share.post.id,  // Temporarily removed due to DB mismatch
         author: share.post.author
           ? {
               id: share.post.author.id,

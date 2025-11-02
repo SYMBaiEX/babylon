@@ -2,6 +2,7 @@
 
 import { LoginButton } from '@/components/auth/LoginButton'
 import { PageContainer } from '@/components/shared/PageContainer'
+import { TaggedText } from '@/components/shared/TaggedText'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { logger } from '@/lib/logger'
@@ -974,7 +975,12 @@ export default function ProfilePage() {
                           </div>
                         )}
                         <div className="text-foreground whitespace-pre-wrap break-words">
-                          {item.content}
+                          <TaggedText
+                            text={item.content}
+                            onTagClick={(tag) => {
+                              router.push(`/feed?search=${encodeURIComponent(tag)}`)
+                            }}
+                          />
                         </div>
                         <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
                           <span>{new Date(item.timestamp).toLocaleDateString()}</span>
@@ -996,7 +1002,12 @@ export default function ProfilePage() {
                   {replies.map((reply) => (
                     <div key={reply.id} className="py-4 px-4">
                       <div className="text-foreground whitespace-pre-wrap break-words mb-2">
-                        {reply.content}
+                        <TaggedText
+                          text={reply.content}
+                          onTagClick={(tag) => {
+                            router.push(`/feed?search=${encodeURIComponent(tag)}`)
+                          }}
+                        />
                       </div>
                       <div className="text-sm text-muted-foreground mb-2">
                         Replying to{' '}
@@ -1008,7 +1019,12 @@ export default function ProfilePage() {
                         </a>
                       </div>
                       <div className="text-xs text-muted-foreground truncate mb-2">
-                        {reply.post.content.substring(0, 100)}...
+                        <TaggedText
+                          text={reply.post.content.substring(0, 100) + '...'}
+                          onTagClick={(tag) => {
+                            router.push(`/feed?search=${encodeURIComponent(tag)}`)
+                          }}
+                        />
                       </div>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <span>{new Date(reply.createdAt).toLocaleDateString()}</span>

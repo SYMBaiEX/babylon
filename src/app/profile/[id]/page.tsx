@@ -7,6 +7,7 @@ import { ArrowLeft, Calendar, Briefcase, ShieldCheck } from 'lucide-react'
 import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { SearchBar } from '@/components/shared/SearchBar'
+import { TaggedText } from '@/components/shared/TaggedText'
 import { FavoriteButton, InteractionBar, StartChatButton } from '@/components/interactions'
 import { ProfileWidget } from '@/components/profile/ProfileWidget'
 import { cn } from '@/lib/utils'
@@ -680,7 +681,12 @@ export default function ActorProfilePage() {
 
                       {/* Post content - Below name/handle row */}
                       <div className="text-foreground leading-normal whitespace-pre-wrap break-words">
-                        {item.post.content}
+                        <TaggedText
+                          text={item.post.content}
+                          onTagClick={(tag) => {
+                            router.push(`/feed?search=${encodeURIComponent(tag)}`)
+                          }}
+                        />
                       </div>
 
                       {/* Metadata */}
@@ -953,7 +959,12 @@ export default function ActorProfilePage() {
 
                         {/* Post content - Below name/handle row */}
                         <div className="text-foreground leading-normal whitespace-pre-wrap break-words">
-                          {item.post.content}
+                          <TaggedText
+                            text={item.post.content}
+                            onTagClick={(tag) => {
+                              router.push(`/feed?search=${encodeURIComponent(tag)}`)
+                            }}
+                          />
                         </div>
 
                         {/* Metadata */}

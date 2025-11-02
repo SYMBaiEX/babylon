@@ -128,7 +128,12 @@ export class BabylonApiClient {
    */
   async getWallet(): Promise<BabylonWallet | null> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/wallet/balance`, {
+      // Use agent-specific endpoint if using agent auth, otherwise use user endpoint
+      const endpoint = this.useAgentAuth 
+        ? `${this.baseUrl}/api/agents/wallet`
+        : `${this.baseUrl}/api/wallet/balance`;
+      
+      const response = await fetch(endpoint, {
         headers: await this.getHeaders(),
       });
 
@@ -149,7 +154,12 @@ export class BabylonApiClient {
    */
   async getPositions(): Promise<BabylonPosition[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/positions`, {
+      // Use agent-specific endpoint if using agent auth, otherwise use user endpoint
+      const endpoint = this.useAgentAuth 
+        ? `${this.baseUrl}/api/agents/positions`
+        : `${this.baseUrl}/api/positions`;
+      
+      const response = await fetch(endpoint, {
         headers: await this.getHeaders(),
       });
 
@@ -157,8 +167,22 @@ export class BabylonApiClient {
         throw new Error(`Failed to fetch positions: ${response.statusText}`);
       }
 
-      const data = (await response.json()) as { positions?: BabylonPosition[] };
-      return data.positions || [];
+      const data = (await response.json()) as { 
+        positions?: BabylonPosition[];
+        predictions?: { positions?: BabylonPosition[] };
+        perpetuals?: { positions?: BabylonPosition[] };
+      };
+      
+      // Handle both formats: agent endpoint returns { predictions: { positions }, perpetuals: { positions } }
+      // while user endpoint might return { positions }
+      if (data.positions) {
+        return data.positions;
+      }
+      
+      // Combine prediction and perpetual positions from agent endpoint
+      const predictionPositions = data.predictions?.positions || [];
+      const perpetualPositions = data.perpetuals?.positions || [];
+      return [...predictionPositions, ...perpetualPositions];
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error("Error fetching positions:", errorMessage);

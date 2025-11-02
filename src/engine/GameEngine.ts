@@ -27,6 +27,8 @@ import { shuffleArray, toQuestionIdNumber, toQuestionIdNumberOrNull } from '@/sh
 import { db } from '../lib/database-service';
 import { ReputationService } from '../lib/services/reputation-service';
 import { logger } from '@/lib/logger';
+import { broadcastToChannel } from '@/app/api/ws/chat/route';
+import { ActorSocialActions } from '@/services/ActorSocialActions';
 import type {
   SelectedActor,
   Actor,
@@ -282,7 +284,6 @@ export class GameEngine extends EventEmitter {
         // Broadcast new questions to markets and upcoming-events channels
         if (questionsCreated > 0) {
           try {
-            const { broadcastToChannel } = await import('@/app/api/ws/chat/route');
             broadcastToChannel('markets', {
               type: 'new_questions',
               count: questionsCreated,
@@ -305,7 +306,6 @@ export class GameEngine extends EventEmitter {
       // Broadcast significant events to breaking-news channel
       if (events.length > 0) {
         try {
-          const { broadcastToChannel } = await import('@/app/api/ws/chat/route');
           const significantEvents = events.filter(e => 
             e.visibility === 'public' && 
             (e.type.toLowerCase().includes('announcement') || 
@@ -353,7 +353,6 @@ export class GameEngine extends EventEmitter {
         
         // Broadcast price updates to markets channel
         try {
-          const { broadcastToChannel } = await import('@/app/api/ws/chat/route');
           broadcastToChannel('markets', {
             type: 'price_update',
             count: priceUpdates.length,
@@ -398,7 +397,6 @@ export class GameEngine extends EventEmitter {
       // This ensures posts are available in the database when feed refreshes
       if (posts.length > 0) {
         try {
-          const { broadcastToChannel } = await import('@/app/api/ws/chat/route');
           for (const post of posts) {
             broadcastToChannel('feed', {
               type: 'new_post',
@@ -440,7 +438,6 @@ export class GameEngine extends EventEmitter {
       // Process random social actions (invites/DMs) every 5 ticks (every ~5 minutes)
       if (this.recentTicks.length % 5 === 0) {
         try {
-          const { ActorSocialActions } = await import('@/services/ActorSocialActions');
           await ActorSocialActions.processRandomSocialActions();
         } catch (error) {
           logger.warn('Failed to process social actions:', error, 'GameEngine');
@@ -1509,7 +1506,6 @@ Return ONLY this JSON:
 
   async getStatus() {
     // Get game state from database for currentDay, currentDate, lastTickAt
-    const { db } = await import('@/lib/database-service');
     const gameState = await db.getGameState();
     
     return {
@@ -1524,7 +1520,6 @@ Return ONLY this JSON:
 
   async getStats() {
     // Delegate to database service for consistency
-    const { db } = await import('@/lib/database-service');
     return await db.getStats();
   }
 

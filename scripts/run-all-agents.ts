@@ -1,9 +1,10 @@
 #!/usr/bin/env bun
 /**
- * Run All 30 Eliza Agents Simultaneously
+ * Run Eliza Agents
  *
- * This script spawns all character agents in parallel to simulate
- * a live prediction market with multiple AI traders.
+ * This script spawns character agents to simulate
+ * a live prediction market with AI traders.
+ * Defaults to 1 agent, but can be configured with --max=N
  */
 
 import { spawn, type ChildProcess } from 'child_process'
@@ -24,7 +25,7 @@ const AGENT_SCRIPT = join(process.cwd(), 'src', 'eliza', 'agents', 'run-eliza-ag
 // Parse command line arguments
 const args = process.argv.slice(2)
 const autoTrade = args.includes('--auto-trade')
-const maxAgents = parseInt(args.find(arg => arg.startsWith('--max='))?.split('=')[1] || '30')
+const maxAgents = parseInt(args.find(arg => arg.startsWith('--max='))?.split('=')[1] || '1')
 const delayMs = parseInt(args.find(arg => arg.startsWith('--delay='))?.split('=')[1] || '2000')
 
 logger.info('Babylon Multi-Agent Runner', undefined, 'Script');
@@ -181,18 +182,18 @@ if (args.includes('--help') || args.includes('-h')) {
 
 Options:
   --auto-trade       Enable auto-trading for all agents
-  --max=N            Maximum number of agents to start (default: 30)
+  --max=N            Maximum number of agents to start (default: 1)
   --delay=MS         Delay in milliseconds between agent starts (default: 2000)
   --help, -h         Show this help message
 
 Examples:
-  # Start all 30 agents in observer mode
+  # Start 1 agent in observer mode (default)
   bun run scripts/run-all-agents.ts
 
-  # Start all 30 agents with auto-trading enabled
+  # Start 1 agent with auto-trading enabled
   bun run scripts/run-all-agents.ts --auto-trade
 
-  # Start only 10 agents
+  # Start 10 agents
   bun run scripts/run-all-agents.ts --max=10
 
   # Start agents with 5-second delay between each

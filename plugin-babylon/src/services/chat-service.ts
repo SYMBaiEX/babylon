@@ -20,7 +20,8 @@ export class BabylonChatService extends Service {
   ): Promise<BabylonChatService> {
     logger.info('Starting BabylonChatService')
     const service = new BabylonChatService(runtime)
-    await service.initialize()
+    // Initialize after a short delay to allow BabylonClientService to register
+    setTimeout(() => service.initialize(), 100)
     return service
   }
 

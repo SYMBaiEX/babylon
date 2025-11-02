@@ -118,22 +118,62 @@ class DatabaseService {
    * Note: Not cached as this is real-time data that updates frequently
    */
   async getRecentPosts(limit = 100, offset = 0) {
-    return await prisma.post.findMany({
-      take: limit,
-      skip: offset,
-      orderBy: { timestamp: 'desc' },
-    });
+    logger.debug('DatabaseService.getRecentPosts called', { limit, offset }, 'DatabaseService');
+    
+    try {
+      const posts = await prisma.post.findMany({
+        take: limit,
+        skip: offset,
+        orderBy: { timestamp: 'desc' },
+      });
+      
+      logger.info('DatabaseService.getRecentPosts completed', {
+        limit,
+        offset,
+        postCount: posts.length,
+        firstPostId: posts[0]?.id,
+        lastPostId: posts[posts.length - 1]?.id,
+      }, 'DatabaseService');
+      
+      return posts;
+    } catch (error) {
+      logger.error('DatabaseService.getRecentPosts failed', {
+        error: error instanceof Error ? error.message : String(error),
+        limit,
+        offset,
+      }, 'DatabaseService');
+      throw error;
+    }
   }
 
   /**
    * Get posts by actor
    */
   async getPostsByActor(authorId: string, limit = 100) {
-    return await prisma.post.findMany({
-      where: { authorId },
-      take: limit,
-      orderBy: { timestamp: 'desc' },
-    });
+    logger.debug('DatabaseService.getPostsByActor called', { authorId, limit }, 'DatabaseService');
+    
+    try {
+      const posts = await prisma.post.findMany({
+        where: { authorId },
+        take: limit,
+        orderBy: { timestamp: 'desc' },
+      });
+      
+      logger.info('DatabaseService.getPostsByActor completed', {
+        authorId,
+        limit,
+        postCount: posts.length,
+      }, 'DatabaseService');
+      
+      return posts;
+    } catch (error) {
+      logger.error('DatabaseService.getPostsByActor failed', {
+        error: error instanceof Error ? error.message : String(error),
+        authorId,
+        limit,
+      }, 'DatabaseService');
+      throw error;
+    }
   }
 
   /**

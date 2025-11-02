@@ -21,3 +21,5 @@ plugin-babylon/.eliza/
 cache/# Uploaded user files
 /public/uploads/*
 !/public/uploads/.gitkeep
+.eliza/
+games/
