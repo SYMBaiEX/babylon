@@ -38,13 +38,20 @@ export function FollowButton({
 
     const checkFollowStatus = async () => {
       try {
+        if (!userId) {
+          setIsChecking(false)
+          return
+        }
+
         const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
         if (!token) {
           setIsChecking(false)
           return
         }
 
-        const response = await fetch(`/api/users/${userId}/follow`, {
+        // Encode userId to handle special characters
+        const encodedUserId = encodeURIComponent(userId)
+        const response = await fetch(`/api/users/${encodedUserId}/follow`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -53,9 +60,14 @@ export function FollowButton({
         if (response.ok) {
           const data = await response.json()
           setIsFollowing(data.isFollowing || false)
+        } else {
+          // If check fails, assume not following (don't show error)
+          setIsFollowing(false)
         }
       } catch (error) {
         logger.error('Error checking follow status:', error, 'FollowButton')
+        // On error, assume not following
+        setIsFollowing(false)
       } finally {
         setIsChecking(false)
       }
@@ -71,7 +83,12 @@ export function FollowButton({
     }
 
     if (user.id === userId) {
-      toast.error('Cannot follow yourself')
+      // Don't show error, just return silently (button shouldn't be visible anyway)
+      return
+    }
+
+    if (!userId) {
+      logger.error('No userId provided to FollowButton', {}, 'FollowButton')
       return
     }
 
@@ -84,8 +101,10 @@ export function FollowButton({
         return
       }
 
+      // Encode userId to handle special characters
+      const encodedUserId = encodeURIComponent(userId)
       const method = isFollowing ? 'DELETE' : 'POST'
-      const response = await fetch(`/api/users/${userId}/follow`, {
+      const response = await fetch(`/api/users/${encodedUserId}/follow`, {
         method,
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -98,12 +117,19 @@ export function FollowButton({
         onFollowChange?.(newFollowingState)
         toast.success(newFollowingState ? 'Following' : 'Unfollowed')
       } else {
-        const error = await response.json().catch(() => ({ error: 'Unknown error' }))
-        toast.error(error.error || 'Failed to update follow status')
+        // Try to get error message, but don't show generic errors for 404s
+        const errorData = await response.json().catch(() => ({ error: null }))
+        if (response.status === 404) {
+          // If profile not found, silently fail or show a more helpful message
+          logger.warn('Profile not found for follow:', { userId }, 'FollowButton')
+          toast.error('Unable to follow this profile')
+        } else {
+          toast.error(errorData.error || 'Failed to update follow status')
+        }
       }
     } catch (error) {
       logger.error('Error updating follow status:', error, 'FollowButton')
-      toast.error('An error occurred')
+      toast.error('An error occurred while trying to follow')
     } finally {
       setIsLoading(false)
     }

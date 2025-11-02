@@ -424,7 +424,7 @@ export const useInteractionStore = create<InteractionStore>()(
         }
       },
 
-      // Favorite actions
+      // Favorite actions (uses follow API)
       toggleFavorite: async (profileId: string) => {
         const { favoritedProfiles, setLoading, setError } = get();
         const wasFavorited = favoritedProfiles.has(profileId);
@@ -441,8 +441,10 @@ export const useInteractionStore = create<InteractionStore>()(
         setLoading(`favorite-${profileId}`, true);
 
         try {
+          // Use follow API instead of favorite API
           const method = wasFavorited ? 'DELETE' : 'POST';
-          await apiCall(`/api/profiles/${profileId}/favorite`, { method });
+          const encodedProfileId = encodeURIComponent(profileId);
+          await apiCall(`/api/users/${encodedProfileId}/follow`, { method });
         } catch (error) {
           // Rollback on error
           set({ favoritedProfiles });
