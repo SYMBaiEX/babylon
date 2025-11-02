@@ -7,8 +7,11 @@
   "scripts": {
     "dev": "bun run scripts/pre-dev.ts && next dev",
     "dev:skip-check": "next dev",
+    "postinstall": "prisma generate",
+    "prebuild": "tsx scripts/bundle-prompts.ts",
     "build": "next build",
     "start": "next start",
+    "build:prompts": "tsx scripts/bundle-prompts.ts",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix",
     "type-check": "tsc --noEmit",

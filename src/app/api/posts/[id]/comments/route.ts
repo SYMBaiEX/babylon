@@ -310,8 +310,7 @@ export async function POST(
     // Check if author is a User (not an Actor) - only Users can receive notifications
     const postRecord = await prisma.post.findUnique({
       where: { id: postId },
-      select: { 
-        authorId: true,
+      include: { 
         author: {
           select: { id: true },
         },

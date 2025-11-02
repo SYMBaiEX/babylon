@@ -1,0 +1,46 @@
+# Vercel Ignore File
+# Files and directories that should not be deployed to Vercel
+
+# Local development
+.env.local
+.env.development
+
+# Scripts (run locally, not on Vercel)
+scripts/
+src/cli/
+
+# Game engine (runs as daemon, not serverless)
+games/babylon/
+games/realtime/
+
+# Test files
+tests/
+**/*.test.ts
+**/__tests__/
+
+# Contract deployment
+contracts/
+deployments/
+lib/forge-std/
+
+# Eliza agents (run locally)
+eliza/
+plugin-babylon/
+
+# Development files
+*.log
+cache/
+node_modules/.cache/
+
+# Docker
+docker-compose.yml
+Dockerfile
+
+# Build artifacts
+dist/
+*.tsbuildinfo
+
+# Documentation
+*.md
+!README.md
+

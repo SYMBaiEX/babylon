@@ -1,26 +1,37 @@
 /**
  * API Route: /api/game-assets
  * Methods: GET (get game assets including groupChats)
+ * 
+ * Vercel-compatible: Reads from public directory via HTTP or returns from database
  */
 
 import { NextResponse } from 'next/server';
-import { readFileSync, existsSync } from 'fs';
-import { join } from 'path';
+import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 
 export async function GET() {
   try {
-    const assetsPath = join(process.cwd(), 'games', 'game-assets.json');
-    
-    if (!existsSync(assetsPath)) {
-      return NextResponse.json(
-        { success: false, error: 'Game assets not found' },
-        { status: 404 }
-      );
-    }
+    // Get group chats from database instead of file system
+    const groupChats = await prisma.chat.findMany({
+      where: {
+        isGroup: true,
+        gameId: 'continuous',
+      },
+      select: {
+        id: true,
+        name: true,
+        // Map to expected format
+      },
+    });
 
-    const content = readFileSync(assetsPath, 'utf-8');
-    const assets = JSON.parse(content);
+    // If you need additional game assets, store them in database or
+    // have the client fetch from /data/actors.json directly (public folder)
+    const assets = {
+      groupChats: groupChats.map(chat => ({
+        id: chat.id,
+        name: chat.name,
+      })),
+    };
 
     return NextResponse.json({
       success: true,
@@ -34,4 +45,3 @@ export async function GET() {
     );
   }
 }
-

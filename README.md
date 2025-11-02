@@ -311,8 +311,35 @@ Next.js App (Port 3000)
 
 ---
 
+## 🚀 Deployment
+
+### Vercel (Production)
+
+Babylon is **Vercel-ready** with zero filesystem dependencies:
+
+```bash
+# Deploy to Vercel
+vercel --prod
+```
+
+**Requirements:**
+- PostgreSQL database (external hosting: Neon, Supabase, Railway)
+- Game engine daemon on separate server/VM
+- Environment variables configured in Vercel
+
+📖 **Complete Guide**: See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md)
+
+**What runs where:**
+- ✅ **Vercel**: Next.js app, API routes, static assets
+- 🖥️ **Separate Server**: Game engine daemon, Eliza agents
+- 🗄️ **External DB**: PostgreSQL (Neon/Supabase/Railway)
+
+---
+
 ## 📚 Documentation
 
+- **[VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md)** - Complete Vercel deployment guide
+- **[VERCEL_CHANGES_SUMMARY.md](./VERCEL_CHANGES_SUMMARY.md)** - What changed for Vercel
 - **DEPLOYMENT_READY.md** - Complete system overview
 - **QUESTION_DRIVEN_FEED.md** - Feed mechanics
 - **ENHANCED_ENGINE_SUMMARY.md** - Engine improvements

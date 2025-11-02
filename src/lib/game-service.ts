@@ -6,14 +6,13 @@
  * 
  * Note: Most operations query the database directly, which is updated by the daemon.
  * Engine status queries check if the daemon is running.
+ * 
+ * Vercel-compatible: No filesystem access, all data from database.
  */
 
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
 import { getEngine } from './engine';
 import { db } from './database-service';
 import { logger } from './logger';
-import type { FeedPost } from '@/shared/types';
 
 class GameService {
   async getRecentPosts(limit = 100, offset = 0) {
@@ -86,48 +85,31 @@ class GameService {
 
   async getRealtimePosts(limit = 100, offset = 0, actorId?: string) {
     try {
-      const historyPath = join(process.cwd(), 'games', 'realtime', 'history.json');
-      if (!existsSync(historyPath)) {
+      // On Vercel: Read from database instead of filesystem
+      // The daemon writes posts to database, so we can query them directly
+      const posts = actorId 
+        ? await db.getPostsByActor(actorId, limit)
+        : await db.getRecentPosts(limit, offset);
+      
+      if (!posts || posts.length === 0) {
         return null;
       }
 
-      const data = JSON.parse(readFileSync(historyPath, 'utf-8')) as {
-        ticks?: Array<{ posts?: FeedPost[] }>;
-      };
-
-      const allPosts =
-        data.ticks?.flatMap((tick) => tick.posts ?? [])?.filter((post) => !!post) ?? [];
-
-      if (allPosts.length === 0) {
-        return null;
-      }
-
-      const normalized = allPosts
-        .map((post) => ({
+      return {
+        posts: posts.map(post => ({
           id: post.id,
           content: post.content,
-          authorId: post.author,
-          author: post.authorName ?? post.author,
-          timestamp: post.timestamp,
-          // Provide createdAt to match Prisma response shape
-          createdAt: post.timestamp,
-          gameId: 'realtime',
-          dayNumber: post.day,
-        }))
-        .filter((post) => (actorId ? post.authorId === actorId : true))
-        .sort((a, b) => {
-          const aTime = new Date(a.timestamp ?? 0).getTime();
-          const bTime = new Date(b.timestamp ?? 0).getTime();
-          return bTime - aTime;
-        });
-
-      const paginated = normalized.slice(offset, offset + limit);
-      return {
-        posts: paginated,
-        total: normalized.length,
+          authorId: post.authorId,
+          author: post.authorId, // Post model doesn't have author field, use authorId
+          timestamp: post.createdAt.toISOString(),
+          createdAt: post.createdAt.toISOString(),
+          gameId: post.gameId,
+          dayNumber: post.dayNumber,
+        })),
+        total: posts.length,
       };
     } catch (error) {
-      logger.error('Failed to read realtime history file:', error, 'GameService');
+      logger.error('Failed to read realtime posts:', error, 'GameService');
       return null;
     }
   }

@@ -1,6 +1,18 @@
+/**
+ * WebSocket Chat Route
+ * 
+ * IMPORTANT: WebSocket server cannot run on Vercel (serverless limitation).
+ * This WebSocket server must run on a separate server alongside the game engine daemon.
+ * 
+ * For Vercel deployment:
+ * - This API route returns an error message explaining WebSocket limitation
+ * - Real-time features require a separate WebSocket server (not deployed to Vercel)
+ * - Alternative: Use Pusher, Ably, or polling for real-time updates on Vercel
+ */
+
 import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import type { WebSocket as WSWebSocket } from 'ws';
-import { WebSocketServer } from 'ws'
 import type { IncomingMessage } from 'http'
 import { parse } from 'url'
 import { PrismaClient } from '@prisma/client'
@@ -9,6 +21,9 @@ import { logger } from '@/lib/logger'
 import type { JsonValue } from '@/types/common'
 
 const prisma = new PrismaClient()
+
+// Check if we're running on Vercel (serverless)
+const IS_VERCEL = process.env.VERCEL === '1' || process.env.VERCEL_ENV !== undefined
 
 interface AuthenticatedWebSocket extends WSWebSocket {
   userId?: string
@@ -40,7 +55,7 @@ interface WebSocketMessage {
 
 // Use global to survive hot module reloading in development
 declare global {
-  var wss: WebSocketServer | undefined
+  var wss: any | undefined // WebSocketServer type, but avoiding static import
   var wsClients: Map<string, AuthenticatedWebSocket> | undefined
   var wsChatRooms: Map<string, Set<string>> | undefined
   var wsChannels: Map<string, Set<string>> | undefined
@@ -52,7 +67,7 @@ let wss = global.wss || null
 const clients = global.wsClients || new Map<string, AuthenticatedWebSocket>()
 const chatRooms = global.wsChatRooms || new Map<string, Set<string>>()
 const channels = global.wsChannels || new Map<string, Set<string>>() // channel -> Set of userIds
-const serverInitializationPromise: Promise<WebSocketServer> | null = null
+const serverInitializationPromise: Promise<any> | null = null // WebSocketServer type
 let serverInitializationError = global.wsServerInitError || null
 
 // Store in global for persistence
@@ -60,7 +75,13 @@ if (!global.wsClients) global.wsClients = clients
 if (!global.wsChatRooms) global.wsChatRooms = chatRooms
 if (!global.wsChannels) global.wsChannels = channels
 
-function initializeWebSocketServer(): WebSocketServer | null {
+function initializeWebSocketServer() {
+  // Don't initialize WebSocket server on Vercel
+  if (IS_VERCEL) {
+    logger.info('Skipping WebSocket server initialization on Vercel (serverless)', undefined, 'WebSocket')
+    return null
+  }
+  
   if (wss) return wss
   
   // If initialization is in progress, return null (caller should wait)
@@ -70,7 +91,10 @@ function initializeWebSocketServer(): WebSocketServer | null {
   if (serverInitializationError) return null
 
   try {
-    wss = new WebSocketServer({
+    // Dynamic import to avoid bundling ws on Vercel
+    const { WebSocketServer: WSS } = require('ws')
+    
+    wss = new WSS({
       port: 3001,
       path: '/ws/chat'
     })
@@ -166,7 +190,7 @@ function initializeWebSocketServer(): WebSocketServer | null {
 
     // Set up ping interval to keep connections alive
     const pingInterval = setInterval(() => {
-      wss?.clients.forEach((client) => {
+      wss?.clients.forEach((client: any) => {
         const ws = client as AuthenticatedWebSocket;
         if (!ws.isAlive) {
           ws.terminate()
@@ -432,6 +456,21 @@ export function broadcastToChannel(channel: string, data: Record<string, JsonVal
 // Initialize WebSocket server on first request
 // Note: NextRequest parameter may be used in future for authentication context
 export async function GET(_request: NextRequest) {
+  // On Vercel, WebSocket server cannot run (serverless limitation)
+  if (IS_VERCEL) {
+    return NextResponse.json({
+      error: 'WebSocket not available on Vercel',
+      message: 'WebSocket server cannot run on Vercel serverless platform',
+      solution: 'Run WebSocket server on a separate server (same as game engine daemon)',
+      alternatives: [
+        'Use polling for chat updates',
+        'Deploy WebSocket server to a VM/VPS',
+        'Use Pusher, Ably, or Socket.IO with Vercel Edge'
+      ],
+      status: 'unavailable'
+    }, { status: 503 })
+  }
+
   try {
     // Initialize WebSocket server if not already done
     if (!wss) {
