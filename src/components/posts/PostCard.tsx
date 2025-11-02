@@ -70,14 +70,13 @@ export const PostCard = memo(function PostCard({
     <article
       className={cn(
         'px-3 sm:px-4 py-3',
-        !isDetail && 'border-b hover:bg-muted/30 cursor-pointer transition-all duration-200',
+        !isDetail && 'hover:bg-muted/30 cursor-pointer transition-all duration-200',
         'w-full overflow-hidden',
         className
       )}
       style={{
         fontSize: `${fontSize}rem`,
-        borderBottomWidth: !isDetail ? '0.5px' : undefined,
-        borderBottomColor: !isDetail ? 'rgba(229, 231, 235, 0.5)' : undefined, // Very light gray
+        borderBottom: !isDetail ? '0.5px solid rgba(209, 213, 219, 0.3)' : undefined, // Very thin, very light gray
       }}
       onClick={!isDetail ? handleClick : undefined}
     >
