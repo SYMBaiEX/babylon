@@ -26,7 +26,7 @@ export class PoolsErrorBoundary extends React.Component<Props, State> {
     // Error is already captured in state via getDerivedStateFromError
     // Silently log for debugging if needed in development
     if (process.env.NODE_ENV === 'development') {
-      // eslint-disable-next-line no-console
+       
       console.error('Pools Error Boundary caught error:', error)
     }
   }

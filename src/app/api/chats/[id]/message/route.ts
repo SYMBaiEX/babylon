@@ -11,9 +11,9 @@ import {
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
-import { MessageQualityChecker } from '@/services/MessageQualityChecker';
-import { GroupChatSweep, type SweepDecision } from '@/services/GroupChatSweep';
-import { GroupChatInvite } from '@/services/GroupChatInvite';
+import { MessageQualityChecker } from '@/lib/services/message-quality-checker';
+import { GroupChatSweep, type SweepDecision } from '@/lib/services/group-chat-sweep';
+import { GroupChatInvite } from '@/lib/services/group-chat-invite';
 import { broadcastMessage } from '@/app/api/ws/chat/route';
 import { logger } from '@/lib/logger';
 

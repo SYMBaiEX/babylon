@@ -11,10 +11,10 @@ import {
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
-import { ReplyRateLimiter } from '@/services/ReplyRateLimiter';
-import { MessageQualityChecker } from '@/services/MessageQualityChecker';
-import { FollowingMechanics } from '@/services/FollowingMechanics';
-import { GroupChatInvite } from '@/services/GroupChatInvite';
+import { ReplyRateLimiter } from '@/lib/services/reply-rate-limiter';
+import { MessageQualityChecker } from '@/lib/services/message-quality-checker';
+import { FollowingMechanics } from '@/lib/services/following-mechanics';
+import { GroupChatInvite } from '@/lib/services/group-chat-invite';
 import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();

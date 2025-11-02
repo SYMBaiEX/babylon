@@ -171,7 +171,7 @@ export async function POST(
       ...result,
     });
   } catch (error) {
-    // eslint-disable-next-line no-console
+     
     console.error('Error depositing into pool:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to deposit into pool';
     return NextResponse.json(

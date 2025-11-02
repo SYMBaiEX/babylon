@@ -85,7 +85,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    // eslint-disable-next-line no-console
+     
     console.error('Error fetching user pool deposits:', error);
     return NextResponse.json(
       { error: 'Failed to fetch deposits' },

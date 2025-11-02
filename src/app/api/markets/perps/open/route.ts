@@ -10,7 +10,7 @@ import {
     errorResponse,
     successResponse,
 } from '@/lib/api/auth-middleware';
-import { WalletService } from '@/services/WalletService';
+import { WalletService } from '@/lib/services/wallet-service';
 import { prisma } from '@/lib/database-service';
 import type { NextRequest } from 'next/server';
 import { logger } from '@/lib/logger';

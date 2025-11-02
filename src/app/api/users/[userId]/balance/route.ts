@@ -10,7 +10,7 @@ import {
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
-import { WalletService } from '@/services/WalletService';
+import { WalletService } from '@/lib/services/wallet-service';
 import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();

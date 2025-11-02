@@ -12,7 +12,7 @@ import {
   errorResponse,
 } from '@/lib/api/auth-middleware';
 import { getPerpsEngine } from '@/lib/perps-service';
-import { WalletService } from '@/services/WalletService';
+import { WalletService } from '@/lib/services/wallet-service';
 import { logger } from '@/lib/logger';
 
 /**

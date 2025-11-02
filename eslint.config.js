@@ -53,7 +53,7 @@ export default [
         varsIgnorePattern: "^_"
       }],
       "@typescript-eslint/consistent-type-imports": "warn",
-      "no-console": "warn",
+      "no-console": "off",
       "prefer-const": "error",
       "no-var": "error"
     }

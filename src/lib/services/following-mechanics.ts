@@ -13,7 +13,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { notifyFollow } from '@/lib/services/notification-service';
+import { notifyFollow } from './notification-service';
 import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();

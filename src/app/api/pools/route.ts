@@ -109,7 +109,7 @@ export async function GET(_request: NextRequest) {
       total: poolsWithMetrics.length,
     });
   } catch (error) {
-    // eslint-disable-next-line no-console
+     
     console.error('Error fetching pools:', error);
     return NextResponse.json(
       { error: 'Failed to fetch pools' },
