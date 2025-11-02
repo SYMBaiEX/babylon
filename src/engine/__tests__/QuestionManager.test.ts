@@ -15,7 +15,7 @@ import { QuestionManager } from '../QuestionManager';
 // Mock LLM client for testing
 const mockLLM = {
   generateJSON: async () => ({ questions: [] }),
-} as any;
+} as { generateJSON: () => Promise<{ questions: unknown[] }> };
 
 describe('QuestionManager', () => {
   test('detects questions that should be resolved', () => {

@@ -5,11 +5,10 @@
  * and initializes their trading balances
  */
 
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { prisma } from '../src/lib/prisma';
 import * as fs from 'fs';
 import * as path from 'path';
-
-const prisma = new PrismaClient();
 
 interface Actor {
   id: string;

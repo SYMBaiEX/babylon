@@ -1613,7 +1613,7 @@ ${req.members.map((m, idx) => {
         return messages;
       }
 
-      console.warn(`⚠️  Invalid group messages batch for day ${day} (attempt ${attempt + 1}/${maxRetries}). Expected ${groupRequests.length}, got ${groups.length}`);
+      logger.warn(`Invalid group messages batch for day ${day} (attempt ${attempt + 1}/${maxRetries}). Expected ${groupRequests.length}, got ${groups.length}`, undefined, 'GameGenerator');
       if (attempt < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }

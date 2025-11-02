@@ -3,7 +3,7 @@
  * Methods: GET (get referral stats and list of referred users)
  */
 
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import {
   authenticate,

@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId');
     
     // Get all markets to check if they exist and get share counts
-    const marketIds = questions.map(q => q.id);
+    const marketIds = questions.map(q => String(q.id));
     const markets = await prisma.market.findMany({
       where: {
         id: { in: marketIds },
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     const marketMap = new Map(markets.map(m => [m.id, m]));
     
     // Get user positions if userId provided
-    let userPositionsMap = new Map();
+    const userPositionsMap = new Map();
     if (userId) {
       const positions = await prisma.position.findMany({
         where: {
@@ -64,8 +64,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       questions: questions.map(q => {
-        const market = marketMap.get(q.id);
-        const userPosition = userPositionsMap.get(q.id);
+        const marketId = String(q.id);
+        const market = marketMap.get(marketId);
+        const userPosition = userPositionsMap.get(marketId);
         
         return {
           id: q.id, // Use actual question ID (string), not questionNumber

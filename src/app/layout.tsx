@@ -48,8 +48,8 @@ export default function RootLayout({
             <Sidebar />
 
             {/* Main Content Area - Early 2000s Twitter: Simple boxy layout */}
-            <main className="flex-1 min-h-screen w-full pt-14 pb-12 md:pt-0 md:pb-0 bg-background md:bg-sidebar md:h-screen overflow-hidden">
-              <div className="h-[calc(100vh-3.5rem-3rem)] md:h-full w-full overflow-hidden">
+            <main className="flex-1 min-h-screen w-full pt-14 pb-14 md:pt-0 md:pb-0 bg-background md:bg-sidebar md:h-screen overflow-hidden">
+              <div className="h-[calc(100vh-7rem)] md:h-full w-full overflow-hidden">
                 {children}
               </div>
             </main>

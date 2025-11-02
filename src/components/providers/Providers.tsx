@@ -60,6 +60,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             <GamePlaybackManager />
             <PrivyProvider
               appId={privyConfig.appId}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
               config={privyConfig.config as any}
             >
               <WagmiProvider config={wagmiConfig}>

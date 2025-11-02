@@ -27,7 +27,7 @@ export class A2AClient extends EventEmitter {
   private ws: WebSocket | null = null
   private config: Required<A2AClientConfig>
   private agentId: string | null = null
-  private sessionToken: string | null = null
+  private _sessionToken: string | null = null
   private messageId = 0
   private pendingRequests: Map<string | number, {
     resolve: (value: JsonRpcResult) => void
@@ -125,7 +125,7 @@ export class A2AClient extends EventEmitter {
     } as unknown as JsonRpcParams)
 
     this.agentId = response.agentId
-    this.sessionToken = response.sessionToken
+    this._sessionToken = response.sessionToken
 
     this.emit(A2AEventType.AGENT_CONNECTED, {
       agentId: this.agentId,
@@ -196,7 +196,7 @@ export class A2AClient extends EventEmitter {
   private handleDisconnect(): void {
     this.ws = null
     this.agentId = null
-    this.sessionToken = null
+    this._sessionToken = null
 
     this.emit(A2AEventType.AGENT_DISCONNECTED, {})
 
@@ -225,7 +225,7 @@ export class A2AClient extends EventEmitter {
   /**
    * Send JSON-RPC request and wait for response
    */
-  private sendRequest<T = JsonRpcResult>(method: string, params?: Record<string, unknown> | unknown[]): Promise<T> {
+  private sendRequest<T = JsonRpcResult>(method: string, params?: JsonRpcParams): Promise<T> {
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         reject(new Error('Not connected'))
@@ -408,5 +408,9 @@ export class A2AClient extends EventEmitter {
 
   getAgentId(): string | null {
     return this.agentId
+  }
+
+  getSessionToken(): string | null {
+    return this._sessionToken
   }
 }

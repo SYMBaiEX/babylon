@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
 
     // Check if agent exists in database (use upsert to avoid race conditions)
     // Note: Agents don't have wallet addresses - they're registered via server wallet
-    let dbUser = await prisma.user.upsert({
+    const dbUser = await prisma.user.upsert({
       where: {
         username: agentId, // Use username as unique identifier for agents
       },

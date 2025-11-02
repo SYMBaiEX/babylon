@@ -1,14 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import type { NextRequest} from 'next/server';
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
 /**
  * GET /api/pools/deposits/[userId]
  * Get all pool deposits for a specific user
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
@@ -91,8 +90,6 @@ export async function GET(
       { error: 'Failed to fetch deposits' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 

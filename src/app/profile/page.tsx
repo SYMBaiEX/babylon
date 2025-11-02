@@ -171,8 +171,9 @@ export default function ProfilePage() {
           } else {
             errorMessage = `HTTP ${response.status}: ${response.statusText}`
           }
-        } catch (parseError) {
           errorMessage = `HTTP ${response.status}: ${response.statusText}`
+        } catch {
+          // If parsing fails, use default error message
         }
         throw new Error(errorMessage)
       }

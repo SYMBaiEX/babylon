@@ -250,7 +250,7 @@ export interface InteractionStoreActions {
   // Comment actions
   addComment: (postId: string, content: string, parentId?: string) => Promise<CommentData | null>;
   editComment: (commentId: string, content: string) => Promise<void>;
-  deleteComment: (commentId: string) => Promise<void>;
+  deleteComment: (commentId: string, postId?: string) => Promise<void>;
   loadComments: (postId: string) => Promise<CommentWithReplies[]>;
 
   // Share actions

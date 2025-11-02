@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient, Prisma } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import type { NextRequest} from 'next/server';
+import { NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 
 /**
  * POST /api/pools/[id]/withdraw
@@ -179,8 +179,6 @@ export async function POST(
       { error: errorMessage },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 

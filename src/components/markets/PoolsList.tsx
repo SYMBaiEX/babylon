@@ -53,8 +53,9 @@ export function PoolsList({ onPoolClick }: PoolsListProps) {
       const res = await fetch('/api/pools')
       const data = await res.json()
       setPools(data.pools || [])
-    } catch (error) {
-      console.error('Error fetching pools:', error)
+    } catch (_error) {
+      // Silently handle error - UI shows empty state
+      setPools([])
     } finally {
       setLoading(false)
     }

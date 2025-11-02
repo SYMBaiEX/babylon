@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { authenticate } from '@/lib/auth-utils'
-import prisma from '@/lib/database'
+import type { NextRequest} from 'next/server';
+import { NextResponse } from 'next/server'
+import { authenticate } from '@/lib/api/auth-middleware'
+import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 
 interface UpdateVisibilityRequest {

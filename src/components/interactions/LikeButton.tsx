@@ -184,13 +184,13 @@ export function LikeButton({
           'border border-transparent',
           isLiked
             ? cn(reaction.color, reaction.bgColor)
-            : 'hover:bg-muted',
+            : 'bg-transparent hover:bg-red-500/10',
           sizeClasses[size],
           isAnimating && 'scale-110',
           isLoading && 'opacity-50 cursor-wait',
           className
         )}
-        style={!isLiked ? { color: '#1c9cf0' } : undefined}
+        style={!isLiked ? { color: 'rgb(239, 68, 68)' } : undefined}
       >
         {isLoading ? (
           <div 

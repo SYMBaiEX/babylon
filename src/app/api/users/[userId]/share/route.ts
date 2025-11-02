@@ -3,7 +3,7 @@
  * Methods: POST (track share action and award points)
  */
 
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import {
   authenticate,

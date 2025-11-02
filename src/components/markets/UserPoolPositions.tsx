@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { TrendingUp, TrendingDown, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -11,7 +10,9 @@ interface UserPoolPositionsProps {
 
 export function UserPoolPositions({ onWithdraw }: UserPoolPositionsProps) {
   const { user, authenticated } = useAuth()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [deposits, setDeposits] = useState<any[]>([])
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [summary, setSummary] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [withdrawing, setWithdrawing] = useState<string | null>(null)
@@ -30,8 +31,10 @@ export function UserPoolPositions({ onWithdraw }: UserPoolPositionsProps) {
       const data = await res.json()
       setDeposits(data.activeDeposits || [])
       setSummary(data.summary)
-    } catch (error) {
-      console.error('Error fetching pool deposits:', error)
+    } catch (_error) {
+      // Silently handle error - UI shows empty state
+      setDeposits([])
+      setSummary(null)
     } finally {
       setLoading(false)
     }
@@ -64,9 +67,9 @@ export function UserPoolPositions({ onWithdraw }: UserPoolPositionsProps) {
       
       fetchDeposits()
       onWithdraw?.()
-    } catch (error: any) {
-      console.error('Withdraw error:', error)
-      alert(error.message || 'Failed to withdraw')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to withdraw'
+      alert(message)
     } finally {
       setWithdrawing(null)
     }

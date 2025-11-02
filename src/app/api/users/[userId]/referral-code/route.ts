@@ -3,7 +3,7 @@
  * Methods: GET (get or generate referral code)
  */
 
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import {
   authenticate,

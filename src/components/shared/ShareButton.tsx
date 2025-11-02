@@ -4,7 +4,7 @@
  * Button to share content with tracking and points rewards
  */
 
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Share2, Twitter, Link as LinkIcon, Check } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { logger } from '@/lib/logger'
@@ -161,7 +161,7 @@ export function ShareButton({
               <span className="ml-auto text-xs text-yellow-500">+1000</span>
             </button>
 
-            {navigator.share && (
+            {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
               <button
                 onClick={handleNativeShare}
                 className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-700 text-left transition-colors"

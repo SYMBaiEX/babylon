@@ -402,7 +402,7 @@ export class BabylonEngine {
           pointsToward: question.outcome ? 'YES' : 'NO',
           visibility: 'public',
         });
-      } catch (error) {
+      } catch {
         // Skip on error
       }
     }
@@ -440,7 +440,7 @@ export class BabylonEngine {
         await db.recordPriceUpdate(companyId, newPrice, priceChange, changePercent);
         
         updateCount++;
-      } catch (error) {
+      } catch {
         // Skip on error
       }
     }

@@ -4,8 +4,8 @@
  */
 
 import { verifyMessage, hexlify, randomBytes } from 'ethers'
-import { AgentCredentials } from '../types'
-import { RegistryClient } from '../blockchain/registry-client'
+import type { AgentCredentials } from '../types'
+import type { RegistryClient } from '../blockchain/registry-client'
 
 interface AuthResult {
   success: boolean

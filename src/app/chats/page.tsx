@@ -65,7 +65,7 @@ export default function ChatsPage() {
   const [groupChats, setGroupChats] = useState<Chat[]>([])
   const [chatDetails, setChatDetails] = useState<ChatDetails | null>(null)
   const [messageInput, setMessageInput] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [_loading, setLoading] = useState(true)
   const [loadingChat, setLoadingChat] = useState(false)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)

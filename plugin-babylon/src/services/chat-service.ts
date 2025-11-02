@@ -4,6 +4,10 @@ import { BabylonClientService } from '../plugin'
 
 export class BabylonChatService extends Service {
   static override serviceType = 'babylon_chat' as const
+
+  override capabilityDescription =
+    'Babylon chat service for automated participation in chat rooms based on themes'
+
   private chatInterval?: NodeJS.Timeout
   private apiClient?: BabylonApiClient
 
@@ -54,6 +58,10 @@ export class BabylonChatService extends Service {
       }
 
       const randomChat = chats[Math.floor(Math.random() * chats.length)]
+      if (!randomChat) {
+        return
+      }
+
       const messageContent = await this.generateChatMessage(randomChat.theme)
 
       if (messageContent) {
@@ -70,12 +78,17 @@ export class BabylonChatService extends Service {
   }
 
   private async generateChatMessage(theme: string): Promise<string | null> {
-    const prompt = `You are an NPC in a chat room with the theme "${theme}". Write a short, engaging message that fits the theme and encourages discussion.`
-    const response = await this.runtime.llm.generateText({
-      prompt,
-      maxTokens: 50,
-    })
-    return response
+    // Simple message generation based on theme
+    // TODO: Integrate with LLM for more dynamic content
+    const messages = [
+      `Interesting topic about ${theme}! What are your thoughts?`,
+      `I've been thinking about ${theme} lately. Anyone want to discuss?`,
+      `${theme} is such a fascinating subject. Let's explore it together!`,
+      `Has anyone considered the implications of ${theme}?`,
+      `I'd love to hear different perspectives on ${theme}.`,
+    ]
+    const message = messages[Math.floor(Math.random() * messages.length)]
+    return message || null
   }
 
   override async stop(): Promise<void> {

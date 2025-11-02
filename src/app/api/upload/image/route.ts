@@ -6,7 +6,8 @@
  * Uses S3-compatible storage (MinIO for dev, Cloudflare R2 for production)
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import type { NextRequest} from 'next/server';
+import { NextResponse } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { getStorageClient } from '@/lib/storage/s3-client'
 import { logger } from '@/lib/logger'

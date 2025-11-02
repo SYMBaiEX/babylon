@@ -303,7 +303,7 @@ export class PerpetualsEngine extends EventEmitter {
     let totalFundingPaid = 0;
     let positionsCharged = 0;
     
-    for (const [positionId, position] of this.positions) {
+    for (const [_positionId, position] of this.positions) {
       const fundingRate = this.fundingRates.get(position.ticker);
       if (!fundingRate) continue;
       
@@ -338,7 +338,7 @@ export class PerpetualsEngine extends EventEmitter {
       totalFundingPaid 
     });
     
-    console.log(`✅ Processed funding: ${positionsCharged} positions, $${totalFundingPaid.toFixed(2)} total`);
+    logger.info(`Processed funding: ${positionsCharged} positions, $${totalFundingPaid.toFixed(2)} total`, undefined, 'PerpetualsEngine');
   }
 
   /**
@@ -532,7 +532,7 @@ export class PerpetualsEngine extends EventEmitter {
   private startPeriodicSync(): void {
     this.syncTimer = setInterval(() => {
       this.syncDirtyPositions().catch((error) => {
-        console.error('Error syncing positions to database:', error);
+        logger.error('Error syncing positions to database:', error, 'PerpetualsEngine');
       });
     }, this.syncInterval);
   }
@@ -567,10 +567,10 @@ export class PerpetualsEngine extends EventEmitter {
       await Promise.all(updates);
 
       if (updates.length > 0) {
-        console.log(`✅ Synced ${updates.length} positions to database`);
+        logger.debug(`Synced ${updates.length} positions to database`, undefined, 'PerpetualsEngine');
       }
     } catch (error) {
-      console.error('Failed to sync positions:', error);
+      logger.error('Failed to sync positions:', error, 'PerpetualsEngine');
       // Re-add failed positions to dirty set
       positionsToSync.forEach((id) => this.dirtyPositions.add(id));
     }
@@ -585,7 +585,9 @@ export class PerpetualsEngine extends EventEmitter {
       this.syncTimer = null;
     }
     // Final sync before stopping
-    this.syncDirtyPositions().catch(console.error);
+    this.syncDirtyPositions().catch((error) => {
+      logger.error('Error in final sync:', error, 'PerpetualsEngine');
+    });
   }
 
   /**

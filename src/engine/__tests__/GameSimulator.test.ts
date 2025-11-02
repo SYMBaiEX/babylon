@@ -112,16 +112,11 @@ describe('GameSimulator - Standalone Engine', () => {
     });
 
     test('clues align with predetermined outcome', async () => {
-      const events: any[] = [];
+      const events: Array<{ data: { clue?: string } }> = [];
       simulator.on('clue:distributed', (event) => events.push(event));
 
       await simulator.runCompleteGame();
 
-      // Most clues should point toward YES (outcome = true)
-      const yesClues = events.filter(e => 
-        e.data.clue && e.data.clue.includes('YES')
-      );
-      
       // Should have distributed clues
       expect(events.length).toBeGreaterThan(0);
     });
@@ -160,7 +155,7 @@ describe('GameSimulator - Standalone Engine', () => {
 
   describe('Market Evolution', () => {
     test('market starts at 50/50', async () => {
-      let firstMarketUpdate: any;
+      let firstMarketUpdate: { data?: { yesOdds?: number; noOdds?: number } } | undefined;
       simulator.on('market:updated', (event) => {
         if (!firstMarketUpdate) firstMarketUpdate = event;
       });

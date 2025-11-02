@@ -19,6 +19,7 @@ export function CommentSection({
   className,
 }: CommentSectionProps) {
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [post, setPost] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingPost, setIsLoadingPost] = useState(false);
@@ -53,7 +54,6 @@ export function CommentSection({
     if (isOpen && postId) {
       loadCommentsData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, postId]);
 
   const loadCommentsData = async () => {

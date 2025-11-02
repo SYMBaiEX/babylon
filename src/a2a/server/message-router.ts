@@ -3,22 +3,24 @@
  * Routes JSON-RPC 2.0 messages to appropriate handlers
  */
 
-import {
+import type {
   JsonRpcRequest,
   JsonRpcResponse,
-  A2AMethod,
   A2AServerConfig,
   AgentConnection,
-  ErrorCode,
   AgentProfile,
   MarketData,
   Coalition,
   MarketAnalysis
+} from '../types';
+import {
+  A2AMethod,
+  ErrorCode
 } from '../types'
 import type { JsonRpcResult } from '@/types/json-rpc'
 import type { PaymentVerificationParams, PaymentVerificationResult } from '@/types/payments'
-import { RegistryClient } from '../blockchain/registry-client'
-import { X402Manager } from '../payments/x402-manager'
+import type { RegistryClient } from '../blockchain/registry-client'
+import type { X402Manager } from '../payments/x402-manager'
 import { logger } from '../utils/logger'
 
 // Typed parameter interfaces for each method

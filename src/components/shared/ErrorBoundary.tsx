@@ -1,6 +1,7 @@
 'use client';
 
-import { Component, ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { Component } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { logger } from '@/lib/logger';
 
@@ -26,7 +27,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    logger.error('ErrorBoundary caught an error:', error, 'ErrorBoundary', { errorInfo });
+    logger.error('ErrorBoundary caught an error:', { error, errorInfo }, 'ErrorBoundary');
     
     if (this.props.onError) {
       this.props.onError(error, errorInfo);

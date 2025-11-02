@@ -180,7 +180,7 @@ describe('PerpetualsEngine', () => {
     const ticker = markets[0]!.ticker;
 
     // Open position
-    const position = engine.openPosition('user-1', {
+    engine.openPosition('user-1', {
       ticker,
       side: 'long',
       size: 1000,

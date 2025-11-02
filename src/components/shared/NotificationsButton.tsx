@@ -12,14 +12,6 @@ interface NotificationsButtonProps {
   compact?: boolean
 }
 
-interface Notification {
-  id: string
-  type: string
-  message: string
-  read: boolean
-  createdAt: string
-}
-
 export function NotificationsButton({ className, compact = false }: NotificationsButtonProps) {
   const { authenticated, user } = useAuth()
   const router = useRouter()
@@ -81,16 +73,16 @@ export function NotificationsButton({ className, compact = false }: Notification
       disabled={isLoading}
       className={cn(
         'relative p-2 hover:bg-sidebar-accent transition-colors',
-        isLoading && 'opacity-50 cursor-wait',
-        className
+        isLoading && 'opacity-50 cursor-wait'
       )}
       aria-label="Notifications"
       aria-busy={isLoading}
     >
       <Bell className={cn(
-        'text-sidebar-foreground',
         compact ? 'w-5 h-5' : 'w-6 h-6',
-        isLoading && 'animate-pulse'
+        'transition-colors duration-200',
+        isLoading && 'animate-pulse',
+        className || 'text-sidebar-foreground'
       )} />
       {unreadCount > 0 && (
         <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full ring-2 ring-background" />

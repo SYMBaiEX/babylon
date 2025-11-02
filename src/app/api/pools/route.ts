@@ -1,13 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import type { NextRequest} from 'next/server';
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
 /**
  * GET /api/pools
  * List all active pools with their performance metrics
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const pools = await prisma.pool.findMany({
       where: {
@@ -115,8 +114,6 @@ export async function GET(request: NextRequest) {
       { error: 'Failed to fetch pools' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 

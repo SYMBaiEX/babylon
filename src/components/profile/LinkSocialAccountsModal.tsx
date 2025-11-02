@@ -58,21 +58,17 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
       const data = await response.json()
 
       // Update user in store
-      const updates: Record<string, any> = {
+      const updates = {
         ...user,
+        ...(platform === 'twitter' 
+          ? { hasTwitter: true, twitterUsername: username }
+          : { hasFarcaster: true, farcasterUsername: username }
+        ),
+        // Add points if awarded
+        ...(data.points?.awarded ? { reputationPoints: data.points.newTotal } : {}),
       }
 
-      if (platform === 'twitter') {
-        updates.hasTwitter = true
-        updates.twitterUsername = username
-      } else if (platform === 'farcaster') {
-        updates.hasFarcaster = true
-        updates.farcasterUsername = username
-      }
-
-      // Add points if awarded
       if (data.points?.awarded) {
-        updates.reputationPoints = data.points.newTotal
         toast.success(`Account linked! +${data.points.awarded} points awarded`)
       } else {
         toast.success('Account linked successfully!')
@@ -83,7 +79,6 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
       // Clear input
       setInputValues(prev => ({ ...prev, [platform]: '' }))
     } catch (error) {
-      console.error('Error linking account:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to link account')
     } finally {
       setLinking(null)

@@ -3,7 +3,7 @@
  * Methods: GET (fetch leaderboard with pagination)
  */
 
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { successResponse, errorResponse } from '@/lib/api/auth-middleware'
 import { PointsService } from '@/lib/services/points-service'
 import { logger } from '@/lib/logger'

@@ -113,11 +113,9 @@ export class ContinuousEngine {
           const recentWorldEvents = await db.getRecentEvents(50);
 
           // Convert Actor[] to SelectedActor[] by adding required fields
-          // Filter out database-specific fields that aren't part of SelectedActor
-          const actors: SelectedActor[] = actorsFromDb.map((actor: any) => {
-            const { createdAt, updatedAt, ...actorData } = actor as Actor & { createdAt?: Date; updatedAt?: Date };
+          const actors: SelectedActor[] = actorsFromDb.map((actor: Actor) => {
             return {
-              ...actorData,
+              ...actor,
               tier: (actor.tier || ACTOR_TIERS.B_TIER) as ActorTier,
               role: actor.role || 'supporting',
               initialLuck: 'medium' as const,
@@ -126,8 +124,9 @@ export class ContinuousEngine {
           });
           // Convert recent world events to DayTimeline format for context
           // Group events by day (approximated from timestamps)
-          const eventsByDay = new Map<number, typeof recentWorldEvents>();
-          recentWorldEvents.forEach((event: any) => {
+          type DbEvent = { timestamp: Date; id: string; eventType: string; actors: string[]; description: string | { text: string }; relatedQuestion?: string; pointsToward?: string; visibility: string };
+          const eventsByDay = new Map<number, DbEvent[]>();
+          recentWorldEvents.forEach((event: DbEvent) => {
             const dayNum = Math.floor((new Date(event.timestamp).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
             if (!eventsByDay.has(dayNum)) {
               eventsByDay.set(dayNum, []);
@@ -138,7 +137,7 @@ export class ContinuousEngine {
           const recentEvents: DayTimeline[] = Array.from(eventsByDay.entries()).map(([day, events]) => ({
             day,
             summary: `Day ${day}`,
-            events: events.map((e: any) => ({
+            events: events.map((e: DbEvent) => ({
               id: e.id,
               day,
               type: e.eventType as WorldEvent['type'],
@@ -245,9 +244,8 @@ export class ContinuousEngine {
       
       // Convert Actor[] to SelectedActor[] for generateRealisticPost
       const selectedActors: SelectedActor[] = selectedActorsRaw.map(actor => {
-        const { createdAt, updatedAt, ...actorData } = actor as Actor & { createdAt?: Date; updatedAt?: Date };
         return {
-          ...actorData,
+          ...actor,
           tier: (actor.tier || ACTOR_TIERS.B_TIER) as ActorTier,
           role: actor.role || 'supporting',
           initialLuck: 'medium' as const,
@@ -280,7 +278,7 @@ export class ContinuousEngine {
       
       return posts;
     } catch (error) {
-      console.error('Error generating posts:', error);
+      logger.error('Error generating posts:', error, 'ContinuousEngine');
       return [];
     }
   }

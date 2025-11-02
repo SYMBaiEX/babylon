@@ -10,7 +10,6 @@ import {
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
-import { gameService } from '@/lib/game-service';
 import { logger } from '@/lib/logger';
 
 /**
@@ -33,18 +32,9 @@ export async function GET(
     }
 
     // Try to get post from database first
-    let post = await prisma.post.findUnique({
+    const post = await prisma.post.findUnique({
       where: { id: postId },
       include: {
-        author: {
-          select: {
-            id: true,
-            displayName: true,
-            username: true,
-            profileImageUrl: true,
-            isActor: true,
-          },
-        },
         _count: {
           select: {
             reactions: {
@@ -92,9 +82,9 @@ export async function GET(
         id: post.id,
         content: post.content,
         authorId: post.authorId,
-        authorName: post.author.displayName || post.author.username || post.authorId,
-        authorAvatar: post.author.profileImageUrl,
-        isActorPost: post.author.isActor,
+        authorName: post.authorId, // No author relation in schema
+        authorAvatar: undefined,
+        isActorPost: true, // Posts are from game actors
         timestamp: post.timestamp.toISOString(),
         createdAt: post.createdAt.toISOString(),
         likeCount: post._count.reactions,

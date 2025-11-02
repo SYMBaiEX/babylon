@@ -1,7 +1,7 @@
 import { http } from 'viem'
 import { mainnet, sepolia, base, baseSepolia } from 'viem/chains'
 import { createConfig } from 'wagmi'
-import { PrivyClientConfig } from '@privy-io/react-auth'
+import type { PrivyClientConfig } from '@privy-io/react-auth'
 
 // Environment configuration
 const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID) || 8453 // Default to Base mainnet

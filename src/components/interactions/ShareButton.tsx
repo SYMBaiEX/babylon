@@ -87,13 +87,13 @@ export function ShareButton({
           'border border-transparent',
           isShared
             ? 'text-green-600 bg-green-500/10'
-            : 'hover:bg-green-500/10',
+            : 'bg-transparent hover:bg-green-500/10',
           sizeClasses[size],
           isAnimating && 'scale-110',
           isLoading && 'opacity-50 cursor-wait',
           className
         )}
-        style={!isShared ? { color: '#1c9cf0' } : undefined}
+        style={!isShared ? { color: 'rgb(34, 197, 94)' } : undefined}
       >
         {isLoading ? (
           <div 

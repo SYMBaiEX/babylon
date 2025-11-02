@@ -70,16 +70,19 @@ export const PostCard = memo(function PostCard({
     <article
       className={cn(
         'px-3 sm:px-4 py-3',
-        !isDetail && 'border-b border-border hover:bg-muted/30 cursor-pointer transition-all duration-200',
+        !isDetail && 'border-b hover:bg-muted/30 cursor-pointer transition-all duration-200',
         'w-full overflow-hidden',
         className
       )}
       style={{
         fontSize: `${fontSize}rem`,
+        borderBottomWidth: !isDetail ? '0.5px' : undefined,
+        borderBottomColor: !isDetail ? 'rgba(229, 231, 235, 0.5)' : undefined, // Very light gray
       }}
       onClick={!isDetail ? handleClick : undefined}
     >
-      <div className="flex gap-2 sm:gap-3 w-full">
+      {/* Header Row: Avatar, Name, Handle, Timestamp */}
+      <div className="flex items-center gap-2 sm:gap-3 mb-2 w-full">
         {/* Avatar - Clickable */}
         <Link
           href={`/profile/${post.authorId}`}
@@ -95,48 +98,47 @@ export const PostCard = memo(function PostCard({
           />
         </Link>
 
-        {/* Content */}
-        <div className="flex-1 min-w-0 overflow-hidden">
-          {/* Header: Author with handle on left, timestamp on right */}
-          <div className="flex items-start justify-between gap-2 mb-1">
-            <div className="flex items-center gap-1.5 flex-wrap min-w-0 overflow-hidden">
-              <Link
-                href={`/profile/${post.authorId}`}
-                className="font-bold text-foreground hover:underline truncate"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {post.authorName}
-              </Link>
-              <ShieldCheck className="w-4 h-4 text-blue-500 flex-shrink-0" fill="currentColor" />
-              <Link
-                href={`/profile/${post.authorId}`}
-                className="text-muted-foreground text-sm hover:underline truncate"
-                onClick={(e) => e.stopPropagation()}
-              >
-                @{post.authorId}
-              </Link>
-            </div>
-            <time className="text-muted-foreground text-sm flex-shrink-0" title={postDate.toLocaleString()}>
-              {timeAgo}
-            </time>
+        {/* Name and Handle stacked */}
+        <div className="flex flex-col justify-center min-w-0 overflow-hidden flex-1">
+          <div className="flex items-center gap-1.5">
+            <Link
+              href={`/profile/${post.authorId}`}
+              className="font-bold text-foreground hover:underline truncate"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {post.authorName}
+            </Link>
+            <ShieldCheck className="w-4 h-4 text-blue-500 flex-shrink-0" fill="currentColor" />
           </div>
-
-          {/* Post content */}
-          <div className="text-foreground leading-normal whitespace-pre-wrap break-anywhere w-full mb-2">
-            {post.content}
-          </div>
-
-          {/* Interaction Bar */}
-          {showInteractions && (
-            <div onClick={(e) => e.stopPropagation()}>
-              <InteractionBar
-                postId={post.id}
-                initialInteractions={initialInteractions}
-              />
-            </div>
-          )}
+          <Link
+            href={`/profile/${post.authorId}`}
+            className="text-muted-foreground text-sm hover:underline truncate"
+            onClick={(e) => e.stopPropagation()}
+          >
+            @{post.authorId}
+          </Link>
         </div>
+
+        {/* Timestamp */}
+        <time className="text-muted-foreground text-sm flex-shrink-0" title={postDate.toLocaleString()}>
+          {timeAgo}
+        </time>
       </div>
+
+      {/* Post content - Full width */}
+      <div className="text-foreground leading-normal whitespace-pre-wrap break-anywhere w-full mb-2">
+        {post.content}
+      </div>
+
+      {/* Interaction Bar - Full width */}
+      {showInteractions && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <InteractionBar
+            postId={post.id}
+            initialInteractions={initialInteractions}
+          />
+        </div>
+      )}
     </article>
   );
 });

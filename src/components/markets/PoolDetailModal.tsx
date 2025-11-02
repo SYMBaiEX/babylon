@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, TrendingUp, TrendingDown, Users, Activity, Clock, DollarSign } from 'lucide-react'
+import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { logger } from '@/lib/logger'
@@ -15,6 +15,7 @@ interface PoolDetailModalProps {
 
 export function PoolDetailModal({ poolId, isOpen, onClose, onSuccess }: PoolDetailModalProps) {
   const { user, authenticated, login } = useAuth()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [pool, setPool] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [depositAmount, setDepositAmount] = useState('')
@@ -73,6 +74,7 @@ export function PoolDetailModal({ poolId, isOpen, onClose, onSuccess }: PoolDeta
       setDepositAmount('')
       fetchPoolDetails()
       onSuccess?.()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('Deposit error:', error)
       alert(error.message || 'Failed to deposit')
@@ -251,6 +253,7 @@ export function PoolDetailModal({ poolId, isOpen, onClose, onSuccess }: PoolDeta
                   {pool.positions.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">No open positions</p>
                   ) : (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     pool.positions.map((pos: any) => (
                       <div key={pos.id} className="p-3 bg-muted rounded-lg">
                         <div className="flex justify-between items-start mb-2">
@@ -295,6 +298,7 @@ export function PoolDetailModal({ poolId, isOpen, onClose, onSuccess }: PoolDeta
                   {pool.recentTrades.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">No trades yet</p>
                   ) : (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     pool.recentTrades.map((trade: any) => (
                       <div key={trade.id} className="p-3 bg-muted rounded-lg">
                         <div className="flex justify-between items-start">

@@ -5,6 +5,7 @@
  */
 
 import { GameEngine } from '@/engine/GameEngine';
+import { logger } from '@/lib/logger';
 
 let engineInstance: GameEngine | null = null;
 let isInitialized = false;
@@ -23,11 +24,11 @@ export function getGameEngine(): GameEngine {
 
 export async function initializeGameEngine(): Promise<void> {
   if (isInitialized) {
-    console.log('⚠️  Engine already initialized');
+    logger.warn('Engine already initialized', undefined, 'GameEngineSingleton');
     return;
   }
 
-  console.log('\n🎮 STARTING BABYLON ENGINE\n');
+  logger.info('STARTING BABYLON ENGINE', undefined, 'GameEngineSingleton');
 
   try {
     const engine = getGameEngine();
@@ -36,16 +37,19 @@ export async function initializeGameEngine(): Promise<void> {
     
     isInitialized = true;
     
-    console.log('\n✅ ENGINE RUNNING\n');
-    console.log('📊 Features:');
-    console.log('  ✓ LLM-generated events specific to questions');
-    console.log('  ✓ Actor posts with real content');
-    console.log('  ✓ Time-aware clue strength');
-    console.log('  ✓ Resolution events with proof');
-    console.log('  ✓ Group chats discussing predictions');
-    console.log('  ✓ Price movements linked to outcomes\n');
+    logger.info('ENGINE RUNNING', undefined, 'GameEngineSingleton');
+    logger.info('Features enabled:', {
+      features: [
+        'LLM-generated events specific to questions',
+        'Actor posts with real content',
+        'Time-aware clue strength',
+        'Resolution events with proof',
+        'Group chats discussing predictions',
+        'Price movements linked to outcomes'
+      ]
+    }, 'GameEngineSingleton');
   } catch (error) {
-    console.error('❌ Failed to initialize engine:', error);
+    logger.error('Failed to initialize engine:', error, 'GameEngineSingleton');
     throw error;
   }
 }
@@ -60,7 +64,7 @@ export function stopGameEngine(): void {
 // Auto-start on module load (server-side only)
 if (typeof window === 'undefined') {
   initializeGameEngine().catch((error) => {
-    console.error('Failed to start engine:', error);
+    logger.error('Failed to start engine:', error, 'GameEngineSingleton');
   });
 }
 

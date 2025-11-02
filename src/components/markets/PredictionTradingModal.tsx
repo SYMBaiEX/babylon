@@ -109,15 +109,16 @@ export function PredictionTradingModal({
           } else {
             errorMessage = `HTTP ${response.status}: ${response.statusText}`
           }
-        } catch (parseError) {
           errorMessage = `HTTP ${response.status}: ${response.statusText}`
+        } catch {
+          // If parsing fails, use default error message
         }
         toast.error(errorMessage)
         logger.error('Failed to buy shares:', { status: response.status, statusText: response.statusText, questionId: question.id }, 'PredictionTradingModal')
         return
       }
 
-      const data = await response.json()
+      await response.json()
 
       toast.success(`Bought ${side.toUpperCase()} shares!`, {
         description: `${calculation?.sharesBought.toFixed(2)} shares at ${(calculation?.avgPrice || 0).toFixed(3)} each`,

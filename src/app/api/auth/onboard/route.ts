@@ -6,7 +6,7 @@
  * Stores NFT token ID in user profile
  */
 
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { createWalletClient, createPublicClient, http, parseEther, decodeEventLog, type Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'

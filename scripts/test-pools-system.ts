@@ -4,9 +4,7 @@
  * Validates that all components are working correctly
  */
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../src/lib/prisma';
 
 async function testPoolsSystem() {
   console.log('🧪 Testing NPC Trading Pools System\n');

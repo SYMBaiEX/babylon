@@ -7,7 +7,6 @@
  * - Top 4-10: Bronze badge
  */
 
-import React from 'react'
 import { Award, Medal, Trophy } from 'lucide-react'
 
 interface RankBadgeProps {

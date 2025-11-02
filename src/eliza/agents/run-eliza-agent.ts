@@ -199,6 +199,7 @@ async function main() {
   logger.info('Configuring character with plugins and settings...');
 
   // Build settings object with only defined optional values
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const characterSettings: Record<string, string | number | boolean | Record<string, any>> = {
     ...(character.settings || {}),
     // Babylon plugin configuration

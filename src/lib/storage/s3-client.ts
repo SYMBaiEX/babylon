@@ -3,7 +3,7 @@
  * Uses MinIO for local development and Vercel Blob for production deployments
  */
 
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { Upload } from '@aws-sdk/lib-storage'
 import { put as vercelBlobPut, del as vercelBlobDel } from '@vercel/blob'
 import sharp from 'sharp'
@@ -44,12 +44,12 @@ interface UploadResult {
 
 class S3StorageClient {
   private client: S3Client | null = null
-  private bucket: string
-  private publicUrl: string | null
-  private useVercel: boolean
+  private bucket!: string
+  private publicUrl!: string | null
+  private useVercel!: boolean
 
   constructor() {
-    this.useVercel = useVercelBlob
+    this.useVercel = !!useVercelBlob
 
     if (this.useVercel) {
       // Vercel Blob configuration
@@ -229,16 +229,26 @@ class S3StorageClient {
   }
 
   /**
-   * Initialize bucket (for development)
+   * Initialize bucket (for development/MinIO only)
    */
   async initializeBucket(): Promise<void> {
+    if (this.useVercel) {
+      logger.info('Using Vercel Blob - no bucket initialization needed')
+      return
+    }
+
     try {
+      if (!this.client) {
+        throw new Error('S3 client not initialized')
+      }
+
       // Try to create bucket (will fail if exists, which is fine)
       const { CreateBucketCommand, PutBucketPolicyCommand } = await import('@aws-sdk/client-s3')
       
       try {
         await this.client.send(new CreateBucketCommand({ Bucket: this.bucket }))
         logger.info(`Created bucket: ${this.bucket}`)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (error: any) {
         if (error.name === 'BucketAlreadyOwnedByYou' || error.name === 'BucketAlreadyExists') {
           logger.info(`Bucket already exists: ${this.bucket}`)
@@ -248,27 +258,25 @@ class S3StorageClient {
       }
 
       // Set public read policy for MinIO
-      if (!useCloudflareR2) {
-        const policy = {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Allow',
-              Principal: '*',
-              Action: ['s3:GetObject'],
-              Resource: [`arn:aws:s3:::${this.bucket}/*`],
-            },
-          ],
-        }
-
-        await this.client.send(
-          new PutBucketPolicyCommand({
-            Bucket: this.bucket,
-            Policy: JSON.stringify(policy),
-          })
-        )
-        logger.info(`Set public policy for bucket: ${this.bucket}`)
+      const policy = {
+        Version: '2012-10-17',
+        Statement: [
+          {
+            Effect: 'Allow',
+            Principal: '*',
+            Action: ['s3:GetObject'],
+            Resource: [`arn:aws:s3:::${this.bucket}/*`],
+          },
+        ],
       }
+
+      await this.client.send(
+        new PutBucketPolicyCommand({
+          Bucket: this.bucket,
+          Policy: JSON.stringify(policy),
+        })
+      )
+      logger.info(`Set public policy for bucket: ${this.bucket}`)
     } catch (error) {
       logger.error('Failed to initialize bucket:', error)
       // Don't throw - bucket might already be configured

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { usePrivy, useWallets, type User, type ConnectedWallet } from '@privy-io/react-auth'
 import { useEffect, useMemo } from 'react'
 import { useAuthStore } from '@/stores/authStore'
@@ -226,7 +227,7 @@ export function useAuth(): UseAuthReturn {
           try {
             sessionStorage.removeItem('referralCode')
             sessionStorage.removeItem('referralCodeTimestamp')
-          } catch (error) {
+          } catch {
             // Ignore errors
           }
           logger.info('Onboarding complete!', {

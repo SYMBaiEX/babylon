@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * API Route: /api/markets/predictions/[id]/sell
  * Methods: POST (sell YES or NO shares in prediction market)

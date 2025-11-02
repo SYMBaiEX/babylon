@@ -1,7 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useGameStore } from '@/stores/gameStore'
+import { useAuthStore } from '@/stores/authStore'
 import { useRouter } from 'next/navigation'
 import { FeedToggle } from '@/components/shared/FeedToggle'
 import { PageContainer } from '@/components/shared/PageContainer'
@@ -18,7 +20,8 @@ const PAGE_SIZE = 20
 
 export default function FeedPage() {
   const router = useRouter()
-  const { user } = useAuth() // Get user from auth hook first
+  const { authenticated } = useAuth()
+  const { user } = useAuthStore()
   const [tab, setTab] = useState<'latest' | 'following'>('latest')
   const [searchQuery, setSearchQuery] = useState('')
   const [posts, setPosts] = useState<FeedPost[]>([])
@@ -190,8 +193,6 @@ export default function FeedPage() {
     }
   }, [tab, hasMore, loading, loadingMore, searchQuery, offset, fetchLatestPosts])
 
-  const { authenticated } = useAuth()
-
   // Fetch following posts when following tab is active
   useEffect(() => {
     const fetchFollowingPosts = async () => {
@@ -271,7 +272,7 @@ export default function FeedPage() {
     return items
       .filter((p) => p.timestampMs <= currentAbs)
       .sort((a, b) => b.timestampMs - a.timestampMs)
-      .map(({ timestampMs, ...rest }) => rest)
+      .map(({ _timestampMs, ...rest }) => rest)
   }, [allGames, startTime, currentDate, currentTimeMs])
 
   // Choose data source: timeline (if available) else API posts

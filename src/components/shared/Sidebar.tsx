@@ -23,21 +23,21 @@ export function Sidebar() {
       name: 'Feed',
       href: '/feed',
       icon: Home,
-      color: '#1c9cf0', // Blue
+      color: '#1c9cf0',
       active: pathname === '/feed' || pathname === '/',
     },
     {
       name: 'Leaderboard',
       href: '/leaderboard',
       icon: Trophy,
-      color: '#1c9cf0', // Yellow/Gold
+      color: '#1c9cf0',
       active: pathname === '/leaderboard',
     },
     {
       name: 'Referrals',
       href: '/referrals',
       icon: Gift,
-      color: '#a855f7', // Purple
+      color: '#a855f7',
       active: pathname === '/referrals',
     },
     {
@@ -74,21 +74,18 @@ export function Sidebar() {
           'md:w-20 lg:w-64 xl:w-72'
         )}
       >
-      {/* Header */}
+      {/* Header - Logo */}
       <div className="p-6 flex items-center justify-center lg:justify-start">
         <Link
           href="/feed"
-          className={cn(
-            'flex items-center justify-center',
-            'hover:scale-105 transition-transform duration-300'
-          )}
+          className="hover:scale-105 transition-transform duration-300"
         >
           <Image
             src="/assets/logos/logo.svg"
             alt="Babylon Logo"
             width={32}
             height={32}
-            className="flex-shrink-0 w-8 h-8"
+            className="w-8 h-8"
           />
         </Link>
       </div>
@@ -125,9 +122,10 @@ export function Sidebar() {
               {/* Icon */}
               <Icon
                 className={cn(
-                  'w-6 h-6 transition-all duration-300 mx-2',
+                  'w-6 h-6 flex-shrink-0',
+                  'transition-all duration-300',
                   'group-hover:scale-110',
-                  'flex-shrink-0',
+                  'lg:mr-3',
                   !item.active && 'text-sidebar-foreground'
                 )}
                 style={{
@@ -148,8 +146,8 @@ export function Sidebar() {
               {/* Label - hidden on tablet (md), shown on desktop (lg+) */}
               <span
                 className={cn(
-                  'text-lg transition-colors duration-300',
                   'hidden lg:block',
+                  'text-lg transition-colors duration-300',
                   item.active ? 'font-semibold' : 'text-sidebar-foreground'
                 )}
                 style={{
@@ -179,13 +177,13 @@ export function Sidebar() {
           <button
             onClick={() => setShowCreateModal(true)}
             className={cn(
-              "flex items-center justify-center gap-2",
-              "bg-[#1c9cf0] hover:bg-[#1a8cd8]",
-              "text-white font-semibold",
-              "rounded-full",
-              "transition-all duration-200",
-              "shadow-md hover:shadow-lg",
-              "md:w-12 md:h-12 lg:w-full lg:py-3"
+              'flex items-center justify-center gap-2',
+              'bg-[#1c9cf0] hover:bg-[#1a8cd8]',
+              'text-white font-semibold',
+              'rounded-full',
+              'transition-all duration-200',
+              'shadow-md hover:shadow-lg',
+              'md:w-12 md:h-12 lg:w-full lg:py-3'
             )}
           >
             <Plus className="w-5 h-5" />
@@ -194,25 +192,19 @@ export function Sidebar() {
         </div>
       )}
 
-      {/* Separator */}
-      <div className="px-4 py-2">
-        <Separator />
-      </div>
+      {/* Separator - only shown on desktop when auth section is visible */}
+      {ready && (
+        <div className="hidden lg:block px-4 py-2">
+          <Separator />
+        </div>
+      )}
 
-      {/* Bottom Section */}
-      <div className="p-4 space-y-4">
-        {/* Authentication Section - hidden on tablet (md), shown on desktop (lg+) */}
-        {ready && (
-          <div className="hidden lg:block">
-            {authenticated ? (
-              <UserMenu />
-            ) : (
-              <LoginButton />
-            )}
-          </div>
-        )}
-
-      </div>
+      {/* Bottom Section - Authentication */}
+      {ready && (
+        <div className="hidden lg:block p-4">
+          {authenticated ? <UserMenu /> : <LoginButton />}
+        </div>
+      )}
     </aside>
 
     {/* Create Post Modal */}
@@ -221,7 +213,7 @@ export function Sidebar() {
       onClose={() => setShowCreateModal(false)}
       onPostCreated={() => {
         // Refresh the page if on feed, otherwise navigate to feed
-        if (window.location.pathname === '/feed') {
+        if (pathname === '/feed') {
           window.location.reload()
         } else {
           router.push('/feed')

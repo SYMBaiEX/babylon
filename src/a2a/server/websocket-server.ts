@@ -5,12 +5,13 @@
 
 import { WebSocketServer, WebSocket } from 'ws'
 import { EventEmitter } from 'events'
-import {
+import type {
   JsonRpcRequest,
   JsonRpcResponse,
   A2AServerOptions,
   A2AServerConfig,
-  AgentConnection,
+  AgentConnection} from '../types';
+import {
   ErrorCode,
   A2AEventType
 } from '../types'
