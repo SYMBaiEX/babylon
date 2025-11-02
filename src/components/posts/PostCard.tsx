@@ -95,7 +95,7 @@ export const PostCard = memo(function PostCard({
     >
       {/* Main Content Row: Avatar on left, everything else on right */}
       <div className="flex items-start gap-3 sm:gap-4 lg:gap-5 w-full">
-        {/* Avatar - Clickable */}
+        {/* Avatar - Clickable, Round */}
         <Link
           href={getProfileUrl(post.authorId, post.authorUsername)}
           className="flex-shrink-0 hover:opacity-80 transition-opacity"
@@ -110,32 +110,34 @@ export const PostCard = memo(function PostCard({
           />
         </Link>
 
-        {/* Right side: Name, Handle, Timestamp, Content */}
+        {/* Right side: Name/Handle row, Content below */}
         <div className="flex-1 min-w-0 overflow-hidden">
-          {/* Header Row: Name, Handle, Timestamp */}
-          <div className="flex items-center gap-2 mb-2">
-            <Link
-              href={getProfileUrl(post.authorId, post.authorUsername)}
-              className="font-semibold text-xl sm:text-2xl text-foreground hover:underline truncate"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {post.authorName}
-            </Link>
-            <ShieldCheck className="w-6 h-6 sm:w-7 sm:h-7 text-blue-500 flex-shrink-0" fill="currentColor" />
-            <Link
-              href={getProfileUrl(post.authorId, post.authorUsername)}
-              className="text-muted-foreground text-lg sm:text-xl hover:underline truncate"
-              onClick={(e) => e.stopPropagation()}
-            >
-              @{post.authorUsername || post.authorId}
-            </Link>
-            <span className="text-muted-foreground">·</span>
-            <time className="text-muted-foreground text-lg sm:text-xl flex-shrink-0" title={postDate.toLocaleString()}>
+          {/* Header Row: Name, Handle on left, Timestamp on right */}
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <Link
+                href={getProfileUrl(post.authorId, post.authorUsername)}
+                className="font-semibold text-xl sm:text-2xl text-foreground hover:underline truncate"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {post.authorName}
+              </Link>
+              <ShieldCheck className="w-6 h-6 sm:w-7 sm:h-7 text-blue-500 flex-shrink-0" fill="currentColor" />
+              <Link
+                href={getProfileUrl(post.authorId, post.authorUsername)}
+                className="text-muted-foreground text-lg sm:text-xl hover:underline truncate"
+                onClick={(e) => e.stopPropagation()}
+              >
+                @{post.authorUsername || post.authorId}
+              </Link>
+            </div>
+            {/* Timestamp - Right aligned */}
+            <time className="text-muted-foreground text-lg sm:text-xl flex-shrink-0 ml-auto" title={postDate.toLocaleString()}>
               {timeAgo}
             </time>
           </div>
 
-          {/* Post content - Starts aligned with name/handle */}
+          {/* Post content - Below name/handle row */}
           <div className="text-foreground text-xl sm:text-2xl leading-relaxed whitespace-pre-wrap break-words w-full mb-3 post-content">
             {post.content}
           </div>

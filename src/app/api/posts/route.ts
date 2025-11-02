@@ -83,6 +83,31 @@ export async function GET(request: Request) {
       });
       const userMap = new Map(users.map(u => [u.id, u]));
       
+      // Get interaction counts for all posts in parallel
+      const postIds = posts.map(p => p.id);
+      const [allReactions, allComments, allShares] = await Promise.all([
+        prisma.reaction.groupBy({
+          by: ['postId'],
+          where: { postId: { in: postIds }, type: 'like' },
+          _count: { postId: true },
+        }),
+        prisma.comment.groupBy({
+          by: ['postId'],
+          where: { postId: { in: postIds } },
+          _count: { postId: true },
+        }),
+        prisma.share.groupBy({
+          by: ['postId'],
+          where: { postId: { in: postIds } },
+          _count: { postId: true },
+        }),
+      ]);
+      
+      // Create maps for quick lookup
+      const reactionMap = new Map(allReactions.map(r => [r.postId, r._count.postId]));
+      const commentMap = new Map(allComments.map(c => [c.postId, c._count.postId]));
+      const shareMap = new Map(allShares.map(s => [s.postId, s._count.postId]));
+      
       return NextResponse.json({
         success: true,
         posts: posts.map((post) => {
@@ -96,6 +121,11 @@ export async function GET(request: Request) {
             authorUsername: user?.username || null,
             timestamp: post.timestamp.toISOString(),
             createdAt: post.createdAt.toISOString(),
+            likeCount: reactionMap.get(post.id) ?? 0,
+            commentCount: commentMap.get(post.id) ?? 0,
+            shareCount: shareMap.get(post.id) ?? 0,
+            isLiked: false,
+            isShared: false,
           };
         }),
         total: posts.length,
@@ -123,6 +153,31 @@ export async function GET(request: Request) {
     });
     const userMap = new Map(users.map(u => [u.id, u]));
     
+    // Get interaction counts for all posts in parallel
+    const postIds = posts.map(p => p.id);
+    const [allReactions, allComments, allShares] = await Promise.all([
+      prisma.reaction.groupBy({
+        by: ['postId'],
+        where: { postId: { in: postIds }, type: 'like' },
+        _count: { postId: true },
+      }),
+      prisma.comment.groupBy({
+        by: ['postId'],
+        where: { postId: { in: postIds } },
+        _count: { postId: true },
+      }),
+      prisma.share.groupBy({
+        by: ['postId'],
+        where: { postId: { in: postIds } },
+        _count: { postId: true },
+      }),
+    ]);
+    
+    // Create maps for quick lookup
+    const reactionMap = new Map(allReactions.map(r => [r.postId, r._count.postId]));
+    const commentMap = new Map(allComments.map(c => [c.postId, c._count.postId]));
+    const shareMap = new Map(allShares.map(s => [s.postId, s._count.postId]));
+    
     // Format posts to match FeedPost interface
     const formattedPosts = posts.map((post) => {
       const user = userMap.get(post.authorId);
@@ -137,6 +192,11 @@ export async function GET(request: Request) {
         createdAt: post.createdAt.toISOString(),
         gameId: post.gameId || undefined,
         dayNumber: post.dayNumber || undefined,
+        likeCount: reactionMap.get(post.id) ?? 0,
+        commentCount: commentMap.get(post.id) ?? 0,
+        shareCount: shareMap.get(post.id) ?? 0,
+        isLiked: false, // Will be updated by interaction store polling
+        isShared: false, // Will be updated by interaction store polling
       };
     });
     
@@ -186,9 +246,15 @@ export async function POST(request: NextRequest) {
       return errorResponse('Post content must be 280 characters or less', 400);
     }
 
-    // Ensure user exists in database
+    // Ensure user exists in database and fetch with username/displayName
     let dbUser = await prisma.user.findUnique({
       where: { id: authUser.userId },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        profileImageUrl: true,
+      },
     });
 
     if (!dbUser) {
@@ -197,6 +263,12 @@ export async function POST(request: NextRequest) {
         data: {
           id: authUser.userId,
           isActor: false,
+        },
+        select: {
+          id: true,
+          username: true,
+          displayName: true,
+          profileImageUrl: true,
         },
       });
     }
@@ -216,6 +288,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Determine author name for display (prefer username or displayName, fallback to generated name)
+    const authorName = dbUser.username || dbUser.displayName || `user_${authUser.userId.slice(0, 8)}`;
+
     // Broadcast new post to WebSocket feed channel for real-time updates
     try {
       const { broadcastToChannel } = await import('@/app/api/ws/chat/route');
@@ -225,7 +300,10 @@ export async function POST(request: NextRequest) {
           id: post.id,
           content: post.content,
           authorId: post.authorId,
-          authorName: dbUser.username || authUser.userId, // Use username if available
+          authorName: authorName,
+          authorUsername: dbUser.username,
+          authorDisplayName: dbUser.displayName,
+          authorProfileImageUrl: dbUser.profileImageUrl,
           timestamp: post.timestamp.toISOString(),
         },
       });
@@ -241,6 +319,10 @@ export async function POST(request: NextRequest) {
         id: post.id,
         content: post.content,
         authorId: post.authorId,
+        authorName: authorName,
+        authorUsername: dbUser.username,
+        authorDisplayName: dbUser.displayName,
+        authorProfileImageUrl: dbUser.profileImageUrl,
         timestamp: post.timestamp.toISOString(),
         createdAt: post.createdAt.toISOString(),
       },

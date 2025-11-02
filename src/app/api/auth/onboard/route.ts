@@ -119,9 +119,12 @@ export async function POST(request: NextRequest) {
     const body: RegistrationRequest = await request.json()
     const { walletAddress, username, bio, endpoint, referralCode } = body
 
-    if (!walletAddress || !username) {
-      return errorResponse('Wallet address and username are required', 400)
+    if (!walletAddress) {
+      return errorResponse('Wallet address is required', 400)
     }
+
+    // Generate random username if not provided
+    const finalUsername = username || `user_${Math.random().toString(36).substring(2, 10)}_${Date.now().toString(36).substring(2, 6)}`
 
     // Validate wallet address format
     if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
@@ -176,8 +179,8 @@ export async function POST(request: NextRequest) {
         data: {
           id: user.userId,
           walletAddress: walletAddress.toLowerCase(),
-          username: username,
-          displayName: username || `user_${user.userId.slice(0, 8)}`,
+          username: finalUsername,
+          displayName: finalUsername,
           bio: bio || '',
           isActor: false,
           virtualBalance: 0, // Will be set to 1000 after registration
@@ -191,8 +194,8 @@ export async function POST(request: NextRequest) {
         where: { id: dbUser.id },
         data: {
           walletAddress: walletAddress.toLowerCase(),
-          username: username || dbUser.username,
-          displayName: username || dbUser.displayName,
+          username: finalUsername || dbUser.username,
+          displayName: finalUsername || dbUser.displayName,
           bio: bio || dbUser.bio,
         },
       })

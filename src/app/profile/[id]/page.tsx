@@ -3,11 +3,11 @@
 import { useState, useMemo, useEffect, useLayoutEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, Briefcase } from 'lucide-react'
+import { ArrowLeft, Calendar, Briefcase, MessageCircle, ShieldCheck } from 'lucide-react'
 import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { SearchBar } from '@/components/shared/SearchBar'
-import { FavoriteButton, InteractionBar } from '@/components/interactions'
+import { FavoriteButton, InteractionBar, StartChatButton } from '@/components/interactions'
 import { ProfileWidget } from '@/components/profile/ProfileWidget'
 import { cn } from '@/lib/utils'
 import { useFontSize } from '@/contexts/FontSizeContext'
@@ -338,6 +338,7 @@ export default function ActorProfilePage() {
           content: apiPost.content,
           author: apiPost.authorId,
           authorName: apiPost.authorName || actorInfo?.name || apiPost.authorId,
+          authorUsername: apiPost.authorUsername || actorInfo?.username || null,
           timestamp: apiPost.timestamp,
         },
         gameId: '',
@@ -528,12 +529,17 @@ export default function ActorProfilePage() {
                 </div>
               )}
 
-              {/* Follow Button */}
-              <FavoriteButton
-                profileId={actorInfo.id}
-                variant="button"
-                size="md"
-              />
+              {/* Action Buttons */}
+              <div className="flex items-center gap-3">
+                <FavoriteButton
+                  profileId={actorInfo.id}
+                  variant="button"
+                  size="md"
+                />
+                {authenticated && user && user.id !== actorInfo.id && (
+                  <StartChatButton userId={actorInfo.id} isActor={actorInfo.type === 'actor'} />
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -626,7 +632,7 @@ export default function ActorProfilePage() {
                   }}
                 >
                   <div className="flex gap-3">
-                    {/* Avatar */}
+                    {/* Avatar - Round */}
                     <div className="flex-shrink-0">
                       <Avatar
                         id={item.post.author}
@@ -639,18 +645,32 @@ export default function ActorProfilePage() {
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      {/* Author and timestamp */}
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold text-foreground">
-                          {item.post.authorName}
-                        </span>
-                        <span className="text-muted-foreground text-sm">·</span>
-                        <time className="text-muted-foreground text-sm" title={postDate.toLocaleString()}>
+                      {/* Author, handle on left, timestamp on right */}
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <Link
+                            href={getProfileUrl(item.post.author, item.post.authorUsername || actorInfo?.username)}
+                            className="font-semibold text-foreground hover:underline truncate"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {item.post.authorName}
+                          </Link>
+                          <ShieldCheck className="w-5 h-5 text-blue-500 flex-shrink-0" fill="currentColor" />
+                          <Link
+                            href={getProfileUrl(item.post.author, item.post.authorUsername || actorInfo?.username)}
+                            className="text-muted-foreground hover:underline truncate"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            @{item.post.authorUsername || actorInfo?.username || item.post.author}
+                          </Link>
+                        </div>
+                        {/* Timestamp - Right aligned */}
+                        <time className="text-muted-foreground text-sm flex-shrink-0 ml-auto" title={postDate.toLocaleString()}>
                           {timeAgo}
                         </time>
                       </div>
 
-                      {/* Post content */}
+                      {/* Post content - Below name/handle row */}
                       <div className="text-foreground leading-normal whitespace-pre-wrap break-words">
                         {item.post.content}
                       </div>
@@ -782,12 +802,17 @@ export default function ActorProfilePage() {
                   </div>
                 )}
 
-                {/* Follow Button */}
-                <FavoriteButton
-                  profileId={actorInfo.id}
-                  variant="button"
-                  size="md"
-                />
+                {/* Action Buttons */}
+                <div className="flex items-center gap-3">
+                  <FavoriteButton
+                    profileId={actorInfo.id}
+                    variant="button"
+                    size="md"
+                  />
+                  {authenticated && user && user.id !== actorInfo.id && (
+                    <StartChatButton userId={actorInfo.id} isActor={actorInfo.type === 'actor'} />
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -880,7 +905,7 @@ export default function ActorProfilePage() {
                     }}
                   >
                     <div className="flex gap-3">
-                      {/* Avatar */}
+                      {/* Avatar - Round */}
                       <div className="flex-shrink-0">
                         <Avatar
                           id={item.post.author}
@@ -893,18 +918,32 @@ export default function ActorProfilePage() {
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">
-                        {/* Author and timestamp */}
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-bold text-foreground">
-                            {item.post.authorName}
-                          </span>
-                          <span className="text-muted-foreground text-sm">·</span>
-                          <time className="text-muted-foreground text-sm" title={postDate.toLocaleString()}>
+                        {/* Author, handle on left, timestamp on right */}
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <Link
+                              href={getProfileUrl(item.post.author, item.post.authorUsername || actorInfo?.username)}
+                              className="font-semibold text-foreground hover:underline truncate"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {item.post.authorName}
+                            </Link>
+                            <ShieldCheck className="w-5 h-5 text-blue-500 flex-shrink-0" fill="currentColor" />
+                            <Link
+                              href={getProfileUrl(item.post.author, item.post.authorUsername || actorInfo?.username)}
+                              className="text-muted-foreground hover:underline truncate"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              @{item.post.authorUsername || actorInfo?.username || item.post.author}
+                            </Link>
+                          </div>
+                          {/* Timestamp - Right aligned */}
+                          <time className="text-muted-foreground text-sm flex-shrink-0 ml-auto" title={postDate.toLocaleString()}>
                             {timeAgo}
                           </time>
                         </div>
 
-                        {/* Post content */}
+                        {/* Post content - Below name/handle row */}
                         <div className="text-foreground leading-normal whitespace-pre-wrap break-words">
                           {item.post.content}
                         </div>

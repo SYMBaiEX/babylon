@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { MoreVertical, Reply, Trash2, Edit2 } from 'lucide-react';
+import { MoreVertical, Reply, Trash2, Edit2, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Avatar } from '@/components/shared/Avatar';
@@ -68,7 +68,7 @@ export function CommentCard({
         className
       )}
     >
-      {/* Avatar */}
+      {/* Avatar - Round */}
       <div className="flex-shrink-0">
         <Avatar
           id={comment.userId}
@@ -79,60 +79,67 @@ export function CommentCard({
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="font-medium text-sm truncate">
+        {/* Header: Username/handle on left, timestamp and actions on right */}
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span className="font-semibold text-sm truncate">
               {comment.userName}
             </span>
-            <span className="text-xs text-muted-foreground flex-shrink-0">
-              {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
+            <ShieldCheck className="w-4 h-4 text-blue-500 flex-shrink-0" fill="currentColor" />
+            <span className="text-xs text-muted-foreground truncate">
+              @{comment.userUsername || comment.userName}
             </span>
           </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Timestamp - Right aligned */}
+            <span className="text-xs text-muted-foreground">
+              {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
+            </span>
 
-          {/* Actions menu */}
-          <div className="relative flex-shrink-0">
-            <button
-              type="button"
-              onClick={() => setShowActions(!showActions)}
-              className={cn(
-                'p-1 rounded-md',
-                'text-muted-foreground hover:text-foreground',
-                'hover:bg-muted transition-colors'
+            {/* Actions menu */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowActions(!showActions)}
+                className={cn(
+                  'p-1 rounded-md',
+                  'text-muted-foreground hover:text-foreground',
+                  'hover:bg-muted transition-colors'
+                )}
+              >
+                <MoreVertical size={16} />
+              </button>
+
+              {showActions && (
+                <>
+                  {/* Backdrop */}
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowActions(false)}
+                  />
+
+                  {/* Dropdown */}
+                  <div className="absolute right-0 top-full mt-1 z-20 min-w-[120px] bg-popover border border-border rounded-md shadow-lg py-1 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <button
+                      type="button"
+                      onClick={handleEdit}
+                      className="w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2"
+                    >
+                      <Edit2 size={14} />
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      className="w-full px-3 py-2 text-sm text-left text-destructive hover:bg-muted transition-colors flex items-center gap-2"
+                    >
+                      <Trash2 size={14} />
+                      Delete
+                    </button>
+                  </div>
+                </>
               )}
-            >
-              <MoreVertical size={16} />
-            </button>
-
-            {showActions && (
-              <>
-                {/* Backdrop */}
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setShowActions(false)}
-                />
-
-                {/* Dropdown */}
-                <div className="absolute right-0 top-full mt-1 z-20 min-w-[120px] bg-popover border border-border rounded-md shadow-lg py-1 animate-in fade-in slide-in-from-top-2 duration-150">
-                  <button
-                    type="button"
-                    onClick={handleEdit}
-                    className="w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2"
-                  >
-                    <Edit2 size={14} />
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDelete}
-                    className="w-full px-3 py-2 text-sm text-left text-destructive hover:bg-muted transition-colors flex items-center gap-2"
-                  >
-                    <Trash2 size={14} />
-                    Delete
-                  </button>
-                </div>
-              </>
-            )}
+            </div>
           </div>
         </div>
 
@@ -144,7 +151,7 @@ export function CommentCard({
           </div>
         )}
 
-        {/* Comment body */}
+        {/* Comment body - Below name/handle row */}
         {isEditing ? (
           <div className="mb-2">
             <textarea

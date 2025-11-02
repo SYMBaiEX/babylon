@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTheme } from 'next-themes'
 import { ArrowLeft, User, Bell, Palette, Shield, Save } from 'lucide-react'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { useAuth } from '@/hooks/useAuth'
@@ -28,8 +29,14 @@ export default function SettingsPage() {
   const [postNotifications, setPostNotifications] = useState(true)
   const [marketNotifications, setMarketNotifications] = useState(true)
 
-  // Theme settings state
-  const [theme, setTheme] = useState('dark')
+  // Theme settings - connected to next-themes
+  const { theme, setTheme, resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  // Wait for hydration to avoid SSR mismatch
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Calculate time remaining until username can be changed again
   const getUsernameChangeTimeRemaining = (): { canChange: boolean; hours: number; minutes: number } | null => {
@@ -320,31 +327,37 @@ export default function SettingsPage() {
             <div className="space-y-6">
               <div>
                 <h3 className="font-medium mb-4">Theme Preference</h3>
-                <div className="space-y-2">
-                  {['light', 'dark', 'system'].map((themeOption) => (
-                    <label
-                      key={themeOption}
-                      className="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer hover:bg-muted transition-colors"
-                    >
-                      <input
-                        type="radio"
-                        name="theme"
-                        value={themeOption}
-                        checked={theme === themeOption}
-                        onChange={(e) => setTheme(e.target.value)}
-                        className="w-4 h-4 text-[#1c9cf0]"
-                      />
-                      <div>
-                        <p className="font-medium capitalize">{themeOption}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {themeOption === 'light' && 'Light background with dark text'}
-                          {themeOption === 'dark' && 'Dark background with light text'}
-                          {themeOption === 'system' && 'Match your system settings'}
-                        </p>
-                      </div>
-                    </label>
-                  ))}
-                </div>
+                {!mounted ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="w-6 h-6 border-2 border-[#1c9cf0] border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {['light', 'dark', 'system'].map((themeOption) => (
+                      <label
+                        key={themeOption}
+                        className="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer hover:bg-muted transition-colors"
+                      >
+                        <input
+                          type="radio"
+                          name="theme"
+                          value={themeOption}
+                          checked={theme === themeOption}
+                          onChange={() => setTheme(themeOption)}
+                          className="w-4 h-4 text-[#1c9cf0]"
+                        />
+                        <div>
+                          <p className="font-medium capitalize">{themeOption}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {themeOption === 'light' && 'Light background with dark text'}
+                            {themeOption === 'dark' && 'Dark background with light text'}
+                            {themeOption === 'system' && 'Match your system settings'}
+                          </p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -383,21 +396,32 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* Save Button */}
-          <div className="pt-6 border-t border-border">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className={cn(
-                'flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all',
-                'bg-[#1c9cf0] text-white hover:bg-[#1a8cd8]',
-                'disabled:opacity-50 disabled:cursor-not-allowed'
-              )}
-            >
-              <Save className="w-4 h-4" />
-              <span>{saving ? 'Saving...' : saved ? 'Saved!' : 'Save Changes'}</span>
-            </button>
-          </div>
+          {/* Save Button - Only show for profile tab (theme saves automatically) */}
+          {activeTab === 'profile' && (
+            <div className="pt-6 border-t border-border">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className={cn(
+                  'flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all',
+                  'bg-[#1c9cf0] text-white hover:bg-[#1a8cd8]',
+                  'disabled:opacity-50 disabled:cursor-not-allowed'
+                )}
+              >
+                <Save className="w-4 h-4" />
+                <span>{saving ? 'Saving...' : saved ? 'Saved!' : 'Save Changes'}</span>
+              </button>
+            </div>
+          )}
+          
+          {/* Theme saves automatically, show confirmation */}
+          {activeTab === 'theme' && mounted && (
+            <div className="pt-6 border-t border-border">
+              <p className="text-sm text-muted-foreground">
+                Theme preference is saved automatically and applied immediately.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </PageContainer>

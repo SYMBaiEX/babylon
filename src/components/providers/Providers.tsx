@@ -9,6 +9,7 @@ import { ThemeProvider } from '@/components/shared/ThemeProvider'
 import { FontSizeProvider } from '@/contexts/FontSizeContext'
 import { GamePlaybackManager } from './GamePlaybackManager'
 import { ReferralCaptureProvider } from './ReferralCaptureProvider'
+import { OnboardingProvider } from './OnboardingProvider'
 import { http } from 'viem'
 import { mainnet, sepolia, base, baseSepolia } from 'viem/chains'
 import { createConfig } from 'wagmi'
@@ -95,11 +96,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 <Suspense fallback={null}>
                   <ReferralCaptureProvider />
                 </Suspense>
-                {mounted ? (
-                  <Fragment>{children}</Fragment>
-                ) : (
-                  <div className="min-h-screen bg-sidebar" />
-                )}
+                {/* Onboarding provider for username setup */}
+                <OnboardingProvider>
+                  {mounted ? (
+                    <Fragment>{children}</Fragment>
+                  ) : (
+                    <div className="min-h-screen bg-sidebar" />
+                  )}
+                </OnboardingProvider>
               </WagmiProvider>
             </PrivyProvider>
           </QueryClientProvider>

@@ -74,6 +74,7 @@ function buildCommentTree(
       updatedAt: comment.updatedAt,
       userId: comment.author.id,
       userName: comment.author.displayName || comment.author.username || 'Anonymous',
+      userUsername: comment.author.username || null,
       userAvatar: comment.author.profileImageUrl,
       parentCommentId: comment.parentCommentId,
       likeCount: comment._count.reactions,

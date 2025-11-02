@@ -56,7 +56,7 @@ export function Avatar({ id, name, type = 'actor', src, alt, size = 'md', classN
   return (
     <div
       className={cn(
-        'bg-primary/20 flex items-center justify-center overflow-hidden',
+        'bg-primary/20 flex items-center justify-center overflow-hidden rounded-full',
         className
       )}
       style={{

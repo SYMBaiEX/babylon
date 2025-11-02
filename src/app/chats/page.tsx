@@ -64,6 +64,19 @@ export default function ChatsPage() {
   // State
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
+  
+  // Check for chat ID in URL query params
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const chatParam = params.get('chat')
+      if (chatParam && chatParam !== selectedChatId) {
+        setSelectedChatId(chatParam)
+        // Clean up URL
+        window.history.replaceState({}, '', '/chats')
+      }
+    }
+  }, [selectedChatId])
   const [groupChats, setGroupChats] = useState<Chat[]>([])
   const [chatDetails, setChatDetails] = useState<ChatDetails | null>(null)
   const [messageInput, setMessageInput] = useState('')
@@ -853,19 +866,13 @@ export default function ChatsPage() {
                             Back
                           </button>
                           <h3 className="text-lg font-bold text-foreground">
-                            {
-                              groupChats.find((g) => g.id === selectedChatId)
-                                ?.name || 'Group'
-                            }
+                            {chatDetails?.chat.name || 'Chat'}
                           </h3>
                         </div>
 
                         {/* Desktop header - chat name only */}
                         <h3 className="hidden md:block text-lg font-bold text-foreground mb-2">
-                          {
-                            groupChats.find((g) => g.id === selectedChatId)
-                              ?.name || 'Group'
-                          }
+                          {chatDetails?.chat.name || 'Chat'}
                         </h3>
 
                         {searchQuery && (

@@ -77,10 +77,31 @@ export async function GET(
 
     const usersMap = new Map(users.map((u) => [u.id, u]));
 
+    // For DMs, get the other participant's name
+    let displayName = chat.name;
+    if (!chat.isGroup && !chat.name) {
+      const otherParticipant = chat.participants.find((p) => p.userId !== user.userId);
+      if (otherParticipant) {
+        const otherUser = usersMap.get(otherParticipant.userId);
+        if (otherUser) {
+          displayName = otherUser.displayName || otherUser.username || 'Unknown';
+        } else {
+          // Check if it's an actor
+          const actor = await prisma.actor.findUnique({
+            where: { id: otherParticipant.userId },
+            select: { name: true },
+          });
+          if (actor) {
+            displayName = actor.name;
+          }
+        }
+      }
+    }
+
     return successResponse({
       chat: {
         id: chat.id,
-        name: chat.name,
+        name: displayName || chat.name,
         isGroup: chat.isGroup,
         createdAt: chat.createdAt,
         updatedAt: chat.updatedAt,

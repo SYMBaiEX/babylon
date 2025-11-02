@@ -42,6 +42,7 @@ export interface CommentWithReplies {
   updatedAt: Date;
   userId: string;
   userName: string;
+  userUsername?: string | null;
   userAvatar?: string;
   parentCommentId?: string;
   likeCount: number;

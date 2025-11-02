@@ -235,13 +235,10 @@ export async function POST(
 
     return successResponse(
       {
-        id: share.id,
-        postId,
-        shareCount,
-        isShared: true,
-        createdAt: share.createdAt,
-        user: share.user,
-        post: share.post,
+        data: {
+          shareCount,
+          isShared: true,
+        },
       },
       201
     );
@@ -337,10 +334,10 @@ export async function DELETE(
     });
 
     return successResponse({
-      postId,
-      shareCount,
-      isShared: false,
-      message: 'Post unshared successfully',
+      data: {
+        shareCount,
+        isShared: false,
+      },
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'Authentication failed') {
