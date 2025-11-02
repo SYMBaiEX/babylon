@@ -83,7 +83,7 @@ export function PredictionPositionsList({ positions, onPositionSold }: Predictio
         const isSelling = sellingId === position.id
 
         return (
-          <div key={position.id} className="p-4 rounded-lg border bg-card border-border">
+          <div key={position.id} className="p-4 rounded bg-muted/40">
             <div className="flex items-center justify-between mb-3">
               <span className={cn(
                 "text-xs font-bold px-2 py-1 rounded flex items-center gap-1",
@@ -136,7 +136,7 @@ export function PredictionPositionsList({ positions, onPositionSold }: Predictio
               <button
                 onClick={() => handleSell(position)}
                 disabled={isSelling}
-                className="w-full py-2 bg-muted hover:bg-muted/80 text-foreground rounded-lg font-medium transition-all disabled:opacity-50"
+                className="w-full py-2 bg-muted hover:bg-muted text-foreground rounded font-medium transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSelling ? 'Selling...' : 'Sell Shares'}
               </button>

@@ -18,6 +18,7 @@ model User {
   displayName     String?
   bio             String?
   profileImageUrl String?
+  coverImageUrl   String?
   isActor         Boolean  @default(false)  // true = game-generated NPC
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -28,8 +29,8 @@ model User {
   postExample     String?
 
   // Virtual wallet for trading
-  virtualBalance       Decimal  @default(10000) @db.Decimal(18, 2) // Start with $10k
-  totalDeposited       Decimal  @default(10000) @db.Decimal(18, 2)
+  virtualBalance       Decimal  @default(1000) @db.Decimal(18, 2) // Start with 1k
+  totalDeposited       Decimal  @default(1000) @db.Decimal(18, 2)
   totalWithdrawn       Decimal  @default(0) @db.Decimal(18, 2)
   lifetimePnL          Decimal  @default(0) @db.Decimal(18, 2)
   
@@ -38,12 +39,41 @@ model User {
   nftTokenId           Int?     @unique  // ERC-8004 NFT token ID
   registrationTxHash   String?  // Transaction hash of on-chain registration
 
+  // Reputation/Points System
+  reputationPoints     Int      @default(1000) // Start with 1000 points
+  
   // Profile completion tracking
   profileComplete      Boolean  @default(false)
   hasProfileImage      Boolean  @default(false)
   hasUsername          Boolean  @default(false)
   hasBio               Boolean  @default(false)
   profileSetupCompletedAt DateTime?
+  
+  // Points awarded tracking (to prevent duplicate awards)
+  pointsAwardedForProfile      Boolean  @default(false)
+  pointsAwardedForProfileImage Boolean  @default(false)
+  pointsAwardedForUsername     Boolean  @default(false)
+  
+  // Social connections tracking
+  hasFarcaster         Boolean  @default(false)
+  hasTwitter           Boolean  @default(false)
+  farcasterUsername    String?
+  twitterUsername      String?
+  pointsAwardedForFarcaster    Boolean  @default(false)
+  pointsAwardedForTwitter      Boolean  @default(false)
+  pointsAwardedForWallet       Boolean  @default(false)
+  
+  // Social visibility preferences
+  showTwitterPublic    Boolean  @default(true)
+  showFarcasterPublic  Boolean  @default(true)
+  showWalletPublic     Boolean  @default(true)
+  
+  // Referral tracking
+  referralCode         String?  @unique
+  referredBy           String?  // User ID who referred this user
+  referralCount        Int      @default(0) // Number of successful referrals
+  bannerLastShown      DateTime? // Track when invite banner was last shown
+  bannerDismissCount   Int      @default(0) // Track how many times user dismissed banner
 
   // Relationships
   comments        Comment[]
@@ -57,10 +87,16 @@ model User {
   balanceTransactions BalanceTransaction[]
   notifications   Notification[] @relation("NotificationRecipient")
   notificationsSent Notification[] @relation("NotificationActor")
+  pointsTransactions  PointsTransaction[]
+  shareActions    ShareAction[]
+  referrals       Referral[] @relation("Referrer")
+  referredUsers   Referral[] @relation("Referred")
 
   @@index([walletAddress])
   @@index([username])
   @@index([isActor])
+  @@index([reputationPoints(sort: Desc)])
+  @@index([referralCode])
 }
 
 // Post model - social media posts
@@ -477,11 +513,21 @@ model Actor {
   role            String?  // 'main', 'supporting', 'extra'
   initialLuck     String   @default("medium") // 'low', 'medium', 'high'
   initialMood     Float    @default(0) // -1 to 1
+  hasPool         Boolean  @default(false) // Can run a trading pool
+  tradingBalance  Decimal  @default(10000) @db.Decimal(18, 2) // NPC's trading balance
+  reputationPoints Int     @default(10000) // Reputation points for leaderboard (traders start with 10k)
+  profileImageUrl String?  // Actor profile image
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  // Relationships
+  pools      Pool[]
+  npcTrades  NPCTrade[]
+
   @@index([tier])
   @@index([role])
+  @@index([hasPool])
+  @@index([reputationPoints(sort: Desc)])
 }
 
 // Notification model - user notifications
@@ -503,4 +549,167 @@ model Notification {
   @@index([userId, read, createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])
   @@index([read])
+}
+
+// Pool model - NPC-managed trading pools
+model Pool {
+  id                  String   @id @default(uuid())
+  npcActorId          String   // NPC who manages the pool
+  name                String
+  description         String?
+  totalValue          Decimal  @default(0) @db.Decimal(18, 2) // Current total value (deposits + P&L)
+  totalDeposits       Decimal  @default(0) @db.Decimal(18, 2) // Total user deposits
+  availableBalance    Decimal  @default(0) @db.Decimal(18, 2) // Cash available for trading
+  lifetimePnL         Decimal  @default(0) @db.Decimal(18, 2)
+  performanceFeeRate  Float    @default(0.08) // 8% of profits
+  totalFeesCollected  Decimal  @default(0) @db.Decimal(18, 2)
+  isActive            Boolean  @default(true)
+  openedAt            DateTime @default(now())
+  closedAt            DateTime?
+  updatedAt           DateTime @updatedAt
+
+  // Relationships
+  npcActor  Actor         @relation(fields: [npcActorId], references: [id], onDelete: Cascade)
+  deposits  PoolDeposit[]
+  positions PoolPosition[]
+  trades    NPCTrade[]
+
+  @@index([npcActorId])
+  @@index([isActive])
+  @@index([totalValue])
+}
+
+// PoolDeposit model - User deposits into pools
+model PoolDeposit {
+  id              String   @id @default(uuid())
+  poolId          String
+  userId          String
+  amount          Decimal  @db.Decimal(18, 2) // Initial deposit amount
+  shares          Decimal  @db.Decimal(18, 6) // Proportional ownership shares
+  currentValue    Decimal  @db.Decimal(18, 2) // Current value of shares
+  unrealizedPnL   Decimal  @db.Decimal(18, 2) // P&L since deposit
+  depositedAt     DateTime @default(now())
+  withdrawnAt     DateTime? // null if still active
+  withdrawnAmount Decimal? @db.Decimal(18, 2) // Amount withdrawn (if withdrawn)
+  
+  // Relationships
+  pool Pool @relation(fields: [poolId], references: [id], onDelete: Cascade)
+
+  @@index([poolId, userId])
+  @@index([userId, depositedAt(sort: Desc)])
+  @@index([poolId, withdrawnAt])
+}
+
+// PoolPosition model - Pool's positions in markets
+model PoolPosition {
+  id                String   @id @default(uuid())
+  poolId            String
+  marketType        String   // 'perp' or 'prediction'
+  ticker            String?  // For perps
+  marketId          String?  // For prediction markets
+  side              String   // 'long'/'short' for perps, 'YES'/'NO' for predictions
+  entryPrice        Float
+  currentPrice      Float
+  size              Float    // Position size in USD
+  shares            Float?   // For prediction markets
+  leverage          Int?     // For perps (1-100x)
+  liquidationPrice  Float?   // For perps
+  unrealizedPnL     Float
+  openedAt          DateTime @default(now())
+  closedAt          DateTime?
+  realizedPnL       Float?   // Set when closed
+  updatedAt         DateTime @updatedAt
+
+  // Relationships
+  pool Pool @relation(fields: [poolId], references: [id], onDelete: Cascade)
+
+  @@index([poolId, closedAt])
+  @@index([marketType, ticker])
+  @@index([marketType, marketId])
+}
+
+// NPCTrade model - All NPC trades (for transparency and analysis)
+model NPCTrade {
+  id          String   @id @default(uuid())
+  npcActorId  String
+  poolId      String?  // null if NPC's personal trade
+  marketType  String   // 'perp' or 'prediction'
+  ticker      String?  // For perps
+  marketId    String?  // For prediction markets
+  action      String   // 'buy', 'sell', 'open_long', 'open_short', 'close'
+  side        String?  // 'long'/'short' for perps, 'YES'/'NO' for predictions
+  amount      Float
+  price       Float
+  sentiment   Float?   // -1 to 1, sentiment that triggered the trade
+  reason      String?  // Why the trade was made (from post analysis)
+  postId      String?  // Related post that triggered trade
+  executedAt  DateTime @default(now())
+
+  // Relationships
+  npcActor Actor @relation(fields: [npcActorId], references: [id], onDelete: Cascade)
+  pool     Pool? @relation(fields: [poolId], references: [id], onDelete: SetNull)
+
+  @@index([npcActorId, executedAt(sort: Desc)])
+  @@index([poolId, executedAt(sort: Desc)])
+  @@index([marketType, ticker])
+  @@index([executedAt(sort: Desc)])
+}
+
+// PointsTransaction model - tracks all point awards and deductions
+model PointsTransaction {
+  id              String   @id @default(uuid())
+  userId          String
+  amount          Int      // Positive for awards, negative for deductions
+  pointsBefore    Int
+  pointsAfter     Int
+  reason          String   // 'profile_completion', 'social_link', 'referral', 'share', etc.
+  metadata        String?  // JSON string with additional context
+  createdAt       DateTime @default(now())
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([reason])
+  @@index([createdAt(sort: Desc)])
+}
+
+// Referral model - tracks referral relationships
+model Referral {
+  id              String   @id @default(uuid())
+  referrerId      String   // User who created the referral
+  referredUserId  String?  // User who signed up (null until signup)
+  referralCode    String   @unique
+  status          String   @default("pending") // 'pending', 'completed', 'expired'
+  pointsAwarded   Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  completedAt     DateTime?
+
+  // Relationships
+  referrer      User  @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredUser  User? @relation("Referred", fields: [referredUserId], references: [id], onDelete: SetNull)
+
+  @@index([referrerId])
+  @@index([referredUserId])
+  @@index([referralCode])
+  @@index([status, createdAt(sort: Desc)])
+}
+
+// ShareAction model - tracks shares to different platforms
+model ShareAction {
+  id          String   @id @default(uuid())
+  userId      String
+  platform    String   // 'twitter', 'farcaster', 'link', etc.
+  contentType String   // 'post', 'profile', 'market', 'referral'
+  contentId   String?  // ID of shared content
+  url         String?  // URL that was shared
+  pointsAwarded Boolean @default(false)
+  createdAt   DateTime @default(now())
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([platform])
+  @@index([contentType])
 }

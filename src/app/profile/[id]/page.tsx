@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, Briefcase, Users } from 'lucide-react'
+import { ArrowLeft, Calendar, Briefcase } from 'lucide-react'
 import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { SearchBar } from '@/components/shared/SearchBar'
@@ -264,97 +264,132 @@ export default function ActorProfilePage() {
             <p className="text-sm text-muted-foreground">{actorPosts.length} posts</p>
           </div>
         </div>
-
-        {/* Tabs: Posts vs Replies */}
-        <div className="flex items-center justify-around h-14 border-b border-border">
-          <button
-            onClick={() => setTab('posts')}
-            className={cn(
-              'flex-1 h-full font-semibold transition-all duration-300 relative',
-              tab === 'posts'
-                ? 'text-foreground'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
-            )}
-          >
-            Posts ({originalPosts.length})
-            {tab === 'posts' && (
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
-            )}
-          </button>
-          <button
-            onClick={() => setTab('replies')}
-            className={cn(
-              'flex-1 h-full font-semibold transition-all duration-300 relative',
-              tab === 'replies'
-                ? 'text-foreground'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
-            )}
-          >
-            Replies ({replyPosts.length})
-            {tab === 'replies' && (
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
-            )}
-          </button>
-        </div>
-
-        {/* Search Bar */}
-        <div className="px-4 py-3">
-          <SearchBar
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder={`Search ${tab}...`}
-          />
-        </div>
       </div>
 
       {/* Content area */}
       <div className="flex-1 overflow-y-auto">
         {/* Profile Header */}
         <div className="border-b border-border">
-          <div className="max-w-[600px] mx-auto px-4 py-6">
-            <div className="flex items-start gap-4 mb-4">
-              <Avatar
-                id={actorInfo.id}
-                name={(actorInfo.name ?? actorInfo.username ?? '') as string}
-                type={actorInfo.type === 'organization' ? 'business' : actorInfo.type === 'user' ? undefined : (actorInfo.type as 'actor' | undefined)}
-                size="lg"
-                className="w-20 h-20"
-              />
-              <div className="flex-1">
-                <h2 className="text-2xl font-bold">{actorInfo.name ?? actorInfo.username ?? ''}</h2>
+          <div className="max-w-[600px] mx-auto">
+            {/* Cover Image */}
+            <div className="relative h-32 sm:h-48 bg-gradient-to-br from-primary/20 to-primary/5">
+              {actorInfo.isUser && actorInfo.type === 'user' && (actorInfo as any).coverImageUrl ? (
+                <img
+                  src={(actorInfo as any).coverImageUrl}
+                  alt="Cover"
+                  className="w-full h-full object-cover"
+                />
+              ) : null}
+            </div>
+
+            {/* Profile Info */}
+            <div className="px-4 pb-4">
+              {/* Profile Picture */}
+              <div className="relative -mt-12 sm:-mt-16 mb-4">
+                <Avatar
+                  id={actorInfo.id}
+                  name={(actorInfo.name ?? actorInfo.username ?? '') as string}
+                  type={actorInfo.type === 'organization' ? 'business' : actorInfo.type === 'user' ? undefined : (actorInfo.type as 'actor' | undefined)}
+                  size="lg"
+                  className="w-24 h-24 sm:w-32 sm:h-32"
+                />
+              </div>
+
+              {/* Profile Info */}
+              <h2 className="text-2xl font-bold mb-1">{actorInfo.name ?? actorInfo.username ?? ''}</h2>
+              {actorInfo.username && (
+                <p className="text-muted-foreground mb-3">@{actorInfo.username}</p>
+              )}
+
+              {/* Description/Bio */}
+              {actorInfo.description && (
+                <p className="text-foreground mb-4 whitespace-pre-wrap">{actorInfo.description}</p>
+              )}
+
+              {/* Metadata */}
+              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-4">
                 {actorInfo.role && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
+                  <div className="flex items-center gap-2">
                     <Briefcase className="w-4 h-4" />
-                    <p>{actorInfo.role}</p>
+                    <span>{actorInfo.role}</span>
                   </div>
                 )}
                 {actorInfo.game?.id && (
-                  <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
                     <span>Active in {actorInfo.game.id}</span>
                   </div>
                 )}
-                {actorInfo.stats && (
-                  <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
-                    <Users className="w-4 h-4" />
-                    <span>{actorInfo.stats.followers || 0} followers · {actorInfo.stats.following || 0} following</span>
-                  </div>
-                )}
-                {!actorInfo.stats && !actorInfo.game && (
-                  <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
-                    <Users className="w-4 h-4" />
-                    <span>Community Member</span>
-                  </div>
-                )}
-                <div className="mt-3">
-                  <FavoriteButton
-                    profileId={actorInfo.id}
-                    variant="button"
-                    size="md"
-                  />
-                </div>
               </div>
+
+              {/* Stats */}
+              {actorInfo.stats && (
+                <div className="flex gap-4 text-sm mb-4">
+                  <div>
+                    <span className="font-bold text-foreground">{actorInfo.stats.following || 0}</span>
+                    <span className="text-muted-foreground ml-1">Following</span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-foreground">{actorInfo.stats.followers || 0}</span>
+                    <span className="text-muted-foreground ml-1">Followers</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Follow Button */}
+              <FavoriteButton
+                profileId={actorInfo.id}
+                variant="button"
+                size="md"
+              />
             </div>
+          </div>
+        </div>
+
+        {/* Tabs: Posts vs Replies */}
+        <div className="border-b border-border sticky top-0 bg-background/95 backdrop-blur-sm z-10">
+          <div className="max-w-[600px] mx-auto">
+            <div className="flex items-center justify-around h-14">
+              <button
+                onClick={() => setTab('posts')}
+                className={cn(
+                  'flex-1 h-full font-semibold transition-all duration-300 relative',
+                  tab === 'posts'
+                    ? 'text-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+                )}
+              >
+                Posts
+                {tab === 'posts' && (
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
+                )}
+              </button>
+              <button
+                onClick={() => setTab('replies')}
+                className={cn(
+                  'flex-1 h-full font-semibold transition-all duration-300 relative',
+                  tab === 'replies'
+                    ? 'text-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+                )}
+              >
+                Replies
+                {tab === 'replies' && (
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Search Bar */}
+        <div className="border-b border-border bg-background">
+          <div className="max-w-[600px] mx-auto px-4 py-3">
+            <SearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder={`Search ${tab}...`}
+            />
           </div>
         </div>
 

@@ -94,8 +94,52 @@ const prisma = new PrismaClient();
 
 // Just try to connect - will throw if fails
 await prisma.$connect();
-await prisma.$disconnect();
 logger.info('Database connected', undefined, 'Script');
 
+// Check if database needs initialization
+logger.info('Checking database state...', undefined, 'Script');
+const actorCount = await prisma.actor.count();
+const poolCount = await prisma.pool.count();
+
+if (actorCount === 0) {
+  logger.info('Database is empty, running seed...', undefined, 'Script');
+  await $`bun run prisma/seed.ts`;
+  logger.info('Database seeded', undefined, 'Script');
+} else {
+  logger.info(`Database has ${actorCount} actors and ${poolCount} pools`, undefined, 'Script');
+  
+  // Check if trader actors need points initialization
+  const traderActors = await prisma.actor.findMany({
+    where: { hasPool: true },
+    select: { id: true, reputationPoints: true, profileImageUrl: true },
+  });
+  
+  const needsPointsUpdate = traderActors.some(a => a.reputationPoints !== 10000);
+  const needsImageUpdate = traderActors.some(a => !a.profileImageUrl);
+  
+  if (needsPointsUpdate || needsImageUpdate) {
+    logger.info('Trader actors need initialization, updating...', undefined, 'Script');
+    const { existsSync } = await import('fs');
+    
+    for (const actor of traderActors) {
+      const imagePath = join(process.cwd(), 'public', 'images', 'actors', `${actor.id}.jpg`);
+      const hasImage = existsSync(imagePath);
+      const imageUrl = hasImage ? `/images/actors/${actor.id}.jpg` : null;
+      
+      if (actor.reputationPoints !== 10000 || (hasImage && !actor.profileImageUrl)) {
+        await prisma.actor.update({
+          where: { id: actor.id },
+          data: {
+            reputationPoints: 10000,
+            ...(imageUrl && { profileImageUrl: imageUrl }),
+          },
+        });
+      }
+    }
+    logger.info('Trader actors initialized', undefined, 'Script');
+  }
+}
+
+await prisma.$disconnect();
 logger.info('All checks passed! Starting Next.js...', undefined, 'Script');
 

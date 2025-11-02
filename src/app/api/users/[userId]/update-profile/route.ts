@@ -10,6 +10,7 @@ import {
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
+import { PointsService } from '@/lib/services/points-service';
 import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
@@ -44,7 +45,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { username, displayName, bio, profileImageUrl } = body;
+    const { username, displayName, bio, profileImageUrl, coverImageUrl } = body;
 
     // Validate username format if provided
     if (username !== undefined && username !== null) {
@@ -72,6 +73,20 @@ export async function POST(
       }
     }
 
+    // Get current user state to check what changed
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        username: true,
+        bio: true,
+        profileImageUrl: true,
+        coverImageUrl: true,
+        hasUsername: true,
+        hasBio: true,
+        hasProfileImage: true,
+      },
+    });
+
     // Update user profile
     const updatedUser = await prisma.user.update({
       where: { id: userId },
@@ -80,6 +95,7 @@ export async function POST(
         ...(displayName !== undefined && { displayName: displayName.trim() || null }),
         ...(bio !== undefined && { bio: bio.trim() || null }),
         ...(profileImageUrl !== undefined && { profileImageUrl: profileImageUrl.trim() || null }),
+        ...(coverImageUrl !== undefined && { coverImageUrl: coverImageUrl.trim() || null }),
         // Update profile completion flags
         hasUsername: username !== undefined ? (username.trim().length > 0) : undefined,
         hasBio: bio !== undefined ? (bio.trim().length > 0) : undefined,
@@ -95,16 +111,57 @@ export async function POST(
         displayName: true,
         bio: true,
         profileImageUrl: true,
+        coverImageUrl: true,
         profileComplete: true,
         hasUsername: true,
         hasBio: true,
         hasProfileImage: true,
+        reputationPoints: true,
+        referralCount: true,
+        referralCode: true,
       },
     });
+
+    // Award points for profile milestones
+    const pointsAwarded: { reason: string; amount: number }[] = []
+
+    // Award points for username (if newly set)
+    if (username !== undefined && username.trim().length > 0 && !currentUser?.hasUsername) {
+      const result = await PointsService.awardUsername(userId)
+      if (result.success && result.pointsAwarded > 0) {
+        pointsAwarded.push({ reason: 'username', amount: result.pointsAwarded })
+      }
+    }
+
+    // Award points for profile image (if newly set)
+    if (profileImageUrl !== undefined && profileImageUrl.trim().length > 0 && !currentUser?.hasProfileImage) {
+      const result = await PointsService.awardProfileImage(userId)
+      if (result.success && result.pointsAwarded > 0) {
+        pointsAwarded.push({ reason: 'profile_image', amount: result.pointsAwarded })
+      }
+    }
+
+    // Award points for bio with 50+ characters (if newly set)
+    if (bio !== undefined && bio.trim().length >= 50 && !currentUser?.hasBio) {
+      const result = await PointsService.awardProfileCompletion(userId)
+      if (result.success && result.pointsAwarded > 0) {
+        pointsAwarded.push({ reason: 'profile_completion', amount: result.pointsAwarded })
+      }
+    }
+
+    // Log points awarded
+    if (pointsAwarded.length > 0) {
+      logger.info(
+        `Awarded points for profile updates: ${pointsAwarded.map(p => `${p.reason}(+${p.amount})`).join(', ')}`,
+        { userId, pointsAwarded },
+        'POST /api/users/[userId]/update-profile'
+      )
+    }
 
     return successResponse({
       user: updatedUser,
       message: 'Profile updated successfully',
+      pointsAwarded,
     });
   } catch (error) {
     // Better error logging - extract error details properly

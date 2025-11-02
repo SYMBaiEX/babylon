@@ -4,8 +4,10 @@ import { cn } from '@/lib/utils';
 import { X, MessageCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useInteractionStore } from '@/stores/interactionStore';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { CommentInput } from './CommentInput';
 import { CommentCard } from './CommentCard';
+import { PostCard } from '@/components/posts/PostCard';
 import type { CommentSectionProps } from '@/types/interactions';
 import type { CommentWithReplies } from '@/types/interactions';
 import { logger } from '@/lib/logger';
@@ -17,16 +19,41 @@ export function CommentSection({
   className,
 }: CommentSectionProps) {
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
+  const [post, setPost] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingPost, setIsLoadingPost] = useState(false);
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'popular'>('newest');
 
   const { loadComments, editComment, deleteComment } = useInteractionStore();
+
+  // Load post data when opened
+  useEffect(() => {
+    const loadPostData = async () => {
+      if (!isOpen || !postId) return;
+
+      setIsLoadingPost(true);
+      try {
+        const response = await fetch(`/api/posts/${postId}`);
+        if (response.ok) {
+          const result = await response.json();
+          setPost(result.data);
+        }
+      } catch (error) {
+        logger.error('Failed to load post:', error, 'CommentSection');
+      } finally {
+        setIsLoadingPost(false);
+      }
+    };
+
+    loadPostData();
+  }, [isOpen, postId]);
 
   // Load comments when opened
   useEffect(() => {
     if (isOpen && postId) {
       loadCommentsData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, postId]);
 
   const loadCommentsData = async () => {
@@ -53,7 +80,7 @@ export function CommentSection({
 
   const handleDelete = async (commentId: string) => {
     try {
-      await deleteComment(commentId);
+      await deleteComment(commentId, postId);
       // Remove comment from UI optimistically
       setComments((prev) => removeCommentById(prev, commentId));
     } catch (error) {
@@ -116,9 +143,7 @@ export function CommentSection({
         <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-border">
           <div className="flex items-center gap-2">
             <MessageCircle size={20} />
-            <h2 className="font-semibold text-lg">
-              Comments {comments.length > 0 && `(${comments.length})`}
-            </h2>
+            <h2 className="font-semibold text-lg">Post</h2>
           </div>
           {onClose && (
             <button
@@ -130,6 +155,32 @@ export function CommentSection({
             </button>
           )}
         </div>
+
+        {/* Original Post */}
+        {isLoadingPost ? (
+          <div className="flex items-center justify-center py-8 border-b border-border">
+            <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : post ? (
+          <div className="border-b-4 border-border">
+            <PostCard
+              post={{
+                id: post.id,
+                content: post.content,
+                authorId: post.authorId,
+                authorName: post.authorName,
+                timestamp: post.timestamp,
+                likeCount: post.likeCount,
+                commentCount: post.commentCount,
+                shareCount: post.shareCount,
+                isLiked: post.isLiked,
+                isShared: post.isShared,
+              }}
+              showInteractions={true}
+              isDetail
+            />
+          </div>
+        ) : null}
 
         {/* Sort options */}
         {comments.length > 1 && (
@@ -156,10 +207,10 @@ export function CommentSection({
         )}
 
         {/* Comment input */}
-        <div className="px-6 py-4 border-b border-border">
+        <div className="px-6 py-4 border-b border-border bg-muted/30">
           <CommentInput
             postId={postId}
-            placeholder="Write a comment..."
+            placeholder="Post your reply..."
             onSubmit={async () => {
               // Reload comments after adding new one
               await loadCommentsData();
@@ -174,13 +225,11 @@ export function CommentSection({
               <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
           ) : sortedComments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <MessageCircle size={48} className="text-muted-foreground/50 mb-4" />
-              <p className="text-muted-foreground">No comments yet</p>
-              <p className="text-sm text-muted-foreground/80 mt-1">
-                Be the first to comment!
-              </p>
-            </div>
+            <EmptyState
+              icon={MessageCircle}
+              title="No comments yet"
+              description="Be the first to comment!"
+            />
           ) : (
             <div className="space-y-6">
               {sortedComments.map((comment) => (

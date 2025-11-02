@@ -2,20 +2,17 @@
  * Agent On-Chain Registration API
  *
  * Registers ElizaOS agents to the EIP-8004 Identity Registry on Base Sepolia
- * Agents get NFT token IDs so they can receive reputation updates
- * Server wallet pays gas (testnet strategy)
+ * Server wallet registers agents and tracks tokenId -> agentId mapping in database
+ * Initial reputation (70%) is set via on-chain transactions
  */
 
 import type { NextRequest } from 'next/server'
-import { createWalletClient, createPublicClient, http, parseEther, decodeEventLog, type Address } from 'viem'
+import { createWalletClient, createPublicClient, http, parseEther, decodeEventLog, type Address, type Hash } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 import { errorResponse, successResponse, authenticate } from '@/lib/api/auth-middleware'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
-import { createHash } from 'crypto'
-
-const prisma = new PrismaClient()
 
 // Contract addresses
 const IDENTITY_REGISTRY = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA as Address
@@ -94,26 +91,20 @@ interface AgentOnboardRequest {
 }
 
 /**
- * Generate deterministic wallet address for agent
- * Uses agentId to create a stable address per agent
- */
-function generateAgentWalletAddress(agentId: string): Address {
-  // Use a deterministic approach: hash agentId and derive address
-  // For MVP, we'll use a simple pattern: server wallet + agentId hash
-  // In production, agents could have their own wallets
-  const hash = createHash('sha256').update(`babylon-agent-${agentId}`).digest('hex')
-  // Use first 40 chars as address (Ethereum addresses are 20 bytes = 40 hex chars)
-  // Prepend 0x and pad/truncate to 40 chars
-  const address = '0x' + hash.slice(0, 40)
-  return address as Address
-}
-
-/**
  * POST /api/agents/onboard
  * Register an agent to the on-chain identity system
  */
 export async function POST(request: NextRequest) {
   try {
+    // Validate contract addresses are configured
+    if (!IDENTITY_REGISTRY || !REPUTATION_SYSTEM) {
+      logger.error('Contract addresses not configured', { 
+        identityRegistry: !!IDENTITY_REGISTRY, 
+        reputationSystem: !!REPUTATION_SYSTEM 
+      }, 'AgentOnboard')
+      return errorResponse('On-chain registration not available - contracts not configured', 500)
+    }
+
     // Authenticate agent
     const user = await authenticate(request)
     if (!user.isAgent || !user.userId) {
@@ -126,10 +117,8 @@ export async function POST(request: NextRequest) {
     const body: AgentOnboardRequest = await request.json()
     const { agentName, endpoint } = body
 
-    // Generate deterministic wallet address for this agent
-    const agentWalletAddress = generateAgentWalletAddress(agentId)
-
     // Check if agent exists in database (use upsert to avoid race conditions)
+    // Note: Agents don't have wallet addresses - they're registered via server wallet
     let dbUser = await prisma.user.upsert({
       where: {
         username: agentId, // Use username as unique identifier for agents
@@ -137,16 +126,23 @@ export async function POST(request: NextRequest) {
       update: {
         // Update fields if user exists but data changed
         displayName: agentName || agentId,
-        walletAddress: agentWalletAddress.toLowerCase(),
         bio: `Autonomous AI agent: ${agentId}`,
       },
       create: {
         username: agentId,
         displayName: agentName || agentId,
-        walletAddress: agentWalletAddress.toLowerCase(),
         virtualBalance: 10000, // Start with 10k points
         totalDeposited: 10000,
         bio: `Autonomous AI agent: ${agentId}`,
+      },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        bio: true,
+        onChainRegistered: true,
+        nftTokenId: true,
+        registrationTxHash: true,
       },
     })
 
@@ -158,12 +154,9 @@ export async function POST(request: NextRequest) {
 
     // Check database first - if already registered, return cached token ID
     if (dbUser.onChainRegistered && dbUser.nftTokenId) {
-      // Check if initial reputation was already awarded by checking if registrationTxHash exists
-      // (reputation is awarded on-chain, not tracked in balance transactions)
       return successResponse({
         message: 'Agent already registered on-chain',
         tokenId: dbUser.nftTokenId,
-        walletAddress: agentWalletAddress,
         agentId,
         reputationAwarded: !!dbUser.registrationTxHash,
       })
@@ -194,20 +187,17 @@ export async function POST(request: NextRequest) {
 
     logger.info('Registering agent on-chain', {
       agentId,
-      wallet: agentWalletAddress,
       name,
       endpoint: agentEndpoint,
     })
 
-    // IMPORTANT: For MVP, we register using server wallet but track agent ownership
-    // The NFT will be minted to server wallet, but we track tokenId -> agentId mapping in database
-    // In production, agents could have their own wallets and sign transactions
-    
+    // Server wallet registers agent and receives the NFT
+    // We track tokenId -> agentId mapping in database
     // Generate unique endpoint per agent to avoid conflicts
     const uniqueEndpoint = `${agentEndpoint}?agentId=${agentId}`
     
     // Call registerAgent on Identity Registry (server wallet is msg.sender)
-    const txHash = await walletClient.writeContract({
+    const txHash: Hash = await walletClient.writeContract({
       address: IDENTITY_REGISTRY,
       abi: IDENTITY_REGISTRY_ABI,
       functionName: 'registerAgent',
@@ -245,29 +235,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // If we couldn't get tokenId from events, query it
+    // Token ID MUST come from events - we can't query server wallet since it owns multiple agent NFTs
     if (!tokenId) {
-      // Query token ID for server wallet (since server wallet called registerAgent)
-      // Note: This gets the most recent token ID for server wallet
-      // For MVP, we assume one registration per transaction
-      const serverWalletAddress = account.address
-      try {
-        const queriedTokenId = await publicClient.readContract({
-          address: IDENTITY_REGISTRY,
-          abi: IDENTITY_REGISTRY_ABI,
-          functionName: 'getTokenId',
-          args: [serverWalletAddress],
-        })
-        tokenId = Number(queriedTokenId)
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.warn('Failed to query token ID, using event log value', { error: errorMessage }, 'AgentOnboard')
-        // Token ID should have been extracted from events above
-      }
-    }
-
-    if (!tokenId) {
-      throw new Error('Failed to determine token ID from transaction')
+      throw new Error('Failed to extract token ID from AgentRegistered event. Transaction succeeded but event parsing failed.')
     }
 
     logger.info('Agent registered with token ID', { tokenId }, 'AgentOnboard')
@@ -276,38 +246,43 @@ export async function POST(request: NextRequest) {
     // Only set if not already set (check by looking for registration tx hash)
     if (!dbUser.registrationTxHash) {
       try {
-        logger.info('Setting initial reputation to 70 for agent', undefined, 'AgentOnboard')
+        logger.info('Setting initial reputation to 70 for agent', { tokenId }, 'AgentOnboard')
         
-        // Record 10 bets total
+        // Record 10 bets with proper nonce management
+        // Send bets sequentially to avoid nonce conflicts
         for (let i = 0; i < 10; i++) {
-            await walletClient.writeContract({
-              address: REPUTATION_SYSTEM,
-              abi: REPUTATION_SYSTEM_ABI,
-              functionName: 'recordBet',
-              args: [BigInt(tokenId), parseEther('100')],
-            })
+          const betTxHash = await walletClient.writeContract({
+            address: REPUTATION_SYSTEM,
+            abi: REPUTATION_SYSTEM_ABI,
+            functionName: 'recordBet',
+            args: [BigInt(tokenId), parseEther('100')],
+          })
+          // Wait for each bet transaction to confirm before sending next
+          await publicClient.waitForTransactionReceipt({
+            hash: betTxHash,
+            confirmations: 1,
+          })
         }
+
+        logger.info('All bet transactions confirmed', { count: 10 }, 'AgentOnboard')
 
         // Record 7 wins to achieve 70% accuracy (7/10 = 70%)
+        // Send wins sequentially to avoid nonce conflicts
         for (let i = 0; i < 7; i++) {
-              const winTxHash = await walletClient.writeContract({
-                address: REPUTATION_SYSTEM,
-                abi: REPUTATION_SYSTEM_ABI,
-                functionName: 'recordWin',
-                args: [BigInt(tokenId), parseEther('100')],
-              })
-          
-          // Wait for first few transactions
-          if (i < 2) {
-            await publicClient.waitForTransactionReceipt({
-              hash: winTxHash,
-              confirmations: 1,
-            })
-          }
+          const winTxHash = await walletClient.writeContract({
+            address: REPUTATION_SYSTEM,
+            abi: REPUTATION_SYSTEM_ABI,
+            functionName: 'recordWin',
+            args: [BigInt(tokenId), parseEther('100')],
+          })
+          // Wait for each win transaction to confirm before sending next
+          await publicClient.waitForTransactionReceipt({
+            hash: winTxHash,
+            confirmations: 1,
+          })
         }
 
-        // Wait for remaining transactions
-        await new Promise(resolve => setTimeout(resolve, 2000))
+        logger.info('All win transactions confirmed', { count: 7 }, 'AgentOnboard')
 
         logger.info('Initial reputation set to 70 for agent (7 wins out of 10 bets)', { tokenId }, 'AgentOnboard')
       } catch (error) {
@@ -320,13 +295,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Update database
-    dbUser = await prisma.user.update({
+    await prisma.user.update({
       where: { id: dbUser.id },
       data: {
         onChainRegistered: true,
         nftTokenId: tokenId,
         registrationTxHash: txHash,
-        walletAddress: agentWalletAddress.toLowerCase(),
         username: agentId,
         displayName: name,
       },
@@ -335,7 +309,6 @@ export async function POST(request: NextRequest) {
     return successResponse({
       message: 'Successfully registered agent on-chain',
       tokenId,
-      walletAddress: agentWalletAddress,
       agentId,
       txHash,
       blockNumber: Number(receipt.blockNumber),
@@ -368,7 +341,6 @@ export async function GET(request: NextRequest) {
     const dbUser = await prisma.user.findFirst({
       where: { username: agentId },
       select: {
-        walletAddress: true,
         onChainRegistered: true,
         nftTokenId: true,
         registrationTxHash: true,
@@ -382,26 +354,16 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Check on-chain status if we have a wallet address
-    if (dbUser.walletAddress) {
-
-      // For agents, we registered using server wallet, so check differently
-      // We'll track by tokenId in database instead
-      const isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null
-
-      return successResponse({
-        isRegistered,
-        tokenId: dbUser.nftTokenId,
-        walletAddress: dbUser.walletAddress,
-        txHash: dbUser.registrationTxHash,
-        agentId,
-      })
-    }
+    // Check registration status based on database tracking
+    const isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null
 
     return successResponse({
-      isRegistered: false,
+      isRegistered,
+      tokenId: dbUser.nftTokenId,
+      txHash: dbUser.registrationTxHash,
       agentId,
     })
+
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error('Agent status check error', { error: errorMessage }, 'AgentOnboard')

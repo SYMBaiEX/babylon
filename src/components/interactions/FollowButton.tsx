@@ -156,16 +156,17 @@ export function FollowButton({
     )
   }
 
+  // Old-school Twitter style button
   return (
     <button
       onClick={handleFollow}
       disabled={isLoading}
       className={cn(
-        'flex items-center gap-2 font-semibold transition-all',
-        'border border-border',
+        'group relative flex items-center justify-center gap-1.5 rounded-full font-bold transition-all duration-200',
+        'border',
         isFollowing
-          ? 'bg-background text-foreground hover:bg-muted'
-          : 'bg-primary text-primary-foreground hover:bg-primary/90',
+          ? 'text-foreground bg-background border-border hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-500'
+          : 'text-white bg-foreground border-foreground hover:bg-foreground/90',
         sizeClasses[size],
         isLoading && 'opacity-50 cursor-not-allowed',
         className
@@ -178,14 +179,11 @@ export function FollowButton({
         </>
       ) : isFollowing ? (
         <>
-          <UserMinus className={iconSizes[size]} />
-          <span>Following</span>
+          <span className="group-hover:hidden">Following</span>
+          <span className="hidden group-hover:inline">Unfollow</span>
         </>
       ) : (
-        <>
-          <UserPlus className={iconSizes[size]} />
-          <span>Follow</span>
-        </>
+        <span>Follow</span>
       )}
     </button>
   )

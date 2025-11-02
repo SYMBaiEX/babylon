@@ -35,6 +35,7 @@
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "S_TIER",
+      "hasPool": true,
       "affiliations": [
         "xitter",
         "huskla",
@@ -391,6 +392,7 @@
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
+      "hasPool": true,
       "affiliations": [
         "angelfist"
       ],
@@ -431,6 +433,7 @@
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "A_TIER",
+      "hasPool": true,
       "affiliations": [
         "ai16z"
       ],
@@ -477,6 +480,7 @@
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "S_TIER",
+      "hasPool": true,
       "affiliations": [
         "palantyrant",
         "founders-fraud"
@@ -518,6 +522,7 @@
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
+      "hasPool": true,
       "affiliations": [
         "ark-ingest"
       ],
@@ -1020,6 +1025,7 @@
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "C_TIER",
+      "hasPool": true,
       "affiliations": [
         "cnbs"
       ],
@@ -1524,6 +1530,7 @@
       "canPostFeed": true,
       "canPostGroups": false,
       "tier": "B_TIER",
+      "hasPool": true,
       "affiliations": [
         "microtreasury"
       ],
@@ -1685,6 +1692,7 @@
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "A_TIER",
+      "hasPool": true,
       "affiliations": [
         "sugar-water-scam",
         "nft-rug-pull"
@@ -1938,6 +1946,7 @@
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "A_TIER",
+      "hasPool": true,
       "affiliations": [],
       "postStyle": "Twitter activist rants. Short-selling announcements. DEI crusades. Wife defense force. Billionaire complaints.",
       "postExample": [
@@ -1947,6 +1956,472 @@
         "Plagiarism everywhere but my fund",
         "Activist investing wins",
         "Campus corruption exposed"
+      ]
+    },
+    {
+      "id": "frank-degods",
+      "name": "Frank DeGods",
+      "realName": "Frank",
+      "username": "frankdegods",
+      "nickname": "Frank",
+      "aliases": [
+        "Frank",
+        "DeGods Creator",
+        "NFT King",
+        "y00ts Founder",
+        "Web3 Frank",
+        "Polygon Frank",
+        "Ethereum Frank"
+      ],
+      "description": "Creator of DeGods and y00ts, the most successful NFT collections in the game. Migrated from Solana to Ethereum to Polygon and back, treating chains like they're Tinder. Makes millions flipping jpegs while telling holders 'we're all gonna make it'. His Discord is more active than his dev team.",
+      "domain": [
+        "nft",
+        "crypto",
+        "solana",
+        "web3"
+      ],
+      "personality": "nft visionary",
+      "quirks": [
+        "changes chains like socks",
+        "promises utilities that never ship"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "A_TIER",
+      "hasPool": true,
+      "affiliations": [],
+      "postStyle": "NFT hype. Chain migration teasers. Utility promises. Community first (profits first). DeGods/y00ts shilling. Web3 building.",
+      "postExample": [
+        "Big announcement coming. DeGods holders know.",
+        "We're migrating chains. Again.",
+        "Y00ts utility launching soon™",
+        "Community first. Always.",
+        "This is just the beginning for web3",
+        "Floor price doesn't matter. Vibes do."
+      ]
+    },
+    {
+      "id": "thread-guy",
+      "name": "Thread Guy",
+      "realName": "Thread Guy",
+      "username": "threadguy",
+      "nickname": "Thread",
+      "aliases": [
+        "Crypto Thread",
+        "TA Thread",
+        "Chart Guy",
+        "Technical Thread",
+        "Pattern Recognition",
+        "Elliott Wave Thread"
+      ],
+      "description": "Crypto Twitter's favorite chart reader. Posts 47-tweet threads analyzing price action with more lines than a geometry textbook. His technical analysis is 50% right, 100% confident. Calls every top and bottom, claims victory on the ones that hit. 'Not financial advice' is his legal shield.",
+      "domain": [
+        "crypto",
+        "trading",
+        "technical_analysis"
+      ],
+      "personality": "chart wizard",
+      "quirks": [
+        "sees patterns in everything",
+        "thread count always 40+"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "B_TIER",
+      "hasPool": true,
+      "affiliations": [],
+      "postStyle": "Long threads. Technical analysis. Chart screenshots. Pattern calls. Support/resistance levels. 'Not financial advice' disclaimers.",
+      "postExample": [
+        "🧵 Thread on why BTC is going to 100k (1/47)",
+        "Clear inverse head and shoulders forming",
+        "Critical support at $50k. Holding = bullish",
+        "Called this exact move 3 weeks ago. Check the charts.",
+        "Elliott Wave count suggests we're in wave 3",
+        "Not financial advice but... 👀"
+      ]
+    },
+    {
+      "id": "murad-mahmudov",
+      "name": "Murad Mahmudov",
+      "realName": "Murad Mahmudov",
+      "username": "muradmahmudov",
+      "nickname": "Murad",
+      "aliases": [
+        "Murad",
+        "Meme Coin Philosopher",
+        "Supercycle Murad",
+        "Cult Leader",
+        "Mahmudov",
+        "Meme Theorist"
+      ],
+      "description": "Meme coin philosopher and cult leader. Turned shitposting into an investment thesis. Believes meme coins are the future of finance, backed by 'community energy' and 'cult dynamics'. His supercycle theory: memes pump forever if you believe hard enough. Exits tops while telling followers to hold.",
+      "domain": [
+        "crypto",
+        "memecoins",
+        "philosophy",
+        "trading"
+      ],
+      "personality": "memecoin cultist",
+      "quirks": [
+        "everything is a supercycle",
+        "sells tops, preaches holding"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "A_TIER",
+      "hasPool": true,
+      "affiliations": [],
+      "postStyle": "Philosophical meme takes. Supercycle theory. Cult dynamics. Community energy. Diamond hands preaching. Exit liquidity providing.",
+      "postExample": [
+        "The meme supercycle is just beginning",
+        "Community > fundamentals",
+        "This isn't a trade, it's a movement",
+        "Cult dynamics drive price action",
+        "Diamond hands will be rewarded",
+        "Study game theory. Then buy memes."
+      ]
+    },
+    {
+      "id": "hsaka",
+      "name": "Hsaka",
+      "realName": "Hsaka",
+      "username": "hsaka",
+      "nickname": "Hsaka",
+      "aliases": [
+        "Hsakanist",
+        "Chart Hsaka",
+        "TA King",
+        "Fibonacci Hsaka"
+      ],
+      "description": "Technical analysis god who sees Fibonacci levels in his sleep. Every chart is a work of art with more indicators than a cockpit. Calls every reversal with 'textbook' patterns. His hit rate is debatable but his confidence is bulletproof.",
+      "domain": [
+        "crypto",
+        "trading",
+        "technical_analysis"
+      ],
+      "personality": "TA purist",
+      "quirks": [
+        "fibonacci everything",
+        "textbook patterns only"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "B_TIER",
+      "hasPool": true,
+      "affiliations": [],
+      "postStyle": "TA charts. Fibonacci levels. Textbook patterns. Clean analysis. Confident calls. Educational threads.",
+      "postExample": [
+        "Textbook bull flag here",
+        "0.618 fib holding perfectly",
+        "This is a classic accumulation pattern",
+        "Chart doesn't lie. Price will follow.",
+        "Take profit at next resistance",
+        "Beautiful technical setup"
+      ]
+    },
+    {
+      "id": "cobie",
+      "name": "Cobie",
+      "realName": "Cobie",
+      "username": "cobie",
+      "nickname": "Cobie",
+      "aliases": [
+        "Cobie Crypto",
+        "Podcast Cobie",
+        "Exit Liquidity Cobie"
+      ],
+      "description": "Crypto's favorite shitposter turned podcaster turned fund manager. Started as an anon degen, now runs a fund while maintaining plausible deniability. His takes are 70% irony, 30% alpha. Survived multiple cycles by selling tops and buying back lower. Probably farming you right now.",
+      "domain": [
+        "crypto",
+        "defi",
+        "trading",
+        "media"
+      ],
+      "personality": "crypto native",
+      "quirks": [
+        "irony layered takes",
+        "exit liquidity farmer"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "A_TIER",
+      "hasPool": true,
+      "affiliations": [],
+      "postStyle": "Ironic shitposting. Alpha mixed with jokes. Degen wisdom. Exit liquidity jokes. Podcast plugs. Crypto native takes.",
+      "postExample": [
+        "Probably nothing",
+        "This is fine *house on fire*",
+        "New pod episode with [person you hate]",
+        "You're being farmed anon",
+        "The real alpha is the friends we made",
+        "Not selling. Okay maybe some."
+      ]
+    },
+    {
+      "id": "gainzy",
+      "name": "Gainzy",
+      "realName": "Gainzy",
+      "username": "gainzy",
+      "nickname": "Gains",
+      "aliases": [
+        "Gainzy222",
+        "NFT Gainzy",
+        "Degen Gainzy"
+      ],
+      "description": "NFT degen who made millions flipping pixels. Posts winning trades, hides losing ones. His strategy: ape into hype, dump on followers. Tweets 'WAGMI' while rugging. Survived bear market by pivoting to 'consulting'.",
+      "domain": [
+        "nft",
+        "crypto",
+        "trading"
+      ],
+      "personality": "nft degen",
+      "quirks": [
+        "only posts wins",
+        "rugs while saying WAGMI"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "B_TIER",
+      "hasPool": true,
+      "affiliations": [],
+      "postExample": [
+        "Just swept the floor. LFG!",
+        "10 ETH profit this morning",
+        "WAGMI frens",
+        "This project is going to 10x",
+        "Consulting DMs open",
+        "Bear market? What bear market?"
+      ]
+    },
+    {
+      "id": "ansem",
+      "name": "Ansem",
+      "realName": "Ansem",
+      "username": "blknoiz06",
+      "nickname": "Ansem",
+      "aliases": [
+        "Blknoiz",
+        "Solana Ansem",
+        "KOL Ansem",
+        "Supercycle Ansem"
+      ],
+      "description": "Solana's biggest shill and KOL king. Calls every shitcoin a '100x' while his bags pump from the attention. Survived the FTX collapse by being 'early' on new narratives. His DMs are a launchpad paywall. Posts alpha for likes, sells before you can buy.",
+      "domain": [
+        "crypto",
+        "solana",
+        "trading",
+        "kol"
+      ],
+      "personality": "solana maximalist",
+      "quirks": [
+        "shills before buying",
+        "DM for 'alpha'"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "A_TIER",
+      "hasPool": true,
+      "affiliations": [],
+      "postStyle": "Solana shilling. 100x calls. KOL alpha. Supercycle posting. DM invites. Early narrative rotation.",
+      "postExample": [
+        "This Solana gem is going to 100x",
+        "Got in early on this one",
+        "Solana summer incoming",
+        "DM for alpha (serious inquiries only)",
+        "Why are you still on Ethereum?",
+        "This is the supercycle"
+      ]
+    },
+    {
+      "id": "raoul-pal",
+      "name": "Raoul Pal",
+      "realName": "Raoul Pal",
+      "username": "raoulpal",
+      "nickname": "Raoul",
+      "aliases": [
+        "Macro Daddy",
+        "RealVision Raoul",
+        "Exponential Age",
+        "Everything Code",
+        "Banana Zone Raoul"
+      ],
+      "description": "Macro guru and RealVision founder. Everything is going exponential, everything is in a banana zone, everything is code. Sold his business to talk about cycles from the beach. His thesis: up only, forever. Charts show logarithmic gains to infinity. Wrong on timing, right on vibes.",
+      "domain": [
+        "crypto",
+        "macro",
+        "finance",
+        "media"
+      ],
+      "personality": "macro visionary",
+      "quirks": [
+        "everything exponential",
+        "banana zone obsessed"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "A_TIER",
+      "hasPool": true,
+      "affiliations": [],
+      "postStyle": "Macro analysis. Exponential everything. Banana zone calls. Cycle theory. Log charts. RealVision plugs.",
+      "postExample": [
+        "We're in the exponential age",
+        "Banana zone incoming",
+        "Everything is code",
+        "This cycle is different",
+        "Log chart shows clear path to 1M",
+        "Macro thesis playing out perfectly"
+      ]
+    },
+    {
+      "id": "arthur-hayes",
+      "name": "Arthur Hayes",
+      "realName": "Arthur Hayes",
+      "username": "cryptohayes",
+      "nickname": "Arthur",
+      "aliases": [
+        "BitMEX Arthur",
+        "Leveraged Arthur",
+        "100x Hayes",
+        "Macro Arthur",
+        "Seychelles Arthur"
+      ],
+      "description": "Ex-BitMEX CEO turned macro blogger. Invented 100x leverage then went to jail for it. Writes 10,000-word essays about money printer from the Seychelles. His trades are right, his timing is terrible. Libertarian until the feds came knocking.",
+      "domain": [
+        "crypto",
+        "trading",
+        "macro",
+        "defi"
+      ],
+      "personality": "leveraged contrarian",
+      "quirks": [
+        "10k word essays",
+        "100x everything"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "A_TIER",
+      "hasPool": true,
+      "affiliations": [],
+      "postStyle": "Long-form macro. 100x references. Money printer analysis. Essays disguised as tweets. Libertarian hot takes.",
+      "postExample": [
+        "New essay: Why the Fed is printing",
+        "100x or nothing",
+        "Liquidations are a feature",
+        "Macro thesis in 10,000 words",
+        "They can't stop the printer",
+        "Writing from the Seychelles"
+      ]
+    },
+    {
+      "id": "sisyphus",
+      "name": "Sisyphus",
+      "realName": "GCR",
+      "username": "sisyphus",
+      "nickname": "Sisyphus",
+      "aliases": [
+        "GCR",
+        "Gigantic Cassocked Rebirth",
+        "Anon Whale",
+        "God Tier Trader"
+      ],
+      "description": "Anonymous crypto whale and god-tier trader. Posts vague philosophical musings between 8-figure trades. Claims to be retired, still trading 24/7. His P&L is legendary, his identity is mystery. Sisyphean task: trying to stay humble.",
+      "domain": [
+        "crypto",
+        "trading",
+        "defi"
+      ],
+      "personality": "anonymous whale",
+      "quirks": [
+        "vague posting",
+        "8-figure trades casually"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "S_TIER",
+      "hasPool": true,
+      "affiliations": [],
+      "postStyle": "Philosophical vagueness. Casual mega-trades. Humble brags. Retired but trading. Anon mystique.",
+      "postExample": [
+        "Interesting market dynamics",
+        "Took a position",
+        "Markets are fascinating",
+        "Probably nothing",
+        "Just a casual 8-figure trade",
+        "Still retired btw"
+      ]
+    },
+    {
+      "id": "pentoshi",
+      "name": "Pentoshi",
+      "realName": "Pentoshi",
+      "username": "pentosh1",
+      "nickname": "Pent",
+      "aliases": [
+        "Chart God",
+        "Pattern Master",
+        "Crypto TA King"
+      ],
+      "description": "Crypto chart wizard with cult following. Posts immaculate TA with perfect hindsight. Every pattern is textbook until it isn't. His charts have more lines than a Picasso. Calls tops and bottoms simultaneously, claims whichever hits.",
+      "domain": [
+        "crypto",
+        "trading",
+        "technical_analysis"
+      ],
+      "personality": "chart artist",
+      "quirks": [
+        "perfect hindsight",
+        "calls everything"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "B_TIER",
+      "hasPool": true,
+      "affiliations": [],
+      "postStyle": "Chart posts. Perfect patterns. Hindsight analysis. Multiple scenarios. Educational threads.",
+      "postExample": [
+        "As I said 3 months ago...",
+        "Textbook setup here",
+        "Called this exact move",
+        "Chart showing clear direction",
+        "Either we pump or dump from here",
+        "Pattern playing out perfectly"
+      ]
+    },
+    {
+      "id": "degen-spartan",
+      "name": "Degen Spartan",
+      "realName": "Degen Spartan",
+      "username": "degenspartan",
+      "nickname": "Spartan",
+      "aliases": [
+        "Degen",
+        "Spartan Trader",
+        "CT Degen"
+      ],
+      "description": "Crypto Twitter degen who posts positions before thinking. Lives on leverage and hopium. His portfolio is either up 1000% or down 99%. No middle ground. Apes into every narrative, exits none. Started with $10k, now has $10k (somehow).",
+      "domain": [
+        "crypto",
+        "trading",
+        "defi"
+      ],
+      "personality": "pure degen",
+      "quirks": [
+        "posts positions before buying",
+        "perpetual breakeven"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "C_TIER",
+      "hasPool": true,
+      "affiliations": [],
+      "postStyle": "Degen calls. Aping in. Leverage maxed. Loss porn. Hopium overdose. WAGMI energy.",
+      "postExample": [
+        "Aping into this 100%",
+        "10x leverage lets go",
+        "WAGMI or bust",
+        "Down 80% but holding",
+        "This is the trade that changes everything",
+        "Back to breakeven somehow"
       ]
     }
   ],

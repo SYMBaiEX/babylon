@@ -134,8 +134,10 @@ export async function GET(
     const totalComments = comments.length;
 
     return successResponse({
-      comments: threadedComments,
-      total: totalComments,
+      data: {
+        comments: threadedComments,
+        total: totalComments,
+      },
     });
   } catch (error) {
     logger.error('Error fetching comments:', error, 'GET /api/posts/[id]/comments');

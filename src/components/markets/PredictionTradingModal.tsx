@@ -153,7 +153,7 @@ export function PredictionTradingModal({
 
       {/* Modal */}
       <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg">
-        <div className="bg-popover border border-border rounded-lg shadow-lg p-6 m-4 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+        <div className="bg-popover rounded shadow-xl p-4 sm:p-6 m-4 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -175,19 +175,19 @@ export function PredictionTradingModal({
           </div>
 
           {/* Question */}
-          <div className="mb-6 p-4 bg-muted rounded-lg">
-            <p className="text-foreground font-medium">{question.text}</p>
+          <div className="mb-6 p-4 bg-muted rounded">
+            <p className="text-foreground font-medium text-sm sm:text-base">{question.text}</p>
           </div>
 
           {/* Current Odds */}
           <div className="grid grid-cols-2 gap-3 mb-6">
-            <div className="p-3 bg-green-600/10 border border-green-600/20 rounded-lg">
+            <div className="p-3 bg-green-600/15 rounded">
               <div className="text-xs text-green-600 mb-1">YES</div>
               <div className="text-2xl font-bold text-green-600">
                 {(currentYesPrice * 100).toFixed(1)}%
               </div>
             </div>
-            <div className="p-3 bg-red-600/10 border border-red-600/20 rounded-lg">
+            <div className="p-3 bg-red-600/15 rounded">
               <div className="text-xs text-red-600 mb-1">NO</div>
               <div className="text-2xl font-bold text-red-600">
                 {(currentNoPrice * 100).toFixed(1)}%
@@ -200,25 +200,25 @@ export function PredictionTradingModal({
             <button
               onClick={() => setSide('yes')}
               className={cn(
-                'flex-1 py-3 rounded-lg font-bold transition-all flex items-center justify-center gap-2',
+                'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer',
                 side === 'yes'
                   ? 'bg-green-600 text-white'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  : 'bg-muted text-muted-foreground hover:bg-muted'
               )}
             >
-              <CheckCircle size={20} />
+              <CheckCircle size={18} />
               BUY YES
             </button>
             <button
               onClick={() => setSide('no')}
               className={cn(
-                'flex-1 py-3 rounded-lg font-bold transition-all flex items-center justify-center gap-2',
+                'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer',
                 side === 'no'
                   ? 'bg-red-600 text-white'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  : 'bg-muted text-muted-foreground hover:bg-muted'
               )}
             >
-              <XCircle size={20} />
+              <XCircle size={18} />
               BUY NO
             </button>
           </div>
@@ -232,14 +232,14 @@ export function PredictionTradingModal({
               onChange={(e) => setAmount(e.target.value)}
               min="1"
               step="1"
-              className="w-full px-4 py-3 rounded-lg bg-muted border border-border text-foreground text-lg font-medium focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full px-4 py-3 rounded bg-muted/50 text-foreground text-base sm:text-lg font-medium focus:outline-none focus:bg-muted focus:ring-2 focus:ring-[#1da1f2]/30"
               placeholder="Min: $1"
             />
           </div>
 
           {/* Trade Preview */}
           {calculation && (
-            <div className="bg-muted p-4 rounded-lg mb-6 space-y-2">
+            <div className="bg-muted p-4 rounded mb-6 space-y-2">
               <div className="text-sm font-bold text-foreground mb-2">Trade Preview</div>
               
               <div className="flex justify-between text-sm">
@@ -289,7 +289,7 @@ export function PredictionTradingModal({
             onClick={handleSubmit}
             disabled={loading || amountNum < 1}
             className={cn(
-              'w-full py-4 rounded-lg font-bold text-white transition-all text-lg',
+              'w-full py-3 sm:py-4 rounded font-bold text-white transition-all text-base sm:text-lg cursor-pointer',
               side === 'yes'
                 ? 'bg-green-600 hover:bg-green-700'
                 : 'bg-red-600 hover:bg-red-700',
@@ -310,7 +310,7 @@ export function PredictionTradingModal({
           <button
             onClick={onClose}
             disabled={loading}
-            className="w-full mt-3 py-3 rounded-lg font-medium text-muted-foreground hover:bg-muted transition-all"
+            className="w-full mt-3 py-2.5 sm:py-3 rounded font-medium text-muted-foreground hover:bg-muted transition-all cursor-pointer disabled:cursor-not-allowed"
           >
             Cancel
           </button>

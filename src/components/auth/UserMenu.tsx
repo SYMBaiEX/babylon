@@ -27,7 +27,7 @@ export function UserMenu() {
   )
 
   return (
-    <Dropdown trigger={trigger} menuPosition="top">
+    <Dropdown trigger={trigger}>
       <Link href="/profile">
         <DropdownItem>
           <div className="flex items-center gap-2">

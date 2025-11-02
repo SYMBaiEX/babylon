@@ -18,6 +18,8 @@ import { shuffleArray } from '@/shared/utils';
 import { db } from './database-service';
 import { QuestionManager } from '@/engine/QuestionManager';
 import { logger } from './logger';
+import { NPCTradingService } from './npc-trading-service';
+import { PoolPerformanceService } from './pool-performance-service';
 
 export class ContinuousEngine {
   private llm: BabylonLLMClient;
@@ -112,7 +114,7 @@ export class ContinuousEngine {
 
           // Convert Actor[] to SelectedActor[] by adding required fields
           // Filter out database-specific fields that aren't part of SelectedActor
-          const actors: SelectedActor[] = actorsFromDb.map(actor => {
+          const actors: SelectedActor[] = actorsFromDb.map((actor: any) => {
             const { createdAt, updatedAt, ...actorData } = actor as Actor & { createdAt?: Date; updatedAt?: Date };
             return {
               ...actorData,
@@ -125,7 +127,7 @@ export class ContinuousEngine {
           // Convert recent world events to DayTimeline format for context
           // Group events by day (approximated from timestamps)
           const eventsByDay = new Map<number, typeof recentWorldEvents>();
-          recentWorldEvents.forEach(event => {
+          recentWorldEvents.forEach((event: any) => {
             const dayNum = Math.floor((new Date(event.timestamp).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
             if (!eventsByDay.has(dayNum)) {
               eventsByDay.set(dayNum, []);
@@ -136,7 +138,7 @@ export class ContinuousEngine {
           const recentEvents: DayTimeline[] = Array.from(eventsByDay.entries()).map(([day, events]) => ({
             day,
             summary: `Day ${day}`,
-            events: events.map(e => ({
+            events: events.map((e: any) => ({
               id: e.id,
               day,
               type: e.eventType as WorldEvent['type'],
@@ -197,6 +199,22 @@ export class ContinuousEngine {
           dayNumber: Math.floor((timestamp.getTime() - new Date('2025-10-01').getTime()) / (1000 * 60 * 60 * 24)),
         })));
         logger.info(`Generated ${posts.length} posts`, { count: posts.length }, 'ContinuousEngine');
+      }
+
+      // Step 3.5: Process NPC trading based on posts
+      try {
+        const marketContext = await this.getMarketContext();
+        await NPCTradingService.processRecentPosts(marketContext);
+        logger.info('NPC trading processed', {}, 'ContinuousEngine');
+      } catch (error) {
+        logger.error('Error in NPC trading:', error, 'ContinuousEngine');
+      }
+
+      // Step 3.6: Update pool performance (every tick)
+      try {
+        await PoolPerformanceService.updateAllPools();
+      } catch (error) {
+        logger.error('Error updating pool performance:', error, 'ContinuousEngine');
       }
 
       // Step 4: Update game state
@@ -290,6 +308,71 @@ export class ContinuousEngine {
       tier: actor.tier,
     };
     return await this.feedGenerator.generateMinuteAmbientPost(actorForPost, timestamp);
+  }
+
+  /**
+   * Get market context for NPC trading
+   */
+  private async getMarketContext() {
+    try {
+      // Get perpetual markets
+      const organizations = await db.getAllOrganizations();
+      const perpMarkets = organizations
+        .filter(org => org.currentPrice !== null)
+        .map(org => ({
+          ticker: org.id.toUpperCase().replace(/-/g, ''),
+          organizationId: org.id,
+          currentPrice: org.currentPrice || 100,
+        }));
+
+      // Get active prediction markets with actual market data
+      const questions = await db.getActiveQuestions();
+      
+      // Fetch market data for each question
+      const prisma = (await import('@prisma/client')).PrismaClient;
+      const client = new prisma();
+      
+      try {
+        const predictionMarkets = await Promise.all(
+          questions.map(async (q) => {
+            // Try to find market for this question
+            const market = await client.market.findFirst({
+              where: {
+                question: q.text,
+                resolved: false,
+              },
+              select: {
+                yesShares: true,
+                noShares: true,
+              },
+            });
+
+            return {
+              id: String(q.id), // Ensure id is string
+              text: q.text,
+              yesShares: market ? parseFloat(market.yesShares.toString()) : 0,
+              noShares: market ? parseFloat(market.noShares.toString()) : 0,
+            };
+          })
+        );
+
+        await client.$disconnect();
+
+        return {
+          perpMarkets,
+          predictionMarkets,
+        };
+      } catch (marketError) {
+        await client.$disconnect();
+        throw marketError;
+      }
+    } catch (error) {
+      logger.error('Error getting market context:', error, 'ContinuousEngine');
+      return {
+        perpMarkets: [],
+        predictionMarkets: [],
+      };
+    }
   }
 
   /**

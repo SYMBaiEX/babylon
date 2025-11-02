@@ -12,6 +12,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-middleware'
 import { PrismaClient, Prisma } from '@prisma/client'
+import { PointsService } from '@/lib/services/points-service'
 import { logger } from '@/lib/logger'
 
 const prisma = new PrismaClient()
@@ -99,6 +100,7 @@ interface RegistrationRequest {
   username: string
   bio?: string
   endpoint?: string
+  referralCode?: string // Referral code from URL param
 }
 
 /**
@@ -115,7 +117,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body: RegistrationRequest = await request.json()
-    const { walletAddress, username, bio, endpoint } = body
+    const { walletAddress, username, bio, endpoint, referralCode } = body
 
     if (!walletAddress || !username) {
       return errorResponse('Wallet address and username are required', 400)
@@ -124,6 +126,24 @@ export async function POST(request: NextRequest) {
     // Validate wallet address format
     if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
       return errorResponse('Invalid wallet address format', 400)
+    }
+
+    // Check if referral code is valid (if provided)
+    let referrerId: string | null = null
+    if (referralCode) {
+      const referral = await prisma.referral.findUnique({
+        where: { referralCode },
+        include: { referrer: true },
+      })
+
+      if (referral && referral.status === 'pending') {
+        referrerId = referral.referrerId
+        logger.info(
+          `Valid referral code found: ${referralCode} from user ${referrerId}`,
+          { referralCode, referrerId },
+          'POST /api/auth/onboard'
+        )
+      }
     }
 
     // Check if user exists in database, create if not exists
@@ -145,6 +165,7 @@ export async function POST(request: NextRequest) {
           isActor: false,
           virtualBalance: 0, // Will be set to 1000 after registration
           totalDeposited: 0,
+          referredBy: referrerId, // Track who referred this user
         },
       })
     } else {
@@ -420,6 +441,66 @@ export async function POST(request: NextRequest) {
         })
 
         logger.info('Successfully awarded 1,000 points to user', undefined, 'POST /api/auth/onboard')
+
+        // Award referral bonus to referrer if applicable
+        if (referrerId && referralCode) {
+          try {
+            // Award points to referrer
+            const referralResult = await PointsService.awardReferralSignup(referrerId, dbUser.id)
+            
+            if (referralResult.success) {
+              // Update referral status
+              await prisma.referral.update({
+                where: { referralCode },
+                data: {
+                  status: 'completed',
+                  referredUserId: dbUser.id,
+                  completedAt: new Date(),
+                  pointsAwarded: true,
+                },
+              })
+
+              // Auto-follow: New user follows the referrer
+              try {
+                const existingFollow = await prisma.follow.findUnique({
+                  where: {
+                    followerId_followingId: {
+                      followerId: dbUser.id,
+                      followingId: referrerId,
+                    },
+                  },
+                })
+
+                if (!existingFollow) {
+                  await prisma.follow.create({
+                    data: {
+                      followerId: dbUser.id,
+                      followingId: referrerId,
+                    },
+                  })
+
+                  logger.info(
+                    `New user ${dbUser.id} auto-followed referrer ${referrerId}`,
+                    { referrerId, referredUserId: dbUser.id },
+                    'POST /api/auth/onboard'
+                  )
+                }
+              } catch (followError) {
+                logger.error('Error creating auto-follow (non-critical):', followError, 'POST /api/auth/onboard')
+                // Don't fail registration if auto-follow fails
+              }
+
+              logger.info(
+                `Awarded ${referralResult.pointsAwarded} referral points to user ${referrerId}`,
+                { referrerId, referredUserId: dbUser.id, points: referralResult.pointsAwarded },
+                'POST /api/auth/onboard'
+              )
+            }
+          } catch (referralError) {
+            logger.error('Error awarding referral points (non-critical):', referralError, 'POST /api/auth/onboard')
+            // Don't fail registration if referral points award fails
+          }
+        }
       } else {
         logger.info('Welcome bonus already awarded to user', undefined, 'POST /api/auth/onboard')
       }

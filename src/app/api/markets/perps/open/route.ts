@@ -11,11 +11,9 @@ import {
     successResponse,
 } from '@/lib/api/auth-middleware';
 import { WalletService } from '@/services/WalletService';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/database-service';
 import type { NextRequest } from 'next/server';
 import { logger } from '@/lib/logger';
-
-const prisma = new PrismaClient();
 
 /**
  * POST /api/markets/perps/open
@@ -82,16 +80,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 8. Debit margin from balance
-    await WalletService.debit(
-      user.userId,
-      marginRequired,
-      'perp_open',
-      `Opened ${leverage}x ${side} position on ${ticker}`,
-      undefined // Will set after position created
-    );
-
-    // 9. Open position via engine
+    // 8. Open position via engine first (before debiting)
     const position = perpsEngine.openPosition(user.userId, {
       ticker,
       side,
@@ -100,36 +89,73 @@ export async function POST(request: NextRequest) {
       orderType: 'market',
     });
 
-    // 10. Save position to database
-    await prisma.perpPosition.create({
-      data: {
-        id: position.id,
-        userId: user.userId,
-        ticker: position.ticker,
-        organizationId: position.organizationId,
-        side: position.side,
-        entryPrice: position.entryPrice,
-        currentPrice: position.currentPrice,
-        size: position.size,
-        leverage: position.leverage,
-        liquidationPrice: position.liquidationPrice,
-        unrealizedPnL: position.unrealizedPnL,
-        unrealizedPnLPercent: position.unrealizedPnLPercent,
-        fundingPaid: position.fundingPaid,
-      },
-    });
+    // 9. Execute debit and database operations in a transaction
+    // This ensures atomicity - if anything fails, nothing is committed
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Debit margin from balance
+        const dbUser = await tx.user.findUnique({
+          where: { id: user.userId },
+        });
 
-    // 11. Update transaction with position ID
-    await prisma.balanceTransaction.updateMany({
-      where: {
-        userId: user.userId,
-        type: 'perp_open',
-        relatedId: null,
-      },
-      data: {
-        relatedId: position.id,
-      },
-    });
+        if (!dbUser) {
+          throw new Error('User not found');
+        }
+
+        const currentBalance = Number(dbUser.virtualBalance);
+        if (currentBalance < marginRequired) {
+          throw new Error(
+            `Insufficient balance. Need ${marginRequired}, have ${currentBalance}`
+          );
+        }
+
+        const newBalance = currentBalance - marginRequired;
+
+        // Update balance
+        await tx.user.update({
+          where: { id: user.userId },
+          data: {
+            virtualBalance: newBalance,
+          },
+        });
+
+        // Create balance transaction with position ID
+        await tx.balanceTransaction.create({
+          data: {
+            userId: user.userId,
+            type: 'perp_open',
+            amount: -marginRequired,
+            balanceBefore: currentBalance,
+            balanceAfter: newBalance,
+            relatedId: position.id,
+            description: `Opened ${leverage}x ${side} position on ${ticker}`,
+          },
+        });
+
+        // Save position to database
+        await tx.perpPosition.create({
+          data: {
+            id: position.id,
+            userId: user.userId,
+            ticker: position.ticker,
+            organizationId: position.organizationId,
+            side: position.side,
+            entryPrice: position.entryPrice,
+            currentPrice: position.currentPrice,
+            size: position.size,
+            leverage: position.leverage,
+            liquidationPrice: position.liquidationPrice,
+            unrealizedPnL: position.unrealizedPnL,
+            unrealizedPnLPercent: position.unrealizedPnLPercent,
+            fundingPaid: position.fundingPaid,
+          },
+        });
+      });
+    } catch (error) {
+      // Rollback the position in the engine if database transaction fails
+      perpsEngine.closePosition(position.id);
+      throw error;
+    }
 
     return successResponse(
       {
@@ -158,6 +184,9 @@ export async function POST(request: NextRequest) {
     }
     if (error instanceof Error && error.message.includes('Insufficient balance')) {
       return errorResponse(error.message, 400);
+    }
+    if (error instanceof Error && error.message === 'User not found') {
+      return errorResponse('User not found', 404);
     }
     logger.error('Error opening position:', error, 'POST /api/markets/perps/open');
     return errorResponse('Failed to open position');

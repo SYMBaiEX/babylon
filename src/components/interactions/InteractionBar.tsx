@@ -66,8 +66,8 @@ export function InteractionBar({
     <>
       <div
         className={cn(
-          'flex items-center gap-1 mt-2',
-          className
+          className,
+          'flex items-center gap-4 mt-2 w-full justify-stretch',
         )}
       >
         {/* Like button with reaction picker */}

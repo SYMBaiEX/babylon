@@ -22,12 +22,14 @@ export class OnboardingService {
    * - Register on-chain via ERC-8004
    * - Award 1,000 initial points
    * - Update user profile
+   * - Process referral code if provided
    */
   static async completeOnboarding(
     userId: string,
     walletAddress: string,
     username?: string,
-    bio?: string
+    bio?: string,
+    referralCode?: string
   ): Promise<OnboardingResult> {
     try {
       // Get access token from global state
@@ -47,6 +49,7 @@ export class OnboardingService {
           walletAddress,
           username: username || `user_${userId.slice(0, 8)}`,
           bio: bio || '',
+          referralCode: referralCode || undefined, // Include referral code if provided
         }),
       })
 

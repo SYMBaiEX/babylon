@@ -15,6 +15,7 @@ import type {
   InteractionError,
 } from '@/types/interactions';
 import { logger } from '@/lib/logger';
+import { retryIfRetryable } from '@/lib/retry';
 
 interface InteractionStoreState {
   // State maps
@@ -76,30 +77,38 @@ async function getAuthToken(): Promise<string | null> {
   }
 }
 
-// Helper to make API calls with auth
+// Helper to make API calls with auth and retry logic
 async function apiCall<T>(url: string, options: RequestInit = {}): Promise<T> {
-  const token = await getAuthToken();
+  return retryIfRetryable(async () => {
+    const token = await getAuthToken();
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
-  };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string>),
+    };
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(error.error || `API call failed: ${response.statusText}`);
+    }
+
+    return response.json();
+  }, {
+    maxAttempts: 3,
+    initialDelay: 1000,
+    onRetry: (attempt, error) => {
+      logger.debug(`Retrying API call to ${url}`, { attempt, error: error.message }, 'InteractionStore');
+    },
   });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(error.error || `API call failed: ${response.statusText}`);
-  }
-
-  return response.json();
 }
 
 export const useInteractionStore = create<InteractionStore>()(
@@ -252,15 +261,17 @@ export const useInteractionStore = create<InteractionStore>()(
             }
           );
 
-          // Increment comment count optimistically
-          const currentInteraction = postInteractions.get(postId);
-          if (currentInteraction) {
-            set((state) => ({
-              postInteractions: new Map(state.postInteractions).set(postId, {
-                ...currentInteraction,
-                commentCount: currentInteraction.commentCount + 1,
-              }),
-            }));
+          // Increment comment count for the post (only for top-level comments)
+          if (!parentId) {
+            const currentInteraction = postInteractions.get(postId);
+            if (currentInteraction) {
+              set((state) => ({
+                postInteractions: new Map(state.postInteractions).set(postId, {
+                  ...currentInteraction,
+                  commentCount: currentInteraction.commentCount + 1,
+                }),
+              }));
+            }
           }
 
           return response.data;
@@ -297,8 +308,8 @@ export const useInteractionStore = create<InteractionStore>()(
         }
       },
 
-      deleteComment: async (commentId: string) => {
-        const { setLoading, setError } = get();
+      deleteComment: async (commentId: string, postId?: string) => {
+        const { setLoading, setError, postInteractions } = get();
         const loadingKey = `delete-comment-${commentId}`;
 
         setLoading(loadingKey, true);
@@ -307,6 +318,19 @@ export const useInteractionStore = create<InteractionStore>()(
           await apiCall(`/api/comments/${commentId}`, {
             method: 'DELETE',
           });
+
+          // Decrement comment count if postId provided
+          if (postId) {
+            const currentInteraction = postInteractions.get(postId);
+            if (currentInteraction && currentInteraction.commentCount > 0) {
+              set((state) => ({
+                postInteractions: new Map(state.postInteractions).set(postId, {
+                  ...currentInteraction,
+                  commentCount: currentInteraction.commentCount - 1,
+                }),
+              }));
+            }
+          }
         } catch (error) {
           setError(loadingKey, {
             code: 'NETWORK_ERROR',

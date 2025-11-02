@@ -2,24 +2,23 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useGameStore } from '@/stores/gameStore'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { FeedToggle } from '@/components/shared/FeedToggle'
-import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { SearchBar } from '@/components/shared/SearchBar'
-import { InteractionBar } from '@/components/interactions'
-import { CreatePostModal } from '@/components/posts/CreatePostModal'
+import { PostCard } from '@/components/posts/PostCard'
+import { InviteFriendsBanner } from '@/components/shared/InviteFriendsBanner'
 import { cn } from '@/lib/utils'
-import { useFontSize } from '@/contexts/FontSizeContext'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
 import { useAuth } from '@/hooks/useAuth'
-import { Plus, ShieldCheck } from 'lucide-react'
 import type { FeedPost } from '@/shared/types'
 import { logger } from '@/lib/logger'
 
 const PAGE_SIZE = 20
 
 export default function FeedPage() {
+  const router = useRouter()
+  const { user } = useAuth() // Get user from auth hook first
   const [tab, setTab] = useState<'latest' | 'following'>('latest')
   const [searchQuery, setSearchQuery] = useState('')
   const [posts, setPosts] = useState<FeedPost[]>([])
@@ -29,10 +28,43 @@ export default function FeedPage() {
   const [offset, setOffset] = useState(0)
   const [followingPosts, setFollowingPosts] = useState<FeedPost[]>([])
   const [loadingFollowing, setLoadingFollowing] = useState(false)
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const { fontSize} = useFontSize()
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const [actorNames, setActorNames] = useState<Map<string, string>>(new Map())
+  const [bannerDismissed, setBannerDismissed] = useState(false)
+  
+  // Smart banner frequency based on user referrals
+  const calculateBannerInterval = () => {
+    if (!user) return Math.floor(Math.random() * 51) + 50
+    
+    const referralCount = user.referralCount ?? 0
+    
+    // Check if recently dismissed (within 7 days)
+    const dismissKey = `banner_dismiss_time_${user.id}`
+    const lastDismiss = typeof window !== 'undefined' ? localStorage.getItem(dismissKey) : null
+    if (lastDismiss) {
+      const daysSinceDismiss = (Date.now() - parseInt(lastDismiss)) / 86400000
+      if (daysSinceDismiss < 7) {
+        return 999999 // Don't show for 7 days after dismiss
+      }
+    }
+    
+    // Frequency based on referrals
+    if (referralCount === 0) {
+      // No referrals: show more frequently (30-50 posts)
+      return Math.floor(Math.random() * 21) + 30
+    } else if (referralCount < 5) {
+      // Few referrals: normal frequency (50-80 posts)
+      return Math.floor(Math.random() * 31) + 50
+    } else if (referralCount < 10) {
+      // Some referrals: less frequent (80-120 posts)
+      return Math.floor(Math.random() * 41) + 80
+    } else {
+      // Many referrals: rarely (150-200 posts)
+      return Math.floor(Math.random() * 51) + 150
+    }
+  }
+  
+  const bannerInterval = useRef(calculateBannerInterval())
 
   // Game timeline state (viewer-style)
   const { allGames, startTime, currentTimeMs } = useGameStore()
@@ -158,7 +190,7 @@ export default function FeedPage() {
     }
   }, [tab, hasMore, loading, loadingMore, searchQuery, offset, fetchLatestPosts])
 
-  const { authenticated, user } = useAuth()
+  const { authenticated } = useAuth()
 
   // Fetch following posts when following tab is active
   useEffect(() => {
@@ -280,92 +312,56 @@ export default function FeedPage() {
   }
 
   return (
-    <PageContainer noPadding className="flex flex-col">
-      {/* Header with tabs and + Post button */}
-      <div className="sticky top-0 z-10 bg-background border-b border-border">
-        <div className="flex items-center justify-between h-12 px-4">
+    <PageContainer noPadding className="flex flex-col h-full w-full overflow-hidden">
+      {/* Mobile: Header with tabs and search in one row */}
+      <div className="sticky top-0 z-10 bg-background shadow-sm flex-shrink-0 md:hidden">
+        <div className="flex items-center gap-2 h-12 px-3 sm:px-4">
           {/* Tabs on left */}
-          <FeedToggle activeTab={tab} onTabChange={setTab} />
+          <div className="flex-shrink-0">
+            <FeedToggle activeTab={tab} onTabChange={setTab} />
+          </div>
           
-          {/* + Post button on right */}
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className={cn(
-              'md:hidden px-4 py-1.5 font-semibold',
-              'bg-primary text-primary-foreground',
-              'hover:bg-primary/90',
-              'transition-all duration-200',
-              'flex items-center gap-1.5'
-            )}
-          >
-            <Plus className="w-4 h-4" />
-            <span>Post</span>
-          </button>
+          {/* Search bar on right */}
+          <div className="flex-1 min-w-0">
+            <SearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search"
+              className="w-full"
+              compact
+            />
+          </div>
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="sticky top-12 z-10 bg-background py-2 border-b border-border md:hidden">
-        <div className="px-4">
-          <SearchBar
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Search Babylon..."
-          />
-        </div>
-      </div>
-
-      {/* Desktop: Search and + Post button */}
-      <div className="hidden md:flex items-center justify-between sticky top-12 z-10 bg-background py-3 px-6 border-b border-border">
+      {/* Desktop: Search bar */}
+      <div className="hidden md:flex items-center sticky top-0 z-10 bg-background py-3 px-6 shadow-sm flex-shrink-0">
         <div className="flex-1 max-w-[600px]">
           <SearchBar
             value={searchQuery}
             onChange={setSearchQuery}
-            placeholder="Search Babylon..."
+            placeholder="Search"
           />
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className={cn(
-            'ml-4 px-6 py-2 font-semibold',
-            'bg-primary text-primary-foreground',
-            'hover:bg-primary/90',
-            'transition-all duration-200',
-            'flex items-center gap-2'
-          )}
-        >
-          <Plus className="w-5 h-5" />
-          <span>Post</span>
-        </button>
       </div>
 
-      {/* Create Post Modal */}
-      <CreatePostModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onPostCreated={() => {
-          // Refresh posts after creating
-          fetchLatestPosts(0, false)
-        }}
-      />
-
       {/* Content area */}
-      <div className="flex-1 overflow-y-auto bg-background">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden bg-background w-full">
         {(loading || (tab === 'following' && loadingFollowing)) ? (
-          <div className="max-w-2xl mx-auto p-8 text-center">
+          <div className="max-w-2xl mx-auto p-4 sm:p-8 text-center">
             <div className="text-muted-foreground py-12">
               <p>Loading posts...</p>
             </div>
           </div>
         ) : filteredPosts.length === 0 && !searchQuery && tab === 'latest' ? (
           // No posts yet
-          <div className="max-w-2xl mx-auto p-8 text-center">
-            <div className="text-muted-foreground py-12">
-              <h2 className="text-2xl font-bold mb-2 text-foreground">No Posts Yet</h2>
-              <p className="mb-4">
+          <div className="max-w-2xl mx-auto p-4 sm:p-8 text-center">
+            <div className="text-muted-foreground py-8 sm:py-12">
+              <h2 className="text-xl sm:text-2xl font-bold mb-2 text-foreground">No Posts Yet</h2>
+              <p className="mb-4 text-sm sm:text-base">
                 Engine is generating posts...
               </p>
-              <div className="text-sm text-muted-foreground space-y-2">
+              <div className="text-xs sm:text-sm text-muted-foreground space-y-2">
                 <p>Check terminal for tick logs.</p>
                 <p>Posts appear within 60 seconds.</p>
               </div>
@@ -373,10 +369,10 @@ export default function FeedPage() {
           </div>
         ) : filteredPosts.length === 0 && !searchQuery && tab === 'following' ? (
           // Following tab with no followed profiles
-          <div className="max-w-2xl mx-auto p-8 text-center">
-            <div className="text-muted-foreground py-12">
-              <h2 className="text-xl font-semibold mb-2 text-foreground">👥 Not Following Anyone Yet</h2>
-              <p className="mb-4">
+          <div className="max-w-2xl mx-auto p-4 sm:p-8 text-center">
+            <div className="text-muted-foreground py-8 sm:py-12">
+              <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">👥 Not Following Anyone Yet</h2>
+              <p className="mb-4 text-sm sm:text-base">
                 {loadingFollowing
                   ? 'Loading following...'
                   : 'Follow profiles to see their posts here. Visit a profile and click the Follow button.'}
@@ -385,28 +381,28 @@ export default function FeedPage() {
           </div>
         ) : filteredPosts.length === 0 && !searchQuery ? (
           // Game loaded but no visible posts yet
-          <div className="max-w-2xl mx-auto p-8 text-center">
-          <div className="text-muted-foreground py-12">
-            <h2 className="text-xl font-semibold mb-2 text-foreground">⏱️ No Posts Yet</h2>
-            <p className="mb-4">
+          <div className="max-w-2xl mx-auto p-4 sm:p-8 text-center">
+          <div className="text-muted-foreground py-8 sm:py-12">
+            <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">⏱️ No Posts Yet</h2>
+            <p className="mb-4 text-sm sm:text-base">
               Game is running in the background via realtime-daemon. Content will appear here as it's generated.
             </p>
           </div>
           </div>
         ) : filteredPosts.length === 0 && searchQuery ? (
           // No search results
-          <div className="max-w-2xl mx-auto p-8 text-center">
-            <div className="text-muted-foreground py-12">
-              <h2 className="text-xl font-semibold mb-2 text-foreground">No Results</h2>
-              <p className="mb-4">
-                No posts found matching "{searchQuery}"
+          <div className="max-w-2xl mx-auto p-4 sm:p-8 text-center">
+            <div className="text-muted-foreground py-8 sm:py-12">
+              <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">No Results</h2>
+              <p className="mb-4 text-sm sm:text-base break-words">
+                No posts found matching &quot;{searchQuery}&quot;
               </p>
               <button
                 onClick={() => setSearchQuery('')}
                 className={cn(
-                  'inline-block px-6 py-3 font-semibold border border-border',
-                  'bg-primary text-primary-foreground',
-                  'hover:bg-primary/90',
+                  'inline-block px-4 sm:px-6 py-2 sm:py-3 font-semibold rounded text-sm sm:text-base cursor-pointer',
+                  'bg-[#1da1f2] text-white',
+                  'hover:bg-[#1a8cd8]',
                   'transition-all duration-300'
                 )}
               >
@@ -416,101 +412,43 @@ export default function FeedPage() {
           </div>
         ) : (
           // Show posts - Twitter-like layout
-          <div className="max-w-[600px] mx-auto">
+          <div className="w-full max-w-[600px] mx-auto">
             {filteredPosts.map((post: any, i: number) => {
               // Fix author mapping: use authorId if author is null
               const authorId = post.author || post.authorId
               // Get actual actor name from loaded data, fallback to authorName or ID
               const authorName = actorNames.get(authorId) || post.authorName || authorId
-              
-              const postDate = new Date(post.timestamp ?? Date.now())
-              const now = new Date()
-              const diffMs = now.getTime() - postDate.getTime()
-              const diffMinutes = Math.floor(diffMs / 60000)
-              const diffHours = Math.floor(diffMs / 3600000)
-              const diffDays = Math.floor(diffMs / 86400000)
 
-              let timeAgo: string
-              if (diffMinutes < 1) timeAgo = 'Just now'
-              else if (diffMinutes < 60) timeAgo = `${diffMinutes}m ago`
-              else if (diffHours < 24) timeAgo = `${diffHours}h ago`
-              else if (diffDays < 7) timeAgo = `${diffDays}d ago`
-              else timeAgo = postDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              // Show banner at the random interval (if not dismissed)
+              const showBannerAfterThisPost = !bannerDismissed && i === bannerInterval.current - 1
 
               return (
-                <article
-                  key={`${post.id}-${i}`}
-                  className={cn(
-                    'px-4 py-3 border-b border-border',
-                    'hover:bg-muted/30 cursor-pointer',
-                    'transition-all duration-200'
+                <div key={`post-wrapper-${post.id}-${i}`}>
+                  <PostCard
+                    post={{
+                      id: post.id,
+                      content: post.content,
+                      authorId,
+                      authorName,
+                      timestamp: post.timestamp,
+                      likeCount: 0,
+                      commentCount: 0,
+                      shareCount: 0,
+                      isLiked: false,
+                      isShared: false,
+                    }}
+                    onClick={() => router.push(`/post/${post.id}`)}
+                  />
+                  {showBannerAfterThisPost && (
+                    <InviteFriendsBanner 
+                      onDismiss={() => {
+                        setBannerDismissed(true)
+                        // Recalculate interval for next load
+                        bannerInterval.current = calculateBannerInterval()
+                      }}
+                    />
                   )}
-                  style={{
-                    fontSize: `${fontSize}rem`,
-                  }}
-                >
-                  <div className="flex gap-3">
-                    {/* Avatar - Clickable */}
-                    <Link
-                      href={`/profile/${authorId}`}
-                      className="flex-shrink-0 hover:opacity-80 transition-opacity"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Avatar
-                        id={authorId}
-                        name={authorName}
-                        type="actor"
-                        size="lg"
-                        scaleFactor={fontSize}
-                      />
-                    </Link>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      {/* Header: Author with handle on left, timestamp on right */}
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <Link
-                            href={`/profile/${authorId}`}
-                            className="font-bold text-foreground hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {authorName}
-                          </Link>
-                          <ShieldCheck className="w-4 h-4 text-blue-500 flex-shrink-0" fill="currentColor" />
-                          <Link
-                            href={`/profile/${authorId}`}
-                            className="text-muted-foreground text-sm hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            @{authorId}
-                          </Link>
-                        </div>
-                        <time className="text-muted-foreground text-sm flex-shrink-0" title={postDate.toLocaleString()}>
-                          {timeAgo}
-                        </time>
-                      </div>
-
-                      {/* Post content */}
-                      <div className="text-foreground leading-normal whitespace-pre-wrap break-words">
-                        {post.content}
-                      </div>
-
-                      {/* Interaction Bar */}
-                      <InteractionBar
-                        postId={post.id}
-                        initialInteractions={{
-                          postId: post.id,
-                          likeCount: 0,
-                          commentCount: 0,
-                          shareCount: 0,
-                          isLiked: false,
-                          isShared: false,
-                        }}
-                      />
-                    </div>
-                  </div>
-                </article>
+                </div>
               )
             })}
             {tab === 'latest' && (

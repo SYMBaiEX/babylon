@@ -16,6 +16,7 @@ interface UseAuthReturn {
 const loadedProfileUsers = new Set<string>()
 const checkedNewUserUsers = new Set<string>()
 const checkedOnboardingUsers = new Set<string>()
+const checkedSocialLinks = new Set<string>()
 let lastSyncedWalletAddress: string | null = null
 
 export function useAuth(): UseAuthReturn {
@@ -63,6 +64,7 @@ export function useAuth(): UseAuthReturn {
       loadedProfileUsers.clear()
       checkedNewUserUsers.clear()
       checkedOnboardingUsers.clear()
+      checkedSocialLinks.clear()
       lastSyncedWalletAddress = null
       clearAuth()
       return
@@ -97,7 +99,18 @@ export function useAuth(): UseAuthReturn {
             username: data.user.username,
             bio: data.user.bio,
             profileImageUrl: data.user.profileImageUrl,
+            coverImageUrl: data.user.coverImageUrl,
             profileComplete: data.user.profileComplete,
+            reputationPoints: data.user.reputationPoints,
+            referralCount: data.user.referralCount,
+            referralCode: data.user.referralCode,
+            hasFarcaster: data.user.hasFarcaster,
+            hasTwitter: data.user.hasTwitter,
+            farcasterUsername: data.user.farcasterUsername,
+            twitterUsername: data.user.twitterUsername,
+            nftTokenId: data.user.nftTokenId,
+            createdAt: data.user.createdAt,
+            stats: data.user.stats,
           })
           setIsLoadingProfile(false)
           return
@@ -188,13 +201,34 @@ export function useAuth(): UseAuthReturn {
 
         logger.info('User not onboarded, triggering on-chain registration...', undefined, 'useAuth')
 
+        // Get referral code from sessionStorage (captured by ReferralCaptureProvider)
+        let referralCode: string | null = null
+        try {
+          referralCode = sessionStorage.getItem('referralCode')
+          if (referralCode) {
+            logger.info(`Using referral code for onboarding: ${referralCode}`, undefined, 'useAuth')
+          }
+        } catch (error) {
+          logger.warn('Could not access referral code from sessionStorage', error, 'useAuth')
+        }
+
         // Trigger on-chain registration and points award
         const result = await OnboardingService.completeOnboarding(
           user.id,
-          wallet.address
+          wallet.address,
+          undefined, // username - will be auto-generated
+          undefined, // bio
+          referralCode || undefined // referral code from URL
         )
 
         if (result.success) {
+          // Clear referral code after successful onboarding
+          try {
+            sessionStorage.removeItem('referralCode')
+            sessionStorage.removeItem('referralCodeTimestamp')
+          } catch (error) {
+            // Ignore errors
+          }
           logger.info('Onboarding complete!', {
             tokenId: result.tokenId,
             points: result.points,
@@ -202,8 +236,8 @@ export function useAuth(): UseAuthReturn {
           }, 'useAuth')
 
           // Show success notification (optional, requires toast library)
-          if (typeof window !== 'undefined' && window.toast) {
-            window.toast.success(
+          if (typeof window !== 'undefined' && (window as any).toast) {
+            (window as any).toast.success(
               `Welcome! You've received ${result.points} points and NFT #${result.tokenId}`
             )
           }
@@ -227,6 +261,77 @@ export function useAuth(): UseAuthReturn {
       }
     }
 
+    const checkAndLinkSocialAccounts = async () => {
+      try {
+        const token = await getAccessToken()
+        if (!token) return
+
+        // Check for Farcaster connection
+        if ((user as any).farcaster) {
+          const farcaster = (user as any).farcaster
+          try {
+            await fetch(`/api/users/${user.id}/link-social`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                platform: 'farcaster',
+                username: farcaster.username || farcaster.displayName,
+              }),
+            })
+            logger.info('Detected and linked Farcaster account', { username: farcaster.username }, 'useAuth')
+          } catch (error) {
+            logger.warn('Error linking Farcaster account:', error, 'useAuth')
+          }
+        }
+
+        // Check for Twitter/X connection
+        if ((user as any).twitter) {
+          const twitter = (user as any).twitter
+          try {
+            await fetch(`/api/users/${user.id}/link-social`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                platform: 'twitter',
+                username: twitter.username,
+              }),
+            })
+            logger.info('Detected and linked Twitter account', { username: twitter.username }, 'useAuth')
+          } catch (error) {
+            logger.warn('Error linking Twitter account:', error, 'useAuth')
+          }
+        }
+
+        // Check for wallet connection
+        if (wallet?.address) {
+          try {
+            await fetch(`/api/users/${user.id}/link-social`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                platform: 'wallet',
+                address: wallet.address,
+              }),
+            })
+            logger.info('Detected and linked wallet', { address: wallet.address }, 'useAuth')
+          } catch (error) {
+            logger.warn('Error linking wallet:', error, 'useAuth')
+          }
+        }
+      } catch (error) {
+        logger.warn('Error checking social accounts:', error, 'useAuth')
+      }
+    }
+
     if (!loadedProfileUsers.has(user.id)) {
       loadedProfileUsers.add(user.id)
       void loadUserProfile()
@@ -243,6 +348,15 @@ export function useAuth(): UseAuthReturn {
     if (!checkedOnboardingUsers.has(user.id)) {
       checkedOnboardingUsers.add(user.id)
       void checkOnboarding()
+    }
+
+    // Check and link social accounts for points
+    if (!checkedSocialLinks.has(user.id)) {
+      checkedSocialLinks.add(user.id)
+      // Delay slightly to ensure profile is loaded first
+      setTimeout(() => {
+        void checkAndLinkSocialAccounts()
+      }, 1000)
     }
   }, [authenticated, user, wallet, wallets, setUser, setWallet, clearAuth, getAccessToken, setIsLoadingProfile, setLoadedUserId])
 

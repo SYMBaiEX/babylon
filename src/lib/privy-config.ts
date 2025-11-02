@@ -36,7 +36,7 @@ export const privyConfig = {
   appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID || '',
   config: {
     appearance: {
-      theme: 'dark' as const,
+      theme: 'system' as const,
       accentColor: '#1c9cf0',
       logo: '/assets/logos/logo.svg',
       showWalletLoginFirst: false, // Changed to false to prioritize Farcaster

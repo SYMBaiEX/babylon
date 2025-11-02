@@ -272,7 +272,7 @@ export type {
 };
 
 // Load actors database
-const actorsPath = join(process.cwd(), 'data/actors.json');
+const actorsPath = join(process.cwd(), 'public/data/actors.json');
 const actorsData = JSON.parse(readFileSync(actorsPath, 'utf-8')) as ActorsDatabase;
 const actors = actorsData;
 

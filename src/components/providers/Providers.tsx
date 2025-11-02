@@ -3,11 +3,12 @@
 import { PrivyProvider } from '@privy-io/react-auth'
 import { WagmiProvider } from '@privy-io/wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useState, useEffect, Fragment, useMemo } from 'react'
+import { useState, useEffect, Fragment, useMemo, Suspense } from 'react'
 import { privyConfig } from '@/lib/privy-config'
 import { ThemeProvider } from '@/components/shared/ThemeProvider'
 import { FontSizeProvider } from '@/contexts/FontSizeContext'
 import { GamePlaybackManager } from './GamePlaybackManager'
+import { ReferralCaptureProvider } from './ReferralCaptureProvider'
 import { http } from 'viem'
 import { mainnet, sepolia, base, baseSepolia } from 'viem/chains'
 import { createConfig } from 'wagmi'
@@ -46,32 +47,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
     setMounted(true)
   }, [])
 
-  // Prevent hydration issues by only rendering Privy+Wagmi on client
-  if (!mounted) {
-    return (
-      <div suppressHydrationWarning>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="system"
-        enableSystem
-        disableTransitionOnChange={false}
-      >
-        <FontSizeProvider>
-          <PrivyProvider
-            appId={privyConfig.appId}
-            config={privyConfig.config as any}
-          >
-            <QueryClientProvider client={queryClient}>
-              <GamePlaybackManager />
-              <Fragment>{children}</Fragment>
-            </QueryClientProvider>
-          </PrivyProvider>
-        </FontSizeProvider>
-      </ThemeProvider>
-      </div>
-    )
-  }
-
   return (
     <div suppressHydrationWarning>
       <ThemeProvider
@@ -81,17 +56,25 @@ export function Providers({ children }: { children: React.ReactNode }) {
         disableTransitionOnChange={false}
       >
         <FontSizeProvider>
-          <PrivyProvider
-            appId={privyConfig.appId}
-            config={privyConfig.config as any}
-          >
-            <QueryClientProvider client={queryClient}>
-              <GamePlaybackManager />
+          <QueryClientProvider client={queryClient}>
+            <GamePlaybackManager />
+            <PrivyProvider
+              appId={privyConfig.appId}
+              config={privyConfig.config as any}
+            >
               <WagmiProvider config={wagmiConfig}>
-                <Fragment>{children}</Fragment>
+                {/* Capture referral code from URL if present */}
+                <Suspense fallback={null}>
+                  <ReferralCaptureProvider />
+                </Suspense>
+                {mounted ? (
+                  <Fragment>{children}</Fragment>
+                ) : (
+                  <div className="min-h-screen bg-sidebar" />
+                )}
               </WagmiProvider>
-            </QueryClientProvider>
-          </PrivyProvider>
+            </PrivyProvider>
+          </QueryClientProvider>
         </FontSizeProvider>
       </ThemeProvider>
     </div>

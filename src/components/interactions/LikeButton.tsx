@@ -84,7 +84,7 @@ export function LikeButton({
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const longPressStartTime = useRef<number>(0);
 
-  const { toggleLike, toggleCommentLike, postInteractions, commentInteractions } = useInteractionStore();
+  const { toggleLike, toggleCommentLike, postInteractions, commentInteractions, loadingStates } = useInteractionStore();
 
   // Get state from store instead of local state
   const storeData = targetType === 'post' 
@@ -93,6 +93,7 @@ export function LikeButton({
   
   const isLiked = storeData?.isLiked ?? initialLiked;
   const likeCount = storeData?.likeCount ?? initialCount;
+  const isLoading = loadingStates.get(targetId) ?? false;
 
   // Cleanup on unmount
   useEffect(() => {
@@ -177,6 +178,7 @@ export function LikeButton({
         onMouseLeave={handleMouseLeave}
         onTouchStart={handleMouseDown}
         onTouchEnd={handleMouseUp}
+        disabled={isLoading}
         className={cn(
           'flex items-center rounded-full transition-all duration-200',
           'border border-transparent',
@@ -185,18 +187,26 @@ export function LikeButton({
             : 'hover:bg-muted',
           sizeClasses[size],
           isAnimating && 'scale-110',
+          isLoading && 'opacity-50 cursor-wait',
           className
         )}
         style={!isLiked ? { color: '#1c9cf0' } : undefined}
       >
-        <Icon
-          size={iconSizes[size]}
-          className={cn(
-            'transition-all duration-200',
-            isLiked && reaction.fill && 'fill-current',
-            isAnimating && 'animate-bounce'
-          )}
-        />
+        {isLoading ? (
+          <div 
+            className={cn('border-2 border-current border-t-transparent rounded-full animate-spin')} 
+            style={{ width: iconSizes[size], height: iconSizes[size] }} 
+          />
+        ) : (
+          <Icon
+            size={iconSizes[size]}
+            className={cn(
+              'transition-all duration-200',
+              isLiked && reaction.fill && 'fill-current',
+              isAnimating && 'animate-bounce'
+            )}
+          />
+        )}
         {showCount && likeCount > 0 && (
           <span className="font-medium tabular-nums">{likeCount}</span>
         )}

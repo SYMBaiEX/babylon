@@ -18,4 +18,6 @@ data/
 docs/
 bun.lock
 plugin-babylon/.eliza/
-cache/
+cache/# Uploaded user files
+/public/uploads/*
+!/public/uploads/.gitkeep

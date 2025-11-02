@@ -104,10 +104,10 @@ export function PerpPositionsList({ positions, onPositionClosed }: PerpPositions
           <div
             key={position.id}
             className={cn(
-              'p-4 rounded-lg border transition-all',
+              'p-4 rounded transition-all',
               isNearLiquidation
-                ? 'bg-red-600/5 border-red-600/30'
-                : 'bg-card border-border'
+                ? 'bg-red-600/10'
+                : 'bg-muted/40'
             )}
           >
             {/* Header */}
@@ -143,7 +143,7 @@ export function PerpPositionsList({ positions, onPositionClosed }: PerpPositions
 
             {/* Liquidation Warning */}
             {isNearLiquidation && (
-              <div className="flex items-center gap-2 p-2 bg-red-600/10 border border-red-600/20 rounded mb-3">
+              <div className="flex items-center gap-2 p-2 bg-red-600/20 rounded mb-3">
                 <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" />
                 <p className="text-xs text-red-600 font-medium">
                   Near liquidation! {liquidationDistance.toFixed(2)}% away
@@ -189,10 +189,10 @@ export function PerpPositionsList({ positions, onPositionClosed }: PerpPositions
               onClick={() => handleClose(position.id, position.ticker)}
               disabled={isClosing}
               className={cn(
-                'w-full py-2 rounded-lg font-medium transition-all',
+                'w-full py-2 rounded font-medium transition-all cursor-pointer',
                 isNearLiquidation
                   ? 'bg-red-600 hover:bg-red-700 text-white'
-                  : 'bg-muted hover:bg-muted/80 text-foreground',
+                  : 'bg-muted hover:bg-muted text-foreground',
                 isClosing && 'opacity-50 cursor-not-allowed'
               )}
             >

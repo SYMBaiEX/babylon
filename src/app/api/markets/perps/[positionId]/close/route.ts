@@ -4,7 +4,7 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/database-service';
 import {
   authenticate,
   authErrorResponse,
@@ -14,8 +14,6 @@ import {
 import { getPerpsEngine } from '@/lib/perps-service';
 import { WalletService } from '@/services/WalletService';
 import { logger } from '@/lib/logger';
-
-const prisma = new PrismaClient();
 
 /**
  * POST /api/markets/perps/[positionId]/close
@@ -60,16 +58,28 @@ export async function POST(
     // 6. Calculate final settlement
     const marginPaid = position.size / position.leverage;
     const settlement = marginPaid + realizedPnL; // Margin + PnL
+    
+    // If loss exceeds margin (liquidation scenario), settlement is 0
+    // User loses entire margin, nothing credited back
+    const finalSettlement = Math.max(0, settlement);
 
     // 7. Credit settlement to balance
-    if (settlement > 0) {
+    if (finalSettlement > 0) {
       await WalletService.credit(
         user.userId,
-        settlement,
+        finalSettlement,
         'perp_close',
         `Closed ${position.leverage}x ${position.side} ${position.ticker} - PnL: ${realizedPnL >= 0 ? '+' : ''}$${realizedPnL.toFixed(2)}`,
         position.id
       );
+    } else {
+      // Margin was completely lost (liquidation)
+      logger.info('Position closed with total loss', { 
+        positionId, 
+        marginPaid, 
+        realizedPnL,
+        userId: user.userId 
+      }, 'POST /api/markets/perps/[positionId]/close');
     }
 
     // 8. Record PnL
@@ -101,9 +111,10 @@ export async function POST(
         realizedPnL,
         fundingPaid: position.fundingPaid,
       },
-      settlement,
+      settlement: finalSettlement,
       marginReturned: marginPaid,
       pnl: realizedPnL,
+      wasLiquidated: finalSettlement === 0,
       newBalance: newBalance.balance,
       newLifetimePnL: newBalance.lifetimePnL,
     });

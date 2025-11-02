@@ -116,7 +116,7 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
 
       {/* Modal */}
       <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg">
-        <div className="bg-popover border border-border rounded-lg shadow-lg p-6 m-4 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+        <div className="bg-popover rounded shadow-xl p-4 sm:p-6 m-4 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -133,9 +133,9 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
           </div>
 
           {/* Current Price */}
-          <div className="mb-6 p-4 bg-muted rounded-lg">
+          <div className="mb-6 p-4 bg-muted rounded">
             <div className="text-sm text-muted-foreground mb-1">Current Price</div>
-            <div className="text-3xl font-bold text-foreground">
+            <div className="text-2xl sm:text-3xl font-bold text-foreground">
               {formatPrice(market.currentPrice)}
             </div>
           </div>
@@ -145,31 +145,31 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
             <button
               onClick={() => setSide('long')}
               className={cn(
-                'flex-1 py-3 rounded-lg font-bold transition-all flex items-center justify-center gap-2',
+                'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer',
                 side === 'long'
                   ? 'bg-green-600 text-white'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  : 'bg-muted text-muted-foreground hover:bg-muted'
               )}
             >
-              <TrendingUp size={20} />
+              <TrendingUp size={18} />
               LONG
             </button>
             <button
               onClick={() => setSide('short')}
               className={cn(
-                'flex-1 py-3 rounded-lg font-bold transition-all flex items-center justify-center gap-2',
+                'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer',
                 side === 'short'
                   ? 'bg-red-600 text-white'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  : 'bg-muted text-muted-foreground hover:bg-muted'
               )}
             >
-              <TrendingDown size={20} />
+              <TrendingDown size={18} />
               SHORT
             </button>
           </div>
 
           {/* Size & Leverage */}
-          <div className="bg-muted rounded-lg p-4 mb-6 space-y-4">
+          <div className="bg-muted rounded p-4 mb-6 space-y-4">
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium text-muted-foreground">Position Size (USD)</label>
               <input
@@ -178,7 +178,7 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
                 onChange={(e) => setSize(e.target.value)}
                 min={market.minOrderSize}
                 step="10"
-                className="w-32 px-3 py-1.5 rounded-md bg-background border border-border text-foreground text-right font-medium focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-32 px-3 py-1.5 rounded bg-background/50 text-foreground text-right font-medium focus:outline-none focus:bg-background focus:ring-2 focus:ring-[#1da1f2]/30"
                 placeholder={`Min: $${market.minOrderSize}`}
               />
             </div>
@@ -193,7 +193,7 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
                 max={market.maxLeverage}
                 value={leverage}
                 onChange={(e) => setLeverage(parseInt(e.target.value))}
-                className="w-full h-2 mt-2 bg-background rounded-lg appearance-none cursor-pointer"
+                className="w-full h-2 mt-2 bg-background rounded appearance-none cursor-pointer"
               />
               <div className="flex justify-between text-xs text-muted-foreground mt-1">
                 <span>1x</span>
@@ -203,7 +203,7 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
           </div>
 
           {/* Position Preview */}
-          <div className="border border-border p-4 rounded-lg mb-6">
+          <div className="bg-muted/20 p-4 rounded mb-6">
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
               <span className="text-muted-foreground">Margin Required</span>
               <span className="font-bold text-foreground text-right">{formatPrice(marginRequired)}</span>
@@ -237,7 +237,7 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
 
           {/* High Risk Warning */}
           {isHighRisk && (
-            <div className="flex items-start gap-3 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg mb-4">
+            <div className="flex items-start gap-3 p-3 bg-yellow-500/15 rounded mb-4">
               <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
               <div className="text-sm">
                 <div className="font-bold text-yellow-600 mb-1">High Risk Position</div>
@@ -255,7 +255,7 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
             onClick={handleSubmit}
             disabled={loading || sizeNum < market.minOrderSize}
             className={cn(
-              'w-full py-4 rounded-lg font-bold text-white transition-all text-lg',
+              'w-full py-3 sm:py-4 rounded font-bold text-white transition-all text-base sm:text-lg cursor-pointer',
               side === 'long'
                 ? 'bg-green-600 hover:bg-green-700'
                 : 'bg-red-600 hover:bg-red-700',
@@ -276,7 +276,7 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
           <button
             onClick={onClose}
             disabled={loading}
-            className="w-full mt-3 py-3 rounded-lg font-medium text-muted-foreground hover:bg-muted transition-all"
+            className="w-full mt-3 py-2.5 sm:py-3 rounded font-medium text-muted-foreground hover:bg-muted transition-all cursor-pointer disabled:cursor-not-allowed"
           >
             Cancel
           </button>

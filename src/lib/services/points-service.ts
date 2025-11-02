@@ -1,0 +1,472 @@
+/**
+ * Points Service
+ *
+ * Centralized service for managing reputation points and rewards
+ * Tracks all point transactions and ensures no duplicate awards
+ */
+
+import { PrismaClient } from '@prisma/client'
+import { logger } from '@/lib/logger'
+
+const prisma = new PrismaClient()
+
+// Point award amounts
+export const POINTS = {
+  INITIAL_SIGNUP: 1000,
+  PROFILE_COMPLETION: 1000,
+  PROFILE_IMAGE: 1000,
+  USERNAME: 1000,
+  FARCASTER_LINK: 1000,
+  TWITTER_LINK: 1000,
+  WALLET_CONNECT: 1000,
+  SHARE_ACTION: 1000,
+  SHARE_TO_TWITTER: 1000,
+  REFERRAL_SIGNUP: 250,
+} as const
+
+export type PointsReason = 
+  | 'initial_signup'
+  | 'profile_completion'
+  | 'profile_image'
+  | 'username'
+  | 'farcaster_link'
+  | 'twitter_link'
+  | 'wallet_connect'
+  | 'share_action'
+  | 'share_to_twitter'
+  | 'referral_signup'
+  | 'admin_award'
+  | 'admin_deduction'
+
+interface AwardPointsResult {
+  success: boolean
+  pointsAwarded: number
+  newTotal: number
+  alreadyAwarded?: boolean
+  error?: string
+}
+
+export class PointsService {
+  /**
+   * Award points to a user with transaction tracking
+   */
+  static async awardPoints(
+    userId: string,
+    amount: number,
+    reason: PointsReason,
+    metadata?: Record<string, unknown>
+  ): Promise<AwardPointsResult> {
+    try {
+      // Get current user state
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          reputationPoints: true,
+          pointsAwardedForProfile: true,
+          pointsAwardedForProfileImage: true,
+          pointsAwardedForUsername: true,
+          pointsAwardedForFarcaster: true,
+          pointsAwardedForTwitter: true,
+          pointsAwardedForWallet: true,
+        },
+      })
+
+      if (!user) {
+        return {
+          success: false,
+          pointsAwarded: 0,
+          newTotal: 0,
+          error: 'User not found',
+        }
+      }
+
+      // Check if points were already awarded for this reason
+      const alreadyAwarded = this.checkAlreadyAwarded(user, reason)
+      if (alreadyAwarded) {
+        return {
+          success: true,
+          pointsAwarded: 0,
+          newTotal: user.reputationPoints,
+          alreadyAwarded: true,
+        }
+      }
+
+      const pointsBefore = user.reputationPoints
+      const pointsAfter = pointsBefore + amount
+
+      // Update user points and tracking flags in a transaction
+      const updateData: Record<string, unknown> = {
+        reputationPoints: pointsAfter,
+      }
+
+      // Set the appropriate tracking flag
+      switch (reason) {
+        case 'profile_completion':
+          updateData.pointsAwardedForProfile = true
+          break
+        case 'profile_image':
+          updateData.pointsAwardedForProfileImage = true
+          break
+        case 'username':
+          updateData.pointsAwardedForUsername = true
+          break
+        case 'farcaster_link':
+          updateData.pointsAwardedForFarcaster = true
+          break
+        case 'twitter_link':
+          updateData.pointsAwardedForTwitter = true
+          break
+        case 'wallet_connect':
+          updateData.pointsAwardedForWallet = true
+          break
+      }
+
+      // Execute in transaction
+      await prisma.$transaction([
+        // Update user points
+        prisma.user.update({
+          where: { id: userId },
+          data: updateData,
+        }),
+        // Create transaction record
+        prisma.pointsTransaction.create({
+          data: {
+            userId,
+            amount,
+            pointsBefore,
+            pointsAfter,
+            reason,
+            metadata: metadata ? JSON.stringify(metadata) : null,
+          },
+        }),
+      ])
+
+      logger.info(
+        `Awarded ${amount} points to user ${userId} for ${reason}`,
+        { userId, amount, reason, pointsBefore, pointsAfter },
+        'PointsService'
+      )
+
+      return {
+        success: true,
+        pointsAwarded: amount,
+        newTotal: pointsAfter,
+      }
+    } catch (error) {
+      logger.error(
+        `Error awarding points to user ${userId}:`,
+        error,
+        'PointsService'
+      )
+      return {
+        success: false,
+        pointsAwarded: 0,
+        newTotal: 0,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
+  }
+
+  /**
+   * Award points for profile completion
+   */
+  static async awardProfileCompletion(userId: string): Promise<AwardPointsResult> {
+    return this.awardPoints(userId, POINTS.PROFILE_COMPLETION, 'profile_completion')
+  }
+
+  /**
+   * Award points for profile image
+   */
+  static async awardProfileImage(userId: string): Promise<AwardPointsResult> {
+    return this.awardPoints(userId, POINTS.PROFILE_IMAGE, 'profile_image')
+  }
+
+  /**
+   * Award points for username
+   */
+  static async awardUsername(userId: string): Promise<AwardPointsResult> {
+    return this.awardPoints(userId, POINTS.USERNAME, 'username')
+  }
+
+  /**
+   * Award points for Farcaster link
+   */
+  static async awardFarcasterLink(userId: string, farcasterUsername?: string): Promise<AwardPointsResult> {
+    return this.awardPoints(
+      userId,
+      POINTS.FARCASTER_LINK,
+      'farcaster_link',
+      { farcasterUsername }
+    )
+  }
+
+  /**
+   * Award points for Twitter link
+   */
+  static async awardTwitterLink(userId: string, twitterUsername?: string): Promise<AwardPointsResult> {
+    return this.awardPoints(
+      userId,
+      POINTS.TWITTER_LINK,
+      'twitter_link',
+      { twitterUsername }
+    )
+  }
+
+  /**
+   * Award points for wallet connection
+   */
+  static async awardWalletConnect(userId: string, walletAddress?: string): Promise<AwardPointsResult> {
+    return this.awardPoints(
+      userId,
+      POINTS.WALLET_CONNECT,
+      'wallet_connect',
+      { walletAddress }
+    )
+  }
+
+  /**
+   * Award points for share action
+   */
+  static async awardShareAction(
+    userId: string,
+    platform: string,
+    contentType: string,
+    contentId?: string
+  ): Promise<AwardPointsResult> {
+    const amount = platform === 'twitter' ? POINTS.SHARE_TO_TWITTER : POINTS.SHARE_ACTION
+    const reason = platform === 'twitter' ? 'share_to_twitter' : 'share_action'
+
+    return this.awardPoints(userId, amount, reason, {
+      platform,
+      contentType,
+      contentId,
+    })
+  }
+
+  /**
+   * Award points for referral signup
+   */
+  static async awardReferralSignup(
+    referrerId: string,
+    referredUserId: string
+  ): Promise<AwardPointsResult> {
+    const result = await this.awardPoints(
+      referrerId,
+      POINTS.REFERRAL_SIGNUP,
+      'referral_signup',
+      { referredUserId }
+    )
+
+    // Also increment referral count
+    if (result.success) {
+      await prisma.user.update({
+        where: { id: referrerId },
+        data: { referralCount: { increment: 1 } },
+      })
+    }
+
+    return result
+  }
+
+  /**
+   * Check if points were already awarded for a specific reason
+   */
+  private static checkAlreadyAwarded(
+    user: {
+      pointsAwardedForProfile: boolean
+      pointsAwardedForProfileImage: boolean
+      pointsAwardedForUsername: boolean
+      pointsAwardedForFarcaster: boolean
+      pointsAwardedForTwitter: boolean
+      pointsAwardedForWallet: boolean
+    },
+    reason: PointsReason
+  ): boolean {
+    switch (reason) {
+      case 'profile_completion':
+        return user.pointsAwardedForProfile
+      case 'profile_image':
+        return user.pointsAwardedForProfileImage
+      case 'username':
+        return user.pointsAwardedForUsername
+      case 'farcaster_link':
+        return user.pointsAwardedForFarcaster
+      case 'twitter_link':
+        return user.pointsAwardedForTwitter
+      case 'wallet_connect':
+        return user.pointsAwardedForWallet
+      default:
+        return false // For share actions and referrals, allow multiple awards
+    }
+  }
+
+  /**
+   * Get user's points and transaction history
+   */
+  static async getUserPoints(userId: string) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          reputationPoints: true,
+          referralCount: true,
+          pointsTransactions: {
+            orderBy: { createdAt: 'desc' },
+            take: 50,
+          },
+        },
+      })
+
+      if (!user) {
+        return null
+      }
+
+      return {
+        points: user.reputationPoints,
+        referralCount: user.referralCount,
+        transactions: user.pointsTransactions,
+      }
+    } catch (error) {
+      logger.error(
+        `Error getting user points for ${userId}:`,
+        error,
+        'PointsService'
+      )
+      return null
+    }
+  }
+
+  /**
+   * Get leaderboard with pagination (includes both Users and Actors with pools)
+   */
+  static async getLeaderboard(
+    page: number = 1,
+    pageSize: number = 100,
+    minPoints: number = 10000
+  ) {
+    try {
+      const skip = (page - 1) * pageSize
+
+      // Get users with points >= minPoints
+      const users = await prisma.user.findMany({
+        where: {
+          reputationPoints: { gte: minPoints },
+          isActor: false, // Only real users
+        },
+        select: {
+          id: true,
+          username: true,
+          displayName: true,
+          profileImageUrl: true,
+          reputationPoints: true,
+          referralCount: true,
+          createdAt: true,
+        },
+      })
+
+      // Get trader NPCs (actors with pools) with points >= minPoints
+      const actors = await prisma.actor.findMany({
+        where: {
+          reputationPoints: { gte: minPoints },
+          hasPool: true, // Only trader NPCs with pools
+        },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          profileImageUrl: true,
+          reputationPoints: true,
+          tier: true,
+          createdAt: true,
+        },
+      })
+
+      // Combine and format both users and actors
+      const combined = [
+        ...users.map(user => ({
+          id: user.id,
+          username: user.username,
+          displayName: user.displayName,
+          profileImageUrl: user.profileImageUrl,
+          reputationPoints: user.reputationPoints,
+          referralCount: user.referralCount,
+          createdAt: user.createdAt,
+          isActor: false,
+          tier: null,
+        })),
+        ...actors.map(actor => ({
+          id: actor.id,
+          username: actor.id, // Use actor ID as username
+          displayName: actor.name,
+          profileImageUrl: actor.profileImageUrl,
+          reputationPoints: actor.reputationPoints,
+          referralCount: 0, // Actors don't have referrals
+          createdAt: actor.createdAt,
+          isActor: true,
+          tier: actor.tier,
+        })),
+      ]
+
+      // Sort by points descending
+      combined.sort((a, b) => b.reputationPoints - a.reputationPoints)
+
+      // Paginate
+      const paginatedResults = combined.slice(skip, skip + pageSize)
+
+      // Calculate ranks
+      const resultsWithRank = paginatedResults.map((entry, index) => ({
+        ...entry,
+        rank: skip + index + 1,
+      }))
+
+      return {
+        users: resultsWithRank,
+        totalCount: combined.length,
+        page,
+        pageSize,
+        totalPages: Math.ceil(combined.length / pageSize),
+      }
+    } catch (error) {
+      logger.error('Error getting leaderboard:', error, 'PointsService')
+      throw error
+    }
+  }
+
+  /**
+   * Get user's rank on leaderboard (including actors)
+   */
+  static async getUserRank(userId: string): Promise<number | null> {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { reputationPoints: true, isActor: true },
+      })
+
+      if (!user || user.isActor) {
+        return null
+      }
+
+      // Count users with more points
+      const higherUsersCount = await prisma.user.count({
+        where: {
+          reputationPoints: { gt: user.reputationPoints },
+          isActor: false,
+        },
+      })
+
+      // Count actors with more points
+      const higherActorsCount = await prisma.actor.count({
+        where: {
+          reputationPoints: { gt: user.reputationPoints },
+          hasPool: true,
+        },
+      })
+
+      return higherUsersCount + higherActorsCount + 1
+    } catch (error) {
+      logger.error(`Error getting user rank for ${userId}:`, error, 'PointsService')
+      return null
+    }
+  }
+}
+

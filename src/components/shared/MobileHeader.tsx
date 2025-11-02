@@ -3,25 +3,26 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { User as UserIcon, LogOut, X } from 'lucide-react'
+import { X, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { useLoginModal } from '@/hooks/useLoginModal'
-import { PointsTracker } from '@/components/shared/PointsTracker'
 import { NotificationsButton } from '@/components/shared/NotificationsButton'
-import { ThemeToggle } from '@/components/shared/ThemeToggle'
+import { CreatePostModal } from '@/components/posts/CreatePostModal'
+import { useRouter, usePathname } from 'next/navigation'
 
 export function MobileHeader() {
-  const { authenticated, logout } = useAuth()
+  const { authenticated } = useAuth()
   useAuthStore()
   const { showLoginModal } = useLoginModal()
   const [showUserMenu, setShowUserMenu] = useState(false)
-
-  const handleLogout = async () => {
-    setShowUserMenu(false)
-    await logout()
-  }
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const router = useRouter()
+  const pathname = usePathname()
+  
+  // Hide certain elements on profile page
+  const isProfilePage = pathname === '/profile'
 
   return (
     <>
@@ -36,41 +37,40 @@ export function MobileHeader() {
         style={{ borderColor: 'var(--border)' }}
       >
         <div className="flex items-center justify-between h-14 px-4 relative">
-          {/* Left: Logo */}
-          <Link
-            href="/feed"
-            className={cn(
-              'flex items-center gap-3',
-              'hover:scale-105 transition-transform duration-300',
-              'flex-shrink-0'
-            )}
-          >
-            <Image
-              src="/assets/logos/logo.svg"
-              alt="Babylon Logo"
-              width={28}
-              height={28}
-              className="flex-shrink-0 w-7 h-7"
-            />
-          </Link>
+          {/* Left: Logo (hidden on profile page) */}
+          {!isProfilePage && (
+            <Link
+              href="/feed"
+              className={cn(
+                'flex items-center gap-3',
+                'hover:scale-105 transition-transform duration-300',
+                'flex-shrink-0'
+              )}
+            >
+              <Image
+                src="/assets/logos/logo.svg"
+                alt="Babylon Logo"
+                width={28}
+                height={28}
+                className="flex-shrink-0 w-7 h-7"
+              />
+            </Link>
+          )}
 
-          {/* Center: Points Tracker */}
-          <div className="absolute left-1/2 transform -translate-x-1/2">
-            <PointsTracker showIcon={true} />
-          </div>
+          {/* Profile page: show page title */}
+          {isProfilePage && (
+            <h1 className="text-lg font-bold text-foreground">Profile</h1>
+          )}
 
-          {/* Right side: Notifications, Login/User Menu, and Theme Toggle */}
+          {/* Right side: Notifications, Login (hide on profile page when authenticated) */}
           <div className="flex items-center gap-2 flex-shrink-0">
             {authenticated ? (
               <>
-                <NotificationsButton />
-                <button
-                  onClick={() => setShowUserMenu(true)}
-                  className="p-2 hover:bg-sidebar-accent transition-colors rounded-full"
-                  aria-label="User menu"
-                >
-                  <UserIcon className="w-5 h-5 text-sidebar-foreground" />
-                </button>
+                {!isProfilePage && (
+                  <>
+                    <NotificationsButton />
+                  </>
+                )}
               </>
             ) : (
               <button
@@ -80,10 +80,23 @@ export function MobileHeader() {
                 Login
               </button>
             )}
-            <ThemeToggle compact />
           </div>
         </div>
       </header>
+
+      {/* Create Post Modal */}
+      <CreatePostModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onPostCreated={() => {
+          // Refresh the page if on feed, otherwise navigate to feed
+          if (window.location.pathname === '/feed') {
+            window.location.reload()
+          } else {
+            router.push('/feed')
+          }
+        }}
+      />
 
       {/* User Menu Modal (Mobile) */}
       {showUserMenu && authenticated && (
@@ -106,38 +119,19 @@ export function MobileHeader() {
                 <X size={20} />
               </button>
             </div>
-
-            {/* User Info */}
-            <div className="space-y-4">
-              <Link
-                href="/profile"
-                className="flex items-center gap-3 p-3 bg-muted rounded-lg"
-                onClick={() => setShowUserMenu(false)}
-              >
-                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                  <UserIcon className="w-6 h-6 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-foreground truncate">
-                    My Profile
-                  </p>
-                  <p className="text-sm text-muted-foreground truncate">
-                    View and edit your profile
-                  </p>
-                </div>
-              </Link>
-
-              {/* Logout Button */}
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors font-medium"
-              >
-                <LogOut className="w-5 h-5" />
-                <span>Logout</span>
-              </button>
-            </div>
           </div>
         </>
+      )}
+
+      {/* Floating Post Button (Mobile) */}
+      {authenticated && !isProfilePage && (
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="md:hidden fixed bottom-20 right-4 z-40 w-14 h-14 rounded-full bg-[#1c9cf0] hover:bg-[#1a8cd8] text-white shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center"
+          aria-label="Create post"
+        >
+          <Plus className="w-6 h-6" />
+        </button>
       )}
     </>
   )

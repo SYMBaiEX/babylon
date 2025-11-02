@@ -9,12 +9,12 @@ interface FeedToggleProps {
 
 export function FeedToggle({ activeTab, onTabChange }: FeedToggleProps) {
   return (
-    <div className="flex items-center gap-6">
+    <div className="flex items-center gap-4 sm:gap-6">
       <button
         onClick={() => onTabChange('latest')}
         className={cn(
-          'px-3 py-2 font-semibold transition-all duration-300',
-          'relative',
+          'px-2 sm:px-3 py-2 font-semibold text-sm sm:text-base transition-all duration-300',
+          'relative whitespace-nowrap',
           activeTab === 'latest'
             ? 'text-foreground'
             : 'text-muted-foreground hover:text-foreground'
@@ -28,8 +28,8 @@ export function FeedToggle({ activeTab, onTabChange }: FeedToggleProps) {
       <button
         onClick={() => onTabChange('following')}
         className={cn(
-          'px-3 py-2 font-semibold transition-all duration-300',
-          'relative',
+          'px-2 sm:px-3 py-2 font-semibold text-sm sm:text-base transition-all duration-300',
+          'relative whitespace-nowrap',
           activeTab === 'following'
             ? 'text-foreground'
             : 'text-muted-foreground hover:text-foreground'

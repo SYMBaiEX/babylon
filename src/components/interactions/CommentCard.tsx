@@ -136,6 +136,14 @@ export function CommentCard({
           </div>
         </div>
 
+        {/* Replying to indicator */}
+        {comment.parentCommentId && (
+          <div className="flex items-center gap-1 mb-1 text-xs text-muted-foreground">
+            <span>Replying to</span>
+            <span className="text-primary font-medium">@{comment.userName}</span>
+          </div>
+        )}
+
         {/* Comment body */}
         {isEditing ? (
           <div className="mb-2">
@@ -212,6 +220,7 @@ export function CommentCard({
               postId={comment.id}
               parentCommentId={comment.id}
               placeholder={`Reply to ${comment.userName}...`}
+              replyingToName={comment.userName}
               autoFocus
               onSubmit={() => {
                 setIsReplying(false);

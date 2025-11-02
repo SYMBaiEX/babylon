@@ -110,7 +110,7 @@ export class GameEngine extends EventEmitter {
   async initialize(): Promise<void> {
     logger.info('INITIALIZING GAME ENGINE', undefined, 'GameEngine');
 
-    const actorsPath = join(process.cwd(), 'data/actors.json');
+    const actorsPath = join(process.cwd(), 'public/data/actors.json');
     const actorsData = JSON.parse(readFileSync(actorsPath, 'utf-8')) as ActorsDatabase;
 
     logger.info('Loading actors...', undefined, 'GameEngine');

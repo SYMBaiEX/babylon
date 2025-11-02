@@ -9,8 +9,30 @@ interface User {
   username?: string
   bio?: string
   profileImageUrl?: string
+  coverImageUrl?: string
   profileComplete?: boolean
   nftTokenId?: number | null
+  createdAt?: string
+  isActor?: boolean
+  reputationPoints?: number
+  referralCount?: number
+  referralCode?: string
+  hasFarcaster?: boolean
+  hasTwitter?: boolean
+  farcasterUsername?: string
+  twitterUsername?: string
+  showTwitterPublic?: boolean
+  showFarcasterPublic?: boolean
+  showWalletPublic?: boolean
+  bannerLastShown?: string
+  bannerDismissCount?: number
+  stats?: {
+    positions?: number
+    comments?: number
+    reactions?: number
+    followers?: number
+    following?: number
+  }
 }
 
 interface Wallet {

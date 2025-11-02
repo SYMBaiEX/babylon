@@ -4,9 +4,11 @@ import { cn, sanitizeId } from '@/lib/utils'
 import { useState } from 'react'
 
 interface AvatarProps {
-  id: string
-  name: string
+  id?: string
+  name?: string
   type?: 'actor' | 'business'
+  src?: string
+  alt?: string
   size?: 'sm' | 'md' | 'lg'
   className?: string
   scaleFactor?: number
@@ -24,12 +26,23 @@ const sizeClasses = {
   lg: 'w-14 h-14 text-base',
 }
 
-export function Avatar({ id, name, type = 'actor', size = 'md', className, scaleFactor = 1 }: AvatarProps) {
+export function Avatar({ id, name, type = 'actor', src, alt, size = 'md', className, scaleFactor = 1 }: AvatarProps) {
   const [imageError, setImageError] = useState(false)
-  const sanitizedId = sanitizeId(id)
-  const imagePath = type === 'business'
-    ? `/images/organizations/${sanitizedId}.jpg`
-    : `/images/actors/${sanitizedId}.jpg`
+  
+  // If src is provided directly, use it; otherwise construct from id
+  let imagePath: string | undefined
+  if (src) {
+    imagePath = src
+  } else if (id) {
+    const sanitizedId = sanitizeId(id)
+    imagePath = type === 'business'
+      ? `/images/organizations/${sanitizedId}.jpg`
+      : `/images/actors/${sanitizedId}.jpg`
+  }
+
+  // Display name is alt (if provided) or name (if provided) or first letter of id
+  const displayName = alt || name || (id ? id : 'User')
+  const initial = displayName.charAt(0).toUpperCase()
 
   // Base sizes in rem
   const baseSizes = {
@@ -43,7 +56,7 @@ export function Avatar({ id, name, type = 'actor', size = 'md', className, scale
   return (
     <div
       className={cn(
-        'rounded-lg bg-primary/20 flex items-center justify-center overflow-hidden',
+        'rounded-full bg-primary/20 flex items-center justify-center overflow-hidden',
         className
       )}
       style={{
@@ -52,16 +65,16 @@ export function Avatar({ id, name, type = 'actor', size = 'md', className, scale
         fontSize: `${scaleFactor}rem`
       }}
     >
-      {!imageError ? (
+      {imagePath && !imageError ? (
         <img
           src={imagePath}
-          alt={name}
+          alt={displayName}
           className="w-full h-full object-cover"
           onError={() => setImageError(true)}
         />
       ) : (
         <div className="text-primary font-bold">
-          {name ? name.charAt(0).toUpperCase() : id ? id.charAt(0).toUpperCase() : '?'}
+          {initial}
         </div>
       )}
     </div>
@@ -75,7 +88,7 @@ export function GroupAvatar({ members, size = 'md', className }: GroupAvatarProp
   if (displayMembers.length === 0) {
     return (
       <div className={cn(
-        'rounded-lg bg-primary/20 flex items-center justify-center',
+        'rounded-full bg-primary/20 flex items-center justify-center',
         sizeClasses[size],
         className
       )}>
@@ -102,7 +115,7 @@ export function GroupAvatar({ members, size = 'md', className }: GroupAvatarProp
         <div
           key={member.id}
           className={cn(
-            'absolute rounded-lg bg-primary/20 flex items-center justify-center overflow-hidden border-2 border-background',
+            'absolute rounded-full bg-primary/20 flex items-center justify-center overflow-hidden border-2 border-background',
             overlappingSizeClasses[size]
           )}
           style={{

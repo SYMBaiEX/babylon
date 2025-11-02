@@ -8,10 +8,9 @@ interface DropdownProps {
   trigger: ReactNode
   children: ReactNode
   className?: string
-  menuPosition?: 'top' | 'bottom'
 }
 
-export function Dropdown({ trigger, children, className, menuPosition = 'bottom' }: DropdownProps) {
+export function Dropdown({ trigger, children, className }: DropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -33,14 +32,11 @@ export function Dropdown({ trigger, children, className, menuPosition = 'bottom'
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: menuPosition === 'top' ? 10 : -10 }}
+            initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: menuPosition === 'top' ? 10 : -10 }}
+            exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
-            className={cn(
-              "absolute right-0 w-48 bg-popover border border-border rounded-lg shadow-lg z-50",
-              menuPosition === 'bottom' ? 'mt-2' : 'bottom-full mb-2'
-            )}
+            className="absolute right-0 mt-2 w-48 bg-popover border border-border rounded-lg shadow-lg z-50"
           >
             {children}
           </motion.div>

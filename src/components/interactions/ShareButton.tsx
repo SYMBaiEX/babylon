@@ -32,12 +32,13 @@ export function ShareButton({
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
 
-  const { toggleShare, postInteractions } = useInteractionStore();
+  const { toggleShare, postInteractions, loadingStates } = useInteractionStore();
   
   // Get state from store instead of local state
   const storeData = postInteractions.get(postId);
   const isShared = storeData?.isShared ?? initialShared;
   const count = storeData?.shareCount ?? shareCount;
+  const isLoading = loadingStates.get(`share-${postId}`) ?? false;
 
   const { authenticated } = useAuth();
   const { showLoginModal } = useLoginModal();
@@ -80,6 +81,7 @@ export function ShareButton({
       <button
         type="button"
         onClick={handleClick}
+        disabled={isLoading}
         className={cn(
           'flex items-center rounded-full transition-all duration-200',
           'border border-transparent',
@@ -88,17 +90,25 @@ export function ShareButton({
             : 'hover:bg-green-500/10',
           sizeClasses[size],
           isAnimating && 'scale-110',
+          isLoading && 'opacity-50 cursor-wait',
           className
         )}
         style={!isShared ? { color: '#1c9cf0' } : undefined}
       >
-        <Repeat2
-          size={iconSizes[size]}
-          className={cn(
-            'transition-all duration-200',
-            isAnimating && 'rotate-180'
-          )}
-        />
+        {isLoading ? (
+          <div 
+            className={cn('border-2 border-current border-t-transparent rounded-full animate-spin')} 
+            style={{ width: iconSizes[size], height: iconSizes[size] }} 
+          />
+        ) : (
+          <Repeat2
+            size={iconSizes[size]}
+            className={cn(
+              'transition-all duration-200',
+              isAnimating && 'rotate-180'
+            )}
+          />
+        )}
         {showCount && count > 0 && (
           <span className="font-medium tabular-nums">{count}</span>
         )}

@@ -17,7 +17,7 @@
   --accent-foreground: #1e9df1;
   --destructive: #f4212e;
   --destructive-foreground: #ffffff;
-  --border: #1c9cf0;
+  --border: #ffffff2a;
   --input: #f7f9fa;
   --ring: #1da1f2;
   --chart-1: #1e9df1;
@@ -75,7 +75,7 @@
   --accent-foreground: #1c9cf0;
   --destructive: #f4212e;
   --destructive-foreground: #ffffff;
-  --border: #1c9cf0;
+  --border: #2f3336;
   --input: #22303c;
   --ring: #1da1f2;
   --chart-1: #1e9df1;
@@ -276,4 +276,11 @@ body {
 /* Safe area for mobile bottom navigation */
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Word breaking for long content (URLs, long words) */
+.break-anywhere {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
 }

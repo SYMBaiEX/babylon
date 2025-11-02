@@ -53,9 +53,17 @@ export function formatPercentage(value: number): string {
   return `${Math.round(value)}%`
 }
 
-export function sanitizeId(id: string): string {
+export function sanitizeId(id: string | undefined | null): string {
+  // Sanitize ID for use in file paths
+  // Convert to lowercase, replace spaces with hyphens
+  // Keep alphanumeric, hyphens, and underscores
+  // Remove other special characters
+  if (!id) {
+    return 'unknown'
+  }
   return id
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9\-_]/g, '')
+    .trim()
 }

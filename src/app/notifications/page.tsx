@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Bell, CheckCheck } from 'lucide-react'
+import { Bell, CheckCheck } from 'lucide-react'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { Avatar } from '@/components/shared/Avatar'
 import { cn } from '@/lib/utils'
@@ -68,7 +68,7 @@ export default function NotificationsPage() {
         setLoading(false)
       }
     }
-  }, [authenticated, user])
+  }, [])
 
   useEffect(() => {
     if (!authenticated || !user) {
@@ -207,13 +207,7 @@ export default function NotificationsPage() {
     return (
       <PageContainer noPadding className="flex flex-col">
         <div className="sticky top-0 z-10 bg-background border-b border-border">
-          <div className="px-4 py-3 flex items-center gap-4">
-            <Link
-              href="/feed"
-              className="hover:bg-muted/50 rounded-full p-2 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
+          <div className="px-4 py-3">
             <h1 className="text-xl font-bold">Notifications</h1>
           </div>
         </div>
@@ -235,21 +229,13 @@ export default function NotificationsPage() {
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border">
         <div className="px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/feed"
-              className="hover:bg-muted/50 rounded-full p-2 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <div>
-              <h1 className="text-xl font-bold">Notifications</h1>
-              {unreadCount > 0 && (
-                <p className="text-sm text-muted-foreground">
-                  {unreadCount} unread
-                </p>
-              )}
-            </div>
+          <div>
+            <h1 className="text-xl font-bold">Notifications</h1>
+            {unreadCount > 0 && (
+              <p className="text-sm text-muted-foreground">
+                {unreadCount} unread
+              </p>
+            )}
           </div>
           {unreadCount > 0 && (
             <button
@@ -297,10 +283,15 @@ export default function NotificationsPage() {
                 className={cn(
                   'block px-4 py-4 border-b border-border',
                   'hover:bg-muted/30 transition-colors',
-                  !notification.read && 'bg-blue-50/5 dark:bg-blue-950/5'
+                  !notification.read && 'bg-primary/5'
                 )}
               >
                 <div className="flex items-start gap-3">
+                  {/* Unread Indicator - moved to left */}
+                  {!notification.read && (
+                    <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0 mt-2" />
+                  )}
+                  
                   {/* Actor Avatar */}
                   {notification.actor ? (
                     <Avatar
@@ -317,7 +308,7 @@ export default function NotificationsPage() {
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2">
                       <div className="flex-1">
                         <p className="text-foreground leading-relaxed">
                           <span className="font-semibold">
@@ -332,9 +323,6 @@ export default function NotificationsPage() {
                           {formatTimeAgo(notification.createdAt)}
                         </time>
                       </div>
-                      {!notification.read && (
-                        <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-2" />
-                      )}
                     </div>
                   </div>
                 </div>

@@ -46,6 +46,7 @@ export type ProfileInfo = (UserProfile | ActorProfile) & {
   role?: string;
   name?: string;
   username?: string;
+  description?: string;
   tier?: string;
   domain?: string[];
   personality?: string;

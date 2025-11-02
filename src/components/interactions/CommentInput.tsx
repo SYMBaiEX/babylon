@@ -17,10 +17,12 @@ export function CommentInput({
   onSubmit,
   onCancel,
   className,
-}: CommentInputProps) {
+  replyingToName,
+}: CommentInputProps & { replyingToName?: string }) {
   const [content, setContent] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [optimisticComment, setOptimisticComment] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const { addComment } = useInteractionStore();
@@ -52,22 +54,36 @@ export function CommentInput({
     }
 
     setIsSubmitting(true);
+    
+    // Show optimistic comment immediately
+    setOptimisticComment(trimmedContent);
+    
+    // Clear input optimistically
+    const originalContent = content;
+    setContent('');
+    setIsFocused(false);
 
     try {
       const comment = await addComment(postId, trimmedContent, parentCommentId);
 
       if (comment) {
-        // Clear input on success
-        setContent('');
-        setIsFocused(false);
+        // Clear optimistic state on success
+        setOptimisticComment(null);
 
         // Call onSubmit callback if provided
         if (onSubmit) {
           onSubmit(comment);
         }
+      } else {
+        // Restore content if failed
+        setContent(originalContent);
+        setOptimisticComment(null);
       }
     } catch (error) {
       logger.error('Failed to add comment:', error, 'CommentInput');
+      // Restore content on error
+      setContent(originalContent);
+      setOptimisticComment(null);
     } finally {
       setIsSubmitting(false);
     }
@@ -100,15 +116,36 @@ export function CommentInput({
   const showCharCount = content.length > MAX_COMMENT_LENGTH * 0.8;
 
   return (
-    <div
-      className={cn(
-        'flex flex-col gap-2 p-3 rounded-lg border transition-colors',
-        isFocused
-          ? 'border-primary bg-muted/50'
-          : 'border-border bg-background',
-        className
+    <>
+      {/* Replying to indicator */}
+      {replyingToName && (
+        <div className="flex items-center gap-1 mb-2 text-sm text-muted-foreground">
+          <span>Replying to</span>
+          <span className="text-primary font-medium">@{replyingToName}</span>
+        </div>
       )}
-    >
+
+      {/* Optimistic comment preview */}
+      {optimisticComment && (
+        <div className="p-3 rounded-lg border border-primary/50 bg-muted/30 mb-2 opacity-60">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs text-muted-foreground">Posting...</span>
+          </div>
+          <p className="text-sm text-foreground whitespace-pre-wrap break-words">
+            {optimisticComment}
+          </p>
+        </div>
+      )}
+
+      <div
+        className={cn(
+          'flex flex-col gap-2 p-3 rounded-lg border transition-colors',
+          isFocused
+            ? 'border-primary bg-muted/50'
+            : 'border-border bg-background',
+          className
+        )}
+      >
       {/* Textarea */}
       <textarea
         ref={textareaRef}
@@ -185,6 +222,7 @@ export function CommentInput({
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
