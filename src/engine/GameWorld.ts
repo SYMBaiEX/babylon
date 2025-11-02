@@ -88,14 +88,14 @@ type EmitterEventType =
   | 'world:ended';
 
 interface EmitterEventData {
-  question?: string;
-  outcome?: boolean;
-  npcs?: number;
-  day?: number;
-  totalEvents?: number;
-  npcId?: string;
-  description?: string;
-  [key: string]: JsonValue;
+  question?: string | null;
+  outcome?: boolean | null;
+  npcs?: number | null;
+  day?: number | null;
+  totalEvents?: number | null;
+  npcId?: string | null;
+  description?: string | null;
+  [key: string]: JsonValue | undefined;
 }
 
 export interface NPC {

@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useLayoutEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, Briefcase, MessageCircle, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Calendar, Briefcase, ShieldCheck } from 'lucide-react'
 import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { SearchBar } from '@/components/shared/SearchBar'
@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation'
 import { getProfileUrl, isUsername, extractUsername } from '@/lib/profile-utils'
 import type { FeedPost, Actor, Organization } from '@/shared/types'
 import type { ProfileInfo } from '@/types/profiles'
+import { POST_TYPES } from '@/shared/constants'
 
 export default function ActorProfilePage() {
   const params = useParams()
@@ -51,10 +52,11 @@ export default function ActorProfilePage() {
                           user.id === decodedIdentifier ||
                           user.id === identifier
       
-      if (viewingOwnId) {
+      if (viewingOwnId && user.username) {
+        // Additional null check to prevent redirecting to /profile/undefined
         const cleanUsername = user.username.startsWith('@') ? user.username.slice(1) : user.username
-        // Only redirect if the current URL doesn't already match the username
-        if (identifier !== cleanUsername && decodedIdentifier !== cleanUsername && actorId !== cleanUsername) {
+        // Only redirect if cleanUsername is valid and the current URL doesn't already match
+        if (cleanUsername && identifier !== cleanUsername && decodedIdentifier !== cleanUsername && actorId !== cleanUsername) {
           // Use router.replace for client-side navigation (preserves React state)
           router.replace(`/profile/${cleanUsername}`)
         }
@@ -84,6 +86,7 @@ export default function ActorProfilePage() {
     authorId: string
     timestamp: string
     authorName?: string
+    authorUsername?: string | null
   }>>([])
   const [loadingPosts, setLoadingPosts] = useState(false)
   
@@ -119,6 +122,7 @@ export default function ActorProfilePage() {
                   isUser: true,
                   username: user.username,
                   profileImageUrl: user.profileImageUrl,
+                  coverImageUrl: user.coverImageUrl,
                   stats: user.stats,
                 })
                 
@@ -169,12 +173,11 @@ export default function ActorProfilePage() {
                   isUser: true,
                   username: user.username,
                   profileImageUrl: user.profileImageUrl,
+                  coverImageUrl: user.coverImageUrl,
                   stats: user.stats,
                 })
                 
                 // Redirect to username-based URL if username exists
-                // Check if this is the current user's own profile
-                const isCurrentUser = authenticated && user && user.id === data.user.id
                 if (user.username && !isUsernameParam) {
                   const cleanUsername = user.username.startsWith('@') ? user.username.slice(1) : user.username
                   // Always redirect to username URL if we have one and we're on an ID-based URL
@@ -340,6 +343,11 @@ export default function ActorProfilePage() {
           authorName: apiPost.authorName || actorInfo?.name || apiPost.authorId,
           authorUsername: apiPost.authorUsername || actorInfo?.username || null,
           timestamp: apiPost.timestamp,
+          day: 0, // User posts don't have a game day
+          type: POST_TYPES.POST, // User-generated posts
+          sentiment: 0, // Neutral sentiment for user posts
+          clueStrength: 0, // User posts don't have clue strength
+          pointsToward: null, // User posts don't hint at yes/no
         },
         gameId: '',
         gameName: '',
@@ -466,7 +474,7 @@ export default function ActorProfilePage() {
           <div className="w-full lg:max-w-[65%] lg:mx-auto px-4 lg:px-6">
             {/* Cover Image */}
             <div className="relative h-32 sm:h-48 bg-gradient-to-br from-primary/20 to-primary/5">
-              {actorInfo.isUser && actorInfo.type === 'user' && 'coverImageUrl' in actorInfo && actorInfo.coverImageUrl ? (
+              {actorInfo.isUser && actorInfo.type === 'user' && actorInfo.coverImageUrl ? (
                 <img
                   src={actorInfo.coverImageUrl}
                   alt="Cover"

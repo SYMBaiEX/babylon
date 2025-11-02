@@ -1,6 +1,6 @@
-import { usePrivy, useWallets, type User, type ConnectedWallet } from '@privy-io/react-auth'
+import { usePrivy, useWallets, type User as PrivyUser, type ConnectedWallet } from '@privy-io/react-auth'
 import { useEffect, useMemo } from 'react'
-import { useAuthStore } from '@/stores/authStore'
+import { useAuthStore, type User } from '@/stores/authStore'
 import { OnboardingService } from '@/lib/services/onboarding-service'
 import { logger } from '@/lib/logger'
 
@@ -20,9 +20,10 @@ const checkedSocialLinks = new Set<string>()
 let lastSyncedWalletAddress: string | null = null
 
 export function useAuth(): UseAuthReturn {
-  const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy()
+  const { ready, authenticated, user: privyUser, login, logout, getAccessToken } = usePrivy()
   const { wallets } = useWallets()
   const {
+    user,
     setUser,
     setWallet,
     clearAuth,
@@ -60,7 +61,7 @@ export function useAuth(): UseAuthReturn {
 
   // Sync Privy state with Zustand store and check for new users
   useEffect(() => {
-    if (!authenticated || !user) {
+    if (!authenticated || !privyUser) {
       loadedProfileUsers.clear()
       checkedNewUserUsers.clear()
       checkedOnboardingUsers.clear()
@@ -80,10 +81,10 @@ export function useAuth(): UseAuthReturn {
 
     const loadUserProfile = async () => {
       setIsLoadingProfile(true)
-      setLoadedUserId(user.id)
+      setLoadedUserId(privyUser.id)
       
       try {
-        const response = await fetch(`/api/users/${user.id}/profile`)
+        const response = await fetch(`/api/users/${privyUser.id}/profile`)
         const data = await response.json()
 
         if (!response.ok) {
@@ -92,10 +93,10 @@ export function useAuth(): UseAuthReturn {
 
         if (data.user) {
           setUser({
-            id: user.id,
+            id: privyUser.id,
             walletAddress: wallet?.address,
-            displayName: data.user.displayName || user.email?.address || wallet?.address || 'Anonymous',
-            email: user.email?.address,
+            displayName: data.user.displayName || privyUser.email?.address || wallet?.address || 'Anonymous',
+            email: privyUser.email?.address,
             username: data.user.username,
             bio: data.user.bio,
             profileImageUrl: data.user.profileImageUrl,
@@ -120,7 +121,7 @@ export function useAuth(): UseAuthReturn {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         const errorDetails = {
           message: errorMessage,
-          userId: user.id,
+          userId: privyUser.id,
           error: error instanceof Error ? { name: error.name, message: error.message } : error,
         };
         logger.error('Error loading user profile:', errorDetails, 'useAuth')
@@ -128,10 +129,10 @@ export function useAuth(): UseAuthReturn {
 
       // Fallback if profile fetch fails
       setUser({
-        id: user.id,
+        id: privyUser.id,
         walletAddress: wallet?.address,
-        displayName: user.email?.address || wallet?.address || 'Anonymous',
-        email: user.email?.address,
+        displayName: privyUser.email?.address || wallet?.address || 'Anonymous',
+        email: privyUser.email?.address,
       })
       setIsLoadingProfile(false)
     }
@@ -141,7 +142,7 @@ export function useAuth(): UseAuthReturn {
         const token = await getAccessToken()
         if (!token) return // Skip if no token
 
-        const response = await fetch(`/api/users/${user.id}/is-new`, {
+        const response = await fetch(`/api/users/${privyUser.id}/is-new`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -176,7 +177,7 @@ export function useAuth(): UseAuthReturn {
     const checkOnboarding = async () => {
       try {
         // Check if user is already onboarded on-chain (doesn't require wallet)
-        const status = await OnboardingService.checkOnboardingStatus(user.id)
+        const status = await OnboardingService.checkOnboardingStatus(privyUser.id)
 
         if (status.isOnboarded) {
           logger.info('User already onboarded on-chain with NFT #', status.tokenId, 'useAuth')
@@ -192,8 +193,8 @@ export function useAuth(): UseAuthReturn {
           
           // Retry after a short delay (embedded wallet creation can take a moment)
           setTimeout(() => {
-            if (wallets.length > 0 && wallets[0]?.address && !checkedOnboardingUsers.has(user.id)) {
-              checkedOnboardingUsers.add(user.id)
+            if (wallets.length > 0 && wallets[0]?.address && !checkedOnboardingUsers.has(privyUser.id)) {
+              checkedOnboardingUsers.add(privyUser.id)
               void checkOnboarding()
             }
           }, 2000)
@@ -215,7 +216,7 @@ export function useAuth(): UseAuthReturn {
 
         // Trigger on-chain registration and points award
         const result = await OnboardingService.completeOnboarding(
-          user.id,
+          privyUser.id,
           wallet.address,
           undefined, // username - will be auto-generated
           undefined, // bio
@@ -263,7 +264,7 @@ export function useAuth(): UseAuthReturn {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         const errorDetails = {
           message: errorMessage,
-          userId: user.id,
+          userId: privyUser.id,
           error: error instanceof Error ? { name: error.name, message: error.message } : error,
         };
         logger.error('Error during onboarding check:', errorDetails, 'useAuth')
@@ -276,11 +277,11 @@ export function useAuth(): UseAuthReturn {
         if (!token) return
 
         // Check for Farcaster connection
-        const userWithFarcaster = user as User & { farcaster?: { username?: string; displayName?: string } }
+        const userWithFarcaster = privyUser as PrivyUser & { farcaster?: { username?: string; displayName?: string } }
         if (userWithFarcaster.farcaster) {
           const farcaster = userWithFarcaster.farcaster
           try {
-            await fetch(`/api/users/${user.id}/link-social`, {
+            await fetch(`/api/users/${privyUser.id}/link-social`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${token}`,
@@ -298,11 +299,11 @@ export function useAuth(): UseAuthReturn {
         }
 
         // Check for Twitter/X connection
-        const userWithTwitter = user as User & { twitter?: { username?: string } }
+        const userWithTwitter = privyUser as PrivyUser & { twitter?: { username?: string } }
         if (userWithTwitter.twitter) {
           const twitter = userWithTwitter.twitter
           try {
-            await fetch(`/api/users/${user.id}/link-social`, {
+            await fetch(`/api/users/${privyUser.id}/link-social`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${token}`,
@@ -322,7 +323,7 @@ export function useAuth(): UseAuthReturn {
         // Check for wallet connection
         if (wallet?.address) {
           try {
-            await fetch(`/api/users/${user.id}/link-social`, {
+            await fetch(`/api/users/${privyUser.id}/link-social`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${token}`,
@@ -343,33 +344,33 @@ export function useAuth(): UseAuthReturn {
       }
     }
 
-    if (!loadedProfileUsers.has(user.id)) {
-      loadedProfileUsers.add(user.id)
+    if (!loadedProfileUsers.has(privyUser.id)) {
+      loadedProfileUsers.add(privyUser.id)
       void loadUserProfile()
     }
 
-    if (!checkedNewUserUsers.has(user.id)) {
-      checkedNewUserUsers.add(user.id)
+    if (!checkedNewUserUsers.has(privyUser.id)) {
+      checkedNewUserUsers.add(privyUser.id)
       void checkNewUser()
     }
 
     // Check and trigger onboarding if needed
     // For email-only users, Privy creates embedded wallets automatically
     // So we check onboarding status regardless, and wait for wallet if needed
-    if (!checkedOnboardingUsers.has(user.id)) {
-      checkedOnboardingUsers.add(user.id)
+    if (!checkedOnboardingUsers.has(privyUser.id)) {
+      checkedOnboardingUsers.add(privyUser.id)
       void checkOnboarding()
     }
 
     // Check and link social accounts for points
-    if (!checkedSocialLinks.has(user.id)) {
-      checkedSocialLinks.add(user.id)
+    if (!checkedSocialLinks.has(privyUser.id)) {
+      checkedSocialLinks.add(privyUser.id)
       // Delay slightly to ensure profile is loaded first
       setTimeout(() => {
         void checkAndLinkSocialAccounts()
       }, 1000)
     }
-  }, [authenticated, user, wallet, wallets, setUser, setWallet, clearAuth, getAccessToken, setIsLoadingProfile, setLoadedUserId])
+  }, [authenticated, privyUser, wallet, wallets, setUser, setWallet, clearAuth, getAccessToken, setIsLoadingProfile, setLoadedUserId])
 
   // Wrap logout to ensure all state is cleared
   const handleLogout = async () => {

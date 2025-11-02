@@ -3,29 +3,31 @@
 import { X, TrendingUp, Calendar, DollarSign, Activity } from 'lucide-react'
 import Image from 'next/image'
 
+type BreakingNewsItem = {
+  id: string
+  title: string
+  description: string
+  icon: 'chart' | 'calendar' | 'dollar' | 'trending'
+  timestamp: string
+  trending?: boolean
+  source?: string
+  fullDescription?: string
+  imageUrl?: string
+  relatedQuestion?: number
+  relatedActorId?: string
+  relatedOrganizationId?: string
+}
+
 interface BreakingNewsDetailModalProps {
   isOpen: boolean
   onClose: () => void
-  item: {
-    id: string
-    title: string
-    description: string
-    icon: 'chart' | 'calendar' | 'dollar' | 'trending'
-    timestamp: string
-    trending?: boolean
-    source?: string
-    fullDescription?: string
-    imageUrl?: string
-    relatedQuestion?: number
-    relatedActorId?: string
-    relatedOrganizationId?: string
-  } | null
+  item: BreakingNewsItem | null
 }
 
 export function BreakingNewsDetailModal({ isOpen, onClose, item }: BreakingNewsDetailModalProps) {
   if (!isOpen || !item) return null
 
-  const getIcon = (icon: BreakingNewsDetailModalProps['item']['icon']) => {
+  const getIcon = (icon: BreakingNewsItem['icon']) => {
     switch (icon) {
       case 'chart':
         return <TrendingUp className="w-8 h-8" />

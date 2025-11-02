@@ -53,7 +53,7 @@ export function PositionDetailModal({ isOpen, onClose, type, data, userId, onSuc
   // Market data
   const [perpMarket, setPerpMarket] = useState<PerpMarket | null>(null)
   const [predictionMarket, setPredictionMarket] = useState<PredictionMarket | null>(null)
-  const [loadingMarket, setLoadingMarket] = useState(false)
+  const [_loadingMarket, setLoadingMarket] = useState(false)
 
   useEffect(() => {
     if (isOpen && data) {
@@ -388,7 +388,7 @@ export function PositionDetailModal({ isOpen, onClose, type, data, userId, onSuc
                     <div className="flex items-center gap-2">
                       <span className={cn(
                         "px-2 py-1 rounded text-sm font-medium",
-                        (data as PerpPositionFromAPI).side === 'long'
+                        (data as PerpPositionFromAPI).side === 'LONG'
                           ? "bg-green-600/20 text-green-600"
                           : "bg-red-600/20 text-red-600"
                       )}>

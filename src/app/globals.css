@@ -169,7 +169,7 @@
 
 * {
   border-color: hsl(var(--color-border));
-  /* Early 2000s Twitter: Remove rounded corners globally */
+  /* Early 2000s: Remove rounded corners globally */
   border-radius: 0 !important;
 }
 

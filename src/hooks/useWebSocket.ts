@@ -147,11 +147,12 @@ export function useWebSocket() {
         if (reconnectAttempts.current === 0 && ws.readyState === WebSocket.CLOSED) {
           const errorMessage = 'Connection failed - server may not be running on port 3001'
           
-          // Log error details if available
+          // Log as debug instead of error - WebSocket server is optional for most features
+          // Only show in console if WebSocket features are actually needed
           if (errorEvent && errorEvent.type) {
-            logger.error('WebSocket error event:', { type: errorEvent.type, message: errorMessage }, 'useWebSocket');
+            logger.debug('WebSocket connection attempt failed (server may not be running):', { type: errorEvent.type, message: errorMessage }, 'useWebSocket');
           } else {
-            logger.error('WebSocket error:', {
+            logger.debug('WebSocket connection attempt failed (server may not be running):', {
               message: errorMessage,
               readyState: ws.readyState,
               url: wsUrl.replace(/token=[^&]+/, 'token=***')

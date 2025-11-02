@@ -16,6 +16,7 @@ export function InteractionBar({
   initialInteractions,
   onCommentClick,
   className,
+  postData,
 }: InteractionBarProps) {
   const [showComments, setShowComments] = useState(false);
   const { postInteractions } = useInteractionStore();
@@ -71,19 +72,24 @@ export function InteractionBar({
         )}
       >
         {/* Like button with reaction picker */}
-        <LikeButton
-          targetId={postId}
-          targetType="post"
-          initialLiked={isLiked}
-          initialCount={likeCount}
-          size="sm"
-          showCount
-        />
+        <div onClick={(e) => e.stopPropagation()}>
+          <LikeButton
+            targetId={postId}
+            targetType="post"
+            initialLiked={isLiked}
+            initialCount={likeCount}
+            size="sm"
+            showCount
+          />
+        </div>
 
         {/* Comment button */}
         <button
           type="button"
-          onClick={handleCommentClick}
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent triggering post onClick
+            handleCommentClick();
+          }}
           className={cn(
             'flex items-center gap-1 h-8 px-2',
             'bg-transparent hover:opacity-70 transition-all duration-200',
@@ -98,13 +104,15 @@ export function InteractionBar({
         </button>
 
         {/* Share button */}
-        <ShareButton
-          postId={postId}
-          shareCount={shareCount}
-          initialShared={isShared}
-          size="sm"
-          showCount
-        />
+        <div onClick={(e) => e.stopPropagation()}>
+          <ShareButton
+            postId={postId}
+            shareCount={shareCount}
+            initialShared={isShared}
+            size="sm"
+            showCount
+          />
+        </div>
       </div>
 
       {/* Comment section modal */}
@@ -112,6 +120,18 @@ export function InteractionBar({
         postId={postId}
         isOpen={showComments}
         onClose={() => setShowComments(false)}
+        postData={postData ? {
+          id: postData.id,
+          content: postData.content,
+          authorId: postData.authorId,
+          authorName: postData.authorName,
+          timestamp: postData.timestamp,
+          likeCount: postData.likeCount ?? 0,
+          commentCount: postData.commentCount ?? 0,
+          shareCount: postData.shareCount ?? 0,
+          isLiked: postData.isLiked ?? false,
+          isShared: postData.isShared ?? false,
+        } : undefined}
       />
     </>
   );

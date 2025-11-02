@@ -103,13 +103,14 @@ model User {
 
 // Post model - social media posts
 model Post {
-  id          String   @id @default(uuid())
-  content     String
-  authorId    String   // Can reference User.id or Actor.id (handled at application level)
-  gameId      String?
-  dayNumber   Int?
-  timestamp   DateTime @default(now())
-  createdAt   DateTime @default(now())
+  id             String   @id @default(uuid())
+  content        String
+  authorId       String   // Can reference User.id or Actor.id (handled at application level)
+  gameId         String?
+  dayNumber      Int?
+  originalPostId String?  // Reference to original post for reposts/shares
+  timestamp      DateTime @default(now())
+  createdAt      DateTime @default(now())
 
   // Relationships
   // Note: authorId can reference either User.id or Actor.id
@@ -127,6 +128,7 @@ model Post {
   @@index([authorId, timestamp(sort: Desc)])
   @@index([timestamp(sort: Desc)])
   @@index([gameId, dayNumber])
+  @@index([originalPostId])
 }
 
 // Comment model - comments on posts

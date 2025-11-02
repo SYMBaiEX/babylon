@@ -108,7 +108,7 @@ export default function MarketsPage() {
   const [balanceRefreshTrigger, setBalanceRefreshTrigger] = useState(0)
 
   // Use refs to store latest values to break dependency chains
-  const fetchDataRef = useRef<() => Promise<void>>()
+  const fetchDataRef = useRef<(() => Promise<void>) | null>(null)
   const authenticatedRef = useRef(authenticated)
   const userIdRef = useRef<string | null>(user?.id || null)
   const prevAuthRef = useRef<{ authenticated: boolean; userId: string | null | undefined } | null>(null)

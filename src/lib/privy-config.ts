@@ -3,6 +3,28 @@ import { mainnet, sepolia, base, baseSepolia } from 'viem/chains'
 import { createConfig } from 'wagmi'
 import type { PrivyClientConfig } from '@privy-io/react-auth'
 
+/**
+ * Extended Privy client config that includes "system" theme support
+ * Privy supports "system" theme at runtime, but the types don't reflect this yet
+ */
+type ExtendedAppearance = Omit<NonNullable<PrivyClientConfig['appearance']>, 'theme'> & {
+  theme?: 'light' | 'dark' | `#${string}` | 'system'
+}
+
+export interface ExtendedPrivyClientConfig extends Omit<PrivyClientConfig, 'appearance' | 'embeddedWallets'> {
+  appearance?: ExtendedAppearance
+  embeddedWallets?: {
+    ethereum?: {
+      createOnLogin?: 'all-users' | 'users-without-wallets' | 'off'
+    }
+    solana?: {
+      createOnLogin?: 'all-users' | 'users-without-wallets' | 'off'
+    }
+    disableAutomaticMigration?: boolean
+    showWalletUIs?: boolean
+  }
+}
+
 // Environment configuration
 const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID) || 8453 // Default to Base mainnet
 const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || ''
@@ -32,7 +54,10 @@ export const wagmiConfig = createConfig({
 })
 
 // Privy configuration
-export const privyConfig = {
+export const privyConfig: {
+  appId: string
+  config: ExtendedPrivyClientConfig
+} = {
   appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID || '',
   config: {
     appearance: {
@@ -42,11 +67,13 @@ export const privyConfig = {
       showWalletLoginFirst: false, // Changed to false to prioritize Farcaster
       walletList: ['metamask', 'rabby_wallet', 'detected_wallets', 'rainbow', 'coinbase_wallet', 'wallet_connect'],
       walletChainType: 'ethereum-only' as const,
-    },
+    } satisfies ExtendedAppearance,
     // Prioritize Farcaster login, then wallet, then email
-    loginMethods: ['farcaster', 'wallet', 'email'] as PrivyClientConfig['loginMethods'],
+    loginMethods: ['farcaster', 'wallet', 'email'],
     embeddedWallets: {
-      createOnLogin: 'users-without-wallets' as const,
+      ethereum: {
+        createOnLogin: 'users-without-wallets' as const,
+      },
     },
     defaultChain: selectedChain,
     // Wallet configuration - supports all chains including Base L2

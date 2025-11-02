@@ -426,9 +426,11 @@ export default function ReferralsPage() {
           </div>
 
           {/* Referrals Widget Column */}
-          <div className="hidden xl:flex flex-col w-96 flex-shrink-0 overflow-y-auto bg-sidebar p-4">
-            <ReferralsWidget userId={user.id} />
-          </div>
+          {user && (
+            <div className="hidden xl:flex flex-col w-96 flex-shrink-0 overflow-y-auto bg-sidebar p-4">
+              <ReferralsWidget userId={user.id} />
+            </div>
+          )}
         </div>
       )}
 

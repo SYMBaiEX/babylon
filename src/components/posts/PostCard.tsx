@@ -160,6 +160,7 @@ export const PostCard = memo(function PostCard({
             <InteractionBar
               postId={post.id}
               initialInteractions={initialInteractions}
+              postData={post}
             />
           </div>
         </div>

@@ -6,16 +6,17 @@ import { useState } from 'react'
 interface AvatarProps {
   id?: string
   name?: string
-  type?: 'actor' | 'business'
+  type?: 'actor' | 'business' | 'user'
   src?: string
   alt?: string
   size?: 'sm' | 'md' | 'lg'
   className?: string
   scaleFactor?: number
+  imageUrl?: string
 }
 
 interface GroupAvatarProps {
-  members: Array<{ id: string; name: string; type?: 'actor' | 'business' }>
+  members: Array<{ id: string; name: string; type?: 'actor' | 'business' | 'user' }>
   size?: 'sm' | 'md' | 'lg'
   className?: string
 }
@@ -26,18 +27,26 @@ const sizeClasses = {
   lg: 'w-14 h-14 text-base',
 }
 
-export function Avatar({ id, name, type = 'actor', src, alt, size = 'md', className, scaleFactor = 1 }: AvatarProps) {
+export function Avatar({ id, name, type = 'actor', src, alt, size = 'md', className, scaleFactor = 1, imageUrl }: AvatarProps) {
   const [imageError, setImageError] = useState(false)
   
-  // If src is provided directly, use it; otherwise construct from id
+  // If src is provided directly, use it; otherwise construct from id or use imageUrl
   let imagePath: string | undefined
   if (src) {
     imagePath = src
+  } else if (imageUrl) {
+    imagePath = imageUrl
   } else if (id) {
     const sanitizedId = sanitizeId(id)
-    imagePath = type === 'business'
-      ? `/images/organizations/${sanitizedId}.jpg`
-      : `/images/actors/${sanitizedId}.jpg`
+    if (type === 'business') {
+      imagePath = `/images/organizations/${sanitizedId}.jpg`
+    } else if (type === 'user') {
+      // User avatars are typically from profileImageUrl, handled above via imageUrl prop
+      // Fallback to actor path if no imageUrl provided
+      imagePath = `/images/actors/${sanitizedId}.jpg`
+    } else {
+      imagePath = `/images/actors/${sanitizedId}.jpg`
+    }
   }
 
   // Display name is alt (if provided) or name (if provided) or first letter of id

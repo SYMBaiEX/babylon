@@ -45,6 +45,7 @@ export interface CommentWithReplies {
   userUsername?: string | null;
   userAvatar?: string;
   parentCommentId?: string;
+  parentCommentAuthorName?: string; // Author name of the parent comment (for "Replying to" indicator)
   likeCount: number;
   isLiked: boolean;
   replies: CommentWithReplies[];
@@ -325,13 +326,28 @@ export interface InteractionBarProps {
   initialInteractions?: PostInteraction;
   onCommentClick?: () => void;
   className?: string;
+  postData?: {
+    id: string;
+    content: string;
+    authorId: string;
+    authorName: string;
+    authorUsername?: string | null;
+    timestamp: string;
+    likeCount?: number;
+    commentCount?: number;
+    shareCount?: number;
+    isLiked?: boolean;
+    isShared?: boolean;
+  };
 }
 
 export interface CommentCardProps {
   comment: CommentWithReplies;
+  postId: string; // Post ID needed for replies
   onReply?: (commentId: string) => void;
   onEdit?: (commentId: string, content: string) => void;
   onDelete?: (commentId: string) => void;
+  onReplySubmit?: (comment: CommentData) => void; // Callback when reply is submitted
   depth?: number;
   maxDepth?: number;
   className?: string;
@@ -352,4 +368,16 @@ export interface CommentSectionProps {
   isOpen?: boolean;
   onClose?: () => void;
   className?: string;
+  postData?: {
+    id: string;
+    content: string;
+    authorId: string;
+    authorName: string;
+    timestamp: string;
+    likeCount: number;
+    commentCount: number;
+    shareCount: number;
+    isLiked: boolean;
+    isShared: boolean;
+  } | null;
 }

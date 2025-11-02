@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { Gift, Users, TrendingUp, UserPlus, ArrowRight } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 import { Avatar } from '@/components/shared/Avatar'
 import Link from 'next/link'

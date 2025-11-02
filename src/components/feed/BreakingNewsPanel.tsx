@@ -30,7 +30,7 @@ export function BreakingNewsPanel() {
   const { getBreakingNews, setBreakingNews } = useWidgetCacheStore()
 
   // Use ref to store fetchNews function to break dependency chain
-  const fetchNewsRef = useRef<() => void>()
+  const fetchNewsRef = useRef<(() => void) | null>(null)
 
   const fetchNews = useCallback(async (skipCache = false) => {
     // Check cache first (unless explicitly skipping)

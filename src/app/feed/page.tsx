@@ -9,7 +9,6 @@ import { PageContainer } from '@/components/shared/PageContainer'
 import { SearchBar } from '@/components/shared/SearchBar'
 import { PostCard } from '@/components/posts/PostCard'
 import { InviteFriendsBanner } from '@/components/shared/InviteFriendsBanner'
-import { FeedCommentSection } from '@/components/feed/FeedCommentSection'
 import { WidgetSidebar } from '@/components/shared/WidgetSidebar'
 import { CreatePostModal } from '@/components/posts/CreatePostModal'
 import { Plus } from 'lucide-react'
@@ -40,19 +39,6 @@ export default function FeedPage() {
   const [actorNames, setActorNames] = useState<Map<string, string>>(new Map())
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [selectedPostId, setSelectedPostId] = useState<string | null>(null)
-  const [selectedPostData, setSelectedPostData] = useState<{
-    id: string
-    content: string
-    authorId: string
-    authorName: string
-    timestamp: string
-    likeCount: number
-    commentCount: number
-    shareCount: number
-    isLiked: boolean
-    isShared: boolean
-  } | null>(null)
   
   // Smart banner frequency based on user referrals
   const calculateBannerInterval = () => {
@@ -538,7 +524,7 @@ export default function FeedPage() {
                 // Show posts - fluid width that scales with screen size
                 <div className={cn(
                   "w-full pl-6 space-y-0",
-                  selectedPostId && selectedPostData ? "pr-4" : "pr-8 max-w-[65%] ml-4 mr-auto"
+                  "pr-8 max-w-[65%] ml-4 mr-auto"
                 )}>
                   {filteredPosts.map((post, i: number) => {
                     // Handle both FeedPost (from game store) and API post shapes
@@ -568,8 +554,8 @@ export default function FeedPage() {
                         <PostCard
                           post={postData}
                           onClick={() => {
-                            setSelectedPostId(post.id)
-                            setSelectedPostData(postData)
+                            // Navigate to post detail page
+                            router.push(`/post/${post.id}`)
                           }}
                         />
                         {showBannerAfterThisPost && (
@@ -603,19 +589,6 @@ export default function FeedPage() {
               )}
             </div>
 
-            {/* Right column: Comments section - only when post is selected */}
-            {selectedPostId && selectedPostData && (
-              <div className="hidden xl:flex flex-col w-[35%] flex-shrink-0 overflow-hidden bg-background">
-                <FeedCommentSection
-                  postId={selectedPostId}
-                  postData={selectedPostData}
-                  onClose={() => {
-                    setSelectedPostId(null)
-                    setSelectedPostData(null)
-                  }}
-                />
-              </div>
-            )}
           </div>
         </div>
 
@@ -701,22 +674,28 @@ export default function FeedPage() {
               // Show banner at the random interval (if not dismissed)
               const showBannerAfterThisPost = !bannerDismissed && i === bannerInterval.current - 1
 
+              const postData = {
+                id: post.id,
+                content: post.content,
+                authorId,
+                authorName,
+                authorUsername: ('authorUsername' in post ? post.authorUsername : null) || null,
+                timestamp: post.timestamp,
+                likeCount: ('likeCount' in post ? (post.likeCount as number) : 0) || 0,
+                commentCount: ('commentCount' in post ? (post.commentCount as number) : 0) || 0,
+                shareCount: ('shareCount' in post ? (post.shareCount as number) : 0) || 0,
+                isLiked: ('isLiked' in post ? (post.isLiked as boolean) : false) || false,
+                isShared: ('isShared' in post ? (post.isShared as boolean) : false) || false,
+              }
+
               return (
                 <div key={`post-wrapper-${post.id}-${i}`}>
                   <PostCard
-                    post={{
-                      id: post.id,
-                      content: post.content,
-                      authorId,
-                      authorName,
-                      timestamp: post.timestamp,
-                      likeCount: 0,
-                      commentCount: 0,
-                      shareCount: 0,
-                      isLiked: false,
-                      isShared: false,
+                    post={postData}
+                    onClick={() => {
+                      // Navigate to post detail page (like Twitter)
+                      router.push(`/post/${post.id}`)
                     }}
-                    onClick={() => router.push(`/post/${post.id}`)}
                   />
                   {showBannerAfterThisPost && (
                     <InviteFriendsBanner 
@@ -747,6 +726,7 @@ export default function FeedPage() {
             )}
           </div>
         )}
+
       </div>
 
       {/* Create Post Modal */}

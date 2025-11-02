@@ -13,6 +13,7 @@ import {
 } from '@/lib/api/auth-middleware';
 import { notifyShare } from '@/lib/services/notification-service';
 import { logger } from '@/lib/logger';
+import { parsePostId } from '@/lib/post-id-parser';
 
 const prisma = new PrismaClient();
 
@@ -55,62 +56,15 @@ export async function POST(
 
     // If post doesn't exist, try to auto-create it based on format
     if (!post) {
-      // Try multiple post ID formats
-      // Format 1: gameId-gameTimestamp-authorId-isoTimestamp (e.g., babylon-1761441310151-kash-patrol-2025-10-01T02:12:00Z)
-      // Format 2: post-{timestamp}-{random} (e.g., post-1762099655817-0.7781412938928327)
-      // Format 3: post-{timestamp}-{actorId}-{random} (e.g., post-1762099655817-kash-patrol-abc123)
-
-      let gameId = 'babylon'; // default game
-      let authorId = 'system'; // default author for game-generated posts
-      let timestamp = new Date();
-
-      // Check Format 1: Has ISO timestamp at the end
-      const isoTimestampMatch = postId.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z)$/);
-
-      if (isoTimestampMatch && isoTimestampMatch[1]) {
-        // Format 1: gameId-gameTimestamp-authorId-isoTimestamp
-        const timestampStr = isoTimestampMatch[1];
-        timestamp = new Date(timestampStr);
-
-        // Extract gameId (first part before first hyphen)
-        const firstHyphenIndex = postId.indexOf('-');
-        if (firstHyphenIndex !== -1) {
-          gameId = postId.substring(0, firstHyphenIndex);
-
-          // Extract authorId (everything between second hyphen and the ISO timestamp)
-          const withoutGameId = postId.substring(firstHyphenIndex + 1);
-          const secondHyphenIndex = withoutGameId.indexOf('-');
-          if (secondHyphenIndex !== -1) {
-            const afterGameTimestamp = withoutGameId.substring(secondHyphenIndex + 1);
-            authorId = afterGameTimestamp.substring(0, afterGameTimestamp.lastIndexOf('-' + timestampStr));
-          }
-        }
-      } else if (postId.startsWith('post-')) {
-        // Format 2 or 3: GameEngine format
-        const parts = postId.split('-');
-
-        if (parts.length >= 3) {
-          // Try to extract timestamp from second part
-          const timestampPart = parts[1];
-          const timestampNum = parseInt(timestampPart, 10);
-
-          if (!isNaN(timestampNum) && timestampNum > 1000000000000) {
-            // Valid timestamp (milliseconds since epoch)
-            timestamp = new Date(timestampNum);
-
-            // Check if third part looks like an actor ID (not a decimal)
-            if (parts.length >= 4 && !parts[2].includes('.')) {
-              // Format 3: post-{timestamp}-{actorId}-{random}
-              authorId = parts[2];
-            }
-            // Otherwise Format 2: post-{timestamp}-{random}
-            // Keep default authorId = 'system'
-          }
-        }
-      } else {
-        // Unknown format, reject
+      // Parse post ID to extract metadata
+      const parseResult = parsePostId(postId);
+      
+      // Require valid format for shares (unlike likes, which can use defaults)
+      if (!parseResult.success) {
         return errorResponse('Invalid post ID format', 400);
       }
+
+      const { gameId, authorId, timestamp } = parseResult.metadata;
 
       // Ensure post exists (upsert pattern)
       await prisma.post.upsert({
@@ -125,12 +79,6 @@ export async function POST(
         },
       });
     }
-
-    // Get the post to find the authorId for notifications
-    const postRecord = await prisma.post.findUnique({
-      where: { id: postId },
-      select: { authorId: true },
-    });
 
     // Check if already shared
     const existingShare = await prisma.share.findUnique({
@@ -147,28 +95,10 @@ export async function POST(
     }
 
     // Create share record
-    const share = await prisma.share.create({
+    await prisma.share.create({
       data: {
         userId: user.userId,
         postId,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            displayName: true,
-            username: true,
-            profileImageUrl: true,
-          },
-        },
-        post: {
-          select: {
-            id: true,
-            content: true,
-            authorId: true,
-            createdAt: true,
-          },
-        },
       },
     });
 
@@ -195,8 +125,7 @@ export async function POST(
           content: originalPost.content,
           authorId: user.userId, // Repost author is the user who shared
           timestamp: new Date(),
-          // Store original post ID in gameId field as metadata (hacky but works)
-          gameId: `original:${postId}`,
+          originalPostId: postId, // Store reference to original post
         },
       });
     }
@@ -302,9 +231,7 @@ export async function DELETE(
     const repostPosts = await prisma.post.findMany({
       where: {
         authorId: user.userId,
-        gameId: {
-          startsWith: `original:${postId}`,
-        },
+        originalPostId: postId,
       },
     });
 

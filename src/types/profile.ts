@@ -3,9 +3,6 @@
  * Types for user profile widgets and data displays
  */
 
-import type { UserPoolDeposit } from './pools'
-import type { PerpPosition } from '@/shared/perps-types'
-
 /**
  * User balance data from /api/users/[userId]/balance
  */

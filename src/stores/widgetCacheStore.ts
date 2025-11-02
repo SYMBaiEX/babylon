@@ -4,6 +4,58 @@
  */
 
 import { create } from 'zustand'
+import type {
+  UserBalanceData,
+  PredictionPosition,
+  UserProfileStats,
+  ProfileWidgetPoolDeposit,
+  PerpPositionFromAPI,
+} from '@/types/profile'
+
+interface BreakingNewsItem {
+  id: string
+  title: string
+  description: string
+  icon: 'chart' | 'calendar' | 'dollar' | 'trending'
+  timestamp: string
+  trending?: boolean
+  source?: string
+  fullDescription?: string
+  imageUrl?: string
+  relatedQuestion?: number
+  relatedActorId?: string
+  relatedOrganizationId?: string
+}
+
+interface UpcomingEvent {
+  id: string
+  title: string
+  date: string
+  time?: string
+  isLive?: boolean
+  hint?: string
+  fullDescription?: string
+  source?: string
+  relatedQuestion?: number
+  imageUrl?: string
+  relatedActorId?: string
+  relatedOrganizationId?: string
+}
+
+interface BabylonStats {
+  activePlayers: number
+  aiAgents: number
+  totalHoots: number
+  pointsInCirculation: string
+}
+
+interface ProfileWidgetData {
+  balance: UserBalanceData | null
+  predictions: PredictionPosition[]
+  perps: PerpPositionFromAPI[]
+  pools: ProfileWidgetPoolDeposit[]
+  stats: UserProfileStats | null
+}
 
 interface CacheEntry<T> {
   data: T
@@ -11,28 +63,28 @@ interface CacheEntry<T> {
 }
 
 interface WidgetCacheState {
-  breakingNews: CacheEntry<any[]> | null
-  upcomingEvents: CacheEntry<any[]> | null
-  stats: CacheEntry<any> | null
-  profileWidget: Map<string, CacheEntry<any>> // Keyed by userId
+  breakingNews: CacheEntry<BreakingNewsItem[]> | null
+  upcomingEvents: CacheEntry<UpcomingEvent[]> | null
+  stats: CacheEntry<BabylonStats> | null
+  profileWidget: Map<string, CacheEntry<ProfileWidgetData>> // Keyed by userId
   
   // TTL in milliseconds (default: 30 seconds)
   ttl: number
   
   // Set cache entry
-  setBreakingNews: (data: any[]) => void
-  setUpcomingEvents: (data: any[]) => void
-  setStats: (data: any) => void
-  setProfileWidget: (userId: string, data: any) => void
+  setBreakingNews: (data: BreakingNewsItem[]) => void
+  setUpcomingEvents: (data: UpcomingEvent[]) => void
+  setStats: (data: BabylonStats) => void
+  setProfileWidget: (userId: string, data: ProfileWidgetData) => void
   
   // Get cache entry (returns null if stale or missing)
-  getBreakingNews: () => any[] | null
-  getUpcomingEvents: () => any[] | null
-  getStats: () => any | null
-  getProfileWidget: (userId: string) => any | null
+  getBreakingNews: () => BreakingNewsItem[] | null
+  getUpcomingEvents: () => UpcomingEvent[] | null
+  getStats: () => BabylonStats | null
+  getProfileWidget: (userId: string) => ProfileWidgetData | null
   
   // Check if cache is fresh
-  isFresh: (entry: CacheEntry<any> | null) => boolean
+  isFresh: <T>(entry: CacheEntry<T> | null) => boolean
   
   // Clear specific cache
   clearBreakingNews: () => void
@@ -51,13 +103,13 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
   profileWidget: new Map(),
   ttl: DEFAULT_TTL,
   
-  isFresh: (entry: CacheEntry<any> | null) => {
+  isFresh: <T>(entry: CacheEntry<T> | null) => {
     if (!entry) return false
     const age = Date.now() - entry.timestamp
     return age < get().ttl
   },
   
-  setBreakingNews: (data: any[]) => {
+  setBreakingNews: (data: BreakingNewsItem[]) => {
     set({
       breakingNews: {
         data,
@@ -66,7 +118,7 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
     })
   },
   
-  setUpcomingEvents: (data: any[]) => {
+  setUpcomingEvents: (data: UpcomingEvent[]) => {
     set({
       upcomingEvents: {
         data,
@@ -75,7 +127,7 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
     })
   },
   
-  setStats: (data: any) => {
+  setStats: (data: BabylonStats) => {
     set({
       stats: {
         data,
@@ -84,7 +136,7 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
     })
   },
   
-  setProfileWidget: (userId: string, data: any) => {
+  setProfileWidget: (userId: string, data: ProfileWidgetData) => {
     const profileWidget = new Map(get().profileWidget)
     profileWidget.set(userId, {
       data,
@@ -129,4 +181,5 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
     profileWidget: new Map(),
   }),
 }))
+
 

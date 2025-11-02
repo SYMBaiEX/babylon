@@ -103,8 +103,12 @@ export async function retryIfRetryable<T>(
       maxAttempts: 1, // First attempt
     });
   } catch (error) {
-    if (isRetryableError(error)) {
-      logger.debug('Retryable error detected, attempting retry', { error }, 'RetryUtil');
+    const errorObj: Error | ErrorLike = error instanceof Error 
+      ? error 
+      : { message: String(error) };
+    
+    if (isRetryableError(errorObj)) {
+      logger.debug('Retryable error detected, attempting retry', { error: errorObj }, 'RetryUtil');
       return await retryWithBackoff(fn, options);
     }
     throw error;

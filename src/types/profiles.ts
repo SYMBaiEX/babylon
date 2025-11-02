@@ -54,6 +54,7 @@ export type ProfileInfo = (UserProfile | ActorProfile) & {
   game?: { id: string };
   isUser?: boolean;
   profileImageUrl?: string;
+  coverImageUrl?: string;
   stats?: {
     posts?: number;
     followers?: number;

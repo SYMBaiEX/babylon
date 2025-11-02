@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { cn } from '@/lib/utils'
 import { LoginButton } from '@/components/auth/LoginButton'
+import { logger } from '@/lib/logger'
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -30,7 +31,7 @@ export default function SettingsPage() {
   const [marketNotifications, setMarketNotifications] = useState(true)
 
   // Theme settings - connected to next-themes
-  const { theme, setTheme, resolvedTheme } = useTheme()
+  const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
   // Wait for hydration to avoid SSR mismatch
@@ -115,7 +116,7 @@ export default function SettingsPage() {
       setTimeout(() => setSaved(false), 3000)
     } catch (error) {
       // Error handling - could show toast here
-      console.error('Failed to save settings:', error)
+      logger.error('Failed to save settings:', error, 'SettingsPage')
     } finally {
       setSaving(false)
     }
@@ -216,7 +217,7 @@ export default function SettingsPage() {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  disabled={usernameChangeLimit && !usernameChangeLimit.canChange}
+                  disabled={usernameChangeLimit ? !usernameChangeLimit.canChange : false}
                   className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1c9cf0] disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="Enter your username"
                 />

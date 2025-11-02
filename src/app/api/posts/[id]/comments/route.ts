@@ -20,6 +20,22 @@ const prisma = new PrismaClient();
 /**
  * Build threaded comment structure recursively
  */
+type CommentTreeItem = {
+  id: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+  userId: string;
+  userName: string;
+  userUsername: string | null;
+  userAvatar: string | null;
+  parentCommentId: string | null;
+  parentCommentAuthorName?: string;
+  likeCount: number;
+  isLiked: boolean;
+  replies: CommentTreeItem[];
+};
+
 function buildCommentTree(
   comments: Array<{
     id: string;
@@ -40,31 +56,17 @@ function buildCommentTree(
     reactions: Array<{ id: string }>;
   }>,
   parentId: string | null = null
-): Array<{
-  id: string;
-  content: string;
-  createdAt: Date;
-  updatedAt: Date;
-  userId: string;
-  userName: string;
-  userAvatar: string | null;
-  parentCommentId: string | null;
-  likeCount: number;
-  isLiked: boolean;
-  replies: Array<{
-    id: string;
-    content: string;
-    createdAt: Date;
-    updatedAt: Date;
-    userId: string;
-    userName: string;
-    userAvatar: string | null;
-    parentCommentId: string | null;
-    likeCount: number;
-    isLiked: boolean;
-    replies: Array<never>;
-  }>;
-}> {
+): CommentTreeItem[] {
+  // Helper to find parent comment author name
+  const findParentAuthorName = (parentCommentId: string | null): string | undefined => {
+    if (!parentCommentId) return undefined;
+    const parentComment = comments.find(c => c.id === parentCommentId);
+    if (parentComment) {
+      return parentComment.author.displayName || parentComment.author.username || 'Anonymous';
+    }
+    return undefined;
+  };
+
   return comments
     .filter((comment) => comment.parentCommentId === parentId)
     .map((comment) => ({
@@ -77,6 +79,7 @@ function buildCommentTree(
       userUsername: comment.author.username || null,
       userAvatar: comment.author.profileImageUrl,
       parentCommentId: comment.parentCommentId,
+      parentCommentAuthorName: findParentAuthorName(comment.parentCommentId),
       likeCount: comment._count.reactions,
       isLiked: comment.reactions.length > 0,
       replies: buildCommentTree(comments, comment.id),
@@ -260,7 +263,7 @@ export async function POST(
         // Format 2 or 3: GameEngine format
         const parts = postId.split('-');
 
-        if (parts.length >= 3) {
+        if (parts.length >= 3 && parts[1]) {
           // Try to extract timestamp from second part
           const timestampPart = parts[1];
           const timestampNum = parseInt(timestampPart, 10);
@@ -270,7 +273,7 @@ export async function POST(
             timestamp = new Date(timestampNum);
 
             // Check if third part looks like an actor ID (not a decimal)
-            if (parts.length >= 4 && !parts[2].includes('.')) {
+            if (parts.length >= 4 && parts[2] && !parts[2].includes('.')) {
               // Format 3: post-{timestamp}-{actorId}-{random}
               authorId = parts[2];
             }

@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { X, Sparkles, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { logger } from '@/lib/logger'
 
 interface OnboardingModalProps {
   isOpen: boolean
@@ -192,4 +191,5 @@ export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalP
     </>
   )
 }
+
 

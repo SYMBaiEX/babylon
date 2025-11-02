@@ -128,6 +128,15 @@ export async function GET(_request: NextRequest) {
         type.includes('scheduled')
       )
     
+    // Build the eventType filter, ensuring all values are strings (no undefined)
+    const eventTypeFilter: string[] = upcomingEventTypes.length > 0
+      ? Array.from(new Set(
+          upcomingEventTypes
+            .map(t => uniqueEventTypes.find(e => e.eventType.toLowerCase() === t)?.eventType)
+            .filter((type): type is string => typeof type === 'string' && type !== undefined)
+        ))
+      : []
+    
     const upcomingWorldEvents = await prisma.worldEvent.findMany({
       where: {
         timestamp: {
@@ -135,11 +144,9 @@ export async function GET(_request: NextRequest) {
           lte: new Date(Date.now() + FEED_WIDGET_CONFIG.UPCOMING_EVENTS_DAYS * 24 * 60 * 60 * 1000),
         },
         visibility: 'public', // Only show public events
-        ...(upcomingEventTypes.length > 0 ? {
+        ...(eventTypeFilter.length > 0 ? {
           eventType: {
-            in: Array.from(new Set(upcomingEventTypes.map(t => 
-              uniqueEventTypes.find(e => e.eventType.toLowerCase() === t)?.eventType
-            ).filter(Boolean))),
+            in: eventTypeFilter,
           },
         } : {}),
       },

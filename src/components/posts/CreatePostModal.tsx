@@ -49,7 +49,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
       })
 
       if (response.ok) {
-        const data = await response.json()
+        await response.json()
         setContent('')
         // Pass the created post data to the callback
         onPostCreated?.()

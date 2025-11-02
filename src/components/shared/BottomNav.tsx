@@ -12,6 +12,9 @@ export function BottomNav() {
   const pathname = usePathname()
   const { authenticated, user } = useAuth()
 
+  // Active color for navigation items
+  const activeColor = '#1c9cf0'
+
   // Memoize profile URL to ensure it always uses the latest username
   const profileUrl = useMemo(() => {
     if (authenticated && user) {
@@ -25,35 +28,35 @@ export function BottomNav() {
       name: 'Feed',
       href: '/feed',
       icon: Home,
-      color: '#1c9cf0',
+      color: activeColor,
       active: pathname === '/feed' || pathname === '/',
     },
     {
       name: 'Markets',
       href: '/markets',
       icon: TrendingUp,
-      color: '#1c9cf0',
+      color: activeColor,
       active: pathname === '/markets',
     },
     {
       name: 'Chats',
       href: '/chats',
       icon: MessageCircle,
-      color: '#1c9cf0',
+      color: activeColor,
       active: pathname === '/chats',
     },
     {
       name: 'Leaderboards',
       href: '/leaderboard',
       icon: Trophy,
-      color: '#1c9cf0',
+      color: activeColor,
       active: pathname === '/leaderboard',
     },
     {
       name: 'Referrals',
       href: '/referrals',
       icon: Gift,
-      color: '#1c9cf0',
+      color: activeColor,
       active: pathname === '/referrals',
     },
   ]
@@ -62,7 +65,7 @@ export function BottomNav() {
     name: 'Profile',
     href: profileUrl,
     icon: User,
-    color: '#1c9cf0',
+    color: activeColor,
     active: pathname?.startsWith('/profile'),
   }
 
@@ -116,7 +119,7 @@ export function BottomNav() {
                   pathname === '/notifications' ? 'text-sidebar-primary' : 'text-sidebar-foreground'
                 )}
                 style={{
-                  color: pathname === '/notifications' ? '#1c9cf0' : undefined,
+                  color: pathname === '/notifications' ? activeColor : undefined,
                 }}
               />
             </Link>

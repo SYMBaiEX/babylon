@@ -42,6 +42,7 @@ import type {
   ActorsDatabase,
   ChatMessage,
 } from '@/shared/types';
+import type { JsonValue } from '@/types/common';
 
 interface GameConfig {
   tickIntervalMs?: number;
@@ -313,16 +314,24 @@ export class GameEngine extends EventEmitter {
              e.type.toLowerCase().includes('deal'))
           );
           for (const event of significantEvents) {
-            broadcastToChannel('breaking-news', {
+            // Create properly typed event data for broadcast
+            // WorldEvent.description is always a string according to the type definition
+            const eventDescription = typeof event.description === 'string' 
+              ? event.description 
+              : '';
+            
+            const broadcastEvent: Record<string, JsonValue> = {
               type: 'new_event',
               event: {
                 id: event.id,
                 type: event.type,
-                description: typeof event.description === 'string' ? event.description : event.description?.text || '',
-                relatedQuestion: event.relatedQuestion,
+                description: eventDescription,
+                relatedQuestion: event.relatedQuestion ?? null,
                 timestamp: timestamp,
               }
-            });
+            };
+            
+            broadcastToChannel('breaking-news', broadcastEvent);
           }
         } catch (error) {
           logger.debug('Could not broadcast events:', error, 'GameEngine');

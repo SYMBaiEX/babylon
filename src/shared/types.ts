@@ -211,6 +211,7 @@ export interface Question {
   resolutionDate?: string; // ISO date when question resolves (24h-7d from creation)
   status?: 'active' | 'resolved' | 'cancelled'; // Question lifecycle status
   resolvedOutcome?: boolean; // Final outcome when resolved
+  timeframe?: string; // Timeframe category (e.g., '24h', '7d', '30d')
   // Database fields
   questionNumber?: number; // Question number for tracking
   createdAt?: Date | string; // Database timestamp

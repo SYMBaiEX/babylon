@@ -191,17 +191,67 @@ class DatabaseService {
       resolutionDate: prismaQuestion.resolutionDate.toISOString(),
       status: prismaQuestion.status as 'active' | 'resolved' | 'cancelled',
       resolvedOutcome: prismaQuestion.resolvedOutcome ?? undefined,
+      timeframe: this.calculateTimeframe(prismaQuestion.resolutionDate),
       createdAt: prismaQuestion.createdDate,
       updatedAt: prismaQuestion.createdDate, // Prisma model has updatedAt but we use createdDate for now
     };
   }
 
   /**
-   * Get active questions
+   * Calculate timeframe category from resolution date
    */
-  async getActiveQuestions(): Promise<Question[]> {
+  private calculateTimeframe(resolutionDate: Date): string {
+    const now = new Date();
+    const msUntilResolution = resolutionDate.getTime() - now.getTime();
+    const daysUntilResolution = Math.ceil(msUntilResolution / (1000 * 60 * 60 * 24));
+    
+    if (daysUntilResolution <= 1) return '24h';
+    if (daysUntilResolution <= 7) return '7d';
+    if (daysUntilResolution <= 30) return '30d';
+    return '30d+';
+  }
+
+  /**
+   * Get active questions
+   * @param timeframe - Optional timeframe filter ('24h', '7d', '30d', '30d+')
+   */
+  async getActiveQuestions(timeframe?: string): Promise<Question[]> {
+    const whereClause: { status: string; resolutionDate?: { gte?: Date; lte?: Date } } = { 
+      status: 'active' 
+    };
+    
+    // Filter by timeframe if provided
+    // Timeframe filters questions by when they resolve (resolutionDate)
+    if (timeframe) {
+      const now = new Date();
+      let endDate: Date | undefined;
+      
+      switch (timeframe) {
+        case '24h':
+          // Questions resolving within 24 hours
+          endDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+          whereClause.resolutionDate = { gte: now, lte: endDate };
+          break;
+        case '7d':
+          // Questions resolving within 7 days
+          endDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+          whereClause.resolutionDate = { gte: now, lte: endDate };
+          break;
+        case '30d':
+          // Questions resolving within 30 days
+          endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+          whereClause.resolutionDate = { gte: now, lte: endDate };
+          break;
+        case '30d+':
+          // Questions resolving after 30 days
+          const startDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+          whereClause.resolutionDate = { gte: startDate };
+          break;
+      }
+    }
+    
     const questions = await prisma.question.findMany({
-      where: { status: 'active' },
+      where: whereClause,
       orderBy: { createdDate: 'desc' },
     });
     return questions.map(q => this.adaptQuestion(q));

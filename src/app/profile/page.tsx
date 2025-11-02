@@ -73,8 +73,30 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'posts' | 'replies'>('posts')
   const [showLinkAccountsModal, setShowLinkAccountsModal] = useState(false)
-  const [posts, setPosts] = useState<any[]>([])
-  const [replies, setReplies] = useState<any[]>([])
+  const [posts, setPosts] = useState<Array<{
+    id: string
+    content: string
+    timestamp: string
+    likeCount: number
+    commentCount: number
+    shareCount: number
+    isRepost?: boolean
+  }>>([])
+  const [replies, setReplies] = useState<Array<{
+    id: string
+    content: string
+    createdAt: string
+    likeCount: number
+    replyCount: number
+    postId: string
+    post: {
+      author?: {
+        displayName?: string | null
+        username?: string | null
+      } | null
+      content: string
+    }
+  }>>([])
   const [loadingPosts, setLoadingPosts] = useState(false)
   
   // Social visibility toggles
@@ -167,7 +189,7 @@ export default function ProfilePage() {
           }
         }
       } catch (error) {
-        console.error('Failed to load content:', error)
+        logger.error('Failed to load content:', error, 'ProfilePage')
       } finally {
         setLoadingPosts(false)
       }
@@ -522,7 +544,7 @@ export default function ProfilePage() {
           </div>
         ) : authenticated && user ? (
           <>
-            {/* Profile Header - Twitter Style */}
+            {/* Profile Header - Style */}
             <div className="border-b border-border">
               <div className="max-w-[600px] mx-auto">
                 {/* Cover Image */}
@@ -569,7 +591,7 @@ export default function ProfilePage() {
                       </button>
                     </div>
                     
-                    {/* Edit Profile Button - Twitter Style */}
+                    {/* Edit Profile Button - Style */}
                     <button 
                       onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
                       className="mt-3 px-4 py-1.5 rounded-full border border-border hover:bg-muted/50 transition-colors font-semibold text-sm"
@@ -673,11 +695,11 @@ export default function ProfilePage() {
                             onKeyDown={handleKeyDown}
                             placeholder="username"
                             className="flex-1 text-sm bg-sidebar-accent/50 rounded-lg px-3 py-2 text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                            disabled={isSaving || (usernameChangeLimit && !usernameChangeLimit.canChange)}
+                            disabled={isSaving || (usernameChangeLimit ? !usernameChangeLimit.canChange : false)}
                           />
                           <button
                             onClick={saveField}
-                            disabled={isSaving || (usernameChangeLimit && !usernameChangeLimit.canChange)}
+                            disabled={isSaving || (usernameChangeLimit ? !usernameChangeLimit.canChange : false)}
                             className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                           >
                             <Check className="w-4 h-4" />

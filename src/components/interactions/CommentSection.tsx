@@ -9,7 +9,7 @@ import { CommentInput } from './CommentInput';
 import { CommentCard } from './CommentCard';
 import { PostCard } from '@/components/posts/PostCard';
 import type { CommentSectionProps } from '@/types/interactions';
-import type { CommentWithReplies } from '@/types/interactions';
+import type { CommentWithReplies, CommentData } from '@/types/interactions';
 import { logger } from '@/lib/logger';
 
 export function CommentSection({
@@ -17,6 +17,7 @@ export function CommentSection({
   isOpen = false,
   onClose,
   className,
+  postData,
 }: CommentSectionProps) {
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
   const [post, setPost] = useState<{
@@ -30,15 +31,20 @@ export function CommentSection({
     shareCount: number
     isLiked: boolean
     isShared: boolean
-  } | null>(null);
+  } | null>(postData || null);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingPost, setIsLoadingPost] = useState(false);
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'popular'>('newest');
 
   const { loadComments, editComment, deleteComment } = useInteractionStore();
 
-  // Load post data when opened
+  // Load post data when opened (only if postData not provided)
   useEffect(() => {
+    if (postData) {
+      setPost(postData);
+      return;
+    }
+
     const loadPostData = async () => {
       if (!isOpen || !postId) return;
 
@@ -57,7 +63,7 @@ export function CommentSection({
     };
 
     loadPostData();
-  }, [isOpen, postId]);
+  }, [isOpen, postId, postData]);
 
   // Load comments when opened
   useEffect(() => {
@@ -98,6 +104,76 @@ export function CommentSection({
       // Reload on error to ensure consistency
       await loadCommentsData();
     }
+  };
+
+  // Helper to add a reply to the nested comment structure
+  const addReplyToComment = (
+    commentList: CommentWithReplies[],
+    parentCommentId: string,
+    newReply: CommentWithReplies
+  ): CommentWithReplies[] => {
+    return commentList.map((comment) => {
+      if (comment.id === parentCommentId) {
+        // Add reply to this comment's replies
+        return {
+          ...comment,
+          replies: [newReply, ...comment.replies],
+        };
+      } else if (comment.replies.length > 0) {
+        // Recursively search in replies
+        return {
+          ...comment,
+          replies: addReplyToComment(comment.replies, parentCommentId, newReply),
+        };
+      }
+      return comment;
+    });
+  };
+
+  // Helper to find parent comment author name in the comment tree
+  const findParentAuthorName = (
+    commentList: CommentWithReplies[],
+    parentCommentId: string
+  ): string | undefined => {
+    for (const comment of commentList) {
+      if (comment.id === parentCommentId) {
+        return comment.userName;
+      }
+      if (comment.replies.length > 0) {
+        const found = findParentAuthorName(comment.replies, parentCommentId);
+        if (found) return found;
+      }
+    }
+    return undefined;
+  };
+
+  const handleReplySubmit = async (replyComment: CommentData, parentCommentId: string) => {
+    // Find parent comment author name
+    const parentAuthorName = findParentAuthorName(comments, parentCommentId);
+    
+    // Convert CommentData to CommentWithReplies format
+    const optimisticReply: CommentWithReplies = {
+      id: replyComment.id,
+      content: replyComment.content,
+      createdAt: replyComment.createdAt instanceof Date ? replyComment.createdAt : new Date(replyComment.createdAt),
+      updatedAt: replyComment.updatedAt instanceof Date ? replyComment.updatedAt : new Date(replyComment.updatedAt),
+      userId: replyComment.authorId,
+      userName: replyComment.author?.displayName || replyComment.author?.username || 'Unknown',
+      userUsername: replyComment.author?.username || null,
+      userAvatar: replyComment.author?.profileImageUrl || undefined,
+      parentCommentId: replyComment.parentCommentId,
+      parentCommentAuthorName: parentAuthorName,
+      likeCount: replyComment._count?.reactions || 0,
+      isLiked: false,
+      replies: [],
+    };
+
+    // Optimistically add reply to nested structure
+    setComments((prev) => addReplyToComment(prev, parentCommentId, optimisticReply));
+
+    // Small delay then reload to get full data
+    await new Promise(resolve => setTimeout(resolve, 200));
+    await loadCommentsData();
   };
 
   // Recursively remove a comment by ID
@@ -221,8 +297,32 @@ export function CommentSection({
           <CommentInput
             postId={postId}
             placeholder="Post your reply..."
-            onSubmit={async () => {
-              // Reload comments after adding new one
+            onSubmit={async (comment) => {
+              if (comment) {
+                // Optimistically add comment to the list immediately
+                // Convert CommentData to CommentWithReplies format
+                const optimisticComment: CommentWithReplies = {
+                  id: comment.id,
+                  content: comment.content,
+                  createdAt: comment.createdAt instanceof Date ? comment.createdAt : new Date(comment.createdAt),
+                  updatedAt: comment.updatedAt instanceof Date ? comment.updatedAt : new Date(comment.updatedAt),
+                  userId: comment.authorId,
+                  userName: comment.author?.displayName || comment.author?.username || 'Unknown',
+                  userUsername: comment.author?.username || null,
+                  userAvatar: comment.author?.profileImageUrl || undefined,
+                  parentCommentId: comment.parentCommentId,
+                  likeCount: comment._count?.reactions || 0,
+                  isLiked: false,
+                  replies: [],
+                };
+                setComments((prev) => {
+                  // Add to beginning for newest sort
+                  const updated = [optimisticComment, ...prev];
+                  return updated;
+                });
+              }
+              // Small delay to ensure API has processed, then reload to get full data
+              await new Promise(resolve => setTimeout(resolve, 200));
               await loadCommentsData();
             }}
           />
@@ -246,8 +346,14 @@ export function CommentSection({
                 <CommentCard
                   key={comment.id}
                   comment={comment}
+                  postId={postId}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
+                  onReplySubmit={(replyComment) => {
+                    if (replyComment.parentCommentId) {
+                      handleReplySubmit(replyComment, replyComment.parentCommentId);
+                    }
+                  }}
                 />
               ))}
             </div>
