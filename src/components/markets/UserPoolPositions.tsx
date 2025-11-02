@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import type { UserPoolDeposit, UserPoolSummary } from '@/types/pools'
 
 interface UserPoolPositionsProps {
   onWithdraw?: () => void
@@ -10,10 +11,8 @@ interface UserPoolPositionsProps {
 
 export function UserPoolPositions({ onWithdraw }: UserPoolPositionsProps) {
   const { user, authenticated } = useAuth()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [deposits, setDeposits] = useState<any[]>([])
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [summary, setSummary] = useState<any>(null)
+  const [deposits, setDeposits] = useState<UserPoolDeposit[]>([])
+  const [summary, setSummary] = useState<UserPoolSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [withdrawing, setWithdrawing] = useState<string | null>(null)
 
@@ -97,13 +96,7 @@ export function UserPoolPositions({ onWithdraw }: UserPoolPositionsProps) {
   }
 
   if (deposits.length === 0) {
-    return (
-      <div className="p-4 rounded-lg bg-muted/50 text-center">
-        <p className="text-sm text-muted-foreground">
-          No pool positions yet. Deposit into a pool to start following trader NPCs!
-        </p>
-      </div>
-    )
+    return null
   }
 
   return (

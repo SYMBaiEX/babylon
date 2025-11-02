@@ -129,15 +129,44 @@ export async function GET(request: NextRequest) {
       })
       .filter((c) => c !== null);
 
-    // Format DM chats
-    const directChats = dmChatsDetails.map((chat) => ({
-      id: chat.id,
-      name: chat.name || 'Direct Message',
-      isGroup: false,
-      lastMessage: chat.messages[0] || null,
-      participants: chat.participants.length,
-      updatedAt: chat.updatedAt,
-    }));
+    // Format DM chats - get the other participant's name
+    const directChats = await Promise.all(
+      dmChatsDetails.map(async (chat) => {
+        // Find the other participant (not the current user)
+        const otherParticipant = chat.participants.find((p) => p.userId !== user.userId);
+        let chatName = chat.name || 'Direct Message';
+        
+        if (otherParticipant) {
+          // Try to get user details
+          const otherUser = await prisma.user.findUnique({
+            where: { id: otherParticipant.userId },
+            select: { displayName: true, username: true },
+          });
+          
+          if (otherUser) {
+            chatName = otherUser.displayName || otherUser.username || 'Unknown';
+          } else {
+            // Check if it's an actor
+            const actor = await prisma.actor.findUnique({
+              where: { id: otherParticipant.userId },
+              select: { name: true },
+            });
+            if (actor) {
+              chatName = actor.name;
+            }
+          }
+        }
+        
+        return {
+          id: chat.id,
+          name: chatName,
+          isGroup: false,
+          lastMessage: chat.messages[0] || null,
+          participants: chat.participants.length,
+          updatedAt: chat.updatedAt,
+        };
+      })
+    );
 
     return successResponse({
       groupChats,
@@ -148,7 +177,8 @@ export async function GET(request: NextRequest) {
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    logger.error('Error fetching chats:', error, 'GET /api/chats');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Error fetching chats:', { error: errorMessage }, 'GET /api/chats');
     return errorResponse('Failed to fetch chats');
   }
 }
@@ -202,7 +232,8 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    logger.error('Error creating chat:', error, 'POST /api/chats');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Error creating chat:', { error: errorMessage }, 'POST /api/chats');
     return errorResponse('Failed to create chat');
   }
 }

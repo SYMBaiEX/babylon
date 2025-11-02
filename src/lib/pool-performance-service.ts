@@ -95,8 +95,21 @@ export class PoolPerformanceService {
   /**
    * Update a position's current price and P&L
    */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private static async updatePositionPnL(tx: any, position: any): Promise<void> {
+  private static async updatePositionPnL(
+    tx: Prisma.TransactionClient,
+    position: {
+      id: string
+      marketType: string
+      ticker: string | null
+      marketId: string | null
+      side: string
+      entryPrice: number
+      currentPrice: number
+      size: number
+      shares: number | null
+      unrealizedPnL: number
+    }
+  ): Promise<void> {
     let currentPrice = position.currentPrice;
     let unrealizedPnL = position.unrealizedPnL;
 

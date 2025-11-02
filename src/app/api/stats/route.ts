@@ -11,7 +11,7 @@ import { logger } from '@/lib/logger';
 export async function GET() {
   try {
     const stats = await gameService.getStats();
-    const status = gameService.getStatus();
+    const status = await gameService.getStatus();
     
     return NextResponse.json({
       success: true,

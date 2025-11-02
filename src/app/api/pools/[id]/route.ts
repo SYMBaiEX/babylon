@@ -1,6 +1,7 @@
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logger } from '@/lib/logger';
 
 /**
  * GET /api/pools/[id]
@@ -154,8 +155,7 @@ export async function GET(
       })),
     });
   } catch (error) {
-     
-    console.error('Error fetching pool details:', error);
+    logger.error('Error fetching pool details:', error, 'GET /api/pools/[id]');
     return NextResponse.json(
       { error: 'Failed to fetch pool details' },
       { status: 500 }

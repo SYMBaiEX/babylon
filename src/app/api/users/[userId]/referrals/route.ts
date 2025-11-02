@@ -39,10 +39,18 @@ export async function GET(
         id: true,
         username: true,
         displayName: true,
+        bio: true,
         profileImageUrl: true,
         referralCode: true,
         referralCount: true,
         reputationPoints: true,
+        pointsAwardedForProfile: true,
+        pointsAwardedForFarcaster: true,
+        pointsAwardedForTwitter: true,
+        pointsAwardedForWallet: true,
+        farcasterUsername: true,
+        twitterUsername: true,
+        walletAddress: true,
       },
     })
 
@@ -76,22 +84,22 @@ export async function GET(
     // Calculate total points earned from referrals
     const totalPointsEarned = referrals.length * 250
 
-    // Check if referred users are still following
+    // Check if referrer (current user) is following the referred users
     const referredUserIds = referrals
       .map(r => r.referredUserId)
       .filter((id): id is string => id !== null)
 
     const followStatuses = await prisma.follow.findMany({
       where: {
-        followerId: { in: referredUserIds },
-        followingId: userId,
+        followerId: userId,
+        followingId: { in: referredUserIds },
       },
       select: {
-        followerId: true,
+        followingId: true,
       },
     })
 
-    const followingUserIds = new Set(followStatuses.map(f => f.followerId))
+    const followingUserIds = new Set(followStatuses.map(f => f.followingId))
 
     // Format referred users with follow status
     const referredUsers = referrals
@@ -107,14 +115,28 @@ export async function GET(
         joinedAt: r.completedAt,
       }))
 
+    // Use username as referral code (without @)
+    const referralCode = user.username || null
+    const referralUrl = referralCode
+      ? `${process.env.NEXT_PUBLIC_APP_URL || 'https://babylon.game'}?ref=${referralCode}`
+      : null
+
     return successResponse({
       user: {
         id: user.id,
         username: user.username,
         displayName: user.displayName,
+        bio: user.bio,
         profileImageUrl: user.profileImageUrl,
-        referralCode: user.referralCode,
+        referralCode: referralCode,
         reputationPoints: user.reputationPoints,
+        pointsAwardedForProfile: user.pointsAwardedForProfile,
+        pointsAwardedForFarcaster: user.pointsAwardedForFarcaster,
+        pointsAwardedForTwitter: user.pointsAwardedForTwitter,
+        pointsAwardedForWallet: user.pointsAwardedForWallet,
+        farcasterUsername: user.farcasterUsername,
+        twitterUsername: user.twitterUsername,
+        walletAddress: user.walletAddress,
       },
       stats: {
         totalReferrals: referrals.length,
@@ -123,9 +145,7 @@ export async function GET(
         followingCount: followingUserIds.size,
       },
       referredUsers,
-      referralUrl: user.referralCode
-        ? `${process.env.NEXT_PUBLIC_APP_URL || 'https://babylon.game'}?ref=${user.referralCode}`
-        : null,
+      referralUrl,
     })
   } catch (error) {
     logger.error('Error getting referrals:', error, 'GET /api/users/[userId]/referrals')

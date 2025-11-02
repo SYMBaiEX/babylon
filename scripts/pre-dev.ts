@@ -96,10 +96,70 @@ const prisma = new PrismaClient();
 await prisma.$connect();
 logger.info('Database connected', undefined, 'Script');
 
-// Check if database needs initialization
+// Check if database needs migrations
 logger.info('Checking database state...', undefined, 'Script');
-const actorCount = await prisma.actor.count();
-const poolCount = await prisma.pool.count();
+let actorCount = 0;
+let poolCount = 0;
+
+try {
+  // Try to query - will fail if tables don't exist
+  actorCount = await prisma.actor.count();
+  poolCount = await prisma.pool.count();
+} catch (error: unknown) {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  // Check if it's a "table does not exist" error
+  if (errorMessage.includes('does not exist') || errorMessage.includes('P2021')) {
+    logger.info('Database tables not found, checking migration status...', undefined, 'Script');
+    
+    // First, try to clean up any failed migrations in the database
+    try {
+      // Check if _prisma_migrations table exists
+      const migrationsTable = await prisma.$queryRawUnsafe<Array<{ migration_name: string }>>(
+        `SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NULL LIMIT 1`
+      ).catch(() => []);
+      
+      if (migrationsTable.length > 0) {
+        const failedMigration = migrationsTable[0]?.migration_name;
+        if (failedMigration) {
+          logger.info(`Found failed migration: ${failedMigration}, removing...`, undefined, 'Script');
+          await prisma.$executeRawUnsafe(
+            `DELETE FROM "_prisma_migrations" WHERE migration_name = $1`,
+            failedMigration
+          );
+          logger.info('Failed migration removed', undefined, 'Script');
+        }
+      }
+    } catch (cleanupError) {
+      // _prisma_migrations table might not exist yet, which is fine
+      logger.info('No migrations table or cleanup not needed', undefined, 'Script');
+    }
+    
+    logger.info('Applying migrations...', undefined, 'Script');
+    // First try migrate deploy for existing migrations
+    try {
+      await $`bunx prisma migrate deploy`.quiet();
+      logger.info('Migrations deployed', undefined, 'Script');
+    } catch (migrateError) {
+      logger.info('migrate deploy failed, syncing schema...', undefined, 'Script');
+      // If migrations fail, sync schema directly (for development)
+      await $`bunx prisma db push --skip-generate`.quiet();
+      logger.info('Schema synced', undefined, 'Script');
+    }
+    
+    // Try again after migrations
+    try {
+      actorCount = await prisma.actor.count();
+      poolCount = await prisma.pool.count();
+    } catch {
+      // Tables still don't exist, might need to seed
+      actorCount = 0;
+      poolCount = 0;
+    }
+  } else {
+    // Some other error, rethrow
+    throw error;
+  }
+}
 
 if (actorCount === 0) {
   logger.info('Database is empty, running seed...', undefined, 'Script');

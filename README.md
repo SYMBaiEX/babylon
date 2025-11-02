@@ -37,7 +37,7 @@ A real-time prediction market game with autonomous NPCs, perpetual futures, and 
 - Automatic sweeps of inactive/spammy users
 
 ### 💵 Virtual Wallet
-- $10,000 starting balance
+- 1,000 Points starting balance
 - Transaction logging
 - Lifetime PnL tracking
 - Real-time balance updates
@@ -132,7 +132,7 @@ Day 0 (Clue: 1.0):
 - Set display name
 - Add image (optional)
 - Write bio (optional)
-- Get $10,000 balance
+- Get 1,000 Point balance
 
 ### 3. Trading
 - Visit /markets

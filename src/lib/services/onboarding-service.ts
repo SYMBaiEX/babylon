@@ -47,7 +47,7 @@ export class OnboardingService {
         },
         body: JSON.stringify({
           walletAddress,
-          username: username || `user_${userId.slice(0, 8)}`,
+          username: username, // Username is required - should be provided by onboarding modal
           bio: bio || '',
           referralCode: referralCode || undefined, // Include referral code if provided
         }),

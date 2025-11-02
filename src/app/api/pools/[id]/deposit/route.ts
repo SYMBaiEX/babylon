@@ -2,6 +2,7 @@ import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { logger } from '@/lib/logger';
 
 /**
  * POST /api/pools/[id]/deposit
@@ -171,8 +172,7 @@ export async function POST(
       ...result,
     });
   } catch (error) {
-     
-    console.error('Error depositing into pool:', error);
+    logger.error('Error depositing into pool:', error, 'POST /api/pools/[id]/deposit');
     const errorMessage = error instanceof Error ? error.message : 'Failed to deposit into pool';
     return NextResponse.json(
       { error: errorMessage },

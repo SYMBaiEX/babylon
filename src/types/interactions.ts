@@ -3,6 +3,8 @@
  * Includes: likes, comments, shares, and favorites
  */
 
+import type { JsonValue } from '@/types/common'
+
 // ============================================================================
 // Post Interaction Types
 // ============================================================================
@@ -40,6 +42,7 @@ export interface CommentWithReplies {
   updatedAt: Date;
   userId: string;
   userName: string;
+  userUsername?: string | null;
   userAvatar?: string;
   parentCommentId?: string;
   likeCount: number;
@@ -153,9 +156,9 @@ export interface FavoriteProfileRequest {
   targetUserId: string;
 }
 
-export interface InteractionResponse {
+export interface InteractionResponse<T = JsonValue> {
   success: boolean;
-  data?: unknown;
+  data?: T;
   error?: string;
 }
 
@@ -186,12 +189,12 @@ export interface OptimisticUpdate<T> {
   reverted?: boolean;
 }
 
-export interface PendingInteraction {
+export interface PendingInteraction<T = JsonValue> {
   id: string;
   type: 'like' | 'comment' | 'share' | 'favorite';
   targetId: string;
   timestamp: number;
-  optimisticData: unknown;
+  optimisticData: T;
 }
 
 // ============================================================================
@@ -217,7 +220,7 @@ export interface PollingUpdate {
 export interface InteractionError {
   code: 'UNAUTHORIZED' | 'NOT_FOUND' | 'DUPLICATE' | 'NETWORK_ERROR' | 'UNKNOWN';
   message: string;
-  details?: unknown;
+  details?: JsonValue | Record<string, JsonValue>;
 }
 
 // ============================================================================

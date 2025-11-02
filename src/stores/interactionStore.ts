@@ -424,7 +424,7 @@ export const useInteractionStore = create<InteractionStore>()(
         }
       },
 
-      // Favorite actions
+      // Favorite actions (uses follow API)
       toggleFavorite: async (profileId: string) => {
         const { favoritedProfiles, setLoading, setError } = get();
         const wasFavorited = favoritedProfiles.has(profileId);
@@ -441,8 +441,10 @@ export const useInteractionStore = create<InteractionStore>()(
         setLoading(`favorite-${profileId}`, true);
 
         try {
+          // Use follow API instead of favorite API
           const method = wasFavorited ? 'DELETE' : 'POST';
-          await apiCall(`/api/profiles/${profileId}/favorite`, { method });
+          const encodedProfileId = encodeURIComponent(profileId);
+          await apiCall(`/api/users/${encodedProfileId}/follow`, { method });
         } catch (error) {
           // Rollback on error
           set({ favoritedProfiles });
@@ -533,26 +535,36 @@ export const useInteractionStore = create<InteractionStore>()(
     }),
     {
       name: 'babylon-interactions',
-      // Custom serialization for Maps and Sets
-      partialize: (state) => ({
-        postInteractions: Array.from(state.postInteractions.entries()),
-        commentInteractions: Array.from(state.commentInteractions.entries()),
-        favoritedProfiles: Array.from(state.favoritedProfiles),
-      }),
-      // Custom deserialization to convert arrays back to Maps and Sets
-      merge: (persistedState: unknown, currentState: InteractionStore) => {
-        const persisted = persistedState as {
-          postInteractions?: Array<[string, PostInteraction]>;
-          commentInteractions?: Array<[string, CommentInteraction]>;
-          favoritedProfiles?: string[];
-        };
-
-        return {
-          ...currentState,
-          postInteractions: new Map(persisted?.postInteractions || []),
-          commentInteractions: new Map(persisted?.commentInteractions || []),
-          favoritedProfiles: new Set(persisted?.favoritedProfiles || []),
-        };
+      storage: {
+        getItem: (name) => {
+          const str = localStorage.getItem(name);
+          if (!str) return null;
+          const { state } = JSON.parse(str);
+          return {
+            state: {
+              ...state,
+              postInteractions: new Map(state.postInteractions || []),
+              commentInteractions: new Map(state.commentInteractions || []),
+              favoritedProfiles: new Set(state.favoritedProfiles || []),
+              pendingInteractions: new Map(state.pendingInteractions || []),
+              loadingStates: new Map(),
+              errors: new Map(),
+            },
+          };
+        },
+        setItem: (name, value) => {
+          const str = JSON.stringify({
+            state: {
+              ...value.state,
+              postInteractions: Array.from(value.state.postInteractions.entries()),
+              commentInteractions: Array.from(value.state.commentInteractions.entries()),
+              favoritedProfiles: Array.from(value.state.favoritedProfiles),
+              pendingInteractions: Array.from(value.state.pendingInteractions.entries()),
+            },
+          });
+          localStorage.setItem(name, str);
+        },
+        removeItem: (name) => localStorage.removeItem(name),
       },
     }
   )

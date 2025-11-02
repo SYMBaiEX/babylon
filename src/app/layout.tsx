@@ -5,7 +5,8 @@ import { MobileHeader } from '@/components/shared/MobileHeader'
 import { BottomNav } from '@/components/shared/BottomNav'
 import { Providers } from '@/components/providers/Providers'
 
-// Auto-start game engines on server
+// Import engine module for API route access (engine started via daemon: bun run daemon)
+import '@/lib/engine'
 import '@/lib/game-service'
 import { Toaster } from 'sonner'
 import { GlobalLoginModal } from '@/components/auth/GlobalLoginModal'

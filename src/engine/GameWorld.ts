@@ -22,6 +22,7 @@ import { FeedGenerator, type FeedEvent } from './FeedGenerator';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
 import { loadPrompt } from '../prompts/loader';
 import { logger } from '@/lib/logger';
+import type { JsonValue } from '@/types/common';
 
 export interface WorldConfig {
   /** Predetermined outcome (true = success, false = failure) */
@@ -94,7 +95,7 @@ interface EmitterEventData {
   totalEvents?: number;
   npcId?: string;
   description?: string;
-  [key: string]: unknown;
+  [key: string]: JsonValue | undefined;
 }
 
 export interface NPC {

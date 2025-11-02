@@ -7,7 +7,7 @@ This directory contains comprehensive tests for the Babylon platform, including 
 ```
 tests/
 ├── e2e/                    # End-to-end tests using Playwright
-│   ├── referrals.spec.ts              # Referral system E2E tests
+│   ├── referrals.spec.ts              # Rewards & Referral system E2E tests
 │   └── referrals-integration.spec.ts  # Referral integration tests
 ├── integration/            # Integration tests using Bun
 │   └── referral-api.test.ts          # Referral API tests
@@ -54,14 +54,16 @@ bun test tests/integration/referral-api.test.ts
 bun test --watch tests/integration/
 ```
 
-## Referral System Tests
+## Rewards & Referral System Tests
 
 ### Coverage
 
-The referral system tests cover:
+The rewards and referral system tests cover:
 
 #### 1. **User Flow Tests** (`referrals.spec.ts`)
 - ✅ Unauthenticated access handling
+- ✅ Rewards page UI and functionality
+- ✅ Reward tasks display (social linking, wallet connect, etc.)
 - ✅ Referral code generation and display
 - ✅ Copy to clipboard functionality
 - ✅ Stats cards display
@@ -136,7 +138,7 @@ Tests are designed to run in CI environments:
 #### Scenario 1: Generate Referral Code
 ```
 1. User logs in
-2. Navigates to /referrals
+2. Navigates to /rewards
 3. Sees unique referral code
 4. Copies code to clipboard
 ✅ Code is valid format
@@ -150,18 +152,19 @@ Tests are designed to run in CI environments:
 3. User B clicks link
 4. User B signs up
 ✅ User A receives +250 points
-✅ User B auto-follows User A
+✅ User A auto-follows User B
 ✅ Referral status = 'completed'
 ```
 
-#### Scenario 3: View Referrals
+#### Scenario 3: View Rewards & Referrals
 ```
-1. User A checks /referrals page
-2. Sees stats:
+1. User A checks /rewards page
+2. Sees reward tasks and completion status
+3. Sees referral stats:
    - Total Referrals: 5
    - Points Earned: 1,250
    - Following: 4
-3. Sees list of referred users
+4. Sees list of referred users
 ✅ Each shows +250 badge
 ✅ Follow status accurate
 ✅ Can click to view profile
@@ -260,5 +263,5 @@ For test-related issues:
 ---
 
 **Last Updated**: November 2, 2025
-**Test Coverage**: Referral System (Comprehensive)
+**Test Coverage**: Rewards & Referral System (Comprehensive)
 

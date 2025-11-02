@@ -75,52 +75,147 @@ export async function GET(request: Request) {
         skip: offset,
       });
 
+      // Get user data for posts
+      const authorIds = [...new Set(posts.map(p => p.authorId))];
+      const users = await prisma.user.findMany({
+        where: { id: { in: authorIds } },
+        select: { id: true, username: true, displayName: true },
+      });
+      const userMap = new Map(users.map(u => [u.id, u]));
+      
+      // Get interaction counts for all posts in parallel
+      const postIds = posts.map(p => p.id);
+      const [allReactions, allComments, allShares] = await Promise.all([
+        prisma.reaction.groupBy({
+          by: ['postId'],
+          where: { postId: { in: postIds }, type: 'like' },
+          _count: { postId: true },
+        }),
+        prisma.comment.groupBy({
+          by: ['postId'],
+          where: { postId: { in: postIds } },
+          _count: { postId: true },
+        }),
+        prisma.share.groupBy({
+          by: ['postId'],
+          where: { postId: { in: postIds } },
+          _count: { postId: true },
+        }),
+      ]);
+      
+      // Create maps for quick lookup
+      const reactionMap = new Map(allReactions.map(r => [r.postId, r._count.postId]));
+      const commentMap = new Map(allComments.map(c => [c.postId, c._count.postId]));
+      const shareMap = new Map(allShares.map(s => [s.postId, s._count.postId]));
+      
       return NextResponse.json({
         success: true,
-        posts: posts.map((post) => ({
-          id: post.id,
-          content: post.content,
-          author: post.authorId,
-          authorId: post.authorId,
-          timestamp: post.timestamp.toISOString(),
-          createdAt: post.createdAt.toISOString(),
-        })),
+        posts: posts.map((post) => {
+          const user = userMap.get(post.authorId);
+          return {
+            id: post.id,
+            content: post.content,
+            author: post.authorId,
+            authorId: post.authorId,
+            authorName: user?.displayName || user?.username || post.authorId,
+            authorUsername: user?.username || null,
+            timestamp: post.timestamp.toISOString(),
+            createdAt: post.createdAt.toISOString(),
+            likeCount: reactionMap.get(post.id) ?? 0,
+            commentCount: commentMap.get(post.id) ?? 0,
+            shareCount: shareMap.get(post.id) ?? 0,
+            isLiked: false,
+            isShared: false,
+          };
+        }),
         total: posts.length,
         limit,
         offset,
         source: 'following',
       });
     }
-    // Prefer realtime history when available
-    const realtimeResult = await gameService.getRealtimePosts(limit, offset, actorId || undefined);
-    if (realtimeResult && realtimeResult.posts.length > 0) {
-      return NextResponse.json({
-        success: true,
-        posts: realtimeResult.posts,
-        total: realtimeResult.total,
-        limit,
-        offset,
-        source: 'realtime',
-      });
-    }
-
+    // Get posts from database (GameEngine persists posts here)
     let posts;
     
     if (actorId) {
       // Get posts by specific actor
       posts = await gameService.getPostsByActor(actorId, limit);
     } else {
-      // Get recent posts
+      // Get recent posts from database
       posts = await gameService.getRecentPosts(limit, offset);
     }
     
-    return NextResponse.json({
+    // Get unique author IDs to fetch user data
+    const authorIds = [...new Set(posts.map(p => p.authorId))];
+    const users = await prisma.user.findMany({
+      where: { id: { in: authorIds } },
+      select: { id: true, username: true, displayName: true },
+    });
+    const userMap = new Map(users.map(u => [u.id, u]));
+    
+    // Get interaction counts for all posts in parallel
+    const postIds = posts.map(p => p.id);
+    const [allReactions, allComments, allShares] = await Promise.all([
+      prisma.reaction.groupBy({
+        by: ['postId'],
+        where: { postId: { in: postIds }, type: 'like' },
+        _count: { postId: true },
+      }),
+      prisma.comment.groupBy({
+        by: ['postId'],
+        where: { postId: { in: postIds } },
+        _count: { postId: true },
+      }),
+      prisma.share.groupBy({
+        by: ['postId'],
+        where: { postId: { in: postIds } },
+        _count: { postId: true },
+      }),
+    ]);
+    
+    // Create maps for quick lookup
+    const reactionMap = new Map(allReactions.map(r => [r.postId, r._count.postId]));
+    const commentMap = new Map(allComments.map(c => [c.postId, c._count.postId]));
+    const shareMap = new Map(allShares.map(s => [s.postId, s._count.postId]));
+    
+    // Format posts to match FeedPost interface
+    const formattedPosts = posts.map((post) => {
+      const user = userMap.get(post.authorId);
+      return {
+        id: post.id,
+        content: post.content,
+        author: post.authorId, // Use authorId as author
+        authorId: post.authorId,
+        authorName: user?.displayName || user?.username || post.authorId,
+        authorUsername: user?.username || null,
+        timestamp: post.timestamp.toISOString(),
+        createdAt: post.createdAt.toISOString(),
+        gameId: post.gameId || undefined,
+        dayNumber: post.dayNumber || undefined,
+        likeCount: reactionMap.get(post.id) ?? 0,
+        commentCount: commentMap.get(post.id) ?? 0,
+        shareCount: shareMap.get(post.id) ?? 0,
+        isLiked: false, // Will be updated by interaction store polling
+        isShared: false, // Will be updated by interaction store polling
+      };
+    });
+    
+    // Next.js 16: Add cache headers for real-time feeds
+    // Use 'no-store' to ensure fresh data for real-time updates
+    // This prevents stale data in client-side caches
+    const response = NextResponse.json({
       success: true,
-      posts,
+      posts: formattedPosts,
       total: posts.length,
       limit,
       offset,
     });
+    
+    // Real-time feeds should not be cached (no-store)
+    // This ensures WebSocket updates reflect immediately
+    response.headers.set('Cache-Control', 'no-store, must-revalidate');
+    
+    return response;
   } catch (error) {
     logger.error('API Error:', error, 'GET /api/posts');
     return NextResponse.json(
@@ -151,9 +246,15 @@ export async function POST(request: NextRequest) {
       return errorResponse('Post content must be 280 characters or less', 400);
     }
 
-    // Ensure user exists in database
+    // Ensure user exists in database and fetch with username/displayName
     let dbUser = await prisma.user.findUnique({
       where: { id: authUser.userId },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        profileImageUrl: true,
+      },
     });
 
     if (!dbUser) {
@@ -162,6 +263,12 @@ export async function POST(request: NextRequest) {
         data: {
           id: authUser.userId,
           isActor: false,
+        },
+        select: {
+          id: true,
+          username: true,
+          displayName: true,
+          profileImageUrl: true,
         },
       });
     }
@@ -181,12 +288,41 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Determine author name for display (prefer username or displayName, fallback to generated name)
+    const authorName = dbUser.username || dbUser.displayName || `user_${authUser.userId.slice(0, 8)}`;
+
+    // Broadcast new post to WebSocket feed channel for real-time updates
+    try {
+      const { broadcastToChannel } = await import('@/app/api/ws/chat/route');
+      broadcastToChannel('feed', {
+        type: 'new_post',
+        post: {
+          id: post.id,
+          content: post.content,
+          authorId: post.authorId,
+          authorName: authorName,
+          authorUsername: dbUser.username,
+          authorDisplayName: dbUser.displayName,
+          authorProfileImageUrl: dbUser.profileImageUrl,
+          timestamp: post.timestamp.toISOString(),
+        },
+      });
+      logger.info('Broadcast new user post to feed channel', { postId: post.id }, 'POST /api/posts');
+    } catch (error) {
+      logger.error('Failed to broadcast post to WebSocket:', error, 'POST /api/posts');
+      // Don't fail the request if WebSocket broadcast fails
+    }
+
     return successResponse({
       success: true,
       post: {
         id: post.id,
         content: post.content,
         authorId: post.authorId,
+        authorName: authorName,
+        authorUsername: dbUser.username,
+        authorDisplayName: dbUser.displayName,
+        authorProfileImageUrl: dbUser.profileImageUrl,
         timestamp: post.timestamp.toISOString(),
         createdAt: post.createdAt.toISOString(),
       },

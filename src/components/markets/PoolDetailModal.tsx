@@ -5,6 +5,7 @@ import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { logger } from '@/lib/logger'
+import type { PoolDetailResponse, PoolPosition, PoolTrade } from '@/types/pools'
 
 interface PoolDetailModalProps {
   poolId: string
@@ -15,8 +16,7 @@ interface PoolDetailModalProps {
 
 export function PoolDetailModal({ poolId, isOpen, onClose, onSuccess }: PoolDetailModalProps) {
   const { user, authenticated, login } = useAuth()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [pool, setPool] = useState<any>(null)
+  const [pool, setPool] = useState<PoolDetailResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [depositAmount, setDepositAmount] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -32,10 +32,10 @@ export function PoolDetailModal({ poolId, isOpen, onClose, onSuccess }: PoolDeta
     try {
       setLoading(true)
       const res = await fetch(`/api/pools/${poolId}`)
-      const data = await res.json()
+      const data = await res.json() as PoolDetailResponse
       setPool(data)
     } catch (error) {
-      console.error('Error fetching pool details:', error)
+      logger.error('Error fetching pool details:', error, 'PoolDetailModal')
     } finally {
       setLoading(false)
     }
@@ -74,10 +74,10 @@ export function PoolDetailModal({ poolId, isOpen, onClose, onSuccess }: PoolDeta
       setDepositAmount('')
       fetchPoolDetails()
       onSuccess?.()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
-      console.error('Deposit error:', error)
-      alert(error.message || 'Failed to deposit')
+    } catch (error) {
+      const depositError = error as { message?: string }
+      logger.error('Deposit error:', error, 'PoolDetailModal')
+      alert(depositError.message || 'Failed to deposit')
     } finally {
       setSubmitting(false)
     }
@@ -115,7 +115,7 @@ export function PoolDetailModal({ poolId, isOpen, onClose, onSuccess }: PoolDeta
                 <div className="flex-1">
                   <h2 className="text-2xl font-bold mb-1">{pool.pool.name}</h2>
                   <p className="text-sm text-muted-foreground">
-                    Managed by {pool.pool.npcActor.name}
+                    Managed by {pool.pool.npcActor?.name || 'Unknown'}
                   </p>
                 </div>
                 <button
@@ -253,8 +253,7 @@ export function PoolDetailModal({ poolId, isOpen, onClose, onSuccess }: PoolDeta
                   {pool.positions.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">No open positions</p>
                   ) : (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    pool.positions.map((pos: any) => (
+                    pool.positions.map((pos: PoolPosition) => (
                       <div key={pos.id} className="p-3 bg-muted rounded-lg">
                         <div className="flex justify-between items-start mb-2">
                           <div>
@@ -298,8 +297,7 @@ export function PoolDetailModal({ poolId, isOpen, onClose, onSuccess }: PoolDeta
                   {pool.recentTrades.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">No trades yet</p>
                   ) : (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    pool.recentTrades.map((trade: any) => (
+                    pool.recentTrades.map((trade: PoolTrade) => (
                       <div key={trade.id} className="p-3 bg-muted rounded-lg">
                         <div className="flex justify-between items-start">
                           <div>

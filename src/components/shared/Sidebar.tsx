@@ -20,11 +20,18 @@ export function Sidebar() {
 
   const navItems = [
     {
-      name: 'Feed',
+      name: 'Home',
       href: '/feed',
       icon: Home,
       color: '#1c9cf0',
       active: pathname === '/feed' || pathname === '/',
+    },
+    {
+      name: 'Notifications',
+      href: '/notifications',
+      icon: Bell,
+      color: '#1c9cf0',
+      active: pathname === '/notifications',
     },
     {
       name: 'Leaderboard',
@@ -32,13 +39,6 @@ export function Sidebar() {
       icon: Trophy,
       color: '#1c9cf0',
       active: pathname === '/leaderboard',
-    },
-    {
-      name: 'Referrals',
-      href: '/referrals',
-      icon: Gift,
-      color: '#a855f7',
-      active: pathname === '/referrals',
     },
     {
       name: 'Markets',
@@ -55,11 +55,11 @@ export function Sidebar() {
       active: pathname === '/chats',
     },
     {
-      name: 'Notifications',
-      href: '/notifications',
-      icon: Bell,
-      color: '#1c9cf0',
-      active: pathname === '/notifications',
+      name: 'Rewards',
+      href: '/rewards',
+      icon: Gift,
+      color: '#a855f7',
+      active: pathname === '/rewards',
     },
   ]
 

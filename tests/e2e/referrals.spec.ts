@@ -1,18 +1,19 @@
 import { test, expect, type Page } from '@playwright/test'
 
 /**
- * Referral System E2E Tests
+ * Rewards System E2E Tests
  * 
- * Tests the complete referral flow from generation to signup and points award.
+ * Tests the complete rewards and referral flow from generation to signup and points award.
  * 
  * Test Coverage:
  * 1. Referral code generation
- * 2. Referral page UI and functionality
- * 3. Referral link sharing
- * 4. Signup with referral code
- * 5. Auto-follow functionality
- * 6. Points award (+250)
- * 7. Referral stats display
+ * 2. Rewards page UI and functionality
+ * 3. Reward tasks display
+ * 4. Referral link sharing
+ * 5. Signup with referral code
+ * 6. Auto-follow functionality
+ * 7. Points award (+250)
+ * 8. Referral stats display
  */
 
 // Helper function to mock authentication
@@ -35,13 +36,13 @@ async function waitForAPI(page: Page, url: string) {
   )
 }
 
-test.describe('Referral System - Unauthenticated', () => {
-  test('should show login prompt on referrals page when not authenticated', async ({ page }) => {
-    await page.goto('/referrals')
+test.describe('Rewards System - Unauthenticated', () => {
+  test('should show login prompt on rewards page when not authenticated', async ({ page }) => {
+    await page.goto('/rewards')
     
     // Should see auth required banner
     await expect(page.getByText('Connect Your Wallet')).toBeVisible()
-    await expect(page.getByText('Sign in to get your unique referral code')).toBeVisible()
+    await expect(page.getByText('Sign in to earn rewards')).toBeVisible()
     
     // Should see login button
     await expect(page.getByRole('button', { name: /connect|sign in|login/i })).toBeVisible()
@@ -60,29 +61,30 @@ test.describe('Referral System - Unauthenticated', () => {
   })
 })
 
-test.describe('Referral System - Authenticated User Flow', () => {
+test.describe('Rewards System - Authenticated User Flow', () => {
   test.beforeEach(async ({ page }) => {
     await mockAuth(page, 'referrer-user-id')
   })
   
-  test('should display referrals page with user data', async ({ page }) => {
-    await page.goto('/referrals')
+  test('should display rewards page with user data', async ({ page }) => {
+    await page.goto('/rewards')
     
     // Wait for page to load
     await page.waitForLoadState('networkidle')
     
     // Should see page header
-    await expect(page.getByRole('heading', { name: 'Referrals' })).toBeVisible()
-    await expect(page.getByText('+250 points per signup')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Rewards' })).toBeVisible()
+    await expect(page.getByText('Complete tasks and invite friends')).toBeVisible()
     
-    // Should see stats cards
-    await expect(page.getByText('Total Referrals')).toBeVisible()
-    await expect(page.getByText('Points Earned')).toBeVisible()
-    await expect(page.getByText('Following You')).toBeVisible()
+    // Should see total rewards earned
+    await expect(page.getByText('Total Rewards Earned')).toBeVisible()
+    
+    // Should see reward tasks section
+    await expect(page.getByText('Earn Points')).toBeVisible()
   })
   
   test('should generate and display referral code', async ({ page }) => {
-    await page.goto('/referrals')
+    await page.goto('/rewards')
     await page.waitForLoadState('networkidle')
     
     // Should see referral code section
@@ -102,7 +104,7 @@ test.describe('Referral System - Authenticated User Flow', () => {
     // Grant clipboard permissions
     await context.grantPermissions(['clipboard-read', 'clipboard-write'])
     
-    await page.goto('/referrals')
+    await page.goto('/rewards')
     await page.waitForLoadState('networkidle')
     
     // Find and click the copy code button
@@ -120,7 +122,7 @@ test.describe('Referral System - Authenticated User Flow', () => {
   test('should copy referral URL to clipboard', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write'])
     
-    await page.goto('/referrals')
+    await page.goto('/rewards')
     await page.waitForLoadState('networkidle')
     
     // Find the URL copy button (second copy button)
@@ -137,7 +139,7 @@ test.describe('Referral System - Authenticated User Flow', () => {
   })
   
   test('should display referral rewards information', async ({ page }) => {
-    await page.goto('/referrals')
+    await page.goto('/rewards')
     await page.waitForLoadState('networkidle')
     
     // Should see rewards info box
@@ -148,7 +150,7 @@ test.describe('Referral System - Authenticated User Flow', () => {
   })
   
   test('should show empty state when no referrals', async ({ page }) => {
-    await page.goto('/referrals')
+    await page.goto('/rewards')
     await page.waitForLoadState('networkidle')
     
     // If user has no referrals, should see empty state
@@ -160,7 +162,7 @@ test.describe('Referral System - Authenticated User Flow', () => {
   })
   
   test('should display tips section for users with few referrals', async ({ page }) => {
-    await page.goto('/referrals')
+    await page.goto('/rewards')
     await page.waitForLoadState('networkidle')
     
     // Should see tips section if user has < 5 referrals
@@ -172,55 +174,55 @@ test.describe('Referral System - Authenticated User Flow', () => {
   })
 })
 
-test.describe('Referral System - Navigation', () => {
+test.describe('Rewards System - Navigation', () => {
   test.beforeEach(async ({ page }) => {
     await mockAuth(page)
   })
   
-  test('should navigate to referrals from sidebar', async ({ page }) => {
+  test('should navigate to rewards from sidebar', async ({ page }) => {
     await page.goto('/feed')
     await page.waitForLoadState('networkidle')
     
-    // Click referrals link in sidebar (desktop only)
-    const referralsLink = page.getByRole('link', { name: /referrals/i })
-    if (await referralsLink.isVisible()) {
-      await referralsLink.click()
+    // Click rewards link in sidebar (desktop only)
+    const rewardsLink = page.getByRole('link', { name: /rewards/i })
+    if (await rewardsLink.isVisible()) {
+      await rewardsLink.click()
       
-      // Should navigate to referrals page
-      await expect(page).toHaveURL(/\/referrals/)
-      await expect(page.getByRole('heading', { name: 'Referrals' })).toBeVisible()
+      // Should navigate to rewards page
+      await expect(page).toHaveURL(/\/rewards/)
+      await expect(page.getByRole('heading', { name: 'Rewards' })).toBeVisible()
     }
   })
   
-  test('should navigate to referrals from profile page', async ({ page }) => {
+  test('should navigate to rewards from profile page', async ({ page }) => {
     await page.goto('/profile')
     await page.waitForLoadState('networkidle')
     
-    // Look for referral card or link
-    const viewAllLink = page.getByRole('link', { name: /view all|referrals/i })
+    // Look for rewards card or link
+    const viewAllLink = page.getByRole('link', { name: /view all|rewards/i })
     if (await viewAllLink.isVisible()) {
       await viewAllLink.click()
       
-      // Should navigate to referrals page
-      await expect(page).toHaveURL(/\/referrals/)
+      // Should navigate to rewards page
+      await expect(page).toHaveURL(/\/rewards/)
     }
   })
   
-  test('should highlight referrals nav item when on referrals page', async ({ page }) => {
-    await page.goto('/referrals')
+  test('should highlight rewards nav item when on rewards page', async ({ page }) => {
+    await page.goto('/rewards')
     await page.waitForLoadState('networkidle')
     
-    // Referrals nav item should be highlighted/active
-    const referralsLink = page.getByRole('link', { name: /referrals/i })
-    if (await referralsLink.isVisible()) {
+    // Rewards nav item should be highlighted/active
+    const rewardsLink = page.getByRole('link', { name: /rewards/i })
+    if (await rewardsLink.isVisible()) {
       // Check if link has active styling (would need to check computed styles or class)
-      const classList = await referralsLink.getAttribute('class')
+      const classList = await rewardsLink.getAttribute('class')
       expect(classList).toBeTruthy()
     }
   })
 })
 
-test.describe('Referral System - API Integration', () => {
+test.describe('Rewards System - API Integration', () => {
   test.beforeEach(async ({ page }) => {
     await mockAuth(page, 'api-test-user')
   })
@@ -228,7 +230,7 @@ test.describe('Referral System - API Integration', () => {
   test('should fetch referral code from API', async ({ page }) => {
     const apiPromise = waitForAPI(page, '/api/users/')
     
-    await page.goto('/referrals')
+    await page.goto('/rewards')
     
     // Wait for API call
     const response = await apiPromise
@@ -246,7 +248,7 @@ test.describe('Referral System - API Integration', () => {
                    response.status() === 200
     )
     
-    await page.goto('/referrals')
+    await page.goto('/rewards')
     
     const response = await apiPromise
     const data = await response.json()
@@ -264,13 +266,13 @@ test.describe('Referral System - API Integration', () => {
   })
 })
 
-test.describe('Referral System - Referred Users Display', () => {
+test.describe('Rewards System - Referred Users Display', () => {
   test.beforeEach(async ({ page }) => {
     await mockAuth(page, 'user-with-referrals')
   })
   
   test('should display list of referred users', async ({ page }) => {
-    await page.goto('/referrals')
+    await page.goto('/rewards')
     await page.waitForLoadState('networkidle')
     
     // Look for referred users section
@@ -296,7 +298,7 @@ test.describe('Referral System - Referred Users Display', () => {
   })
   
   test('should show follow status for each referred user', async ({ page }) => {
-    await page.goto('/referrals')
+    await page.goto('/rewards')
     await page.waitForLoadState('networkidle')
     
     // Look for user cards with follow indicators
@@ -311,7 +313,7 @@ test.describe('Referral System - Referred Users Display', () => {
   })
   
   test('should link to referred user profiles', async ({ page }) => {
-    await page.goto('/referrals')
+    await page.goto('/rewards')
     await page.waitForLoadState('networkidle')
     
     // Find profile links
@@ -326,13 +328,13 @@ test.describe('Referral System - Referred Users Display', () => {
   })
 })
 
-test.describe('Referral System - Stats Cards', () => {
+test.describe('Rewards System - Stats Cards', () => {
   test.beforeEach(async ({ page }) => {
     await mockAuth(page)
   })
   
   test('should display total referrals count', async ({ page }) => {
-    await page.goto('/referrals')
+    await page.goto('/rewards')
     await page.waitForLoadState('networkidle')
     
     // Should see total referrals card
@@ -345,7 +347,7 @@ test.describe('Referral System - Stats Cards', () => {
   })
   
   test('should calculate and display points earned correctly', async ({ page }) => {
-    await page.goto('/referrals')
+    await page.goto('/rewards')
     await page.waitForLoadState('networkidle')
     
     // Get total referrals
@@ -366,7 +368,7 @@ test.describe('Referral System - Stats Cards', () => {
   })
   
   test('should display following count', async ({ page }) => {
-    await page.goto('/referrals')
+    await page.goto('/rewards')
     await page.waitForLoadState('networkidle')
     
     // Should see following card
@@ -378,13 +380,13 @@ test.describe('Referral System - Stats Cards', () => {
   })
 })
 
-test.describe('Referral System - Share Functionality', () => {
+test.describe('Rewards System - Share Functionality', () => {
   test.beforeEach(async ({ page }) => {
     await mockAuth(page)
   })
   
   test('should have share button', async ({ page }) => {
-    await page.goto('/referrals')
+    await page.goto('/rewards')
     await page.waitForLoadState('networkidle')
     
     // Should see share button
@@ -393,7 +395,7 @@ test.describe('Referral System - Share Functionality', () => {
   })
   
   test('should track share action', async ({ page }) => {
-    await page.goto('/referrals')
+    await page.goto('/rewards')
     await page.waitForLoadState('networkidle')
     
     // Set up API listener for share tracking
@@ -414,7 +416,7 @@ test.describe('Referral System - Share Functionality', () => {
   })
 })
 
-test.describe('Referral System - Responsive Design', () => {
+test.describe('Rewards System - Responsive Design', () => {
   test.beforeEach(async ({ page }) => {
     await mockAuth(page)
   })
@@ -423,11 +425,11 @@ test.describe('Referral System - Responsive Design', () => {
     // Set mobile viewport
     await page.setViewportSize({ width: 375, height: 667 })
     
-    await page.goto('/referrals')
+    await page.goto('/rewards')
     await page.waitForLoadState('networkidle')
     
     // Should still see main elements
-    await expect(page.getByRole('heading', { name: 'Referrals' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Rewards' })).toBeVisible()
     
     // Stats cards should stack vertically on mobile
     const statsCards = page.locator('[class*="grid"]').first()
@@ -439,11 +441,11 @@ test.describe('Referral System - Responsive Design', () => {
     // Set tablet viewport
     await page.setViewportSize({ width: 768, height: 1024 })
     
-    await page.goto('/referrals')
+    await page.goto('/rewards')
     await page.waitForLoadState('networkidle')
     
     // Should see desktop layout
-    await expect(page.getByRole('heading', { name: 'Referrals' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Rewards' })).toBeVisible()
   })
 })
 

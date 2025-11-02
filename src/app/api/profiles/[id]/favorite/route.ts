@@ -26,25 +26,34 @@ export async function POST(
   try {
     // Authenticate user
     const user = await authenticate(request);
-    const { id: targetUserId } = await params;
+    const { id: targetIdentifier } = await params;
 
-    // Validate target user ID
-    if (!targetUserId) {
+    // Validate target identifier
+    if (!targetIdentifier) {
       return errorResponse('Profile ID is required', 400);
     }
+
+    // Try to find user by ID first, then by username
+    let targetUser = await prisma.user.findUnique({
+      where: { id: targetIdentifier },
+    });
+
+    // If not found by ID, try username
+    if (!targetUser) {
+      targetUser = await prisma.user.findUnique({
+        where: { username: targetIdentifier },
+      });
+    }
+
+    if (!targetUser) {
+      return errorResponse('Profile not found', 404);
+    }
+
+    const targetUserId = targetUser.id;
 
     // Prevent self-favoriting
     if (user.userId === targetUserId) {
       return errorResponse('Cannot favorite yourself', 400);
-    }
-
-    // Check if target user exists
-    const targetUser = await prisma.user.findUnique({
-      where: { id: targetUserId },
-    });
-
-    if (!targetUser) {
-      return errorResponse('Profile not found', 404);
     }
 
     // Check if already favorited
@@ -108,12 +117,30 @@ export async function DELETE(
   try {
     // Authenticate user
     const user = await authenticate(request);
-    const { id: targetUserId } = await params;
+    const { id: targetIdentifier } = await params;
 
-    // Validate target user ID
-    if (!targetUserId) {
+    // Validate target identifier
+    if (!targetIdentifier) {
       return errorResponse('Profile ID is required', 400);
     }
+
+    // Try to find user by ID first, then by username
+    let targetUser = await prisma.user.findUnique({
+      where: { id: targetIdentifier },
+    });
+
+    // If not found by ID, try username
+    if (!targetUser) {
+      targetUser = await prisma.user.findUnique({
+        where: { username: targetIdentifier },
+      });
+    }
+
+    if (!targetUser) {
+      return errorResponse('Profile not found', 404);
+    }
+
+    const targetUserId = targetUser.id;
 
     // Find existing favorite
     const favorite = await prisma.favorite.findUnique({

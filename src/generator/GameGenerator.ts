@@ -927,7 +927,7 @@ Otherwise, start fresh.`;
     selectedActors.supporting.forEach((supporting: SelectedActor, i: number) => {
       const numConnections = 2 + Math.floor(Math.random() * 2); // 2-3 connections
       const potentials = selectedActors.supporting
-        .filter((_: SelectedActor, idx: number) => idx !== i)
+        .filter((_supportingActor: SelectedActor, idx: number) => idx !== i)
         .filter((other: SelectedActor) => 
           !connections.some(c => 
             (c.actor1 === supporting.id && c.actor2 === other.id) ||
@@ -1672,7 +1672,7 @@ ${req.members.map((m, idx) => {
 
     const prompt = loadPrompt('game/group-message', {
       actorName: actor.name,
-      actorDescription: actor.description,
+      actorDescription: actor.description || '',
       personality: actor.personality || 'balanced',
       domain: actor.domain?.join(', ') || 'general',
       groupTheme,

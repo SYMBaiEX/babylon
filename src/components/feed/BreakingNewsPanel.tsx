@@ -1,0 +1,149 @@
+'use client'
+
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { TrendingUp, Calendar, DollarSign, Activity } from 'lucide-react'
+import { logger } from '@/lib/logger'
+import { useChannelSubscription } from '@/hooks/useChannelSubscription'
+import { BreakingNewsDetailModal } from './BreakingNewsDetailModal'
+import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
+
+interface BreakingNewsItem {
+  id: string
+  title: string
+  description: string
+  icon: 'chart' | 'calendar' | 'dollar' | 'trending'
+  timestamp: string
+  trending?: boolean
+  source?: string
+  fullDescription?: string
+  imageUrl?: string
+  relatedQuestion?: number
+  relatedActorId?: string
+  relatedOrganizationId?: string
+}
+
+export function BreakingNewsPanel() {
+  const [news, setNews] = useState<BreakingNewsItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedItem, setSelectedItem] = useState<BreakingNewsItem | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const { getBreakingNews, setBreakingNews } = useWidgetCacheStore()
+
+  // Use ref to store fetchNews function to break dependency chain
+  const fetchNewsRef = useRef<(() => void) | undefined>(undefined)
+
+  const fetchNews = useCallback(async (skipCache = false) => {
+    // Check cache first (unless explicitly skipping)
+    if (!skipCache) {
+      const cached = getBreakingNews()
+      if (cached) {
+        setNews(cached as BreakingNewsItem[])
+        setLoading(false)
+        return
+      }
+    }
+
+    try {
+      const response = await fetch('/api/feed/widgets/breaking-news')
+      const data = await response.json()
+      if (data.success) {
+        const newsData = data.news || []
+        setNews(newsData)
+        setBreakingNews(newsData) // Cache the data
+      }
+    } catch (error) {
+      logger.error('Error fetching breaking news:', error, 'BreakingNewsPanel')
+    } finally {
+      setLoading(false)
+    }
+  }, [getBreakingNews, setBreakingNews])
+
+  // Update ref when fetchNews changes
+  useEffect(() => {
+    fetchNewsRef.current = () => fetchNews(true) // Skip cache on manual refresh
+  }, [fetchNews])
+
+  useEffect(() => {
+    fetchNews()
+  }, [fetchNews])
+
+  // Subscribe to breaking-news channel for real-time updates
+  const handleChannelUpdate = useCallback((data: Record<string, unknown>) => {
+    if (data.type === 'new_event') {
+      // Refresh breaking news when new event arrives
+      logger.debug('Breaking news update received, refreshing...', { data }, 'BreakingNewsPanel')
+      // Use ref to avoid dependency on fetchNews
+      fetchNewsRef.current?.()
+    }
+  }, []) // Empty dependency array prevents re-creation
+
+  useChannelSubscription('breaking-news', handleChannelUpdate)
+
+  const getIcon = (icon: BreakingNewsItem['icon']) => {
+    switch (icon) {
+      case 'chart':
+        return <TrendingUp className="w-6 h-6 sm:w-7 sm:h-7" />
+      case 'calendar':
+        return <Calendar className="w-6 h-6 sm:w-7 sm:h-7" />
+      case 'dollar':
+        return <DollarSign className="w-6 h-6 sm:w-7 sm:h-7" />
+      default:
+        return <Activity className="w-6 h-6 sm:w-7 sm:h-7" />
+    }
+  }
+
+  const handleItemClick = (item: BreakingNewsItem) => {
+    setSelectedItem(item)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setSelectedItem(null)
+  }
+
+  return (
+    <>
+      <div className="bg-sidebar rounded-lg p-4 flex-1 flex flex-col">
+        <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-3 text-left">Breaking News</h2>
+        {loading ? (
+          <div className="text-base text-muted-foreground pl-3 flex-1">Loading...</div>
+        ) : news.length === 0 ? (
+          <div className="text-base text-muted-foreground pl-3 flex-1">No breaking news at the moment.</div>
+        ) : (
+          <div className="space-y-2.5 pl-3 flex-1">
+            {news.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => handleItemClick(item)}
+                className="flex items-start gap-2.5 cursor-pointer hover:bg-muted/50 rounded-lg p-1.5 -ml-1.5 transition-colors duration-200"
+              >
+                <div className="text-[#1c9cf0] mt-0.5 flex-shrink-0">
+                  {getIcon(item.icon)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-lg sm:text-xl font-semibold text-foreground leading-relaxed">
+                    {item.title}
+                  </p>
+                  <p className="text-base sm:text-lg text-muted-foreground mt-1">
+                    {item.description}
+                    {item.trending && (
+                      <span className="ml-2 text-[#1c9cf0] font-semibold">• Trending</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <BreakingNewsDetailModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        item={selectedItem}
+      />
+    </>
+  )
+}
+

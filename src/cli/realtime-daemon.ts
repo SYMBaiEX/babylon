@@ -24,6 +24,7 @@ import { GameEngine } from '../engine/GameEngine';
 import { spawn, type ChildProcess } from 'child_process';
 import { join } from 'path';
 import { logger } from '@/lib/logger';
+import { setEngineInstance, clearEngineInstance } from '@/lib/engine';
 
 interface CLIOptions {
   verbose?: boolean;
@@ -96,7 +97,8 @@ async function main() {
   });
 
   // Handle graceful shutdown
-  process.on('SIGINT', () => {
+  process.on('SIGINT', async () => {
+    logger.info('Shutting down daemon...', undefined, 'CLI');
     logger.info('Final Stats:', undefined, 'CLI');
     const state = engine.getState();
     logger.info(`Total Actors: ${state.actors}`, undefined, 'CLI');
@@ -105,7 +107,17 @@ async function main() {
     logger.info(`Total Questions: ${state.totalQuestions}`, undefined, 'CLI');
     logger.info(`History Ticks: ${state.recentTicks}`, undefined, 'CLI');
     
-    engine.stop();
+    await engine.stop();
+    clearEngineInstance();
+    logger.info('Daemon stopped', undefined, 'CLI');
+    process.exit(0);
+  });
+  
+  // Also handle SIGTERM for process managers
+  process.on('SIGTERM', async () => {
+    logger.info('Received SIGTERM, shutting down gracefully...', undefined, 'CLI');
+    await engine.stop();
+    clearEngineInstance();
     process.exit(0);
   });
 
@@ -113,6 +125,10 @@ async function main() {
   try {
     await engine.initialize();
     engine.start();
+    
+    // Register engine instance so API routes can query status
+    setEngineInstance(engine);
+    logger.info('Engine instance registered for API access', undefined, 'CLI');
 
     // Auto-start agents if enabled
     const autoStartAgents = process.env.AUTO_START_AGENTS !== 'false'; // Default to true
@@ -127,6 +143,7 @@ async function main() {
     await new Promise(() => {});
   } catch (error) {
     logger.error('Fatal Error:', error, 'CLI');
+    clearEngineInstance();
     process.exit(1);
   }
 }

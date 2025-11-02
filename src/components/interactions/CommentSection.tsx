@@ -19,8 +19,18 @@ export function CommentSection({
   className,
 }: CommentSectionProps) {
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [post, setPost] = useState<any>(null);
+  const [post, setPost] = useState<{
+    id: string
+    content: string
+    authorId: string
+    authorName: string
+    timestamp: string
+    likeCount: number
+    commentCount: number
+    shareCount: number
+    isLiked: boolean
+    isShared: boolean
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingPost, setIsLoadingPost] = useState(false);
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'popular'>('newest');

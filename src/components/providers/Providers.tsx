@@ -1,6 +1,6 @@
 'use client'
 
-import { PrivyProvider } from '@privy-io/react-auth'
+import { PrivyProvider, type PrivyClientConfig } from '@privy-io/react-auth'
 import { WagmiProvider } from '@privy-io/wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState, useEffect, Fragment, useMemo, Suspense } from 'react'
@@ -9,6 +9,7 @@ import { ThemeProvider } from '@/components/shared/ThemeProvider'
 import { FontSizeProvider } from '@/contexts/FontSizeContext'
 import { GamePlaybackManager } from './GamePlaybackManager'
 import { ReferralCaptureProvider } from './ReferralCaptureProvider'
+import { OnboardingProvider } from './OnboardingProvider'
 import { http } from 'viem'
 import { mainnet, sepolia, base, baseSepolia } from 'viem/chains'
 import { createConfig } from 'wagmi'
@@ -88,19 +89,21 @@ export function Providers({ children }: { children: React.ReactNode }) {
             <GamePlaybackManager />
             <PrivyProvider
               appId={privyConfig.appId}
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              config={privyConfig.config as any}
+              config={privyConfig.config as PrivyClientConfig}
             >
               <WagmiProvider config={wagmiConfig}>
                 {/* Capture referral code from URL if present */}
                 <Suspense fallback={null}>
                   <ReferralCaptureProvider />
                 </Suspense>
-                {mounted ? (
-                  <Fragment>{children}</Fragment>
-                ) : (
-                  <div className="min-h-screen bg-sidebar" />
-                )}
+                {/* Onboarding provider for username setup */}
+                <OnboardingProvider>
+                  {mounted ? (
+                    <Fragment>{children}</Fragment>
+                  ) : (
+                    <div className="min-h-screen bg-sidebar" />
+                  )}
+                </OnboardingProvider>
               </WagmiProvider>
             </PrivyProvider>
           </QueryClientProvider>

@@ -2,7 +2,10 @@
  * Game Service - API Wrapper
  * 
  * Provides access to the engine for API routes.
- * Engine auto-starts in engine.ts
+ * Engine is started via daemon (`bun run daemon`).
+ * 
+ * Note: Most operations query the database directly, which is updated by the daemon.
+ * Engine status queries check if the daemon is running.
  */
 
 import { existsSync, readFileSync } from 'fs';
@@ -29,9 +32,23 @@ class GameService {
     return await db.getActiveQuestions();
   }
 
+  /**
+   * Get game statistics from database.
+   * Works even if engine is not running (daemon writes to database).
+   */
   async getStats() {
+    // Try to get stats from engine if running, otherwise query database directly
     const engine = getEngine();
-    return await engine.getStats();
+    if (engine) {
+      try {
+        return await engine.getStats();
+      } catch (error) {
+        logger.debug('Failed to get stats from engine, falling back to database', { error }, 'GameService');
+      }
+    }
+    
+    // Fallback to database directly (daemon writes here)
+    return await db.getStats();
   }
 
   /**
@@ -42,11 +59,29 @@ class GameService {
   }
 
   /**
-   * Get engine status
+   * Get engine status.
+   * Returns status indicating if daemon is running.
    */
-  getStatus() {
+  async getStatus() {
     const engine = getEngine();
-    return engine.getStatus();
+    if (engine) {
+      try {
+        return await engine.getStatus();
+      } catch (error) {
+        logger.debug('Failed to get status from engine', { error }, 'GameService');
+      }
+    }
+    
+    // Engine not running (daemon not started)
+    const gameState = await db.getGameState();
+    return {
+      isRunning: false,
+      initialized: false,
+      currentDay: gameState?.currentDay || 0,
+      currentDate: gameState?.currentDate?.toISOString(),
+      speed: 60000,
+      lastTickAt: gameState?.lastTickAt?.toISOString(),
+    };
   }
 
   async getRealtimePosts(limit = 100, offset = 0, actorId?: string) {

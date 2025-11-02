@@ -653,7 +653,10 @@ export class FeedGenerator extends EventEmitter {
         conspiracy = rawResponse.conspiracy as ConspiracyPost[];
       } else if ('data' in rawResponse && Array.isArray(rawResponse.data) && rawResponse.data[0]?.conspiracy) {
         // Unwrap from { data: [{ conspiracy: [...] }] }
-        conspiracy = rawResponse.data.flatMap((d: Record<string, unknown>) => (d.conspiracy as ConspiracyPost[]) || []);
+        conspiracy = rawResponse.data.flatMap((d: { conspiracy: ConspiracyPost[] }) => {
+          const conspiracyData = d.conspiracy
+          return Array.isArray(conspiracyData) ? (conspiracyData as ConspiracyPost[]) : []
+        });
       }
 
       const validConspiracy = conspiracy
@@ -706,7 +709,7 @@ export class FeedGenerator extends EventEmitter {
 
     const prompt = loadPrompt('feed/journalist-post', {
       journalistName: journalist.name,
-      journalistDescription: journalist.description,
+      journalistDescription: journalist.description || '',
       emotionalContext: emotionalContext ? emotionalContext + '\n' : '',
       eventDescription: event.description,
       eventType: event.type,

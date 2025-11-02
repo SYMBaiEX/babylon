@@ -82,7 +82,7 @@ export async function POST(
     }
 
     // Update user with social connection
-    const updateData: Record<string, unknown> = {}
+    const updateData: Record<string, string | boolean> = {}
     switch (platform) {
       case 'farcaster':
         updateData.hasFarcaster = true

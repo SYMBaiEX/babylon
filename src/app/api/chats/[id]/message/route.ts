@@ -93,7 +93,8 @@ export async function POST(
         isGameChat ? '' : chatId // Pass empty string for game chats to skip DB queries
       );
     } catch (qualityError) {
-      logger.error('Quality check error:', qualityError, 'POST /api/chats/[id]/message');
+      const qualityErrorMessage = qualityError instanceof Error ? qualityError.message : String(qualityError);
+      logger.error('Quality check error:', { error: qualityErrorMessage }, 'POST /api/chats/[id]/message');
       // For game chats, allow messages even if quality check fails
       if (isGameChat) {
         qualityResult = {
@@ -192,10 +193,9 @@ export async function POST(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    logger.error('Error sending group chat message:', error, 'POST /api/chats/[id]/message');
     const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
     const errorStack = error instanceof Error ? error.stack : undefined;
-    logger.error('Error details:', { errorMessage, errorStack }, 'POST /api/chats/[id]/message');
+    logger.error('Error sending group chat message:', { error: errorMessage, errorStack }, 'POST /api/chats/[id]/message');
     return errorResponse(errorMessage, 500);
   }
 }

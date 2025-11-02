@@ -107,7 +107,8 @@ export async function POST(request: NextRequest) {
       expiresIn: SESSION_DURATION / 1000, // seconds
     });
   } catch (error) {
-    logger.error('Agent authentication error:', error, 'POST /api/agents/auth');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Agent authentication error:', { error: errorMessage }, 'POST /api/agents/auth');
     return NextResponse.json(
       { error: 'Authentication failed' },
       { status: 500 }

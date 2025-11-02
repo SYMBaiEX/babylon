@@ -147,6 +147,7 @@ export interface FeedPost {
   content: string;
   author: string;
   authorName: string;
+  authorUsername?: string | null;
   replyTo?: string;
   relatedEvent?: string;
   sentiment: number; // -1 to 1

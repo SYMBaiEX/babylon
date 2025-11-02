@@ -84,8 +84,31 @@ export async function POST(
         hasUsername: true,
         hasBio: true,
         hasProfileImage: true,
+        usernameChangedAt: true,
+        pointsAwardedForProfile: true,
       },
     });
+
+    // Check 24-hour rate limit for username changes
+    const isUsernameChanging = username !== undefined && 
+                               username !== null && 
+                               username.trim() !== currentUser?.username;
+    
+    if (isUsernameChanging && currentUser?.usernameChangedAt) {
+      const lastChangeTime = new Date(currentUser.usernameChangedAt).getTime();
+      const now = Date.now();
+      const hoursSinceChange = (now - lastChangeTime) / (1000 * 60 * 60);
+      const hoursRemaining = 24 - hoursSinceChange;
+
+      if (hoursSinceChange < 24) {
+        const hours = Math.floor(hoursRemaining);
+        const minutes = Math.floor((hoursRemaining - hours) * 60);
+        return errorResponse(
+          `You can only change your username once every 24 hours. Please wait ${hours}h ${minutes}m before changing again.`,
+          429
+        );
+      }
+    }
 
     // Update user profile
     const updatedUser = await prisma.user.update({
@@ -96,6 +119,8 @@ export async function POST(
         ...(bio !== undefined && { bio: bio.trim() || null }),
         ...(profileImageUrl !== undefined && { profileImageUrl: profileImageUrl.trim() || null }),
         ...(coverImageUrl !== undefined && { coverImageUrl: coverImageUrl.trim() || null }),
+        // Update username changed timestamp if username is changing
+        ...(isUsernameChanging && { usernameChangedAt: new Date() }),
         // Update profile completion flags
         hasUsername: username !== undefined ? (username.trim().length > 0) : undefined,
         hasBio: bio !== undefined ? (bio.trim().length > 0) : undefined,
@@ -119,33 +144,30 @@ export async function POST(
         reputationPoints: true,
         referralCount: true,
         referralCode: true,
+        usernameChangedAt: true,
       },
     });
 
     // Award points for profile milestones
     const pointsAwarded: { reason: string; amount: number }[] = []
 
-    // Award points for username (if newly set)
-    if (username !== undefined && username.trim().length > 0 && !currentUser?.hasUsername) {
-      const result = await PointsService.awardUsername(userId)
-      if (result.success && result.pointsAwarded > 0) {
-        pointsAwarded.push({ reason: 'username', amount: result.pointsAwarded })
-      }
-    }
-
-    // Award points for profile image (if newly set)
-    if (profileImageUrl !== undefined && profileImageUrl.trim().length > 0 && !currentUser?.hasProfileImage) {
-      const result = await PointsService.awardProfileImage(userId)
-      if (result.success && result.pointsAwarded > 0) {
-        pointsAwarded.push({ reason: 'profile_image', amount: result.pointsAwarded })
-      }
-    }
-
-    // Award points for bio with 50+ characters (if newly set)
-    if (bio !== undefined && bio.trim().length >= 50 && !currentUser?.hasBio) {
-      const result = await PointsService.awardProfileCompletion(userId)
-      if (result.success && result.pointsAwarded > 0) {
-        pointsAwarded.push({ reason: 'profile_completion', amount: result.pointsAwarded })
+    // Award points for profile completion (username + image + bio)
+    // Only award if not already awarded AND all three fields are now complete
+    if (!currentUser?.pointsAwardedForProfile) {
+      const hasUsername = updatedUser.username && updatedUser.username.trim().length > 0
+      const hasImage = updatedUser.profileImageUrl && updatedUser.profileImageUrl.trim().length > 0
+      const hasBio = updatedUser.bio && updatedUser.bio.trim().length >= 50
+      
+      if (hasUsername && hasImage && hasBio) {
+        const result = await PointsService.awardProfileCompletion(userId)
+        if (result.success && result.pointsAwarded > 0) {
+          pointsAwarded.push({ reason: 'profile_completion', amount: result.pointsAwarded })
+          logger.info(
+            `Awarded ${result.pointsAwarded} points to user ${userId} for completing profile (username + image + bio)`,
+            { userId, points: result.pointsAwarded },
+            'POST /api/users/[userId]/update-profile'
+          )
+        }
       }
     }
 

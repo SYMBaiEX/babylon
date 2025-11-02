@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-interface User {
+export interface User {
   id: string
   walletAddress?: string
   displayName: string
@@ -26,6 +26,7 @@ interface User {
   showWalletPublic?: boolean
   bannerLastShown?: string
   bannerDismissCount?: number
+  usernameChangedAt?: string | null
   stats?: {
     positions?: number
     comments?: number

@@ -115,6 +115,7 @@ class DatabaseService {
 
   /**
    * Get recent posts (paginated)
+   * Note: Not cached as this is real-time data that updates frequently
    */
   async getRecentPosts(limit = 100, offset = 0) {
     return await prisma.post.findMany({

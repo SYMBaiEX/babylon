@@ -137,7 +137,7 @@ export class AutonomousAgent extends EventEmitter {
       await this.a2aClient.connect();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`Failed to connect ${this.config.name}: ${errorMessage}`, { error }, 'AutonomousAgent');
+      logger.error(`Failed to connect ${this.config.name}: ${errorMessage}`, { error: errorMessage }, 'AutonomousAgent');
       throw error;
     }
   }
@@ -179,7 +179,12 @@ export class AutonomousAgent extends EventEmitter {
    * Handle game event
    */
   private async handleGameEvent(event: WorldEvent): Promise<void> {
-    logger.debug(`${this.config.name} received event: ${event.type}`, { event }, 'AutonomousAgent');
+    logger.debug(`${this.config.name} received event: ${event.type}`, { 
+      eventType: event.type,
+      eventId: event.id,
+      relatedQuestion: event.relatedQuestion,
+      description: typeof event.description === 'string' ? event.description : (event.description as { text?: string })?.text || ''
+    }, 'AutonomousAgent');
 
     // If event affects a question we're tracking, re-analyze
     if (event.relatedQuestion != null) {
@@ -197,7 +202,11 @@ export class AutonomousAgent extends EventEmitter {
    * Handle coalition invite
    */
   private async handleCoalitionInvite(invite: CoalitionProposal): Promise<void> {
-    logger.info(`${this.config.name} invited to coalition: ${invite.coalitionId}`, { invite }, 'AutonomousAgent');
+    logger.info(`${this.config.name} invited to coalition: ${invite.coalitionId}`, { 
+      coalitionId: invite.coalitionId,
+      strategy: invite.strategy,
+      targetMarket: invite.targetMarket
+    }, 'AutonomousAgent');
 
     // Simple acceptance logic based on strategy match
     const shouldJoin = this.config.strategies.includes(invite.strategy);
@@ -212,7 +221,11 @@ export class AutonomousAgent extends EventEmitter {
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error(`Failed to join coalition: ${errorMessage}`, { error, invite }, 'AutonomousAgent');
+        logger.error(`Failed to join coalition: ${errorMessage}`, { 
+          error: errorMessage,
+          coalitionId: invite.coalitionId,
+          strategy: invite.strategy
+        }, 'AutonomousAgent');
       }
     }
   }
@@ -269,7 +282,10 @@ export class AutonomousAgent extends EventEmitter {
       this.emit('analysisComplete', analysis);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`Analysis failed for question ${question.id}: ${errorMessage}`, { error, questionId: question.id }, 'AutonomousAgent');
+      logger.error(`Analysis failed for question ${question.id}: ${errorMessage}`, { 
+        error: errorMessage,
+        questionId: String(question.id)
+      }, 'AutonomousAgent');
     }
   }
 
@@ -317,7 +333,11 @@ Be concise and analytical.`;
       logger.info(`${this.config.name} shared analysis for question ${analysis.questionId}`, { questionId: analysis.questionId }, 'AutonomousAgent');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`Failed to share analysis: ${errorMessage}`, { error, analysis }, 'AutonomousAgent');
+      logger.error(`Failed to share analysis: ${errorMessage}`, { 
+        error: errorMessage,
+        questionId: analysis.questionId,
+        confidence: analysis.confidence
+      }, 'AutonomousAgent');
     }
   }
 
@@ -350,7 +370,11 @@ Be concise and analytical.`;
       return result.coalitionId;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`Failed to propose coalition: ${errorMessage}`, { error, name, targetMarket }, 'AutonomousAgent');
+      logger.error(`Failed to propose coalition: ${errorMessage}`, { 
+        error: errorMessage,
+        name,
+        targetMarket
+      }, 'AutonomousAgent');
       return null;
     }
   }

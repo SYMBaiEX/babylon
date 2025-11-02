@@ -205,7 +205,10 @@ export class RegistryClient {
     } catch (error) {
       // Use logger instead of console.error
       const errorMessage = error instanceof Error ? error.message : String(error)
-      this.logger.error('Error discovering agents', { error: errorMessage, filters })
+      this.logger.error('Error discovering agents', { 
+        error: errorMessage, 
+        filters: filters ? JSON.parse(JSON.stringify(filters)) : undefined
+      })
       return []
     }
   }

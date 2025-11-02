@@ -35,10 +35,14 @@ export function FontSizeProvider({ children }: { children: ReactNode }) {
         setFontSizeState(parsed.fontSize || 1)
         setFontSizePresetState(parsed.preset || 'medium')
       } catch (parseError) {
-        // Ignore parse errors - invalid localStorage data
+        // Handle parse errors - invalid localStorage data
         if (parseError instanceof SyntaxError) {
           // Invalid JSON format, reset to defaults
-          localStorage.removeItem(STORAGE_KEY)
+          try {
+            localStorage.removeItem(STORAGE_KEY)
+          } catch {
+            // Ignore if localStorage is unavailable (e.g., in SSR)
+          }
         }
       }
     }

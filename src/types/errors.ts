@@ -4,6 +4,8 @@
  * Proper error types to replace all 'unknown' and 'any' error types
  */
 
+import type { JsonValue } from '@/types/common'
+
 /**
  * Base error interface for all application errors
  */
@@ -55,7 +57,7 @@ export interface NetworkError extends Error {
  */
 export interface ValidationError extends Error {
   field?: string;
-  value?: unknown;
+  value?: JsonValue;
   constraint?: string;
 }
 
@@ -99,7 +101,7 @@ export function isValidationError(error: Error): error is ValidationError {
 /**
  * Extract error message from any error-like object
  */
-export function extractErrorMessage(error: Error | AppError | string | unknown): string {
+export function extractErrorMessage(error: Error | AppError | string | JsonValue | { message?: string }): string {
   if (typeof error === 'string') {
     return error;
   }

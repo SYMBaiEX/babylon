@@ -27,7 +27,10 @@ export async function POST(
   try {
     // Authenticate user
     const user = await authenticate(request);
-    const { userId: targetId } = await params;
+    const { userId: targetIdRaw } = await params;
+    
+    // Decode the target ID in case it was URL encoded
+    const targetId = decodeURIComponent(targetIdRaw);
 
     // Validate target ID
     if (!targetId) {
@@ -47,8 +50,16 @@ export async function POST(
     });
 
     // If not a user, check if it's an actor (from actors.json)
-    // Actors don't have user records, so we'll allow following them anyway
-    // We'll store the follow relationship if target is a user
+    // Try to find in Actor table
+    const targetActor = targetUser ? null : await prisma.actor.findUnique({
+      where: { id: targetId },
+      select: { id: true },
+    });
+
+    // If neither user nor actor found, return error
+    if (!targetUser && !targetActor) {
+      return errorResponse('User or profile not found', 404);
+    }
 
     if (targetUser) {
       // Target is a user - use Follow model
@@ -161,7 +172,10 @@ export async function DELETE(
   try {
     // Authenticate user
     const user = await authenticate(request);
-    const { userId: targetId } = await params;
+    const { userId: targetIdRaw } = await params;
+    
+    // Decode the target ID in case it was URL encoded
+    const targetId = decodeURIComponent(targetIdRaw);
 
     // Validate target ID
     if (!targetId) {
@@ -276,19 +290,32 @@ export async function GET(
         isFollowing: !!follow,
       });
     } else {
-      // Target is an actor (NPC) - check FollowStatus model
-      const followStatus = await prisma.followStatus.findUnique({
-        where: {
-          userId_npcId: {
-            userId: authUser.userId,
-            npcId: targetId,
-          },
-        },
+      // Target might be an actor (NPC) - check FollowStatus model
+      const targetActor = await prisma.actor.findUnique({
+        where: { id: targetId },
+        select: { id: true },
       });
 
-      return successResponse({
-        isFollowing: !!(followStatus && followStatus.isActive),
-      });
+      if (targetActor) {
+        const followStatus = await prisma.followStatus.findUnique({
+          where: {
+            userId_npcId: {
+              userId: authUser.userId,
+              npcId: targetId,
+            },
+          },
+        });
+
+        return successResponse({
+          isFollowing: !!(followStatus && followStatus.isActive),
+        });
+      } else {
+        // Neither user nor actor found - return false for isFollowing
+        // This prevents errors when checking follow status for non-existent profiles
+        return successResponse({
+          isFollowing: false,
+        });
+      }
     }
   } catch (error) {
     logger.error('Error checking follow status:', error, 'GET /api/users/[userId]/follow');

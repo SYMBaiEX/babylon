@@ -7,15 +7,14 @@
 
 import { PrismaClient } from '@prisma/client'
 import { logger } from '@/lib/logger'
+import type { JsonValue } from '@/types/common'
 
 const prisma = new PrismaClient()
 
 // Point award amounts
 export const POINTS = {
   INITIAL_SIGNUP: 1000,
-  PROFILE_COMPLETION: 1000,
-  PROFILE_IMAGE: 1000,
-  USERNAME: 1000,
+  PROFILE_COMPLETION: 1000, // Username + Profile Image + Bio (consolidated)
   FARCASTER_LINK: 1000,
   TWITTER_LINK: 1000,
   WALLET_CONNECT: 1000,
@@ -27,8 +26,6 @@ export const POINTS = {
 export type PointsReason = 
   | 'initial_signup'
   | 'profile_completion'
-  | 'profile_image'
-  | 'username'
   | 'farcaster_link'
   | 'twitter_link'
   | 'wallet_connect'
@@ -54,7 +51,7 @@ export class PointsService {
     userId: string,
     amount: number,
     reason: PointsReason,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, JsonValue>
   ): Promise<AwardPointsResult> {
     try {
       // Get current user state
@@ -63,8 +60,6 @@ export class PointsService {
         select: {
           reputationPoints: true,
           pointsAwardedForProfile: true,
-          pointsAwardedForProfileImage: true,
-          pointsAwardedForUsername: true,
           pointsAwardedForFarcaster: true,
           pointsAwardedForTwitter: true,
           pointsAwardedForWallet: true,
@@ -95,7 +90,7 @@ export class PointsService {
       const pointsAfter = pointsBefore + amount
 
       // Update user points and tracking flags in a transaction
-      const updateData: Record<string, unknown> = {
+      const updateData: Record<string, JsonValue> = {
         reputationPoints: pointsAfter,
       }
 
@@ -103,12 +98,6 @@ export class PointsService {
       switch (reason) {
         case 'profile_completion':
           updateData.pointsAwardedForProfile = true
-          break
-        case 'profile_image':
-          updateData.pointsAwardedForProfileImage = true
-          break
-        case 'username':
-          updateData.pointsAwardedForUsername = true
           break
         case 'farcaster_link':
           updateData.pointsAwardedForFarcaster = true
@@ -168,24 +157,11 @@ export class PointsService {
   }
 
   /**
-   * Award points for profile completion
+   * Award points for profile completion (username + image + bio)
+   * This consolidates what were previously separate rewards
    */
   static async awardProfileCompletion(userId: string): Promise<AwardPointsResult> {
     return this.awardPoints(userId, POINTS.PROFILE_COMPLETION, 'profile_completion')
-  }
-
-  /**
-   * Award points for profile image
-   */
-  static async awardProfileImage(userId: string): Promise<AwardPointsResult> {
-    return this.awardPoints(userId, POINTS.PROFILE_IMAGE, 'profile_image')
-  }
-
-  /**
-   * Award points for username
-   */
-  static async awardUsername(userId: string): Promise<AwardPointsResult> {
-    return this.awardPoints(userId, POINTS.USERNAME, 'username')
   }
 
   /**
@@ -196,7 +172,7 @@ export class PointsService {
       userId,
       POINTS.FARCASTER_LINK,
       'farcaster_link',
-      { farcasterUsername }
+      farcasterUsername ? { farcasterUsername } : undefined
     )
   }
 
@@ -208,7 +184,7 @@ export class PointsService {
       userId,
       POINTS.TWITTER_LINK,
       'twitter_link',
-      { twitterUsername }
+      twitterUsername ? { twitterUsername } : undefined
     )
   }
 
@@ -220,7 +196,7 @@ export class PointsService {
       userId,
       POINTS.WALLET_CONNECT,
       'wallet_connect',
-      { walletAddress }
+      walletAddress ? { walletAddress } : undefined
     )
   }
 
@@ -239,7 +215,7 @@ export class PointsService {
     return this.awardPoints(userId, amount, reason, {
       platform,
       contentType,
-      contentId,
+      ...(contentId && { contentId }),
     })
   }
 
@@ -274,8 +250,6 @@ export class PointsService {
   private static checkAlreadyAwarded(
     user: {
       pointsAwardedForProfile: boolean
-      pointsAwardedForProfileImage: boolean
-      pointsAwardedForUsername: boolean
       pointsAwardedForFarcaster: boolean
       pointsAwardedForTwitter: boolean
       pointsAwardedForWallet: boolean
@@ -285,10 +259,6 @@ export class PointsService {
     switch (reason) {
       case 'profile_completion':
         return user.pointsAwardedForProfile
-      case 'profile_image':
-        return user.pointsAwardedForProfileImage
-      case 'username':
-        return user.pointsAwardedForUsername
       case 'farcaster_link':
         return user.pointsAwardedForFarcaster
       case 'twitter_link':

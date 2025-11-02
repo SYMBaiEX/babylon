@@ -62,9 +62,9 @@ const sizeClasses = {
 };
 
 const iconSizes = {
-  sm: 14,
-  md: 16,
-  lg: 18,
+  sm: 18,
+  md: 20,
+  lg: 22,
 };
 
 export function LikeButton({
@@ -180,11 +180,9 @@ export function LikeButton({
         onTouchEnd={handleMouseUp}
         disabled={isLoading}
         className={cn(
-          'flex items-center rounded-full transition-all duration-200',
-          'border border-transparent',
-          isLiked
-            ? cn(reaction.color, reaction.bgColor)
-            : 'bg-transparent hover:bg-red-500/10',
+          'flex items-center transition-all duration-200',
+          'bg-transparent hover:opacity-70',
+          isLiked ? reaction.color : '',
           sizeClasses[size],
           isAnimating && 'scale-110',
           isLoading && 'opacity-50 cursor-wait',

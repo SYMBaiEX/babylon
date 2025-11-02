@@ -19,11 +19,12 @@ interface ChatMessage {
 }
 
 // Global shared socket to avoid multiple connections (React StrictMode / re-mounts)
-interface GlobalSocket {
+// Type-safe global socket access
+interface GlobalSocketType {
   [SOCKET_KEY]?: WebSocket | null
   [SUBSCRIBERS_KEY]?: number
 }
-const getGlobal = (): GlobalSocket => (globalThis as unknown as GlobalSocket)
+const getGlobal = (): GlobalSocketType => (globalThis as typeof globalThis & GlobalSocketType)
 const SOCKET_KEY = '__babylon_chat_socket__'
 const SUBSCRIBERS_KEY = '__babylon_chat_socket_subscribers__'
 
@@ -59,8 +60,14 @@ export function useWebSocket() {
 
       // Check if WebSocket server is available before attempting connection
       try {
-        const healthCheckUrl = `${window.location.protocol}//${window.location.hostname}:${window.location.port || (window.location.protocol === 'https:' ? '443' : '80')}/api/ws/chat`
+        // Use the same origin as the current page (Next.js API routes are on the same port)
+        const healthCheckUrl = `${window.location.origin}/api/ws/chat`
         const healthResponse = await fetch(healthCheckUrl)
+        
+        if (!healthResponse.ok) {
+          throw new Error(`Health check failed: ${healthResponse.status}`)
+        }
+        
         const healthData = await healthResponse.json()
         
         if (!healthData.initialized) {
@@ -70,6 +77,7 @@ export function useWebSocket() {
         }
       } catch (healthError) {
         // Health check failed - server might not be ready yet, but we'll try connecting anyway
+        // Only log on first attempt to reduce noise
         if (reconnectAttempts.current === 0) {
           logger.warn('WebSocket server health check failed, attempting connection anyway:', healthError, 'useWebSocket')
         }
@@ -134,28 +142,25 @@ export function useWebSocket() {
       ws.onerror = (errorEvent) => {
         // WebSocket error events don't provide much information in the error object itself
         // The actual error details come from the close event (code, reason)
-        // However, we can check the readyState to provide context
-        const errorMessage = ws.readyState === WebSocket.CLOSED 
-          ? 'Connection failed - server may not be running on port 3001'
-          : ws.readyState === WebSocket.CONNECTING
-          ? 'Connection timeout - server may not be responding'
-          : 'WebSocket connection error'
-        
-        // Log error details if available
-        if (errorEvent && errorEvent.type) {
-          logger.error('WebSocket error event:', { type: errorEvent.type, message: errorMessage }, 'useWebSocket');
-        }
-        
-        // Only log meaningful errors or on first attempt
-        if (reconnectAttempts.current === 0) {
-          logger.error('WebSocket error:', {
-            message: errorMessage,
-            readyState: ws.readyState,
-            url: wsUrl.replace(/token=[^&]+/, 'token=***')
-          }, 'useWebSocket')
+        // Only log errors on first attempt and only if the socket is actually closed (not connecting)
+        // This prevents logging transient errors that resolve
+        if (reconnectAttempts.current === 0 && ws.readyState === WebSocket.CLOSED) {
+          const errorMessage = 'Connection failed - server may not be running on port 3001'
+          
+          // Log error details if available
+          if (errorEvent && errorEvent.type) {
+            logger.error('WebSocket error event:', { type: errorEvent.type, message: errorMessage }, 'useWebSocket');
+          } else {
+            logger.error('WebSocket error:', {
+              message: errorMessage,
+              readyState: ws.readyState,
+              url: wsUrl.replace(/token=[^&]+/, 'token=***')
+            }, 'useWebSocket')
+          }
         }
         
         // Don't set error state here - let onclose handle it with proper error codes
+        // The onclose handler will manage reconnection logic
       }
 
       setSocket(ws)
@@ -246,23 +251,42 @@ export function useChatMessages(chatId: string | null) {
   const { socket, isConnected, joinChat, leaveChat } = useWebSocket()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const previousChatIdRef = useRef<string | null>(null)
+  const previousSocketRef = useRef<WebSocket | null>(null)
 
-  // Join/leave chat when chatId changes
+  // Join/leave chat when chatId changes or socket reconnects
   useEffect(() => {
+    // Only proceed if socket is ready
     if (!isConnected || !socket || socket.readyState !== WebSocket.OPEN) {
       setIsLoading(false);
       return;
     }
 
+    const previousChatId = previousChatIdRef.current
+    const previousSocket = previousSocketRef.current
+
+    // Skip if chatId hasn't changed AND socket hasn't changed (prevent infinite loops)
+    if (previousChatId === chatId && previousSocket === socket && previousChatId !== null) {
+      return;
+    }
+
+    // Leave previous chat if switching to a new one
+    if (previousChatId && previousChatId !== chatId) {
+      leaveChat(previousChatId)
+    }
+
+    // Join new chat if provided (or rejoin if socket reconnected)
     if (chatId) {
       setIsLoading(true); // Set loading when joining chat
       joinChat(chatId)
+      previousChatIdRef.current = chatId
+      previousSocketRef.current = socket
     } else {
       setIsLoading(false);
-      // Leave previous chat if any
-      leaveChat(chatId || '')
+      previousChatIdRef.current = null
+      previousSocketRef.current = socket
     }
-  }, [chatId, isConnected, socket, joinChat, leaveChat, setIsLoading])
+  }, [chatId, isConnected, socket, joinChat, leaveChat])
 
   // Listen for new messages
   useEffect(() => {
@@ -273,20 +297,37 @@ export function useChatMessages(chatId: string | null) {
         const message: WebSocketMessage = JSON.parse(event.data)
         
         if (message.type === 'new_message' && message.data) {
-          const newMessage = message.data as unknown as ChatMessage
-          
-          // Only add message if it's for the current chat
-          if (newMessage.chatId === chatId) {
-            setIsLoading(false); // Mark as loaded when message arrives
-            setMessages(prev => {
-              // Avoid duplicates
-              if (prev.some(msg => msg.id === newMessage.id)) {
-                return prev
-              }
-              return [...prev, newMessage].sort((a, b) => 
-                new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-              )
-            })
+          // Type guard for ChatMessage
+          const messageData = message.data as Record<string, unknown>
+          if (
+            typeof messageData.id === 'string' &&
+            typeof messageData.content === 'string' &&
+            typeof messageData.chatId === 'string' &&
+            typeof messageData.senderId === 'string' &&
+            typeof messageData.createdAt === 'string'
+          ) {
+            const newMessage: ChatMessage = {
+              id: messageData.id,
+              content: messageData.content,
+              chatId: messageData.chatId,
+              senderId: messageData.senderId,
+              createdAt: messageData.createdAt,
+              isGameChat: typeof messageData.isGameChat === 'boolean' ? messageData.isGameChat : undefined,
+            }
+            
+            // Only add message if it's for the current chat
+            if (newMessage.chatId === chatId) {
+              setIsLoading(false); // Mark as loaded when message arrives
+              setMessages(prev => {
+                // Avoid duplicates
+                if (prev.some(msg => msg.id === newMessage.id)) {
+                  return prev
+                }
+                return [...prev, newMessage].sort((a, b) => 
+                  new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                )
+              })
+            }
           }
         }
       } catch (parseError) {
