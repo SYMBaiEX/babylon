@@ -529,9 +529,444 @@ export const checkWalletAction: Action = {
   ],
 };
 
+/**
+ * Like Post Action
+ * Allows agents to like posts naturally
+ */
+export const likePostAction: Action = {
+  name: "LIKE_POST",
+  similes: ["LIKE", "FAVORITE", "REACT"],
+  description: "Like a post on the feed",
+  validate: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+  ): Promise<boolean> => {
+    // Check if agent has Babylon service configured
+    const babylonService = runtime.getService<BabylonClientService>(
+      BabylonClientService.serviceType,
+    );
+    if (!babylonService) {
+      runtime.logger.error("Babylon service not configured");
+      return false;
+    }
+
+    // Extract like intent from message
+    const content = message.content.text?.toLowerCase() || "";
+    const hasLikeIntent =
+      content.includes("like") ||
+      content.includes("favorite") ||
+      content.includes("react") ||
+      content.includes("heart") ||
+      content.includes("👍") ||
+      content.includes("❤️");
+
+    return hasLikeIntent;
+  },
+  handler: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+    state?: State,
+    options?: { [key: string]: unknown },
+    callback?: HandlerCallback,
+  ): Promise<ActionResult> => {
+    const babylonService = runtime.getService<BabylonClientService>(
+      BabylonClientService.serviceType,
+    );
+
+    if (!babylonService) {
+      return {
+        success: false,
+        text: "Error: Babylon service not configured",
+        error: "Babylon service not configured",
+      };
+    }
+
+    const client = babylonService.getClient();
+    
+    // Try to extract postId from options, state, or message content
+    let postId = (options?.postId || state?.postId) as string;
+    
+    // If not found, try to extract from message content (e.g., "like post post-123")
+    if (!postId && message.content.text) {
+      const content = message.content.text;
+      // Look for post ID patterns in the message
+      const postIdMatch = content.match(/post[_-]?[\w-]+/i) || content.match(/[\w-]+(?:-\d+){2,}/);
+      if (postIdMatch) {
+        postId = postIdMatch[0];
+      }
+    }
+
+    if (!postId) {
+      runtime.logger.error("Like post action: Post ID not found in options, state, or message content");
+      return {
+        success: false,
+        text: "Error: Post ID is required. Please specify which post to like.",
+        error: "Post ID is required",
+      };
+    }
+
+    try {
+      const result = await client.likePost(postId);
+      
+      if (result.success) {
+        const responseText = `✅ Liked post ${postId}`;
+        callback?.({
+          text: responseText,
+          action: "LIKE_POST",
+        });
+        return {
+          success: true,
+          text: responseText,
+        };
+      } else {
+        return {
+          success: false,
+          text: `Failed to like post: ${result.error || "Unknown error"}`,
+          error: result.error,
+        };
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      runtime.logger.error(`Error in likePostAction: ${errorMessage}`);
+      return {
+        success: false,
+        text: `Error liking post: ${errorMessage}`,
+        error: errorMessage,
+      };
+    }
+  },
+};
+
+/**
+ * Create Post Action
+ * Allows agents to create original posts
+ */
+export const createPostAction: Action = {
+  name: "CREATE_POST",
+  similes: ["POST", "PUBLISH", "SHARE_THOUGHT"],
+  description: "Create a new post on the feed",
+  validate: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+  ): Promise<boolean> => {
+    // Check if agent has Babylon service configured
+    const babylonService = runtime.getService<BabylonClientService>(
+      BabylonClientService.serviceType,
+    );
+    if (!babylonService) {
+      runtime.logger.error("Babylon service not configured");
+      return false;
+    }
+
+    // Extract post intent from message
+    const content = message.content.text?.toLowerCase() || "";
+    const hasPostIntent =
+      content.includes("post") ||
+      content.includes("publish") ||
+      content.includes("share") ||
+      content.includes("tweet") ||
+      content.length > 10; // Any substantial message could be a post
+
+    return hasPostIntent;
+  },
+  handler: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+    state?: State,
+    options?: { [key: string]: unknown },
+    callback?: HandlerCallback,
+  ): Promise<ActionResult> => {
+    const babylonService = runtime.getService<BabylonClientService>(
+      BabylonClientService.serviceType,
+    );
+
+    if (!babylonService) {
+      return {
+        success: false,
+        text: "Error: Babylon service not configured",
+        error: "Babylon service not configured",
+      };
+    }
+
+    const client = babylonService.getClient();
+    const content = (options?.content || state?.postContent || message.content.text) as string;
+
+    if (!content || content.trim().length === 0) {
+      return {
+        success: false,
+        text: "Error: Post content is required",
+        error: "Post content is required",
+      };
+    }
+
+    try {
+      const result = await client.createPost(content);
+      
+      if (result.success) {
+        const responseText = `✅ Created post: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`;
+        callback?.({
+          text: responseText,
+          action: "CREATE_POST",
+        });
+        return {
+          success: true,
+          text: responseText,
+        };
+      } else {
+        return {
+          success: false,
+          text: `Failed to create post: ${result.error || "Unknown error"}`,
+          error: result.error,
+        };
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      runtime.logger.error(`Error in createPostAction: ${errorMessage}`);
+      return {
+        success: false,
+        text: `Error creating post: ${errorMessage}`,
+        error: errorMessage,
+      };
+    }
+  },
+};
+
+/**
+ * Follow User Action
+ * Allows agents to follow interesting users
+ */
+export const followUserAction: Action = {
+  name: "FOLLOW_USER",
+  similes: ["FOLLOW", "SUBSCRIBE"],
+  description: "Follow a user or actor",
+  validate: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+  ): Promise<boolean> => {
+    // Check if agent has Babylon service configured
+    const babylonService = runtime.getService<BabylonClientService>(
+      BabylonClientService.serviceType,
+    );
+    if (!babylonService) {
+      runtime.logger.error("Babylon service not configured");
+      return false;
+    }
+
+    // Extract follow intent from message
+    const content = message.content.text?.toLowerCase() || "";
+    const hasFollowIntent =
+      content.includes("follow") ||
+      content.includes("subscribe") ||
+      content.includes("@") || // User mention
+      content.match(/follow\s+\w+/i) !== null; // "follow username" pattern
+
+    return hasFollowIntent;
+  },
+  handler: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+    state?: State,
+    options?: { [key: string]: unknown },
+    callback?: HandlerCallback,
+  ): Promise<ActionResult> => {
+    const babylonService = runtime.getService<BabylonClientService>(
+      BabylonClientService.serviceType,
+    );
+
+    if (!babylonService) {
+      return {
+        success: false,
+        text: "Error: Babylon service not configured",
+        error: "Babylon service not configured",
+      };
+    }
+
+    const client = babylonService.getClient();
+    
+    // Try to extract userId from options, state, or message content
+    let userId = (options?.userId || state?.userId) as string;
+    
+    // If not found, try to extract from message content (e.g., "follow @username" or "follow user-123")
+    if (!userId && message.content.text) {
+      const content = message.content.text;
+      // Look for @mentions or user ID patterns
+      const mentionMatch = content.match(/@(\w+)/i);
+      const userIdMatch = content.match(/(?:user|actor)[_-]?[\w-]+/i) || content.match(/[\w-]+(?:-\d+){1,}/);
+      
+      if (mentionMatch) {
+        // @mention found - would need to resolve username to userId (handled by options/state typically)
+        runtime.logger.debug(`Found mention in follow message: ${mentionMatch[1]}`);
+      } else if (userIdMatch) {
+        userId = userIdMatch[0];
+      }
+    }
+
+    if (!userId) {
+      runtime.logger.error("Follow user action: User ID not found in options, state, or message content");
+      return {
+        success: false,
+        text: "Error: User ID is required. Please specify which user to follow.",
+        error: "User ID is required",
+      };
+    }
+
+    try {
+      const result = await client.followUser(userId);
+      
+      if (result.success) {
+        const responseText = `✅ Started following user ${userId}`;
+        callback?.({
+          text: responseText,
+          action: "FOLLOW_USER",
+        });
+        return {
+          success: true,
+          text: responseText,
+        };
+      } else {
+        return {
+          success: false,
+          text: `Failed to follow user: ${result.error || "Unknown error"}`,
+          error: result.error,
+        };
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      runtime.logger.error(`Error in followUserAction: ${errorMessage}`);
+      return {
+        success: false,
+        text: `Error following user: ${errorMessage}`,
+        error: errorMessage,
+      };
+    }
+  },
+};
+
+/**
+ * Comment on Post Action
+ * Allows agents to comment on posts
+ */
+export const commentOnPostAction: Action = {
+  name: "COMMENT_ON_POST",
+  similes: ["COMMENT", "REPLY", "RESPOND"],
+  description: "Comment on a post",
+  validate: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+  ): Promise<boolean> => {
+    // Check if agent has Babylon service configured
+    const babylonService = runtime.getService<BabylonClientService>(
+      BabylonClientService.serviceType,
+    );
+    if (!babylonService) {
+      runtime.logger.error("Babylon service not configured");
+      return false;
+    }
+
+    // Extract comment intent from message
+    const content = message.content.text?.toLowerCase() || "";
+    const hasCommentIntent =
+      content.includes("comment") ||
+      content.includes("reply") ||
+      content.includes("respond") ||
+      content.includes("answer") ||
+      (content.length > 10 && !content.match(/^(buy|sell|follow|like|post)/i)); // Substantial message that's not another action
+
+    return hasCommentIntent;
+  },
+  handler: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+    state?: State,
+    options?: { [key: string]: unknown },
+    callback?: HandlerCallback,
+  ): Promise<ActionResult> => {
+    const babylonService = runtime.getService<BabylonClientService>(
+      BabylonClientService.serviceType,
+    );
+
+    if (!babylonService) {
+      return {
+        success: false,
+        text: "Error: Babylon service not configured",
+        error: "Babylon service not configured",
+      };
+    }
+
+    const client = babylonService.getClient();
+    
+    // Try to extract postId from options, state, or message content
+    let postId = (options?.postId || state?.postId) as string;
+    
+    // If not found, try to extract from message content (e.g., "comment on post-123")
+    if (!postId && message.content.text) {
+      const content = message.content.text;
+      // Look for post ID patterns in the message
+      const postIdMatch = content.match(/post[_-]?[\w-]+/i) || content.match(/[\w-]+(?:-\d+){2,}/);
+      if (postIdMatch) {
+        postId = postIdMatch[0];
+      }
+    }
+    
+    // Extract comment content from options, state, or message
+    const content = (options?.content || state?.commentContent || message.content.text) as string;
+
+    if (!postId) {
+      runtime.logger.error("Comment on post action: Post ID not found in options, state, or message content");
+      return {
+        success: false,
+        text: "Error: Post ID is required. Please specify which post to comment on.",
+        error: "Post ID is required",
+      };
+    }
+
+    if (!content || content.trim().length === 0) {
+      return {
+        success: false,
+        text: "Error: Comment content is required",
+        error: "Comment content is required",
+      };
+    }
+
+    try {
+      const result = await client.commentOnPost(postId, content);
+      
+      if (result.success) {
+        const responseText = `✅ Commented on post ${postId}`;
+        callback?.({
+          text: responseText,
+          action: "COMMENT_ON_POST",
+        });
+        return {
+          success: true,
+          text: responseText,
+        };
+      } else {
+        return {
+          success: false,
+          text: `Failed to comment: ${result.error || "Unknown error"}`,
+          error: result.error,
+        };
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      runtime.logger.error(`Error in commentOnPostAction: ${errorMessage}`);
+      return {
+        success: false,
+        text: `Error commenting: ${errorMessage}`,
+        error: errorMessage,
+      };
+    }
+  },
+};
+
 // Export all actions
 export const babylonGameActions: Action[] = [
   buySharesAction,
   sellSharesAction,
   checkWalletAction,
+  likePostAction,
+  createPostAction,
+  followUserAction,
+  commentOnPostAction,
 ];

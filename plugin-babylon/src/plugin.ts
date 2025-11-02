@@ -60,18 +60,25 @@ import {
   walletStatusProvider,
   positionSummaryProvider,
   a2aMarketDataProvider,
+  socialFeedProvider,
 } from "./providers/providers";
 import {
   buySharesAction,
   sellSharesAction,
   checkWalletAction,
+  likePostAction,
+  createPostAction,
+  followUserAction,
+  commentOnPostAction,
 } from "./actions/actions";
 import {
   marketAnalysisEvaluator,
   portfolioManagementEvaluator,
+  socialInteractionEvaluator,
 } from "./evaluators/evaluators";
 import { BabylonA2AService } from "./a2a-service";
 import { BabylonChatService } from "./services/chat-service";
+import { SocialInteractionService } from "./services/services";
 
 /**
  * Plugin configuration schema
@@ -273,16 +280,13 @@ export class BabylonTradingService extends Service {
   }
 
   /**
-   * Static factory method to create and start the service
-   * Follows latest ElizaOS Service pattern
+   * Static factory method - called by ElizaOS
    */
   static override async start(
     runtime: IAgentRuntime,
   ): Promise<BabylonTradingService> {
     logger.info("Starting BabylonTradingService");
     const service = new BabylonTradingService(runtime);
-    // Initialize after a short delay to allow BabylonClientService to register
-    setTimeout(() => service.initialize(), 100);
     return service;
   }
 
@@ -303,11 +307,10 @@ export class BabylonTradingService extends Service {
   }
 
   /**
-   * Initialize the trading service
-   * Starts background monitoring loops
+   * Instance start method - called automatically after static start()
    */
-  async initialize(): Promise<void> {
-    this.runtime.logger.info("🚀 Initializing Babylon Trading Service...");
+  async start(): Promise<void> {
+    this.runtime.logger.info("🚀 Starting Babylon Trading Service...");
 
     // Get BabylonClientService
     const babylonService = this.runtime.getService<BabylonClientService>(
@@ -321,13 +324,11 @@ export class BabylonTradingService extends Service {
     }
 
     // Check if auto-trading is enabled
-    if (!this.isAutoTrading) {
-      const settings = (this.runtime.character.settings || {}) as Record<
-        string,
-        unknown
-      >;
-      this.isAutoTrading = settings.autoTrading === true;
-    }
+    const settings = (this.runtime.character.settings || {}) as Record<
+      string,
+      unknown
+    >;
+    this.isAutoTrading = settings.autoTrading === true;
 
     if (!this.isAutoTrading) {
       this.runtime.logger.info(
@@ -367,6 +368,13 @@ export class BabylonTradingService extends Service {
    * Monitor markets and execute trades based on analysis
    */
   private async monitorMarkets(): Promise<void> {
+    // Get BabylonClientService - already checked in start()
+    const babylonService = this.runtime.getService<BabylonClientService>(
+      BabylonClientService.serviceType,
+    );
+    if (!babylonService) {
+      return;
+    }
     this.runtime.logger.info(
       `📊 [${new Date().toLocaleTimeString()}] Checking markets...`,
     );
@@ -465,6 +473,13 @@ export class BabylonTradingService extends Service {
    * Review portfolio performance and provide insights
    */
   private async reviewPortfolio(): Promise<void> {
+    // Get BabylonClientService - already checked in start()
+    const babylonService = this.runtime.getService<BabylonClientService>(
+      BabylonClientService.serviceType,
+    );
+    if (!babylonService) {
+      return;
+    }
     this.runtime.logger.info(
       `📊 [${new Date().toLocaleTimeString()}] Portfolio review...`,
     );
@@ -528,7 +543,7 @@ export class BabylonTradingService extends Service {
     }
 
     this.isAutoTrading = true;
-    this.initialize();
+    this.start();
   }
 
   /**
@@ -616,21 +631,26 @@ export const predictionMarketsPlugin: Plugin = {
         `Babylon plugin initialized for agent: ${runtime.agentId || "unknown"}`,
       );
 
-      // Initialize A2A service if enabled
+      // Note: Services in the services array are automatically initialized by ElizaOS
+      // Only manually register conditional services (like A2A) if needed
+      // For now, A2A is handled conditionally in init() but could also be in services array
       if (
         validatedConfig.BABYLON_A2A_ENABLED &&
         validatedConfig.BABYLON_A2A_ENDPOINT
       ) {
-        const a2aService = new BabylonA2AService({
+        // A2A service is conditionally enabled, so we initialize it manually
+        // This is acceptable for optional/conditional services
+        const a2aService = await BabylonA2AService.start(runtime, {
           endpoint: validatedConfig.BABYLON_A2A_ENDPOINT,
           enabled: validatedConfig.BABYLON_A2A_ENABLED,
         });
-        await a2aService.initialize(runtime);
-        // Register service directly in services Map (following ElizaOS pattern)
+        // Register service directly in services Map
         const serviceType = BabylonA2AService.serviceType as ServiceTypeName;
         const existing = runtime.services.get(serviceType) || [];
         existing.push(a2aService);
         runtime.services.set(serviceType, existing);
+        // Start the service instance
+        await a2aService.start();
         logger.info(
           `A2A service initialized: ${validatedConfig.BABYLON_A2A_ENDPOINT}`,
         );
@@ -647,17 +667,27 @@ export const predictionMarketsPlugin: Plugin = {
       );
     }
   },
-  services: [BabylonClientService, BabylonTradingService, BabylonChatService],
-  actions: [buySharesAction, sellSharesAction, checkWalletAction],
+  services: [BabylonClientService, BabylonTradingService, BabylonChatService, SocialInteractionService],
+  actions: [
+    buySharesAction,
+    sellSharesAction,
+    checkWalletAction,
+    likePostAction,
+    createPostAction,
+    followUserAction,
+    commentOnPostAction,
+  ],
   evaluators: [
     marketAnalysisEvaluator,
     portfolioManagementEvaluator,
+    socialInteractionEvaluator,
   ] as Evaluator[],
   providers: [
     marketDataProvider,
     walletStatusProvider,
     positionSummaryProvider,
     a2aMarketDataProvider,
+    socialFeedProvider,
   ] as Provider[],
 };
 

@@ -15,17 +15,21 @@ export class BabylonChatService extends Service {
     super(runtime)
   }
 
+  /**
+   * Static factory method - called by ElizaOS
+   */
   static override async start(
     runtime: IAgentRuntime,
   ): Promise<BabylonChatService> {
     logger.info('Starting BabylonChatService')
     const service = new BabylonChatService(runtime)
-    // Initialize after a short delay to allow BabylonClientService to register
-    setTimeout(() => service.initialize(), 100)
     return service
   }
 
-  async initialize(): Promise<void> {
+  /**
+   * Instance start method - called automatically after static start()
+   */
+  async start(): Promise<void> {
     const babylonService = this.runtime.getService<BabylonClientService>(
       BabylonClientService.serviceType,
     )
@@ -36,12 +40,12 @@ export class BabylonChatService extends Service {
       return
     }
     this.apiClient = babylonService.getClient()
-    this.runtime.logger.info('🚀 Initializing Babylon Chat Service...')
+    this.runtime.logger.info('🚀 Starting Babylon Chat Service...')
     this.chatInterval = setInterval(
       () => this.postRandomMessage(),
       2 * 60 * 1000,
     ) // Every 2 minutes
-    this.runtime.logger.info('✅ Babylon Chat Service initialized')
+    this.runtime.logger.info('✅ Babylon Chat Service started')
   }
 
   private async postRandomMessage(): Promise<void> {
@@ -92,6 +96,9 @@ export class BabylonChatService extends Service {
     return message || null
   }
 
+  /**
+   * Instance stop method - cleanup
+   */
   override async stop(): Promise<void> {
     this.runtime.logger.info('🛑 Stopping Babylon Chat Service...')
     if (this.chatInterval) {
@@ -99,5 +106,21 @@ export class BabylonChatService extends Service {
       this.chatInterval = undefined
     }
     this.runtime.logger.info('✅ Babylon Chat Service stopped')
+  }
+
+  /**
+   * Static stop method - called by ElizaOS
+   */
+  static override async stop(runtime: IAgentRuntime): Promise<void> {
+    logger.info('Stopping BabylonChatService')
+    const service = runtime.getService<BabylonChatService>(
+      BabylonChatService.serviceType,
+    )
+    if (!service) {
+      throw new Error('BabylonChatService not found')
+    }
+    if (typeof service.stop === 'function') {
+      await service.stop()
+    }
   }
 }

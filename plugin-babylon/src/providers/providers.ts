@@ -293,6 +293,87 @@ export const a2aMarketDataProvider: Provider = {
 };
 
 /**
+ * Social Feed Provider
+ * 
+ * Provides recent posts and social context to the agent.
+ * Injected automatically via runtime.composeState()
+ */
+export const socialFeedProvider: Provider = {
+  name: "socialFeedProvider",
+  get: async (
+    runtime: IAgentRuntime,
+    _message: Memory,
+    _state: State,
+  ): Promise<ProviderResult> => {
+    try {
+      const babylonService = runtime.getService<BabylonClientService>(
+        BabylonClientService.serviceType,
+      );
+      if (!babylonService) {
+        return {
+          text: "Social feed unavailable - Babylon service not configured",
+        };
+      }
+
+      const client = babylonService.getClient();
+      const posts = await client.getRecentPosts(20);
+
+      if (posts.length === 0) {
+        return {
+          text: "No recent posts available",
+        };
+      }
+
+      // Build feed overview
+      const topPosts = posts
+        .filter((p) => p.likeCount > 0 || p.commentCount > 0)
+        .slice(0, 5);
+      
+      const popularAuthors = new Map<string, number>();
+      posts.forEach((post) => {
+        const engagement = post.likeCount + post.commentCount;
+        const current = popularAuthors.get(post.authorId) || 0;
+        popularAuthors.set(post.authorId, current + engagement);
+      });
+
+      const topAuthors = Array.from(popularAuthors.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([id]) => id);
+
+      let overviewText = `📱 Social Feed:\n- Recent Posts: ${posts.length}`;
+      
+      if (topPosts.length > 0) {
+        overviewText += `\n- Trending Posts: ${topPosts.length}`;
+        overviewText += `\n- Top Post Engagement: ${topPosts[0]?.likeCount || 0} likes, ${topPosts[0]?.commentCount || 0} comments`;
+      }
+      
+      if (topAuthors.length > 0) {
+        overviewText += `\n- Active Authors: ${topAuthors.length}`;
+      }
+
+      return {
+        text: overviewText,
+        data: {
+          posts,
+          topPosts,
+          topAuthors,
+          totalPosts: posts.length,
+        },
+      };
+    } catch (error) {
+      runtime.logger.error(
+        "Error in socialFeedProvider:",
+        error instanceof Error ? error.message : String(error),
+      );
+      return {
+        text: "Social feed temporarily unavailable",
+      };
+    }
+  },
+};
+
+/**
  * Export all providers for plugin registration
  */
 export const babylonGameProviders: Provider[] = [
@@ -300,4 +381,5 @@ export const babylonGameProviders: Provider[] = [
   walletStatusProvider,
   positionSummaryProvider,
   a2aMarketDataProvider,
+  socialFeedProvider,
 ];

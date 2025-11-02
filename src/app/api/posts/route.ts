@@ -179,15 +179,17 @@ export async function GET(request: Request) {
     // Log post structure for debugging
     if (posts.length > 0) {
       const samplePost = posts[0];
-      logger.debug('Sample post structure', {
-        id: samplePost.id,
-        hasTimestamp: !!samplePost.timestamp,
-        timestampType: typeof samplePost.timestamp,
-        timestampValue: samplePost.timestamp,
-        hasCreatedAt: !!samplePost.createdAt,
-        createdAtType: typeof samplePost.createdAt,
-        createdAtValue: samplePost.createdAt,
-      }, 'GET /api/posts');
+      if (samplePost) {
+        logger.debug('Sample post structure', {
+          id: samplePost.id,
+          hasTimestamp: !!samplePost.timestamp,
+          timestampType: typeof samplePost.timestamp,
+          timestampValue: samplePost.timestamp,
+          hasCreatedAt: !!samplePost.createdAt,
+          createdAtType: typeof samplePost.createdAt,
+          createdAtValue: samplePost.createdAt,
+        }, 'GET /api/posts');
+      }
     }
     
     // Get unique author IDs to fetch user data

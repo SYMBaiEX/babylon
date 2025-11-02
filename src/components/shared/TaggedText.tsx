@@ -1,6 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 
 interface TaggedTextProps {
   text: string
@@ -100,7 +101,7 @@ export function TaggedText({ text, onTagClick, className }: TaggedTextProps) {
     )
   } catch (error) {
     // Fallback to plain text if anything goes wrong
-    console.error('TaggedText error:', error)
+    logger.error('TaggedText error:', error, 'TaggedText')
     return <span className={className}>{text}</span>
   }
 }

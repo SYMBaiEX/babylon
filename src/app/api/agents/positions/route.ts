@@ -76,19 +76,45 @@ export async function GET(request: NextRequest) {
         stats: perpStats,
       },
       predictions: {
-        positions: predictionPositions.map((p) => ({
-          id: p.id,
-          marketId: p.marketId,
-          side: p.side,
-          shares: Number(p.shares),
-          avgPrice: Number(p.avgPrice),
-          currentValue: Number(p.currentValue),
-          pnl: Number(p.pnl),
-          market: p.market,
-        })),
+        positions: predictionPositions.map((p) => {
+          // Calculate current price from market shares
+          const totalShares = Number(p.market.yesShares) + Number(p.market.noShares);
+          const currentYesPrice = totalShares > 0 ? Number(p.market.yesShares) / totalShares : 0.5;
+          const currentNoPrice = totalShares > 0 ? Number(p.market.noShares) / totalShares : 0.5;
+          const currentPrice = p.side ? currentYesPrice : currentNoPrice;
+          
+          // Calculate current value and PnL
+          const shares = Number(p.shares);
+          const avgPrice = Number(p.avgPrice);
+          const currentValue = shares * currentPrice;
+          const costBasis = shares * avgPrice;
+          const pnl = currentValue - costBasis;
+          
+          return {
+            id: p.id,
+            marketId: p.marketId,
+            side: p.side,
+            shares: shares,
+            avgPrice: avgPrice,
+            currentValue: currentValue,
+            pnl: pnl,
+            market: p.market,
+          };
+        }),
         stats: {
           totalPositions: predictionPositions.length,
-          totalPnL: predictionPositions.reduce((sum, p) => sum + Number(p.pnl), 0),
+          totalPnL: predictionPositions.reduce((sum, p) => {
+            const totalShares = Number(p.market.yesShares) + Number(p.market.noShares);
+            const currentYesPrice = totalShares > 0 ? Number(p.market.yesShares) / totalShares : 0.5;
+            const currentNoPrice = totalShares > 0 ? Number(p.market.noShares) / totalShares : 0.5;
+            const currentPrice = p.side ? currentYesPrice : currentNoPrice;
+            const shares = Number(p.shares);
+            const avgPrice = Number(p.avgPrice);
+            const currentValue = shares * currentPrice;
+            const costBasis = shares * avgPrice;
+            const pnl = currentValue - costBasis;
+            return sum + pnl;
+          }, 0),
         },
       },
     });

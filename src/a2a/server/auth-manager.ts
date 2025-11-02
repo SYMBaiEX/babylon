@@ -5,7 +5,7 @@
 
 import { verifyMessage, hexlify, randomBytes } from 'ethers'
 import type { AgentCredentials } from '../types'
-import type { RegistryClient } from '../blockchain/registry-client'
+import type { RegistryClient } from '@/types/a2a-server'
 
 interface AuthResult {
   success: boolean
@@ -43,7 +43,7 @@ export class AuthManager {
       }
 
       // Verify agent ownership via ERC-8004 registry if available
-      if (this.registryClient) {
+      if (this.registryClient?.verifyAgent) {
         const isValid = await this.registryClient.verifyAgent(credentials.address, credentials.tokenId)
         if (!isValid) {
           return { success: false, error: 'Agent does not own the specified token ID' }

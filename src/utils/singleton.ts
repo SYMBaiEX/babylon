@@ -5,6 +5,16 @@
  * Prevents double initialization and handles cleanup.
  */
 
+// Type for the global object used for singleton storage
+interface GlobalSingletonStorage {
+  [key: string]: unknown;
+}
+
+// Helper to get typed global object
+function getGlobalStorage(): GlobalSingletonStorage {
+  return global as unknown as GlobalSingletonStorage;
+}
+
 /**
  * Creates a singleton getter/setter pattern for a type T
  */
@@ -37,10 +47,13 @@ export function createGlobalSingleton<T>(
   setInstance: (instance: T) => void;
   clearInstance: () => void;
 } {
-  const globalObj = global as any;
+  const globalObj = getGlobalStorage();
 
   return {
-    getInstance: () => globalObj[globalKey] || null,
+    getInstance: () => {
+      const value = globalObj[globalKey];
+      return (value as T | undefined) || null;
+    },
     setInstance: (instance: T) => {
       globalObj[globalKey] = instance;
     },
@@ -62,12 +75,12 @@ export function createPortSingleton<T>(
   setInstance: (instance: T, port?: number) => void;
   clearInstance: () => void;
 } {
-  const globalObj = global as any;
+  const globalObj = getGlobalStorage();
 
   return {
     getInstance: (port?: number) => {
-      const existing = globalObj[globalKey];
-      const existingPort = globalObj[portKey];
+      const existing = globalObj[globalKey] as T | undefined;
+      const existingPort = globalObj[portKey] as number | undefined;
       
       // If port is specified, only return if it matches
       if (port !== undefined && existingPort !== port) {

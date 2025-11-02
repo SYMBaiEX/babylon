@@ -3,264 +3,322 @@
  *
  * Services handle background operations and long-running integrations.
  * BabylonTradingService manages automated market monitoring and portfolio review.
+ * SocialInteractionService manages autonomous social interactions.
  */
 
-import { Service, type IAgentRuntime, type Memory, ServiceType } from '@ai16z/eliza';
-import { BabylonApiClient } from '../api-client';
-import type { MarketAnalysis } from '../types';
+import { Service, type IAgentRuntime, type Memory, type UUID, logger } from '@elizaos/core';
+
+// Note: BabylonTradingService is defined in plugin.ts, not here
+// This file only contains SocialInteractionService
 
 /**
- * Custom ServiceType for Babylon Trading
- * Since 'trading' is not in the official ServiceType enum,
- * we create a custom type that extends the enum
+ * Social Interaction Service
+ * 
+ * Autonomous service following ElizaOS patterns:
+ * - Periodically triggers social feed evaluation
+ * - Uses evaluators to decide when to interact
+ * - Executes actions through runtime.processActions()
+ * 
+ * This follows the same pattern as BabylonTradingService:
+ * Provider → Evaluator → Action
  */
-export const BABYLON_TRADING_SERVICE = 'babylon_trading' as ServiceType;
+export class SocialInteractionService extends Service {
+  static override serviceType = "babylon-social" as const;
+  
+  override capabilityDescription =
+    "Autonomous social interactions including liking posts, creating posts, following users, and commenting";
 
-/**
- * Babylon Trading Service
- *
- * Manages automated trading operations including:
- * - Market monitoring (every 60 seconds)
- * - Portfolio review (every 5 minutes)
- * - Automatic trade execution based on confidence thresholds
- */
-export class BabylonTradingService extends Service {
-  private marketMonitorInterval?: NodeJS.Timeout;
-  private portfolioReviewInterval?: NodeJS.Timeout;
-  private isAutoTrading: boolean = false;
+  private socialCheckInterval: NodeJS.Timeout | null = null;
+  private lastCheckTime = 0;
+  private checkIntervalMs: number;
+  private interactionCooldown = 30000; // 30 seconds minimum between interactions
 
-  static get serviceType(): ServiceType {
-    return BABYLON_TRADING_SERVICE;
+  constructor(runtime: IAgentRuntime) {
+    super(runtime);
+    
+    // Randomize check interval (5-15 minutes) to feel natural
+    const baseInterval = 5 * 60 * 1000; // 5 minutes base
+    this.checkIntervalMs = baseInterval + Math.random() * 10 * 60 * 1000; // 5-15 min
   }
 
   /**
-   * Initialize the trading service
-   * Starts background monitoring loops
+   * Static factory method - called by ElizaOS
    */
-  async initialize(runtime: IAgentRuntime): Promise<void> {
-    console.log('🚀 Initializing Babylon Trading Service...');
-
-    const client = runtime.clients.babylonClient as BabylonApiClient;
-    if (!client) {
-      console.error('❌ Babylon client not available - service will not start');
-      return;
-    }
-
-    // Check if auto-trading is enabled
-    this.isAutoTrading = (runtime.character.settings as any)?.autoTrading === true;
-
-    if (!this.isAutoTrading) {
-      console.log('ℹ️  Auto-trading disabled - service initialized but not active');
-      return;
-    }
-
-    console.log('📊 Starting automated market monitoring...');
-
-    // Start market monitoring loop (every 60 seconds)
-    this.marketMonitorInterval = setInterval(async () => {
-      try {
-        await this.monitorMarkets(runtime);
-      } catch (error) {
-        console.error('Error in market monitoring:', error);
-      }
-    }, 60000);
-
-    // Start portfolio review loop (every 5 minutes)
-    this.portfolioReviewInterval = setInterval(async () => {
-      try {
-        await this.reviewPortfolio(runtime);
-      } catch (error) {
-        console.error('Error in portfolio review:', error);
-      }
-    }, 300000);
-
-    console.log('✅ Babylon Trading Service initialized');
+  static override async start(
+    runtime: IAgentRuntime,
+  ): Promise<SocialInteractionService> {
+    logger.info("Starting SocialInteractionService");
+    const service = new SocialInteractionService(runtime);
+    logger.info(`🤖 Social Interaction Service created - check interval: ${Math.round(service.checkIntervalMs / 60000)}min`);
+    return service;
   }
 
   /**
-   * Monitor markets and execute trades based on analysis
+   * Instance start method - called automatically after static start()
    */
-  private async monitorMarkets(runtime: IAgentRuntime): Promise<void> {
-    const client = runtime.clients.babylonClient as BabylonApiClient;
+  async start(): Promise<void> {
+    this.runtime.logger.info("🚀 Starting Social Interaction Service");
 
-    console.log('📊 [' + new Date().toLocaleTimeString() + '] Checking markets...');
+    // Start periodic social feed checks
+    this.socialCheckInterval = setInterval(async () => {
+      if (Date.now() - this.lastCheckTime < this.interactionCooldown) {
+        return; // Rate limiting
+      }
+      
+      try {
+        await this.checkAndInteract();
+        this.lastCheckTime = Date.now();
+      } catch (error) {
+        this.runtime.logger.error(`Error in social interaction check: ${error}`);
+      }
+    }, this.checkIntervalMs);
+  }
+
+  /**
+   * Instance stop method - cleanup
+   */
+  override async stop(): Promise<void> {
+    if (this.socialCheckInterval) {
+      clearInterval(this.socialCheckInterval);
+      this.socialCheckInterval = null;
+    }
+    
+    this.runtime.logger.info("✅ Social Interaction Service stopped");
+  }
+
+  /**
+   * Static stop method - called by ElizaOS
+   */
+  static override async stop(runtime: IAgentRuntime): Promise<void> {
+    logger.info("Stopping SocialInteractionService");
+    const service = runtime.getService<SocialInteractionService>(
+      SocialInteractionService.serviceType,
+    );
+    if (!service) {
+      throw new Error("SocialInteractionService not found");
+    }
+    if (typeof service.stop === "function") {
+      await service.stop();
+    }
+  }
+
+  /**
+   * Check social feed and trigger interactions using ElizaOS pattern
+   * Provider → Evaluator → Action
+   */
+  private async checkAndInteract(): Promise<void> {
+    this.runtime.logger.info(
+      `📱 [${new Date().toLocaleTimeString()}] Checking social feed...`,
+    );
 
     try {
-      // Create analysis message
-      const analysisMessage: Memory = {
-        userId: 'system' as any,
-        agentId: runtime.agentId,
-        roomId: 'babylon' as any,
+      // Step 1: Create message to trigger evaluation
+      const socialMessage: Memory = {
+        entityId: "system" as UUID,
+        agentId: this.runtime.agentId,
+        roomId: "babylon" as UUID,
         content: {
-          text: 'analyze markets',
-          source: 'auto',
+          text: "check social feed",
         },
         createdAt: Date.now(),
       };
 
-      // Use runtime.composeState to get full context with all providers
-      const state = await runtime.composeState(analysisMessage, {
-        minConfidence: (runtime.character.settings as any)?.minConfidence || 0.6,
-      });
+      // Step 2: Compose state (triggers providers including socialFeedProvider)
+      const state = await this.runtime.composeState(socialMessage);
 
-      // Trigger market analysis evaluator
-      const evaluationResults = await runtime.evaluate(
-        analysisMessage,
-        state,
-        false
+      // Step 3: Evaluate (triggers socialInteractionEvaluator)
+      await this.runtime.evaluate(socialMessage, state, false);
+
+      // Step 4: Check evaluator decisions from state
+      const shouldLike = (state as any).shouldLike;
+      const shouldComment = (state as any).shouldComment;
+      const shouldFollow = (state as any).shouldFollow;
+      const shouldPost = (state as any).shouldPost;
+      const targetPostId = (state as any).targetPostId;
+      const targetUserId = (state as any).targetUserId;
+
+      // Step 5: Execute actions based on evaluator decisions
+      if (shouldLike && targetPostId) {
+        await this.executeLikeAction(targetPostId);
+      }
+
+      if (shouldComment && targetPostId) {
+        await this.executeCommentAction(targetPostId);
+      }
+
+      if (shouldFollow && targetUserId) {
+        await this.executeFollowAction(targetUserId);
+      }
+
+      if (shouldPost) {
+        await this.executePostAction();
+      }
+
+      if (!shouldLike && !shouldComment && !shouldFollow && !shouldPost) {
+        this.runtime.logger.info("   No social interactions recommended");
+      }
+    } catch (error) {
+      this.runtime.logger.error(
+        `Error checking social feed: ${error instanceof Error ? error.message : String(error)}`,
       );
+    }
+  }
 
-      // Check if we have analyses from evaluator
-      const analyses = (state as any).analyses as MarketAnalysis[] | undefined;
+  /**
+   * Execute like action through ElizaOS action system
+   */
+  private async executeLikeAction(postId: string): Promise<void> {
+    const likeMessage: Memory = {
+      entityId: "system" as UUID,
+      agentId: this.runtime.agentId,
+      roomId: "babylon" as UUID,
+      content: {
+        text: `like post ${postId}`,
+      },
+      createdAt: Date.now(),
+    };
 
-      if (analyses && analyses.length > 0) {
-        console.log(`   Found ${analyses.length} opportunities:`);
+    const state = await this.runtime.composeState(likeMessage);
+    (state as any).postId = postId;
 
-        for (const analysis of analyses) {
-          console.log(`   📈 Market ${analysis.marketId}:`);
-          console.log(`      Recommendation: ${analysis.recommendation.toUpperCase()}`);
-          console.log(`      Confidence: ${(analysis.confidence * 100).toFixed(1)}%`);
-          console.log(`      Side: ${analysis.targetSide.toUpperCase()}`);
-          console.log(`      Reasoning: ${analysis.reasoning}`);
-
-          // Execute trade if high confidence
-          if (
-            analysis.confidence >= 0.7 &&
-            (analysis.recommendation === 'buy' || analysis.recommendation === 'strong_buy')
-          ) {
-            console.log(`   💰 Executing trade...`);
-
-            const tradeMessage: Memory = {
-              userId: 'system' as any,
-              agentId: runtime.agentId,
-              roomId: 'babylon' as any,
-              content: {
-                text: `buy ${analysis.targetSide} shares`,
-                source: 'auto',
-              },
-              createdAt: Date.now(),
-            };
-
-            // Create state for trade action with market details
-            const tradeState = await runtime.composeState(tradeMessage, {
-              marketId: analysis.marketId,
-              side: analysis.targetSide,
-              amount: analysis.suggestedAmount,
-            });
-
-            // Trigger buy action
-            await runtime.processActions(
-              tradeMessage,
-              [],
-              tradeState,
-              async (response) => {
-                if (response.error) {
-                  console.error(`   ❌ Trade failed: ${response.text}`);
-                } else {
-                  console.log(`   ✅ ${response.text}`);
-                }
-                return [];
-              }
-            );
-          }
+    await this.runtime.processActions(
+      likeMessage,
+      [],
+      state,
+      async (response) => {
+        if (response.error) {
+          this.runtime.logger.error(`   ❌ Like failed: ${response.text}`);
+        } else {
+          this.runtime.logger.info(`   👍 ${response.text}`);
         }
-      } else {
-        console.log('   No trading opportunities found');
-      }
-
-      console.log('');
-    } catch (error) {
-      console.error('Error in market monitoring:', error);
-    }
+        return [];
+      },
+    );
   }
 
   /**
-   * Review portfolio performance and provide insights
+   * Execute comment action through ElizaOS action system
    */
-  private async reviewPortfolio(runtime: IAgentRuntime): Promise<void> {
-    console.log('📊 [' + new Date().toLocaleTimeString() + '] Portfolio review...');
+  private async executeCommentAction(postId: string): Promise<void> {
+    const character = this.runtime.character;
+    const topics = character.topics || ["prediction markets"];
+    const topic = topics[Math.floor(Math.random() * topics.length)];
 
-    try {
-      const portfolioMessage: Memory = {
-        userId: 'system' as any,
-        agentId: runtime.agentId,
-        roomId: 'babylon' as any,
-        content: {
-          text: 'review portfolio',
-          source: 'auto',
-        },
-        createdAt: Date.now(),
-      };
+    // Simple comment templates (in production, use LLM for natural responses)
+    const comments = [
+      "Interesting perspective",
+      "Good point",
+      "Agreed",
+      `Thoughts on ${topic}?`,
+      "Thanks for sharing",
+    ];
 
-      // Use runtime.composeState to get full context with all providers
-      const state = await runtime.composeState(portfolioMessage);
+    const content = comments[Math.floor(Math.random() * comments.length)];
 
-      // Trigger portfolio evaluator
-      await runtime.evaluate(portfolioMessage, state, false);
+    const commentMessage: Memory = {
+      entityId: "system" as UUID,
+      agentId: this.runtime.agentId,
+      roomId: "babylon" as UUID,
+      content: {
+        text: content,
+      },
+      createdAt: Date.now(),
+    };
 
-      // Check if we have portfolio metrics from evaluator
-      const portfolioMetrics = (state as any).portfolioMetrics;
+    const state = await this.runtime.composeState(commentMessage);
+    (state as any).postId = postId;
+    (state as any).commentContent = content;
 
-      if (portfolioMetrics) {
-        console.log(`   Total P&L: $${portfolioMetrics.totalPnL.toFixed(2)}`);
-        console.log(`   Win Rate: ${(portfolioMetrics.winRate * 100).toFixed(1)}%`);
-        console.log(`   Positions: ${portfolioMetrics.profitablePositions}W / ${portfolioMetrics.losingPositions}L`);
-
-        const recommendations = (state as any).recommendations as string[] | undefined;
-        if (recommendations && recommendations.length > 0) {
-          console.log('   Recommendations:');
-          recommendations.forEach((rec: string) => console.log(`      ${rec}`));
+    await this.runtime.processActions(
+      commentMessage,
+      [],
+      state,
+      async (response) => {
+        if (response.error) {
+          this.runtime.logger.error(`   ❌ Comment failed: ${response.text}`);
+        } else {
+          this.runtime.logger.info(`   💬 ${response.text}`);
         }
-      }
-
-      console.log('');
-    } catch (error) {
-      console.error('Error in portfolio review:', error);
-    }
+        return [];
+      },
+    );
   }
 
   /**
-   * Enable auto-trading at runtime
+   * Execute follow action through ElizaOS action system
    */
-  enableAutoTrading(runtime: IAgentRuntime): void {
-    if (this.isAutoTrading) {
-      console.log('ℹ️  Auto-trading already enabled');
-      return;
-    }
+  private async executeFollowAction(userId: string): Promise<void> {
+    const followMessage: Memory = {
+      entityId: "system" as UUID,
+      agentId: this.runtime.agentId,
+      roomId: "babylon" as UUID,
+      content: {
+        text: `follow user ${userId}`,
+      },
+      createdAt: Date.now(),
+    };
 
-    this.isAutoTrading = true;
-    this.initialize(runtime);
+    const state = await this.runtime.composeState(followMessage);
+    (state as any).userId = userId;
+
+    await this.runtime.processActions(
+      followMessage,
+      [],
+      state,
+      async (response) => {
+        if (response.error) {
+          this.runtime.logger.error(`   ❌ Follow failed: ${response.text}`);
+        } else {
+          this.runtime.logger.info(`   👤 ${response.text}`);
+        }
+        return [];
+      },
+    );
   }
 
   /**
-   * Disable auto-trading at runtime
+   * Execute post creation action through ElizaOS action system
    */
-  disableAutoTrading(): void {
-    if (!this.isAutoTrading) {
-      console.log('ℹ️  Auto-trading already disabled');
-      return;
-    }
+  private async executePostAction(): Promise<void> {
+    const character = this.runtime.character;
+    const topics = character.topics || ["prediction markets", "trading"];
+    const topic = topics[Math.floor(Math.random() * topics.length)];
 
-    this.isAutoTrading = false;
-    this.stop();
-  }
+    // Simple post templates (in production, use LLM for personality-driven content)
+    const templates = [
+      `Watching ${topic} closely today 📊`,
+      `Interesting movements in ${topic}...`,
+      `Thoughts on recent ${topic} developments?`,
+      `Keeping an eye on ${topic} trends`,
+    ];
 
-  /**
-   * Stop the service and clean up intervals
-   */
-  async stop(): Promise<void> {
-    console.log('🛑 Stopping Babylon Trading Service...');
+    const content = templates[Math.floor(Math.random() * templates.length)];
 
-    if (this.marketMonitorInterval) {
-      clearInterval(this.marketMonitorInterval);
-      this.marketMonitorInterval = undefined;
-    }
+    const postMessage: Memory = {
+      entityId: "system" as UUID,
+      agentId: this.runtime.agentId,
+      roomId: "babylon" as UUID,
+      content: {
+        text: content,
+      },
+      createdAt: Date.now(),
+    };
 
-    if (this.portfolioReviewInterval) {
-      clearInterval(this.portfolioReviewInterval);
-      this.portfolioReviewInterval = undefined;
-    }
+    const state = await this.runtime.composeState(postMessage);
+    (state as any).postContent = content;
 
-    console.log('✅ Babylon Trading Service stopped');
+    await this.runtime.processActions(
+      postMessage,
+      [],
+      state,
+      async (response) => {
+        if (response.error) {
+          this.runtime.logger.error(`   ❌ Post failed: ${response.text}`);
+        } else {
+          this.runtime.logger.info(`   📝 ${response.text}`);
+        }
+        return [];
+      },
+    );
   }
 }

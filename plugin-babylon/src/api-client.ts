@@ -376,4 +376,122 @@ export class BabylonApiClient {
       logger.error(`Error sending message to chat ${chatId}:`, errorMessage);
     }
   }
+
+  /**
+   * Like a post
+   */
+  async likePost(postId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/posts/${postId}/like`, {
+        method: "POST",
+        headers: await this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to like post: ${response.statusText}`);
+      }
+
+      return { success: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error("Error liking post:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
+   * Create a post
+   */
+  async createPost(content: string): Promise<{ success: boolean; postId?: string; error?: string }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/posts`, {
+        method: "POST",
+        headers: await this.getHeaders(),
+        body: JSON.stringify({ content }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to create post: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return { success: true, postId: data.post?.id };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error("Error creating post:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
+   * Follow a user
+   */
+  async followUser(userId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/users/${encodeURIComponent(userId)}/follow`, {
+        method: "POST",
+        headers: await this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to follow user: ${response.statusText}`);
+      }
+
+      return { success: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error("Error following user:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
+   * Comment on a post
+   */
+  async commentOnPost(postId: string, content: string): Promise<{ success: boolean; commentId?: string; error?: string }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/posts/${postId}/comments`, {
+        method: "POST",
+        headers: await this.getHeaders(),
+        body: JSON.stringify({ content }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to comment: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return { success: true, commentId: data.comment?.id };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error("Error commenting on post:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
+   * Get recent posts from feed
+   */
+  async getRecentPosts(limit = 20): Promise<Array<{ id: string; content: string; authorId: string; timestamp: string; likeCount: number; commentCount: number }>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/posts?limit=${limit}`, {
+        headers: await this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch posts: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.posts || [];
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error("Error fetching posts:", errorMessage);
+      return [];
+    }
+  }
 }

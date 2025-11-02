@@ -22,4 +22,5 @@ cache/# Uploaded user files
 /public/uploads/*
 !/public/uploads/.gitkeep
 .eliza/
+games/babylon
 games/

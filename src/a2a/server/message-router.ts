@@ -19,8 +19,8 @@ import {
 } from '../types'
 import type { JsonRpcResult } from '@/types/json-rpc'
 import type { PaymentVerificationParams, PaymentVerificationResult } from '@/types/payments'
-import type { RegistryClient } from '../blockchain/registry-client'
-import type { X402Manager } from '../payments/x402-manager'
+import type { RegistryClient } from '@/types/a2a-server'
+import type { X402Manager } from '@/types/a2a-server'
 import { logger } from '../utils/logger'
 
 // Typed parameter interfaces for each method
@@ -207,7 +207,9 @@ export class MessageRouter {
 
     // Query ERC-8004 registry if available
     if (this.registryClient) {
-      agents = await this.registryClient.discoverAgents(discoverRequest.filters)
+      if (this.registryClient?.discoverAgents) {
+        agents = await this.registryClient.discoverAgents(discoverRequest.filters)
+      }
 
       // Apply limit if specified
       if (discoverRequest.limit && discoverRequest.limit > 0) {
@@ -251,7 +253,9 @@ export class MessageRouter {
       // Extract token ID from agentId (format: "agent-{tokenId}")
       const tokenId = parseInt(agentInfo.agentId.replace('agent-', ''))
       if (!isNaN(tokenId)) {
-        const profile = await this.registryClient.getAgentProfile(tokenId)
+        const profile = this.registryClient?.getAgentProfile 
+          ? await this.registryClient.getAgentProfile(tokenId)
+          : null
         if (profile) {
           return {
             jsonrpc: '2.0',

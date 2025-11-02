@@ -20,8 +20,8 @@ import { MessageRouter } from './message-router'
 import { AuthManager } from './auth-manager'
 import { RateLimiter } from '../utils/rate-limiter'
 import { Logger } from '../utils/logger'
-import type { RegistryClient as RegistryClientImpl } from '../blockchain/registry-client'
-import type { X402Manager as X402ManagerImpl } from '../payments/x402-manager'
+import type { RegistryClient } from '@/types/a2a-server'
+import type { X402Manager } from '@/types/a2a-server'
 
 import { createPortSingleton } from '@/utils/singleton'
 
@@ -45,10 +45,19 @@ export class A2AWebSocketServer extends EventEmitter {
     enableCoalitions: boolean;
     logLevel: 'debug' | 'info' | 'warn' | 'error';
   }
-  private registryClient?: RegistryClientImpl
-  private x402Manager?: X402ManagerImpl
+  private registryClient?: RegistryClient
+  private x402Manager?: X402Manager
   private _ready: boolean = false
   private _initializationError: Error | null = null
+
+  // Getters for singleton reuse
+  get server(): WebSocketServer {
+    return this.wss
+  }
+
+  get ready(): boolean {
+    return this._ready
+  }
 
   constructor(config: A2AServerOptions) {
     super()
@@ -63,12 +72,12 @@ export class A2AWebSocketServer extends EventEmitter {
       enableX402: config.enableX402 ?? true,
       enableCoalitions: config.enableCoalitions ?? true,
       logLevel: config.logLevel ?? 'info',
-      registryClient: config.registryClient as unknown as RegistryClientImpl | undefined,
-      x402Manager: config.x402Manager as unknown as X402ManagerImpl | undefined,
+      registryClient: config.registryClient,
+      x402Manager: config.x402Manager,
     }
 
-    this.registryClient = config.registryClient as unknown as RegistryClientImpl | undefined
-    this.x402Manager = config.x402Manager as unknown as X402ManagerImpl | undefined
+    this.registryClient = config.registryClient
+    this.x402Manager = config.x402Manager
     this.logger = new Logger(this.config.logLevel)
     this.router = new MessageRouter(this.config as Required<A2AServerConfig>, this.registryClient ?? undefined, this.x402Manager ?? undefined)
     this.authManager = new AuthManager(this.registryClient)
@@ -79,8 +88,8 @@ export class A2AWebSocketServer extends EventEmitter {
     if (existing) {
       this.logger.info('Reusing existing A2A server from singleton', 'A2AWebSocketServer')
       // Copy references from existing server
-      this.wss = (existing as any).wss
-      this._ready = (existing as any)._ready || false
+      this.wss = existing.server
+      this._ready = existing.ready || false
       return
     }
     

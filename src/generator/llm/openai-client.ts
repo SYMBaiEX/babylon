@@ -31,31 +31,46 @@ interface JsonSchemaProperty {
 export class BabylonLLMClient {
   private client: OpenAI;
   private provider: LLMProvider;
+  private groqKey: string | undefined;
+  private openaiKey: string | undefined;
   private maxRetries = 10; // Aggressive retries - never give up
   
   constructor(apiKey?: string) {
     // Priority: Groq > OpenAI
-    const groqKey = process.env.GROQ_API_KEY;
-    const openaiKey = apiKey || process.env.OPENAI_API_KEY;
+    this.groqKey = process.env.GROQ_API_KEY;
+    this.openaiKey = apiKey || process.env.OPENAI_API_KEY;
     
-    if (groqKey) {
-      logger.info('Using Groq (fast inference)', undefined, 'BabylonLLMClient');
+    if (this.groqKey) {
+      logger.info('Using Groq (primary, fast inference)', undefined, 'BabylonLLMClient');
       this.client = new OpenAI({
-        apiKey: groqKey,
+        apiKey: this.groqKey,
         baseURL: 'https://api.groq.com/openai/v1',
       });
       this.provider = 'groq';
-    } else if (openaiKey) {
-      logger.info('Using OpenAI', undefined, 'BabylonLLMClient');
-      this.client = new OpenAI({ apiKey: openaiKey });
+    } else if (this.openaiKey) {
+      logger.info('Using OpenAI (fallback)', undefined, 'BabylonLLMClient');
+      this.client = new OpenAI({ apiKey: this.openaiKey });
       this.provider = 'openai';
     } else {
       throw new Error(
         '❌ No API key found!\n' +
-        '   Set GROQ_API_KEY or OPENAI_API_KEY environment variable.\n' +
+        '   Set GROQ_API_KEY (primary) or OPENAI_API_KEY (fallback) environment variable.\n' +
         '   Example: export GROQ_API_KEY=your_key_here'
       );
     }
+  }
+  
+  /**
+   * Switch to fallback provider if primary fails
+   */
+  private switchToFallback(): boolean {
+    if (this.provider === 'groq' && this.openaiKey) {
+      logger.warn('Switching from Groq to OpenAI fallback', undefined, 'BabylonLLMClient');
+      this.client = new OpenAI({ apiKey: this.openaiKey });
+      this.provider = 'openai';
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -86,6 +101,14 @@ export class BabylonLLMClient {
 
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
+        // Try switching to fallback on first retry if using Groq
+        if (attempt === 1 && this.provider === 'groq') {
+          const switched = this.switchToFallback();
+          if (switched) {
+            attempt = 0; // Reset attempt counter after switching
+          }
+        }
+        
         // For Groq, handle JSON generation failures more gracefully
         // Some Groq models have issues with response_format: json_object
         const useJsonFormat = this.provider === 'groq' && attempt < 3 
@@ -106,7 +129,7 @@ export class BabylonLLMClient {
         ];
         
         // If not using JSON format, add stronger instruction
-        if (!useJsonFormat && this.provider === 'groq') {
+        if (!useJsonFormat && this.provider === 'groq' && messages[0]) {
           messages[0].content = 'You MUST respond with ONLY valid JSON. No markdown, no code blocks, no explanations. Start with { and end with }.';
         }
         
@@ -148,7 +171,7 @@ export class BabylonLLMClient {
         // Extract JSON object/array if wrapped in text
         if (!jsonContent.startsWith('{') && !jsonContent.startsWith('[')) {
           const jsonMatch = jsonContent.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
-          if (jsonMatch) {
+          if (jsonMatch && jsonMatch[1]) {
             jsonContent = jsonMatch[1];
           }
         }

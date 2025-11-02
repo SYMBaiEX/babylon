@@ -109,17 +109,16 @@ interface RegistrationRequest {
  */
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate user
+    // Authenticate user (both regular users and agents)
     const user = await authenticate(request)
-    if (user.isAgent) {
-      return errorResponse('Agents cannot register on-chain', 403)
-    }
 
     // Parse request body
     const body: RegistrationRequest = await request.json()
     const { walletAddress, username, bio, endpoint, referralCode } = body
 
-    if (!walletAddress) {
+    // For agents, walletAddress is optional (they use server wallet)
+    // For regular users, walletAddress is required
+    if (!user.isAgent && !walletAddress) {
       return errorResponse('Wallet address is required', 400)
     }
 
@@ -167,38 +166,101 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user exists in database, create if not exists
-    // First try by ID (Privy user ID)
-    let dbUser = await prisma.user.findUnique({
-      where: { id: user.userId },
-    })
+    // For agents, use username as unique identifier; for users, use ID
+    let dbUser: { id: string; username: string | null; walletAddress: string | null; onChainRegistered: boolean; nftTokenId: number | null } | null = null
+    
+    if (user.isAgent) {
+      // Agents are identified by username (agentId)
+      dbUser = await prisma.user.findUnique({
+        where: { username: user.userId },
+        select: {
+          id: true,
+          username: true,
+          walletAddress: true,
+          onChainRegistered: true,
+          nftTokenId: true,
+        },
+      })
 
-    if (!dbUser) {
-      // User doesn't exist yet - create them
-      // Use userId from auth (Privy user ID) as the database ID
-      dbUser = await prisma.user.create({
-        data: {
-          id: user.userId,
-          walletAddress: walletAddress.toLowerCase(),
-          username: finalUsername,
-          displayName: finalUsername,
-          bio: bio || '',
-          isActor: false,
-          virtualBalance: 0, // Will be set to 1000 after registration
-          totalDeposited: 0,
-          referredBy: referrerId, // Track who referred this user
-        },
-      })
+      if (!dbUser) {
+        // Create agent user
+        dbUser = await prisma.user.create({
+          data: {
+            username: user.userId,
+            displayName: username || user.userId,
+            bio: bio || `Autonomous AI agent: ${user.userId}`,
+            isActor: false,
+            virtualBalance: 10000, // Agents start with 10k
+            totalDeposited: 10000,
+          },
+          select: {
+            id: true,
+            username: true,
+            walletAddress: true,
+            onChainRegistered: true,
+            nftTokenId: true,
+          },
+        })
+      }
     } else {
-      // Update existing user with latest info if needed
-      dbUser = await prisma.user.update({
-        where: { id: dbUser.id },
-        data: {
-          walletAddress: walletAddress.toLowerCase(),
-          username: finalUsername || dbUser.username,
-          displayName: finalUsername || dbUser.displayName,
-          bio: bio || dbUser.bio,
+      // Regular users identified by ID (Privy user ID)
+      dbUser = await prisma.user.findUnique({
+        where: { id: user.userId },
+        select: {
+          id: true,
+          username: true,
+          walletAddress: true,
+          onChainRegistered: true,
+          nftTokenId: true,
         },
       })
+
+      if (!dbUser) {
+        // User doesn't exist yet - create them
+        dbUser = await prisma.user.create({
+          data: {
+            id: user.userId,
+            walletAddress: walletAddress!.toLowerCase(),
+            username: finalUsername,
+            displayName: finalUsername,
+            bio: bio || '',
+            isActor: false,
+            virtualBalance: 0, // Will be set to 1000 after registration
+            totalDeposited: 0,
+            referredBy: referrerId,
+          },
+          select: {
+            id: true,
+            username: true,
+            walletAddress: true,
+            onChainRegistered: true,
+            nftTokenId: true,
+          },
+        })
+      } else {
+        // Update existing user with latest info if needed
+        // Need to fetch full user to get displayName and bio
+        const fullUser = await prisma.user.findUnique({
+          where: { id: dbUser.id },
+        })
+        
+        dbUser = await prisma.user.update({
+          where: { id: dbUser.id },
+          data: {
+            walletAddress: walletAddress!.toLowerCase(),
+            username: finalUsername || dbUser.username,
+            displayName: finalUsername || fullUser?.displayName,
+            bio: bio || fullUser?.bio,
+          },
+          select: {
+            id: true,
+            username: true,
+            walletAddress: true,
+            onChainRegistered: true,
+            nftTokenId: true,
+          },
+        })
+      }
     }
 
     // Create clients
@@ -207,30 +269,42 @@ export async function POST(request: NextRequest) {
       transport: http(process.env.NEXT_PUBLIC_RPC_URL),
     })
 
-    // Check if already registered on-chain
-    const isRegistered = await publicClient.readContract({
-      address: IDENTITY_REGISTRY,
-      abi: IDENTITY_REGISTRY_ABI,
-      functionName: 'isRegistered',
-      args: [walletAddress as Address],
-    })
+    // For agents, we check registration by tokenId in database
+    // For regular users, we check by wallet address on-chain
+    let isRegistered = false
+    let tokenId: number | null = dbUser.nftTokenId
 
-    if (isRegistered) {
-      // Get existing token ID
-      const tokenId = await publicClient.readContract({
+    if (user.isAgent) {
+      // Agents: check database registration status
+      isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null
+    } else {
+      // Regular users: check on-chain registration
+      isRegistered = await publicClient.readContract({
         address: IDENTITY_REGISTRY,
         abi: IDENTITY_REGISTRY_ABI,
-        functionName: 'getTokenId',
-        args: [walletAddress as Address],
+        functionName: 'isRegistered',
+        args: [walletAddress! as Address],
       })
+      
+      if (isRegistered && !tokenId) {
+        // Get existing token ID
+        tokenId = Number(await publicClient.readContract({
+          address: IDENTITY_REGISTRY,
+          abi: IDENTITY_REGISTRY_ABI,
+          functionName: 'getTokenId',
+          args: [walletAddress! as Address],
+        }))
+      }
+    }
 
-      // Update database if not already marked as registered
+    if (isRegistered && tokenId) {
+      // Already registered - update database if needed
       if (!dbUser.onChainRegistered) {
-        dbUser = await prisma.user.update({
+        await prisma.user.update({
           where: { id: dbUser.id },
           data: {
             onChainRegistered: true,
-            nftTokenId: Number(tokenId),
+            nftTokenId: tokenId,
           },
         })
       }
@@ -265,18 +339,33 @@ export async function POST(request: NextRequest) {
     })
 
     // Prepare registration parameters
-    const name = username
-    const agentEndpoint = endpoint || `https://babylon.game/agent/${walletAddress.toLowerCase()}`
+    const name = username || (user.isAgent ? user.userId : finalUsername)
+    let registrationAddress: Address
+    let agentEndpoint: string
+
+    if (user.isAgent) {
+      // Agents: use server wallet address, unique endpoint per agent
+      registrationAddress = account.address
+      agentEndpoint = endpoint || `https://babylon.game/agent/${user.userId}`
+      const uniqueEndpoint = `${agentEndpoint}?agentId=${user.userId}`
+      agentEndpoint = uniqueEndpoint
+    } else {
+      // Regular users: use their wallet address
+      registrationAddress = walletAddress! as Address
+      agentEndpoint = endpoint || `https://babylon.game/agent/${walletAddress!.toLowerCase()}`
+    }
+
     const capabilitiesHash = '0x0000000000000000000000000000000000000000000000000000000000000001' as `0x${string}` // Basic capabilities
     const metadataURI = JSON.stringify({
-      name: username,
+      name,
       bio: bio || '',
-      image: dbUser.profileImageUrl || '',
+      type: user.isAgent ? 'elizaos-agent' : 'user',
       registered: new Date().toISOString(),
     })
 
-    logger.info('Registering agent on-chain:', {
-      wallet: walletAddress,
+    logger.info('Registering on-chain:', {
+      isAgent: user.isAgent,
+      address: registrationAddress,
       name,
       endpoint: agentEndpoint,
     }, 'POST /api/auth/onboard')
@@ -302,7 +391,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the token ID from the event logs
-    let tokenId: number | null = null
+    // Reset tokenId to null if not already set from database
+    if (!tokenId) {
+      tokenId = null
+    }
+    
     for (const log of receipt.logs) {
       try {
         // Try to decode as AgentRegistered event
@@ -323,16 +416,22 @@ export async function POST(request: NextRequest) {
 
     // If we couldn't get tokenId from events, query it
     if (!tokenId) {
-      const queriedTokenId = await publicClient.readContract({
-        address: IDENTITY_REGISTRY,
-        abi: IDENTITY_REGISTRY_ABI,
-        functionName: 'getTokenId',
-        args: [walletAddress as Address],
-      })
-      tokenId = Number(queriedTokenId)
+      if (user.isAgent) {
+        // For agents, tokenId MUST come from events (server wallet owns multiple NFTs)
+        throw new Error('Failed to extract token ID from AgentRegistered event. Transaction succeeded but event parsing failed.')
+      } else {
+        // For regular users, query by wallet address
+        const queriedTokenId = await publicClient.readContract({
+          address: IDENTITY_REGISTRY,
+          abi: IDENTITY_REGISTRY_ABI,
+          functionName: 'getTokenId',
+          args: [walletAddress! as Address],
+        })
+        tokenId = Number(queriedTokenId)
+      }
     }
 
-    logger.info('Agent registered with token ID:', tokenId, 'POST /api/auth/onboard')
+    logger.info('Registered with token ID:', tokenId, 'POST /api/auth/onboard')
 
     // Set initial reputation to 70 (by recording 10 bets with 7 wins = 70% accuracy)
     // This gives trustScore ≈ 7000 (70 out of 100)
@@ -345,11 +444,12 @@ export async function POST(request: NextRequest) {
 
       // Verify token exists before attempting reputation calls
       // Use isRegistered instead of ownerOf to avoid reverts
+      const verifyAddress = user.isAgent ? account.address : (walletAddress! as Address)
       const isRegistered = await publicClient.readContract({
         address: IDENTITY_REGISTRY,
         abi: IDENTITY_REGISTRY_ABI,
         functionName: 'isRegistered',
-        args: [walletAddress as Address],
+        args: [verifyAddress],
       })
 
       if (!isRegistered) {
@@ -414,31 +514,40 @@ export async function POST(request: NextRequest) {
     }
 
     // Update database
-    dbUser = await prisma.user.update({
+    await prisma.user.update({
       where: { id: dbUser.id },
       data: {
         onChainRegistered: true,
         nftTokenId: tokenId,
         registrationTxHash: txHash,
-        username: username, // Update username if changed
-        bio: bio || dbUser.bio, // Update bio if provided
+        username: user.isAgent ? user.userId : (username || dbUser.username),
+        displayName: username || dbUser.username || user.userId,
+        bio: bio || (user.isAgent ? `Autonomous AI agent: ${user.userId}` : undefined),
       },
     })
 
     // Award 1,000 virtual balance points to user (only if not already awarded)
-    try {
-      // Check if welcome bonus was already awarded
-      const existingBonus = await prisma.balanceTransaction.findFirst({
-        where: {
-          userId: dbUser.id,
-          description: 'Welcome bonus - initial signup',
-        },
-      })
+    // Skip for agents - they already have 10k points
+    if (!user.isAgent) {
+      try {
+        // Check if welcome bonus was already awarded
+        const existingBonus = await prisma.balanceTransaction.findFirst({
+          where: {
+            userId: dbUser.id,
+            description: 'Welcome bonus - initial signup',
+          },
+        })
 
-      if (!existingBonus) {
-        const balanceBefore = dbUser.virtualBalance
-        const amountDecimal = new Prisma.Decimal(1000)
-        const balanceAfter = balanceBefore.plus(amountDecimal)
+        if (!existingBonus) {
+          // Fetch current balance
+          const userWithBalance = await prisma.user.findUnique({
+            where: { id: dbUser.id },
+            select: { virtualBalance: true },
+          })
+          
+          const balanceBefore = userWithBalance?.virtualBalance || new Prisma.Decimal(0)
+          const amountDecimal = new Prisma.Decimal(1000)
+          const balanceAfter = balanceBefore.plus(amountDecimal)
 
         // Create transaction record
         await prisma.balanceTransaction.create({
@@ -545,22 +654,24 @@ export async function POST(request: NextRequest) {
           }
         }
       } else {
-        logger.info('Welcome bonus already awarded to user', undefined, 'POST /api/auth/onboard')
+          logger.info('Welcome bonus already awarded to user', undefined, 'POST /api/auth/onboard')
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error('Error awarding points (non-critical):', { error: errorMessage }, 'POST /api/auth/onboard')
+        // Don't fail registration if points award fails
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error('Error awarding points (non-critical):', { error: errorMessage }, 'POST /api/auth/onboard')
-      // Don't fail registration if points award fails
     }
 
     return successResponse({
-      message: 'Successfully registered on-chain',
+      message: `Successfully registered ${user.isAgent ? 'agent' : 'user'} on-chain`,
       tokenId,
-      walletAddress,
+      walletAddress: user.isAgent ? undefined : walletAddress,
+      agentId: user.isAgent ? user.userId : undefined,
       txHash,
       blockNumber: Number(receipt.blockNumber),
       gasUsed: Number(receipt.gasUsed),
-      pointsAwarded: 1000,
+      pointsAwarded: user.isAgent ? 0 : 1000, // Agents don't get welcome bonus
     })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -579,47 +690,74 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const user = await authenticate(request)
-    if (user.isAgent) {
-      return errorResponse('Agents cannot check registration status', 403)
-    }
 
     // Check database
-    const dbUser = await prisma.user.findFirst({
-      where: { id: user.userId },
-      select: {
-        walletAddress: true,
-        onChainRegistered: true,
-        nftTokenId: true,
-        registrationTxHash: true,
-      },
-    })
+    let dbUser: { walletAddress: string | null; onChainRegistered: boolean; nftTokenId: number | null; registrationTxHash: string | null } | null = null
 
-    if (!dbUser || !dbUser.walletAddress) {
-      return errorResponse('User not found or no wallet connected', 404)
+    if (user.isAgent) {
+      // Agents: find by username
+      dbUser = await prisma.user.findFirst({
+        where: { username: user.userId },
+        select: {
+          walletAddress: true,
+          onChainRegistered: true,
+          nftTokenId: true,
+          registrationTxHash: true,
+        },
+      })
+    } else {
+      // Regular users: find by ID
+      dbUser = await prisma.user.findFirst({
+        where: { id: user.userId },
+        select: {
+          walletAddress: true,
+          onChainRegistered: true,
+          nftTokenId: true,
+          registrationTxHash: true,
+        },
+      })
     }
 
-    // Check on-chain status
-    const publicClient = createPublicClient({
-      chain: baseSepolia,
-      transport: http(process.env.NEXT_PUBLIC_RPC_URL),
-    })
+    if (!dbUser) {
+      return successResponse({
+        isRegistered: false,
+        tokenId: null,
+        walletAddress: null,
+        txHash: null,
+        dbRegistered: false,
+      })
+    }
 
-    const isRegistered = await publicClient.readContract({
-      address: IDENTITY_REGISTRY,
-      abi: IDENTITY_REGISTRY_ABI,
-      functionName: 'isRegistered',
-      args: [dbUser.walletAddress as Address],
-    })
+    // For agents, check database status only
+    // For regular users, also check on-chain status
+    let isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null
+    let tokenId: number | null = dbUser.nftTokenId
 
-    let tokenId: number | null = null
-    if (isRegistered) {
-      const queriedTokenId = await publicClient.readContract({
+    if (!user.isAgent && dbUser.walletAddress) {
+      // Check on-chain status for regular users
+      const publicClient = createPublicClient({
+        chain: baseSepolia,
+        transport: http(process.env.NEXT_PUBLIC_RPC_URL),
+      })
+
+      const onChainRegistered = await publicClient.readContract({
         address: IDENTITY_REGISTRY,
         abi: IDENTITY_REGISTRY_ABI,
-        functionName: 'getTokenId',
+        functionName: 'isRegistered',
         args: [dbUser.walletAddress as Address],
       })
-      tokenId = Number(queriedTokenId)
+
+      if (onChainRegistered && !tokenId) {
+        const queriedTokenId = await publicClient.readContract({
+          address: IDENTITY_REGISTRY,
+          abi: IDENTITY_REGISTRY_ABI,
+          functionName: 'getTokenId',
+          args: [dbUser.walletAddress as Address],
+        })
+        tokenId = Number(queriedTokenId)
+      }
+
+      isRegistered = onChainRegistered
     }
 
     return successResponse({

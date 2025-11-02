@@ -9,14 +9,14 @@
  * - Updates stock prices every minute
  * - Creates/resolves questions automatically
  * - Keeps rolling 30-day history
- * - Auto-starts ElizaOS agents (if enabled)
+ * - Does NOT auto-start ElizaOS agents (agents should be started separately)
  * 
  * Usage:
  *   bun run daemon              (start daemon)
  *   bun run daemon --verbose    (with detailed logging)
  * 
  * Environment Variables:
- *   AUTO_START_AGENTS=true      (default: true) - Auto-start agents on daemon launch
+ *   AUTO_START_AGENTS=true      (default: false) - Auto-start agents on daemon launch (not recommended)
  *   AGENT_AUTO_TRADE=true       (default: false) - Enable auto-trading for agents
  */
 
@@ -59,7 +59,7 @@ function checkExistingDaemon(): number | null {
         return pid;
       }
     }
-  } catch (error) {
+  } catch {
     // pgrep returns non-zero if no process found, which is fine
   }
   return null;
@@ -159,13 +159,13 @@ async function main() {
     setEngineInstance(engine);
     logger.info('Engine instance registered for API access', undefined, 'CLI');
 
-    // Auto-start agents if enabled
-    const autoStartAgents = process.env.AUTO_START_AGENTS !== 'false'; // Default to true
+    // Auto-start agents only if explicitly enabled
+    const autoStartAgents = process.env.AUTO_START_AGENTS === 'true'; // Default to false
     if (autoStartAgents) {
-      logger.info('Starting agents...', undefined, 'CLI');
+      logger.info('Starting agents (AUTO_START_AGENTS=true)...', undefined, 'CLI');
       await startAgents();
     } else {
-      logger.info('Agent auto-start disabled (set AUTO_START_AGENTS=false to disable)', undefined, 'CLI');
+      logger.info('Agent auto-start disabled. Start agents separately with: bun run eliza:all', undefined, 'CLI');
     }
 
     // Keep process alive
