@@ -2,7 +2,7 @@
  * Virtual Wallet Service
  * 
  * Manages user's virtual USD balance for trading:
- * - Starting balance: $10,000
+ * - Starting balance: $1,000
  * - Tracks all transactions
  * - Validates sufficient funds
  * - Calculates PnL
@@ -31,7 +31,7 @@ export interface TransactionHistoryItem {
 }
 
 export class WalletService {
-  private static readonly STARTING_BALANCE = 10000; // $10,000 USD
+  private static readonly STARTING_BALANCE = 1000; // $1,000 USD
 
   /**
    * Get user's current balance

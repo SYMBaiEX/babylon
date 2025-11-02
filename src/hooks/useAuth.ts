@@ -108,6 +108,7 @@ export function useAuth(): UseAuthReturn {
             hasTwitter: data.user.hasTwitter,
             farcasterUsername: data.user.farcasterUsername,
             twitterUsername: data.user.twitterUsername,
+            usernameChangedAt: data.user.usernameChangedAt,
             nftTokenId: data.user.nftTokenId,
             createdAt: data.user.createdAt,
             stats: data.user.stats,

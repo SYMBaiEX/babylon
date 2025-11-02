@@ -58,6 +58,7 @@ export async function GET(
         hasTwitter: true,
         farcasterUsername: true,
         twitterUsername: true,
+        usernameChangedAt: true,
         createdAt: true,
         _count: {
           select: {
@@ -100,6 +101,7 @@ export async function GET(
         hasTwitter: dbUser.hasTwitter,
         farcasterUsername: dbUser.farcasterUsername,
         twitterUsername: dbUser.twitterUsername,
+        usernameChangedAt: dbUser.usernameChangedAt?.toISOString() || null,
         createdAt: dbUser.createdAt.toISOString(),
         stats: {
           positions: dbUser._count.positions,

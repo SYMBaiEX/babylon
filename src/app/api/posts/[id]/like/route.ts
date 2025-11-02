@@ -48,32 +48,78 @@ export async function POST(
       },
     });
 
-    // Check if post exists, if not try to find it or create a minimal record
+    // Check if post exists first
     let post = await prisma.post.findUnique({
       where: { id: postId },
       select: { id: true, authorId: true },
     });
 
-    // If post doesn't exist, try to extract info from ID or create minimal record
+    // If post doesn't exist, try to auto-create it based on format
     if (!post) {
-      // Try to parse different post ID formats
-      // Format 1: game-{gameId}-{timestamp}
-      // Format 2: post-{timestamp}-{random}
-      // Format 3: Simple UUID or database ID
-      
-      let authorId: string | undefined;
-      let gameId: string | undefined;
-      let timestamp: Date | undefined;
+      // Try multiple post ID formats
+      // Format 1: gameId-gameTimestamp-authorId-isoTimestamp (e.g., babylon-1761441310151-kash-patrol-2025-10-01T02:12:00Z)
+      // Format 2: post-{timestamp}-{random} (e.g., post-1762099655817-0.7781412938928327)
+      // Format 3: post-{timestamp}-{actorId}-{random} (e.g., post-1762099655817-kash-patrol-abc123)
+      // Format 4: game-{gameId}-{timestamp} (legacy format)
 
-      // Try to extract from game-{gameId}-{timestamp} format
-      if (postId.startsWith('game-')) {
+      let gameId = 'babylon'; // default game
+      let authorId = 'system'; // default author for game-generated posts
+      let timestamp = new Date();
+
+      // Check Format 1: Has ISO timestamp at the end
+      const isoTimestampMatch = postId.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z)$/);
+
+      if (isoTimestampMatch && isoTimestampMatch[1]) {
+        // Format 1: gameId-gameTimestamp-authorId-isoTimestamp
+        const timestampStr = isoTimestampMatch[1];
+        timestamp = new Date(timestampStr);
+
+        // Extract gameId (first part before first hyphen)
+        const firstHyphenIndex = postId.indexOf('-');
+        if (firstHyphenIndex !== -1) {
+          gameId = postId.substring(0, firstHyphenIndex);
+
+          // Extract authorId (everything between second hyphen and the ISO timestamp)
+          const withoutGameId = postId.substring(firstHyphenIndex + 1);
+          const secondHyphenIndex = withoutGameId.indexOf('-');
+          if (secondHyphenIndex !== -1) {
+            const afterGameTimestamp = withoutGameId.substring(secondHyphenIndex + 1);
+            authorId = afterGameTimestamp.substring(0, afterGameTimestamp.lastIndexOf('-' + timestampStr));
+          }
+        }
+      } else if (postId.startsWith('post-')) {
+        // Format 2 or 3: GameEngine format
+        const parts = postId.split('-');
+
+        if (parts.length >= 3) {
+          // Try to extract timestamp from second part
+          const timestampPart = parts[1];
+          const timestampNum = parseInt(timestampPart, 10);
+
+          if (!isNaN(timestampNum) && timestampNum > 1000000000000) {
+            // Valid timestamp (milliseconds since epoch)
+            timestamp = new Date(timestampNum);
+
+            // Check if third part looks like an actor ID (not a decimal)
+            if (parts.length >= 4 && !parts[2].includes('.')) {
+              // Format 3: post-{timestamp}-{actorId}-{random}
+              authorId = parts[2];
+            }
+            // Otherwise Format 2: post-{timestamp}-{random}
+            // Keep default authorId = 'system'
+          }
+        }
+      } else if (postId.startsWith('game-')) {
+        // Format 4: game-{gameId}-{timestamp} (legacy)
         const parts = postId.split('-');
         if (parts.length >= 3) {
           gameId = parts[1];
           // Try to parse timestamp (could be ISO string or numeric)
           const timestampPart = parts.slice(2).join('-');
-          timestamp = new Date(timestampPart);
-          if (isNaN(timestamp.getTime())) {
+          const parsedDate = new Date(timestampPart);
+          if (!isNaN(parsedDate.getTime())) {
+            timestamp = parsedDate;
+          } else {
             // Try numeric timestamp
             const numericTimestamp = parseInt(timestampPart);
             if (!isNaN(numericTimestamp)) {
@@ -81,41 +127,26 @@ export async function POST(
             }
           }
         }
+      } else {
+        // Unknown format, but still try to create a minimal post
+        logger.warn('Unknown post ID format for like:', { postId }, 'POST /api/posts/[id]/like');
       }
-
-      // Try to extract from post-{timestamp}-{random} format
-      if (postId.startsWith('post-')) {
-        const parts = postId.split('-');
-        if (parts.length >= 2) {
-          const timestampPart = parts[1];
-          if (timestampPart) {
-            const parsedTimestamp = parseInt(timestampPart, 10);
-            if (!isNaN(parsedTimestamp) && parsedTimestamp > 0) {
-              timestamp = new Date(parsedTimestamp);
-            }
-          }
-        }
-      }
-
-      // If we couldn't determine authorId, use a placeholder
-      // The post will be created but may need to be updated later
-      const finalAuthorId = authorId || 'unknown';
 
       // Create minimal post record to allow reactions
       try {
         post = await prisma.post.create({
           data: {
             id: postId,
-            content: '[Auto-created for interaction]',
-            authorId: finalAuthorId,
-            gameId: gameId || 'continuous',
-            timestamp: timestamp || new Date(),
+            content: '[Game-generated post]',  // Placeholder content
+            authorId,
+            gameId,
+            timestamp,
           },
         });
       } catch (error) {
         // If creation fails (e.g., duplicate, validation error), try to fetch again
         logger.error('Error creating post for like:', error, 'POST /api/posts/[id]/like');
-        
+
         // Check if it's a unique constraint violation (duplicate post)
         const prismaError = error as { code?: string; message?: string };
         if (prismaError?.code === 'P2002') {
@@ -125,10 +156,10 @@ export async function POST(
             select: { id: true, authorId: true },
           });
         }
-        
+
         if (!post) {
           logger.error('Failed to create or find post:', { postId, error }, 'POST /api/posts/[id]/like');
-          return errorResponse(`Post not found and could not be created: ${prismaError?.message || 'Unknown error'}`, 400);
+          return errorResponse('Post not found and could not be created', 400);
         }
       }
     }

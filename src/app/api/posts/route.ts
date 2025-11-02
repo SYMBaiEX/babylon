@@ -75,52 +75,87 @@ export async function GET(request: Request) {
         skip: offset,
       });
 
+      // Get user data for posts
+      const authorIds = [...new Set(posts.map(p => p.authorId))];
+      const users = await prisma.user.findMany({
+        where: { id: { in: authorIds } },
+        select: { id: true, username: true, displayName: true },
+      });
+      const userMap = new Map(users.map(u => [u.id, u]));
+      
       return NextResponse.json({
         success: true,
-        posts: posts.map((post) => ({
-          id: post.id,
-          content: post.content,
-          author: post.authorId,
-          authorId: post.authorId,
-          timestamp: post.timestamp.toISOString(),
-          createdAt: post.createdAt.toISOString(),
-        })),
+        posts: posts.map((post) => {
+          const user = userMap.get(post.authorId);
+          return {
+            id: post.id,
+            content: post.content,
+            author: post.authorId,
+            authorId: post.authorId,
+            authorName: user?.displayName || user?.username || post.authorId,
+            authorUsername: user?.username || null,
+            timestamp: post.timestamp.toISOString(),
+            createdAt: post.createdAt.toISOString(),
+          };
+        }),
         total: posts.length,
         limit,
         offset,
         source: 'following',
       });
     }
-    // Prefer realtime history when available
-    const realtimeResult = await gameService.getRealtimePosts(limit, offset, actorId || undefined);
-    if (realtimeResult && realtimeResult.posts.length > 0) {
-      return NextResponse.json({
-        success: true,
-        posts: realtimeResult.posts,
-        total: realtimeResult.total,
-        limit,
-        offset,
-        source: 'realtime',
-      });
-    }
-
+    // Get posts from database (GameEngine persists posts here)
     let posts;
     
     if (actorId) {
       // Get posts by specific actor
       posts = await gameService.getPostsByActor(actorId, limit);
     } else {
-      // Get recent posts
+      // Get recent posts from database
       posts = await gameService.getRecentPosts(limit, offset);
     }
     
-    return NextResponse.json({
+    // Get unique author IDs to fetch user data
+    const authorIds = [...new Set(posts.map(p => p.authorId))];
+    const users = await prisma.user.findMany({
+      where: { id: { in: authorIds } },
+      select: { id: true, username: true, displayName: true },
+    });
+    const userMap = new Map(users.map(u => [u.id, u]));
+    
+    // Format posts to match FeedPost interface
+    const formattedPosts = posts.map((post) => {
+      const user = userMap.get(post.authorId);
+      return {
+        id: post.id,
+        content: post.content,
+        author: post.authorId, // Use authorId as author
+        authorId: post.authorId,
+        authorName: user?.displayName || user?.username || post.authorId,
+        authorUsername: user?.username || null,
+        timestamp: post.timestamp.toISOString(),
+        createdAt: post.createdAt.toISOString(),
+        gameId: post.gameId || undefined,
+        dayNumber: post.dayNumber || undefined,
+      };
+    });
+    
+    // Next.js 16: Add cache headers for real-time feeds
+    // Use 'no-store' to ensure fresh data for real-time updates
+    // This prevents stale data in client-side caches
+    const response = NextResponse.json({
       success: true,
-      posts,
+      posts: formattedPosts,
       total: posts.length,
       limit,
       offset,
     });
+    
+    // Real-time feeds should not be cached (no-store)
+    // This ensures WebSocket updates reflect immediately
+    response.headers.set('Cache-Control', 'no-store, must-revalidate');
+    
+    return response;
   } catch (error) {
     logger.error('API Error:', error, 'GET /api/posts');
     return NextResponse.json(
@@ -180,6 +215,25 @@ export async function POST(request: NextRequest) {
         shares: false,
       },
     });
+
+    // Broadcast new post to WebSocket feed channel for real-time updates
+    try {
+      const { broadcastToChannel } = await import('@/app/api/ws/chat/route');
+      broadcastToChannel('feed', {
+        type: 'new_post',
+        post: {
+          id: post.id,
+          content: post.content,
+          authorId: post.authorId,
+          authorName: dbUser.username || authUser.userId, // Use username if available
+          timestamp: post.timestamp.toISOString(),
+        },
+      });
+      logger.info('Broadcast new user post to feed channel', { postId: post.id }, 'POST /api/posts');
+    } catch (error) {
+      logger.error('Failed to broadcast post to WebSocket:', error, 'POST /api/posts');
+      // Don't fail the request if WebSocket broadcast fails
+    }
 
     return successResponse({
       success: true,

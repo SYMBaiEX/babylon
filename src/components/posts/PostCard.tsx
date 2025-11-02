@@ -1,12 +1,13 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Avatar } from '@/components/shared/Avatar';
 import { InteractionBar } from '@/components/interactions';
 import { ShieldCheck } from 'lucide-react';
 import { useFontSize } from '@/contexts/FontSizeContext';
+import { getProfileUrl } from '@/lib/profile-utils';
 import type { PostInteraction } from '@/types/interactions';
 
 export interface PostCardProps {
@@ -15,6 +16,7 @@ export interface PostCardProps {
     content: string;
     authorId: string;
     authorName: string;
+    authorUsername?: string | null;
     timestamp: string;
     likeCount?: number;
     commentCount?: number;
@@ -36,6 +38,18 @@ export const PostCard = memo(function PostCard({
   isDetail = false,
 }: PostCardProps) {
   const { fontSize } = useFontSize();
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsDesktop(window.innerWidth >= 1024);
+      setIsMobile(window.innerWidth < 640);
+    };
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   const postDate = new Date(post.timestamp);
   const now = new Date();
@@ -69,22 +83,21 @@ export const PostCard = memo(function PostCard({
   return (
     <article
       className={cn(
-        'px-3 sm:px-4 py-3',
+        'px-4 sm:px-6 py-4 sm:py-5',
         !isDetail && 'hover:bg-muted/30 cursor-pointer transition-all duration-200',
         'w-full overflow-hidden',
         className
       )}
       style={{
         fontSize: `${fontSize}rem`,
-        borderBottom: !isDetail ? '0.5px solid rgba(209, 213, 219, 0.3)' : undefined, // Very thin, very light gray
       }}
       onClick={!isDetail ? handleClick : undefined}
     >
-      {/* Header Row: Avatar, Name, Handle, Timestamp */}
-      <div className="flex items-center gap-2 sm:gap-3 mb-2 w-full">
+      {/* Main Content Row: Avatar on left, everything else on right */}
+      <div className="flex items-start gap-3 sm:gap-4 lg:gap-5 w-full">
         {/* Avatar - Clickable */}
         <Link
-          href={`/profile/${post.authorId}`}
+          href={getProfileUrl(post.authorId, post.authorUsername)}
           className="flex-shrink-0 hover:opacity-80 transition-opacity"
           onClick={(e) => e.stopPropagation()}
         >
@@ -93,49 +106,60 @@ export const PostCard = memo(function PostCard({
             name={post.authorName}
             type="actor"
             size="lg"
-            scaleFactor={fontSize}
+            scaleFactor={isDetail ? fontSize : fontSize * (isDesktop ? 1.4 : isMobile ? 0.8 : 1)}
           />
         </Link>
 
-        {/* Name and Handle stacked */}
-        <div className="flex flex-col justify-center min-w-0 overflow-hidden flex-1">
-          <div className="flex items-center gap-1.5">
+        {/* Right side: Name, Handle, Timestamp, Content */}
+        <div className="flex-1 min-w-0 overflow-hidden">
+          {/* Header Row: Name, Handle, Timestamp */}
+          <div className="flex items-center gap-2 mb-2">
             <Link
-              href={`/profile/${post.authorId}`}
-              className="font-bold text-foreground hover:underline truncate"
+              href={getProfileUrl(post.authorId, post.authorUsername)}
+              className="font-semibold text-xl sm:text-2xl text-foreground hover:underline truncate"
               onClick={(e) => e.stopPropagation()}
             >
               {post.authorName}
             </Link>
-            <ShieldCheck className="w-4 h-4 text-blue-500 flex-shrink-0" fill="currentColor" />
+            <ShieldCheck className="w-6 h-6 sm:w-7 sm:h-7 text-blue-500 flex-shrink-0" fill="currentColor" />
+            <Link
+              href={getProfileUrl(post.authorId, post.authorUsername)}
+              className="text-muted-foreground text-lg sm:text-xl hover:underline truncate"
+              onClick={(e) => e.stopPropagation()}
+            >
+              @{post.authorUsername || post.authorId}
+            </Link>
+            <span className="text-muted-foreground">·</span>
+            <time className="text-muted-foreground text-lg sm:text-xl flex-shrink-0" title={postDate.toLocaleString()}>
+              {timeAgo}
+            </time>
           </div>
-          <Link
-            href={`/profile/${post.authorId}`}
-            className="text-muted-foreground text-sm hover:underline truncate"
-            onClick={(e) => e.stopPropagation()}
-          >
-            @{post.authorId}
-          </Link>
+
+          {/* Post content - Starts aligned with name/handle */}
+          <div className="text-foreground text-xl sm:text-2xl leading-relaxed whitespace-pre-wrap break-words w-full mb-3 post-content">
+            {post.content}
+          </div>
         </div>
-
-        {/* Timestamp */}
-        <time className="text-muted-foreground text-sm flex-shrink-0" title={postDate.toLocaleString()}>
-          {timeAgo}
-        </time>
       </div>
 
-      {/* Post content - Full width */}
-      <div className="text-foreground leading-normal whitespace-pre-wrap break-anywhere w-full mb-2">
-        {post.content}
-      </div>
-
-      {/* Interaction Bar - Full width */}
+      {/* Interaction Bar - Aligned to content start (right of avatar) */}
       {showInteractions && (
-        <div onClick={(e) => e.stopPropagation()}>
-          <InteractionBar
-            postId={post.id}
-            initialInteractions={initialInteractions}
+        <div onClick={(e) => e.stopPropagation()} className="mt-2 flex items-start">
+          {/* Spacer to align with avatar right edge + gap */}
+          <div 
+            className="flex-shrink-0"
+            style={{
+              width: isDesktop
+                ? `${(3.5 * (fontSize || 1) * 1.4) + 1.25}rem` // Larger avatar + gap-5 for desktop
+                : `${(3.5 * (fontSize || 1)) + 0.75}rem`, // Avatar width + gap-3 for mobile/tablet
+            }}
           />
+          <div className="flex-1">
+            <InteractionBar
+              postId={post.id}
+              initialInteractions={initialInteractions}
+            />
+          </div>
         </div>
       )}
     </article>

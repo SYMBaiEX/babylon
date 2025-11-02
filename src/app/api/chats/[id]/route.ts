@@ -105,7 +105,8 @@ export async function GET(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    logger.error('Error fetching chat:', error, 'GET /api/chats/[id]');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Error fetching chat:', { error: errorMessage }, 'GET /api/chats/[id]');
     return errorResponse('Failed to fetch chat');
   }
 }

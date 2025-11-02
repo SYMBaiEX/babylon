@@ -67,7 +67,7 @@ export function InteractionBar({
       <div
         className={cn(
           className,
-          'flex items-center justify-between mt-2 w-full max-w-md',
+          'flex items-center gap-1.5 mt-2 w-full',
         )}
       >
         {/* Like button with reaction picker */}
@@ -85,13 +85,13 @@ export function InteractionBar({
           type="button"
           onClick={handleCommentClick}
           className={cn(
-            'flex items-center gap-1 h-8 px-2 rounded-full',
-            'bg-transparent hover:bg-[#1c9cf0]/10 transition-all duration-200',
-            'text-xs border border-transparent'
+            'flex items-center gap-1 h-8 px-2',
+            'bg-transparent hover:opacity-70 transition-all duration-200',
+            'text-xs'
           )}
           style={{ color: '#1c9cf0' }}
         >
-          <MessageCircle size={14} />
+          <MessageCircle size={18} />
           {commentCount > 0 && (
             <span className="font-medium tabular-nums">{commentCount}</span>
           )}

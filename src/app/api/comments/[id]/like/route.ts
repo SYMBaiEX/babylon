@@ -102,7 +102,8 @@ export async function POST(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    logger.error('Error liking comment:', error, 'POST /api/comments/[id]/like');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Error liking comment:', { error: errorMessage }, 'POST /api/comments/[id]/like');
     return errorResponse('Failed to like comment');
   }
 }
@@ -179,7 +180,8 @@ export async function DELETE(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    logger.error('Error unliking comment:', error, 'DELETE /api/comments/[id]/like');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Error unliking comment:', { error: errorMessage }, 'DELETE /api/comments/[id]/like');
     return errorResponse('Failed to unlike comment');
   }
 }

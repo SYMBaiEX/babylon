@@ -129,7 +129,8 @@ export async function POST(
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    logger.error('Error creating reply:', error, 'POST /api/comments/[id]/replies');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Error creating reply:', { error: errorMessage }, 'POST /api/comments/[id]/replies');
     return errorResponse('Failed to create reply');
   }
 }

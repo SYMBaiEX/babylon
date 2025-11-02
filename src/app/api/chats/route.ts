@@ -148,7 +148,8 @@ export async function GET(request: NextRequest) {
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    logger.error('Error fetching chats:', error, 'GET /api/chats');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Error fetching chats:', { error: errorMessage }, 'GET /api/chats');
     return errorResponse('Failed to fetch chats');
   }
 }
@@ -202,7 +203,8 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error && error.message === 'Authentication failed') {
       return authErrorResponse('Unauthorized');
     }
-    logger.error('Error creating chat:', error, 'POST /api/chats');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Error creating chat:', { error: errorMessage }, 'POST /api/chats');
     return errorResponse('Failed to create chat');
   }
 }

@@ -17,6 +17,31 @@ export const ACTOR_TIERS = {
 export type ActorTier = (typeof ACTOR_TIERS)[keyof typeof ACTOR_TIERS];
 
 /**
+ * Feed Widget Configuration
+ * These thresholds are used for determining what qualifies as breaking news or upcoming events
+ */
+export const FEED_WIDGET_CONFIG = {
+  // Breaking News thresholds
+  TRENDING_HOURS: 4, // Hours before an event is considered "trending"
+  PRICE_TRENDING_HOURS: 2, // Hours before a price update is considered "trending"
+  SIGNIFICANT_PRICE_CHANGE_PERCENT: 2, // Minimum % change to be considered significant
+  MIN_PRICE_CHANGE_PERCENT: 0.5, // Minimum % change for any price update to show
+  ATH_THRESHOLD_PERCENT: 2, // Minimum % change to qualify as ATH
+  
+  // Upcoming Events thresholds
+  UPCOMING_EVENTS_DAYS: 7, // Days ahead to show upcoming events
+  LIVE_EVENT_HOURS: 2, // Hours before event to mark as "LIVE"
+  HINT_SHOW_DAYS: 1, // Days before event to show hint
+  
+  // Display limits
+  MAX_BREAKING_NEWS_ITEMS: 3,
+  MAX_UPCOMING_EVENTS: 3,
+  MAX_WORLD_EVENTS_QUERY: 100,
+  MAX_PRICE_UPDATES_QUERY: 50,
+  MAX_POSTS_QUERY: 100,
+} as const;
+
+/**
  * Feed post types
  */
 export const POST_TYPES = {

@@ -84,8 +84,30 @@ export async function POST(
         hasUsername: true,
         hasBio: true,
         hasProfileImage: true,
+        usernameChangedAt: true,
       },
     });
+
+    // Check 24-hour rate limit for username changes
+    const isUsernameChanging = username !== undefined && 
+                               username !== null && 
+                               username.trim() !== currentUser?.username;
+    
+    if (isUsernameChanging && currentUser?.usernameChangedAt) {
+      const lastChangeTime = new Date(currentUser.usernameChangedAt).getTime();
+      const now = Date.now();
+      const hoursSinceChange = (now - lastChangeTime) / (1000 * 60 * 60);
+      const hoursRemaining = 24 - hoursSinceChange;
+
+      if (hoursSinceChange < 24) {
+        const hours = Math.floor(hoursRemaining);
+        const minutes = Math.floor((hoursRemaining - hours) * 60);
+        return errorResponse(
+          `You can only change your username once every 24 hours. Please wait ${hours}h ${minutes}m before changing again.`,
+          429
+        );
+      }
+    }
 
     // Update user profile
     const updatedUser = await prisma.user.update({
@@ -96,6 +118,8 @@ export async function POST(
         ...(bio !== undefined && { bio: bio.trim() || null }),
         ...(profileImageUrl !== undefined && { profileImageUrl: profileImageUrl.trim() || null }),
         ...(coverImageUrl !== undefined && { coverImageUrl: coverImageUrl.trim() || null }),
+        // Update username changed timestamp if username is changing
+        ...(isUsernameChanging && { usernameChangedAt: new Date() }),
         // Update profile completion flags
         hasUsername: username !== undefined ? (username.trim().length > 0) : undefined,
         hasBio: bio !== undefined ? (bio.trim().length > 0) : undefined,
@@ -119,6 +143,7 @@ export async function POST(
         reputationPoints: true,
         referralCount: true,
         referralCode: true,
+        usernameChangedAt: true,
       },
     });
 

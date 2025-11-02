@@ -1,22 +1,28 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { usePathname, useRouter } from 'next/navigation'
-import { Home, TrendingUp, MessageCircle, Bell, Trophy, Gift, Plus } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { Home, TrendingUp, MessageCircle, Bell, Trophy, Gift, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { LoginButton } from '@/components/auth/LoginButton'
-import { UserMenu } from '@/components/auth/UserMenu'
 import { Separator } from '@/components/shared/Separator'
-import { CreatePostModal } from '@/components/posts/CreatePostModal'
+import { UserPointsDisplay } from './UserPointsDisplay'
+import { getProfileUrl } from '@/lib/profile-utils'
 
 export function Sidebar() {
-  const [showCreateModal, setShowCreateModal] = useState(false)
   const pathname = usePathname()
-  const router = useRouter()
-  const { ready, authenticated } = useAuth()
+  const { ready, authenticated, user } = useAuth()
+
+  // Memoize profile URL to ensure it always uses the latest username
+  const profileUrl = useMemo(() => {
+    if (authenticated && user) {
+      return getProfileUrl(user.id, user.username)
+    }
+    return '/profile'
+  }, [authenticated, user?.id, user?.username])
 
   const navItems = [
     {
@@ -25,20 +31,6 @@ export function Sidebar() {
       icon: Home,
       color: '#1c9cf0',
       active: pathname === '/feed' || pathname === '/',
-    },
-    {
-      name: 'Leaderboard',
-      href: '/leaderboard',
-      icon: Trophy,
-      color: '#1c9cf0',
-      active: pathname === '/leaderboard',
-    },
-    {
-      name: 'Referrals',
-      href: '/referrals',
-      icon: Gift,
-      color: '#a855f7',
-      active: pathname === '/referrals',
     },
     {
       name: 'Markets',
@@ -55,11 +47,32 @@ export function Sidebar() {
       active: pathname === '/chats',
     },
     {
+      name: 'Leaderboards',
+      href: '/leaderboard',
+      icon: Trophy,
+      color: '#1c9cf0',
+      active: pathname === '/leaderboard',
+    },
+    {
+      name: 'Referrals',
+      href: '/referrals',
+      icon: Gift,
+      color: '#1c9cf0',
+      active: pathname === '/referrals',
+    },
+    {
       name: 'Notifications',
       href: '/notifications',
       icon: Bell,
       color: '#1c9cf0',
       active: pathname === '/notifications',
+    },
+    {
+      name: 'Profile',
+      href: profileUrl,
+      icon: User,
+      color: '#1c9cf0',
+      active: pathname?.startsWith('/profile'),
     },
   ]
 
@@ -78,7 +91,7 @@ export function Sidebar() {
       <div className="p-6 flex items-center justify-center lg:justify-start">
         <Link
           href="/feed"
-          className="hover:scale-105 transition-transform duration-300"
+          className="flex items-center gap-3 hover:scale-105 transition-transform duration-300"
         >
           <Image
             src="/assets/logos/logo.svg"
@@ -87,6 +100,9 @@ export function Sidebar() {
             height={32}
             className="w-8 h-8"
           />
+          <span className="hidden lg:block text-xl font-bold" style={{ color: '#1c9cf0' }}>
+            Babylon
+          </span>
         </Link>
       </div>
 
@@ -171,27 +187,6 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Post Button */}
-      {authenticated && (
-        <div className="px-4 py-3 flex justify-center lg:justify-start">
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className={cn(
-              'flex items-center justify-center gap-2',
-              'bg-[#1c9cf0] hover:bg-[#1a8cd8]',
-              'text-white font-semibold',
-              'rounded-full',
-              'transition-all duration-200',
-              'shadow-md hover:shadow-lg',
-              'md:w-12 md:h-12 lg:w-full lg:py-3'
-            )}
-          >
-            <Plus className="w-5 h-5" />
-            <span className="text-lg hidden lg:inline">Post</span>
-          </button>
-        </div>
-      )}
-
       {/* Separator - only shown on desktop when auth section is visible */}
       {ready && (
         <div className="hidden lg:block px-4 py-2">
@@ -199,27 +194,20 @@ export function Sidebar() {
         </div>
       )}
 
-      {/* Bottom Section - Authentication */}
-      {ready && (
+      {/* Bottom Section - Points Display and User Info */}
+      {ready && authenticated && (
         <div className="hidden lg:block p-4">
-          {authenticated ? <UserMenu /> : <LoginButton />}
+          <UserPointsDisplay />
+        </div>
+      )}
+
+      {/* Bottom Section - Authentication (if not authenticated) */}
+      {ready && !authenticated && (
+        <div className="hidden lg:block p-4">
+          <LoginButton />
         </div>
       )}
     </aside>
-
-    {/* Create Post Modal */}
-    <CreatePostModal
-      isOpen={showCreateModal}
-      onClose={() => setShowCreateModal(false)}
-      onPostCreated={() => {
-        // Refresh the page if on feed, otherwise navigate to feed
-        if (pathname === '/feed') {
-          window.location.reload()
-        } else {
-          router.push('/feed')
-        }
-      }}
-    />
     </>
   )
 }

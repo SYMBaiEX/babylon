@@ -204,46 +204,6 @@ export async function POST(
       return errorResponse('Comment is too long (max 5000 characters)', 400);
     }
 
-    // Auto-create post if it doesn't exist
-    // PostId format: gameId-gameTimestamp-authorId-timestamp
-    // Example: babylon-1761441310151-kash-patrol-2025-10-01T02:12:00Z
-    
-    // Extract ISO timestamp from the end (matches YYYY-MM-DDTHH:mm:ssZ pattern)
-    const isoTimestampMatch = postId.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z)$/);
-
-    if (!isoTimestampMatch || !isoTimestampMatch[1]) {
-      return errorResponse('Invalid post ID format - no valid timestamp', 400);
-    }
-
-    const timestampStr = isoTimestampMatch[1];
-    
-    // Extract gameId (first part before first hyphen)
-    const firstHyphenIndex = postId.indexOf('-');
-    if (firstHyphenIndex === -1) {
-      return errorResponse('Invalid post ID format', 400);
-    }
-    const gameId = postId.substring(0, firstHyphenIndex);
-    
-    // Extract authorId (everything between second hyphen and the ISO timestamp)
-    const parts = postId.split('-');
-    if (parts.length < 3) {
-      return errorResponse('Invalid post ID format', 400);
-    }
-    
-    // AuthorId is everything between gameId+gameTimestamp and the ISO timestamp
-    // Remove gameId, remove timestamp at end, extract what's left
-    const withoutGameId = postId.substring(firstHyphenIndex + 1);
-    const secondHyphenIndex = withoutGameId.indexOf('-');
-    if (secondHyphenIndex === -1) {
-      return errorResponse('Invalid post ID format', 400);
-    }
-    const afterGameTimestamp = withoutGameId.substring(secondHyphenIndex + 1);
-    const authorId = afterGameTimestamp.substring(0, afterGameTimestamp.lastIndexOf('-' + timestampStr));
-
-    if (!gameId || !authorId) {
-      return errorResponse('Invalid post ID format', 400);
-    }
-
     // Ensure user exists in database (upsert pattern)
     await prisma.user.upsert({
       where: { id: user.userId },
@@ -258,18 +218,83 @@ export async function POST(
       },
     });
 
-    // Ensure post exists (upsert pattern)
-    await prisma.post.upsert({
+    // Check if post exists first
+    const post = await prisma.post.findUnique({
       where: { id: postId },
-      update: {},  // Don't update if exists
-      create: {
-        id: postId,
-        content: '[Game-generated post]',  // Placeholder content
-        authorId,
-        gameId,
-        timestamp: new Date(timestampStr),
-      },
     });
+
+    // If post doesn't exist, try to auto-create it based on format
+    if (!post) {
+      // Try multiple post ID formats
+      // Format 1: gameId-gameTimestamp-authorId-isoTimestamp (e.g., babylon-1761441310151-kash-patrol-2025-10-01T02:12:00Z)
+      // Format 2: post-{timestamp}-{random} (e.g., post-1762099655817-0.7781412938928327)
+      // Format 3: post-{timestamp}-{actorId}-{random} (e.g., post-1762099655817-kash-patrol-abc123)
+
+      let gameId = 'babylon'; // default game
+      let authorId = 'system'; // default author for game-generated posts
+      let timestamp = new Date();
+
+      // Check Format 1: Has ISO timestamp at the end
+      const isoTimestampMatch = postId.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z)$/);
+
+      if (isoTimestampMatch && isoTimestampMatch[1]) {
+        // Format 1: gameId-gameTimestamp-authorId-isoTimestamp
+        const timestampStr = isoTimestampMatch[1];
+        timestamp = new Date(timestampStr);
+
+        // Extract gameId (first part before first hyphen)
+        const firstHyphenIndex = postId.indexOf('-');
+        if (firstHyphenIndex !== -1) {
+          gameId = postId.substring(0, firstHyphenIndex);
+
+          // Extract authorId (everything between second hyphen and the ISO timestamp)
+          const withoutGameId = postId.substring(firstHyphenIndex + 1);
+          const secondHyphenIndex = withoutGameId.indexOf('-');
+          if (secondHyphenIndex !== -1) {
+            const afterGameTimestamp = withoutGameId.substring(secondHyphenIndex + 1);
+            authorId = afterGameTimestamp.substring(0, afterGameTimestamp.lastIndexOf('-' + timestampStr));
+          }
+        }
+      } else if (postId.startsWith('post-')) {
+        // Format 2 or 3: GameEngine format
+        const parts = postId.split('-');
+
+        if (parts.length >= 3) {
+          // Try to extract timestamp from second part
+          const timestampPart = parts[1];
+          const timestampNum = parseInt(timestampPart, 10);
+
+          if (!isNaN(timestampNum) && timestampNum > 1000000000000) {
+            // Valid timestamp (milliseconds since epoch)
+            timestamp = new Date(timestampNum);
+
+            // Check if third part looks like an actor ID (not a decimal)
+            if (parts.length >= 4 && !parts[2].includes('.')) {
+              // Format 3: post-{timestamp}-{actorId}-{random}
+              authorId = parts[2];
+            }
+            // Otherwise Format 2: post-{timestamp}-{random}
+            // Keep default authorId = 'system'
+          }
+        }
+      } else {
+        // Unknown format, reject
+        return errorResponse('Invalid post ID format', 400);
+      }
+
+      // Ensure post exists (upsert pattern)
+      await prisma.post.upsert({
+        where: { id: postId },
+        update: {},  // Don't update if exists
+        create: {
+          id: postId,
+          content: '[Game-generated post]',  // Placeholder content
+          authorId,
+          gameId,
+          timestamp,
+        },
+      });
+    }
 
     // If parentCommentId provided, validate it exists and belongs to this post
     if (parentCommentId) {
@@ -285,6 +310,18 @@ export async function POST(
         return errorResponse('Parent comment does not belong to this post', 400);
       }
     }
+
+    // Get the post to find the authorId for notifications
+    // Check if author is a User (not an Actor) - only Users can receive notifications
+    const postRecord = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { 
+        authorId: true,
+        author: {
+          select: { id: true },
+        },
+      },
+    });
 
     // Create comment
     const comment = await prisma.comment.create({
@@ -315,6 +352,7 @@ export async function POST(
     // Create notifications
     if (parentCommentId) {
       // Reply to comment - notify the parent comment author
+      // Comments are always authored by Users, so we can safely notify
       const parentComment = await prisma.comment.findUnique({
         where: { id: parentCommentId },
         select: { authorId: true },
@@ -329,10 +367,16 @@ export async function POST(
         );
       }
     } else {
-      // Comment on post - notify the post author
-      if (authorId !== user.userId) {
+      // Comment on post - notify the post author only if they're a User (not an Actor)
+      // Check if post.author exists (means authorId references a User, not an Actor)
+      if (
+        postRecord && 
+        postRecord.authorId && 
+        postRecord.authorId !== user.userId &&
+        postRecord.author // Only notify if author is a User (not an Actor)
+      ) {
         await notifyCommentOnPost(
-          authorId,
+          postRecord.authorId,
           user.userId,
           postId,
           comment.id

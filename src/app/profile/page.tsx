@@ -22,6 +22,7 @@ import {
   Link as LinkIcon
 } from 'lucide-react'
 import { useEffect, useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
 interface ProfileFormData {
@@ -55,6 +56,7 @@ interface ImageUploadState {
 export default function ProfilePage() {
   const { ready, authenticated } = useAuth()
   const { user, setUser } = useAuthStore()
+  const router = useRouter()
   
   const [formData, setFormData] = useState<ProfileFormData>({
     username: '',
@@ -71,6 +73,9 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'posts' | 'replies'>('posts')
   const [showLinkAccountsModal, setShowLinkAccountsModal] = useState(false)
+  const [posts, setPosts] = useState<any[]>([])
+  const [replies, setReplies] = useState<any[]>([])
+  const [loadingPosts, setLoadingPosts] = useState(false)
   
   // Social visibility toggles
   const [socialVisibility, setSocialVisibility] = useState<SocialVisibility>({
@@ -91,6 +96,28 @@ export default function ProfilePage() {
   
   const editInputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Calculate time remaining until username can be changed again
+  const getUsernameChangeTimeRemaining = (): { canChange: boolean; hours: number; minutes: number } | null => {
+    if (!user?.usernameChangedAt) return { canChange: true, hours: 0, minutes: 0 }
+    
+    const lastChangeTime = new Date(user.usernameChangedAt).getTime()
+    const now = Date.now()
+    const hoursSinceChange = (now - lastChangeTime) / (1000 * 60 * 60)
+    const hoursRemaining = 24 - hoursSinceChange
+
+    if (hoursRemaining <= 0) {
+      return { canChange: true, hours: 0, minutes: 0 }
+    }
+
+    return {
+      canChange: false,
+      hours: Math.floor(hoursRemaining),
+      minutes: Math.floor((hoursRemaining - Math.floor(hoursRemaining)) * 60),
+    }
+  }
+
+  const usernameChangeLimit = getUsernameChangeTimeRemaining()
 
   useEffect(() => {
     if (user) {
@@ -114,6 +141,40 @@ export default function ProfilePage() {
       setLoading(false)
     }
   }, [user, ready])
+
+  // Load posts and replies when user or tab changes
+  useEffect(() => {
+    if (!user?.id) return
+
+    const loadContent = async () => {
+      setLoadingPosts(true)
+      try {
+        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+        const headers: HeadersInit = { 'Content-Type': 'application/json' }
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+
+        const response = await fetch(`/api/users/${user.id}/posts?type=${tab}`, { headers })
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success) {
+            if (tab === 'posts') {
+              setPosts(data.data.items || [])
+            } else {
+              setReplies(data.data.items || [])
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load content:', error)
+      } finally {
+        setLoadingPosts(false)
+      }
+    }
+
+    loadContent()
+  }, [user?.id, tab])
 
   // Auto-focus when editing starts
   useEffect(() => {
@@ -189,6 +250,10 @@ export default function ProfilePage() {
         coverImageUrl: data.user.coverImageUrl || '',
       })
 
+      const oldUsername = user.username
+      const newUsername = data.user.username
+      const usernameChanged = oldUsername !== newUsername && newUsername
+      
       setUser({
         ...user,
         username: data.user.username,
@@ -197,7 +262,15 @@ export default function ProfilePage() {
         profileImageUrl: data.user.profileImageUrl,
         coverImageUrl: data.user.coverImageUrl,
         profileComplete: data.user.profileComplete,
+        usernameChangedAt: data.user.usernameChangedAt,
+        referralCode: data.user.referralCode, // Update referral code if username changed
       })
+
+      // Redirect to username-based profile URL if username changed
+      if (usernameChanged && newUsername) {
+        const cleanUsername = newUsername.startsWith('@') ? newUsername.slice(1) : newUsername
+        router.replace(`/profile/${cleanUsername}`)
+      }
 
       // Update user in store with all new data including reputation points
       if (data.user.reputationPoints !== undefined) {
@@ -575,43 +648,67 @@ export default function ProfilePage() {
                   {/* Username - Editable */}
                   <div className="mb-3">
                     {editing.field === 'username' ? (
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-muted-foreground text-sm">@</span>
-                        <input
-                          ref={editInputRef as React.RefObject<HTMLInputElement>}
-                          type="text"
-                          value={editing.tempValue}
-                          onChange={(e) => setEditing({ ...editing, tempValue: e.target.value })}
-                          onKeyDown={handleKeyDown}
-                          placeholder="username"
-                          className="flex-1 text-sm bg-sidebar-accent/50 rounded-lg px-3 py-2 text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                          disabled={isSaving}
-                        />
-                        <button
-                          onClick={saveField}
-                          disabled={isSaving}
-                          className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={cancelEditing}
-                          disabled={isSaving}
-                          className="p-2 rounded-lg bg-muted hover:bg-muted/70 disabled:opacity-50"
-                        >
-                          <XIcon className="w-4 h-4" />
-                        </button>
+                      <div>
+                        {/* Rate limit warning */}
+                        {usernameChangeLimit && !usernameChangeLimit.canChange && (
+                          <div className="mb-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="text-xs text-yellow-500 font-medium">
+                                Username can only be changed once every 24 hours
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                Please wait {usernameChangeLimit.hours}h {usernameChangeLimit.minutes}m before changing again
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-muted-foreground text-sm">@</span>
+                          <input
+                            ref={editInputRef as React.RefObject<HTMLInputElement>}
+                            type="text"
+                            value={editing.tempValue}
+                            onChange={(e) => setEditing({ ...editing, tempValue: e.target.value })}
+                            onKeyDown={handleKeyDown}
+                            placeholder="username"
+                            className="flex-1 text-sm bg-sidebar-accent/50 rounded-lg px-3 py-2 text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                            disabled={isSaving || (usernameChangeLimit && !usernameChangeLimit.canChange)}
+                          />
+                          <button
+                            onClick={saveField}
+                            disabled={isSaving || (usernameChangeLimit && !usernameChangeLimit.canChange)}
+                            className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={cancelEditing}
+                            disabled={isSaving}
+                            className="p-2 rounded-lg bg-muted hover:bg-muted/70 disabled:opacity-50"
+                          >
+                            <XIcon className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ) : (
-                      <button
-                        onClick={() => startEditing('username')}
-                        className="group inline-flex items-center gap-1.5 hover:bg-muted/30 rounded px-2 py-0.5 -ml-2 transition-colors"
-                      >
-                        <p className="text-sm text-muted-foreground">
-                          @{formData.username || 'add_username'}
-                        </p>
-                        <Edit2 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </button>
+                      <div>
+                        <button
+                          onClick={() => startEditing('username')}
+                          className="group inline-flex items-center gap-1.5 hover:bg-muted/30 rounded px-2 py-0.5 -ml-2 transition-colors"
+                        >
+                          <p className="text-sm text-muted-foreground">
+                            @{formData.username || 'add_username'}
+                          </p>
+                          <Edit2 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </button>
+                        {/* Show warning if rate limited */}
+                        {usernameChangeLimit && !usernameChangeLimit.canChange && (
+                          <p className="text-xs text-yellow-500 mt-1 ml-2">
+                            Can change again in {usernameChangeLimit.hours}h {usernameChangeLimit.minutes}m
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -832,14 +929,74 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Posts section */}
+            {/* Posts/Replies section */}
             <div className="max-w-[600px] mx-auto">
-              <div className="text-center text-muted-foreground py-12">
-                <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p className="text-sm">
-                  {tab === 'posts' ? 'Your posts will appear here' : 'Your replies will appear here'}
-                </p>
-              </div>
+              {loadingPosts ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="w-8 h-8 border-2 border-[#1c9cf0] border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : tab === 'posts' ? (
+                posts.length === 0 ? (
+                  <div className="text-center text-muted-foreground py-12">
+                    <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm">Your posts will appear here</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {posts.map((item) => (
+                      <div key={item.id} className="py-4 px-4">
+                        {item.isRepost && (
+                          <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
+                            <span>🔄</span>
+                            <span>Reposted</span>
+                          </div>
+                        )}
+                        <div className="text-foreground whitespace-pre-wrap break-words">
+                          {item.content}
+                        </div>
+                        <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
+                          <span>{new Date(item.timestamp).toLocaleDateString()}</span>
+                          <span>❤️ {item.likeCount || 0}</span>
+                          <span>💬 {item.commentCount || 0}</span>
+                          <span>🔄 {item.shareCount || 0}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : replies.length === 0 ? (
+                <div className="text-center text-muted-foreground py-12">
+                  <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p className="text-sm">Your replies will appear here</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {replies.map((reply) => (
+                    <div key={reply.id} className="py-4 px-4">
+                      <div className="text-foreground whitespace-pre-wrap break-words mb-2">
+                        {reply.content}
+                      </div>
+                      <div className="text-sm text-muted-foreground mb-2">
+                        Replying to{' '}
+                        <a
+                          href={`/post/${reply.postId}`}
+                          className="text-[#1c9cf0] hover:underline"
+                        >
+                          {reply.post.author?.displayName || reply.post.author?.username || 'a post'}
+                        </a>
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate mb-2">
+                        {reply.post.content.substring(0, 100)}...
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <span>{new Date(reply.createdAt).toLocaleDateString()}</span>
+                        <span>❤️ {reply.likeCount || 0}</span>
+                        <span>💬 {reply.replyCount || 0}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Link Social Accounts Modal */}

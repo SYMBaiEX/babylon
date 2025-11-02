@@ -79,6 +79,7 @@ export class GameEngine extends EventEmitter {
 
   private recentTicks: Tick[] = [];
   private isRunning = false;
+  private initialized = false;
   private intervalId?: NodeJS.Timeout;
   private fundingIntervalId?: NodeJS.Timeout;
   private dailySnapshotIntervalId?: NodeJS.Timeout;
@@ -108,6 +109,8 @@ export class GameEngine extends EventEmitter {
   }
 
   async initialize(): Promise<void> {
+    if (this.initialized) return;
+    
     logger.info('INITIALIZING GAME ENGINE', undefined, 'GameEngine');
 
     const actorsPath = join(process.cwd(), 'public/data/actors.json');
@@ -158,6 +161,7 @@ export class GameEngine extends EventEmitter {
 
     const activeQuestions = this.questions.filter(q => q.status === 'active').length;
     const a2aStatus = this.a2aIntegration.getStatus();
+    this.initialized = true;
     logger.info('ENGINE READY', {
       activeQuestions,
       a2aEnabled: a2aStatus.enabled,
@@ -273,10 +277,57 @@ export class GameEngine extends EventEmitter {
         this.questions.push(...newQuestions);
         questionsCreated = newQuestions.length;
         logger.info(`Created ${questionsCreated} new questions`, { count: questionsCreated }, 'GameEngine');
+        
+        // Broadcast new questions to markets and upcoming-events channels
+        if (questionsCreated > 0) {
+          try {
+            const { broadcastToChannel } = await import('@/app/api/ws/chat/route');
+            broadcastToChannel('markets', {
+              type: 'new_questions',
+              count: questionsCreated,
+              timestamp: timestamp,
+            });
+            broadcastToChannel('upcoming-events', {
+              type: 'new_questions',
+              count: questionsCreated,
+              timestamp: timestamp,
+            });
+          } catch (error) {
+            logger.debug('Could not broadcast new questions:', error, 'GameEngine');
+          }
+        }
       }
 
       // Step 3: Generate events for active questions
       const events = await this.generateQuestionDrivenEvents(activeQuestions, resolutionEvents);
+      
+      // Broadcast significant events to breaking-news channel
+      if (events.length > 0) {
+        try {
+          const { broadcastToChannel } = await import('@/app/api/ws/chat/route');
+          const significantEvents = events.filter(e => 
+            e.visibility === 'public' && 
+            (e.type.toLowerCase().includes('announcement') || 
+             e.type.toLowerCase().includes('development') || 
+             e.type.toLowerCase().includes('scandal') ||
+             e.type.toLowerCase().includes('deal'))
+          );
+          for (const event of significantEvents) {
+            broadcastToChannel('breaking-news', {
+              type: 'new_event',
+              event: {
+                id: event.id,
+                type: event.type,
+                description: typeof event.description === 'string' ? event.description : event.description?.text || '',
+                relatedQuestion: event.relatedQuestion,
+                timestamp: timestamp,
+              }
+            });
+          }
+        } catch (error) {
+          logger.debug('Could not broadcast events:', error, 'GameEngine');
+        }
+      }
       
       // Step 4: Update prices based on events
       const priceUpdates = await this.updatePrices(events);
@@ -290,6 +341,18 @@ export class GameEngine extends EventEmitter {
           }
         });
         this.perpsEngine.updatePositions(priceMap);
+        
+        // Broadcast price updates to markets channel
+        try {
+          const { broadcastToChannel } = await import('@/app/api/ws/chat/route');
+          broadcastToChannel('markets', {
+            type: 'price_update',
+            count: priceUpdates.length,
+            timestamp: timestamp,
+          });
+        } catch (error) {
+          logger.debug('Could not broadcast price updates:', error, 'GameEngine');
+        }
       }
 
       // Step 5: Generate posts using LLM
@@ -316,10 +379,33 @@ export class GameEngine extends EventEmitter {
         this.recentTicks = this.recentTicks.slice(-maxTicks);
       }
 
+      // Persist tick data FIRST (before broadcasting) to ensure posts are in database
       await this.persistTickData(tick).catch(error => {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`Failed to persist tick data: ${errorMessage}`, { error }, 'GameEngine');
       });
+
+      // Broadcast new posts to feed channel AFTER persistence
+      // This ensures posts are available in the database when feed refreshes
+      if (posts.length > 0) {
+        try {
+          const { broadcastToChannel } = await import('@/app/api/ws/chat/route');
+          for (const post of posts) {
+            broadcastToChannel('feed', {
+              type: 'new_post',
+              post: {
+                id: post.id,
+                content: post.content,
+                authorId: post.author,
+                timestamp: post.timestamp || timestamp,
+              }
+            });
+          }
+          logger.debug(`Broadcasted ${posts.length} posts to feed channel`, { count: posts.length }, 'GameEngine');
+        } catch (error) {
+          logger.debug('Could not broadcast posts:', error, 'GameEngine');
+        }
+      }
 
       this.emit('tick', tick);
 
@@ -340,6 +426,16 @@ export class GameEngine extends EventEmitter {
 
       if (this.recentTicks.length % 10 === 0) {
         this.saveState();
+      }
+
+      // Process random social actions (invites/DMs) every 5 ticks (every ~5 minutes)
+      if (this.recentTicks.length % 5 === 0) {
+        try {
+          const { ActorSocialActions } = await import('@/services/ActorSocialActions');
+          await ActorSocialActions.processRandomSocialActions();
+        } catch (error) {
+          logger.warn('Failed to process social actions:', error, 'GameEngine');
+        }
       }
 
     } catch (error) {
@@ -1400,6 +1496,27 @@ Return ONLY this JSON:
       isRunning: this.isRunning,
       perpMarkets: this.perpsEngine.getMarkets().length,
     };
+  }
+
+  async getStatus() {
+    // Get game state from database for currentDay, currentDate, lastTickAt
+    const { db } = await import('@/lib/database-service');
+    const gameState = await db.getGameState();
+    
+    return {
+      isRunning: this.isRunning,
+      initialized: this.initialized || false,
+      currentDay: gameState?.currentDay,
+      currentDate: gameState?.currentDate?.toISOString(),
+      speed: this.config.tickIntervalMs,
+      lastTickAt: gameState?.lastTickAt?.toISOString(),
+    };
+  }
+
+  async getStats() {
+    // Delegate to database service for consistency
+    const { db } = await import('@/lib/database-service');
+    return await db.getStats();
   }
 
   getPerpsEngine(): PerpetualsEngine {

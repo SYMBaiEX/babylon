@@ -56,7 +56,7 @@ export function Avatar({ id, name, type = 'actor', src, alt, size = 'md', classN
   return (
     <div
       className={cn(
-        'rounded-full bg-primary/20 flex items-center justify-center overflow-hidden',
+        'bg-primary/20 flex items-center justify-center overflow-hidden',
         className
       )}
       style={{
@@ -88,7 +88,7 @@ export function GroupAvatar({ members, size = 'md', className }: GroupAvatarProp
   if (displayMembers.length === 0) {
     return (
       <div className={cn(
-        'rounded-full bg-primary/20 flex items-center justify-center',
+        'bg-primary/20 flex items-center justify-center',
         sizeClasses[size],
         className
       )}>
@@ -115,7 +115,7 @@ export function GroupAvatar({ members, size = 'md', className }: GroupAvatarProp
         <div
           key={member.id}
           className={cn(
-            'absolute rounded-full bg-primary/20 flex items-center justify-center overflow-hidden border-2 border-background',
+            'absolute bg-primary/20 flex items-center justify-center overflow-hidden border-2 border-background',
             overlappingSizeClasses[size]
           )}
           style={{

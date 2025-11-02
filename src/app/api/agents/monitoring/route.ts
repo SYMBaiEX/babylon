@@ -48,7 +48,10 @@ export async function GET(request: NextRequest) {
     const user = await authenticate(request)
 
     // Log monitoring access for audit trail
-    logger.info(`User ${user.userId} (isAgent: ${user.isAgent}) accessing agent monitoring`, { userId: user.userId, isAgent: user.isAgent }, 'AgentMonitoring')
+    logger.info(`User ${user.userId} (isAgent: ${user.isAgent}) accessing agent monitoring`, { 
+      userId: user.userId, 
+      isAgent: user.isAgent ?? false
+    }, 'AgentMonitoring')
 
     // For now, allow all authenticated users, but log access
     // TODO: Add admin-only restriction when admin roles are implemented

@@ -179,8 +179,8 @@ body {
   font-feature-settings: "rlig" 1, "calt" 1;
 }
 
-/* Allow avatars to remain circular for user recognition */
-.avatar, [class*="rounded-full"] {
+/* Allow rounded elements to maintain their rounded state */
+[class*="rounded-full"] {
   border-radius: 9999px !important;
 }
 
@@ -282,5 +282,15 @@ body {
 .break-anywhere {
   word-break: break-word;
   overflow-wrap: anywhere;
+}
+
+/* Improved post content typography */
+.post-content {
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
   hyphens: auto;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
 }

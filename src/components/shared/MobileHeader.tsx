@@ -1,21 +1,57 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { X, Home, TrendingUp, MessageCircle, Trophy, Gift, User as UserIcon } from 'lucide-react'
+import { X, Home, TrendingUp, MessageCircle, Trophy, Gift, Info, Bell, User as UserIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { useLoginModal } from '@/hooks/useLoginModal'
 import { usePathname } from 'next/navigation'
+import { logger } from '@/lib/logger'
 
 export function MobileHeader() {
   const { authenticated } = useAuth()
   const { user } = useAuthStore()
   const { showLoginModal } = useLoginModal()
   const [showSideMenu, setShowSideMenu] = useState(false)
+  const [pointsData, setPointsData] = useState<{ available: number; total: number } | null>(null)
   const pathname = usePathname()
+
+  useEffect(() => {
+    const fetchPoints = async () => {
+      if (!authenticated || !user?.id) {
+        setPointsData(null)
+        return
+      }
+
+      try {
+        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+        }
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+
+        const response = await fetch(`/api/users/${user.id}/balance`, { headers })
+        if (response.ok) {
+          const data = await response.json()
+          setPointsData({
+            available: Number(data.balance || 0),
+            total: Number(data.totalDeposited || 0),
+          })
+        }
+      } catch (error) {
+        logger.error('Error fetching points:', error, 'MobileHeader')
+      }
+    }
+
+    fetchPoints()
+    const interval = setInterval(fetchPoints, 30000)
+    return () => clearInterval(interval)
+  }, [authenticated, user?.id])
 
   const menuItems = [
     {
@@ -23,18 +59,6 @@ export function MobileHeader() {
       href: '/feed',
       icon: Home,
       active: pathname === '/feed' || pathname === '/',
-    },
-    {
-      name: 'Leaderboard',
-      href: '/leaderboard',
-      icon: Trophy,
-      active: pathname === '/leaderboard',
-    },
-    {
-      name: 'Referrals',
-      href: '/referrals',
-      icon: Gift,
-      active: pathname === '/referrals',
     },
     {
       name: 'Markets',
@@ -49,10 +73,22 @@ export function MobileHeader() {
       active: pathname === '/chats',
     },
     {
-      name: 'Profile',
-      href: '/profile',
-      icon: UserIcon,
-      active: pathname === '/profile',
+      name: 'Leaderboards',
+      href: '/leaderboard',
+      icon: Trophy,
+      active: pathname === '/leaderboard',
+    },
+    {
+      name: 'Referrals',
+      href: '/referrals',
+      icon: Gift,
+      active: pathname === '/referrals',
+    },
+    {
+      name: 'Notifications',
+      href: '/notifications',
+      icon: Bell,
+      active: pathname === '/notifications',
     },
   ]
 
@@ -67,22 +103,8 @@ export function MobileHeader() {
         )}
       >
         <div className="flex items-center justify-between h-14 px-4">
-          {/* Left: Profile Picture (when authenticated) */}
-          <div className="flex-shrink-0 w-8">
-            {authenticated && user ? (
-              <button
-                onClick={() => setShowSideMenu(true)}
-                className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold hover:opacity-80 transition-opacity"
-              >
-                {user.displayName?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || '?'}
-              </button>
-            ) : (
-              <div className="w-8" />
-            )}
-          </div>
-
-          {/* Center: Logo */}
-          <div className="flex-1 flex justify-center">
+          {/* Left: Logo */}
+          <div className="flex-shrink-0">
             <Link href="/feed" className="hover:scale-105 transition-transform duration-300">
               <Image
                 src="/assets/logos/logo.svg"
@@ -94,15 +116,39 @@ export function MobileHeader() {
             </Link>
           </div>
 
-          {/* Right: Login button (when not authenticated) */}
+          {/* Center: Points */}
+          <div className="flex-1 flex justify-center items-center gap-1">
+            {authenticated && pointsData ? (
+              <>
+                <span className="text-sm font-semibold text-foreground">
+                  {pointsData.available.toLocaleString()} / {pointsData.total.toLocaleString()} pts
+                </span>
+                <Info className="w-4 h-4 text-muted-foreground" />
+              </>
+            ) : authenticated ? (
+              <span className="text-sm text-muted-foreground">Loading...</span>
+            ) : null}
+          </div>
+
+          {/* Right: Profile Picture (when authenticated) or Login button */}
           <div className="flex-shrink-0 w-8">
-            {!authenticated && (
+            {authenticated && user ? (
+              <button
+                onClick={() => setShowSideMenu(true)}
+                className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold hover:opacity-80 transition-opacity"
+                aria-label="Open profile menu"
+              >
+                {user.displayName?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || <UserIcon className="w-4 h-4" />}
+              </button>
+            ) : !authenticated ? (
               <button
                 onClick={() => showLoginModal()}
                 className="px-3 py-1.5 text-xs font-medium rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
               >
                 Login
               </button>
+            ) : (
+              <div className="w-8" />
             )}
           </div>
         </div>

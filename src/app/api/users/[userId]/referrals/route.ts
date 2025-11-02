@@ -107,13 +107,19 @@ export async function GET(
         joinedAt: r.completedAt,
       }))
 
+    // Use username as referral code (without @)
+    const referralCode = user.username || null
+    const referralUrl = referralCode
+      ? `${process.env.NEXT_PUBLIC_APP_URL || 'https://babylon.game'}?ref=${referralCode}`
+      : null
+
     return successResponse({
       user: {
         id: user.id,
         username: user.username,
         displayName: user.displayName,
         profileImageUrl: user.profileImageUrl,
-        referralCode: user.referralCode,
+        referralCode: referralCode,
         reputationPoints: user.reputationPoints,
       },
       stats: {
@@ -123,9 +129,7 @@ export async function GET(
         followingCount: followingUserIds.size,
       },
       referredUsers,
-      referralUrl: user.referralCode
-        ? `${process.env.NEXT_PUBLIC_APP_URL || 'https://babylon.game'}?ref=${user.referralCode}`
-        : null,
+      referralUrl,
     })
   } catch (error) {
     logger.error('Error getting referrals:', error, 'GET /api/users/[userId]/referrals')

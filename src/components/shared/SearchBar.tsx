@@ -26,7 +26,7 @@ export function SearchBar({ value, onChange, placeholder = 'Search...', classNam
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className={cn(
-          'w-full rounded-full',
+          'w-full',
           'bg-muted/50 border-2',
           'focus:outline-none focus:ring-2 focus:ring-[#1c9cf0]',
           'transition-all duration-200',
@@ -43,7 +43,7 @@ export function SearchBar({ value, onChange, placeholder = 'Search...', classNam
         <button
           onClick={() => onChange('')}
           className={cn(
-            'absolute top-1/2 -translate-y-1/2 hover:bg-muted/50 rounded-full p-1 transition-colors',
+            'absolute top-1/2 -translate-y-1/2 hover:bg-muted/50 p-1 transition-colors',
             compact ? 'right-2' : 'right-3'
           )}
         >

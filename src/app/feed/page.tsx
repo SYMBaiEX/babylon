@@ -9,11 +9,16 @@ import { PageContainer } from '@/components/shared/PageContainer'
 import { SearchBar } from '@/components/shared/SearchBar'
 import { PostCard } from '@/components/posts/PostCard'
 import { InviteFriendsBanner } from '@/components/shared/InviteFriendsBanner'
+import { FeedCommentSection } from '@/components/feed/FeedCommentSection'
+import { WidgetSidebar } from '@/components/shared/WidgetSidebar'
+import { CreatePostModal } from '@/components/posts/CreatePostModal'
+import { Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
 import { useAuth } from '@/hooks/useAuth'
 import type { FeedPost } from '@/shared/types'
 import { logger } from '@/lib/logger'
+import { useChannelSubscription } from '@/hooks/useChannelSubscription'
 
 const PAGE_SIZE = 20
 
@@ -28,11 +33,26 @@ export default function FeedPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [offset, setOffset] = useState(0)
+  
   const [followingPosts, setFollowingPosts] = useState<FeedPost[]>([])
   const [loadingFollowing, setLoadingFollowing] = useState(false)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const [actorNames, setActorNames] = useState<Map<string, string>>(new Map())
   const [bannerDismissed, setBannerDismissed] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null)
+  const [selectedPostData, setSelectedPostData] = useState<{
+    id: string
+    content: string
+    authorId: string
+    authorName: string
+    timestamp: string
+    likeCount: number
+    commentCount: number
+    shareCount: number
+    isLiked: boolean
+    isShared: boolean
+  } | null>(null)
   
   // Smart banner frequency based on user referrals
   const calculateBannerInterval = () => {
@@ -116,6 +136,8 @@ export default function FeedPage() {
 
       setPosts(prev => {
         const prevSize = prev.length
+        // When refreshing (not appending), prepend new posts to existing ones
+        // This ensures new posts appear at the top while preserving scroll position
         const combined = append ? [...prev, ...newPosts] : [...newPosts, ...prev]
         const unique = new Map<string, FeedPost>()
         combined.forEach(post => {
@@ -127,7 +149,7 @@ export default function FeedPage() {
         const deduped = Array.from(unique.values()).sort((a, b) => {
           const aTime = new Date(a.timestamp ?? 0).getTime()
           const bTime = new Date(b.timestamp ?? 0).getTime()
-          return bTime - aTime
+          return bTime - aTime // Newest first
         })
 
         uniqueAdded = deduped.length - prevSize
@@ -158,10 +180,60 @@ export default function FeedPage() {
     }
   }, [tab])
 
-  // Initial load for latest tab
+  // Initial load and reset when switching to latest tab
   useEffect(() => {
-    fetchLatestPosts(0, false)
-  }, [fetchLatestPosts])
+    if (tab === 'latest') {
+      setOffset(0)
+      setHasMore(true)
+      fetchLatestPosts(0, false)
+    }
+  }, [tab, fetchLatestPosts])
+
+  // Subscribe to feed channel for real-time updates
+  const handleFeedUpdate = useCallback((data: Record<string, unknown>) => {
+    if (data.type === 'new_post' && data.post) {
+      const newPost = data.post as FeedPost
+      logger.debug('New post received via WebSocket, inserting into feed...', { postId: newPost.id }, 'FeedPage')
+
+      // Directly insert the new post into the state for instant update
+      setPosts(prev => {
+        // Check if post already exists to avoid duplicates
+        const exists = prev.some(p => p.id === newPost.id)
+        if (exists) return prev
+
+        // Add new post at the beginning (newest first)
+        const updated = [newPost, ...prev]
+
+        // Sort by timestamp to ensure chronological order
+        return updated.sort((a, b) => {
+          const aTime = new Date(a.timestamp ?? 0).getTime()
+          const bTime = new Date(b.timestamp ?? 0).getTime()
+          return bTime - aTime // Newest first
+        })
+      })
+
+      // If we're on the following tab and this is from someone we follow,
+      // also add to followingPosts
+      if (tab === 'following' && user) {
+        setFollowingPosts(prev => {
+          const exists = prev.some(p => p.id === newPost.id)
+          if (exists) return prev
+
+          const updated = [newPost, ...prev]
+          return updated.sort((a, b) => {
+            const aTime = new Date(a.timestamp ?? 0).getTime()
+            const bTime = new Date(b.timestamp ?? 0).getTime()
+            return bTime - aTime
+          })
+        })
+      }
+
+      // Update offset to reflect new total
+      setOffset(prev => prev + 1)
+    }
+  }, [tab, user])
+
+  useChannelSubscription(tab === 'latest' ? 'feed' : null, handleFeedUpdate)
 
   // Infinite scroll observer for latest tab
   useEffect(() => {
@@ -277,19 +349,21 @@ export default function FeedPage() {
       })
   }, [allGames, startTime, currentDate, currentTimeMs])
 
-  // Choose data source: timeline (if available) else API posts
-  // For following tab, always use followingPosts (not timeline)
+  // Choose data source: always use API posts for latest tab (GameEngine persists to database)
+  // For following tab, use followingPosts
+  // Only use timelinePosts if we have no API posts (fallback for viewer mode)
   const basePosts = (tab === 'following') 
     ? followingPosts 
-    : ((startTime && allGames.length > 0) ? timelinePosts : posts)
+    : (posts.length > 0 ? posts : (startTime && allGames.length > 0 ? timelinePosts : posts))
 
   // Filter by search query (applies to whichever source is active)
+  // Note: basePosts can be FeedPost (from game store) or API post shape (from /api/posts)
   const filteredPosts = useMemo(() => {
     if (!searchQuery.trim()) return basePosts
     const query = searchQuery.toLowerCase()
-    return basePosts.filter((post): post is FeedPost => {
+    return basePosts.filter((post) => {
       if (!post || typeof post !== 'object') return false
-      // Handle both FeedPost and timeline post shapes
+      // Handle both FeedPost and API post shapes
       const postContent = 'content' in post ? String(post.content || '') : ''
       const authorField = 'author' in post ? String(post.author || '') : ('authorId' in post ? String((post as { authorId?: string }).authorId || '') : '')
       const postAuthorName = 'authorName' in post ? String(post.authorName || '') : ''
@@ -316,49 +390,250 @@ export default function FeedPage() {
 
   return (
     <PageContainer noPadding className="flex flex-col h-full w-full overflow-hidden">
-      {/* Mobile: Header with tabs and search in one row */}
+      {/* Mobile: Header with tabs, Hoot button, and search below */}
       <div className="sticky top-0 z-10 bg-background shadow-sm flex-shrink-0 md:hidden">
-        <div className="flex items-center gap-2 h-12 px-3 sm:px-4">
+        {/* Top row: Tabs and Hoot button */}
+        <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2">
           {/* Tabs on left */}
           <div className="flex-shrink-0">
             <FeedToggle activeTab={tab} onTabChange={setTab} />
           </div>
           
-          {/* Search bar on right */}
-          <div className="flex-1 min-w-0">
-            <SearchBar
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder="Search"
-              className="w-full"
-              compact
-            />
-          </div>
+          {/* Hoot button on right */}
+          {authenticated && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className={cn(
+                'flex items-center gap-1.5 flex-shrink-0',
+                'bg-[#1c9cf0] hover:bg-[#1a8cd8]',
+                'text-white font-semibold text-sm',
+                'px-3 py-1.5 rounded',
+                'transition-all duration-200'
+              )}
+            >
+              <Plus className="w-4 h-4" />
+              <span>Hoot</span>
+            </button>
+          )}
         </div>
-      </div>
-
-      {/* Desktop: Search bar */}
-      <div className="hidden md:flex items-center sticky top-0 z-10 bg-background py-3 px-6 shadow-sm flex-shrink-0">
-        <div className="flex-1 max-w-[600px]">
+        
+        {/* Search bar below */}
+        <div className="px-3 sm:px-4 pb-2">
           <SearchBar
             value={searchQuery}
             onChange={setSearchQuery}
-            placeholder="Search"
+            placeholder="Search Babylon..."
+            className="w-full"
+            compact
           />
         </div>
       </div>
 
-      {/* Content area */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden bg-background w-full">
+      {/* Desktop: Multi-column layout */}
+      <div className="hidden lg:flex flex-1 overflow-hidden">
+        {/* Left: Feed area - aligned with sidebar, full width */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Desktop: Top bar with tabs, search, and post button */}
+          <div className="sticky top-0 z-10 bg-background shadow-sm flex-shrink-0">
+            <div className="px-6 py-4">
+              {/* Top row: Tabs and Post button */}
+              <div className="flex items-center justify-between mb-3">
+                <FeedToggle activeTab={tab} onTabChange={setTab} />
+                {authenticated && (
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className={cn(
+                      'flex items-center gap-2',
+                      'bg-[#1c9cf0] hover:bg-[#1a8cd8]',
+                      'text-white font-semibold',
+                      'px-4 py-2',
+                      'transition-all duration-200',
+                      'shadow-md hover:shadow-lg'
+                    )}
+                  >
+                    <Plus className="w-5 h-5" />
+                    <span>Hoot</span>
+                  </button>
+                )}
+              </div>
+              {/* Search bar - full width */}
+              <div className="w-full">
+                <SearchBar
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  placeholder="Search Babylon..."
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Feed content - split into 2 columns: posts and comments */}
+          <div className="flex-1 flex overflow-hidden bg-background">
+            {/* Left column: Feed posts */}
+            <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
+              {(loading || (tab === 'following' && loadingFollowing)) ? (
+                <div className="w-full p-4 sm:p-8 text-center">
+                  <div className="text-muted-foreground py-12">
+                    <p>Loading posts...</p>
+                  </div>
+                </div>
+              ) : filteredPosts.length === 0 && !searchQuery && tab === 'latest' ? (
+                // No posts yet
+                <div className="w-full p-4 sm:p-8 text-center">
+                  <div className="text-muted-foreground py-8 sm:py-12">
+                    <h2 className="text-xl sm:text-2xl font-bold mb-2 text-foreground">No Posts Yet</h2>
+                    <p className="mb-4 text-sm sm:text-base">
+                      Engine is generating posts...
+                    </p>
+                    <div className="text-xs sm:text-sm text-muted-foreground space-y-2">
+                      <p>Check terminal for tick logs.</p>
+                      <p>Posts appear within 60 seconds.</p>
+                    </div>
+                  </div>
+                </div>
+              ) : filteredPosts.length === 0 && !searchQuery && tab === 'following' ? (
+                // Following tab with no followed profiles
+                <div className="w-full p-4 sm:p-8 text-center">
+                  <div className="text-muted-foreground py-8 sm:py-12">
+                    <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">👥 Not Following Anyone Yet</h2>
+                    <p className="mb-4 text-sm sm:text-base">
+                      {loadingFollowing
+                        ? 'Loading following...'
+                        : 'Follow profiles to see their posts here. Visit a profile and click the Follow button.'}
+                    </p>
+                  </div>
+                </div>
+              ) : filteredPosts.length === 0 && !searchQuery ? (
+                // Game loaded but no visible posts yet
+                <div className="w-full p-4 sm:p-8 text-center">
+                <div className="text-muted-foreground py-8 sm:py-12">
+                  <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">⏱️ No Posts Yet</h2>
+                  <p className="mb-4 text-sm sm:text-base">
+                    Game is running in the background via realtime-daemon. Content will appear here as it's generated.
+                  </p>
+                </div>
+                </div>
+              ) : filteredPosts.length === 0 && searchQuery ? (
+                // No search results
+                <div className="w-full p-4 sm:p-8 text-center">
+                  <div className="text-muted-foreground py-8 sm:py-12">
+                    <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">No Results</h2>
+                    <p className="mb-4 text-sm sm:text-base break-words">
+                      No posts found matching &quot;{searchQuery}&quot;
+                    </p>
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className={cn(
+                        'inline-block px-4 sm:px-6 py-2 sm:py-3 font-semibold rounded text-sm sm:text-base cursor-pointer',
+                        'bg-[#1da1f2] text-white',
+                        'hover:bg-[#1a8cd8]',
+                        'transition-all duration-300'
+                      )}
+                    >
+                      Clear Search
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                // Show posts - fluid width that scales with screen size
+                <div className={cn(
+                  "w-full pl-6 space-y-0",
+                  selectedPostId && selectedPostData ? "pr-4" : "pr-8 max-w-[65%] ml-4 mr-auto"
+                )}>
+                  {filteredPosts.map((post, i: number) => {
+                    // Handle both FeedPost (from game store) and API post shapes
+                    // API posts have authorId, FeedPost has author (both are author IDs)
+                    const authorId = ('authorId' in post ? post.authorId : post.author) || ''
+                    // Get actual actor name from loaded data, fallback to authorName or ID
+                    const authorName = actorNames.get(authorId) || ('authorName' in post ? post.authorName : '') || authorId
+
+                    // Show banner at the random interval (if not dismissed)
+                    const showBannerAfterThisPost = !bannerDismissed && i === bannerInterval.current - 1
+
+                    const postData = {
+                      id: post.id,
+                      content: post.content,
+                      authorId,
+                      authorName,
+                      timestamp: post.timestamp,
+                      likeCount: 0,
+                      commentCount: 0,
+                      shareCount: 0,
+                      isLiked: false,
+                      isShared: false,
+                    }
+
+                    return (
+                      <div key={`post-wrapper-${post.id}-${i}`}>
+                        <PostCard
+                          post={postData}
+                          onClick={() => {
+                            setSelectedPostId(post.id)
+                            setSelectedPostData(postData)
+                          }}
+                        />
+                        {showBannerAfterThisPost && (
+                          <InviteFriendsBanner 
+                            onDismiss={() => {
+                              setBannerDismissed(true)
+                              // Recalculate interval for next load
+                              bannerInterval.current = calculateBannerInterval()
+                            }}
+                          />
+                        )}
+                      </div>
+                    )
+                  })}
+                  {tab === 'latest' && (
+                    <>
+                      <div ref={loadMoreRef} className="h-1 w-full" />
+                      {loadingMore && (
+                        <div className="py-4 text-center text-sm text-muted-foreground">
+                          Loading more posts...
+                        </div>
+                      )}
+                      {!loadingMore && !hasMore && posts.length > 0 && (
+                        <div className="py-4 text-center text-xs text-muted-foreground">
+                          You&apos;re all caught up.
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Right column: Comments section - only when post is selected */}
+            {selectedPostId && selectedPostData && (
+              <div className="hidden xl:flex flex-col w-[35%] flex-shrink-0 overflow-hidden bg-background">
+                <FeedCommentSection
+                  postId={selectedPostId}
+                  postData={selectedPostData}
+                  onClose={() => {
+                    setSelectedPostId(null)
+                    setSelectedPostData(null)
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+          {/* Right: Widget panels - only on desktop (xl+) */}
+          <WidgetSidebar />
+      </div>
+
+      {/* Mobile/Tablet: Feed area (full width) */}
+      <div className="flex lg:hidden flex-1 overflow-y-auto overflow-x-hidden bg-background w-full">
         {(loading || (tab === 'following' && loadingFollowing)) ? (
-          <div className="max-w-2xl mx-auto p-4 sm:p-8 text-center">
+          <div className="w-full p-4 sm:p-8 text-center">
             <div className="text-muted-foreground py-12">
               <p>Loading posts...</p>
             </div>
           </div>
         ) : filteredPosts.length === 0 && !searchQuery && tab === 'latest' ? (
           // No posts yet
-          <div className="max-w-2xl mx-auto p-4 sm:p-8 text-center">
+          <div className="w-full p-4 sm:p-8 text-center">
             <div className="text-muted-foreground py-8 sm:py-12">
               <h2 className="text-xl sm:text-2xl font-bold mb-2 text-foreground">No Posts Yet</h2>
               <p className="mb-4 text-sm sm:text-base">
@@ -372,7 +647,7 @@ export default function FeedPage() {
           </div>
         ) : filteredPosts.length === 0 && !searchQuery && tab === 'following' ? (
           // Following tab with no followed profiles
-          <div className="max-w-2xl mx-auto p-4 sm:p-8 text-center">
+          <div className="w-full p-4 sm:p-8 text-center">
             <div className="text-muted-foreground py-8 sm:py-12">
               <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">👥 Not Following Anyone Yet</h2>
               <p className="mb-4 text-sm sm:text-base">
@@ -384,7 +659,7 @@ export default function FeedPage() {
           </div>
         ) : filteredPosts.length === 0 && !searchQuery ? (
           // Game loaded but no visible posts yet
-          <div className="max-w-2xl mx-auto p-4 sm:p-8 text-center">
+          <div className="w-full p-4 sm:p-8 text-center">
           <div className="text-muted-foreground py-8 sm:py-12">
             <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">⏱️ No Posts Yet</h2>
             <p className="mb-4 text-sm sm:text-base">
@@ -394,7 +669,7 @@ export default function FeedPage() {
           </div>
         ) : filteredPosts.length === 0 && searchQuery ? (
           // No search results
-          <div className="max-w-2xl mx-auto p-4 sm:p-8 text-center">
+          <div className="w-full p-4 sm:p-8 text-center">
             <div className="text-muted-foreground py-8 sm:py-12">
               <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">No Results</h2>
               <p className="mb-4 text-sm sm:text-base break-words">
@@ -414,13 +689,14 @@ export default function FeedPage() {
             </div>
           </div>
         ) : (
-          // Show posts - Twitter-like layout
-          <div className="w-full max-w-[600px] mx-auto">
-            {filteredPosts.map((post: FeedPost, i: number) => {
-              // Fix author mapping: use authorId if author is null
-              const authorId = post.author || post.authorId
+          // Show posts - full width, left-aligned
+          <div className="w-full px-4">
+            {filteredPosts.map((post, i: number) => {
+              // Handle both FeedPost (from game store) and API post shapes
+              // API posts have authorId, FeedPost has author (both are author IDs)
+              const authorId = ('authorId' in post ? post.authorId : post.author) || ''
               // Get actual actor name from loaded data, fallback to authorName or ID
-              const authorName = actorNames.get(authorId) || post.authorName || authorId
+              const authorName = actorNames.get(authorId) || ('authorName' in post ? post.authorName : '') || authorId
 
               // Show banner at the random interval (if not dismissed)
               const showBannerAfterThisPost = !bannerDismissed && i === bannerInterval.current - 1
@@ -472,6 +748,22 @@ export default function FeedPage() {
           </div>
         )}
       </div>
+
+      {/* Create Post Modal */}
+      <CreatePostModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onPostCreated={() => {
+          // Don't reload - WebSocket will handle real-time update
+          // Just close the modal, the new post will appear automatically
+          setShowCreateModal(false)
+
+          // If not on feed page, navigate to it
+          if (window.location.pathname !== '/feed') {
+            router.push('/feed')
+          }
+        }}
+      />
     </PageContainer>
   )
 }

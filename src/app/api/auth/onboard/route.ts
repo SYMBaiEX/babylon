@@ -129,20 +129,37 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if referral code is valid (if provided)
+    // Referral code is now the username (without @)
     let referrerId: string | null = null
     if (referralCode) {
-      const referral = await prisma.referral.findUnique({
-        where: { referralCode },
-        include: { referrer: true },
+      // First, try to find user by username (new system - username is referral code)
+      const referrer = await prisma.user.findUnique({
+        where: { username: referralCode },
+        select: { id: true },
       })
 
-      if (referral && referral.status === 'pending') {
-        referrerId = referral.referrerId
+      if (referrer) {
+        referrerId = referrer.id
         logger.info(
-          `Valid referral code found: ${referralCode} from user ${referrerId}`,
+          `Valid referral code (username) found: ${referralCode} from user ${referrerId}`,
           { referralCode, referrerId },
           'POST /api/auth/onboard'
         )
+      } else {
+        // Fallback: Try old referral code system for backward compatibility
+        const referral = await prisma.referral.findUnique({
+          where: { referralCode },
+          include: { referrer: true },
+        })
+
+        if (referral && referral.status === 'pending') {
+          referrerId = referral.referrerId
+          logger.info(
+            `Valid referral code (legacy) found: ${referralCode} from user ${referrerId}`,
+            { referralCode, referrerId },
+            'POST /api/auth/onboard'
+          )
+        }
       }
     }
 
@@ -388,7 +405,8 @@ export async function POST(request: NextRequest) {
 
       logger.info('Initial reputation set to 70 (7 wins out of 10 bets)', undefined, 'POST /api/auth/onboard')
     } catch (error) {
-      logger.error('Failed to set initial reputation:', error, 'POST /api/auth/onboard')
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Failed to set initial reputation:', { error: errorMessage }, 'POST /api/auth/onboard')
       // Don't fail registration if reputation setup fails
     }
 
@@ -449,16 +467,36 @@ export async function POST(request: NextRequest) {
             const referralResult = await PointsService.awardReferralSignup(referrerId, dbUser.id)
             
             if (referralResult.success) {
-              // Update referral status
-              await prisma.referral.update({
+              // Create or update referral record
+              // For username-based referrals, the record might not exist yet
+              const existingReferral = await prisma.referral.findUnique({
                 where: { referralCode },
-                data: {
-                  status: 'completed',
-                  referredUserId: dbUser.id,
-                  completedAt: new Date(),
-                  pointsAwarded: true,
-                },
               })
+
+              if (existingReferral) {
+                // Update existing referral
+                await prisma.referral.update({
+                  where: { referralCode },
+                  data: {
+                    status: 'completed',
+                    referredUserId: dbUser.id,
+                    completedAt: new Date(),
+                    pointsAwarded: true,
+                  },
+                })
+              } else {
+                // Create new referral record for username-based referrals
+                await prisma.referral.create({
+                  data: {
+                    referrerId,
+                    referralCode,
+                    referredUserId: dbUser.id,
+                    status: 'completed',
+                    completedAt: new Date(),
+                    pointsAwarded: true,
+                  },
+                })
+              }
 
               // Auto-follow: New user follows the referrer
               try {
@@ -486,7 +524,8 @@ export async function POST(request: NextRequest) {
                   )
                 }
               } catch (followError) {
-                logger.error('Error creating auto-follow (non-critical):', followError, 'POST /api/auth/onboard')
+                const followErrorMessage = followError instanceof Error ? followError.message : String(followError);
+                logger.error('Error creating auto-follow (non-critical):', { error: followErrorMessage }, 'POST /api/auth/onboard')
                 // Don't fail registration if auto-follow fails
               }
 
@@ -497,7 +536,8 @@ export async function POST(request: NextRequest) {
               )
             }
           } catch (referralError) {
-            logger.error('Error awarding referral points (non-critical):', referralError, 'POST /api/auth/onboard')
+            const referralErrorMessage = referralError instanceof Error ? referralError.message : String(referralError);
+            logger.error('Error awarding referral points (non-critical):', { error: referralErrorMessage }, 'POST /api/auth/onboard')
             // Don't fail registration if referral points award fails
           }
         }
@@ -505,7 +545,8 @@ export async function POST(request: NextRequest) {
         logger.info('Welcome bonus already awarded to user', undefined, 'POST /api/auth/onboard')
       }
     } catch (error) {
-      logger.error('Error awarding points (non-critical):', error, 'POST /api/auth/onboard')
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Error awarding points (non-critical):', { error: errorMessage }, 'POST /api/auth/onboard')
       // Don't fail registration if points award fails
     }
 
@@ -519,7 +560,8 @@ export async function POST(request: NextRequest) {
       pointsAwarded: 1000,
     })
   } catch (error) {
-    logger.error('Registration error:', error, 'POST /api/auth/onboard')
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Registration error:', { error: errorMessage }, 'POST /api/auth/onboard')
     return errorResponse(
       error instanceof Error ? error.message : 'Failed to register on-chain',
       500
@@ -585,7 +627,8 @@ export async function GET(request: NextRequest) {
       dbRegistered: dbUser.onChainRegistered,
     })
   } catch (error) {
-    logger.error('Status check error:', error, 'GET /api/auth/onboard')
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Status check error:', { error: errorMessage }, 'GET /api/auth/onboard')
     return errorResponse(
       error instanceof Error ? error.message : 'Failed to check registration status',
       500

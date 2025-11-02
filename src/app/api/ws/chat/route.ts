@@ -13,6 +13,7 @@ const prisma = new PrismaClient()
 interface AuthenticatedWebSocket extends WSWebSocket {
   userId?: string
   chatId?: string
+  channels?: Set<string> // Subscribed channels (feed, markets, breaking-news)
   isAlive?: boolean
 }
 
@@ -26,21 +27,37 @@ interface ChatMessage {
 }
 
 interface WebSocketMessage {
-  type: 'join_chat' | 'leave_chat' | 'new_message' | 'error' | 'pong'
+  type: 'join_chat' | 'leave_chat' | 'subscribe' | 'unsubscribe' | 'new_message' | 'error' | 'pong'
   data?: {
     chatId?: string
+    channel?: string // 'feed' | 'markets' | 'breaking-news' | 'upcoming-events'
     message?: ChatMessage
     [key: string]: JsonValue
   }
   error?: string
 }
 
-// Global WebSocket server instance
-let wss: WebSocketServer | null = null
-const clients: Map<string, AuthenticatedWebSocket> = new Map()
-const chatRooms: Map<string, Set<string>> = new Map()
+// Use global to survive hot module reloading in development
+declare global {
+  var wss: WebSocketServer | undefined
+  var wsClients: Map<string, AuthenticatedWebSocket> | undefined
+  var wsChatRooms: Map<string, Set<string>> | undefined
+  var wsChannels: Map<string, Set<string>> | undefined
+  var wsServerInitError: Error | undefined
+}
+
+// Global WebSocket server instance that survives hot reloads
+let wss = global.wss || null
+const clients = global.wsClients || new Map<string, AuthenticatedWebSocket>()
+const chatRooms = global.wsChatRooms || new Map<string, Set<string>>()
+const channels = global.wsChannels || new Map<string, Set<string>>() // channel -> Set of userIds
 const serverInitializationPromise: Promise<WebSocketServer> | null = null
-let serverInitializationError: Error | null = null
+let serverInitializationError = global.wsServerInitError || null
+
+// Store in global for persistence
+if (!global.wsClients) global.wsClients = clients
+if (!global.wsChatRooms) global.wsChatRooms = chatRooms
+if (!global.wsChannels) global.wsChannels = channels
 
 function initializeWebSocketServer(): WebSocketServer | null {
   if (wss) return wss
@@ -52,10 +69,13 @@ function initializeWebSocketServer(): WebSocketServer | null {
   if (serverInitializationError) return null
 
   try {
-    wss = new WebSocketServer({ 
+    wss = new WebSocketServer({
       port: 3001,
       path: '/ws/chat'
     })
+
+    // Store in global for persistence across hot reloads
+    global.wss = wss
 
   wss.on('connection', async (ws: AuthenticatedWebSocket, req: IncomingMessage) => {
     logger.info('New WebSocket connection attempt', undefined, 'WebSocket')
@@ -86,7 +106,11 @@ function initializeWebSocketServer(): WebSocketServer | null {
       const user = await authenticate({ headers } as NextRequest)
 
       ws.userId = user.userId
+      ws.channels = new Set() // Initialize channels set
       logger.info(`WebSocket authenticated for user: ${user.userId}`, undefined, 'WebSocket')
+
+      // Store client
+      clients.set(user.userId, ws)
 
       // Send welcome message
       ws.send(JSON.stringify({
@@ -122,6 +146,7 @@ function initializeWebSocketServer(): WebSocketServer | null {
     ws.on('close', () => {
       if (ws.userId) {
         leaveAllChats(ws.userId)
+        leaveAllChannels(ws.userId)
         clients.delete(ws.userId)
         logger.info(`User ${ws.userId} disconnected`, undefined, 'WebSocket')
       }
@@ -132,6 +157,7 @@ function initializeWebSocketServer(): WebSocketServer | null {
       logger.error('WebSocket error:', error, 'WebSocket')
       if (ws.userId) {
         leaveAllChats(ws.userId)
+        leaveAllChannels(ws.userId)
         clients.delete(ws.userId)
       }
     })
@@ -159,7 +185,9 @@ function initializeWebSocketServer(): WebSocketServer | null {
   } catch (error) {
     logger.error('Failed to initialize WebSocket server:', error, 'WebSocket')
     serverInitializationError = error instanceof Error ? error : new Error(String(error))
+    global.wsServerInitError = serverInitializationError
     wss = null
+    global.wss = undefined
     return null
   }
 }
@@ -207,6 +235,28 @@ async function handleMessage(ws: AuthenticatedWebSocket, message: WebSocketMessa
       }
       break
     
+    case 'subscribe':
+      if (message.data?.channel) {
+        subscribeToChannel(ws, message.data.channel)
+      } else {
+        ws.send(JSON.stringify({
+          type: 'error',
+          error: 'channel required for subscribe'
+        }))
+      }
+      break
+    
+    case 'unsubscribe':
+      if (message.data?.channel) {
+        unsubscribeFromChannel(ws.userId, message.data.channel)
+      } else {
+        ws.send(JSON.stringify({
+          type: 'error',
+          error: 'channel required for unsubscribe'
+        }))
+      }
+      break
+    
     case 'pong':
       ws.send(JSON.stringify({ type: 'pong' }))
       break
@@ -247,8 +297,7 @@ async function joinChat(ws: AuthenticatedWebSocket, chatId: string) {
     return
   }
 
-  // Store client and join room
-  clients.set(ws.userId, ws)
+  // Join room (client already stored on authentication)
   ws.chatId = chatId
 
   if (!chatRooms.has(chatId)) {
@@ -282,6 +331,56 @@ function leaveAllChats(userId: string) {
   }
 }
 
+// Channel subscription functions
+function subscribeToChannel(ws: AuthenticatedWebSocket, channel: string) {
+  if (!ws.userId || !channel) return
+
+  if (!ws.channels) {
+    ws.channels = new Set()
+  }
+  ws.channels.add(channel)
+
+  if (!channels.has(channel)) {
+    channels.set(channel, new Set())
+  }
+  channels.get(channel)!.add(ws.userId)
+
+  logger.info(`User ${ws.userId} subscribed to channel ${channel}`, undefined, 'WebSocket')
+}
+
+function unsubscribeFromChannel(userId: string, channel: string) {
+  if (!channel) return
+
+  const channelSubscribers = channels.get(channel)
+  if (channelSubscribers) {
+    channelSubscribers.delete(userId)
+    if (channelSubscribers.size === 0) {
+      channels.delete(channel)
+    }
+  }
+
+  const client = clients.get(userId)
+  if (client?.channels) {
+    client.channels.delete(channel)
+  }
+
+  logger.info(`User ${userId} unsubscribed from channel ${channel}`, undefined, 'WebSocket')
+}
+
+function leaveAllChannels(userId: string) {
+  for (const [channel, subscribers] of channels.entries()) {
+    subscribers.delete(userId)
+    if (subscribers.size === 0) {
+      channels.delete(channel)
+    }
+  }
+
+  const client = clients.get(userId)
+  if (client?.channels) {
+    client.channels.clear()
+  }
+}
+
 // Broadcast a new message to all clients in a chat room
 export function broadcastMessage(chatId: string, message: ChatMessage) {
   const room = chatRooms.get(chatId)
@@ -300,6 +399,41 @@ export function broadcastMessage(chatId: string, message: ChatMessage) {
   })
 
   logger.info(`Broadcasted message to ${room.size} clients in chat ${chatId}`, undefined, 'WebSocket')
+}
+
+// Broadcast to a channel (feed, markets, breaking-news, etc.)
+export function broadcastToChannel(channel: string, data: Record<string, JsonValue>) {
+  const subscribers = channels.get(channel)
+  if (!subscribers || subscribers.size === 0) return
+
+  const messageData = {
+    type: 'channel_update',
+    channel,
+    data
+  }
+
+  let sentCount = 0
+  subscribers.forEach(userId => {
+    const client = clients.get(userId)
+    if (client && client.readyState === WebSocket.OPEN) {
+      try {
+        client.send(JSON.stringify(messageData))
+        sentCount++
+      } catch (error) {
+        logger.error(`Error sending to user ${userId}:`, error, 'WebSocket')
+        // Remove invalid client
+        subscribers.delete(userId)
+        clients.delete(userId)
+      }
+    } else {
+      // Remove disconnected client
+      subscribers.delete(userId)
+    }
+  })
+
+  if (sentCount > 0) {
+    logger.debug(`Broadcasted to ${sentCount} subscribers on channel ${channel}`, { channel, sentCount }, 'WebSocket')
+  }
 }
 
 // Initialize WebSocket server on first request

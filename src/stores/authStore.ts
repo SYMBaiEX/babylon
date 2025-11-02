@@ -26,6 +26,7 @@ interface User {
   showWalletPublic?: boolean
   bannerLastShown?: string
   bannerDismissCount?: number
+  usernameChangedAt?: string | null
   stats?: {
     positions?: number
     comments?: number

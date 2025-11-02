@@ -48,6 +48,7 @@ model User {
   hasUsername          Boolean  @default(false)
   hasBio               Boolean  @default(false)
   profileSetupCompletedAt DateTime?
+  usernameChangedAt    DateTime? // Track when username was last changed (for rate limiting)
   
   // Points awarded tracking (to prevent duplicate awards)
   pointsAwardedForProfile      Boolean  @default(false)
@@ -76,6 +77,7 @@ model User {
   bannerDismissCount   Int      @default(0) // Track how many times user dismissed banner
 
   // Relationships
+  posts           Post[]       @relation("PostAuthor")
   comments        Comment[]
   reactions       Reaction[]
   positions       Position[]
@@ -103,13 +105,21 @@ model User {
 model Post {
   id          String   @id @default(uuid())
   content     String
-  authorId    String   // Game actor ID (not a User FK)
+  authorId    String   // Can reference User.id or Actor.id (handled at application level)
   gameId      String?
   dayNumber   Int?
   timestamp   DateTime @default(now())
   createdAt   DateTime @default(now())
 
   // Relationships
+  // Note: authorId can reference either User.id or Actor.id
+  // Both relations are defined for type safety and querying.
+  // PostgreSQL cannot enforce two foreign keys on the same column, so only
+  // the User FK will be enforced at the database level. Actor posts are handled
+  // at application level (authorId matches Actor.id). Both relations exist in
+  // Prisma Client for type safety and convenience.
+  author      User?    @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Cascade, map: "Post_authorId_User_fkey")
+  authorActor Actor?   @relation("PostActorAuthor", fields: [authorId], references: [id], onDelete: Cascade, map: "Post_authorId_Actor_fkey")
   comments    Comment[]
   reactions   Reaction[]
   shares      Share[]
@@ -523,6 +533,10 @@ model Actor {
   // Relationships
   pools      Pool[]
   npcTrades  NPCTrade[]
+  // Posts authored by actors (no FK constraint - handled at application level)
+  // Query with: prisma.post.findMany({ where: { authorActor: { id: actorId } } })
+  // or manually: prisma.post.findMany({ where: { authorId: actorId } })
+  posts      Post[]    @relation("PostActorAuthor")
 
   @@index([tier])
   @@index([role])

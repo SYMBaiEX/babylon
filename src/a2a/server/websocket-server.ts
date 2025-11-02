@@ -165,7 +165,8 @@ export class A2AWebSocketServer extends EventEmitter {
 
           ws.send(JSON.stringify(response))
         } catch (error) {
-          this.logger.error(`Message handling error for ${tempId}:`, error)
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this.logger.error(`Message handling error for ${tempId}:`, { error: errorMessage })
           ws.send(JSON.stringify({
             jsonrpc: '2.0',
             error: {
@@ -282,7 +283,8 @@ export class A2AWebSocketServer extends EventEmitter {
         tokenId: connection.tokenId
       })
     } catch (error) {
-      this.logger.error('Handshake error:', error)
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Handshake error:', { error: errorMessage })
       ws.send(JSON.stringify({
         jsonrpc: '2.0',
         error: {
