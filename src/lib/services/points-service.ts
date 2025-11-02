@@ -197,7 +197,7 @@ export class PointsService {
       userId,
       POINTS.FARCASTER_LINK,
       'farcaster_link',
-      { farcasterUsername }
+      farcasterUsername ? { farcasterUsername } : undefined
     )
   }
 
@@ -209,7 +209,7 @@ export class PointsService {
       userId,
       POINTS.TWITTER_LINK,
       'twitter_link',
-      { twitterUsername }
+      twitterUsername ? { twitterUsername } : undefined
     )
   }
 
@@ -221,7 +221,7 @@ export class PointsService {
       userId,
       POINTS.WALLET_CONNECT,
       'wallet_connect',
-      { walletAddress }
+      walletAddress ? { walletAddress } : undefined
     )
   }
 
@@ -240,7 +240,7 @@ export class PointsService {
     return this.awardPoints(userId, amount, reason, {
       platform,
       contentType,
-      contentId,
+      ...(contentId ? { contentId } : {}),
     })
   }
 

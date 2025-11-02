@@ -147,23 +147,23 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
   
   getBreakingNews: () => {
     const entry = get().breakingNews
-    return get().isFresh(entry) ? entry.data : null
+    return entry && get().isFresh(entry) ? entry.data : null
   },
   
   getUpcomingEvents: () => {
     const entry = get().upcomingEvents
-    return get().isFresh(entry) ? entry.data : null
+    return entry && get().isFresh(entry) ? entry.data : null
   },
   
   getStats: () => {
     const entry = get().stats
-    return get().isFresh(entry) ? entry.data : null
+    return entry && get().isFresh(entry) ? entry.data : null
   },
   
   getProfileWidget: (userId: string) => {
     const profileWidget = get().profileWidget
     const entry = profileWidget.get(userId)
-    return get().isFresh(entry || null) ? entry?.data : null
+    return entry && get().isFresh(entry) ? entry.data : null
   },
   
   clearBreakingNews: () => set({ breakingNews: null }),

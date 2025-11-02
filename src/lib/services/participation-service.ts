@@ -48,12 +48,14 @@ export class ParticipationService {
         prisma.post.count({
           where: {
             authorId: userId,
-            isActor: false, // Only count user posts, not actor posts
+            author: {
+              isNot: null, // Only count posts where author relation exists (User posts)
+            },
           },
         }),
         prisma.comment.count({
           where: {
-            userId,
+            authorId: userId,
           },
         }),
         prisma.share.count({
@@ -74,7 +76,9 @@ export class ParticipationService {
         prisma.post.findFirst({
           where: {
             authorId: userId,
-            isActor: false,
+            author: {
+              isNot: null, // Only count posts where author relation exists (User posts)
+            },
           },
           orderBy: {
             createdAt: 'desc',
@@ -85,7 +89,7 @@ export class ParticipationService {
         }),
         prisma.comment.findFirst({
           where: {
-            userId,
+            authorId: userId,
           },
           orderBy: {
             createdAt: 'desc',

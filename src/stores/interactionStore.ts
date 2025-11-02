@@ -62,6 +62,13 @@ interface InteractionStoreActions {
 
 type InteractionStore = InteractionStoreState & InteractionStoreActions;
 
+// Persisted state type (only serializable parts)
+type PersistedInteractionState = {
+  postInteractions: Array<[string, PostInteraction]>;
+  commentInteractions: Array<[string, CommentInteraction]>;
+  favoritedProfiles: string[];
+};
+
 // Helper to get auth token from Privy
 async function getAuthToken(): Promise<string | null> {
   try {
@@ -536,18 +543,14 @@ export const useInteractionStore = create<InteractionStore>()(
     {
       name: 'babylon-interactions',
       // Custom serialization for Maps and Sets
-      partialize: (state) => ({
+      partialize: (state: InteractionStore): PersistedInteractionState => ({
         postInteractions: Array.from(state.postInteractions.entries()),
         commentInteractions: Array.from(state.commentInteractions.entries()),
         favoritedProfiles: Array.from(state.favoritedProfiles),
       }),
       // Custom deserialization to convert arrays back to Maps and Sets
-      merge: (persistedState: {
-        postInteractions?: Array<[string, PostInteraction]>;
-        commentInteractions?: Array<[string, CommentInteraction]>;
-        favoritedProfiles?: string[];
-      } | null | undefined, currentState: InteractionStore) => {
-        const persisted = persistedState || {
+      merge: (persistedState: unknown, currentState: InteractionStore) => {
+        const persisted = (persistedState as Partial<PersistedInteractionState> | null | undefined) || {
           postInteractions: undefined,
           commentInteractions: undefined,
           favoritedProfiles: undefined,
