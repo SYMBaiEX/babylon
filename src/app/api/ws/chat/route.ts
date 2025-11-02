@@ -60,9 +60,29 @@ function initializeWebSocketServer(): WebSocketServer | null {
   if (serverInitializationError) return null
 
   try {
+    // Check if server already exists in global (might be from another process/module)
+    if (global.wss) {
+      wss = global.wss
+      logger.info('Reusing existing WebSocket server from global', undefined, 'WebSocket')
+      return wss
+    }
+    
     wss = new WebSocketServer({
       port: 3001,
       path: '/ws/chat'
+    })
+    
+    // Handle runtime errors after creation
+    wss.on('error', (error: Error & { code?: string }) => {
+      if (error.code === 'EADDRINUSE') {
+        logger.warn('WebSocket port 3001 already in use', undefined, 'WebSocket')
+        // Try to reuse existing server from global if available
+        if (global.wss && global.wss !== wss) {
+          wss = global.wss
+          return
+        }
+      }
+      logger.error('WebSocket server error:', error, 'WebSocket')
     })
 
     // Store in global for persistence across hot reloads
@@ -184,8 +204,28 @@ function initializeWebSocketServer(): WebSocketServer | null {
     logger.info('WebSocket server initialized on port 3001', undefined, 'WebSocket')
     return wss
   } catch (error) {
+    const err = error as Error & { code?: string }
+    
+    // Handle EADDRINUSE gracefully - might happen during build or if server already exists
+    if (err.code === 'EADDRINUSE') {
+      logger.warn('WebSocket port 3001 already in use, checking for existing server', undefined, 'WebSocket')
+      
+      // Check if there's an existing server in global
+      if (global.wss) {
+        wss = global.wss
+        logger.info('Reusing existing WebSocket server', undefined, 'WebSocket')
+        return wss
+      }
+      
+      // During build time, this is expected - don't treat as fatal error
+      if (process.env.NEXT_PHASE === 'phase-production-build') {
+        logger.info('Skipping WebSocket server initialization during build', undefined, 'WebSocket')
+        return null
+      }
+    }
+    
     logger.error('Failed to initialize WebSocket server:', error, 'WebSocket')
-    serverInitializationError = error instanceof Error ? error : new Error(String(error))
+    serverInitializationError = err
     global.wsServerInitError = serverInitializationError
     wss = null
     global.wss = undefined
@@ -193,16 +233,9 @@ function initializeWebSocketServer(): WebSocketServer | null {
   }
 }
 
-// Initialize server on module load (runs when Next.js server starts)
-if (typeof window === 'undefined') {
-  // Only run on server side
-  try {
-    initializeWebSocketServer()
-  } catch (error) {
-    logger.error('Failed to auto-initialize WebSocket server:', error, 'WebSocket')
-    serverInitializationError = error instanceof Error ? error : new Error(String(error))
-  }
-}
+// Don't initialize on module load during build time
+// Initialize lazily when the route handler is called instead
+// This prevents EADDRINUSE errors during Next.js build process
 
 async function handleMessage(ws: AuthenticatedWebSocket, message: WebSocketMessage) {
   if (!ws.userId) {
