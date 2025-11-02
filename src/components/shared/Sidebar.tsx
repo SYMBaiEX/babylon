@@ -29,21 +29,21 @@ export function Sidebar() {
       name: 'Markets',
       href: '/markets',
       icon: TrendingUp,
-      color: '#f59e0b', // Amber
+      color: '#1c9cf0',
       active: pathname === '/markets',
     },
     {
       name: 'Chats',
       href: '/chats',
       icon: MessageCircle,
-      color: '#b82323', // Red
+      color: '#1c9cf0',
       active: pathname === '/chats',
     },
     {
       name: 'Notifications',
       href: '/notifications',
       icon: Bell,
-      color: '#1c9cf0', // Blue
+      color: '#1c9cf0',
       active: pathname === '/notifications',
     },
   ]
@@ -98,7 +98,7 @@ export function Sidebar() {
             <Link
               href="/feed"
               className={cn(
-                'flex items-center gap-3',
+                'flex items-center',
                 'hover:scale-105 transition-transform duration-300'
               )}
             >
@@ -135,7 +135,7 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-4 space-y-2">
+      <nav className="flex-1">
         {navItems.map((item) => {
           const Icon = item.icon
           return (
@@ -143,7 +143,7 @@ export function Sidebar() {
               key={item.name}
               href={item.href}
               className={cn(
-                'group relative flex items-center gap-4 px-4 py-3',
+                'group relative flex items-center px-4 py-3',
                 'transition-colors duration-200',
                 isCollapsed && 'justify-center',
                 !item.active && 'bg-transparent hover:bg-sidebar-accent'
@@ -166,7 +166,7 @@ export function Sidebar() {
               {/* Icon */}
               <Icon
                 className={cn(
-                  'w-6 h-6 transition-all duration-300',
+                  'w-6 h-6 transition-all duration-300 mx-2',
                   'group-hover:scale-110',
                   isCollapsed ? 'flex-shrink-0' : '',
                   !item.active && 'text-sidebar-foreground'
