@@ -283,6 +283,9 @@ describe('A2AWebSocketServer Integration', () => {
       const ws = new WebSocket(`ws://localhost:${serverPort}`)
 
       await new Promise<void>((resolve, reject) => {
+        let handshakeCompleted = false
+        let rateLimitHit = false
+
         ws.on('open', async () => {
           const timestamp = Date.now()
           const message = `A2A Authentication\n\nAddress: ${wallet.address}\nToken ID: 1\nTimestamp: ${timestamp}`
@@ -312,36 +315,33 @@ describe('A2AWebSocketServer Integration', () => {
           }
 
           ws.send(JSON.stringify(handshakeRequest))
+        })
 
-          let handshakeCompleted = false
-          let rateLimitHit = false
+        ws.on('message', (data: Buffer) => {
+          const response = JSON.parse(data.toString()) as JsonRpcResponse
 
-          ws.on('message', (data: Buffer) => {
-            const response = JSON.parse(data.toString()) as JsonRpcResponse
+          if (response.id === 'handshake') {
+            handshakeCompleted = true
 
-            if (response.id === 'handshake') {
-              handshakeCompleted = true
-
-              // Send requests until rate limit is hit
-              for (let i = 0; i < 5; i++) {
-                const request: JsonRpcRequest = {
-                  jsonrpc: '2.0',
-                  method: A2AMethod.DISCOVER_AGENTS,
-                  params: {},
-                  id: `req-${i}`
-                }
-                ws.send(JSON.stringify(request))
+            // Send requests until rate limit is hit
+            for (let i = 0; i < 5; i++) {
+              const request: JsonRpcRequest = {
+                jsonrpc: '2.0',
+                method: A2AMethod.DISCOVER_AGENTS,
+                params: {},
+                id: `req-${i}`
               }
-            } else if (handshakeCompleted) {
-              // Check if any response has rate limit error
-              if (response.error && response.error.message.includes('Rate limit')) {
-                rateLimitHit = true
-                expect(response.error.message).toContain('Rate limit')
-                ws.close()
-                resolve()
-              }
+              ws.send(JSON.stringify(request))
             }
-          })
+          } else if (handshakeCompleted) {
+            // Check if any response has rate limit error
+            if (response.error && response.error.message.includes('Rate limit')) {
+              rateLimitHit = true
+              expect(response.error.message).toContain('Rate limit')
+              ws.close()
+              resolve()
+            }
+          }
         })
 
         ws.on('error', reject)

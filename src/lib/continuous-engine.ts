@@ -113,18 +113,29 @@ export class ContinuousEngine {
           const recentWorldEvents = await db.getRecentEvents(50);
 
           // Convert Actor[] to SelectedActor[] by adding required fields
-          const actors: SelectedActor[] = actorsFromDb.map((actor: Actor) => {
+          const actors: SelectedActor[] = actorsFromDb.map((actor: Awaited<ReturnType<typeof db.getAllActors>>[number]) => {
             return {
-              ...actor,
+              id: actor.id,
+              name: actor.name,
+              description: actor.description ?? undefined,
+              domain: actor.domain,
+              personality: actor.personality ?? undefined,
+              role: actor.role ?? 'supporting',
+              affiliations: actor.affiliations,
+              postStyle: actor.postStyle ?? undefined,
+              postExample: actor.postExample,
               tier: (actor.tier || ACTOR_TIERS.B_TIER) as ActorTier,
-              role: actor.role || 'supporting',
-              initialLuck: 'medium' as const,
-              initialMood: 0,
-            } as SelectedActor;
+              initialLuck: actor.initialLuck as 'low' | 'medium' | 'high',
+              initialMood: actor.initialMood,
+              hasPool: actor.hasPool,
+              tradingBalance: parseFloat(actor.tradingBalance.toString()),
+              reputationPoints: actor.reputationPoints,
+              profileImageUrl: actor.profileImageUrl ?? undefined,
+            };
           });
           // Convert recent world events to DayTimeline format for context
           // Group events by day (approximated from timestamps)
-          type DbEvent = { timestamp: Date; id: string; eventType: string; actors: string[]; description: string | { text: string }; relatedQuestion?: string; pointsToward?: string; visibility: string };
+          type DbEvent = Awaited<ReturnType<typeof db.getRecentEvents>>[number];
           const eventsByDay = new Map<number, DbEvent[]>();
           recentWorldEvents.forEach((event: DbEvent) => {
             const dayNum = Math.floor((new Date(event.timestamp).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
@@ -243,14 +254,25 @@ export class ContinuousEngine {
       const selectedActorsRaw = shuffledActors.slice(0, Math.min(numPosts, actors.length));
       
       // Convert Actor[] to SelectedActor[] for generateRealisticPost
-      const selectedActors: SelectedActor[] = selectedActorsRaw.map(actor => {
+      const selectedActors: SelectedActor[] = selectedActorsRaw.map((actor: Awaited<ReturnType<typeof db.getAllActors>>[number]) => {
         return {
-          ...actor,
+          id: actor.id,
+          name: actor.name,
+          description: actor.description ?? undefined,
+          domain: actor.domain,
+          personality: actor.personality ?? undefined,
+          role: actor.role ?? 'supporting',
+          affiliations: actor.affiliations,
+          postStyle: actor.postStyle ?? undefined,
+          postExample: actor.postExample,
           tier: (actor.tier || ACTOR_TIERS.B_TIER) as ActorTier,
-          role: actor.role || 'supporting',
-          initialLuck: 'medium' as const,
-          initialMood: 0,
-        } as SelectedActor;
+          initialLuck: actor.initialLuck as 'low' | 'medium' | 'high',
+          initialMood: actor.initialMood,
+          hasPool: actor.hasPool,
+          tradingBalance: parseFloat(actor.tradingBalance.toString()),
+          reputationPoints: actor.reputationPoints,
+          profileImageUrl: actor.profileImageUrl ?? undefined,
+        };
       });
       
       const posts: FeedPost[] = [];

@@ -16,7 +16,7 @@ import 'dotenv/config';
 
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
 import { PriceEngine } from '@/engine/PriceEngine';
-import type { FeedPost, WorldEvent, Organization, Actor, Question } from '@/shared/types';
+import type { FeedPost, WorldEvent, Organization, Actor, Question, ActorTier } from '@/shared/types';
 import { shuffleArray } from '@/shared/utils';
 import { db } from './database-service';
 import { PredictionPricing } from './prediction-pricing';
@@ -99,12 +99,32 @@ class PredictionCadenceManager {
 
   private async createQuestion(cadence: PredictionCadence): Promise<boolean> {
     try {
-      const actors = await db.getAllActors();
+      const actorsFromDb = await db.getAllActors();
       const orgs = await db.getAllOrganizations();
       const daysMap = { '24h': 1, '3d': 3, '7d': 7, '30d': 30 };
       const resolutionDate = new Date(Date.now() + daysMap[cadence.duration] * 24 * 60 * 60 * 1000);
 
-      const prompt = this.buildPrompt(cadence.duration, actors as Actor[], orgs as Organization[]);
+      // Convert database actors to Actor type
+      const actors: Actor[] = actorsFromDb.map((actor) => ({
+        id: actor.id,
+        name: actor.name,
+        description: actor.description ?? undefined,
+        domain: actor.domain,
+        personality: actor.personality ?? undefined,
+        role: actor.role ?? undefined,
+        affiliations: actor.affiliations,
+        postStyle: actor.postStyle ?? undefined,
+        postExample: actor.postExample,
+        tier: (actor.tier ?? undefined) as ActorTier | undefined,
+        initialLuck: actor.initialLuck as 'low' | 'medium' | 'high' | undefined,
+        initialMood: actor.initialMood,
+        hasPool: actor.hasPool,
+        tradingBalance: parseFloat(actor.tradingBalance.toString()),
+        reputationPoints: actor.reputationPoints,
+        profileImageUrl: actor.profileImageUrl ?? undefined,
+      }));
+
+      const prompt = this.buildPrompt(cadence.duration, actors, orgs as Organization[]);
       const response = await this.llm.generateJSON<{ question: string; expectedOutcome: boolean }>(
         prompt,
         undefined,
@@ -474,8 +494,28 @@ export class BabylonEngine {
     const posts: FeedPost[] = [];
     const numPosts = 10 + Math.floor(Math.random() * 11);
     
-    const actors = await db.getAllActors();
-    if (actors.length === 0) return posts;
+    const actorsFromDb = await db.getAllActors();
+    if (actorsFromDb.length === 0) return posts;
+
+    // Convert database actors to Actor type
+    const actors: Actor[] = actorsFromDb.map((actor) => ({
+      id: actor.id,
+      name: actor.name,
+      description: actor.description ?? undefined,
+      domain: actor.domain,
+      personality: actor.personality ?? undefined,
+      role: actor.role ?? undefined,
+      affiliations: actor.affiliations,
+      postStyle: actor.postStyle ?? undefined,
+      postExample: actor.postExample,
+      tier: (actor.tier ?? undefined) as ActorTier | undefined,
+      initialLuck: actor.initialLuck as 'low' | 'medium' | 'high' | undefined,
+      initialMood: actor.initialMood,
+      hasPool: actor.hasPool,
+      tradingBalance: parseFloat(actor.tradingBalance.toString()),
+      reputationPoints: actor.reputationPoints,
+      profileImageUrl: actor.profileImageUrl ?? undefined,
+    }));
 
     const postingActors = shuffleArray(actors).slice(0, numPosts);
     const validActors = postingActors.filter((a) => {

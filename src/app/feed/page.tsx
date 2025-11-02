@@ -272,7 +272,7 @@ export default function FeedPage() {
     return items
       .filter((p) => p.timestampMs <= currentAbs)
       .sort((a, b) => b.timestampMs - a.timestampMs)
-      .map(({ _timestampMs, ...rest }) => rest)
+      .map(({ timestampMs, ...rest }) => rest)
   }, [allGames, startTime, currentDate, currentTimeMs])
 
   // Choose data source: timeline (if available) else API posts

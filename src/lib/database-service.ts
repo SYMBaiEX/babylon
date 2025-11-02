@@ -446,8 +446,12 @@ class DatabaseService {
         postStyle: actor.postStyle,
         postExample: actor.postExample || [],
         role: actor.role,
-        initialLuck: ('initialLuck' in actor && typeof actor.initialLuck === 'string') ? actor.initialLuck : 'medium',
-        initialMood: ('initialMood' in actor && typeof actor.initialMood === 'number') ? actor.initialMood : 0,
+        initialLuck: actor.initialLuck || 'medium',
+        initialMood: actor.initialMood ?? 0,
+        hasPool: actor.hasPool ?? false,
+        tradingBalance: actor.tradingBalance ?? (actor.hasPool ? 10000 : 0),
+        reputationPoints: actor.reputationPoints ?? (actor.hasPool ? 10000 : 0),
+        profileImageUrl: actor.profileImageUrl,
       },
       update: {
         name: actor.name,
@@ -458,6 +462,14 @@ class DatabaseService {
         affiliations: actor.affiliations || [],
         postStyle: actor.postStyle,
         postExample: actor.postExample || [],
+        role: actor.role,
+        // Update database-specific fields if provided
+        ...(actor.initialLuck !== undefined && { initialLuck: actor.initialLuck }),
+        ...(actor.initialMood !== undefined && { initialMood: actor.initialMood }),
+        ...(actor.hasPool !== undefined && { hasPool: actor.hasPool }),
+        ...(actor.tradingBalance !== undefined && { tradingBalance: actor.tradingBalance }),
+        ...(actor.reputationPoints !== undefined && { reputationPoints: actor.reputationPoints }),
+        ...(actor.profileImageUrl !== undefined && { profileImageUrl: actor.profileImageUrl }),
       },
     });
   }

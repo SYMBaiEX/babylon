@@ -64,7 +64,7 @@
     "@elizaos/plugin-sql": "^1.6.3",
     "@fal-ai/client": "^1.7.0",
     "@hookform/resolvers": "^5.2.2",
-    "@prisma/client": "6.18.0",
+    "@prisma/client": "^6.18.0",
     "@privy-io/react-auth": "3.0.1",
     "@privy-io/server-auth": "^1.32.5",
     "@privy-io/wagmi": "^2.0.2",

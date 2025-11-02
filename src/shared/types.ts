@@ -36,6 +36,13 @@ export interface Actor {
   postStyle?: string; // Style guide for how they write posts
   postExample?: string[]; // Example posts demonstrating their voice
   tier?: ActorTier;
+  // Database-specific fields (optional, populated when stored in DB)
+  initialLuck?: 'low' | 'medium' | 'high';
+  initialMood?: number; // -1 to 1
+  hasPool?: boolean; // Can run a trading pool
+  tradingBalance?: number; // NPC's trading balance
+  reputationPoints?: number; // Reputation points for leaderboard
+  profileImageUrl?: string; // Actor profile image
 }
 
 /**

@@ -96,10 +96,18 @@ export async function POST(request: NextRequest) {
         // Debit margin from balance
         const dbUser = await tx.user.findUnique({
           where: { id: user.userId },
+          select: {
+            id: true,
+            virtualBalance: true,
+          },
         });
 
         if (!dbUser) {
           throw new Error('User not found');
+        }
+
+        if (dbUser.virtualBalance === null) {
+          throw new Error('User balance not initialized');
         }
 
         const currentBalance = Number(dbUser.virtualBalance);

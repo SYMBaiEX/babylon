@@ -58,7 +58,10 @@ export class NPCTradingService {
       return;
     }
 
-    const signals = this.extractTradingSignals(postContent, marketContext, actor);
+    const signals = this.extractTradingSignals(postContent, marketContext, {
+      tier: actor.tier ?? undefined,
+      personality: actor.personality ?? undefined,
+    });
     if (signals.length === 0) return;
 
     for (const signal of signals) {
@@ -206,7 +209,9 @@ export class NPCTradingService {
       'yacht philosopher': 0.6, // Conservative
     };
 
-    const personalityMult = personalityMultipliers[actor.personality?.toLowerCase()] || 1.0;
+    const personalityMult = actor.personality 
+      ? (personalityMultipliers[actor.personality.toLowerCase()] || 1.0)
+      : 1.0;
 
     return baseAmount * personalityMult;
   }
