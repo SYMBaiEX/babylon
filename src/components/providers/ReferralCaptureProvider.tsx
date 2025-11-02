@@ -79,8 +79,9 @@ export function clearReferralCode(): void {
   try {
     sessionStorage.removeItem('referralCode')
     sessionStorage.removeItem('referralCodeTimestamp')
-  } catch {
-    // Ignore errors
+  } catch (error) {
+    // Silently handle errors - sessionStorage may not be available in some contexts
+    logger.debug('Error clearing referral code:', error, 'ReferralCaptureProvider')
   }
 }
 

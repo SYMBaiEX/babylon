@@ -1,6 +1,7 @@
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logger } from '@/lib/logger';
 
 /**
  * GET /api/pools
@@ -109,8 +110,7 @@ export async function GET(_request: NextRequest) {
       total: poolsWithMetrics.length,
     });
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error('Error fetching pools:', error);
+    logger.error('Error fetching pools:', error, 'GET /api/pools')
     return NextResponse.json(
       { error: 'Failed to fetch pools' },
       { status: 500 }

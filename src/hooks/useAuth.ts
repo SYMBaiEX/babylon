@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { usePrivy, useWallets, type User, type ConnectedWallet } from '@privy-io/react-auth'
 import { useEffect, useMemo } from 'react'
 import { useAuthStore } from '@/stores/authStore'
@@ -227,8 +226,9 @@ export function useAuth(): UseAuthReturn {
           try {
             sessionStorage.removeItem('referralCode')
             sessionStorage.removeItem('referralCodeTimestamp')
-          } catch {
-            // Ignore errors
+          } catch (error) {
+            // Silently handle errors - sessionStorage may not be available
+            logger.debug('Error clearing referral code after onboarding:', error, 'useAuth')
           }
           logger.info('Onboarding complete!', {
             tokenId: result.tokenId,
@@ -237,10 +237,17 @@ export function useAuth(): UseAuthReturn {
           }, 'useAuth')
 
           // Show success notification (optional, requires toast library)
-          if (typeof window !== 'undefined' && (window as any).toast) {
-            (window as any).toast.success(
-              `Welcome! You've received ${result.points} points and NFT #${result.tokenId}`
-            )
+          if (typeof window !== 'undefined') {
+            const windowWithToast = window as typeof window & {
+              toast?: {
+                success: (message: string) => void
+              }
+            }
+            if (windowWithToast.toast) {
+              windowWithToast.toast.success(
+                `Welcome! You've received ${result.points} points and NFT #${result.tokenId}`
+              )
+            }
           }
         } else {
           // Don't log as error if it's just "user not found" - that's expected for new users
@@ -268,8 +275,9 @@ export function useAuth(): UseAuthReturn {
         if (!token) return
 
         // Check for Farcaster connection
-        if ((user as any).farcaster) {
-          const farcaster = (user as any).farcaster
+        const userWithFarcaster = user as User & { farcaster?: { username?: string; displayName?: string } }
+        if (userWithFarcaster.farcaster) {
+          const farcaster = userWithFarcaster.farcaster
           try {
             await fetch(`/api/users/${user.id}/link-social`, {
               method: 'POST',
@@ -289,8 +297,9 @@ export function useAuth(): UseAuthReturn {
         }
 
         // Check for Twitter/X connection
-        if ((user as any).twitter) {
-          const twitter = (user as any).twitter
+        const userWithTwitter = user as User & { twitter?: { username?: string } }
+        if (userWithTwitter.twitter) {
+          const twitter = userWithTwitter.twitter
           try {
             await fetch(`/api/users/${user.id}/link-social`, {
               method: 'POST',

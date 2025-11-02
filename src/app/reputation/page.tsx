@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { Award, TrendingUp, TrendingDown, Trophy, Target, Medal } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 
 interface ReputationStats {
   currentReputation: number
@@ -60,7 +61,7 @@ export default function ReputationPage() {
           }
         }
       } catch (error) {
-        console.error('Error fetching reputation:', error)
+        logger.error('Error fetching reputation:', error, 'ReputationPage')
       } finally {
         setLoading(false)
       }

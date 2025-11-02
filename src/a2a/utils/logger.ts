@@ -3,13 +3,15 @@
  * Structured logging with configurable levels
  */
 
+import type { LogData } from '@/types/common'
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 interface LogEntry {
   timestamp: string
   level: LogLevel
   message: string
-  data?: unknown
+  data?: LogData
 }
 
 export class Logger {
@@ -34,7 +36,7 @@ export class Logger {
     return `[${entry.timestamp}] [${entry.level.toUpperCase()}] ${entry.message}${dataStr}`
   }
 
-  private log(level: LogLevel, message: string, data?: unknown): void {
+  private log(level: LogLevel, message: string, data?: LogData): void {
     if (!this.shouldLog(level)) return
 
     const entry: LogEntry = {
@@ -63,19 +65,19 @@ export class Logger {
     }
   }
 
-  debug(message: string, data?: unknown): void {
+  debug(message: string, data?: LogData): void {
     this.log('debug', message, data)
   }
 
-  info(message: string, data?: unknown): void {
+  info(message: string, data?: LogData): void {
     this.log('info', message, data)
   }
 
-  warn(message: string, data?: unknown): void {
+  warn(message: string, data?: LogData): void {
     this.log('warn', message, data)
   }
 
-  error(message: string, data?: unknown): void {
+  error(message: string, data?: LogData): void {
     this.log('error', message, data)
   }
 

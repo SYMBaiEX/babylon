@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * API Route: /api/markets/predictions/[id]/buy
  * Methods: POST (buy YES or NO shares in prediction market)
@@ -94,7 +93,27 @@ export async function POST(
       logger.info('Step 4b: Market not found, looking for question', { marketId }, 'POST /api/markets/predictions/[id]/buy');
       
       // Try to find by ID first (most common case after API update)
-      let question = await (prisma as any).question.findUnique({
+      // Note: Question model may not be in Prisma Client types, but exists in schema
+      const questionModel = prisma as typeof prisma & {
+        question: {
+          findUnique: (args: { where: { id: string } }) => Promise<{
+            id: string
+            questionNumber: number
+            text: string
+            status: string
+            resolutionDate: Date
+          } | null>
+          findMany: (args: { where: { questionNumber: number }; orderBy: { createdDate: 'desc' }; take: number }) => Promise<Array<{
+            id: string
+            questionNumber: number
+            text: string
+            status: string
+            resolutionDate: Date
+          }>>
+        }
+      }
+      
+      let question = await questionModel.question.findUnique({
         where: { id: marketId },
       });
       logger.info('Step 4c: Question by ID lookup', { found: !!question }, 'POST /api/markets/predictions/[id]/buy');
@@ -102,7 +121,7 @@ export async function POST(
       // If not found by ID and marketId looks like a number, try questionNumber
       if (!question && !isNaN(Number(marketId))) {
         logger.info('Step 4d: Trying question by number', { questionNumber: parseInt(marketId, 10) }, 'POST /api/markets/predictions/[id]/buy');
-        const questions = await (prisma as any).question.findMany({
+        const questions = await questionModel.question.findMany({
           where: { questionNumber: parseInt(marketId, 10) },
           orderBy: { createdDate: 'desc' },
           take: 1,

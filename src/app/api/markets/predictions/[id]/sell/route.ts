@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * API Route: /api/markets/predictions/[id]/sell
  * Methods: POST (sell YES or NO shares in prediction market)
@@ -54,13 +53,33 @@ export async function POST(
     // API now returns question.id, but also support questionNumber for backwards compatibility
     if (!market) {
       // Try to find by ID first (most common case after API update)
-      let question = await (prisma as any).question.findUnique({
+      // Note: Question model may not be in Prisma Client types, but exists in schema
+      const questionModel = prisma as typeof prisma & {
+        question: {
+          findUnique: (args: { where: { id: string } }) => Promise<{
+            id: string
+            questionNumber: number
+            text: string
+            status: string
+            resolutionDate: Date
+          } | null>
+          findMany: (args: { where: { questionNumber: number }; orderBy: { createdDate: 'desc' }; take: number }) => Promise<Array<{
+            id: string
+            questionNumber: number
+            text: string
+            status: string
+            resolutionDate: Date
+          }>>
+        }
+      }
+      
+      let question = await questionModel.question.findUnique({
         where: { id: marketId },
       });
       
       // If not found by ID and marketId looks like a number, try questionNumber
       if (!question && !isNaN(Number(marketId))) {
-        const questions = await (prisma as any).question.findMany({
+        const questions = await questionModel.question.findMany({
           where: { questionNumber: parseInt(marketId, 10) },
           orderBy: { createdDate: 'desc' },
           take: 1,

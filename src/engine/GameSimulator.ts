@@ -9,6 +9,7 @@
 
 import { EventEmitter } from 'events';
 import { v4 as uuid } from 'uuid';
+import type { JsonValue } from '@/types/common';
 
 /**
  * Game configuration for simulation
@@ -79,7 +80,7 @@ export type GameEventData =
   | MarketState  // market:updated
   | { outcome: boolean }  // outcome:revealed
   | { outcome: boolean; winners: string[] }  // game:ended
-  | Record<string, unknown>;  // fallback for any other data
+  | Record<string, JsonValue>;  // fallback for any other data
 
 /**
  * Single game event

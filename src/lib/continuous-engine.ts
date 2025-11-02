@@ -20,6 +20,8 @@ import { QuestionManager } from '@/engine/QuestionManager';
 import { logger } from './logger';
 import { NPCTradingService } from './npc-trading-service';
 import { PoolPerformanceService } from './pool-performance-service';
+import { PrismaClient } from '@prisma/client';
+import type { JsonValue } from '@/types/common';
 
 export class ContinuousEngine {
   private llm: BabylonLLMClient;
@@ -153,7 +155,11 @@ export class ContinuousEngine {
               day,
               type: e.eventType as WorldEvent['type'],
               actors: Array.isArray(e.actors) ? e.actors : [],
-              description: typeof e.description === 'string' ? e.description : (typeof e.description === 'object' && e.description !== null && 'text' in e.description && typeof (e.description as { text?: unknown }).text === 'string' ? (e.description as { text: string }).text : ''),
+              description: typeof e.description === 'string' 
+                ? e.description 
+                : (typeof e.description === 'object' && e.description !== null && 'text' in e.description && typeof (e.description as { text?: JsonValue }).text === 'string' 
+                  ? (e.description as { text: string }).text 
+                  : ''),
               relatedQuestion: e.relatedQuestion || undefined,
               pointsToward: (e.pointsToward === 'YES' || e.pointsToward === 'NO') ? e.pointsToward : null,
               visibility: e.visibility as WorldEvent['visibility'],
@@ -349,8 +355,8 @@ export class ContinuousEngine {
       const questions = await db.getActiveQuestions();
       
       // Fetch market data for each question
-      const prisma = (await import('@prisma/client')).PrismaClient;
-      const client = new prisma();
+      // Create a separate Prisma client instance for this operation to ensure proper cleanup
+      const client = new PrismaClient();
       
       try {
         const predictionMarkets = await Promise.all(

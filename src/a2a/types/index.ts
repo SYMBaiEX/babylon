@@ -284,7 +284,7 @@ export interface A2AClientConfig {
 // Event Types
 export interface A2AEvent {
   type: string
-  data: unknown
+  data: JsonValue | Record<string, JsonValue>
   timestamp: number
 }
 

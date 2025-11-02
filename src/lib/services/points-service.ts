@@ -7,6 +7,7 @@
 
 import { PrismaClient } from '@prisma/client'
 import { logger } from '@/lib/logger'
+import type { JsonValue } from '@/types/common'
 
 const prisma = new PrismaClient()
 
@@ -54,7 +55,7 @@ export class PointsService {
     userId: string,
     amount: number,
     reason: PointsReason,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, JsonValue>
   ): Promise<AwardPointsResult> {
     try {
       // Get current user state
@@ -95,7 +96,7 @@ export class PointsService {
       const pointsAfter = pointsBefore + amount
 
       // Update user points and tracking flags in a transaction
-      const updateData: Record<string, unknown> = {
+      const updateData: Record<string, JsonValue> = {
         reputationPoints: pointsAfter,
       }
 

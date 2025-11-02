@@ -11,6 +11,7 @@ import { PageContainer } from '@/components/shared/PageContainer'
 import { Avatar } from '@/components/shared/Avatar'
 import { Separator } from '@/components/shared/Separator'
 import { cn } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 
 interface Chat {
   id: string
@@ -113,7 +114,7 @@ export default function ChatsPage() {
         setGroupChats(data.chats || [])
       }
     } catch (error) {
-      console.error('Error loading chats:', error)
+      logger.error('Error loading chats:', error, 'ChatsPage')
     } finally {
       setLoading(false)
     }
@@ -136,7 +137,7 @@ export default function ChatsPage() {
         setChatDetails(data)
       }
     } catch (error) {
-      console.error('Error loading chat details:', error)
+      logger.error('Error loading chat details:', error, 'ChatsPage')
     } finally {
       setLoadingChat(false)
     }

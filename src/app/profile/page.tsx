@@ -4,6 +4,7 @@ import { LoginButton } from '@/components/auth/LoginButton'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
+import { logger } from '@/lib/logger'
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal'
 import { 
   AlertCircle, 
@@ -276,7 +277,7 @@ export default function ProfilePage() {
         })
       }
     } catch (error) {
-      console.error('Error updating visibility:', error)
+      logger.error('Error updating visibility:', error, 'ProfilePage')
       setSaveError('Failed to update visibility preference')
       setTimeout(() => setSaveError(null), 3000)
     }

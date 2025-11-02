@@ -1,6 +1,7 @@
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logger } from '@/lib/logger';
 
 /**
  * GET /api/pools/deposits/[userId]
@@ -85,8 +86,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error('Error fetching user pool deposits:', error);
+    logger.error('Error fetching user pool deposits:', error, 'GET /api/pools/deposits/[userId]')
     return NextResponse.json(
       { error: 'Failed to fetch deposits' },
       { status: 500 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
@@ -274,9 +273,9 @@ export default function ActorProfilePage() {
           <div className="max-w-[600px] mx-auto">
             {/* Cover Image */}
             <div className="relative h-32 sm:h-48 bg-gradient-to-br from-primary/20 to-primary/5">
-              {actorInfo.isUser && actorInfo.type === 'user' && (actorInfo as any).coverImageUrl ? (
+              {actorInfo.isUser && actorInfo.type === 'user' && 'coverImageUrl' in actorInfo && actorInfo.coverImageUrl ? (
                 <img
-                  src={(actorInfo as any).coverImageUrl}
+                  src={actorInfo.coverImageUrl}
                   alt="Cover"
                   className="w-full h-full object-cover"
                 />

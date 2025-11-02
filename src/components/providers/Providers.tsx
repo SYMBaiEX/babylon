@@ -1,6 +1,6 @@
 'use client'
 
-import { PrivyProvider } from '@privy-io/react-auth'
+import { PrivyProvider, type PrivyClientConfig } from '@privy-io/react-auth'
 import { WagmiProvider } from '@privy-io/wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState, useEffect, Fragment, useMemo, Suspense } from 'react'
@@ -88,8 +88,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             <GamePlaybackManager />
             <PrivyProvider
               appId={privyConfig.appId}
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              config={privyConfig.config as any}
+              config={privyConfig.config as PrivyClientConfig}
             >
               <WagmiProvider config={wagmiConfig}>
                 {/* Capture referral code from URL if present */}

@@ -3,7 +3,7 @@
  * Uses MinIO for local development and Vercel Blob for production deployments
  */
 
-import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, DeleteObjectCommand, CreateBucketCommand, PutBucketPolicyCommand } from '@aws-sdk/client-s3'
 import { Upload } from '@aws-sdk/lib-storage'
 import { put as vercelBlobPut, del as vercelBlobDel } from '@vercel/blob'
 import sharp from 'sharp'
@@ -243,14 +243,12 @@ class S3StorageClient {
       }
 
       // Try to create bucket (will fail if exists, which is fine)
-      const { CreateBucketCommand, PutBucketPolicyCommand } = await import('@aws-sdk/client-s3')
-      
       try {
         await this.client.send(new CreateBucketCommand({ Bucket: this.bucket }))
         logger.info(`Created bucket: ${this.bucket}`)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } catch (error: any) {
-        if (error.name === 'BucketAlreadyOwnedByYou' || error.name === 'BucketAlreadyExists') {
+      } catch (error) {
+        const bucketError = error as { name?: string; message?: string }
+        if (bucketError.name === 'BucketAlreadyOwnedByYou' || bucketError.name === 'BucketAlreadyExists') {
           logger.info(`Bucket already exists: ${this.bucket}`)
         } else {
           throw error

@@ -3,13 +3,15 @@
  * Production-ready logging with configurable levels and environment awareness
  */
 
+import type { LogData } from '@/types/common'
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 interface LogEntry {
   timestamp: string
   level: LogLevel
   message: string
-  data?: unknown
+  data?: LogData
   context?: string
 }
 
@@ -43,7 +45,7 @@ class Logger {
     return `[${entry.timestamp}] ${contextStr} [${entry.level.toUpperCase()}] ${entry.message}${dataStr}`
   }
 
-  private log(level: LogLevel, message: string, data?: unknown, context?: string): void {
+  private log(level: LogLevel, message: string, data?: LogData, context?: string): void {
     if (!this.shouldLog(level)) return
 
     const entry: LogEntry = {
@@ -75,19 +77,19 @@ class Logger {
     }
   }
 
-  debug(message: string, data?: unknown, context?: string): void {
+  debug(message: string, data?: LogData, context?: string): void {
     this.log('debug', message, data, context)
   }
 
-  info(message: string, data?: unknown, context?: string): void {
+  info(message: string, data?: LogData, context?: string): void {
     this.log('info', message, data, context)
   }
 
-  warn(message: string, data?: unknown, context?: string): void {
+  warn(message: string, data?: LogData, context?: string): void {
     this.log('warn', message, data, context)
   }
 
-  error(message: string, data?: unknown, context?: string): void {
+  error(message: string, data?: LogData, context?: string): void {
     this.log('error', message, data, context)
   }
 

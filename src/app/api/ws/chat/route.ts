@@ -6,6 +6,7 @@ import { parse } from 'url'
 import { PrismaClient } from '@prisma/client'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { logger } from '@/lib/logger'
+import type { JsonValue } from '@/types/common'
 
 const prisma = new PrismaClient()
 
@@ -29,7 +30,7 @@ interface WebSocketMessage {
   data?: {
     chatId?: string
     message?: ChatMessage
-    [key: string]: unknown
+    [key: string]: JsonValue
   }
   error?: string
 }

@@ -10,20 +10,25 @@ import { PrivyClient } from '@privy-io/server-auth';
 import { verifyAgentSession } from '@/app/api/agents/auth/route';
 import { logger } from '@/lib/logger';
 
+import type { ErrorLike, JsonValue } from '@/types/common'
+
 // Define error types locally since they were not in a shared file
 export type AuthenticationError = Error & {
   code: 'AUTH_FAILED';
 };
 
-export function extractErrorMessage(error: unknown): string {
+export function extractErrorMessage(error: Error | ErrorLike | string | unknown): string {
   if (error instanceof Error) {
     return error.message;
   }
-  if (typeof error === 'object' && error !== null && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
-    return (error as { message: string }).message;
-  }
   if (typeof error === 'string') {
     return error;
+  }
+  if (error && typeof error === 'object' && 'message' in error) {
+    const errorLike = error as ErrorLike
+    if (typeof errorLike.message === 'string') {
+      return errorLike.message;
+    }
   }
   return 'An unknown error occurred';
 }
@@ -118,6 +123,6 @@ export function errorResponse(message: string, status: number = 500) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export function successResponse<T = unknown>(data: T, status: number = 200) {
+export function successResponse<T = JsonValue>(data: T, status: number = 200) {
   return NextResponse.json(data, { status });
 }

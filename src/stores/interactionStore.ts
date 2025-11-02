@@ -540,11 +540,15 @@ export const useInteractionStore = create<InteractionStore>()(
         favoritedProfiles: Array.from(state.favoritedProfiles),
       }),
       // Custom deserialization to convert arrays back to Maps and Sets
-      merge: (persistedState: unknown, currentState: InteractionStore) => {
-        const persisted = persistedState as {
-          postInteractions?: Array<[string, PostInteraction]>;
-          commentInteractions?: Array<[string, CommentInteraction]>;
-          favoritedProfiles?: string[];
+      merge: (persistedState: {
+        postInteractions?: Array<[string, PostInteraction]>;
+        commentInteractions?: Array<[string, CommentInteraction]>;
+        favoritedProfiles?: string[];
+      } | null | undefined, currentState: InteractionStore) => {
+        const persisted = persistedState || {
+          postInteractions: undefined,
+          commentInteractions: undefined,
+          favoritedProfiles: undefined,
         };
 
         return {

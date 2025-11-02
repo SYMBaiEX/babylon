@@ -19,11 +19,12 @@ interface ChatMessage {
 }
 
 // Global shared socket to avoid multiple connections (React StrictMode / re-mounts)
-interface GlobalSocket {
+// Type-safe global socket access
+interface GlobalSocketType {
   [SOCKET_KEY]?: WebSocket | null
   [SUBSCRIBERS_KEY]?: number
 }
-const getGlobal = (): GlobalSocket => (globalThis as unknown as GlobalSocket)
+const getGlobal = (): GlobalSocketType => (globalThis as typeof globalThis & GlobalSocketType)
 const SOCKET_KEY = '__babylon_chat_socket__'
 const SUBSCRIBERS_KEY = '__babylon_chat_socket_subscribers__'
 
@@ -273,20 +274,37 @@ export function useChatMessages(chatId: string | null) {
         const message: WebSocketMessage = JSON.parse(event.data)
         
         if (message.type === 'new_message' && message.data) {
-          const newMessage = message.data as unknown as ChatMessage
-          
-          // Only add message if it's for the current chat
-          if (newMessage.chatId === chatId) {
-            setIsLoading(false); // Mark as loaded when message arrives
-            setMessages(prev => {
-              // Avoid duplicates
-              if (prev.some(msg => msg.id === newMessage.id)) {
-                return prev
-              }
-              return [...prev, newMessage].sort((a, b) => 
-                new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-              )
-            })
+          // Type guard for ChatMessage
+          const messageData = message.data as Record<string, unknown>
+          if (
+            typeof messageData.id === 'string' &&
+            typeof messageData.content === 'string' &&
+            typeof messageData.chatId === 'string' &&
+            typeof messageData.senderId === 'string' &&
+            typeof messageData.createdAt === 'string'
+          ) {
+            const newMessage: ChatMessage = {
+              id: messageData.id,
+              content: messageData.content,
+              chatId: messageData.chatId,
+              senderId: messageData.senderId,
+              createdAt: messageData.createdAt,
+              isGameChat: typeof messageData.isGameChat === 'boolean' ? messageData.isGameChat : undefined,
+            }
+            
+            // Only add message if it's for the current chat
+            if (newMessage.chatId === chatId) {
+              setIsLoading(false); // Mark as loaded when message arrives
+              setMessages(prev => {
+                // Avoid duplicates
+                if (prev.some(msg => msg.id === newMessage.id)) {
+                  return prev
+                }
+                return [...prev, newMessage].sort((a, b) => 
+                  new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                )
+              })
+            }
           }
         }
       } catch (parseError) {

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Search, Shield, TrendingUp, User, ExternalLink, Filter } from 'lucide-react'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { cn } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 
 interface RegistryUser {
   id: string
@@ -68,7 +69,7 @@ export default function RegistryPage() {
         setTotalCount(data.pagination.total)
       }
     } catch (error) {
-      console.error('Error fetching registry:', error)
+      logger.error('Error fetching registry:', error, 'RegistryPage')
     } finally {
       setLoading(false)
     }

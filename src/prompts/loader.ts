@@ -7,6 +7,7 @@
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import type { JsonValue } from '@/types/common';
 
 interface PromptMetadata {
   id: string;
@@ -80,7 +81,7 @@ export function loadPromptTemplate(path: string): LoadedPrompt {
  * @param variables - Variables to substitute in template
  * @returns Rendered prompt string
  */
-export function loadPrompt(path: string, variables: Record<string, unknown> = {}): string {
+export function loadPrompt(path: string, variables: Record<string, JsonValue> = {}): string {
   const { template } = loadPromptTemplate(path);
 
   // Simple variable substitution: {{variableName}}

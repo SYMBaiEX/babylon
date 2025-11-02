@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
@@ -82,9 +81,9 @@ export default function FeedPage() {
       try {
         const response = await fetch('/data/actors.json')
         if (response.ok) {
-          const data = await response.json()
-          const nameMap = new Map()
-          data.actors?.forEach((actor: any) => {
+          const data = await response.json() as { actors?: Array<{ id: string; name: string }> }
+          const nameMap = new Map<string, string>()
+          data.actors?.forEach((actor) => {
             nameMap.set(actor.id, actor.name)
           })
           setActorNames(nameMap)
@@ -272,7 +271,10 @@ export default function FeedPage() {
     return items
       .filter((p) => p.timestampMs <= currentAbs)
       .sort((a, b) => b.timestampMs - a.timestampMs)
-      .map(({ timestampMs: _, ...rest }) => rest)
+      .map(({ timestampMs: _timestampMs, ...rest }) => {
+        // Explicitly exclude timestampMs from the result
+        return rest
+      })
   }, [allGames, startTime, currentDate, currentTimeMs])
 
   // Choose data source: timeline (if available) else API posts
@@ -414,7 +416,7 @@ export default function FeedPage() {
         ) : (
           // Show posts - Twitter-like layout
           <div className="w-full max-w-[600px] mx-auto">
-            {filteredPosts.map((post: any, i: number) => {
+            {filteredPosts.map((post: FeedPost, i: number) => {
               // Fix author mapping: use authorId if author is null
               const authorId = post.author || post.authorId
               // Get actual actor name from loaded data, fallback to authorName or ID

@@ -16,6 +16,7 @@ import { AgentRegistry } from '../agents/AgentRegistry';
 import type { Question } from '@/shared/types';
 import type { CoalitionProposal } from '../a2a/types';
 import { logger } from '@/lib/logger';
+import type { JsonValue } from '@/types/common';
 
 interface CLIOptions {
   count?: number;
@@ -116,7 +117,7 @@ async function main() {
       logger.info(`${config.name} connected`, { agentId: data.agentId }, 'CLI');
     });
 
-    agent.on('marketUpdate', (data: { questions: Question[]; priceUpdates?: unknown[]; timestamp?: number }) => {
+    agent.on('marketUpdate', (data: { questions: Question[]; priceUpdates?: Array<Record<string, JsonValue>>; timestamp?: number }) => {
       logger.info(`${config.name} received market update`, { activeQuestions: data.questions.length }, 'CLI');
     });
 

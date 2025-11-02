@@ -40,7 +40,31 @@ function buildCommentTree(
     reactions: Array<{ id: string }>;
   }>,
   parentId: string | null = null
-): unknown[] {
+): Array<{
+  id: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+  userId: string;
+  userName: string;
+  userAvatar: string | null;
+  parentCommentId: string | null;
+  likeCount: number;
+  isLiked: boolean;
+  replies: Array<{
+    id: string;
+    content: string;
+    createdAt: Date;
+    updatedAt: Date;
+    userId: string;
+    userName: string;
+    userAvatar: string | null;
+    parentCommentId: string | null;
+    likeCount: number;
+    isLiked: boolean;
+    replies: Array<never>;
+  }>;
+}> {
   return comments
     .filter((comment) => comment.parentCommentId === parentId)
     .map((comment) => ({

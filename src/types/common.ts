@@ -21,6 +21,22 @@ export type JsonValue =
 export type StringRecord<T = JsonValue> = Record<string, T>;
 
 /**
+ * Log data payload - structured data for logging
+ */
+export type LogData = JsonValue | StringRecord | Error | { [key: string]: JsonValue };
+
+/**
+ * Error-like object that may have a message property
+ */
+export interface ErrorLike {
+  message?: string;
+  name?: string;
+  stack?: string;
+  code?: string | number;
+  [key: string]: JsonValue | undefined;
+}
+
+/**
  * Parameters for JSON-RPC requests
  */
 export type JsonRpcParams = StringRecord<JsonValue> | JsonValue[];

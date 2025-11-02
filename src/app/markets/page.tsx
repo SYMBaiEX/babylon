@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
@@ -121,21 +120,18 @@ export default function MarketsPage() {
         
         // Debug logging
         logger.info(`Loaded positions: ${perpPos.length} perps, ${predPos.length} predictions`, 
-          { perpCount: perpPos.length, predCount: predPos.length, userId: user.id }, 
+          { 
+            perpCount: perpPos.length, 
+            predCount: predPos.length, 
+            userId: user.id,
+            predictionDetails: predPos.map((p: { question?: string; side?: string; shares?: number }) => ({
+              question: p.question,
+              side: p.side,
+              shares: p.shares,
+            }))
+          }, 
           'MarketsPage'
         )
-        
-        // Console log for immediate visibility
-        console.log('🎯 POSITIONS LOADED:', {
-          perpetuals: perpPos.length,
-          predictions: predPos.length,
-          userId: user.id,
-          predictionDetails: predPos.map((p: any) => ({
-            question: p.question,
-            side: p.side,
-            shares: p.shares,
-          }))
-        })
       }
       
       // Trigger balance refresh after data fetch (after trades)
@@ -610,7 +606,7 @@ export default function MarketsPage() {
 
       {selectedPrediction && (
         <PredictionTradingModal
-          question={selectedPrediction as any}
+          question={selectedPrediction}
           isOpen={predictionModalOpen}
           onClose={() => setPredictionModalOpen(false)}
           onSuccess={fetchData}

@@ -112,7 +112,7 @@ export async function POST(
             timestamp: timestamp || new Date(),
           },
         });
-      } catch (error: unknown) {
+      } catch (error) {
         // If creation fails (e.g., duplicate, validation error), try to fetch again
         logger.error('Error creating post for like:', error, 'POST /api/posts/[id]/like');
         

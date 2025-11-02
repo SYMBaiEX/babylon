@@ -3,6 +3,7 @@
  */
 
 import { logger } from './logger';
+import type { ErrorLike } from '@/types/common';
 
 export interface RetryOptions {
   maxAttempts?: number;
@@ -66,7 +67,7 @@ export async function retryWithBackoff<T>(
 /**
  * Check if an error is retryable (network errors, 5xx status codes)
  */
-export function isRetryableError(error: unknown): boolean {
+export function isRetryableError(error: Error | ErrorLike): boolean {
   if (!(error instanceof Error)) return false;
   
   const message = error.message.toLowerCase();

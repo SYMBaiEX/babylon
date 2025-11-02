@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Activity } from 'lucide-react'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { cn } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 
 interface GameStats {
   totalPosts: number
@@ -38,7 +39,7 @@ export default function GamePage() {
       setEngineStatus(data.engineStatus)
       setError(null)
     } catch (err) {
-      console.error('Failed to load game data:', err)
+      logger.error('Failed to load game data:', err, 'GamePage')
       setError('Failed to load game status')
     } finally {
       setLoading(false)

@@ -927,7 +927,7 @@ Otherwise, start fresh.`;
     selectedActors.supporting.forEach((supporting: SelectedActor, i: number) => {
       const numConnections = 2 + Math.floor(Math.random() * 2); // 2-3 connections
       const potentials = selectedActors.supporting
-        .filter((_: SelectedActor, idx: number) => idx !== i)
+        .filter((supportingActor: SelectedActor, idx: number) => idx !== i)
         .filter((other: SelectedActor) => 
           !connections.some(c => 
             (c.actor1 === supporting.id && c.actor2 === other.id) ||
