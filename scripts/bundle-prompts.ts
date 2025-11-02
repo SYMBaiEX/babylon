@@ -71,7 +71,7 @@ function walkDirectory(dir: string, baseDir: string, bundle: PromptBundle): void
     
     if (stat.isDirectory()) {
       walkDirectory(fullPath, baseDir, bundle);
-    } else if (file.endsWith('.md')) {
+    } else if (file.endsWith('.md') && file !== 'README.md') {
       const relativePath = fullPath
         .replace(baseDir + '/', '')
         .replace(/\.md$/, '');

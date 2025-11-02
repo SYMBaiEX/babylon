@@ -53,9 +53,13 @@ interface WebSocketMessage {
   error?: string
 }
 
+// Type for WebSocketServer to avoid static import
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type WebSocketServerType = any
+
 // Use global to survive hot module reloading in development
 declare global {
-  var wss: any | undefined // WebSocketServer type, but avoiding static import
+  var wss: WebSocketServerType | undefined
   var wsClients: Map<string, AuthenticatedWebSocket> | undefined
   var wsChatRooms: Map<string, Set<string>> | undefined
   var wsChannels: Map<string, Set<string>> | undefined
@@ -67,7 +71,7 @@ let wss = global.wss || null
 const clients = global.wsClients || new Map<string, AuthenticatedWebSocket>()
 const chatRooms = global.wsChatRooms || new Map<string, Set<string>>()
 const channels = global.wsChannels || new Map<string, Set<string>>() // channel -> Set of userIds
-const serverInitializationPromise: Promise<any> | null = null // WebSocketServer type
+const serverInitializationPromise: Promise<WebSocketServerType> | null = null
 let serverInitializationError = global.wsServerInitError || null
 
 // Store in global for persistence
@@ -92,6 +96,7 @@ function initializeWebSocketServer() {
 
   try {
     // Dynamic import to avoid bundling ws on Vercel
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { WebSocketServer: WSS } = require('ws')
     
     wss = new WSS({
@@ -190,7 +195,7 @@ function initializeWebSocketServer() {
 
     // Set up ping interval to keep connections alive
     const pingInterval = setInterval(() => {
-      wss?.clients.forEach((client: any) => {
+      wss?.clients.forEach((client: unknown) => {
         const ws = client as AuthenticatedWebSocket;
         if (!ws.isAlive) {
           ws.terminate()

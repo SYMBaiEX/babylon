@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Search, TrendingUp, TrendingDown, Clock } from 'lucide-react'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { WalletBalance } from '@/components/shared/WalletBalance'
@@ -18,7 +18,6 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { logger } from '@/lib/logger'
 import { useChannelSubscription } from '@/hooks/useChannelSubscription'
-import { useCallback } from 'react'
 import type { PerpPosition } from '@/shared/perps-types'
 
 interface PredictionPosition {
@@ -93,7 +92,6 @@ export default function MarketsPage() {
   const { user, authenticated, login } = useAuth()
   const [activeTab, setActiveTab] = useState<MarketTab>('dashboard')
   const [searchQuery, setSearchQuery] = useState('')
-  const [topPools, _setTopPools] = useState<Pool[]>([])
   
   // Modals
   const [perpModalOpen, setPerpModalOpen] = useState(false)
@@ -119,6 +117,7 @@ export default function MarketsPage() {
   const [predictionPositions, setPredictionPositions] = useState<PredictionPosition[]>([])
   const [loading, setLoading] = useState(true)
   const [balanceRefreshTrigger, setBalanceRefreshTrigger] = useState(0)
+  const [topPools, setTopPools] = useState<Pool[]>([])
 
   // Use refs to store latest values to break dependency chains
   const fetchDataRef = useRef<(() => Promise<void>) | undefined>(undefined)
@@ -139,16 +138,26 @@ export default function MarketsPage() {
       const isAuth = authenticatedRef.current
       const userId = userIdRef.current
       
-      const [perpsRes, predictionsRes] = await Promise.all([
+      const [perpsRes, predictionsRes, poolsRes] = await Promise.all([
         fetch('/api/markets/perps'),
         fetch(`/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`),
+        fetch('/api/pools'),
       ])
 
       const perpsData = await perpsRes.json()
       const predictionsData = await predictionsRes.json()
+      const poolsData = await poolsRes.json()
 
       setPerpMarkets(perpsData.markets || [])
       setPredictions(predictionsData.questions || [])
+      
+      // Get top 6 pools by return percentage
+      const pools = poolsData.pools || []
+      const sortedPools = [...pools]
+        .filter((p: Pool) => p.totalDeposits > 0) // Only pools with deposits
+        .sort((a: Pool, b: Pool) => b.returnPercent - a.returnPercent)
+        .slice(0, 6)
+      setTopPools(sortedPools)
 
       if (isAuth && userId) {
         const positionsRes = await fetch(`/api/markets/positions/${userId}`)
@@ -159,21 +168,6 @@ export default function MarketsPage() {
 
         setPerpPositions(perpPos)
         setPredictionPositions(predPos)
-
-        // Debug logging
-        logger.info(`Loaded positions: ${perpPos.length} perps, ${predPos.length} predictions`,
-          {
-            perpCount: perpPos.length,
-            predCount: predPos.length,
-            userId: userId,
-            predictionDetails: predPos.map((p: { question?: string; side?: string; shares?: number }) => ({
-              question: p.question,
-              side: p.side,
-              shares: p.shares,
-            }))
-          },
-          'MarketsPage'
-        )
       }
 
       // Trigger balance refresh after data fetch (after trades)
@@ -216,15 +210,11 @@ export default function MarketsPage() {
   }, [authenticated, user?.id, fetchData])
 
   // Subscribe to markets channel for real-time updates
-  // Use the ref to avoid dependency on fetchData which causes infinite loops
   const handleMarketsUpdate = useCallback((data: Record<string, unknown>) => {
     if (data.type === 'price_update' || data.type === 'new_questions') {
-      // Refresh markets when prices update or new questions are created
-      logger.debug('Markets update received, refreshing...', { type: data.type }, 'MarketsPage')
-      // Use the ref to call fetchData without creating a dependency
       fetchDataRef.current?.()
     }
-  }, []) // Empty dependency array - callback never changes
+  }, [])
 
   useChannelSubscription('markets', handleMarketsUpdate)
 

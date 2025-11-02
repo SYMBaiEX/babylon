@@ -137,7 +137,19 @@
     "ai-agent",
     "trading-bot"
   ],
+  "resolutions": {
+    "@eth-optimism/contracts": "npm:@eth-optimism/contracts@0.6.0",
+    "ethers": "6.15.0",
+    "zod": "4.1.12",
+    "lucide-react": "0.548.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  },
   "prisma": {
     "seed": "bun run prisma/seed.ts"
-  }
+  },
+  "trustedDependencies": [
+    "@arbitrum/nitro-contracts",
+    "unrs-resolver"
+  ]
 }

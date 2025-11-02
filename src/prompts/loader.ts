@@ -30,6 +30,7 @@ const promptCache = new Map<string, LoadedPrompt>();
 let bundledPrompts: Record<string, LoadedPrompt> | null = null;
 try {
   // This will be available in production builds after running bundle-prompts
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   bundledPrompts = require('./bundled-prompts.json');
 } catch {
   // In development or if bundle doesn't exist, we'll use fs fallback
@@ -57,7 +58,9 @@ export function loadPromptTemplate(path: string): LoadedPrompt {
 
   // Fallback to filesystem for local development
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { readFileSync } = require('fs');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { join } = require('path');
     
     const promptPath = join(process.cwd(), 'src', 'prompts', `${path}.md`);
