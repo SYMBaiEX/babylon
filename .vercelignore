@@ -5,13 +5,15 @@
 .env.local
 .env.development
 
-# Scripts (run locally, not on Vercel)
-scripts/
+# CLI tools (not needed at runtime)
 src/cli/
 
 # Game engine (runs as daemon, not serverless)
 games/babylon/
 games/realtime/
+
+# NOTE: scripts/ is NOT ignored - needed for prebuild script
+# The bundle-prompts.ts script must run during Vercel build
 
 # Test files
 tests/
