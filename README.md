@@ -416,7 +416,3 @@ No servers. No DevOps. Just code.
 - ✅ Profile system with onboarding
 
 **Just run `bun run dev` and start playing!** 🚀
-
----
-
-*Built with Next.js, Prisma, Privy, OpenAI, and ☕*

@@ -1,5 +1,3 @@
-#!/usr/bin/env bun
-
 /**
  * Babylon Game Daemon
  * 
@@ -12,8 +10,8 @@
  * - Does NOT auto-start ElizaOS agents (agents should be started separately)
  * 
  * Usage:
- *   bun run daemon              (start daemon)
- *   bun run daemon --verbose    (with detailed logging)
+ *   npm run daemon              (start daemon)
+ *   npm run daemon:verbose      (with detailed logging)
  * 
  * Environment Variables:
  *   AUTO_START_AGENTS=true      (default: false) - Auto-start agents on daemon launch (not recommended)
