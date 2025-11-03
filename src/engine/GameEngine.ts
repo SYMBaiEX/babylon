@@ -16,7 +16,7 @@
 import { EventEmitter } from 'events';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { Prisma } from '.prisma/client';
+import { Prisma } from '@prisma/client';
 import { FeedGenerator } from './FeedGenerator';
 import { QuestionManager } from './QuestionManager';
 import { PriceEngine } from './PriceEngine';

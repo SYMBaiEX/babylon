@@ -1,18 +1,9 @@
 {
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
-  "installCommand": "npm install",
+  "installCommand": "bun install",
   "framework": "nextjs",
   "regions": ["iad1"],
-  "env": {
-    "NODE_ENV": "production",
-    "NEXT_PUBLIC_CHAIN_ID": "84532"
-  },
-  "build": {
-    "env": {
-      "NEXT_PUBLIC_CHAIN_ID": "84532"
-    }
-  },
   "crons": [
     {
       "path": "/api/cron/game-tick",
