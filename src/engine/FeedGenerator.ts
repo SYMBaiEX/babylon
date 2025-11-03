@@ -67,6 +67,13 @@ interface CommentaryPost {
 }
 
 /**
+ * Commentary response from LLM
+ */
+interface CommentaryResponse {
+  commentary: CommentaryPost[];
+}
+
+/**
  * Conspiracy post from LLM
  */
 interface ConspiracyPost {
@@ -76,6 +83,25 @@ interface ConspiracyPost {
   clueStrength?: number;
   pointsToward?: boolean | null;
 }
+
+/**
+ * Conspiracy response format 1: Direct array
+ */
+interface ConspiracyResponseFormat1 {
+  conspiracy: ConspiracyPost[];
+}
+
+/**
+ * Conspiracy response format 2: Wrapped in data array
+ */
+interface ConspiracyResponseFormat2 {
+  data: Array<{ conspiracy: ConspiracyPost[] }>;
+}
+
+/**
+ * Conspiracy response union type
+ */
+type ConspiracyResponse = ConspiracyResponseFormat1 | ConspiracyResponseFormat2;
 
 /**
  * Feed Generator
@@ -577,7 +603,7 @@ export class FeedGenerator extends EventEmitter {
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ commentary: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> }>(
+      const response = await this.llm.generateJSON<CommentaryResponse>(
         prompt,
         undefined, // Don't validate schema to handle various response formats
         { temperature: 1.0, maxTokens: 5000 }
@@ -585,9 +611,9 @@ export class FeedGenerator extends EventEmitter {
 
       const commentary = Array.isArray(response.commentary) ? response.commentary : [];
       const validCommentary = commentary
-        .filter((c: unknown): c is CommentaryPost => {
+        .filter((c): c is CommentaryPost => {
           if (typeof c !== 'object' || c === null) return false;
-          const content = (c as CommentaryPost).post || (c as CommentaryPost).tweet;
+          const content = c.post || c.tweet;
           return content !== undefined && typeof content === 'string' && content.trim().length > 0;
         })
         .map((c: CommentaryPost) => ({
@@ -641,21 +667,21 @@ export class FeedGenerator extends EventEmitter {
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const rawResponse = await this.llm.generateJSON<{ conspiracy: ConspiracyPost[] } | { data: Array<{ conspiracy: ConspiracyPost[] }> }>(
+      const rawResponse = await this.llm.generateJSON<ConspiracyResponse>(
         prompt,
         undefined, // Don't validate schema, we'll handle both formats
         { temperature: 1.1, maxTokens: 5000 }
       );
 
-      // Handle both response formats
+      // Handle both response formats with proper type narrowing
       let conspiracy: ConspiracyPost[] = [];
       if ('conspiracy' in rawResponse && Array.isArray(rawResponse.conspiracy)) {
-        conspiracy = rawResponse.conspiracy as ConspiracyPost[];
-      } else if ('data' in rawResponse && Array.isArray(rawResponse.data) && rawResponse.data[0]?.conspiracy) {
-        // Unwrap from { data: [{ conspiracy: [...] }] }
-        conspiracy = rawResponse.data.flatMap((d: { conspiracy: ConspiracyPost[] }) => {
-          const conspiracyData = d.conspiracy
-          return Array.isArray(conspiracyData) ? (conspiracyData as ConspiracyPost[]) : []
+        // Format 1: Direct array
+        conspiracy = rawResponse.conspiracy;
+      } else if ('data' in rawResponse && Array.isArray(rawResponse.data)) {
+        // Format 2: Wrapped in data array
+        conspiracy = rawResponse.data.flatMap((d) => {
+          return Array.isArray(d.conspiracy) ? d.conspiracy : [];
         });
       }
 

@@ -11,7 +11,7 @@ export function PageContainer({ children, className, noPadding = false }: PageCo
   return (
     <div
       className={cn(
-        // Early 2000s Twitter: Sharp corners, simple boxy layout
+        // Early 2000s: Sharp corners, simple boxy layout
         'bg-background overflow-hidden',
         'h-full min-h-full w-full',
         // Desktop: Simple container - no wrapper padding, use full height

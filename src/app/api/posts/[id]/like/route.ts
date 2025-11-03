@@ -13,6 +13,7 @@ import {
 } from '@/lib/api/auth-middleware';
 import { notifyReactionOnPost } from '@/lib/services/notification-service';
 import { logger } from '@/lib/logger';
+import { parsePostId } from '@/lib/post-id-parser';
 
 const prisma = new PrismaClient();
 
@@ -56,79 +57,12 @@ export async function POST(
 
     // If post doesn't exist, try to auto-create it based on format
     if (!post) {
-      // Try multiple post ID formats
-      // Format 1: gameId-gameTimestamp-authorId-isoTimestamp (e.g., babylon-1761441310151-kash-patrol-2025-10-01T02:12:00Z)
-      // Format 2: post-{timestamp}-{random} (e.g., post-1762099655817-0.7781412938928327)
-      // Format 3: post-{timestamp}-{actorId}-{random} (e.g., post-1762099655817-kash-patrol-abc123)
-      // Format 4: game-{gameId}-{timestamp} (legacy format)
-
-      let gameId = 'babylon'; // default game
-      let authorId = 'system'; // default author for game-generated posts
-      let timestamp = new Date();
-
-      // Check Format 1: Has ISO timestamp at the end
-      const isoTimestampMatch = postId.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z)$/);
-
-      if (isoTimestampMatch && isoTimestampMatch[1]) {
-        // Format 1: gameId-gameTimestamp-authorId-isoTimestamp
-        const timestampStr = isoTimestampMatch[1];
-        timestamp = new Date(timestampStr);
-
-        // Extract gameId (first part before first hyphen)
-        const firstHyphenIndex = postId.indexOf('-');
-        if (firstHyphenIndex !== -1) {
-          gameId = postId.substring(0, firstHyphenIndex);
-
-          // Extract authorId (everything between second hyphen and the ISO timestamp)
-          const withoutGameId = postId.substring(firstHyphenIndex + 1);
-          const secondHyphenIndex = withoutGameId.indexOf('-');
-          if (secondHyphenIndex !== -1) {
-            const afterGameTimestamp = withoutGameId.substring(secondHyphenIndex + 1);
-            authorId = afterGameTimestamp.substring(0, afterGameTimestamp.lastIndexOf('-' + timestampStr));
-          }
-        }
-      } else if (postId.startsWith('post-')) {
-        // Format 2 or 3: GameEngine format
-        const parts = postId.split('-');
-
-        if (parts.length >= 3 && parts[1]) {
-          // Try to extract timestamp from second part
-          const timestampPart = parts[1];
-          const timestampNum = parseInt(timestampPart, 10);
-
-          if (!isNaN(timestampNum) && timestampNum > 1000000000000) {
-            // Valid timestamp (milliseconds since epoch)
-            timestamp = new Date(timestampNum);
-
-            // Check if third part looks like an actor ID (not a decimal)
-            if (parts.length >= 4 && parts[2] && !parts[2].includes('.')) {
-              // Format 3: post-{timestamp}-{actorId}-{random}
-              authorId = parts[2];
-            }
-            // Otherwise Format 2: post-{timestamp}-{random}
-            // Keep default authorId = 'system'
-          }
-        }
-      } else if (postId.startsWith('game-')) {
-        // Format 4: game-{gameId}-{timestamp} (legacy)
-        const parts = postId.split('-');
-        if (parts.length >= 3 && parts[1]) {
-          gameId = parts[1];
-          // Try to parse timestamp (could be ISO string or numeric)
-          const timestampPart = parts.slice(2).join('-');
-          const parsedDate = new Date(timestampPart);
-          if (!isNaN(parsedDate.getTime())) {
-            timestamp = parsedDate;
-          } else {
-            // Try numeric timestamp
-            const numericTimestamp = parseInt(timestampPart);
-            if (!isNaN(numericTimestamp)) {
-              timestamp = new Date(numericTimestamp);
-            }
-          }
-        }
-      } else {
-        // Unknown format, but still try to create a minimal post
+      // Parse post ID to extract metadata
+      const parseResult = parsePostId(postId);
+      const { gameId, authorId, timestamp } = parseResult.metadata;
+      
+      // Log warning if parsing failed (unknown format)
+      if (!parseResult.success) {
         logger.warn('Unknown post ID format for like:', { postId }, 'POST /api/posts/[id]/like');
       }
 

@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useGameStore } from '@/stores/gameStore'
 import { useAuthStore } from '@/stores/authStore'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { FeedToggle } from '@/components/shared/FeedToggle'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { SearchBar } from '@/components/shared/SearchBar'
@@ -11,7 +11,6 @@ import { PostCard } from '@/components/posts/PostCard'
 import { InviteFriendsBanner } from '@/components/shared/InviteFriendsBanner'
 import { WidgetSidebar } from '@/components/shared/WidgetSidebar'
 import { CreatePostModal } from '@/components/posts/CreatePostModal'
-import { CommentModal } from '@/components/interactions/CommentModal'
 import { cn } from '@/lib/utils'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
 import { useAuth } from '@/hooks/useAuth'
@@ -23,10 +22,19 @@ const PAGE_SIZE = 20
 
 export default function FeedPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { authenticated } = useAuth()
   const { user } = useAuthStore()
   const [tab, setTab] = useState<'latest' | 'following'>('latest')
   const [searchQuery, setSearchQuery] = useState('')
+  
+  // Read search query from URL params on mount
+  useEffect(() => {
+    const searchParam = searchParams.get('search')
+    if (searchParam) {
+      setSearchQuery(searchParam)
+    }
+  }, [searchParams])
   const [posts, setPosts] = useState<FeedPost[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -39,21 +47,10 @@ export default function FeedPage() {
   const [actorNames, setActorNames] = useState<Map<string, string>>(new Map())
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [commentModalOpen, setCommentModalOpen] = useState(false)
-  const [commentModalPost, setCommentModalPost] = useState<{
-    id: string
-    content: string
-    authorId: string
-    authorName: string
-    authorUsername?: string | null
-    authorProfileImageUrl?: string | null
-    timestamp: string
-    likeCount: number
-    commentCount: number
-    shareCount: number
-    isLiked: boolean
-    isShared: boolean
-  } | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [pullDistance, setPullDistance] = useState(0)
+  const touchStartY = useRef<number>(0)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   
   // Smart banner frequency based on user referrals
   const calculateBannerInterval = () => {
@@ -120,7 +117,7 @@ export default function FeedPage() {
     if (tab !== 'latest') return
 
     if (append) setLoadingMore(true)
-    else setLoading(true)
+    else if (!isRefreshing) setLoading(true)
 
     try {
       const response = await fetch(`/api/posts?limit=${PAGE_SIZE}&offset=${requestOffset}`)
@@ -177,9 +174,50 @@ export default function FeedPage() {
       if (append) setHasMore(false)
     } finally {
       if (append) setLoadingMore(false)
-      else setLoading(false)
+      else if (!isRefreshing) setLoading(false)
     }
-  }, [tab])
+  }, [tab, isRefreshing])
+
+  const handleRefresh = useCallback(async () => {
+    if (isRefreshing || tab !== 'latest') return
+    setIsRefreshing(true)
+    try {
+      await fetchLatestPosts(0, false)
+    } finally {
+      setIsRefreshing(false)
+      setPullDistance(0)
+    }
+  }, [isRefreshing, tab, fetchLatestPosts])
+
+  // Pull-to-refresh handlers
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    const container = scrollContainerRef.current
+    if (container && container.scrollTop === 0) {
+      touchStartY.current = e.touches[0]?.clientY ?? 0
+    }
+  }, [])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    const container = scrollContainerRef.current
+    if (!container || container.scrollTop > 0 || isRefreshing) return
+
+    const touchY = e.touches[0]?.clientY ?? 0
+    const distance = touchY - touchStartY.current
+
+    if (distance > 0 && distance < 150) {
+      setPullDistance(distance)
+    }
+  }, [isRefreshing])
+
+  const handleTouchEnd = useCallback(() => {
+    setPullDistance((currentDistance) => {
+      if (currentDistance > 80) {
+        handleRefresh()
+        return 0
+      }
+      return 0
+    })
+  }, [handleRefresh])
 
   // Initial load and reset when switching to latest tab
   useEffect(() => {
@@ -512,14 +550,14 @@ export default function FeedPage() {
                       content: post.content,
                       authorId,
                       authorName,
-                      authorUsername: ('authorUsername' in post ? post.authorUsername : null),
+                      authorUsername: ('authorUsername' in post ? post.authorUsername : null) || null,
                       authorProfileImageUrl: ('authorProfileImageUrl' in post ? post.authorProfileImageUrl : null),
                       timestamp: post.timestamp,
-                      likeCount: 0,
-                      commentCount: 0,
-                      shareCount: 0,
-                      isLiked: false,
-                      isShared: false,
+                      likeCount: ('likeCount' in post ? (post.likeCount as number) : 0) || 0,
+                      commentCount: ('commentCount' in post ? (post.commentCount as number) : 0) || 0,
+                      shareCount: ('shareCount' in post ? (post.shareCount as number) : 0) || 0,
+                      isLiked: ('isLiked' in post ? (post.isLiked as boolean) : false) || false,
+                      isShared: ('isShared' in post ? (post.isShared as boolean) : false) || false,
                     }
 
                     return (
@@ -527,10 +565,6 @@ export default function FeedPage() {
                         <PostCard
                           post={postData}
                           onClick={() => router.push(`/post/${post.id}`)}
-                          onCommentClick={() => {
-                            setCommentModalPost(postData)
-                            setCommentModalOpen(true)
-                          }}
                         />
                         {showBannerAfterThisPost && (
                           <InviteFriendsBanner 
@@ -569,7 +603,47 @@ export default function FeedPage() {
       </div>
 
       {/* Mobile/Tablet: Feed area (full width) */}
-      <div className="flex lg:hidden flex-1 overflow-y-auto overflow-x-hidden bg-background w-full">
+      <div 
+        ref={scrollContainerRef}
+        className="flex lg:hidden flex-1 overflow-y-auto overflow-x-hidden bg-background w-full relative"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Pull to refresh indicator */}
+        {pullDistance > 0 && (
+          <div 
+            className="absolute top-0 left-0 right-0 flex items-center justify-center transition-all duration-200 z-50"
+            style={{ 
+              height: `${pullDistance}px`,
+              opacity: Math.min(pullDistance / 80, 1)
+            }}
+          >
+            <div className={cn(
+              "flex flex-col items-center gap-1",
+              pullDistance > 80 ? "text-[#1c9cf0]" : "text-muted-foreground"
+            )}>
+              <div className={cn(
+                "transition-transform duration-200",
+                isRefreshing && "animate-spin"
+              )}>
+                {isRefreshing ? (
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
+                )}
+              </div>
+              <span className="text-xs font-medium">
+                {isRefreshing ? 'Refreshing...' : pullDistance > 80 ? 'Release to refresh' : 'Pull to refresh'}
+              </span>
+            </div>
+          </div>
+        )}
         {(loading || (tab === 'following' && loadingFollowing)) ? (
           <div className="w-full p-4 sm:p-8 text-center">
             <div className="text-muted-foreground py-12">
@@ -651,14 +725,13 @@ export default function FeedPage() {
                 content: post.content,
                 authorId,
                 authorName,
-                authorUsername: ('authorUsername' in post ? post.authorUsername : null),
-                authorProfileImageUrl: ('authorProfileImageUrl' in post ? post.authorProfileImageUrl : null),
+                authorUsername: ('authorUsername' in post ? post.authorUsername : null) || null,
                 timestamp: post.timestamp,
-                likeCount: 0,
-                commentCount: 0,
-                shareCount: 0,
-                isLiked: false,
-                isShared: false,
+                likeCount: ('likeCount' in post ? (post.likeCount as number) : 0) || 0,
+                commentCount: ('commentCount' in post ? (post.commentCount as number) : 0) || 0,
+                shareCount: ('shareCount' in post ? (post.shareCount as number) : 0) || 0,
+                isLiked: ('isLiked' in post ? (post.isLiked as boolean) : false) || false,
+                isShared: ('isShared' in post ? (post.isShared as boolean) : false) || false,
               }
 
               return (
@@ -666,10 +739,6 @@ export default function FeedPage() {
                   <PostCard
                     post={postData}
                     onClick={() => router.push(`/post/${post.id}`)}
-                    onCommentClick={() => {
-                      setCommentModalPost(postData)
-                      setCommentModalOpen(true)
-                    }}
                   />
                   {showBannerAfterThisPost && (
                     <InviteFriendsBanner 
@@ -700,6 +769,7 @@ export default function FeedPage() {
             )}
           </div>
         )}
+
       </div>
 
       {/* Create Post Modal */}
@@ -716,16 +786,6 @@ export default function FeedPage() {
             router.push('/feed')
           }
         }}
-      />
-
-      {/* Comment Modal */}
-      <CommentModal
-        isOpen={commentModalOpen}
-        onClose={() => {
-          setCommentModalOpen(false)
-          setCommentModalPost(null)
-        }}
-        post={commentModalPost}
       />
     </PageContainer>
   )

@@ -12,8 +12,35 @@ import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-mid
 import { PrismaClient } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '@/lib/logger';
+import { broadcastToChannel } from '@/app/api/ws/chat/route';
 
 const prisma = new PrismaClient();
+
+/**
+ * Safely convert a date value to ISO string
+ * Handles Date objects, strings, and null/undefined
+ */
+function toISOStringSafe(date: Date | string | null | undefined): string {
+  if (!date) {
+    return new Date().toISOString();
+  }
+  if (date instanceof Date) {
+    return date.toISOString();
+  }
+  if (typeof date === 'string') {
+    // If it's already an ISO string, return it
+    if (date.includes('T') && date.includes('Z')) {
+      return date;
+    }
+    // Try to parse and convert
+    const parsed = new Date(date);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString();
+    }
+  }
+  // Fallback to current date
+  return new Date().toISOString();
+}
 
 export async function GET(request: Request) {
   try {
@@ -119,8 +146,8 @@ export async function GET(request: Request) {
             authorId: post.authorId,
             authorName: user?.displayName || user?.username || post.authorId,
             authorUsername: user?.username || null,
-            timestamp: post.timestamp.toISOString(),
-            createdAt: post.createdAt.toISOString(),
+            timestamp: toISOStringSafe(post.timestamp),
+            createdAt: toISOStringSafe(post.createdAt),
             likeCount: reactionMap.get(post.id) ?? 0,
             commentCount: commentMap.get(post.id) ?? 0,
             shareCount: shareMap.get(post.id) ?? 0,
@@ -137,12 +164,32 @@ export async function GET(request: Request) {
     // Get posts from database (GameEngine persists posts here)
     let posts;
     
+    logger.info('Fetching posts from database', { limit, offset, actorId, hasActorId: !!actorId }, 'GET /api/posts');
+    
     if (actorId) {
       // Get posts by specific actor
       posts = await gameService.getPostsByActor(actorId, limit);
+      logger.info('Fetched posts by actor', { actorId, count: posts.length }, 'GET /api/posts');
     } else {
       // Get recent posts from database
       posts = await gameService.getRecentPosts(limit, offset);
+      logger.info('Fetched recent posts', { count: posts.length, limit, offset }, 'GET /api/posts');
+    }
+    
+    // Log post structure for debugging
+    if (posts.length > 0) {
+      const samplePost = posts[0];
+      if (samplePost) {
+        logger.debug('Sample post structure', {
+          id: samplePost.id,
+          hasTimestamp: !!samplePost.timestamp,
+          timestampType: typeof samplePost.timestamp,
+          timestampValue: samplePost.timestamp,
+          hasCreatedAt: !!samplePost.createdAt,
+          createdAtType: typeof samplePost.createdAt,
+          createdAtValue: samplePost.createdAt,
+        }, 'GET /api/posts');
+      }
     }
     
     // Get unique author IDs to fetch user data
@@ -180,34 +227,63 @@ export async function GET(request: Request) {
     
     // Format posts to match FeedPost interface
     const formattedPosts = posts.map((post) => {
-      const user = userMap.get(post.authorId);
-      return {
-        id: post.id,
-        content: post.content,
-        author: post.authorId, // Use authorId as author
-        authorId: post.authorId,
-        authorName: user?.displayName || user?.username || post.authorId,
-        authorUsername: user?.username || null,
-        authorProfileImageUrl: user?.profileImageUrl || null,
-        timestamp: post.timestamp.toISOString(),
-        createdAt: post.createdAt.toISOString(),
-        gameId: post.gameId || undefined,
-        dayNumber: post.dayNumber || undefined,
-        likeCount: reactionMap.get(post.id) ?? 0,
-        commentCount: commentMap.get(post.id) ?? 0,
-        shareCount: shareMap.get(post.id) ?? 0,
-        isLiked: false, // Will be updated by interaction store polling
-        isShared: false, // Will be updated by interaction store polling
-      };
-    });
+      try {
+        // Validate post structure
+        if (!post || !post.id) {
+          logger.warn('Invalid post structure detected', { post }, 'GET /api/posts');
+          return null;
+        }
+        
+        const user = userMap.get(post.authorId);
+        
+        // Safely convert dates with null checks
+        const timestamp = toISOStringSafe(post.timestamp);
+        const createdAt = toISOStringSafe(post.createdAt);
+        
+        return {
+          id: post.id,
+          content: post.content || '',
+          author: post.authorId, // Use authorId as author
+          authorId: post.authorId,
+          authorName: user?.displayName || user?.username || post.authorId || 'Unknown',
+          authorUsername: user?.username || null,
+          authorProfileImageUrl: user?.profileImageUrl || null,
+          timestamp,
+          createdAt,
+          gameId: post.gameId || undefined,
+          dayNumber: post.dayNumber || undefined,
+          likeCount: reactionMap.get(post.id) ?? 0,
+          commentCount: commentMap.get(post.id) ?? 0,
+          shareCount: shareMap.get(post.id) ?? 0,
+          isLiked: false, // Will be updated by interaction store polling
+          isShared: false, // Will be updated by interaction store polling
+        };
+      } catch (error) {
+        logger.error('Error formatting post', { error, postId: post?.id, post }, 'GET /api/posts');
+        return null;
+      }
+    }).filter((post): post is NonNullable<typeof post> => post !== null);
+    
+    logger.info('Formatted posts', { 
+      originalCount: posts.length, 
+      formattedCount: formattedPosts.length,
+      filteredOut: posts.length - formattedPosts.length 
+    }, 'GET /api/posts');
     
     // Next.js 16: Add cache headers for real-time feeds
     // Use 'no-store' to ensure fresh data for real-time updates
     // This prevents stale data in client-side caches
+    logger.info('Returning formatted posts', { 
+      postCount: formattedPosts.length,
+      total: formattedPosts.length,
+      limit,
+      offset 
+    }, 'GET /api/posts');
+    
     const response = NextResponse.json({
       success: true,
       posts: formattedPosts,
-      total: posts.length,
+      total: formattedPosts.length,
       limit,
       offset,
     });
@@ -218,9 +294,22 @@ export async function GET(request: Request) {
     
     return response;
   } catch (error) {
-    logger.error('API Error:', error, 'GET /api/posts');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    logger.error('API Error in GET /api/posts', {
+      error: errorMessage,
+      stack: errorStack,
+      errorType: error?.constructor?.name,
+      errorString: String(error),
+    }, 'GET /api/posts');
+    
     return NextResponse.json(
-      { success: false, error: 'Failed to load posts' },
+      { 
+        success: false, 
+        error: 'Failed to load posts',
+        message: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+      },
       { status: 500 }
     );
   }
@@ -294,7 +383,6 @@ export async function POST(request: NextRequest) {
 
     // Broadcast new post to SSE feed channel for real-time updates
     try {
-      const { broadcastToChannel } = await import('@/lib/sse/event-broadcaster');
       broadcastToChannel('feed', {
         type: 'new_post',
         post: {

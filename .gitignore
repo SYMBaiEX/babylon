@@ -23,3 +23,6 @@ cache/
 # Uploaded user files - keep directory structure but ignore actual files
 /public/uploads/**/*
 !/public/uploads/**/.gitkeep
+.eliza/
+games/babylon
+games/

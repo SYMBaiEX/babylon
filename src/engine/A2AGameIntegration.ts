@@ -60,6 +60,11 @@ export interface Coalition {
   active: boolean;
 }
 
+import { createPortSingleton } from '@/utils/singleton'
+
+// Singleton for A2A server instance
+const a2aServerSingleton = createPortSingleton<A2AWebSocketServer>('a2aServer', 'a2aServerPort')
+
 export class A2AGameIntegration extends EventEmitter {
   private server?: A2AWebSocketServer;
   private config: Required<A2AGameConfig>;
@@ -121,13 +126,47 @@ export class A2AGameIntegration extends EventEmitter {
       registryClient: this.registryClient,
     };
 
-    this.server = new A2AWebSocketServer(serverConfig);
-    await this.server.waitForReady();
+    try {
+      // Check if server already exists using singleton (prevent double initialization)
+      const existing = a2aServerSingleton.getInstance(this.config.port)
+      if (existing) {
+        logger.info('Reusing existing A2A WebSocket server from singleton', undefined, 'A2AGameIntegration');
+        this.server = existing;
+        this.setupServerEventHandlers();
+        return;
+      }
+      
+      this.server = new A2AWebSocketServer(serverConfig);
+      
+      // Store in singleton (handled by A2AWebSocketServer constructor)
+      await this.server.waitForReady();
 
-    // Set up event handlers
-    this.setupServerEventHandlers();
+      // Set up event handlers
+      this.setupServerEventHandlers();
 
-    logger.info(`A2A server listening on ws://${this.config.host}:${this.config.port}`, undefined, 'A2AGameIntegration');
+      logger.info(`A2A server listening on ws://${this.config.host}:${this.config.port}`, undefined, 'A2AGameIntegration');
+    } catch (error) {
+      const err = error as Error & { code?: string; message?: string }
+      // Handle port conflicts gracefully - don't crash the daemon
+      if (err?.code === 'EADDRINUSE' || err?.message?.includes('EADDRINUSE') || err?.message?.includes('already in use')) {
+        logger.warn(`Port ${this.config.port} is already in use. A2A protocol disabled. The daemon will continue without A2A.`, undefined, 'A2AGameIntegration');
+        logger.warn('To fix: Stop the process using port 8080 or change A2A port in daemon configuration.', undefined, 'A2AGameIntegration');
+        
+        // Check if there's an existing server in singleton
+        const existing = a2aServerSingleton.getInstance(this.config.port)
+        if (existing) {
+          logger.info('Reusing existing A2A server from singleton', undefined, 'A2AGameIntegration');
+          this.server = existing;
+          this.setupServerEventHandlers();
+          return;
+        }
+        
+        this.server = undefined;
+        return; // Continue without A2A
+      }
+      // Re-throw other errors
+      throw error;
+    }
   }
 
   /**

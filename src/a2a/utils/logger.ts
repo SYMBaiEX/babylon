@@ -51,15 +51,12 @@ export class Logger {
     switch (level) {
       case 'debug':
       case 'info':
-         
         console.log(formatted)
         break
       case 'warn':
-         
         console.warn(formatted)
         break
       case 'error':
-         
         console.error(formatted)
         break
     }

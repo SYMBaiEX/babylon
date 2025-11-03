@@ -24,6 +24,17 @@ import { prisma } from '@/lib/prisma'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { logger } from '@/lib/logger'
 import type { JsonValue } from '@/types/common'
+import type { 
+  WebSocketMessage, 
+  ChatMessage,
+  WebSocketChannel
+} from '@/types/websocket'
+import {
+  isValidWebSocketMessage,
+  hasMessageData,
+  isChatMessage,
+  isChannelMessage
+} from '@/types/websocket'
 
 // Check if we're running on Vercel (serverless)
 const IS_VERCEL = process.env.VERCEL === '1' || process.env.VERCEL_ENV !== undefined
@@ -33,27 +44,6 @@ interface AuthenticatedWebSocket extends WSWebSocket {
   chatId?: string
   channels?: Set<string> // Subscribed channels (feed, markets, breaking-news)
   isAlive?: boolean
-}
-
-interface ChatMessage {
-  id: string
-  content: string
-  chatId: string
-  senderId: string
-  createdAt: string
-  isGameChat?: boolean
-}
-
-interface WebSocketMessageData {
-  chatId?: string
-  channel?: string // 'feed' | 'markets' | 'breaking-news' | 'upcoming-events'
-  message?: ChatMessage
-}
-
-interface WebSocketMessage {
-  type: 'join_chat' | 'leave_chat' | 'subscribe' | 'unsubscribe' | 'new_message' | 'error' | 'pong'
-  data?: WebSocketMessageData
-  error?: string
 }
 
 // Type for WebSocketServer to avoid static import
@@ -98,6 +88,13 @@ function initializeWebSocketServer() {
   if (serverInitializationError) return null
 
   try {
+    // Check if server already exists in global (might be from another process/module)
+    if (global.wss) {
+      wss = global.wss
+      logger.info('Reusing existing WebSocket server from global', undefined, 'WebSocket')
+      return wss
+    }
+    
     // Dynamic import to avoid bundling ws on Vercel
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { WebSocketServer: WSS } = require('ws')
@@ -105,6 +102,19 @@ function initializeWebSocketServer() {
     wss = new WSS({
       port: 3001,
       path: '/ws/chat'
+    })
+    
+    // Handle runtime errors after creation
+    wss.on('error', (error: Error & { code?: string }) => {
+      if (error.code === 'EADDRINUSE') {
+        logger.warn('WebSocket port 3001 already in use', undefined, 'WebSocket')
+        // Try to reuse existing server from global if available
+        if (global.wss && global.wss !== wss) {
+          wss = global.wss
+          return
+        }
+      }
+      logger.error('WebSocket server error:', error, 'WebSocket')
     })
 
     // Store in global for persistence across hot reloads
@@ -164,8 +174,18 @@ function initializeWebSocketServer() {
     // Handle messages
     ws.on('message', async (data: Buffer) => {
       try {
-        const message: WebSocketMessage = JSON.parse(data.toString())
-        await handleMessage(ws, message)
+        const parsed = JSON.parse(data.toString())
+        
+        // Validate message structure at runtime
+        if (!isValidWebSocketMessage(parsed)) {
+          ws.send(JSON.stringify({
+            type: 'error',
+            error: 'Invalid message format'
+          }))
+          return
+        }
+        
+        await handleMessage(ws, parsed)
       } catch (error) {
         logger.error('Error handling WebSocket message:', error, 'WebSocket')
         ws.send(JSON.stringify({
@@ -216,8 +236,28 @@ function initializeWebSocketServer() {
     logger.info('WebSocket server initialized on port 3001', undefined, 'WebSocket')
     return wss
   } catch (error) {
+    const err = error as Error & { code?: string }
+    
+    // Handle EADDRINUSE gracefully - might happen during build or if server already exists
+    if (err.code === 'EADDRINUSE') {
+      logger.warn('WebSocket port 3001 already in use, checking for existing server', undefined, 'WebSocket')
+      
+      // Check if there's an existing server in global
+      if (global.wss) {
+        wss = global.wss
+        logger.info('Reusing existing WebSocket server', undefined, 'WebSocket')
+        return wss
+      }
+      
+      // During build time, this is expected - don't treat as fatal error
+      if (process.env.NEXT_PHASE === 'phase-production-build') {
+        logger.info('Skipping WebSocket server initialization during build', undefined, 'WebSocket')
+        return null
+      }
+    }
+    
     logger.error('Failed to initialize WebSocket server:', error, 'WebSocket')
-    serverInitializationError = error instanceof Error ? error : new Error(String(error))
+    serverInitializationError = err
     global.wsServerInitError = serverInitializationError
     wss = null
     global.wss = undefined
@@ -225,8 +265,9 @@ function initializeWebSocketServer() {
   }
 }
 
-// Note: WebSocket server is lazily initialized on first GET request
-// This prevents initialization during build time
+// Don't initialize on module load during build time
+// Initialize lazily when the route handler is called instead
+// This prevents EADDRINUSE errors during Next.js build process
 
 async function handleMessage(ws: AuthenticatedWebSocket, message: WebSocketMessage) {
   if (!ws.userId) {
@@ -239,54 +280,43 @@ async function handleMessage(ws: AuthenticatedWebSocket, message: WebSocketMessa
 
   switch (message.type) {
     case 'join_chat':
-      if (message.data?.chatId) {
-        await joinChat(ws, message.data.chatId)
-      } else {
-        ws.send(JSON.stringify({
-          type: 'error',
-          error: 'chatId required for join_chat'
-        }))
-      }
+      await joinChat(ws, message.data.chatId)
       break
     
     case 'leave_chat':
-      if (message.data?.chatId) {
-        leaveChat(ws.userId, message.data.chatId)
-      } else {
-        ws.send(JSON.stringify({
-          type: 'error',
-          error: 'chatId required for leave_chat'
-        }))
-      }
+      leaveChat(ws.userId, message.data.chatId)
       break
     
     case 'subscribe':
-      if (message.data?.channel) {
-        subscribeToChannel(ws, message.data.channel)
-      } else {
-        ws.send(JSON.stringify({
-          type: 'error',
-          error: 'channel required for subscribe'
-        }))
-      }
+      subscribeToChannel(ws, message.data.channel)
       break
     
     case 'unsubscribe':
-      if (message.data?.channel) {
-        unsubscribeFromChannel(ws.userId, message.data.channel)
-      } else {
-        ws.send(JSON.stringify({
-          type: 'error',
-          error: 'channel required for unsubscribe'
-        }))
-      }
+      unsubscribeFromChannel(ws.userId, message.data.channel)
       break
     
     case 'pong':
-      ws.send(JSON.stringify({ type: 'pong' }))
+      ws.send(JSON.stringify({ type: 'pong', data: message.data }))
+      break
+    
+    case 'error':
+      // Error messages are already handled, but we can log them
+      logger.warn('Received error message from client:', { error: message.error }, 'WebSocket')
+      break
+    
+    case 'new_message':
+    case 'channel_update':
+      // These are server-to-client messages, not expected from client
+      ws.send(JSON.stringify({
+        type: 'error',
+        error: 'Invalid message type from client'
+      }))
       break
     
     default:
+      // Exhaustiveness check - TypeScript will error if we miss a case
+      const _exhaustive: never = message
+      void _exhaustive // Explicitly mark as intentionally unused
       ws.send(JSON.stringify({
         type: 'error',
         error: 'Unknown message type'
@@ -406,58 +436,74 @@ function leaveAllChannels(userId: string) {
   }
 }
 
-// Broadcast a new message to all clients in a chat room
+/**
+ * Broadcast a message to all clients in a chat room
+ * Uses type-safe message construction
+ */
 export function broadcastMessage(chatId: string, message: ChatMessage) {
   const room = chatRooms.get(chatId)
   if (!room) return
 
-  const messageData = {
+  const messageData: WebSocketMessage = {
     type: 'new_message',
-    data: message
+    data: {
+      message
+    }
   }
 
-  room.forEach(userId => {
-    const client = clients.get(userId)
-    if (client && client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify(messageData))
-    }
-  })
+  // Type guard ensures message has data when needed
+  if (hasMessageData(messageData) && isChatMessage(messageData)) {
+    room.forEach(userId => {
+      const client = clients.get(userId)
+      if (client && client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(messageData))
+      }
+    })
 
-  logger.info(`Broadcasted message to ${room.size} clients in chat ${chatId}`, undefined, 'WebSocket')
+    logger.info(`Broadcasted message to ${room.size} clients in chat ${chatId}`, undefined, 'WebSocket')
+  }
 }
 
-// Broadcast to a channel (feed, markets, breaking-news, etc.)
-export function broadcastToChannel(channel: string, data: Record<string, JsonValue>) {
+/**
+ * Broadcast to a channel (feed, markets, breaking-news, etc.)
+ * Uses type-safe message construction and validation
+ */
+export function broadcastToChannel(channel: WebSocketChannel, data: Record<string, JsonValue>) {
   const subscribers = channels.get(channel)
   if (!subscribers || subscribers.size === 0) return
 
-  const messageData = {
+  const messageData: WebSocketMessage = {
     type: 'channel_update',
-    channel,
-    data
+    data: {
+      channel,
+      data
+    }
   }
 
-  let sentCount = 0
-  subscribers.forEach(userId => {
-    const client = clients.get(userId)
-    if (client && client.readyState === WebSocket.OPEN) {
-      try {
-        client.send(JSON.stringify(messageData))
-        sentCount++
-      } catch (error) {
-        logger.error(`Error sending to user ${userId}:`, error, 'WebSocket')
-        // Remove invalid client
+  // Type guard ensures message is valid channel message
+  if (hasMessageData(messageData) && isChannelMessage(messageData)) {
+    let sentCount = 0
+    subscribers.forEach(userId => {
+      const client = clients.get(userId)
+      if (client && client.readyState === WebSocket.OPEN) {
+        try {
+          client.send(JSON.stringify(messageData))
+          sentCount++
+        } catch (error) {
+          logger.error(`Error sending to user ${userId}:`, error, 'WebSocket')
+          // Remove invalid client
+          subscribers.delete(userId)
+          clients.delete(userId)
+        }
+      } else {
+        // Remove disconnected client
         subscribers.delete(userId)
-        clients.delete(userId)
       }
-    } else {
-      // Remove disconnected client
-      subscribers.delete(userId)
-    }
-  })
+    })
 
-  if (sentCount > 0) {
-    logger.debug(`Broadcasted to ${sentCount} subscribers on channel ${channel}`, { channel, sentCount }, 'WebSocket')
+    if (sentCount > 0) {
+      logger.debug(`Broadcasted to ${sentCount} subscribers on channel ${channel}`, { channel, sentCount }, 'WebSocket')
+    }
   }
 }
 

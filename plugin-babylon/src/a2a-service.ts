@@ -29,6 +29,10 @@ interface A2AServiceConfig {
 
 export class BabylonA2AService extends Service {
   static override serviceType = "babylon-a2a" as const;
+  
+  override capabilityDescription =
+    "A2A WebSocket integration for real-time agent-to-agent communication and market data subscriptions";
+
   private client: A2AClient | null = null;
   private a2aConfig: A2AServiceConfig;
   private connected = false;
@@ -36,8 +40,8 @@ export class BabylonA2AService extends Service {
   private agentTokenId: number | null = null;
   private agentPrivateKey: string | null = null;
 
-  constructor(config: A2AServiceConfig = {}) {
-    super();
+  constructor(runtime: IAgentRuntime, config: A2AServiceConfig = {}) {
+    super(runtime);
     this.a2aConfig = {
       enabled: !!config.endpoint,
       autoReconnect: true,
@@ -47,8 +51,22 @@ export class BabylonA2AService extends Service {
     };
   }
 
-  async initialize(runtime: IAgentRuntime): Promise<void> {
-    this.runtime = runtime;
+  /**
+   * Static factory method - called by ElizaOS
+   */
+  static override async start(
+    runtime: IAgentRuntime,
+    config?: A2AServiceConfig,
+  ): Promise<BabylonA2AService> {
+    logger.info("Starting BabylonA2AService");
+    const service = new BabylonA2AService(runtime, config);
+    return service;
+  }
+
+  /**
+   * Instance start method - called automatically after static start()
+   */
+  async start(): Promise<void> {
 
     // Check if A2A is enabled
     if (!this.a2aConfig.enabled || !this.a2aConfig.endpoint) {
@@ -358,16 +376,29 @@ export class BabylonA2AService extends Service {
   }
 
   /**
-   * Stop the service (required by Service interface)
+   * Instance stop method - cleanup
    */
   override async stop(): Promise<void> {
-    await this.disconnect();
+    if (this.client) {
+      await this.disconnect();
+    }
+    this.connected = false;
+    this.runtime.logger.info("✅ Babylon A2A Service stopped");
   }
 
   /**
-   * Capability description (required by Service interface)
+   * Static stop method - called by ElizaOS
    */
-  override get capabilityDescription(): string {
-    return "Agent-to-Agent (A2A) communication service for real-time market data, agent discovery, and coalition formation";
+  static override async stop(runtime: IAgentRuntime): Promise<void> {
+    logger.info("Stopping BabylonA2AService");
+    const service = runtime.getService<BabylonA2AService>(
+      BabylonA2AService.serviceType,
+    );
+    if (!service) {
+      throw new Error("BabylonA2AService not found");
+    }
+    if (typeof service.stop === "function") {
+      await service.stop();
+    }
   }
 }

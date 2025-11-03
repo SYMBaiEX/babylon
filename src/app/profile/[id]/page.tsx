@@ -1,23 +1,24 @@
 'use client'
 
-import { useState, useMemo, useEffect, useLayoutEffect } from 'react'
-import { useParams } from 'next/navigation'
-import Link from 'next/link'
-import { ArrowLeft, Calendar, Briefcase, ShieldCheck, Search, Mail } from 'lucide-react'
-import { Avatar } from '@/components/shared/Avatar'
-import { PageContainer } from '@/components/shared/PageContainer'
 import { InteractionBar } from '@/components/interactions'
 import { ProfileWidget } from '@/components/profile/ProfileWidget'
-import { cn } from '@/lib/utils'
+import { Avatar } from '@/components/shared/Avatar'
+import { PageContainer } from '@/components/shared/PageContainer'
+import { TaggedText } from '@/components/shared/TaggedText'
 import { useFontSize } from '@/contexts/FontSizeContext'
-import { useErrorToasts } from '@/hooks/useErrorToasts'
-import { useGameStore } from '@/stores/gameStore'
 import { useAuth } from '@/hooks/useAuth'
+import { useErrorToasts } from '@/hooks/useErrorToasts'
 import { logger } from '@/lib/logger'
-import { useRouter } from 'next/navigation'
-import { getProfileUrl, isUsername, extractUsername } from '@/lib/profile-utils'
-import type { FeedPost, Actor, Organization } from '@/shared/types'
+import { extractUsername, getProfileUrl, isUsername } from '@/lib/profile-utils'
+import { cn } from '@/lib/utils'
+import { POST_TYPES } from '@/shared/constants'
+import type { Actor, FeedPost, Organization } from '@/shared/types'
+import { useGameStore } from '@/stores/gameStore'
 import type { ProfileInfo } from '@/types/profiles'
+import { ArrowLeft, Briefcase, Calendar, Mail, Search, ShieldCheck } from 'lucide-react'
+import Link from 'next/link'
+import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 
 export default function ActorProfilePage() {
   const params = useParams()
@@ -50,10 +51,11 @@ export default function ActorProfilePage() {
                           user.id === decodedIdentifier ||
                           user.id === identifier
       
-      if (viewingOwnId) {
+      if (viewingOwnId && user.username) {
+        // Additional null check to prevent redirecting to /profile/undefined
         const cleanUsername = user.username.startsWith('@') ? user.username.slice(1) : user.username
-        // Only redirect if the current URL doesn't already match the username
-        if (identifier !== cleanUsername && decodedIdentifier !== cleanUsername && actorId !== cleanUsername) {
+        // Only redirect if cleanUsername is valid and the current URL doesn't already match
+        if (cleanUsername && identifier !== cleanUsername && decodedIdentifier !== cleanUsername && actorId !== cleanUsername) {
           // Use router.replace for client-side navigation (preserves React state)
           router.replace(`/profile/${cleanUsername}`)
         }
@@ -83,6 +85,7 @@ export default function ActorProfilePage() {
     authorId: string
     timestamp: string
     authorName?: string
+    authorUsername?: string | null
   }>>([])
   const [loadingPosts, setLoadingPosts] = useState(false)
   
@@ -118,6 +121,7 @@ export default function ActorProfilePage() {
                   isUser: true,
                   username: user.username,
                   profileImageUrl: user.profileImageUrl,
+                  coverImageUrl: user.coverImageUrl,
                   stats: user.stats,
                 })
                 
@@ -168,6 +172,7 @@ export default function ActorProfilePage() {
                   isUser: true,
                   username: user.username,
                   profileImageUrl: user.profileImageUrl,
+                  coverImageUrl: user.coverImageUrl,
                   stats: user.stats,
                 })
                 
@@ -334,14 +339,14 @@ export default function ActorProfilePage() {
           id: apiPost.id,
           day: 0,
           content: apiPost.content,
-          type: 'post' as const,
           author: apiPost.authorId,
           authorName: apiPost.authorName || actorInfo?.name || apiPost.authorId,
           authorUsername: actorInfo?.username || null,
           timestamp: apiPost.timestamp,
-          sentiment: 0,
-          clueStrength: 0,
-          pointsToward: null,
+          type: POST_TYPES.POST, // User-generated posts
+          sentiment: 0, // Neutral sentiment for user posts
+          clueStrength: 0, // User posts don't have clue strength
+          pointsToward: null, // User posts don't hint at yes/no
         },
         gameId: '',
         gameName: '',
@@ -698,7 +703,12 @@ export default function ActorProfilePage() {
 
                       {/* Post content - Below name/handle row */}
                       <div className="text-foreground leading-normal whitespace-pre-wrap break-words">
-                        {item.post.content}
+                        <TaggedText
+                          text={item.post.content}
+                          onTagClick={(tag) => {
+                            router.push(`/feed?search=${encodeURIComponent(tag)}`)
+                          }}
+                        />
                       </div>
 
                       {/* Metadata */}
@@ -995,7 +1005,12 @@ export default function ActorProfilePage() {
 
                         {/* Post content - Below name/handle row */}
                         <div className="text-foreground leading-normal whitespace-pre-wrap break-words">
-                          {item.post.content}
+                          <TaggedText
+                            text={item.post.content}
+                            onTagClick={(tag) => {
+                              router.push(`/feed?search=${encodeURIComponent(tag)}`)
+                            }}
+                          />
                         </div>
 
                         {/* Metadata */}

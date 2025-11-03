@@ -2,6 +2,7 @@
 
 import { LoginButton } from '@/components/auth/LoginButton'
 import { PageContainer } from '@/components/shared/PageContainer'
+import { TaggedText } from '@/components/shared/TaggedText'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { logger } from '@/lib/logger'
@@ -72,36 +73,32 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'posts' | 'replies'>('posts')
   const [showLinkAccountsModal, setShowLinkAccountsModal] = useState(false)
-  const [posts, setPosts] = useState<Post[]>([])
-  const [replies, setReplies] = useState<Reply[]>([])
-  const [loadingPosts, setLoadingPosts] = useState(false)
-
-  interface Post {
+  const [posts, setPosts] = useState<Array<{
     id: string
     content: string
     timestamp: string
-    likeCount?: number
-    commentCount?: number
-    shareCount?: number
+    likeCount: number
+    commentCount: number
+    shareCount: number
     isRepost?: boolean
-  }
-
-  interface Reply {
+  }>>([])
+  const [replies, setReplies] = useState<Array<{
     id: string
     content: string
-    postId: string
     createdAt: string
-    likeCount?: number
-    replyCount?: number
+    likeCount: number
+    replyCount: number
+    postId: string
     post: {
-      content: string
       author?: {
-        displayName?: string
-        username?: string
-      }
+        displayName?: string | null
+        username?: string | null
+      } | null
+      content: string
     }
-  }
-  
+  }>>([])
+  const [loadingPosts, setLoadingPosts] = useState(false)
+
   // Social visibility toggles
   const [socialVisibility, setSocialVisibility] = useState<SocialVisibility>({
     twitter: true,
@@ -192,7 +189,7 @@ export default function ProfilePage() {
           }
         }
       } catch (error) {
-        console.error('Failed to load content:', error)
+        logger.error('Failed to load content:', error, 'ProfilePage')
       } finally {
         setLoadingPosts(false)
       }
@@ -547,7 +544,7 @@ export default function ProfilePage() {
           </div>
         ) : authenticated && user ? (
           <>
-            {/* Profile Header - Twitter Style */}
+            {/* Profile Header - Style */}
             <div className="border-b border-border">
               <div className="max-w-[600px] mx-auto">
                 {/* Cover Image */}
@@ -947,7 +944,12 @@ export default function ProfilePage() {
                           </div>
                         )}
                         <div className="text-foreground whitespace-pre-wrap break-words">
-                          {item.content}
+                          <TaggedText
+                            text={item.content}
+                            onTagClick={(tag) => {
+                              router.push(`/feed?search=${encodeURIComponent(tag)}`)
+                            }}
+                          />
                         </div>
                         <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
                           <span>{new Date(item.timestamp).toLocaleDateString()}</span>
@@ -969,7 +971,12 @@ export default function ProfilePage() {
                   {replies.map((reply) => (
                     <div key={reply.id} className="py-4 px-4">
                       <div className="text-foreground whitespace-pre-wrap break-words mb-2">
-                        {reply.content}
+                        <TaggedText
+                          text={reply.content}
+                          onTagClick={(tag) => {
+                            router.push(`/feed?search=${encodeURIComponent(tag)}`)
+                          }}
+                        />
                       </div>
                       <div className="text-sm text-muted-foreground mb-2">
                         Replying to{' '}
@@ -981,7 +988,12 @@ export default function ProfilePage() {
                         </a>
                       </div>
                       <div className="text-xs text-muted-foreground truncate mb-2">
-                        {reply.post.content.substring(0, 100)}...
+                        <TaggedText
+                          text={reply.post.content.substring(0, 100) + '...'}
+                          onTagClick={(tag) => {
+                            router.push(`/feed?search=${encodeURIComponent(tag)}`)
+                          }}
+                        />
                       </div>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <span>{new Date(reply.createdAt).toLocaleDateString()}</span>

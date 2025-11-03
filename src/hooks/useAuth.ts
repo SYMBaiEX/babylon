@@ -1,9 +1,8 @@
-import { usePrivy, useWallets, type ConnectedWallet } from '@privy-io/react-auth'
+import { usePrivy, useWallets, type User as PrivyUser, type ConnectedWallet } from '@privy-io/react-auth'
 import { useEffect, useMemo } from 'react'
-import { useAuthStore } from '@/stores/authStore'
+import { useAuthStore, type User } from '@/stores/authStore'
 import { OnboardingService } from '@/lib/services/onboarding-service'
 import { logger } from '@/lib/logger'
-import type { User } from '@/stores/authStore'
 
 interface UseAuthReturn {
   ready: boolean
@@ -24,7 +23,7 @@ export function useAuth(): UseAuthReturn {
   const { ready, authenticated, user: privyUser, login, logout, getAccessToken } = usePrivy()
   const { wallets } = useWallets()
   const {
-    user: storeUser,
+    user,
     setUser,
     setWallet,
     clearAuth,
@@ -277,7 +276,7 @@ export function useAuth(): UseAuthReturn {
         if (!token) return
 
         // Check for Farcaster connection
-        const userWithFarcaster = privyUser as typeof privyUser & { farcaster?: { username?: string; displayName?: string } }
+        const userWithFarcaster = privyUser as PrivyUser & { farcaster?: { username?: string; displayName?: string } }
         if (userWithFarcaster.farcaster) {
           const farcaster = userWithFarcaster.farcaster
           try {
@@ -299,7 +298,7 @@ export function useAuth(): UseAuthReturn {
         }
 
         // Check for Twitter/X connection
-        const userWithTwitter = privyUser as typeof privyUser & { twitter?: { username?: string } }
+        const userWithTwitter = privyUser as PrivyUser & { twitter?: { username?: string } }
         if (userWithTwitter.twitter) {
           const twitter = userWithTwitter.twitter
           try {
@@ -386,7 +385,7 @@ export function useAuth(): UseAuthReturn {
   return {
     ready,
     authenticated,
-    user: storeUser,
+    user,
     wallet,
     login,
     logout: handleLogout,

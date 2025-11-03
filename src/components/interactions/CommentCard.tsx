@@ -3,8 +3,10 @@
 import { cn } from '@/lib/utils';
 import { MoreVertical, Reply, Trash2, Edit2, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { Avatar } from '@/components/shared/Avatar';
+import { TaggedText } from '@/components/shared/TaggedText';
 import { LikeButton } from './LikeButton';
 import { CommentInput } from './CommentInput';
 import type { CommentCardProps } from '@/types/interactions';
@@ -13,13 +15,16 @@ const MAX_DEPTH = 5; // Maximum nesting depth for replies
 
 export function CommentCard({
   comment,
+  postId,
   onReply,
   onEdit,
   onDelete,
+  onReplySubmit,
   depth = 0,
   maxDepth = MAX_DEPTH,
   className,
 }: CommentCardProps) {
+  const router = useRouter();
   const [showActions, setShowActions] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -144,10 +149,10 @@ export function CommentCard({
         </div>
 
         {/* Replying to indicator */}
-        {comment.parentCommentId && (
+        {comment.parentCommentId && comment.parentCommentAuthorName && (
           <div className="flex items-center gap-1 mb-1 text-xs text-muted-foreground">
             <span>Replying to</span>
-            <span className="text-primary font-medium">@{comment.userName}</span>
+            <span className="text-primary font-medium">@{comment.parentCommentAuthorName}</span>
           </div>
         )}
 
@@ -180,7 +185,12 @@ export function CommentCard({
           </div>
         ) : (
           <p className="text-sm text-foreground whitespace-pre-wrap break-words mb-2">
-            {comment.content}
+            <TaggedText
+              text={comment.content}
+              onTagClick={(tag) => {
+                router.push(`/feed?search=${encodeURIComponent(tag)}`)
+              }}
+            />
           </p>
         )}
 
@@ -224,13 +234,17 @@ export function CommentCard({
         {isReplying && (
           <div className="mt-3">
             <CommentInput
-              postId={comment.id}
+              postId={postId}
               parentCommentId={comment.id}
               placeholder={`Reply to ${comment.userName}...`}
               replyingToName={comment.userName}
               autoFocus
-              onSubmit={() => {
+              onSubmit={async (replyComment) => {
                 setIsReplying(false);
+                // Call onReplySubmit callback if provided to handle optimistic update
+                if (onReplySubmit && replyComment) {
+                  onReplySubmit(replyComment);
+                }
               }}
               onCancel={() => setIsReplying(false)}
             />
@@ -244,9 +258,11 @@ export function CommentCard({
               <CommentCard
                 key={reply.id}
                 comment={reply}
+                postId={postId}
                 onReply={onReply}
                 onEdit={onEdit}
                 onDelete={onDelete}
+                onReplySubmit={onReplySubmit}
                 depth={depth + 1}
                 maxDepth={maxDepth}
               />

@@ -444,8 +444,200 @@ export const portfolioManagementEvaluator: Evaluator = {
   ],
 };
 
+/**
+ * Extended State interface for social interaction evaluator
+ */
+interface SocialInteractionState extends State {
+  posts?: Array<{
+    id: string;
+    content: string;
+    authorId: string;
+    timestamp: string;
+    likeCount: number;
+    commentCount: number;
+  }>;
+  topPosts?: Array<{
+    id: string;
+    content: string;
+    authorId: string;
+    timestamp: string;
+    likeCount: number;
+    commentCount: number;
+  }>;
+  topAuthors?: string[];
+  shouldLike?: boolean;
+  shouldComment?: boolean;
+  shouldFollow?: boolean;
+  shouldPost?: boolean;
+  targetPostId?: string;
+  targetUserId?: string;
+  interactionReason?: string;
+}
+
+/**
+ * Social Interaction Evaluator
+ * 
+ * Evaluates whether the agent should interact socially (like, comment, follow, post)
+ * Based on feed context and agent personality
+ */
+export const socialInteractionEvaluator: Evaluator = {
+  name: "SOCIAL_INTERACTION",
+  similes: ["SOCIAL_FEED", "INTERACT", "ENGAGE"],
+  description: "Evaluate social feed and decide on interactions",
+  examples: [
+    {
+      prompt: "User requests social feed evaluation",
+      messages: [
+        {
+          name: "{{name1}}",
+          content: {
+            text: "Check the social feed and see if there are any interesting posts",
+          },
+        },
+        {
+          name: "{{agent}}",
+          content: {
+            text: "Evaluating recent posts for interactions...",
+          },
+        },
+      ],
+      outcome:
+        "Agent evaluates feed posts and decides on social interactions (like, comment, follow, or create post)",
+    },
+  ],
+  validate: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+  ): Promise<boolean> => {
+    const babylonService = runtime.getService<BabylonClientService>(
+      BabylonClientService.serviceType,
+    );
+    if (!babylonService) return false;
+
+    // Always validate for autonomous social interaction
+    // Can also be triggered by messages about social feed
+    const content = message.content.text?.toLowerCase() || "";
+    const hasSocialIntent =
+      content.includes("feed") ||
+      content.includes("posts") ||
+      content.includes("social") ||
+      content.includes("interact") ||
+      String(message.entityId) === "system"; // System-triggered (from service)
+
+    return hasSocialIntent;
+  },
+  handler: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+    state?: State,
+  ): Promise<void> => {
+    const socialState = state as SocialInteractionState;
+    
+    // Extract preferences from message content if present
+    const messageText = message.content.text?.toLowerCase() || "";
+    const prefersLikes = messageText.includes("like") || messageText.includes("favorite");
+    const prefersComments = messageText.includes("comment") || messageText.includes("reply");
+    const prefersFollows = messageText.includes("follow") || messageText.includes("subscribe");
+    const prefersPosts = messageText.includes("post") || messageText.includes("create");
+    
+    // Log what triggered this evaluation
+    if (message.content.text) {
+      runtime.logger.debug(
+        `Social interaction evaluator triggered by: ${message.content.text.substring(0, 100)}`,
+      );
+    }
+    
+    // Get posts from provider data
+    const posts = (socialState.posts || socialState.data?.posts) as Array<{
+      id: string;
+      content: string;
+      authorId: string;
+      timestamp: string;
+      likeCount: number;
+      commentCount: number;
+    }> | undefined;
+
+    if (!posts || posts.length === 0) {
+      runtime.logger.debug("No posts available for social interaction");
+      return;
+    }
+
+    const character = runtime.character;
+    const characterTopics = character.topics || [];
+    
+    // Decision logic with personality-driven probabilities
+    // Adjust probabilities based on message preferences
+    const shouldLike = prefersLikes ? Math.random() < 0.7 : Math.random() < 0.4; // Higher if user mentioned likes
+    const shouldComment = prefersComments ? Math.random() < 0.5 : Math.random() < 0.15; // Higher if user mentioned comments
+    const shouldFollow = prefersFollows ? Math.random() < 0.6 : Math.random() < 0.2; // Higher if user mentioned follows
+    const shouldPost = prefersPosts ? Math.random() < 0.4 : Math.random() < 0.1; // Higher if user mentioned posts
+
+    // Find interesting posts (high engagement or related to character topics)
+    const interestingPosts = posts.filter((post) => {
+      const hasEngagement = post.likeCount > 0 || post.commentCount > 0;
+      const matchesTopics = characterTopics.some((topic) =>
+        post.content.toLowerCase().includes(topic.toLowerCase())
+      );
+      return hasEngagement || matchesTopics;
+    });
+
+    // Select target post if we should interact
+    let targetPost: typeof posts[0] | undefined;
+    if (shouldLike || shouldComment) {
+      if (interestingPosts.length > 0) {
+        // Weighted selection: prefer high engagement posts
+        const sorted = interestingPosts.sort(
+          (a, b) => (b.likeCount + b.commentCount) - (a.likeCount + a.commentCount)
+        );
+        targetPost = sorted[Math.floor(Math.random() * Math.min(3, sorted.length))];
+      } else {
+        targetPost = posts[Math.floor(Math.random() * posts.length)];
+      }
+    }
+
+    // Select target user for following
+    let targetUserId: string | undefined;
+    if (shouldFollow) {
+      const authorEngagement = new Map<string, number>();
+      posts.forEach((post) => {
+        const engagement = post.likeCount + post.commentCount;
+        const current = authorEngagement.get(post.authorId) || 0;
+        authorEngagement.set(post.authorId, current + engagement);
+      });
+
+      const sortedAuthors = Array.from(authorEngagement.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+
+      if (sortedAuthors.length > 0) {
+        const selectedAuthor = sortedAuthors[Math.floor(Math.random() * sortedAuthors.length)];
+        if (selectedAuthor) {
+          targetUserId = selectedAuthor[0];
+        }
+      }
+    }
+
+    // Store decisions in state for action handlers
+    socialState.shouldLike = shouldLike && !!targetPost;
+    socialState.shouldComment = shouldComment && !!targetPost;
+    socialState.shouldFollow = shouldFollow && !!targetUserId;
+    socialState.shouldPost = shouldPost;
+    socialState.targetPostId = targetPost?.id;
+    socialState.targetUserId = targetUserId;
+    
+    if (targetPost) {
+      socialState.interactionReason = `Post has ${targetPost.likeCount} likes and ${targetPost.commentCount} comments`;
+    }
+
+    runtime.logger.debug(
+      `Social interaction evaluation complete: like=${socialState.shouldLike}, comment=${socialState.shouldComment}, follow=${socialState.shouldFollow}, post=${socialState.shouldPost}`,
+    );
+  },
+};
+
 // Export all evaluators
 export const babylonGameEvaluators: Evaluator[] = [
   marketAnalysisEvaluator,
   portfolioManagementEvaluator,
+  socialInteractionEvaluator,
 ];

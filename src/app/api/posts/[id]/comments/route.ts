@@ -3,24 +3,24 @@
  * Methods: GET (get comments), POST (add comment)
  */
 
-import type { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
-  optionalAuth,
   authErrorResponse,
-  successResponse,
   errorResponse,
+  optionalAuth,
+  successResponse,
 } from '@/lib/api/auth-middleware';
-import { notifyCommentOnPost, notifyReplyToComment } from '@/lib/services/notification-service';
 import { logger } from '@/lib/logger';
+import { notifyCommentOnPost, notifyReplyToComment } from '@/lib/services/notification-service';
+import { PrismaClient } from '@prisma/client';
+import type { NextRequest } from 'next/server';
 
 const prisma = new PrismaClient();
 
 /**
- * Recursive comment type
+ * Build threaded comment structure recursively
  */
-interface CommentTreeNode {
+type CommentTreeItem = {
   id: string;
   content: string;
   createdAt: Date;
@@ -30,14 +30,12 @@ interface CommentTreeNode {
   userUsername: string | null;
   userAvatar: string | null;
   parentCommentId: string | null;
+  parentCommentAuthorName?: string;
   likeCount: number;
   isLiked: boolean;
-  replies: CommentTreeNode[];
-}
+  replies: CommentTreeItem[];
+};
 
-/**
- * Build threaded comment structure recursively
- */
 function buildCommentTree(
   comments: Array<{
     id: string;
@@ -58,7 +56,17 @@ function buildCommentTree(
     reactions: Array<{ id: string }>;
   }>,
   parentId: string | null = null
-): CommentTreeNode[] {
+): CommentTreeItem[] {
+  // Helper to find parent comment author name
+  const findParentAuthorName = (parentCommentId: string | null): string | undefined => {
+    if (!parentCommentId) return undefined;
+    const parentComment = comments.find(c => c.id === parentCommentId);
+    if (parentComment) {
+      return parentComment.author.displayName || parentComment.author.username || 'Anonymous';
+    }
+    return undefined;
+  };
+
   return comments
     .filter((comment) => comment.parentCommentId === parentId)
     .map((comment) => ({
@@ -71,6 +79,7 @@ function buildCommentTree(
       userUsername: comment.author.username || null,
       userAvatar: comment.author.profileImageUrl,
       parentCommentId: comment.parentCommentId,
+      parentCommentAuthorName: findParentAuthorName(comment.parentCommentId),
       likeCount: comment._count.reactions,
       isLiked: comment.reactions.length > 0,
       replies: buildCommentTree(comments, comment.id),

@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { CommentInput } from '@/components/interactions/CommentInput';
 import { CommentCard } from '@/components/interactions/CommentCard';
 import { PostCard } from '@/components/posts/PostCard';
-import type { CommentWithReplies } from '@/types/interactions';
+import type { CommentWithReplies, CommentData } from '@/types/interactions';
 import { logger } from '@/lib/logger';
 
 interface FeedCommentSectionProps {
@@ -27,7 +27,7 @@ interface FeedCommentSectionProps {
     isLiked: boolean;
     isShared: boolean;
   };
-  onClose: () => void;
+  onClose?: () => void;
 }
 
 export function FeedCommentSection({
@@ -132,6 +132,78 @@ export function FeedCommentSection({
     }
   };
 
+  // Helper to add a reply to the nested comment structure
+  const addReplyToComment = (
+    commentList: CommentWithReplies[],
+    parentCommentId: string,
+    newReply: CommentWithReplies
+  ): CommentWithReplies[] => {
+    return commentList.map((comment) => {
+      if (comment.id === parentCommentId) {
+        // Add reply to this comment's replies
+        return {
+          ...comment,
+          replies: [newReply, ...comment.replies],
+        };
+      } else if (comment.replies.length > 0) {
+        // Recursively search in replies
+        return {
+          ...comment,
+          replies: addReplyToComment(comment.replies, parentCommentId, newReply),
+        };
+      }
+      return comment;
+    });
+  };
+
+  // Helper to find parent comment author name in the comment tree
+  const findParentAuthorName = (
+    commentList: CommentWithReplies[],
+    parentCommentId: string
+  ): string | undefined => {
+    for (const comment of commentList) {
+      if (comment.id === parentCommentId) {
+        return comment.userName;
+      }
+      if (comment.replies.length > 0) {
+        const found = findParentAuthorName(comment.replies, parentCommentId);
+        if (found) return found;
+      }
+    }
+    return undefined;
+  };
+
+  const handleReplySubmit = async (replyComment: CommentData, parentCommentId: string) => {
+    if (!postId) return;
+    
+    // Find parent comment author name
+    const parentAuthorName = findParentAuthorName(comments, parentCommentId);
+    
+    // Convert CommentData to CommentWithReplies format
+    const optimisticReply: CommentWithReplies = {
+      id: replyComment.id,
+      content: replyComment.content,
+      createdAt: replyComment.createdAt instanceof Date ? replyComment.createdAt : new Date(replyComment.createdAt),
+      updatedAt: replyComment.updatedAt instanceof Date ? replyComment.updatedAt : new Date(replyComment.updatedAt),
+      userId: replyComment.authorId,
+      userName: replyComment.author?.displayName || replyComment.author?.username || 'Unknown',
+      userUsername: replyComment.author?.username || null,
+      userAvatar: replyComment.author?.profileImageUrl || undefined,
+      parentCommentId: replyComment.parentCommentId,
+      parentCommentAuthorName: parentAuthorName,
+      likeCount: replyComment._count?.reactions || 0,
+      isLiked: false,
+      replies: [],
+    };
+
+    // Optimistically add reply to nested structure
+    setComments((prev) => addReplyToComment(prev, parentCommentId, optimisticReply));
+
+    // Small delay then reload to get full data
+    await new Promise(resolve => setTimeout(resolve, 200));
+    await loadCommentsData();
+  };
+
   const removeCommentById = (
     commentList: CommentWithReplies[],
     commentId: string
@@ -174,25 +246,42 @@ export function FeedCommentSection({
     return null;
   }
 
-  return (
-    <div className="flex flex-col h-full w-full overflow-hidden bg-background">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4 px-4 py-3 border-b-2 border-[#1c9cf0] flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <MessageCircle className="w-5 h-5 text-[#1c9cf0]" />
-          <h2 className="font-semibold text-lg text-foreground">Comments</h2>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-        >
-          <X size={18} />
-        </button>
-      </div>
+  // If onClose is provided, it's a modal (mobile). Otherwise, it's inline (desktop post page)
+  const isModal = !!onClose;
 
-      {/* Original Post - Compact */}
-      <div className="flex-shrink-0 border-b-2 border-[#1c9cf0] bg-background">
+  return (
+    <>
+      {/* Backdrop for modal only */}
+      {isModal && (
+        <div
+          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40"
+          onClick={onClose}
+        />
+      )}
+      <div className={cn(
+        "flex flex-col w-full overflow-hidden bg-background",
+        isModal ? "fixed inset-0 z-50" : "relative"
+      )}>
+        {/* Header - only show close button in modal */}
+        {isModal && (
+          <div className="flex items-center justify-between gap-4 px-4 py-3 border-b-2 border-[#1c9cf0] flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <MessageCircle className="w-5 h-5 text-[#1c9cf0]" />
+              <h2 className="font-semibold text-lg text-foreground">Comments</h2>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        )}
+
+      {/* Original Post - Compact (only show in modal, post page shows post separately) */}
+      {isModal && (
+        <div className="flex-shrink-0 border-b-2 border-[#1c9cf0] bg-background">
         <PostCard
           post={{
             id: post.id,
@@ -212,7 +301,8 @@ export function FeedCommentSection({
           isDetail
           className="py-3"
         />
-      </div>
+        </div>
+      )}
 
       {/* Sort options */}
       {comments.length > 1 && (
@@ -243,7 +333,32 @@ export function FeedCommentSection({
         <CommentInput
           postId={postId}
           placeholder="Post your reply..."
-          onSubmit={async () => {
+          onSubmit={async (comment) => {
+            if (comment) {
+              // Optimistically add comment to the list immediately
+              // Convert CommentData to CommentWithReplies format
+              const optimisticComment: CommentWithReplies = {
+                id: comment.id,
+                content: comment.content,
+                createdAt: comment.createdAt instanceof Date ? comment.createdAt : new Date(comment.createdAt),
+                updatedAt: comment.updatedAt instanceof Date ? comment.updatedAt : new Date(comment.updatedAt),
+                userId: comment.authorId,
+                userName: comment.author?.displayName || comment.author?.username || 'Unknown',
+                userUsername: comment.author?.username || null,
+                userAvatar: comment.author?.profileImageUrl || undefined,
+                parentCommentId: comment.parentCommentId,
+                likeCount: comment._count?.reactions || 0,
+                isLiked: false,
+                replies: [],
+              };
+              setComments((prev) => {
+                // Add to beginning for newest sort
+                const updated = [optimisticComment, ...prev];
+                return updated;
+              });
+            }
+            // Small delay to ensure API has processed, then reload to get full data
+            await new Promise(resolve => setTimeout(resolve, 200));
             await loadCommentsData();
           }}
         />
@@ -267,14 +382,21 @@ export function FeedCommentSection({
               <CommentCard
                 key={comment.id}
                 comment={comment}
+                postId={postId || ''}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                onReplySubmit={(replyComment) => {
+                  if (replyComment.parentCommentId) {
+                    handleReplySubmit(replyComment, replyComment.parentCommentId);
+                  }
+                }}
               />
             ))}
           </div>
         )}
       </div>
     </div>
+    </>
   );
 }
 

@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { cn } from '@/lib/utils'
 import { LoginButton } from '@/components/auth/LoginButton'
+import { logger } from '@/lib/logger'
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -115,7 +116,7 @@ export default function SettingsPage() {
       setTimeout(() => setSaved(false), 3000)
     } catch (error) {
       // Error handling - could show toast here
-      console.error('Failed to save settings:', error)
+      logger.error('Failed to save settings:', error, 'SettingsPage')
     } finally {
       setSaving(false)
     }

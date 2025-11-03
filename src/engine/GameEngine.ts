@@ -27,6 +27,8 @@ import { shuffleArray, toQuestionIdNumber, toQuestionIdNumberOrNull } from '@/sh
 import { db } from '../lib/database-service';
 import { ReputationService } from '../lib/services/reputation-service';
 import { logger } from '@/lib/logger';
+import { broadcastToChannel } from '@/app/api/ws/chat/route';
+import { ActorSocialActions } from '@/lib/services/ActorSocialActions';
 import type {
   SelectedActor,
   Actor,
@@ -42,6 +44,7 @@ import type {
   ActorsDatabase,
   ChatMessage,
 } from '@/shared/types';
+import type { JsonValue } from '@/types/common';
 
 interface GameConfig {
   tickIntervalMs?: number;
@@ -281,7 +284,6 @@ export class GameEngine extends EventEmitter {
         // Broadcast new questions to markets and upcoming-events channels
         if (questionsCreated > 0) {
           try {
-            const { broadcastToChannel } = await import('@/app/api/ws/chat/route');
             broadcastToChannel('markets', {
               type: 'new_questions',
               count: questionsCreated,
@@ -304,7 +306,6 @@ export class GameEngine extends EventEmitter {
       // Broadcast significant events to breaking-news channel
       if (events.length > 0) {
         try {
-          const { broadcastToChannel } = await import('@/app/api/ws/chat/route');
           const significantEvents = events.filter(e => 
             e.visibility === 'public' && 
             (e.type.toLowerCase().includes('announcement') || 
@@ -313,16 +314,24 @@ export class GameEngine extends EventEmitter {
              e.type.toLowerCase().includes('deal'))
           );
           for (const event of significantEvents) {
-            broadcastToChannel('breaking-news', {
+            // Create properly typed event data for broadcast
+            // WorldEvent.description is always a string according to the type definition
+            const eventDescription = typeof event.description === 'string' 
+              ? event.description 
+              : '';
+            
+            const broadcastEvent: Record<string, JsonValue> = {
               type: 'new_event',
               event: {
                 id: event.id,
                 type: event.type,
-                description: String(event.description || ''),
-                ...(event.relatedQuestion != null && { relatedQuestion: event.relatedQuestion }), 
+                description: eventDescription,
+                relatedQuestion: event.relatedQuestion ?? null,
                 timestamp: timestamp,
               }
-            });
+            };
+            
+            broadcastToChannel('breaking-news', broadcastEvent);
           }
         } catch (error) {
           logger.debug('Could not broadcast events:', error, 'GameEngine');
@@ -344,7 +353,6 @@ export class GameEngine extends EventEmitter {
         
         // Broadcast price updates to markets channel
         try {
-          const { broadcastToChannel } = await import('@/app/api/ws/chat/route');
           broadcastToChannel('markets', {
             type: 'price_update',
             count: priceUpdates.length,
@@ -389,7 +397,6 @@ export class GameEngine extends EventEmitter {
       // This ensures posts are available in the database when feed refreshes
       if (posts.length > 0) {
         try {
-          const { broadcastToChannel } = await import('@/lib/sse/event-broadcaster');
           for (const post of posts) {
             broadcastToChannel('feed', {
               type: 'new_post',
@@ -453,7 +460,6 @@ export class GameEngine extends EventEmitter {
       // Process random social actions (invites/DMs) every 5 ticks (every ~5 minutes)
       if (this.recentTicks.length % 5 === 0) {
         try {
-          const { ActorSocialActions } = await import('@/lib/services/ActorSocialActions');
           await ActorSocialActions.processRandomSocialActions();
         } catch (error) {
           logger.warn('Failed to process social actions:', error, 'GameEngine');
@@ -1600,7 +1606,6 @@ Return ONLY this JSON:
 
   async getStatus() {
     // Get game state from database for currentDay, currentDate, lastTickAt
-    const { db } = await import('@/lib/database-service');
     const gameState = await db.getGameState();
     
     return {
@@ -1615,7 +1620,6 @@ Return ONLY this JSON:
 
   async getStats() {
     // Delegate to database service for consistency
-    const { db } = await import('@/lib/database-service');
     return await db.getStats();
   }
 

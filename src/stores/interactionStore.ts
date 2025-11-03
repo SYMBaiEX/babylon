@@ -62,6 +62,13 @@ interface InteractionStoreActions {
 
 type InteractionStore = InteractionStoreState & InteractionStoreActions;
 
+// Persisted state type (only serializable parts)
+type PersistedInteractionState = {
+  postInteractions: Array<[string, PostInteraction]>;
+  commentInteractions: Array<[string, CommentInteraction]>;
+  favoritedProfiles: string[];
+};
+
 // Helper to get auth token from Privy
 async function getAuthToken(): Promise<string | null> {
   try {
@@ -535,36 +542,26 @@ export const useInteractionStore = create<InteractionStore>()(
     }),
     {
       name: 'babylon-interactions',
-      storage: {
-        getItem: (name) => {
-          const str = localStorage.getItem(name);
-          if (!str) return null;
-          const { state } = JSON.parse(str);
-          return {
-            state: {
-              ...state,
-              postInteractions: new Map(state.postInteractions || []),
-              commentInteractions: new Map(state.commentInteractions || []),
-              favoritedProfiles: new Set(state.favoritedProfiles || []),
-              pendingInteractions: new Map(state.pendingInteractions || []),
-              loadingStates: new Map(),
-              errors: new Map(),
-            },
-          };
-        },
-        setItem: (name, value) => {
-          const str = JSON.stringify({
-            state: {
-              ...value.state,
-              postInteractions: Array.from(value.state.postInteractions.entries()),
-              commentInteractions: Array.from(value.state.commentInteractions.entries()),
-              favoritedProfiles: Array.from(value.state.favoritedProfiles),
-              pendingInteractions: Array.from(value.state.pendingInteractions.entries()),
-            },
-          });
-          localStorage.setItem(name, str);
-        },
-        removeItem: (name) => localStorage.removeItem(name),
+      // Custom serialization for Maps and Sets
+      partialize: (state: InteractionStore): PersistedInteractionState => ({
+        postInteractions: Array.from(state.postInteractions.entries()),
+        commentInteractions: Array.from(state.commentInteractions.entries()),
+        favoritedProfiles: Array.from(state.favoritedProfiles),
+      }),
+      // Custom deserialization to convert arrays back to Maps and Sets
+      merge: (persistedState: unknown, currentState: InteractionStore) => {
+        const persisted = (persistedState as Partial<PersistedInteractionState> | null | undefined) || {
+          postInteractions: undefined,
+          commentInteractions: undefined,
+          favoritedProfiles: undefined,
+        };
+
+        return {
+          ...currentState,
+          postInteractions: new Map(persisted?.postInteractions || []),
+          commentInteractions: new Map(persisted?.commentInteractions || []),
+          favoritedProfiles: new Set(persisted?.favoritedProfiles || []),
+        };
       },
     }
   )

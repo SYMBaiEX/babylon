@@ -120,5 +120,21 @@ export default [
       "@typescript-eslint/no-unused-vars": "warn",
       "no-console": "off"
     }
+  },
+  {
+    files: ["**/logger.ts"],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        ecmaVersion: "latest",
+        sourceType: "module"
+      }
+    },
+    plugins: {
+      "@typescript-eslint": tsPlugin
+    },
+    rules: {
+      "no-console": "off" // Logger utilities intentionally use console
+    }
   }
 ];

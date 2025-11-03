@@ -215,7 +215,7 @@ export class PointsService {
     return this.awardPoints(userId, amount, reason, {
       platform,
       contentType,
-      ...(contentId && { contentId }),
+      ...(contentId ? { contentId } : {}),
     })
   }
 

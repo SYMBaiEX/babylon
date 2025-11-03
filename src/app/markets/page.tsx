@@ -104,7 +104,7 @@ export default function MarketsPage() {
   const [topPools, setTopPools] = useState<Pool[]>([])
 
   // Use refs to store latest values to break dependency chains
-  const fetchDataRef = useRef<(() => Promise<void>) | undefined>(undefined)
+  const fetchDataRef = useRef<(() => Promise<void>) | null>(null)
   const authenticatedRef = useRef(authenticated)
   const userIdRef = useRef<string | null>(user?.id || null)
   const prevAuthRef = useRef<{ authenticated: boolean; userId: string | null | undefined } | null>(null)

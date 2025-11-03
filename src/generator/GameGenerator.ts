@@ -926,9 +926,10 @@ Otherwise, start fresh.`;
     // Supporting actors connect to each other (creates richer network)
     selectedActors.supporting.forEach((supporting: SelectedActor, i: number) => {
       const numConnections = 2 + Math.floor(Math.random() * 2); // 2-3 connections
+      // Exclude current actor and filter out already connected actors
       const potentials = selectedActors.supporting
-        .filter((_supportingActor: SelectedActor, idx: number) => idx !== i)
-        .filter((other: SelectedActor) => 
+        .filter((other: SelectedActor, idx: number) => 
+          idx !== i && 
           !connections.some(c => 
             (c.actor1 === supporting.id && c.actor2 === other.id) ||
             (c.actor2 === supporting.id && c.actor1 === other.id)

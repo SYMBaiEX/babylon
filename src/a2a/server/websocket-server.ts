@@ -20,8 +20,13 @@ import { MessageRouter } from './message-router'
 import { AuthManager } from './auth-manager'
 import { RateLimiter } from '../utils/rate-limiter'
 import { Logger } from '../utils/logger'
-import type { RegistryClient as RegistryClientImpl } from '../blockchain/registry-client'
-import type { X402Manager as X402ManagerImpl } from '../payments/x402-manager'
+import type { RegistryClient } from '@/types/a2a-server'
+import type { X402Manager } from '@/types/a2a-server'
+
+import { createPortSingleton } from '@/utils/singleton'
+
+// Singleton for A2A WebSocket server (port-aware)
+const a2aServerSingleton = createPortSingleton<A2AWebSocketServer>('a2aGlobalServer', 'a2aGlobalPort')
 
 // A2AServerOptions is now defined in types/index.ts
 export class A2AWebSocketServer extends EventEmitter {
@@ -40,8 +45,19 @@ export class A2AWebSocketServer extends EventEmitter {
     enableCoalitions: boolean;
     logLevel: 'debug' | 'info' | 'warn' | 'error';
   }
-  private registryClient?: RegistryClientImpl
-  private x402Manager?: X402ManagerImpl
+  private registryClient?: RegistryClient
+  private x402Manager?: X402Manager
+  private _ready: boolean = false
+  private _initializationError: Error | null = null
+
+  // Getters for singleton reuse
+  get server(): WebSocketServer {
+    return this.wss
+  }
+
+  get ready(): boolean {
+    return this._ready
+  }
 
   constructor(config: A2AServerOptions) {
     super()
@@ -56,25 +72,62 @@ export class A2AWebSocketServer extends EventEmitter {
       enableX402: config.enableX402 ?? true,
       enableCoalitions: config.enableCoalitions ?? true,
       logLevel: config.logLevel ?? 'info',
-      registryClient: config.registryClient as unknown as RegistryClientImpl | undefined,
-      x402Manager: config.x402Manager as unknown as X402ManagerImpl | undefined,
+      registryClient: config.registryClient,
+      x402Manager: config.x402Manager,
     }
 
-    this.registryClient = config.registryClient as unknown as RegistryClientImpl | undefined
-    this.x402Manager = config.x402Manager as unknown as X402ManagerImpl | undefined
+    this.registryClient = config.registryClient
+    this.x402Manager = config.x402Manager
     this.logger = new Logger(this.config.logLevel)
     this.router = new MessageRouter(this.config as Required<A2AServerConfig>, this.registryClient ?? undefined, this.x402Manager ?? undefined)
     this.authManager = new AuthManager(this.registryClient)
     this.rateLimiter = new RateLimiter(this.config.messageRateLimit)
 
-    this.wss = new WebSocketServer({
-      port: this.config.port,
-      host: this.config.host,
-      maxPayload: 1024 * 1024 // 1MB max message size
-    })
+    // Check for existing server using singleton (prevent double initialization)
+    const existing = a2aServerSingleton.getInstance(this.config.port)
+    if (existing) {
+      this.logger.info('Reusing existing A2A server from singleton', 'A2AWebSocketServer')
+      // Copy references from existing server
+      this.wss = existing.server
+      this._ready = existing.ready || false
+      return
+    }
+    
+    try {
+      this.wss = new WebSocketServer({
+        port: this.config.port,
+        host: this.config.host,
+        maxPayload: 1024 * 1024 // 1MB max message size
+      })
 
-    this.setupServer()
-    this.logger.info(`A2A WebSocket server started on ${this.config.host}:${this.config.port}`)
+      // Handle port conflict errors - store error instead of emitting to prevent uncaught exception
+      this.wss.on('error', (error: Error & { code?: string }) => {
+        if (error.code === 'EADDRINUSE') {
+          this.logger.error(`Port ${this.config.port} is already in use. Please stop the process using this port or change the port configuration.`, error)
+          this._initializationError = error
+          // Don't emit error event here - let waitForReady() handle it
+        } else {
+          this.logger.error('WebSocket server error:', error)
+          this._initializationError = error
+        }
+      })
+
+      // Listen for successful binding
+      this.wss.on('listening', () => {
+        this._ready = true
+        this.logger.info(`A2A WebSocket server listening on ${this.config.host}:${this.config.port}`, 'A2AWebSocketServer')
+        // Store in singleton for reuse
+        a2aServerSingleton.setInstance(this, this.config.port)
+      })
+
+      this.setupServer()
+      this.logger.info(`A2A WebSocket server created on ${this.config.host}:${this.config.port}`, 'A2AWebSocketServer')
+    } catch (error) {
+      // Catch synchronous errors during server creation
+      this._initializationError = error instanceof Error ? error : new Error(String(error))
+      this.logger.error('Failed to create WebSocket server:', this._initializationError)
+      throw this._initializationError
+    }
   }
 
   private setupServer(): void {
@@ -210,8 +263,14 @@ export class A2AWebSocketServer extends EventEmitter {
       })
     })
 
-    this.wss.on('error', (error) => {
-      this.logger.error('WebSocket server error:', error)
+    this.wss.on('error', (error: Error & { code?: string }) => {
+      if (error.code === 'EADDRINUSE') {
+        this.logger.error(`Port ${this.config.port} is already in use.`, error)
+        // Emit error event so caller can handle it
+        this.emit('error', error)
+      } else {
+        this.logger.error('WebSocket server error:', error)
+      }
     })
   }
 
@@ -371,8 +430,21 @@ export class A2AWebSocketServer extends EventEmitter {
    */
   public async waitForReady(): Promise<void> {
     return new Promise((resolve, reject) => {
+      // Check if already ready
+      if (this._ready) {
+        resolve()
+        return
+      }
+
+      // Check if there's already an initialization error
+      if (this._initializationError) {
+        reject(this._initializationError)
+        return
+      }
+
       // Check if server is already listening by checking if address() returns non-null
       if (this.wss.address() !== null) {
+        this._ready = true
         resolve()
         return
       }
@@ -381,14 +453,27 @@ export class A2AWebSocketServer extends EventEmitter {
         reject(new Error('Server failed to start within timeout'))
       }, 5000)
 
+      // Check for existing error listeners - if error already happened, handle it
+      const errorListener = (error: Error & { code?: string }) => {
+        clearTimeout(timeout)
+        this._initializationError = error
+        if (error.code === 'EADDRINUSE') {
+          reject(new Error(`Port ${this.config.port} is already in use`))
+        } else {
+          reject(error)
+        }
+      }
+
+      // Listen for errors (like port conflicts) and reject immediately
+      // If error already occurred, it will be in the error listeners
+      this.wss.once('error', errorListener)
+
       this.wss.once('listening', () => {
         clearTimeout(timeout)
+        this._ready = true
+        // Remove error listener since we're successful
+        this.wss.removeListener('error', errorListener)
         resolve()
-      })
-
-      this.wss.once('error', (error) => {
-        clearTimeout(timeout)
-        reject(error)
       })
     })
   }

@@ -10,6 +10,7 @@ import { LoginButton } from '@/components/auth/LoginButton'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { Avatar } from '@/components/shared/Avatar'
 import { Separator } from '@/components/shared/Separator'
+import { TaggedText } from '@/components/shared/TaggedText'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 
@@ -633,9 +634,11 @@ export default function ChatsPage() {
                                       : 'rgba(var(--sidebar-accent), 0.5)',
                                   }}
                                 >
-                                  <span className="text-foreground">
-                                    {msg.content}
-                                  </span>
+                                  <TaggedText
+                                    text={msg.content}
+                                    onTagClick={(tag) => setSearchQuery(tag)}
+                                    className="text-foreground"
+                                  />
                                 </div>
                               </div>
                             </div>
@@ -1003,9 +1006,11 @@ export default function ChatsPage() {
                                         : 'rgba(var(--sidebar-accent), 0.5)',
                                     }}
                                   >
-                                    <span className="text-foreground">
-                                      {msg.content}
-                                    </span>
+                                    <TaggedText
+                                      text={msg.content}
+                                      onTagClick={(tag) => setSearchQuery(tag)}
+                                      className="text-foreground"
+                                    />
                                   </div>
                                 </div>
                               </div>

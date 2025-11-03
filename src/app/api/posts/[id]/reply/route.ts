@@ -16,6 +16,7 @@ import { MessageQualityChecker } from '@/lib/services/message-quality-checker';
 import { FollowingMechanics } from '@/lib/services/following-mechanics';
 import { GroupChatInvite } from '@/lib/services/group-chat-invite';
 import { logger } from '@/lib/logger';
+import { parsePostId } from '@/lib/post-id-parser';
 
 const prisma = new PrismaClient();
 
@@ -49,59 +50,14 @@ export async function POST(
     }
 
     // 3. Extract NPC/author ID from post ID
-    // Try multiple post ID formats
-    // Format 1: gameId-gameTimestamp-authorId-isoTimestamp (e.g., babylon-1761441310151-kash-patrol-2025-10-01T02:12:00Z)
-    // Format 2: post-{timestamp}-{random} (e.g., post-1762099655817-0.7781412938928327)
-    // Format 3: post-{timestamp}-{actorId}-{random} (e.g., post-1762099655817-kash-patrol-abc123)
-
-    let npcId = 'system'; // default author
-    let gameId = 'babylon'; // default game
-    let timestamp = new Date();
-
-    // Check Format 1: Has ISO timestamp at the end
-    const isoTimestampMatch = postId.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z)$/);
-
-    if (isoTimestampMatch && isoTimestampMatch[1]) {
-      // Format 1: gameId-gameTimestamp-authorId-isoTimestamp
-      const timestampStr = isoTimestampMatch[1];
-      timestamp = new Date(timestampStr);
-
-      const firstHyphenIndex = postId.indexOf('-');
-      if (firstHyphenIndex !== -1) {
-        gameId = postId.substring(0, firstHyphenIndex);
-
-        const withoutGameId = postId.substring(firstHyphenIndex + 1);
-        const secondHyphenIndex = withoutGameId.indexOf('-');
-        if (secondHyphenIndex !== -1) {
-          const afterGameTimestamp = withoutGameId.substring(secondHyphenIndex + 1);
-          npcId = afterGameTimestamp.substring(0, afterGameTimestamp.lastIndexOf('-' + timestampStr));
-        }
-      }
-    } else if (postId.startsWith('post-')) {
-      // Format 2 or 3: GameEngine format
-      const parts = postId.split('-');
-
-      if (parts.length >= 3 && parts[1]) {
-        // Try to extract timestamp from second part
-        const timestampPart = parts[1];
-        const timestampNum = parseInt(timestampPart, 10);
-
-        if (!isNaN(timestampNum) && timestampNum > 1000000000000) {
-          // Valid timestamp (milliseconds since epoch)
-          timestamp = new Date(timestampNum);
-
-          // Check if third part looks like an actor ID (not a decimal)
-          if (parts.length >= 4 && parts[2] && !parts[2].includes('.')) {
-            // Format 3: post-{timestamp}-{actorId}-{random}
-            npcId = parts[2];
-          }
-          // Otherwise Format 2: post-{timestamp}-{random}
-          // Keep default npcId = 'system'
-        }
-      }
-    } else {
+    const parseResult = parsePostId(postId);
+    
+    // Require valid format for replies (unlike likes, which can use defaults)
+    if (!parseResult.success) {
       return errorResponse('Invalid post ID format', 400);
     }
+
+    const { gameId, authorId: npcId, timestamp } = parseResult.metadata;
 
     // 4. Check rate limiting
     const rateLimitResult = await ReplyRateLimiter.canReply(user.userId, npcId);

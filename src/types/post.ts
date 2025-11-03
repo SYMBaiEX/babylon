@@ -20,6 +20,7 @@ export interface PostWithAuthor {
   authorId: string
   gameId: string | null
   dayNumber: number | null
+  // originalPostId: string | null  // Temporarily removed due to DB mismatch
   timestamp: Date
   createdAt: Date
   author?: User | null

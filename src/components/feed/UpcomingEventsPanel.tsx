@@ -30,7 +30,7 @@ export function UpcomingEventsPanel() {
   const { getUpcomingEvents, setUpcomingEvents } = useWidgetCacheStore()
 
   // Use ref to store fetchEvents function to break dependency chain
-  const fetchEventsRef = useRef<(() => void) | undefined>(undefined)
+  const fetchEventsRef = useRef<(() => void) | null>(null)
 
   const fetchEvents = useCallback(async (skipCache = false) => {
     // Check cache first (unless explicitly skipping)

@@ -11,9 +11,19 @@ import {
   BabylonClientService,
   BabylonTradingService,
 } from "./plugin";
+import { SocialInteractionService } from "./services/services";
+import { BabylonChatService } from "./services/chat-service";
+import { BabylonA2AService } from "./a2a-service";
 
 // Export plugin and services (following quick-starter pattern)
-export { predictionMarketsPlugin, BabylonClientService, BabylonTradingService };
+export { 
+  predictionMarketsPlugin, 
+  BabylonClientService, 
+  BabylonTradingService,
+  SocialInteractionService,
+  BabylonChatService,
+  BabylonA2AService,
+};
 
 // Export types and utilities for external use
 export * from "./types";

@@ -182,7 +182,7 @@ export function FollowButton({
     )
   }
 
-  // Old-school Twitter style button
+  // Old-school style button
   return (
     <button
       onClick={handleFollow}

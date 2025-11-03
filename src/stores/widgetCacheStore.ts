@@ -4,43 +4,87 @@
  */
 
 import { create } from 'zustand'
+import type {
+  UserBalanceData,
+  PredictionPosition,
+  UserProfileStats,
+  ProfileWidgetPoolDeposit,
+  PerpPositionFromAPI,
+} from '@/types/profile'
+
+export interface BreakingNewsItem {
+  id: string
+  title: string
+  description: string
+  icon: 'chart' | 'calendar' | 'dollar' | 'trending'
+  timestamp: string
+  trending?: boolean
+  source?: string
+  fullDescription?: string
+  imageUrl?: string
+  relatedQuestion?: number
+  relatedActorId?: string
+  relatedOrganizationId?: string
+}
+
+export interface UpcomingEvent {
+  id: string
+  title: string
+  date: string
+  time?: string
+  isLive?: boolean
+  hint?: string
+  fullDescription?: string
+  source?: string
+  relatedQuestion?: number
+  imageUrl?: string
+  relatedActorId?: string
+  relatedOrganizationId?: string
+}
+
+export interface BabylonStats {
+  activePlayers: number
+  aiAgents: number
+  totalHoots: number
+  pointsInCirculation: string
+}
+
+interface ProfileWidgetData {
+  balance: UserBalanceData | null
+  predictions: PredictionPosition[]
+  perps: PerpPositionFromAPI[]
+  pools: ProfileWidgetPoolDeposit[]
+  stats: UserProfileStats | null
+}
 
 interface CacheEntry<T> {
   data: T
   timestamp: number
 }
 
-interface StatsData {
-  [key: string]: unknown
-}
-
-interface ProfileWidgetData {
-  [key: string]: unknown
-}
-
 interface WidgetCacheState {
-  breakingNews: CacheEntry<unknown[]> | null
-  upcomingEvents: CacheEntry<unknown[]> | null
-  stats: CacheEntry<StatsData> | null
+  breakingNews: CacheEntry<BreakingNewsItem[]> | null
+  upcomingEvents: CacheEntry<UpcomingEvent[]> | null
+  stats: CacheEntry<BabylonStats> | null
   profileWidget: Map<string, CacheEntry<ProfileWidgetData>> // Keyed by userId
   
   // TTL in milliseconds (default: 30 seconds)
   ttl: number
   
   // Set cache entry
-  setBreakingNews: (data: unknown[]) => void
-  setUpcomingEvents: (data: unknown[]) => void
-  setStats: (data: StatsData) => void
+  setBreakingNews: (data: BreakingNewsItem[]) => void
+  setUpcomingEvents: (data: UpcomingEvent[]) => void
+  setStats: (data: BabylonStats) => void
   setProfileWidget: (userId: string, data: ProfileWidgetData) => void
   
   // Get cache entry (returns null if stale or missing)
-  getBreakingNews: () => unknown[] | null
-  getUpcomingEvents: () => unknown[] | null
-  getStats: () => StatsData | null
+  getBreakingNews: () => BreakingNewsItem[] | null
+  getUpcomingEvents: () => UpcomingEvent[] | null
+  getStats: () => BabylonStats | null
   getProfileWidget: (userId: string) => ProfileWidgetData | null
   
   // Check if cache is fresh
-  isFresh: (entry: CacheEntry<unknown> | null) => boolean
+  isFresh: <T>(entry: CacheEntry<T> | null) => boolean
   
   // Clear specific cache
   clearBreakingNews: () => void
@@ -59,13 +103,13 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
   profileWidget: new Map(),
   ttl: DEFAULT_TTL,
   
-  isFresh: (entry: CacheEntry<unknown> | null) => {
+  isFresh: <T>(entry: CacheEntry<T> | null) => {
     if (!entry) return false
     const age = Date.now() - entry.timestamp
     return age < get().ttl
   },
   
-  setBreakingNews: (data: unknown[]) => {
+  setBreakingNews: (data: BreakingNewsItem[]) => {
     set({
       breakingNews: {
         data,
@@ -74,7 +118,7 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
     })
   },
   
-  setUpcomingEvents: (data: unknown[]) => {
+  setUpcomingEvents: (data: UpcomingEvent[]) => {
     set({
       upcomingEvents: {
         data,
@@ -83,7 +127,7 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
     })
   },
   
-  setStats: (data: StatsData) => {
+  setStats: (data: BabylonStats) => {
     set({
       stats: {
         data,
@@ -103,23 +147,23 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
   
   getBreakingNews: () => {
     const entry = get().breakingNews
-    return get().isFresh(entry) && entry ? entry.data : null
+    return entry && get().isFresh(entry) ? entry.data : null
   },
   
   getUpcomingEvents: () => {
     const entry = get().upcomingEvents
-    return get().isFresh(entry) && entry ? entry.data : null
+    return entry && get().isFresh(entry) ? entry.data : null
   },
   
   getStats: () => {
     const entry = get().stats
-    return get().isFresh(entry) && entry ? entry.data : null
+    return entry && get().isFresh(entry) ? entry.data : null
   },
   
   getProfileWidget: (userId: string) => {
     const profileWidget = get().profileWidget
-    const entry = profileWidget.get(userId) || null
-    return get().isFresh(entry) && entry ? entry.data : null
+    const entry = profileWidget.get(userId)
+    return entry && get().isFresh(entry) ? entry.data : null
   },
   
   clearBreakingNews: () => set({ breakingNews: null }),
@@ -137,4 +181,5 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
     profileWidget: new Map(),
   }),
 }))
+
 

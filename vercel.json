@@ -19,7 +19,6 @@
       "schedule": "* * * * *"
     }
   ],
-  "_comment_crons": "Vercel Cron Jobs require Pro plan. Schedule: minute hour day month dayOfWeek. Current: every minute.",
   "functions": {
     "app/api/**/*.ts": {
       "memory": 1024,

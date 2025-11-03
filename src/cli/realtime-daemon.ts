@@ -9,19 +9,19 @@
  * - Updates stock prices every minute
  * - Creates/resolves questions automatically
  * - Keeps rolling 30-day history
- * - Auto-starts ElizaOS agents (if enabled)
+ * - Does NOT auto-start ElizaOS agents (agents should be started separately)
  * 
  * Usage:
  *   bun run daemon              (start daemon)
  *   bun run daemon --verbose    (with detailed logging)
  * 
  * Environment Variables:
- *   AUTO_START_AGENTS=true      (default: true) - Auto-start agents on daemon launch
+ *   AUTO_START_AGENTS=true      (default: false) - Auto-start agents on daemon launch (not recommended)
  *   AGENT_AUTO_TRADE=true       (default: false) - Enable auto-trading for agents
  */
 
 import { GameEngine } from '../engine/GameEngine';
-import { spawn, type ChildProcess } from 'child_process';
+import { spawn, execSync, type ChildProcess } from 'child_process';
 import { join } from 'path';
 import { logger } from '@/lib/logger';
 import { setEngineInstance, clearEngineInstance } from '@/lib/engine';
@@ -43,8 +43,37 @@ function parseArgs(): CLIOptions {
   return options;
 }
 
+/**
+ * Check if a daemon is already running by checking for the process
+ * Returns PID if found, null otherwise
+ */
+function checkExistingDaemon(): number | null {
+  try {
+    const result = execSync('pgrep -f "realtime-daemon"', { encoding: 'utf-8' }).trim();
+    if (result) {
+      const firstLine = result.split('\n')[0];
+      if (!firstLine) return null;
+      const pid = parseInt(firstLine, 10);
+      // Make sure it's not this process
+      if (pid && pid !== process.pid) {
+        return pid;
+      }
+    }
+  } catch {
+    // pgrep returns non-zero if no process found, which is fine
+  }
+  return null;
+}
+
 async function main() {
   const options = parseArgs();
+
+  // Check if daemon is already running
+  const existingDaemon = checkExistingDaemon();
+  if (existingDaemon) {
+    logger.error(`Daemon is already running (PID: ${existingDaemon}). Please stop it first with: kill ${existingDaemon}`, undefined, 'CLI');
+    process.exit(1);
+  }
 
   logger.info('BABYLON GAME DAEMON', undefined, 'CLI');
   logger.info('===================', undefined, 'CLI');
@@ -130,14 +159,13 @@ async function main() {
     setEngineInstance(engine);
     logger.info('Engine instance registered for API access', undefined, 'CLI');
 
-    // Auto-start agents if enabled
+    // Auto-start agents only if explicitly enabled
     const autoStartAgents = process.env.AUTO_START_AGENTS === 'true'; // Default to false
     if (autoStartAgents) {
-      logger.info('Starting agents...', undefined, 'CLI');
+      logger.info('Starting agents (AUTO_START_AGENTS=true)...', undefined, 'CLI');
       await startAgents();
     } else {
-      logger.info('Agent auto-start disabled (set AUTO_START_AGENTS=true to enable)', undefined, 'CLI');
-      logger.info('To start agents manually: bun run eliza:all', undefined, 'CLI');
+      logger.info('Agent auto-start disabled. Start agents separately with: bun run eliza:all', undefined, 'CLI');
     }
 
     // Keep process alive
@@ -172,6 +200,7 @@ async function startAgents(): Promise<void> {
     
     agentProcess = spawn('bun', [
       agentScript,
+      '--max=1', // Only start 1 agent on daemon bootup
       ...(autoTrade ? ['--auto-trade'] : []),
     ], {
       stdio: ['ignore', 'pipe', 'pipe'],

@@ -77,7 +77,7 @@ export class ActorSocialActions {
           }));
 
         for (const { userId, interactions } of actorInteractions) {
-          if (interactions.length < this.MIN_INTERACTIONS_FOR_ACTION) {
+          if (!userId || interactions.length < this.MIN_INTERACTIONS_FOR_ACTION) {
             continue;
           }
 
@@ -214,14 +214,15 @@ export class ActorSocialActions {
     userId: string
   ): Promise<{ id: string; messageContent: string }> {
     // Generate a DM message content (simple for now, could use LLM)
-    const messages = [
+    const messages: string[] = [
       "Hey! I've been noticing your posts. Want to chat?",
       "Thought you might find this interesting...",
       "Quick question for you!",
       "Loved your take on that last post. Mind if I DM you?",
       "Got something I think you'd want to hear.",
     ];
-    const messageContent = messages[Math.floor(Math.random() * messages.length)];
+    const randomIndex = Math.floor(Math.random() * messages.length);
+    const messageContent: string = messages[randomIndex]!; // Safe: randomIndex is always within bounds
 
     // Create or get DM chat
     const chatId = `dm-${actorId}-${userId}`;

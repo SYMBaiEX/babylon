@@ -14,6 +14,7 @@ import {
   AgentRuntime,
   stringToUuid,
 } from '@elizaos/core';
+import { plugin as sqlPlugin } from '@elizaos/plugin-sql';
 import { predictionMarketsPlugin } from '../../../plugin-babylon/src';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -185,16 +186,18 @@ async function main() {
   logger.info('Configuring database...');
 
   const postgresUrl = process.env.POSTGRES_URL || process.env.DATABASE_URL;
-  const dataDir = process.env.PGLITE_DATA_DIR || path.join(__dirname, '../../../data/pglite');
+  // Use .eliza/.elizadb as default to match ElizaOS conventions
+  const dataDir = process.env.PGLITE_DATA_DIR || path.join(process.cwd(), '.eliza', '.elizadb');
 
   // Ensure data directory exists if using PGlite
-  if (!postgresUrl && !fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-
   if (!postgresUrl) {
+    if (!fs.existsSync(dataDir)) {
+      logger.info(`Creating PGlite data directory: ${dataDir}`);
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
     logger.warn('POSTGRES_URL not set, using PGlite embedded database for development');
     logger.warn('For production, set POSTGRES_URL=postgresql://user:password@host:5432/database');
+    logger.info(`PGlite data directory: ${dataDir}`);
   } else {
     logger.info('Using PostgreSQL database');
   }
@@ -203,6 +206,16 @@ async function main() {
   // Latest ElizaOS pattern: plugins (including SQL plugin) are configured in character
   logger.info('Configuring character with plugins and settings...');
 
+  // Determine model provider - prioritize Groq if available, otherwise use character default
+  const hasGroqKey = !!process.env.GROQ_API_KEY;
+  // Character JSON files have modelProvider, but TypeScript type may not include it
+  const characterModelProvider = (character as { modelProvider?: string }).modelProvider || 'openai';
+  const modelProvider = hasGroqKey ? 'groq' : characterModelProvider;
+  
+  if (hasGroqKey && characterModelProvider !== 'groq') {
+    logger.info(`Overriding modelProvider from "${characterModelProvider}" to "groq" (GROQ_API_KEY found in .env)`, undefined, 'run-eliza-agent');
+  }
+  
   // Build settings object with only defined optional values
   const characterSettings: Record<string, string | number | boolean | Record<string, JsonValue>> = {
     ...(character.settings || {}),
@@ -224,15 +237,20 @@ async function main() {
     characterSettings.postgresUrl = postgresUrl;
   }
 
+  // Update character with modelProvider override if Groq is available
   character = {
     ...character,
+    ...(hasGroqKey ? { modelProvider: 'groq' as const } : {}), // Override with Groq if available
     settings: characterSettings,
     plugins: [
       '@elizaos/plugin-bootstrap',  // Bootstrap plugin for core ElizaOS functionality
       '@elizaos/plugin-sql',        // SQL plugin provides database adapter
       ...(Array.isArray(character.plugins) ? character.plugins : []),
     ],
-  };
+  } as Character;
+  
+  logger.info(`Using model provider: ${modelProvider}`, undefined, 'run-eliza-agent');
+  logger.info(`Model provider details: groqKeyAvailable=${hasGroqKey}, selectedProvider=${modelProvider}, originalProvider=${characterModelProvider}`, undefined, 'run-eliza-agent');
   logger.info('Character configured with plugins and settings');
 
   // Generate agent ID from character name for stability across restarts
@@ -243,11 +261,12 @@ async function main() {
   // Latest ElizaOS: AgentRuntime automatically reads API keys from environment variables
   // API keys should be set: OPENAI_API_KEY, GROQ_API_KEY, or ANTHROPIC_API_KEY
   // Plugin objects (not strings) are passed to AgentRuntime constructor
+  // The SQL plugin's init() function will create and register the database adapter
   logger.info('Creating agent runtime...');
   const runtime = new AgentRuntime({
     character,
     agentId,
-    plugins: [predictionMarketsPlugin],  // Pass Plugin objects here, not strings
+    plugins: [sqlPlugin, predictionMarketsPlugin],  // SQL plugin must be first to initialize database adapter
   });
 
   // Initialize character with Babylon-specific setup
