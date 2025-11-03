@@ -13,7 +13,6 @@ import {
 import { PointsService } from '@/lib/services/points-service'
 import { logger } from '@/lib/logger'
 
-const prisma = new PrismaClient()
 
 interface LinkSocialRequest {
   platform: string // 'farcaster', 'twitter', 'wallet'

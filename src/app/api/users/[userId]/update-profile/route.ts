@@ -4,7 +4,6 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
   successResponse,
@@ -13,8 +12,8 @@ import {
 import { PointsService } from '@/lib/services/points-service';
 import { logger } from '@/lib/logger';
 import { notifyProfileComplete } from '@/lib/services/notification-service';
+import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
 
 /**
  * POST /api/users/[userId]/update-profile

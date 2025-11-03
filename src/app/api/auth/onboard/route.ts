@@ -16,7 +16,6 @@ import { PointsService } from '@/lib/services/points-service'
 import { logger } from '@/lib/logger'
 import { notifyNewAccount } from '@/lib/services/notification-service'
 
-const prisma = new PrismaClient()
 
 // Contract addresses
 const IDENTITY_REGISTRY = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA as Address
@@ -100,6 +99,9 @@ interface RegistrationRequest {
   walletAddress: string
   username: string
   bio?: string
+  displayName?: string
+  profileImageUrl?: string
+  coverImageUrl?: string
   endpoint?: string
   referralCode?: string // Referral code from URL param
 }
@@ -115,7 +117,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body: RegistrationRequest = await request.json()
-    const { walletAddress, username, bio, endpoint, referralCode } = body
+    const { walletAddress, username, bio, displayName, profileImageUrl, coverImageUrl, endpoint, referralCode } = body
 
     // For agents, walletAddress is optional (they use server wallet)
     // For regular users, walletAddress is required
@@ -188,8 +190,10 @@ export async function POST(request: NextRequest) {
         dbUser = await prisma.user.create({
           data: {
             username: user.userId,
-            displayName: username || user.userId,
+            displayName: displayName || username || user.userId,
             bio: bio || `Autonomous AI agent: ${user.userId}`,
+            profileImageUrl: profileImageUrl,
+            coverImageUrl: coverImageUrl,
             isActor: false,
             virtualBalance: 10000, // Agents start with 10k
             totalDeposited: 10000,
@@ -223,8 +227,10 @@ export async function POST(request: NextRequest) {
             id: user.userId,
             walletAddress: walletAddress!.toLowerCase(),
             username: finalUsername,
-            displayName: finalUsername,
+            displayName: displayName || finalUsername,
             bio: bio || '',
+            profileImageUrl: profileImageUrl,
+            coverImageUrl: coverImageUrl,
             isActor: false,
             virtualBalance: 0, // Will be set to 1000 after registration
             totalDeposited: 0,
@@ -250,8 +256,10 @@ export async function POST(request: NextRequest) {
           data: {
             walletAddress: walletAddress!.toLowerCase(),
             username: finalUsername || dbUser.username,
-            displayName: finalUsername || fullUser?.displayName,
+            displayName: displayName || finalUsername || fullUser?.displayName,
             bio: bio || fullUser?.bio,
+            profileImageUrl: profileImageUrl || fullUser?.profileImageUrl,
+            coverImageUrl: coverImageUrl || fullUser?.coverImageUrl,
           },
           select: {
             id: true,

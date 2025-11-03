@@ -12,9 +12,7 @@
  * - Risk of being booted from group chats
  */
 
-import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
 
 export interface QualityCheckResult {
   score: number; // 0-1, where 1 is perfect

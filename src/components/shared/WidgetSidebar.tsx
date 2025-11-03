@@ -1,19 +1,28 @@
 'use client'
 
-import { BreakingNewsPanel } from '@/components/feed/BreakingNewsPanel'
-import { UpcomingEventsPanel } from '@/components/feed/UpcomingEventsPanel'
+import { LatestNewsPanel } from '@/components/feed/LatestNewsPanel'
+import { TrendingPanel } from '@/components/feed/TrendingPanel'
+import { MarketsPanel } from '@/components/feed/MarketsPanel'
 
 export function WidgetSidebar() {
   return (
-    <div className="hidden xl:flex flex-col w-96 flex-shrink-0 overflow-y-auto bg-sidebar px-4 py-6 gap-6">
-      {/* Top: Breaking News */}
-      <div className="flex-shrink-0 min-h-[250px] flex flex-col">
-        <BreakingNewsPanel />
-      </div>
+    <div className="hidden xl:flex flex-col w-96 flex-shrink-0 bg-sidebar">
+      {/* Sticky container that scrolls with feed */}
+      <div className="sticky top-0 flex flex-col px-4 py-6 gap-6 max-h-screen overflow-y-auto">
+        {/* Top: Latest News (Long-form articles) */}
+        <div className="flex-shrink-0">
+          <LatestNewsPanel />
+        </div>
 
-      {/* Bottom: Upcoming Events */}
-      <div className="flex-1 flex flex-col justify-center min-h-[200px]">
-        <UpcomingEventsPanel />
+        {/* Middle: Trending */}
+        <div className="flex-shrink-0">
+          <TrendingPanel />
+        </div>
+
+        {/* Bottom: Markets Widget */}
+        <div className="flex-shrink-0">
+          <MarketsPanel />
+        </div>
       </div>
     </div>
   )

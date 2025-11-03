@@ -4,15 +4,14 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import {
   optionalAuth,
   successResponse,
   errorResponse,
 } from '@/lib/api/auth-middleware';
 import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
 
 /**
  * GET /api/users/[userId]/following

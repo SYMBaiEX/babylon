@@ -7,9 +7,7 @@
  * - Just right: allows reply and tracks timing
  */
 
-import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
 
 export interface RateLimitResult {
   allowed: boolean;

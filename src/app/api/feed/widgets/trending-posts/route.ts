@@ -8,7 +8,6 @@ import { PrismaClient } from '@prisma/client'
 import { successResponse, errorResponse } from '@/lib/api/auth-middleware'
 import { logger } from '@/lib/logger'
 
-const prisma = new PrismaClient()
 
 interface TrendingPost {
   id: string

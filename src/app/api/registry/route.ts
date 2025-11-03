@@ -11,7 +11,6 @@ import { successResponse, errorResponse } from '@/lib/api/auth-middleware'
 import { ReputationService } from '@/lib/services/reputation-service'
 import { logger } from '@/lib/logger'
 
-const prisma = new PrismaClient()
 
 interface RegistryFilters {
   onChainOnly?: boolean

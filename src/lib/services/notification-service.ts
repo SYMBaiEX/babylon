@@ -4,10 +4,9 @@
  * Helper functions for creating notifications when users interact
  */
 
-import { PrismaClient } from '@prisma/client';
 import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
 
 export type NotificationType = 'comment' | 'reaction' | 'follow' | 'mention' | 'reply' | 'share' | 'system';
 

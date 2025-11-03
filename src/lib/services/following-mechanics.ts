@@ -12,11 +12,10 @@
  * - More total interactions (10+ quality replies)
  */
 
-import { PrismaClient } from '@prisma/client';
 import { notifyFollow } from './notification-service';
 import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
 
 export interface FollowingChance {
   willFollow: boolean;

@@ -70,21 +70,9 @@ export function InteractionBar({
       <div
         className={cn(
           className,
-          'flex items-center gap-1.5 mt-2 w-full',
+          'flex items-center justify-between mt-2 w-full text-muted-foreground px-8',
         )}
       >
-        {/* Like button with reaction picker */}
-        <div onClick={(e) => e.stopPropagation()}>
-          <LikeButton
-            targetId={postId}
-            targetType="post"
-            initialLiked={isLiked}
-            initialCount={likeCount}
-            size="sm"
-            showCount
-          />
-        </div>
-
         {/* Comment button */}
         <button
           type="button"
@@ -95,9 +83,8 @@ export function InteractionBar({
           className={cn(
             'flex items-center gap-1 h-8 px-2',
             'bg-transparent hover:opacity-70 transition-all duration-200',
-            'text-xs'
+            'text-xs text-muted-foreground'
           )}
-          style={{ color: '#1c9cf0' }}
         >
           <MessageCircle size={18} />
           {commentCount > 0 && (
@@ -111,6 +98,18 @@ export function InteractionBar({
             postId={postId}
             shareCount={shareCount}
             initialShared={isShared}
+            size="sm"
+            showCount
+          />
+        </div>
+
+        {/* Like button with reaction picker */}
+        <div onClick={(e) => e.stopPropagation()}>
+          <LikeButton
+            targetId={postId}
+            targetType="post"
+            initialLiked={isLiked}
+            initialCount={likeCount}
             size="sm"
             showCount
           />

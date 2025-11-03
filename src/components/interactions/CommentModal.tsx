@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
 import { PostCard } from '@/components/posts/PostCard';
@@ -25,6 +26,35 @@ interface CommentModalProps {
 }
 
 export function CommentModal({ isOpen, onClose, post }: CommentModalProps) {
+  // Handle escape key and body scroll lock
+  useEffect(() => {
+    if (!isOpen) {
+      document.body.style.overflow = ''
+      return
+    }
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    document.addEventListener('keydown', handleEscape)
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape)
+      document.body.style.overflow = ''
+    }
+  }, [isOpen, onClose])
+
+  // Cleanup on unmount (for HMR)
+  useEffect(() => {
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [])
+
   if (!isOpen || !post) {
     return null;
   }

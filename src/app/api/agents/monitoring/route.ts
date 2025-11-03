@@ -14,7 +14,6 @@ import type { Prisma } from '@prisma/client'
 import { successResponse, errorResponse, authenticate } from '@/lib/api/auth-middleware'
 import { logger } from '@/lib/logger'
 
-const prisma = new PrismaClient()
 
 interface AgentActivity {
   agentId: string

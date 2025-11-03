@@ -10,7 +10,6 @@ import { PrismaClient, Prisma } from '@prisma/client'
 import { errorResponse, successResponse } from '@/lib/api/auth-middleware'
 import { logger } from '@/lib/logger'
 
-const prisma = new PrismaClient()
 
 interface AwardPointsRequest {
   userId: string

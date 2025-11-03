@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -16,6 +16,35 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
   const [content, setContent] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { authenticated, user } = useAuth()
+
+  // Handle escape key and body scroll lock
+  useEffect(() => {
+    if (!isOpen) {
+      document.body.style.overflow = ''
+      return
+    }
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isSubmitting) {
+        onClose()
+      }
+    }
+
+    document.addEventListener('keydown', handleEscape)
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape)
+      document.body.style.overflow = ''
+    }
+  }, [isOpen, onClose, isSubmitting])
+
+  // Cleanup on unmount (for HMR)
+  useEffect(() => {
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [])
 
   if (!isOpen) return null
 

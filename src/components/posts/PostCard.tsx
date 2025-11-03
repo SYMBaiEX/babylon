@@ -126,7 +126,7 @@ export const PostCard = memo(function PostCard({
             <div className="flex items-center gap-2 min-w-0">
               <Link
                 href={getProfileUrl(post.authorId, post.authorUsername)}
-                className="font-semibold text-xl sm:text-2xl text-foreground hover:underline truncate"
+                className="font-semibold text-lg sm:text-xl text-foreground hover:underline truncate"
                 onClick={(e) => e.stopPropagation()}
               >
                 {post.authorName}
@@ -136,21 +136,21 @@ export const PostCard = memo(function PostCard({
             {/* Handle row */}
             <Link
               href={getProfileUrl(post.authorId, post.authorUsername)}
-              className="text-muted-foreground text-base sm:text-lg hover:underline truncate"
+              className="text-muted-foreground text-base hover:underline truncate"
               onClick={(e) => e.stopPropagation()}
             >
               @{post.authorUsername || post.authorId}
             </Link>
           </div>
           {/* Timestamp - Right aligned */}
-          <time className="text-muted-foreground text-base sm:text-lg flex-shrink-0 ml-2" title={postDate.toLocaleString()}>
+          <time className="text-muted-foreground text-base flex-shrink-0 ml-2" title={postDate.toLocaleString()}>
             {timeAgo}
           </time>
         </div>
       </div>
 
       {/* Row 2: Post Content - Full width */}
-      <div className="text-foreground text-xl sm:text-2xl leading-relaxed whitespace-pre-wrap break-words w-full mb-3 post-content">
+      <div className="text-foreground leading-relaxed whitespace-pre-wrap break-words w-full mb-3 post-content">
         <TaggedText
           text={post.content || ''}
           onTagClick={(tag) => {

@@ -8,10 +8,9 @@
 import { db } from '@/lib/database-service';
 import { NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
-import { PrismaClient } from '@prisma/client';
 import type { NextRequest } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
 
 export async function GET(request: NextRequest) {
   try {

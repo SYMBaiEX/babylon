@@ -59,7 +59,13 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     checkUsernameAndOnboarding()
   }, [authenticated, user, wallet, storeUser, hasCheckedOnboarding])
 
-  const handleOnboardingComplete = async (username: string) => {
+  const handleOnboardingComplete = async (data: {
+    username: string
+    displayName: string
+    bio: string
+    profileImageUrl?: string
+    coverImageUrl?: string
+  }) => {
     if (!user || !wallet?.address) return
 
     setShowOnboardingModal(false)
@@ -73,18 +79,21 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         logger.warn('Could not access referral code', error, 'OnboardingProvider')
       }
 
-      // Complete onboarding with the username
+      // Complete onboarding with all profile data
       const result = await OnboardingService.completeOnboarding(
         user.id,
         wallet.address,
-        username,
-        undefined, // bio
-        referralCode || undefined
+        data.username,
+        data.bio,
+        referralCode || undefined,
+        data.displayName,
+        data.profileImageUrl,
+        data.coverImageUrl
       )
 
       if (result.success) {
-        logger.info('Onboarding complete with username:', username, 'OnboardingProvider')
-        // Reload user profile to get updated username
+        logger.info('Onboarding complete:', { username: data.username, displayName: data.displayName }, 'OnboardingProvider')
+        // Reload user profile to get updated data
         if (typeof window !== 'undefined') {
           window.location.reload()
         }

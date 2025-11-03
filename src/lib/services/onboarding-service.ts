@@ -29,7 +29,10 @@ export class OnboardingService {
     walletAddress: string,
     username?: string,
     bio?: string,
-    referralCode?: string
+    referralCode?: string,
+    displayName?: string,
+    profileImageUrl?: string,
+    coverImageUrl?: string
   ): Promise<OnboardingResult> {
     try {
       // Get access token from global state
@@ -49,6 +52,9 @@ export class OnboardingService {
           walletAddress,
           username: username, // Username is required - should be provided by onboarding modal
           bio: bio || '',
+          displayName: displayName || username,
+          profileImageUrl: profileImageUrl,
+          coverImageUrl: coverImageUrl,
           referralCode: referralCode || undefined, // Include referral code if provided
         }),
       })

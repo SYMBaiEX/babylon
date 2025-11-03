@@ -32,6 +32,14 @@ export function UpcomingEventsPanel() {
   // Use ref to store fetchEvents function to break dependency chain
   const fetchEventsRef = useRef<(() => void) | null>(null)
 
+  // Force close modal on HMR to prevent stuck state
+  useEffect(() => {
+    return () => {
+      setIsModalOpen(false)
+      setSelectedEvent(null)
+    }
+  }, [])
+
   const fetchEvents = useCallback(async (skipCache = false) => {
     // Check cache first (unless explicitly skipping)
     if (!skipCache) {

@@ -4,7 +4,6 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import {
   optionalAuth,
   successResponse,
@@ -12,8 +11,8 @@ import {
 } from '@/lib/api/auth-middleware';
 import { WalletService } from '@/lib/services/wallet-service';
 import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
 
 /**
  * GET /api/users/[userId]/balance

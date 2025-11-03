@@ -28,7 +28,7 @@ import {
   calculateMarkPrice,
 } from '@/shared/perps-types';
 import type { Organization } from '@/shared/types';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 
 interface ClosedPosition {
   userId: string;
@@ -64,14 +64,12 @@ export class PerpetualsEngine extends EventEmitter {
   private tradeHistory: TradeRecord[] = [];
   private lastFundingTime: string = new Date().toISOString();
   private currentDate: string = new Date().toISOString().split('T')[0]!;
-  private prisma: PrismaClient;
   private syncInterval: number = 10000; // Sync to DB every 10 seconds
   private syncTimer: NodeJS.Timeout | null = null;
   private dirtyPositions: Set<string> = new Set(); // Track positions that need DB sync
 
   constructor() {
     super();
-    this.prisma = new PrismaClient();
     this.startPeriodicSync();
   }
 
@@ -552,7 +550,7 @@ export class PerpetualsEngine extends EventEmitter {
         const position = this.positions.get(positionId);
         if (!position) return null;
 
-        return this.prisma.perpPosition.update({
+        return prisma.perpPosition.update({
           where: { id: positionId },
           data: {
             currentPrice: position.currentPrice,

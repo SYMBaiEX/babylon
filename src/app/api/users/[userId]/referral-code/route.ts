@@ -12,7 +12,6 @@ import {
 } from '@/lib/api/auth-middleware'
 import { logger } from '@/lib/logger'
 
-const prisma = new PrismaClient()
 
 /**
  * Generate a unique referral code

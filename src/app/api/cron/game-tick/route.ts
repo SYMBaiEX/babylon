@@ -74,6 +74,19 @@ export async function POST(request: NextRequest) {
     // 4. Execute the tick (generates posts, events, updates markets)
     const result = await executeGameTick();
 
+    // 5. Calculate trending tags if 30+ minutes have passed (async, don't block)
+    void (async () => {
+      try {
+        const { calculateTrendingIfNeeded } = await import('@/lib/services/trending-calculation-service');
+        const calculated = await calculateTrendingIfNeeded();
+        if (calculated) {
+          logger.info('Trending tags recalculated', undefined, 'Cron');
+        }
+      } catch (error) {
+        logger.error('Failed to calculate trending tags:', error, 'Cron');
+      }
+    })();
+
     const duration = Date.now() - startTime;
     logger.info('✅ Game tick completed', {
       duration: `${duration}ms`,

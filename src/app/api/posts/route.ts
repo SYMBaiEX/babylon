@@ -9,12 +9,13 @@ import { gameService } from '@/lib/game-service';
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
 import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-middleware';
-import { PrismaClient } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '@/lib/logger';
-import { broadcastToChannel } from '@/app/api/ws/chat/route';
+import { broadcastToChannelSafe as broadcastToChannel } from '@/lib/websocket-utils';
+import { generateTagsFromPost } from '@/lib/services/tag-generation-service';
+import { storeTagsForPost } from '@/lib/services/tag-storage-service';
+import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
 
 /**
  * Safely convert a date value to ISO string
@@ -380,6 +381,18 @@ export async function POST(request: NextRequest) {
 
     // Determine author name for display (prefer username or displayName, fallback to generated name)
     const authorName = dbUser.username || dbUser.displayName || `user_${authUser.userId.slice(0, 8)}`;
+
+    // Generate and store tags asynchronously (don't block response)
+    void (async () => {
+      try {
+        const tags = await generateTagsFromPost(post.content);
+        if (tags.length > 0) {
+          await storeTagsForPost(post.id, tags);
+        }
+      } catch (error) {
+        logger.error('Failed to generate/store tags for post:', error, 'POST /api/posts');
+      }
+    })();
 
     // Broadcast new post to SSE feed channel for real-time updates
     try {

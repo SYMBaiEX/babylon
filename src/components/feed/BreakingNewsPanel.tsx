@@ -32,6 +32,14 @@ export function BreakingNewsPanel() {
   // Use ref to store fetchNews function to break dependency chain
   const fetchNewsRef = useRef<(() => void) | null>(null)
 
+  // Force close modal on HMR to prevent stuck state
+  useEffect(() => {
+    return () => {
+      setIsModalOpen(false)
+      setSelectedItem(null)
+    }
+  }, [])
+
   const fetchNews = useCallback(async (skipCache = false) => {
     // Check cache first (unless explicitly skipping)
     if (!skipCache) {

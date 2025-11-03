@@ -27,6 +27,46 @@ export interface BreakingNewsItem {
   relatedOrganizationId?: string
 }
 
+export interface ArticleItem {
+  id: string
+  title: string
+  summary: string
+  authorOrgName: string
+  byline?: string
+  sentiment?: string
+  category?: string
+  publishedAt: string
+  relatedQuestion?: number
+  slant?: string
+  biasScore?: number
+}
+
+export interface MarketsWidgetData {
+  topPerpGainers: Array<{
+    ticker: string
+    organizationId: string
+    name: string
+    currentPrice: number
+    changePercent24h: number
+    volume24h: number
+  }>
+  topPoolGainers: Array<{
+    id: string
+    name: string
+    npcActorName: string
+    totalReturn: number
+    totalValue: number
+  }>
+  topVolumeQuestions: Array<{
+    id: number
+    text: string
+    totalVolume: number
+    yesPrice: number
+    timeWeightedScore: number
+  }>
+  lastUpdated: string
+}
+
 export interface UpcomingEvent {
   id: string
   title: string
@@ -64,8 +104,11 @@ interface CacheEntry<T> {
 
 interface WidgetCacheState {
   breakingNews: CacheEntry<BreakingNewsItem[]> | null
+  latestNews: CacheEntry<ArticleItem[]> | null
   upcomingEvents: CacheEntry<UpcomingEvent[]> | null
+  trending: CacheEntry<unknown[]> | null
   stats: CacheEntry<BabylonStats> | null
+  markets: CacheEntry<MarketsWidgetData> | null
   profileWidget: Map<string, CacheEntry<ProfileWidgetData>> // Keyed by userId
   
   // TTL in milliseconds (default: 30 seconds)
@@ -73,14 +116,20 @@ interface WidgetCacheState {
   
   // Set cache entry
   setBreakingNews: (data: BreakingNewsItem[]) => void
+  setLatestNews: (data: ArticleItem[]) => void
   setUpcomingEvents: (data: UpcomingEvent[]) => void
+  setTrending: (data: unknown[]) => void
   setStats: (data: BabylonStats) => void
+  setMarkets: (data: MarketsWidgetData) => void
   setProfileWidget: (userId: string, data: ProfileWidgetData) => void
   
   // Get cache entry (returns null if stale or missing)
   getBreakingNews: () => BreakingNewsItem[] | null
+  getLatestNews: () => ArticleItem[] | null
   getUpcomingEvents: () => UpcomingEvent[] | null
+  getTrending: () => unknown[] | null
   getStats: () => BabylonStats | null
+  getMarkets: () => MarketsWidgetData | null
   getProfileWidget: (userId: string) => ProfileWidgetData | null
   
   // Check if cache is fresh
@@ -88,8 +137,11 @@ interface WidgetCacheState {
   
   // Clear specific cache
   clearBreakingNews: () => void
+  clearLatestNews: () => void
   clearUpcomingEvents: () => void
+  clearTrending: () => void
   clearStats: () => void
+  clearMarkets: () => void
   clearProfileWidget: (userId: string) => void
   clearAll: () => void
 }
@@ -98,8 +150,11 @@ const DEFAULT_TTL = 30000 // 30 seconds
 
 export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
   breakingNews: null,
+  latestNews: null,
   upcomingEvents: null,
+  trending: null,
   stats: null,
+  markets: null,
   profileWidget: new Map(),
   ttl: DEFAULT_TTL,
   
@@ -118,6 +173,15 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
     })
   },
   
+  setLatestNews: (data: ArticleItem[]) => {
+    set({
+      latestNews: {
+        data,
+        timestamp: Date.now(),
+      },
+    })
+  },
+  
   setUpcomingEvents: (data: UpcomingEvent[]) => {
     set({
       upcomingEvents: {
@@ -127,9 +191,27 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
     })
   },
   
+  setTrending: (data: unknown[]) => {
+    set({
+      trending: {
+        data,
+        timestamp: Date.now(),
+      },
+    })
+  },
+  
   setStats: (data: BabylonStats) => {
     set({
       stats: {
+        data,
+        timestamp: Date.now(),
+      },
+    })
+  },
+  
+  setMarkets: (data: MarketsWidgetData) => {
+    set({
+      markets: {
         data,
         timestamp: Date.now(),
       },
@@ -150,13 +232,28 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
     return entry && get().isFresh(entry) ? entry.data : null
   },
   
+  getLatestNews: () => {
+    const entry = get().latestNews
+    return entry && get().isFresh(entry) ? entry.data : null
+  },
+  
   getUpcomingEvents: () => {
     const entry = get().upcomingEvents
     return entry && get().isFresh(entry) ? entry.data : null
   },
   
+  getTrending: () => {
+    const entry = get().trending
+    return entry && get().isFresh(entry) ? entry.data : null
+  },
+  
   getStats: () => {
     const entry = get().stats
+    return entry && get().isFresh(entry) ? entry.data : null
+  },
+  
+  getMarkets: () => {
+    const entry = get().markets
     return entry && get().isFresh(entry) ? entry.data : null
   },
   
@@ -167,8 +264,11 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
   },
   
   clearBreakingNews: () => set({ breakingNews: null }),
+  clearLatestNews: () => set({ latestNews: null }),
   clearUpcomingEvents: () => set({ upcomingEvents: null }),
+  clearTrending: () => set({ trending: null }),
   clearStats: () => set({ stats: null }),
+  clearMarkets: () => set({ markets: null }),
   clearProfileWidget: (userId: string) => {
     const profileWidget = new Map(get().profileWidget)
     profileWidget.delete(userId)
@@ -176,8 +276,11 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
   },
   clearAll: () => set({
     breakingNews: null,
+    latestNews: null,
     upcomingEvents: null,
+    trending: null,
     stats: null,
+    markets: null,
     profileWidget: new Map(),
   }),
 }))

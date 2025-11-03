@@ -118,6 +118,7 @@ model Post {
   comments    Comment[]
   reactions   Reaction[]
   shares      Share[]
+  postTags    PostTag[]  // Tags associated with this post
 
   @@index([authorId, timestamp(sort: Desc)])
   @@index([timestamp(sort: Desc)])
@@ -538,6 +539,39 @@ model Actor {
   @@index([reputationPoints(sort: Desc)])
 }
 
+// Article model - Long-form news articles from organizations
+model Article {
+  id                  String   @id @default(uuid())
+  title               String
+  summary             String   // Short summary for listings
+  content             String   @db.Text // Long-form article content
+  authorOrgId         String   // Organization ID (media outlet)
+  authorOrgName       String   // Cached organization name
+  byline              String?  // Individual journalist name (from actors)
+  bylineActorId       String?  // Actor ID of journalist
+  biasScore           Float?   // -1 (negative bias) to 1 (positive bias)
+  sentiment           String?  // 'positive', 'negative', 'neutral'
+  slant               String?  // Description of the slant/bias
+  imageUrl            String?  // Article header image
+  relatedEventId      String?  // Related world event
+  relatedQuestion     Int?     // Related prediction market question
+  relatedActorIds     String[] // Actors mentioned in article
+  relatedOrgIds       String[] // Organizations mentioned in article
+  category            String?  // 'politics', 'tech', 'finance', etc.
+  tags                String[] // Article tags
+  viewCount           Int      @default(0)
+  shareCount          Int      @default(0)
+  publishedAt         DateTime @default(now())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([authorOrgId, publishedAt(sort: Desc)])
+  @@index([publishedAt(sort: Desc)])
+  @@index([relatedEventId])
+  @@index([relatedQuestion])
+  @@index([category])
+}
+
 // Notification model - user notifications
 model Notification {
   id          String   @id @default(uuid())
@@ -720,4 +754,66 @@ model ShareAction {
   @@index([userId, createdAt(sort: Desc)])
   @@index([platform])
   @@index([contentType])
+}
+
+// Tag model - stores unique tags extracted from posts
+model Tag {
+  id          String   @id @default(uuid())
+  name        String   @unique  // Tag name (lowercase, normalized)
+  displayName String   // Original display name
+  category    String?  // 'Sports', 'Politics', 'Tech', etc. (auto-categorized)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relationships
+  postTags    PostTag[]
+  trending    TrendingTag[]
+
+  @@index([name])
+}
+
+// PostTag model - many-to-many relationship between posts and tags
+model PostTag {
+  id        String   @id @default(uuid())
+  postId    String
+  tagId     String
+  createdAt DateTime @default(now())
+
+  // Relationships
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, tagId])
+  @@index([postId])
+  @@index([tagId])
+  @@index([tagId, createdAt(sort: Desc)])
+}
+
+// TrendingTag model - stores calculated trending tags with scores
+model TrendingTag {
+  id               String   @id @default(uuid())
+  tagId            String
+  score            Float    // Trending score (time-weighted)
+  postCount        Int      // Number of posts in the time window
+  rank             Int      // Ranking position (1 = most trending)
+  calculatedAt     DateTime @default(now())
+  windowStart      DateTime // Start of calculation window
+  windowEnd        DateTime // End of calculation window
+  relatedContext   String?  // Optional context like "Trending with X"
+
+  // Relationships
+  tag Tag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@index([rank, calculatedAt(sort: Desc)])
+  @@index([tagId, calculatedAt(sort: Desc)])
+  @@index([calculatedAt(sort: Desc)])
+}
+
+// WidgetCache model - stores cached widget data for performance
+model WidgetCache {
+  widget    String   @id // 'markets', 'breaking_news', 'stats', etc.
+  data      Json     // Cached widget data
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([widget, updatedAt(sort: Desc)])
 }

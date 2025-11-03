@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -33,6 +33,35 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
   const [size, setSize] = useState('100')
   const [leverage, setLeverage] = useState(10)
   const [loading, setLoading] = useState(false)
+
+  // Handle escape key and body scroll lock
+  useEffect(() => {
+    if (!isOpen) {
+      document.body.style.overflow = ''
+      return
+    }
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !loading) {
+        onClose()
+      }
+    }
+
+    document.addEventListener('keydown', handleEscape)
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape)
+      document.body.style.overflow = ''
+    }
+  }, [isOpen, onClose, loading])
+
+  // Cleanup on unmount (for HMR)
+  useEffect(() => {
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [])
 
   if (!isOpen) return null
 

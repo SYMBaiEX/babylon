@@ -4,7 +4,6 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
   authErrorResponse,
@@ -13,8 +12,8 @@ import {
 } from '@/lib/api/auth-middleware';
 import { notifyFollow } from '@/lib/services/notification-service';
 import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
 
 /**
  * POST /api/users/[userId]/follow

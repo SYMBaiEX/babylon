@@ -12,7 +12,6 @@ import { baseSepolia } from 'viem/chains'
 import { PrismaClient } from '@prisma/client'
 import { logger } from '@/lib/logger'
 
-const prisma = new PrismaClient()
 
 // Contract addresses
 const REPUTATION_SYSTEM = process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA as Address

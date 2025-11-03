@@ -4,7 +4,7 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import {
   authenticate,
   authErrorResponse,
@@ -14,8 +14,8 @@ import {
 import { WalletService } from '@/lib/services/wallet-service';
 import { PredictionPricing } from '@/lib/prediction-pricing';
 import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
 
 /**
  * POST /api/markets/predictions/[id]/sell

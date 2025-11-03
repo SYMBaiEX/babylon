@@ -18,7 +18,6 @@
         "@tanstack/react-query": "5.90.5",
         "@tanstack/react-virtual": "^3.13.12",
         "@types/ws": "^8.18.1",
-        "@upstash/redis": "^1.34.3",
         "@vercel/blob": "^2.0.0",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",

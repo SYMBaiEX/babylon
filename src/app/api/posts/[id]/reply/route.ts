@@ -4,7 +4,6 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
   authErrorResponse,
@@ -17,8 +16,8 @@ import { FollowingMechanics } from '@/lib/services/following-mechanics';
 import { GroupChatInvite } from '@/lib/services/group-chat-invite';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
+import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
 
 /**
  * POST /api/posts/[id]/reply

@@ -7,11 +7,10 @@
 import type { NextRequest } from 'next/server';
 import { successResponse, errorResponse } from '@/lib/api/auth-middleware';
 import { verifyAgentSession } from '../auth/route';
-import { PrismaClient } from '@prisma/client';
 import { logger } from '@/lib/logger';
 import { WalletService } from '@/lib/services/wallet-service';
+import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
 
 export async function GET(request: NextRequest) {
   try {

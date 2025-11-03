@@ -10,9 +10,7 @@
  * Sweeps run periodically (daily) to maintain chat quality
  */
 
-import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
 
 export interface SweepDecision {
   shouldRemove: boolean;

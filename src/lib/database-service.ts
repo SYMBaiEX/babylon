@@ -10,14 +10,9 @@
  *   const posts = await db.getRecentPosts(100)
  */
 
-import { PrismaClient } from '@prisma/client';
 import type { FeedPost, Question as GameQuestion, Question, Organization, Actor } from '@/shared/types';
 import { logger } from './logger';
-
-// Singleton Prisma client
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-export const prisma = globalForPrisma.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+import { prisma } from './prisma';
 
 class DatabaseService {
   // Expose prisma for direct queries
@@ -100,7 +95,7 @@ class DatabaseService {
    * Create multiple posts in batch
    */
   async createManyPosts(posts: Array<FeedPost & { gameId?: string; dayNumber?: number }>) {
-    return await prisma.post.createMany({
+    const result = await prisma.post.createMany({
       data: posts.map(post => ({
         id: post.id,
         content: post.content,
@@ -111,6 +106,30 @@ class DatabaseService {
       })),
       skipDuplicates: true,
     });
+
+    // Generate and store tags asynchronously (don't block)
+    void (async () => {
+      try {
+        const { generateTagsForPosts } = await import('./services/tag-generation-service');
+        const { storeTagsForPost } = await import('./services/tag-storage-service');
+        
+        const postsForTagging = posts.map(p => ({
+          id: p.id,
+          content: p.content,
+        }));
+        const tagMap = await generateTagsForPosts(postsForTagging);
+        
+        for (const [postId, tags] of tagMap.entries()) {
+          if (tags.length > 0) {
+            await storeTagsForPost(postId, tags);
+          }
+        }
+      } catch (error) {
+        logger.error('Failed to generate/store tags for batch posts:', error, 'DatabaseService');
+      }
+    })();
+
+    return result;
   }
 
   /**
@@ -628,4 +647,7 @@ class DatabaseService {
 
 // Singleton instance
 export const db = new DatabaseService();
+
+// Export prisma for direct access (for API routes that need it)
+export { prisma } from './prisma';
 

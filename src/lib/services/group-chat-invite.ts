@@ -11,15 +11,14 @@
  * - NPC-member chats (lower chance, 30%)
  */
 
-import { PrismaClient } from '@prisma/client';
 import type { GroupChat } from '@/shared/types';
+import { prisma } from '@/lib/prisma';
 
 // Use GroupChat type for type-safe chat operations
 type GroupChatData = Omit<GroupChat, 'messages'> & {
   messageCount?: number;
 };
 
-const prisma = new PrismaClient();
 
 export interface InviteChance {
   willInvite: boolean;

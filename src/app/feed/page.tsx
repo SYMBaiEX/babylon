@@ -479,7 +479,7 @@ export default function FeedPage() {
                 // No posts yet
                 <div className="w-full p-4 sm:p-8 text-center">
                   <div className="text-muted-foreground py-8 sm:py-12">
-                    <h2 className="text-xl sm:text-2xl font-bold mb-2 text-foreground">No Posts Yet</h2>
+                    <h2 className="text-lg sm:text-2xl font-bold mb-2 text-foreground">No Posts Yet</h2>
                     <p className="mb-4 text-sm sm:text-base">
                       Engine is generating posts...
                     </p>
@@ -493,7 +493,7 @@ export default function FeedPage() {
                 // Following tab with no followed profiles
                 <div className="w-full p-4 sm:p-8 text-center">
                   <div className="text-muted-foreground py-8 sm:py-12">
-                    <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">👥 Not Following Anyone Yet</h2>
+                    <h2 className="font-semibold mb-2 text-foreground">👥 Not Following Anyone Yet</h2>
                     <p className="mb-4 text-sm sm:text-base">
                       {loadingFollowing
                         ? 'Loading following...'

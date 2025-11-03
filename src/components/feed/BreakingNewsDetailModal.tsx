@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { X, TrendingUp, Calendar, DollarSign, Activity } from 'lucide-react'
 import Image from 'next/image'
 
@@ -25,6 +26,37 @@ interface BreakingNewsDetailModalProps {
 }
 
 export function BreakingNewsDetailModal({ isOpen, onClose, item }: BreakingNewsDetailModalProps) {
+  // Handle escape key and body scroll lock
+  useEffect(() => {
+    if (!isOpen) {
+      // Ensure body overflow is reset when modal is closed
+      document.body.style.overflow = ''
+      return
+    }
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    document.addEventListener('keydown', handleEscape)
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape)
+      document.body.style.overflow = ''
+    }
+  }, [isOpen, onClose])
+
+  // Cleanup on unmount (for HMR)
+  useEffect(() => {
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [])
+
   if (!isOpen || !item) return null
 
   const getIcon = (icon: BreakingNewsItem['icon']) => {

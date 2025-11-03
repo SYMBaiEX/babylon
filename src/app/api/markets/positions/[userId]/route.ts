@@ -4,12 +4,11 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import { successResponse, errorResponse, optionalAuth } from '@/lib/api/auth-middleware';
 import { getPerpsEngine } from '@/lib/perps-service';
 import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
 
 /**
  * GET /api/markets/positions/[userId]

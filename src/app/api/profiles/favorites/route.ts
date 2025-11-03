@@ -4,7 +4,6 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
   authErrorResponse,
@@ -12,8 +11,8 @@ import {
   errorResponse,
 } from '@/lib/api/auth-middleware';
 import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
 
 /**
  * GET /api/profiles/favorites

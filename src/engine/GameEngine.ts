@@ -27,7 +27,7 @@ import { shuffleArray, toQuestionIdNumber, toQuestionIdNumberOrNull } from '@/sh
 import { db } from '../lib/database-service';
 import { ReputationService } from '../lib/services/reputation-service';
 import { logger } from '@/lib/logger';
-import { broadcastToChannel } from '@/app/api/ws/chat/route';
+import { broadcastToChannelSafe as broadcastToChannel } from '@/lib/websocket-utils';
 import { ActorSocialActions } from '@/lib/services/ActorSocialActions';
 import type {
   SelectedActor,

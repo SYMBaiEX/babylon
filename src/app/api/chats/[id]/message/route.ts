@@ -4,7 +4,6 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import {
   authenticate,
   authErrorResponse,
@@ -16,8 +15,8 @@ import { GroupChatSweep, type SweepDecision } from '@/lib/services/group-chat-sw
 import { GroupChatInvite } from '@/lib/services/group-chat-invite';
 import { broadcastChatMessage } from '@/lib/sse/event-broadcaster';
 import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
 
 /**
  * POST /api/chats/[id]/message

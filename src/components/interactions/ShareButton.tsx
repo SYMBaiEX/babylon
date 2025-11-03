@@ -85,13 +85,12 @@ export function ShareButton({
         className={cn(
           'flex items-center transition-all duration-200',
           'bg-transparent hover:opacity-70',
-          isShared ? 'text-green-600' : '',
+          isShared ? 'text-green-600' : 'text-muted-foreground',
           sizeClasses[size],
           isAnimating && 'scale-110',
           isLoading && 'opacity-50 cursor-wait',
           className
         )}
-        style={!isShared ? { color: 'rgb(34, 197, 94)' } : undefined}
       >
         {isLoading ? (
           <div 

@@ -9,7 +9,6 @@ import { PrismaClient } from '@prisma/client'
 import { logger } from '@/lib/logger'
 import type { JsonValue } from '@/types/common'
 
-const prisma = new PrismaClient()
 
 // Point award amounts
 export const POINTS = {

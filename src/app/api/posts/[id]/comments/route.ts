@@ -12,10 +12,9 @@ import {
 } from '@/lib/api/auth-middleware';
 import { logger } from '@/lib/logger';
 import { notifyCommentOnPost, notifyReplyToComment } from '@/lib/services/notification-service';
-import { PrismaClient } from '@prisma/client';
 import type { NextRequest } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
 
 /**
  * Build threaded comment structure recursively
