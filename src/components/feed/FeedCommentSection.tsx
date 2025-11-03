@@ -18,6 +18,8 @@ interface FeedCommentSectionProps {
     content: string;
     authorId: string;
     authorName: string;
+    authorUsername?: string | null;
+    authorProfileImageUrl?: string | null;
     timestamp: string;
     likeCount: number;
     commentCount: number;
@@ -39,6 +41,8 @@ export function FeedCommentSection({
     content: string;
     authorId: string;
     authorName: string;
+    authorUsername?: string | null;
+    authorProfileImageUrl?: string | null;
     timestamp: string;
     likeCount: number;
     commentCount: number;
@@ -195,6 +199,8 @@ export function FeedCommentSection({
             content: post.content,
             authorId: post.authorId,
             authorName: post.authorName,
+            authorUsername: post.authorUsername,
+            authorProfileImageUrl: post.authorProfileImageUrl,
             timestamp: post.timestamp,
             likeCount: post.likeCount,
             commentCount: post.commentCount,

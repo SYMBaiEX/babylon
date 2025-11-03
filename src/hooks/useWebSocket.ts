@@ -1,3 +1,17 @@
+/**
+ * useWebSocket Hook (DEPRECATED)
+ * 
+ * ⚠️ DEPRECATED: This hook is no longer used.
+ * The application now uses Server-Sent Events (SSE) for real-time updates.
+ * 
+ * Use instead:
+ * - useSSE() for SSE connections
+ * - useChannelSubscription() for channel subscriptions
+ * - useChatMessages() for chat messages
+ * 
+ * See: SSE_MIGRATION.md for migration guide
+ */
+
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { usePrivy } from '@privy-io/react-auth'
 import type { WebSocketData } from '@/types/common'

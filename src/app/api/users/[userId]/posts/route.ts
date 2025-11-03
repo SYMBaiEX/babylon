@@ -60,21 +60,6 @@ export async function GET(
               content: true,
               authorId: true,
               timestamp: true,
-              author: {
-                select: {
-                  id: true,
-                  displayName: true,
-                  username: true,
-                  profileImageUrl: true,
-                },
-              },
-              authorActor: {
-                select: {
-                  id: true,
-                  name: true,
-                  profileImageUrl: true,
-                },
-              },
             },
           },
           _count: {
@@ -101,38 +86,71 @@ export async function GET(
         take: 100,
       });
 
+      // Get unique post author IDs to fetch author info
+      const postAuthorIds = [...new Set(comments.map(c => c.post.authorId))];
+      
+      // Fetch User and Actor info for post authors
+      const [postAuthorsUsers, postAuthorsActors] = await Promise.all([
+        prisma.user.findMany({
+          where: { id: { in: postAuthorIds } },
+          select: {
+            id: true,
+            displayName: true,
+            username: true,
+            profileImageUrl: true,
+          },
+        }),
+        prisma.actor.findMany({
+          where: { id: { in: postAuthorIds } },
+          select: {
+            id: true,
+            name: true,
+            profileImageUrl: true,
+          },
+        }),
+      ]);
+      
+      // Create author lookup maps
+      const userAuthorsMap = new Map(postAuthorsUsers.map(u => [u.id, u]));
+      const actorAuthorsMap = new Map(postAuthorsActors.map(a => [a.id, a]));
+      
       // Format comments as replies
-      const replies = comments.map((comment) => ({
-        id: comment.id,
-        content: comment.content,
-        postId: comment.postId,
-        createdAt: comment.createdAt.toISOString(),
-        updatedAt: comment.updatedAt.toISOString(),
-        likeCount: comment._count.reactions,
-        replyCount: comment._count.replies,
-        isLiked: comment.reactions.length > 0,
-        post: {
-          id: comment.post.id,
-          content: comment.post.content,
-          authorId: comment.post.authorId,
-          timestamp: comment.post.timestamp.toISOString(),
-          author: comment.post.author
-            ? {
-                id: comment.post.author.id,
-                displayName: comment.post.author.displayName,
-                username: comment.post.author.username,
-                profileImageUrl: comment.post.author.profileImageUrl,
-              }
-            : comment.post.authorActor
+      const replies = comments.map((comment) => {
+        const authorUser = userAuthorsMap.get(comment.post.authorId);
+        const authorActor = actorAuthorsMap.get(comment.post.authorId);
+        
+        return {
+          id: comment.id,
+          content: comment.content,
+          postId: comment.postId,
+          createdAt: comment.createdAt.toISOString(),
+          updatedAt: comment.updatedAt.toISOString(),
+          likeCount: comment._count.reactions,
+          replyCount: comment._count.replies,
+          isLiked: comment.reactions.length > 0,
+          post: {
+            id: comment.post.id,
+            content: comment.post.content,
+            authorId: comment.post.authorId,
+            timestamp: comment.post.timestamp.toISOString(),
+            author: authorUser
               ? {
-                  id: comment.post.authorActor.id,
-                  displayName: comment.post.authorActor.name,
-                  username: null,
-                  profileImageUrl: comment.post.authorActor.profileImageUrl,
+                  id: authorUser.id,
+                  displayName: authorUser.displayName,
+                  username: authorUser.username,
+                  profileImageUrl: authorUser.profileImageUrl,
                 }
-              : null,
-        },
-      }));
+              : authorActor
+                ? {
+                    id: authorActor.id,
+                    displayName: authorActor.name,
+                    username: null,
+                    profileImageUrl: authorActor.profileImageUrl,
+                  }
+                : null,
+          },
+        };
+      });
 
       return successResponse({
         type: 'replies',
@@ -147,14 +165,6 @@ export async function GET(
           // Exclude reposts (posts with replyTo field will be handled separately)
         },
         include: {
-          author: {
-            select: {
-              id: true,
-              displayName: true,
-              username: true,
-              profileImageUrl: true,
-            },
-          },
           _count: {
             select: {
               reactions: {
@@ -195,22 +205,11 @@ export async function GET(
         },
         include: {
           post: {
-            include: {
-              author: {
-                select: {
-                  id: true,
-                  displayName: true,
-                  username: true,
-                  profileImageUrl: true,
-                },
-              },
-              authorActor: {
-                select: {
-                  id: true,
-                  name: true,
-                  profileImageUrl: true,
-                },
-              },
+            select: {
+              id: true,
+              content: true,
+              authorId: true,
+              timestamp: true,
               _count: {
                 select: {
                   reactions: {
@@ -229,6 +228,45 @@ export async function GET(
         take: 100,
       });
 
+      // Fetch author info for the user (posts are all from userId)
+      const postAuthor = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          displayName: true,
+          username: true,
+          profileImageUrl: true,
+        },
+      });
+      
+      // Get unique author IDs from shared posts
+      const sharedPostAuthorIds = [...new Set(shares.map(s => s.post.authorId))];
+      
+      // Fetch User and Actor info for shared post authors
+      const [sharedAuthorsUsers, sharedAuthorsActors] = await Promise.all([
+        prisma.user.findMany({
+          where: { id: { in: sharedPostAuthorIds } },
+          select: {
+            id: true,
+            displayName: true,
+            username: true,
+            profileImageUrl: true,
+          },
+        }),
+        prisma.actor.findMany({
+          where: { id: { in: sharedPostAuthorIds } },
+          select: {
+            id: true,
+            name: true,
+            profileImageUrl: true,
+          },
+        }),
+      ]);
+      
+      // Create author lookup maps
+      const userAuthorsMap = new Map(sharedAuthorsUsers.map(u => [u.id, u]));
+      const actorAuthorsMap = new Map(sharedAuthorsActors.map(a => [a.id, a]));
+      
       // Format posts
       const formattedPosts = posts.map((post) => ({
         id: post.id,
@@ -241,46 +279,51 @@ export async function GET(
         shareCount: post._count.shares,
         isLiked: post.reactions.length > 0,
         isShared: post.shares.length > 0,
-        author: post.author
+        author: postAuthor
           ? {
-              id: post.author.id,
-              displayName: post.author.displayName,
-              username: post.author.username,
-              profileImageUrl: post.author.profileImageUrl,
+              id: postAuthor.id,
+              displayName: postAuthor.displayName,
+              username: postAuthor.username,
+              profileImageUrl: postAuthor.profileImageUrl,
             }
           : null,
       }));
 
       // Format shares as reposts
-      const reposts = shares.map((share) => ({
-        id: `share-${share.id}`,
-        content: share.post.content,
-        authorId: share.post.authorId,
-        timestamp: share.createdAt.toISOString(),
-        createdAt: share.createdAt.toISOString(),
-        likeCount: share.post._count.reactions,
-        commentCount: share.post._count.comments,
-        shareCount: share.post._count.shares,
-        isLiked: false, // Could check if user liked original post
-        isShared: true,
-        isRepost: true,
-        originalPostId: share.post.id,
-        author: share.post.author
-          ? {
-              id: share.post.author.id,
-              displayName: share.post.author.displayName,
-              username: share.post.author.username,
-              profileImageUrl: share.post.author.profileImageUrl,
-            }
-          : share.post.authorActor
+      const reposts = shares.map((share) => {
+        const authorUser = userAuthorsMap.get(share.post.authorId);
+        const authorActor = actorAuthorsMap.get(share.post.authorId);
+        
+        return {
+          id: `share-${share.id}`,
+          content: share.post.content,
+          authorId: share.post.authorId,
+          timestamp: share.createdAt.toISOString(),
+          createdAt: share.createdAt.toISOString(),
+          likeCount: share.post._count.reactions,
+          commentCount: share.post._count.comments,
+          shareCount: share.post._count.shares,
+          isLiked: false, // Could check if user liked original post
+          isShared: true,
+          isRepost: true,
+          originalPostId: share.post.id,
+          author: authorUser
             ? {
-                id: share.post.authorActor.id,
-                displayName: share.post.authorActor.name,
-                username: null,
-                profileImageUrl: share.post.authorActor.profileImageUrl,
+                id: authorUser.id,
+                displayName: authorUser.displayName,
+                username: authorUser.username,
+                profileImageUrl: authorUser.profileImageUrl,
               }
-            : null,
-      }));
+            : authorActor
+              ? {
+                  id: authorActor.id,
+                  displayName: authorActor.name,
+                  username: null,
+                  profileImageUrl: authorActor.profileImageUrl,
+                }
+              : null,
+        };
+      });
 
       // Combine and sort by timestamp
       const allItems = [...formattedPosts, ...reposts].sort(

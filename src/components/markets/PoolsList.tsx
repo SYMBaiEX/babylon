@@ -40,7 +40,7 @@ export function PoolsList({ onPoolClick }: PoolsListProps) {
   const { authenticated } = useAuth()
   const [pools, setPools] = useState<Pool[]>([])
   const [loading, setLoading] = useState(true)
-  const [sortBy, setSortBy] = useState<'return' | 'value' | 'investors'>('return')
+  const [sortBy, setSortBy] = useState<'performance' | 'volume' | 'tvl' | 'newest' | 'oldest'>('performance')
 
   useEffect(() => {
     fetchPools()
@@ -63,12 +63,16 @@ export function PoolsList({ onPoolClick }: PoolsListProps) {
 
   const sortedPools = [...pools].sort((a, b) => {
     switch (sortBy) {
-      case 'return':
+      case 'performance':
         return b.totalReturn - a.totalReturn
-      case 'value':
+      case 'tvl':
         return b.totalValue - a.totalValue
-      case 'investors':
-        return b.activeInvestors - a.activeInvestors
+      case 'volume':
+        return b.totalTrades - a.totalTrades
+      case 'newest':
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      case 'oldest':
+        return new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
       default:
         return 0
     }
@@ -109,39 +113,64 @@ export function PoolsList({ onPoolClick }: PoolsListProps) {
   return (
     <div className="space-y-4">
       {/* Sort Options */}
-      <div className="flex gap-2 pb-2 border-b border-border">
+      <div className="flex gap-2 pb-2 border-b border-border overflow-x-auto scrollbar-hide">
         <button
-          onClick={() => setSortBy('return')}
+          onClick={() => setSortBy('performance')}
           className={cn(
-            'px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
-            sortBy === 'return'
-              ? 'bg-primary text-primary-foreground'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0',
+            sortBy === 'performance'
+              ? 'bg-[#1da1f2] text-white'
+              : 'bg-muted/50 text-muted-foreground hover:bg-muted'
           )}
         >
-          By Return
+          <TrendingUp className="w-3 h-3 inline mr-1" />
+          Performance
         </button>
         <button
-          onClick={() => setSortBy('value')}
+          onClick={() => setSortBy('tvl')}
           className={cn(
-            'px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
-            sortBy === 'value'
-              ? 'bg-primary text-primary-foreground'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0',
+            sortBy === 'tvl'
+              ? 'bg-[#1da1f2] text-white'
+              : 'bg-muted/50 text-muted-foreground hover:bg-muted'
           )}
         >
-          By Value
+          <DollarSign className="w-3 h-3 inline mr-1" />
+          TVL
         </button>
         <button
-          onClick={() => setSortBy('investors')}
+          onClick={() => setSortBy('volume')}
           className={cn(
-            'px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
-            sortBy === 'investors'
-              ? 'bg-primary text-primary-foreground'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0',
+            sortBy === 'volume'
+              ? 'bg-[#1da1f2] text-white'
+              : 'bg-muted/50 text-muted-foreground hover:bg-muted'
           )}
         >
-          By Investors
+          <Activity className="w-3 h-3 inline mr-1" />
+          Volume
+        </button>
+        <button
+          onClick={() => setSortBy('newest')}
+          className={cn(
+            'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0',
+            sortBy === 'newest'
+              ? 'bg-[#1da1f2] text-white'
+              : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+          )}
+        >
+          Newest
+        </button>
+        <button
+          onClick={() => setSortBy('oldest')}
+          className={cn(
+            'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0',
+            sortBy === 'oldest'
+              ? 'bg-[#1da1f2] text-white'
+              : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+          )}
+        >
+          Oldest
         </button>
       </div>
 

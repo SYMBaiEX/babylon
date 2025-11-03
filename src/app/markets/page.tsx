@@ -1,24 +1,21 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Search, TrendingUp, TrendingDown, Clock } from 'lucide-react'
+import { MarketsWidgetSidebar } from '@/components/markets/MarketsWidgetSidebar'
+import { PerpPositionsList } from '@/components/markets/PerpPositionsList'
+import { PoolsErrorBoundary } from '@/components/markets/PoolsErrorBoundary'
+import { PoolsList } from '@/components/markets/PoolsList'
+import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList'
+import { UserPoolPositions } from '@/components/markets/UserPoolPositions'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { WalletBalance } from '@/components/shared/WalletBalance'
-import { MarketsWidgetSidebar } from '@/components/markets/MarketsWidgetSidebar'
-import { PerpTradingModal } from '@/components/markets/PerpTradingModal'
-import { PredictionTradingModal } from '@/components/markets/PredictionTradingModal'
-import { PerpPositionsList } from '@/components/markets/PerpPositionsList'
-import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList'
-import { PoolsList } from '@/components/markets/PoolsList'
-import { PoolDetailModal } from '@/components/markets/PoolDetailModal'
-import { EconomicCalendarModal } from '@/components/markets/EconomicCalendarModal'
-import { UserPoolPositions } from '@/components/markets/UserPoolPositions'
-import { PoolsErrorBoundary } from '@/components/markets/PoolsErrorBoundary'
-import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
-import { logger } from '@/lib/logger'
 import { useChannelSubscription } from '@/hooks/useChannelSubscription'
+import { logger } from '@/lib/logger'
+import { cn } from '@/lib/utils'
 import type { PerpPosition } from '@/shared/perps-types'
+import { ArrowUpDown, Clock, Flame, Search, TrendingDown, TrendingUp } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 interface PredictionPosition {
   id: string
@@ -88,27 +85,14 @@ interface Pool {
   }
 }
 
+type PredictionSort = 'trending' | 'newest' | 'ending-soon' | 'volume'
+
 export default function MarketsPage() {
+  const router = useRouter()
   const { user, authenticated, login } = useAuth()
   const [activeTab, setActiveTab] = useState<MarketTab>('dashboard')
   const [searchQuery, setSearchQuery] = useState('')
-  
-  // Modals
-  const [perpModalOpen, setPerpModalOpen] = useState(false)
-  const [predictionModalOpen, setPredictionModalOpen] = useState(false)
-  const [poolModalOpen, setPoolModalOpen] = useState(false)
-  const [economicCalendarModalOpen, setEconomicCalendarModalOpen] = useState(false)
-  const [selectedPerpMarket, setSelectedPerpMarket] = useState<PerpMarket | null>(null)
-  const [selectedPrediction, setSelectedPrediction] = useState<PredictionMarket | null>(null)
-  const [selectedPoolId, setSelectedPoolId] = useState<string | null>(null)
-  const [selectedEconomicEvent, setSelectedEconomicEvent] = useState<{
-    id: string
-    title: string
-    date: string
-    time: string
-    impact: 'high' | 'medium' | 'low'
-    country?: string
-  } | null>(null)
+  const [predictionSort, setPredictionSort] = useState<PredictionSort>('trending')
   
   // Data
   const [perpMarkets, setPerpMarkets] = useState<PerpMarket[]>([])
@@ -229,8 +213,41 @@ export default function MarketsPage() {
     p.text.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const activePredictions = predictions.filter(p => p.status === 'active')
-  const resolvedPredictions = predictions.filter(p => p.status === 'resolved')
+  // Sort predictions based on selected option
+  const sortedPredictions = useMemo(() => {
+    const active = filteredPredictions.filter(p => p.status === 'active')
+    
+    const sorted = [...active].sort((a, b) => {
+      switch (predictionSort) {
+        case 'trending': {
+          // Trending = combination of volume and recency
+          const aVolume = (a.yesShares || 0) + (a.noShares || 0)
+          const bVolume = (b.yesShares || 0) + (b.noShares || 0)
+          const aTime = a.createdDate ? new Date(a.createdDate).getTime() : 0
+          const bTime = b.createdDate ? new Date(b.createdDate).getTime() : 0
+          // Weight: 70% volume, 30% recency
+          const aScore = (aVolume * 0.7) + ((aTime / 1000000) * 0.3)
+          const bScore = (bVolume * 0.7) + ((bTime / 1000000) * 0.3)
+          return bScore - aScore
+        }
+        case 'newest':
+          return (b.createdDate ? new Date(b.createdDate).getTime() : 0) - 
+                 (a.createdDate ? new Date(a.createdDate).getTime() : 0)
+        case 'ending-soon':
+          return (a.resolutionDate ? new Date(a.resolutionDate).getTime() : Infinity) - 
+                 (b.resolutionDate ? new Date(b.resolutionDate).getTime() : Infinity)
+        case 'volume':
+          return ((b.yesShares || 0) + (b.noShares || 0)) - ((a.yesShares || 0) + (a.noShares || 0))
+        default:
+          return 0
+      }
+    })
+    
+    return sorted
+  }, [filteredPredictions, predictionSort])
+
+  const activePredictions = sortedPredictions
+  const resolvedPredictions = filteredPredictions.filter(p => p.status === 'resolved')
 
   // Calculate trending tokens (mix of % gain and volume) - memoized
   const trendingMarkets = useMemo(() => {
@@ -265,27 +282,13 @@ export default function MarketsPage() {
   }, [predictions])
 
   const handleMarketClick = (market: PerpMarket) => {
-    if (!authenticated) {
-      // Go directly to Privy wallet connect
-      login()
-      return
-    }
-    setSelectedPerpMarket(market)
-    setPerpModalOpen(true)
+    // Navigate to dedicated perp page
+    router.push(`/markets/perps/${market.ticker}`)
   }
 
   const handlePredictionClick = (prediction: PredictionMarket) => {
-    if (!authenticated) {
-      // Go directly to Privy wallet connect
-      login()
-      return
-    }
-    // Convert to format expected by modal (id as number if possible, otherwise string)
-    setSelectedPrediction({
-      ...prediction,
-      id: typeof prediction.id === 'number' ? prediction.id : (typeof prediction.id === 'string' ? parseInt(prediction.id) || prediction.id : prediction.id)
-    } as PredictionMarket)
-    setPredictionModalOpen(true)
+    // Navigate to dedicated prediction page
+    router.push(`/markets/predictions/${prediction.id}`)
   }
 
   const formatPrice = (p: number) => `$${p.toFixed(2)}`
@@ -528,15 +531,12 @@ export default function MarketsPage() {
                   Top Performing Pools
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {topPools.map((pool, idx) => (
-                    <button
-                      key={`top-pool-${pool.id}-${idx}`}
-                      onClick={() => {
-                        setSelectedPoolId(pool.id)
-                        setPoolModalOpen(true)
-                      }}
-                      className="p-4 rounded-lg text-left bg-muted/30 hover:bg-muted transition-all cursor-pointer border border-transparent hover:border-orange-500/30"
-                    >
+              {topPools.map((pool, idx) => (
+                      <button
+                        key={`top-pool-${pool.id}-${idx}`}
+                        onClick={() => router.push(`/markets/pools/${pool.id}`)}
+                        className="p-4 rounded-lg text-left bg-muted/30 hover:bg-muted transition-all cursor-pointer border border-transparent hover:border-orange-500/30"
+                      >
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex-1">
                           <div className="font-bold text-sm mb-1">{pool.name}</div>
@@ -588,10 +588,7 @@ export default function MarketsPage() {
               
               <h2 className="text-sm font-bold text-muted-foreground mb-3">ALL TRADING POOLS</h2>
               <PoolsList 
-                onPoolClick={(pool) => {
-                  setSelectedPoolId(pool.id)
-                  setPoolModalOpen(true)
-                }} 
+                onPoolClick={(pool) => router.push(`/markets/pools/${pool.id}`)} 
               />
             </div>
           </PoolsErrorBoundary>
@@ -654,9 +651,63 @@ export default function MarketsPage() {
               </>
             )}
 
-            <h2 className="text-sm font-bold text-muted-foreground mb-3">ACTIVE MARKETS ({activePredictions.length})</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-bold text-muted-foreground">ACTIVE MARKETS ({activePredictions.length})</h2>
+              
+              {/* Sorting Controls */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPredictionSort('trending')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-xs font-medium transition-all",
+                    predictionSort === 'trending'
+                      ? "bg-[#1da1f2] text-white"
+                      : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  <Flame className="w-3 h-3 inline mr-1" />
+                  Trending
+                </button>
+                <button
+                  onClick={() => setPredictionSort('volume')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-xs font-medium transition-all",
+                    predictionSort === 'volume'
+                      ? "bg-[#1da1f2] text-white"
+                      : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  <ArrowUpDown className="w-3 h-3 inline mr-1" />
+                  Volume
+                </button>
+                <button
+                  onClick={() => setPredictionSort('newest')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-xs font-medium transition-all",
+                    predictionSort === 'newest'
+                      ? "bg-[#1da1f2] text-white"
+                      : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  Newest
+                </button>
+                <button
+                  onClick={() => setPredictionSort('ending-soon')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-xs font-medium transition-all",
+                    predictionSort === 'ending-soon'
+                      ? "bg-[#1da1f2] text-white"
+                      : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  <Clock className="w-3 h-3 inline mr-1" />
+                  Ending Soon
+                </button>
+              </div>
+            </div>
+            
             <div className="space-y-2 mb-6">
-              {filteredPredictions.filter(p => p.status === 'active').map((prediction, idx) => {
+              {activePredictions.map((prediction, idx) => {
                 const daysLeft = getDaysLeft(prediction.resolutionDate)
                 const totalShares = (prediction.yesShares || 0) + (prediction.noShares || 0)
                 const yesPrice = totalShares > 0 ? ((prediction.yesShares || 0) / totalShares * 100).toFixed(1) : '50'
@@ -673,14 +724,22 @@ export default function MarketsPage() {
                     )}
                   >
                     <div className="font-medium mb-2">{prediction.text}</div>
-                    <div className="flex gap-3 text-xs text-muted-foreground items-center justify-between">
-                      <div className="flex gap-3">
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {daysLeft !== null ? `${daysLeft}d` : 'Soon'}
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-3 text-xs items-center justify-between">
+                        <div className="flex gap-3 text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {daysLeft !== null ? `${daysLeft}d` : 'Soon'}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <ArrowUpDown className="w-3 h-3" />
+                            {totalShares > 0 ? totalShares.toFixed(0) : '0'}
+                          </div>
                         </div>
-                        <div className="text-green-600">{yesPrice}% YES</div>
-                        <div className="text-red-600">{noPrice}% NO</div>
+                        <div className="flex gap-2">
+                          <div className="text-green-600 font-medium">{yesPrice}% YES</div>
+                          <div className="text-red-600 font-medium">{noPrice}% NO</div>
+                        </div>
                       </div>
                       {hasPosition && prediction.userPosition && (
                         <div className="flex items-center gap-2 text-xs">
@@ -765,10 +824,6 @@ export default function MarketsPage() {
               minOrderSize: market.minOrderSize || 1,
             }
             handleMarketClick(perpMarket)
-          }}
-          onEventClick={(event) => {
-            setSelectedEconomicEvent(event)
-            setEconomicCalendarModalOpen(true)
           }}
         />
       </div>
@@ -983,10 +1038,7 @@ export default function MarketsPage() {
                     {topPools.map((pool, idx) => (
                       <button
                         key={`top-pool-mobile-${pool.id}-${idx}`}
-                        onClick={() => {
-                          setSelectedPoolId(pool.id)
-                          setPoolModalOpen(true)
-                        }}
+                        onClick={() => router.push(`/markets/pools/${pool.id}`)}
                         className="w-full p-4 rounded-lg text-left bg-muted/30 hover:bg-muted transition-all cursor-pointer border border-transparent hover:border-orange-500/30"
                       >
                         <div className="flex justify-between items-start mb-2">
@@ -1040,10 +1092,7 @@ export default function MarketsPage() {
                 
                 <h2 className="text-sm font-bold text-muted-foreground mb-3">ALL TRADING POOLS</h2>
                 <PoolsList 
-                  onPoolClick={(pool) => {
-                    setSelectedPoolId(pool.id)
-                    setPoolModalOpen(true)
-                  }} 
+                  onPoolClick={(pool) => router.push(`/markets/pools/${pool.id}`)} 
                 />
               </div>
             </PoolsErrorBoundary>
@@ -1106,9 +1155,63 @@ export default function MarketsPage() {
                 </>
               )}
 
-              <h2 className="text-sm font-bold text-muted-foreground mb-3">ACTIVE MARKETS ({activePredictions.length})</h2>
+              <div className="mb-3">
+                <h2 className="text-sm font-bold text-muted-foreground mb-2">ACTIVE MARKETS ({activePredictions.length})</h2>
+                
+                {/* Sorting Controls - Mobile responsive */}
+                <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
+                  <button
+                    onClick={() => setPredictionSort('trending')}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0",
+                      predictionSort === 'trending'
+                        ? "bg-[#1da1f2] text-white"
+                        : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                    )}
+                  >
+                    <Flame className="w-3 h-3 inline mr-1" />
+                    Trending
+                  </button>
+                  <button
+                    onClick={() => setPredictionSort('volume')}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0",
+                      predictionSort === 'volume'
+                        ? "bg-[#1da1f2] text-white"
+                        : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                    )}
+                  >
+                    <ArrowUpDown className="w-3 h-3 inline mr-1" />
+                    Volume
+                  </button>
+                  <button
+                    onClick={() => setPredictionSort('newest')}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0",
+                      predictionSort === 'newest'
+                        ? "bg-[#1da1f2] text-white"
+                        : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                    )}
+                  >
+                    Newest
+                  </button>
+                  <button
+                    onClick={() => setPredictionSort('ending-soon')}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0",
+                      predictionSort === 'ending-soon'
+                        ? "bg-[#1da1f2] text-white"
+                        : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                    )}
+                  >
+                    <Clock className="w-3 h-3 inline mr-1" />
+                    Ending Soon
+                  </button>
+                </div>
+              </div>
+              
               <div className="space-y-2 mb-6">
-                {filteredPredictions.filter(p => p.status === 'active').map((prediction, idx) => {
+                {activePredictions.map((prediction, idx) => {
                   const daysLeft = getDaysLeft(prediction.resolutionDate)
                   const totalShares = (prediction.yesShares || 0) + (prediction.noShares || 0)
                   const yesPrice = totalShares > 0 ? ((prediction.yesShares || 0) / totalShares * 100).toFixed(1) : '50'
@@ -1125,14 +1228,22 @@ export default function MarketsPage() {
                       )}
                     >
                       <div className="font-medium mb-2">{prediction.text}</div>
-                      <div className="flex gap-3 text-xs text-muted-foreground items-center justify-between">
-                        <div className="flex gap-3">
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {daysLeft !== null ? `${daysLeft}d` : 'Soon'}
+                      <div className="flex flex-col gap-2">
+                        <div className="flex gap-3 text-xs items-center justify-between">
+                          <div className="flex gap-3 text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {daysLeft !== null ? `${daysLeft}d` : 'Soon'}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <ArrowUpDown className="w-3 h-3" />
+                              {totalShares > 0 ? totalShares.toFixed(0) : '0'}
+                            </div>
                           </div>
-                          <div className="text-green-600">{yesPrice}% YES</div>
-                          <div className="text-red-600">{noPrice}% NO</div>
+                          <div className="flex gap-2">
+                            <div className="text-green-600 font-medium">{yesPrice}% YES</div>
+                            <div className="text-red-600 font-medium">{noPrice}% NO</div>
+                          </div>
                         </div>
                         {hasPosition && prediction.userPosition && (
                           <div className="flex items-center gap-2 text-xs">
@@ -1193,44 +1304,6 @@ export default function MarketsPage() {
         )}
       </div>
 
-      {/* Trading Modals - Shared for both desktop and mobile */}
-      {selectedPerpMarket && (
-        <PerpTradingModal
-          market={selectedPerpMarket}
-          isOpen={perpModalOpen}
-          onClose={() => setPerpModalOpen(false)}
-          onSuccess={fetchData}
-        />
-      )}
-
-      {selectedPrediction && (
-        <PredictionTradingModal
-          question={selectedPrediction}
-          isOpen={predictionModalOpen}
-          onClose={() => setPredictionModalOpen(false)}
-          onSuccess={fetchData}
-        />
-      )}
-
-      {selectedPoolId && (
-        <PoolDetailModal
-          poolId={selectedPoolId}
-          isOpen={poolModalOpen}
-          onClose={() => setPoolModalOpen(false)}
-          onSuccess={fetchData}
-        />
-      )}
-
-      {selectedEconomicEvent && (
-        <EconomicCalendarModal
-          event={selectedEconomicEvent}
-          isOpen={economicCalendarModalOpen}
-          onClose={() => {
-            setEconomicCalendarModalOpen(false)
-            setSelectedEconomicEvent(null)
-          }}
-        />
-      )}
     </PageContainer>
   )
 }

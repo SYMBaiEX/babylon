@@ -163,11 +163,10 @@ export function useAuth(): UseAuthReturn {
         }
 
         const data = await response.json()
-        if (data.needsSetup && typeof window !== 'undefined') {
-          const currentPath = window.location.pathname
-          if (currentPath !== '/profile') {
-            window.location.href = '/profile'
-          }
+        // Note: Removed redirect to /profile - users can complete onboarding from any page via modal
+        // The OnboardingProvider handles showing the modal when needed
+        if (data.needsSetup) {
+          logger.info('User needs profile setup - onboarding modal will be shown', undefined, 'useAuth')
         }
       } catch (error) {
         // Silently handle errors - don't block user flow

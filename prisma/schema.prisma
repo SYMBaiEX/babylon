@@ -77,7 +77,6 @@ model User {
   bannerDismissCount   Int      @default(0) // Track how many times user dismissed banner
 
   // Relationships
-  posts           Post[]       @relation("PostAuthor")
   comments        Comment[]
   reactions       Reaction[]
   positions       Position[]
@@ -113,13 +112,8 @@ model Post {
 
   // Relationships
   // Note: authorId can reference either User.id or Actor.id
-  // Both relations are defined for type safety and querying.
-  // PostgreSQL cannot enforce two foreign keys on the same column, so only
-  // the User FK will be enforced at the database level. Actor posts are handled
-  // at application level (authorId matches Actor.id). Both relations exist in
-  // Prisma Client for type safety and convenience.
-  author      User?    @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Cascade, map: "Post_authorId_User_fkey")
-  authorActor Actor?   @relation("PostActorAuthor", fields: [authorId], references: [id], onDelete: Cascade, map: "Post_authorId_Actor_fkey")
+  // No database-level foreign key constraints (handled at application level)
+  // This allows posts from both Users and Actors without constraint violations
   comments    Comment[]
   reactions   Reaction[]
   shares      Share[]
@@ -534,9 +528,7 @@ model Actor {
   pools      Pool[]
   npcTrades  NPCTrade[]
   // Posts authored by actors (no FK constraint - handled at application level)
-  // Query with: prisma.post.findMany({ where: { authorActor: { id: actorId } } })
-  // or manually: prisma.post.findMany({ where: { authorId: actorId } })
-  posts      Post[]    @relation("PostActorAuthor")
+  // Query with: prisma.post.findMany({ where: { authorId: actorId } })
 
   @@index([tier])
   @@index([role])
@@ -548,7 +540,7 @@ model Actor {
 model Notification {
   id          String   @id @default(uuid())
   userId      String   // Who receives the notification
-  type        String   // 'comment', 'reaction', 'follow', 'mention', 'reply', 'share'
+  type        String   // 'comment', 'reaction', 'follow', 'mention', 'reply', 'share', 'system'
   actorId     String?  // Who performed the action (user ID or actor ID)
   postId      String?  // Related post (if applicable)
   commentId   String?  // Related comment (if applicable)

@@ -149,7 +149,7 @@ export async function GET(request: Request) {
     const authorIds = [...new Set(posts.map(p => p.authorId))];
     const users = await prisma.user.findMany({
       where: { id: { in: authorIds } },
-      select: { id: true, username: true, displayName: true },
+      select: { id: true, username: true, displayName: true, profileImageUrl: true },
     });
     const userMap = new Map(users.map(u => [u.id, u]));
     
@@ -188,6 +188,7 @@ export async function GET(request: Request) {
         authorId: post.authorId,
         authorName: user?.displayName || user?.username || post.authorId,
         authorUsername: user?.username || null,
+        authorProfileImageUrl: user?.profileImageUrl || null,
         timestamp: post.timestamp.toISOString(),
         createdAt: post.createdAt.toISOString(),
         gameId: post.gameId || undefined,
@@ -291,9 +292,9 @@ export async function POST(request: NextRequest) {
     // Determine author name for display (prefer username or displayName, fallback to generated name)
     const authorName = dbUser.username || dbUser.displayName || `user_${authUser.userId.slice(0, 8)}`;
 
-    // Broadcast new post to WebSocket feed channel for real-time updates
+    // Broadcast new post to SSE feed channel for real-time updates
     try {
-      const { broadcastToChannel } = await import('@/app/api/ws/chat/route');
+      const { broadcastToChannel } = await import('@/lib/sse/event-broadcaster');
       broadcastToChannel('feed', {
         type: 'new_post',
         post: {
@@ -309,8 +310,8 @@ export async function POST(request: NextRequest) {
       });
       logger.info('Broadcast new user post to feed channel', { postId: post.id }, 'POST /api/posts');
     } catch (error) {
-      logger.error('Failed to broadcast post to WebSocket:', error, 'POST /api/posts');
-      // Don't fail the request if WebSocket broadcast fails
+      logger.error('Failed to broadcast post to SSE:', error, 'POST /api/posts');
+      // Don't fail the request if SSE broadcast fails
     }
 
     return successResponse({

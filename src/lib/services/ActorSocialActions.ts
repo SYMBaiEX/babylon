@@ -5,11 +5,9 @@
  * based on interaction history and social relationships.
  */
 
-import { PrismaClient } from '@prisma/client';
 import { GroupChatInvite } from './group-chat-invite';
 import { logger } from '@/lib/logger';
-
-const prisma = new PrismaClient();
+import { db } from '@/lib/database-service';
 
 export interface SocialAction {
   type: 'group_chat_invite' | 'dm';
@@ -36,12 +34,12 @@ export class ActorSocialActions {
 
     try {
       // Get all actors
-      const actors = await prisma.actor.findMany({
+      const actors = await db.prisma.actor.findMany({
         take: 50, // Limit to prevent overload
       });
 
       // Get all active users with interactions
-      const usersWithInteractions = await prisma.userInteraction.findMany({
+      const usersWithInteractions = await db.prisma.userInteraction.findMany({
         where: {
           timestamp: {
             gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
@@ -89,7 +87,7 @@ export class ActorSocialActions {
           }
 
           // Check if user is already in a chat with this actor
-          const existingMembership = await prisma.groupChatMembership.findFirst({
+          const existingMembership = await db.prisma.groupChatMembership.findFirst({
             where: {
               userId,
               npcAdminId: actor.id,
@@ -98,7 +96,7 @@ export class ActorSocialActions {
           });
 
           // Check if there's already a DM chat between this actor and user
-          const existingDMChat = userId && actor.id ? await prisma.chat.findFirst({
+          const existingDMChat = userId && actor.id ? await db.prisma.chat.findFirst({
             where: {
               isGroup: false,
               participants: {
@@ -117,8 +115,8 @@ export class ActorSocialActions {
           // Verify it's actually a DM between these two (2 participants total)
           const hasExistingDM = existingDMChat && 
             existingDMChat.participants.length === 2 &&
-            existingDMChat.participants.some(p => p.userId === userId) &&
-            existingDMChat.participants.some(p => p.userId === actor.id);
+            existingDMChat.participants.some((p: { userId: string | null }) => p.userId === userId) &&
+            existingDMChat.participants.some((p: { userId: string | null }) => p.userId === actor.id);
 
           // Calculate probabilities based on interaction quality and count
           const qualityFactor = Math.min(avgQuality / this.MIN_INTERACTION_QUALITY, 1.5);
@@ -138,7 +136,7 @@ export class ActorSocialActions {
             
             // Look for existing game chats where this actor might be admin
             // Group chats are stored with kebab-case names, so we search by name pattern
-            const existingChat = await prisma.chat.findFirst({
+            const existingChat = await db.prisma.chat.findFirst({
               where: {
                 isGroup: true,
                 gameId: 'continuous',
@@ -228,7 +226,7 @@ export class ActorSocialActions {
     // Create or get DM chat
     const chatId = `dm-${actorId}-${userId}`;
     
-    const chat = await prisma.chat.upsert({
+    const chat = await db.prisma.chat.upsert({
       where: { id: chatId },
       update: {},
       create: {
@@ -244,7 +242,7 @@ export class ActorSocialActions {
     }
 
     // Add participants
-    await prisma.chatParticipant.upsert({
+    await db.prisma.chatParticipant.upsert({
       where: {
         chatId_userId: {
           chatId,
@@ -258,7 +256,7 @@ export class ActorSocialActions {
       },
     });
 
-    await prisma.chatParticipant.upsert({
+    await db.prisma.chatParticipant.upsert({
       where: {
         chatId_userId: {
           chatId,
@@ -275,7 +273,7 @@ export class ActorSocialActions {
     if(!messageContent) throw new Error('Message content is required');
     
     // Create initial message from actor
-    await prisma.message.create({
+    await db.prisma.message.create({
       data: {
         chatId,
         senderId: actorId,

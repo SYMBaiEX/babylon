@@ -56,9 +56,11 @@ export function InteractionBar({
       });
       return;
     }
-    setShowComments(true);
+    // If custom onCommentClick is provided, use that instead of opening our own modal
     if (onCommentClick) {
       onCommentClick();
+    } else {
+      setShowComments(true);
     }
   };
 
@@ -107,12 +109,14 @@ export function InteractionBar({
         />
       </div>
 
-      {/* Comment section modal */}
-      <CommentSection
-        postId={postId}
-        isOpen={showComments}
-        onClose={() => setShowComments(false)}
-      />
+      {/* Comment section modal - only if custom onCommentClick is not provided */}
+      {!onCommentClick && (
+        <CommentSection
+          postId={postId}
+          isOpen={showComments}
+          onClose={() => setShowComments(false)}
+        />
+      )}
     </>
   );
 }

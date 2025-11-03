@@ -9,7 +9,7 @@ import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
-export type NotificationType = 'comment' | 'reaction' | 'follow' | 'mention' | 'reply' | 'share';
+export type NotificationType = 'comment' | 'reaction' | 'follow' | 'mention' | 'reply' | 'share' | 'system';
 
 interface CreateNotificationParams {
   userId: string; // Who receives the notification
@@ -226,6 +226,32 @@ export async function notifyShare(
     type: 'share',
     actorId: sharerId,
     postId,
+    message,
+  });
+}
+
+/**
+ * Create system notification for new account creation
+ */
+export async function notifyNewAccount(userId: string): Promise<void> {
+  const message = "🎉 Welcome to Babylon! Edit your profile details to earn free points and unlock rewards.";
+
+  await createNotification({
+    userId,
+    type: 'system',
+    message,
+  });
+}
+
+/**
+ * Create system notification for profile completion
+ */
+export async function notifyProfileComplete(userId: string, pointsAwarded: number): Promise<void> {
+  const message = `🎊 Congratulations! You've completed your profile and earned ${pointsAwarded} points!`;
+
+  await createNotification({
+    userId,
+    type: 'system',
     message,
   });
 }

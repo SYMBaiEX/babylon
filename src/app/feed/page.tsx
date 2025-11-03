@@ -9,9 +9,9 @@ import { PageContainer } from '@/components/shared/PageContainer'
 import { SearchBar } from '@/components/shared/SearchBar'
 import { PostCard } from '@/components/posts/PostCard'
 import { InviteFriendsBanner } from '@/components/shared/InviteFriendsBanner'
-import { FeedCommentSection } from '@/components/feed/FeedCommentSection'
 import { WidgetSidebar } from '@/components/shared/WidgetSidebar'
 import { CreatePostModal } from '@/components/posts/CreatePostModal'
+import { CommentModal } from '@/components/interactions/CommentModal'
 import { cn } from '@/lib/utils'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
 import { useAuth } from '@/hooks/useAuth'
@@ -39,12 +39,14 @@ export default function FeedPage() {
   const [actorNames, setActorNames] = useState<Map<string, string>>(new Map())
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [selectedPostId, setSelectedPostId] = useState<string | null>(null)
-  const [selectedPostData, setSelectedPostData] = useState<{
+  const [commentModalOpen, setCommentModalOpen] = useState(false)
+  const [commentModalPost, setCommentModalPost] = useState<{
     id: string
     content: string
     authorId: string
     authorName: string
+    authorUsername?: string | null
+    authorProfileImageUrl?: string | null
     timestamp: string
     likeCount: number
     commentCount: number
@@ -396,47 +398,39 @@ export default function FeedPage() {
           {/* Tabs on left */}
           <div className="flex-shrink-0">
             <FeedToggle activeTab={tab} onTabChange={setTab} />
+            <SearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search Babylon..."
+              className="rounded-lg"
+              compact
+            />
           </div>
-        </div>
-        
-        {/* Search bar below */}
-        <div className="px-3 sm:px-4 pb-2">
-          <SearchBar
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Search Babylon..."
-            className="w-full"
-            compact
-          />
         </div>
       </div>
 
       {/* Desktop: Multi-column layout */}
       <div className="hidden lg:flex flex-1 overflow-hidden">
         {/* Left: Feed area - aligned with sidebar, full width */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 border-l border-r border-[rgba(120,120,120,0.5)]">
           {/* Desktop: Top bar with tabs, search, and post button */}
           <div className="sticky top-0 z-10 bg-background shadow-sm flex-shrink-0">
             <div className="px-6 py-4">
               {/* Top row: Tabs and Post button */}
               <div className="flex items-center justify-between mb-3">
                 <FeedToggle activeTab={tab} onTabChange={setTab} />
-              </div>
-              {/* Search bar - full width */}
-              <div className="w-full">
                 <SearchBar
                   value={searchQuery}
                   onChange={setSearchQuery}
                   placeholder="Search Babylon..."
+                  className="rounded-lg"
                 />
               </div>
             </div>
           </div>
 
-          {/* Feed content - split into 2 columns: posts and comments */}
-          <div className="flex-1 flex overflow-hidden bg-background">
-            {/* Left column: Feed posts */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
+          {/* Feed content */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden bg-background">
               {(loading || (tab === 'following' && loadingFollowing)) ? (
                 <div className="w-full p-4 sm:p-8 text-center">
                   <div className="text-muted-foreground py-12">
@@ -501,11 +495,8 @@ export default function FeedPage() {
                   </div>
                 </div>
               ) : (
-                // Show posts - fluid width that scales with screen size
-                <div className={cn(
-                  "w-full pl-6 space-y-0",
-                  selectedPostId && selectedPostData ? "pr-4" : "pr-8 ml-4 mr-auto"
-                )}>
+                // Show posts - full width
+                <div className="w-full px-6 space-y-0 max-w-[700px] mx-auto">
                   {filteredPosts.map((post, i: number) => {
                     // Handle both FeedPost (from game store) and API post shapes
                     // API posts have authorId, FeedPost has author (both are author IDs)
@@ -521,6 +512,8 @@ export default function FeedPage() {
                       content: post.content,
                       authorId,
                       authorName,
+                      authorUsername: ('authorUsername' in post ? post.authorUsername : null),
+                      authorProfileImageUrl: ('authorProfileImageUrl' in post ? post.authorProfileImageUrl : null),
                       timestamp: post.timestamp,
                       likeCount: 0,
                       commentCount: 0,
@@ -533,9 +526,10 @@ export default function FeedPage() {
                       <div key={`post-wrapper-${post.id}-${i}`}>
                         <PostCard
                           post={postData}
-                          onClick={() => {
-                            setSelectedPostId(post.id)
-                            setSelectedPostData(postData)
+                          onClick={() => router.push(`/post/${post.id}`)}
+                          onCommentClick={() => {
+                            setCommentModalPost(postData)
+                            setCommentModalOpen(true)
                           }}
                         />
                         {showBannerAfterThisPost && (
@@ -567,26 +561,11 @@ export default function FeedPage() {
                   )}
                 </div>
               )}
-            </div>
-
-            {/* Right column: Comments section - only when post is selected */}
-            {selectedPostId && selectedPostData && (
-              <div className="hidden xl:flex flex-col w-[35%] flex-shrink-0 overflow-hidden bg-background">
-                <FeedCommentSection
-                  postId={selectedPostId}
-                  postData={selectedPostData}
-                  onClose={() => {
-                    setSelectedPostId(null)
-                    setSelectedPostData(null)
-                  }}
-                />
-              </div>
-            )}
           </div>
         </div>
 
-          {/* Right: Widget panels - only on desktop (xl+) */}
-          <WidgetSidebar />
+        {/* Right: Widget panels - only on desktop (xl+) */}
+        <WidgetSidebar />
       </div>
 
       {/* Mobile/Tablet: Feed area (full width) */}
@@ -667,22 +646,30 @@ export default function FeedPage() {
               // Show banner at the random interval (if not dismissed)
               const showBannerAfterThisPost = !bannerDismissed && i === bannerInterval.current - 1
 
+              const postData = {
+                id: post.id,
+                content: post.content,
+                authorId,
+                authorName,
+                authorUsername: ('authorUsername' in post ? post.authorUsername : null),
+                authorProfileImageUrl: ('authorProfileImageUrl' in post ? post.authorProfileImageUrl : null),
+                timestamp: post.timestamp,
+                likeCount: 0,
+                commentCount: 0,
+                shareCount: 0,
+                isLiked: false,
+                isShared: false,
+              }
+
               return (
                 <div key={`post-wrapper-${post.id}-${i}`}>
                   <PostCard
-                    post={{
-                      id: post.id,
-                      content: post.content,
-                      authorId,
-                      authorName,
-                      timestamp: post.timestamp,
-                      likeCount: 0,
-                      commentCount: 0,
-                      shareCount: 0,
-                      isLiked: false,
-                      isShared: false,
-                    }}
+                    post={postData}
                     onClick={() => router.push(`/post/${post.id}`)}
+                    onCommentClick={() => {
+                      setCommentModalPost(postData)
+                      setCommentModalOpen(true)
+                    }}
                   />
                   {showBannerAfterThisPost && (
                     <InviteFriendsBanner 
@@ -729,6 +716,16 @@ export default function FeedPage() {
             router.push('/feed')
           }
         }}
+      />
+
+      {/* Comment Modal */}
+      <CommentModal
+        isOpen={commentModalOpen}
+        onClose={() => {
+          setCommentModalOpen(false)
+          setCommentModalPost(null)
+        }}
+        post={commentModalPost}
       />
     </PageContainer>
   )

@@ -4,6 +4,7 @@
  * 
  * Handles image uploads for user profiles (avatar, cover images)
  * Uses S3-compatible storage (MinIO for dev, Cloudflare R2 for production)
+ * Falls back to local filesystem storage if external storage is unavailable
  */
 
 import type { NextRequest} from 'next/server';
@@ -11,10 +12,14 @@ import { NextResponse } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { getStorageClient } from '@/lib/storage/s3-client'
 import { logger } from '@/lib/logger'
+import { writeFile, mkdir } from 'fs/promises'
+import { join } from 'path'
+import sharp from 'sharp'
 
 // Configuration
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/jpg']
+const USE_LOCAL_STORAGE = process.env.USE_LOCAL_STORAGE === 'true' || process.env.NODE_ENV === 'development'
 
 /**
  * POST /api/upload/image
@@ -68,7 +73,48 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
-    // Upload to S3-compatible storage
+    // Use local storage for development or when configured
+    if (USE_LOCAL_STORAGE) {
+      try {
+        // Optimize image
+        const optimized = await sharp(buffer)
+          .webp({ quality: 85 })
+          .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
+          .toBuffer()
+
+        // Create upload directory structure
+        const uploadDir = join(process.cwd(), 'public', 'uploads', folder)
+        await mkdir(uploadDir, { recursive: true })
+
+        // Save file to public/uploads
+        const filePath = join(uploadDir, filename)
+        await writeFile(filePath, optimized)
+
+        const url = `/uploads/${folder}/${filename}`
+
+        logger.info(`Image uploaded successfully to local storage`, {
+          userId: authUser.userId,
+          filename,
+          path: filePath,
+          size: optimized.length,
+          originalSize: file.size,
+          type: imageType || 'unknown',
+        }, 'POST /api/upload/image')
+
+        return NextResponse.json({
+          success: true,
+          url,
+          key: `${folder}/${filename}`,
+          size: optimized.length,
+          filename,
+        })
+      } catch (localError) {
+        logger.error('Local storage upload failed:', localError, 'POST /api/upload/image')
+        // Fall through to try external storage
+      }
+    }
+
+    // Upload to S3-compatible storage (production or fallback)
     const storage = getStorageClient()
     const result = await storage.uploadImage({
       file: buffer,
@@ -78,7 +124,7 @@ export async function POST(request: NextRequest) {
       optimize: true, // Enable image optimization
     })
 
-    logger.info(`Image uploaded successfully`, {
+    logger.info(`Image uploaded successfully to external storage`, {
       userId: authUser.userId,
       filename,
       key: result.key,

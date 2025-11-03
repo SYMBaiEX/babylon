@@ -310,10 +310,9 @@ export async function POST(
     // Check if author is a User (not an Actor) - only Users can receive notifications
     const postRecord = await prisma.post.findUnique({
       where: { id: postId },
-      include: { 
-        author: {
-          select: { id: true },
-        },
+      select: { 
+        id: true,
+        authorId: true,
       },
     });
 
@@ -362,19 +361,26 @@ export async function POST(
       }
     } else {
       // Comment on post - notify the post author only if they're a User (not an Actor)
-      // Check if post.author exists (means authorId references a User, not an Actor)
+      // Check if authorId references a User (not an Actor)
       if (
         postRecord && 
         postRecord.authorId && 
-        postRecord.authorId !== user.userId &&
-        postRecord.author // Only notify if author is a User (not an Actor)
+        postRecord.authorId !== user.userId
       ) {
-        await notifyCommentOnPost(
-          postRecord.authorId,
-          user.userId,
-          postId,
-          comment.id
-        );
+        // Check if the authorId references a User (not an Actor)
+        const postAuthorUser = await prisma.user.findUnique({
+          where: { id: postRecord.authorId },
+          select: { id: true },
+        });
+        
+        if (postAuthorUser) {
+          await notifyCommentOnPost(
+            postRecord.authorId,
+            user.userId,
+            postId,
+            comment.id
+          );
+        }
       }
     }
 

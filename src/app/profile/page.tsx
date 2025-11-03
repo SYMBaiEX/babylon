@@ -18,8 +18,7 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
-  Wallet,
-  Link as LinkIcon
+  Wallet
 } from 'lucide-react'
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
@@ -652,15 +651,6 @@ export default function ProfilePage() {
                         </button>
                       )}
                     </div>
-                    
-                    {/* Points Display */}
-                    {user.reputationPoints !== undefined && (
-                      <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 flex-shrink-0">
-                        <Trophy className="w-4 h-4 text-yellow-500" />
-                        <span className="font-bold text-foreground">{user.reputationPoints.toLocaleString()}</span>
-                        <span className="text-xs text-muted-foreground">pts</span>
-                      </div>
-                    )}
                   </div>
 
                   {/* Username - Editable */}
@@ -869,23 +859,10 @@ export default function ProfilePage() {
                         </button>
                       </div>
                     )}
-
-                    {/* Add connections prompt */}
-                    {(!user.hasTwitter || !user.hasFarcaster) && (
-                      <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground w-full">
-                        <div className="flex items-center gap-2">
-                          <LinkIcon className="w-4 h-4" />
-                          <span>Connect via wallet for social links</span>
-                        </div>
-                        <span className="text-xs bg-yellow-500/10 text-yellow-500 px-2 py-0.5 rounded-full font-medium">
-                          +1000 pts each
-                        </span>
-                      </div>
-                    )}
                   </div>
 
                    {/* Metadata - Twitter Style */}
-                   <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mb-3">
+                   <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground mb-3">
                      {user.createdAt && (
                        <div className="flex items-center gap-1.5">
                          <Calendar className="w-4 h-4" />

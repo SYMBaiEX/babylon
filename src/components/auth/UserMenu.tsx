@@ -4,7 +4,6 @@ import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { Dropdown, DropdownItem } from '@/components/shared/Dropdown'
 import { LogOut, Copy, Check } from 'lucide-react'
-import Link from 'next/link'
 import { Avatar } from '@/components/shared/Avatar'
 import { useState, useEffect } from 'react'
 import { logger } from '@/lib/logger'
@@ -94,31 +93,24 @@ export function UserMenu() {
   )
 
   return (
-    <Dropdown trigger={trigger} placement="top-right" width="sidebar">
-      {/* Header - Profile Link with PFP, Username, and Points stacked on right */}
-      <Link href="/profile">
-        <div className="px-5 py-5 hover:bg-sidebar-accent transition-colors cursor-pointer">
-          <div className="flex items-start gap-3">
-            <Avatar id={user.id} name={displayName} size="md" src={user.profileImageUrl} />
-            <div className="flex-1 min-w-0">
-              <p className="font-bold text-foreground truncate text-base">
-                {displayName}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">
-                @{username}
-              </p>
-            </div>
-            {pointsData && (
-              <div className="flex flex-col items-end justify-center">
-                <span className="text-base font-bold text-foreground leading-tight">
-                  {pointsData.total.toLocaleString()}
-                </span>
-                <span className="text-[10px] text-muted-foreground uppercase tracking-wide">pts</span>
-              </div>
-            )}
+    <Dropdown trigger={trigger} placement="top-right" width="default">
+      {/* Points Display */}
+      {pointsData && (
+        <div className="px-5 py-4 border-b border-sidebar-accent">
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-semibold text-muted-foreground">Total Points</span>
+            <span className="text-xl font-bold text-foreground">
+              {pointsData.total.toLocaleString()}
+            </span>
+          </div>
+          <div className="flex justify-between items-center mt-2">
+            <span className="text-xs text-muted-foreground">Available</span>
+            <span className="text-sm font-semibold text-foreground">
+              {pointsData.available.toLocaleString()}
+            </span>
           </div>
         </div>
-      </Link>
+      )}
       
       {referralCode && (
         <DropdownItem onClick={handleCopyReferralCode}>

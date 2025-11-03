@@ -12,6 +12,7 @@ import {
 } from '@/lib/api/auth-middleware';
 import { PointsService } from '@/lib/services/points-service';
 import { logger } from '@/lib/logger';
+import { notifyProfileComplete } from '@/lib/services/notification-service';
 
 const prisma = new PrismaClient();
 
@@ -167,6 +168,15 @@ export async function POST(
             { userId, points: result.pointsAwarded },
             'POST /api/users/[userId]/update-profile'
           )
+          
+          // Send profile completion notification
+          try {
+            await notifyProfileComplete(userId, result.pointsAwarded)
+            logger.info('Profile completion notification sent', { userId }, 'POST /api/users/[userId]/update-profile')
+          } catch (notificationError) {
+            logger.error('Error sending profile completion notification (non-critical):', notificationError, 'POST /api/users/[userId]/update-profile')
+            // Don't fail the request if notification fails
+          }
         }
       }
     }

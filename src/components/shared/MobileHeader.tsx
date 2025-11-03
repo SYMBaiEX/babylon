@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { X, Home, TrendingUp, MessageCircle, Trophy, Gift, Info, Bell, LogOut, Coins } from 'lucide-react'
+import { X, Home, TrendingUp, MessageCircle, Trophy, Gift, Bell, LogOut, Coins } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
@@ -100,38 +100,10 @@ export function MobileHeader() {
           'md:hidden',
           'fixed top-0 left-0 right-0 z-40',
           'bg-sidebar/95',
-          'border-b border-border'
         )}
       >
         <div className="flex items-center justify-between h-14 px-4">
-          {/* Left: Logo */}
-          <div className="flex-shrink-0">
-            <Link href="/feed" className="hover:scale-105 transition-transform duration-300">
-              <Image
-                src="/assets/logos/logo.svg"
-                alt="Babylon Logo"
-                width={28}
-                height={28}
-                className="w-7 h-7"
-              />
-            </Link>
-          </div>
-
-          {/* Center: Points */}
-          <div className="flex-1 flex justify-center items-center gap-1">
-            {authenticated && pointsData ? (
-              <>
-                <span className="text-sm font-semibold text-foreground">
-                  {pointsData.available.toLocaleString()} / {pointsData.total.toLocaleString()} pts
-                </span>
-                <Info className="w-4 h-4 text-muted-foreground" />
-              </>
-            ) : authenticated ? (
-              <span className="text-sm text-muted-foreground">Loading...</span>
-            ) : null}
-          </div>
-
-          {/* Right: Profile Picture (when authenticated) or Login button */}
+          {/* Left: Profile Picture (when authenticated) or Login button */}
           <div className="flex-shrink-0 w-8">
             {authenticated && user ? (
               <button
@@ -157,6 +129,22 @@ export function MobileHeader() {
               <div className="w-8" />
             )}
           </div>
+
+          {/* Center: Logo */}
+          <div className="absolute left-1/2 transform -translate-x-1/2">
+            <Link href="/feed" className="hover:scale-105 transition-transform duration-300">
+              <Image
+                src="/assets/logos/logo.svg"
+                alt="Babylon Logo"
+                width={28}
+                height={28}
+                className="w-7 h-7"
+              />
+            </Link>
+          </div>
+
+          {/* Right: Empty space for balance */}
+          <div className="flex-shrink-0 w-8" />
         </div>
       </header>
 
@@ -170,12 +158,12 @@ export function MobileHeader() {
           />
 
           {/* Menu Panel - slides in from left */}
-          <div className="fixed top-0 left-0 bottom-0 z-50 md:hidden bg-sidebar border-r-2 border-[#1c9cf0] w-[280px] animate-in slide-in-from-left duration-300 flex flex-col">
+          <div className="fixed top-0 left-0 bottom-0 z-50 md:hidden bg-sidebar w-[280px] animate-in slide-in-from-left duration-300 flex flex-col">
             {/* Header - User Profile */}
             <Link 
               href="/profile"
               onClick={() => setShowSideMenu(false)}
-              className="flex items-center justify-between p-4 border-b-2 border-border hover:bg-sidebar-accent transition-colors"
+              className="flex items-center justify-between p-4 hover:bg-sidebar-accent transition-colors"
             >
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <Avatar 
@@ -207,7 +195,7 @@ export function MobileHeader() {
 
             {/* Points Display */}
             {pointsData && (
-              <div className="px-4 py-4 border-b-2 border-border bg-muted/30">
+              <div className="px-4 py-4 bg-muted/30">
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#1c9cf0' }}>
                     <Coins className="w-5 h-5 text-white" />
@@ -226,7 +214,7 @@ export function MobileHeader() {
             )}
 
             {/* Menu Items */}
-            <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+            <nav className="flex-1 overflow-y-auto">
               {menuItems.map((item) => {
                 const Icon = item.icon
                 return (
@@ -249,7 +237,7 @@ export function MobileHeader() {
             </nav>
 
             {/* Logout Button at Bottom */}
-            <div className="p-3 border-t-2 border-border">
+            <div className="p-3">
               <button
                 onClick={() => {
                   setShowSideMenu(false)

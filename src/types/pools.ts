@@ -120,6 +120,8 @@ export interface Post {
   content: string
   authorId: string
   authorName: string
+  authorUsername?: string | null
+  authorProfileImageUrl?: string | null
   timestamp: string
   likeCount: number
   commentCount: number

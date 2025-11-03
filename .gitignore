@@ -18,6 +18,8 @@ data/
 docs/
 bun.lock
 plugin-babylon/.eliza/
-cache/# Uploaded user files
-/public/uploads/*
-!/public/uploads/.gitkeep
+cache/
+
+# Uploaded user files - keep directory structure but ignore actual files
+/public/uploads/**/*
+!/public/uploads/**/.gitkeep

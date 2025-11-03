@@ -2,6 +2,7 @@
 
 import { cn, sanitizeId } from '@/lib/utils'
 import { useState } from 'react'
+import { getStaticAssetUrl } from '@/lib/assets'
 
 interface AvatarProps {
   id?: string
@@ -29,15 +30,18 @@ const sizeClasses = {
 export function Avatar({ id, name, type = 'actor', src, alt, size = 'md', className, scaleFactor = 1 }: AvatarProps) {
   const [imageError, setImageError] = useState(false)
   
-  // If src is provided directly, use it; otherwise construct from id
+  // Determine the image path to use:
+  // 1. If src is provided directly (uploaded profile image), use it
+  // 2. Otherwise, construct from id (static actor/org image)
   let imagePath: string | undefined
   if (src) {
     imagePath = src
   } else if (id) {
     const sanitizedId = sanitizeId(id)
-    imagePath = type === 'business'
+    const staticPath = type === 'business'
       ? `/images/organizations/${sanitizedId}.jpg`
       : `/images/actors/${sanitizedId}.jpg`
+    imagePath = getStaticAssetUrl(staticPath)
   }
 
   // Display name is alt (if provided) or name (if provided) or first letter of id

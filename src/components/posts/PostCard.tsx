@@ -17,6 +17,7 @@ export interface PostCardProps {
     authorId: string;
     authorName: string;
     authorUsername?: string | null;
+    authorProfileImageUrl?: string | null;
     timestamp: string;
     likeCount?: number;
     commentCount?: number;
@@ -26,6 +27,7 @@ export interface PostCardProps {
   };
   className?: string;
   onClick?: () => void;
+  onCommentClick?: () => void;
   showInteractions?: boolean;
   isDetail?: boolean;
 }
@@ -34,6 +36,7 @@ export const PostCard = memo(function PostCard({
   post,
   className,
   onClick,
+  onCommentClick,
   showInteractions = true,
   isDetail = false,
 }: PostCardProps) {
@@ -106,7 +109,8 @@ export const PostCard = memo(function PostCard({
             id={post.authorId}
             name={post.authorName}
             type="actor"
-            size="lg"
+            size="md"
+            src={post.authorProfileImageUrl || undefined}
             scaleFactor={isDetail ? fontSize : fontSize * (isDesktop ? 1.4 : isMobile ? 0.8 : 1)}
           />
         </Link>
@@ -153,6 +157,7 @@ export const PostCard = memo(function PostCard({
           <InteractionBar
             postId={post.id}
             initialInteractions={initialInteractions}
+            onCommentClick={onCommentClick}
           />
         </div>
       )}

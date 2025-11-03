@@ -185,12 +185,21 @@ export default function NotificationsPage() {
         return '↩️'
       case 'share':
         return '🔁'
+      case 'system':
+        return '✨'
       default:
         return '🔔'
     }
   }
 
   const getNotificationLink = (notification: Notification) => {
+    // System notifications redirect based on their content
+    if (notification.type === 'system') {
+      if (notification.message.includes('profile')) {
+        return '/settings'
+      }
+      return '/feed'
+    }
     if (notification.postId) {
       return `/feed#post-${notification.postId}`
     }
@@ -301,8 +310,15 @@ export default function NotificationsPage() {
                       className="flex-shrink-0"
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                      <Bell className="w-5 h-5 text-muted-foreground" />
+                    <div className={cn(
+                      "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
+                      notification.type === 'system' ? "bg-primary/10" : "bg-muted"
+                    )}>
+                      {notification.type === 'system' ? (
+                        <span className="text-xl">{getNotificationIcon(notification.type)}</span>
+                      ) : (
+                        <Bell className="w-5 h-5 text-muted-foreground" />
+                      )}
                     </div>
                   )}
 
@@ -310,15 +326,21 @@ export default function NotificationsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start gap-2">
                       <div className="flex-1">
-                        <p className="text-foreground leading-relaxed">
-                          <span className="font-semibold">
-                            {notification.actor?.displayName || 'Someone'}
-                          </span>
-                          {' '}
-                          <span className="text-muted-foreground">
-                            {getNotificationIcon(notification.type)} {notification.message}
-                          </span>
-                        </p>
+                        {notification.type === 'system' ? (
+                          <p className="text-foreground leading-relaxed">
+                            {notification.message}
+                          </p>
+                        ) : (
+                          <p className="text-foreground leading-relaxed">
+                            <span className="font-semibold">
+                              {notification.actor?.displayName || 'Someone'}
+                            </span>
+                            {' '}
+                            <span className="text-muted-foreground">
+                              {getNotificationIcon(notification.type)} {notification.message}
+                            </span>
+                          </p>
+                        )}
                         <time className="text-sm text-muted-foreground mt-1 block">
                           {formatTimeAgo(notification.createdAt)}
                         </time>

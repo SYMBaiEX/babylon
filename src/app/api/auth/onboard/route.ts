@@ -14,6 +14,7 @@ import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-mid
 import { PrismaClient, Prisma } from '@prisma/client'
 import { PointsService } from '@/lib/services/points-service'
 import { logger } from '@/lib/logger'
+import { notifyNewAccount } from '@/lib/services/notification-service'
 
 const prisma = new PrismaClient()
 
@@ -462,6 +463,16 @@ export async function POST(request: NextRequest) {
         })
 
         logger.info('Successfully awarded 1,000 points to user', undefined, 'POST /api/auth/onboard')
+
+        // Send welcome notification to new user
+        try {
+          await notifyNewAccount(dbUser.id)
+          logger.info('Welcome notification sent to new user', { userId: dbUser.id }, 'POST /api/auth/onboard')
+        } catch (notificationError) {
+          const notificationErrorMessage = notificationError instanceof Error ? notificationError.message : String(notificationError);
+          logger.error('Error sending welcome notification (non-critical):', { error: notificationErrorMessage }, 'POST /api/auth/onboard')
+          // Don't fail registration if notification fails
+        }
 
         // Award referral bonus to referrer if applicable
         if (referrerId && referralCode) {

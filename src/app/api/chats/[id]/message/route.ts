@@ -14,7 +14,7 @@ import {
 import { MessageQualityChecker } from '@/lib/services/message-quality-checker';
 import { GroupChatSweep, type SweepDecision } from '@/lib/services/group-chat-sweep';
 import { GroupChatInvite } from '@/lib/services/group-chat-invite';
-import { broadcastMessage } from '@/app/api/ws/chat/route';
+import { broadcastChatMessage } from '@/lib/sse/event-broadcaster';
 import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
@@ -152,8 +152,8 @@ export async function POST(
       };
     }
 
-    // 9. Broadcast message via WebSocket
-    broadcastMessage(chatId, {
+    // 9. Broadcast message via SSE
+    broadcastChatMessage(chatId, {
       id: message.id,
       content: message.content,
       chatId: message.chatId,

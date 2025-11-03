@@ -131,12 +131,13 @@ async function main() {
     logger.info('Engine instance registered for API access', undefined, 'CLI');
 
     // Auto-start agents if enabled
-    const autoStartAgents = process.env.AUTO_START_AGENTS !== 'false'; // Default to true
+    const autoStartAgents = process.env.AUTO_START_AGENTS === 'true'; // Default to false
     if (autoStartAgents) {
       logger.info('Starting agents...', undefined, 'CLI');
       await startAgents();
     } else {
-      logger.info('Agent auto-start disabled (set AUTO_START_AGENTS=false to disable)', undefined, 'CLI');
+      logger.info('Agent auto-start disabled (set AUTO_START_AGENTS=true to enable)', undefined, 'CLI');
+      logger.info('To start agents manually: bun run eliza:all', undefined, 'CLI');
     }
 
     // Keep process alive

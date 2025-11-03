@@ -6,7 +6,6 @@ import { Separator } from '@/components/shared/Separator'
 import { ShareButton } from '@/components/shared/ShareButton'
 import { Avatar } from '@/components/shared/Avatar'
 import { LoginButton } from '@/components/auth/LoginButton'
-import { RewardsWidget } from '@/components/referrals/RewardsWidget'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { 
@@ -17,7 +16,6 @@ import {
   TrendingUp, 
   UserPlus,
   ExternalLink,
-  Heart,
   Twitter,
   Wallet,
   Share2,
@@ -74,7 +72,6 @@ export default function RewardsPage() {
   const [referralData, setReferralData] = useState<ReferralData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [copiedCode, setCopiedCode] = useState(false)
   const [copiedUrl, setCopiedUrl] = useState(false)
 
   useEffect(() => {
@@ -115,17 +112,6 @@ export default function RewardsPage() {
       setError(err instanceof Error ? err.message : 'Failed to load rewards')
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleCopyCode = async () => {
-    if (!referralData?.user.referralCode) return
-    try {
-      await navigator.clipboard.writeText(referralData.user.referralCode)
-      setCopiedCode(true)
-      setTimeout(() => setCopiedCode(false), 2000)
-    } catch (error) {
-      logger.error('Error copying code:', error, 'RewardsPage')
     }
   }
 
@@ -252,27 +238,38 @@ export default function RewardsPage() {
               <p className="text-muted-foreground">Complete tasks and invite friends to earn points</p>
             </div>
 
-            {/* Total Earned Card */}
-            <div className="rounded-lg bg-gradient-to-r from-[#1c9cf0]/20 to-purple-500/20 p-6 border border-[#1c9cf0]/30">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Award className="w-6 h-6 text-yellow-500" />
-                    <h2 className="text-lg font-bold text-foreground">Total Rewards Earned</h2>
-                  </div>
-                  <div className="text-4xl font-bold text-yellow-500">
-                    {calculateTotalEarned().toLocaleString()}
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Keep completing tasks to earn more!
-                  </p>
+            {/* Stats Row */}
+            <div className="grid grid-cols-3 gap-4">
+              {/* Total Earned */}
+              <div className="rounded-lg bg-gradient-to-r from-[#1c9cf0]/20 to-purple-500/20 p-4 border border-[#1c9cf0]/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <Award className="w-5 h-5 text-yellow-500" />
+                  <h2 className="text-sm font-medium text-muted-foreground">Total Earned</h2>
                 </div>
-                <div className="text-right">
-                  <div className="text-sm text-muted-foreground mb-1">Current Balance</div>
-                  <div className="text-2xl font-bold text-foreground">
-                    {referralData.user.reputationPoints.toLocaleString()}
-                  </div>
-                  <div className="text-xs text-muted-foreground">points</div>
+                <div className="text-3xl font-bold text-yellow-500">
+                  {calculateTotalEarned().toLocaleString()}
+                </div>
+              </div>
+
+              {/* Current Balance */}
+              <div className="rounded-lg bg-muted/30 border border-border p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="w-5 h-5 text-[#1c9cf0]" />
+                  <h2 className="text-sm font-medium text-muted-foreground">Current Balance</h2>
+                </div>
+                <div className="text-3xl font-bold text-foreground">
+                  {referralData.user.reputationPoints.toLocaleString()}
+                </div>
+              </div>
+
+              {/* Total Referrals */}
+              <div className="rounded-lg bg-muted/30 border border-border p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="w-5 h-5 text-[#1c9cf0]" />
+                  <h2 className="text-sm font-medium text-muted-foreground">Total Referrals</h2>
+                </div>
+                <div className="text-3xl font-bold text-foreground">
+                  {referralData.stats.totalReferrals}
                 </div>
               </div>
             </div>
@@ -347,273 +344,122 @@ export default function RewardsPage() {
 
             <Separator />
 
-            {/* Referrals Section */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
+            {/* Referral Link */}
+            <div className="rounded-lg bg-muted/30 border border-border p-4">
+              <div className="flex items-center gap-2 mb-3">
                 <Gift className="w-5 h-5 text-[#1c9cf0]" />
-                <h2 className="text-xl font-bold text-foreground">Referrals</h2>
+                <h2 className="text-base font-bold text-foreground">Referral Link</h2>
+                <span className="text-xs text-muted-foreground">+{POINTS.REFERRAL_SIGNUP} points per signup</span>
               </div>
 
-              {/* Stats Cards */}
-              <div className="grid grid-cols-3 gap-3">
-                {/* Total Referrals */}
-                <div className="rounded-lg bg-muted/30 p-3 border border-border">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Users className="w-4 h-4 text-[#1c9cf0]" />
-                    <h3 className="text-xs font-medium text-foreground">Total</h3>
+              <div className="space-y-3">
+                {/* URL Display */}
+                <div className="flex gap-2">
+                  <div className="flex-1 bg-sidebar-accent/50 rounded-lg px-3 py-2 text-sm text-foreground border border-border truncate">
+                    {referralData.referralUrl || 'Set a username to get your referral link'}
                   </div>
-                  <div className="text-2xl font-bold text-foreground">
-                    {referralData.stats.totalReferrals}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {referralData.stats.followingCount} following
-                  </p>
-                </div>
-
-                {/* Points Earned */}
-                <div className="rounded-lg bg-muted/30 p-3 border border-border">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <TrendingUp className="w-4 h-4 text-yellow-500" />
-                    <h3 className="text-xs font-medium text-foreground">Points</h3>
-                  </div>
-                  <div className="text-2xl font-bold text-yellow-500">
-                    {referralData.stats.totalPointsEarned.toLocaleString()}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    +{POINTS.REFERRAL_SIGNUP} each
-                  </p>
-                </div>
-
-                {/* Following Back */}
-                <div className="rounded-lg bg-muted/30 p-3 border border-border">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Heart className="w-4 h-4 text-[#1c9cf0]" />
-                    <h3 className="text-xs font-medium text-foreground">Following</h3>
-                  </div>
-                  <div className="text-2xl font-bold text-[#1c9cf0]">
-                    {referralData.stats.followingCount}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Auto-follow
-                  </p>
-                </div>
-              </div>
-
-              {/* Referral Code Card */}
-              <div className="rounded-lg bg-muted/30 border border-border p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Gift className="w-5 h-5 text-[#1c9cf0]" />
-                  <h2 className="text-base font-bold text-foreground">Your Referral Code</h2>
-                </div>
-
-                <div className="space-y-3">
-                  {/* Code Display */}
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1.5">
-                      Referral Code
-                    </label>
-                    <div className="flex gap-2">
-                      <div className="flex-1 bg-sidebar-accent/50 rounded-lg px-3 py-2 font-mono text-base text-foreground border border-border">
-                        {referralData.user.referralCode || (referralData.user.username ? referralData.user.username : 'Set a username')}
-                      </div>
-                      <button
-                        onClick={handleCopyCode}
-                        className="px-3 py-2 bg-sidebar-accent/50 hover:bg-sidebar-accent text-foreground rounded-lg transition-colors flex items-center gap-1.5 border border-border"
-                      >
-                        {copiedCode ? (
-                          <>
-                            <Check className="w-4 h-4 text-green-500" />
-                            <span className="hidden sm:inline text-xs">Copied!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-4 h-4" />
-                            <span className="hidden sm:inline text-xs">Copy</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                    {!referralData.user.username && (
-                      <p className="text-xs text-muted-foreground mt-1.5">
-                        Set a username in your profile to get your referral code
-                      </p>
+                  <button
+                    onClick={handleCopyUrl}
+                    disabled={!referralData.referralUrl}
+                    className="px-3 py-2 bg-sidebar-accent/50 hover:bg-sidebar-accent text-foreground rounded-lg transition-colors flex items-center gap-1.5 border border-border disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {copiedUrl ? (
+                      <>
+                        <Check className="w-4 h-4 text-green-500" />
+                        <span className="hidden sm:inline text-xs">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span className="hidden sm:inline text-xs">Copy</span>
+                      </>
                     )}
-                  </div>
-
-                  {/* URL Display */}
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1.5">
-                      Referral Link
-                    </label>
-                    <div className="flex gap-2">
-                      <div className="flex-1 bg-sidebar-accent/50 rounded-lg px-3 py-2 text-xs text-muted-foreground border border-border truncate">
-                        {referralData.referralUrl || 'Set a username to get your referral link'}
-                      </div>
-                      <button
-                        onClick={handleCopyUrl}
-                        disabled={!referralData.referralUrl}
-                        className="px-3 py-2 bg-sidebar-accent/50 hover:bg-sidebar-accent text-foreground rounded-lg transition-colors flex items-center gap-1.5 border border-border disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {copiedUrl ? (
-                          <>
-                            <Check className="w-4 h-4 text-green-500" />
-                            <span className="hidden sm:inline text-xs">Copied!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-4 h-4" />
-                            <span className="hidden sm:inline text-xs">Copy</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Share Buttons */}
-                  {referralData.referralUrl && (
-                    <div className="flex gap-2 pt-1">
-                      <ShareButton
-                        contentType="referral"
-                        url={referralData.referralUrl}
-                        text="Join me on Babylon! 🎮"
-                        className="flex-1"
-                      />
-                    </div>
-                  )}
-
-                  {/* Reward Info */}
-                  <div className="bg-[#1c9cf0]/10 rounded-lg p-3 border border-[#1c9cf0]/20">
-                    <h3 className="text-sm font-semibold text-foreground mb-1.5 flex items-center gap-1.5">
-                      <UserPlus className="w-3.5 h-3.5 text-[#1c9cf0]" />
-                      Rewards
-                    </h3>
-                    <ul className="space-y-1 text-xs text-muted-foreground">
-                      <li className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 bg-yellow-500 rounded-full"></span>
-                        <span><strong className="text-yellow-500">+{POINTS.REFERRAL_SIGNUP} points</strong> per signup</span>
-                      </li>
-                  <li className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 bg-[#1c9cf0] rounded-full"></span>
-                    <span><strong className="text-[#1c9cf0]">Auto-follow</strong> - you follow them</span>
-                  </li>
-                      <li className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                        <span><strong className="text-green-500">Unlimited</strong> referrals</span>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              {/* Referred Users List */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-base font-bold text-foreground flex items-center gap-1.5">
-                    <Users className="w-4 h-4 text-[#1c9cf0]" />
-                    Your Referrals ({referralData.stats.totalReferrals})
-                  </h2>
-                  {referralData.stats.totalReferrals > 0 && (
-                    <a
-                      href="/leaderboard"
-                      className="text-xs text-[#1c9cf0] hover:text-[#1a8cd8] flex items-center gap-1 transition-colors"
-                    >
-                      Leaderboard
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
+                  </button>
                 </div>
 
-                {referralData.referredUsers.length === 0 ? (
-                  <div className="text-center py-8 bg-muted/30 rounded-lg border border-border">
-                    <Users className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
-                    <h3 className="text-base font-semibold text-foreground mb-1">No referrals yet</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Share your referral link to start earning <strong className="text-yellow-500">+{POINTS.REFERRAL_SIGNUP} points</strong> per signup
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {referralData.referredUsers.map((referredUser) => (
-                      <div
-                        key={referredUser.id}
-                        className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border hover:bg-muted/50 transition-colors"
-                      >
-                        {/* Avatar */}
-                        <Avatar
-                          src={referredUser.profileImageUrl || undefined}
-                          alt={referredUser.displayName || referredUser.username || 'User'}
-                          size="sm"
-                        />
+                {/* Share Button */}
+                {referralData.referralUrl && (
+                  <ShareButton
+                    contentType="referral"
+                    url={referralData.referralUrl}
+                    text="Join me on Babylon! 🎮"
+                    className="w-full"
+                  />
+                )}
 
-                        {/* User Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-semibold text-foreground truncate">
-                              {referredUser.displayName || referredUser.username || 'Anonymous'}
-                            </h3>
-                            {referredUser.isFollowing && (
-                              <Heart className="w-3 h-3 text-[#1c9cf0] fill-[#1c9cf0] flex-shrink-0" />
-                            )}
-                          </div>
-                          {referredUser.username && (
-                            <p className="text-xs text-muted-foreground truncate">
-                              @{referredUser.username}
-                            </p>
-                          )}
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {new Date(referredUser.joinedAt || referredUser.createdAt).toLocaleDateString()}
-                          </p>
-                        </div>
-
-                        {/* Stats */}
-                        <div className="flex-shrink-0 flex items-center gap-2">
-                          <span className="text-xs font-semibold text-yellow-500">
-                            +{POINTS.REFERRAL_SIGNUP}
-                          </span>
-                          <a
-                            href={getProfileUrl(referredUser.id, referredUser.username)}
-                            className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
-                            aria-label="View profile"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </a>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                {!referralData.referralUrl && (
+                  <p className="text-xs text-muted-foreground">
+                    Set a username in your profile to get your referral link
+                  </p>
                 )}
               </div>
+            </div>
 
-              {/* Tips Section */}
-              {referralData.stats.totalReferrals < 5 && (
-                <div className="rounded-lg bg-[#1c9cf0]/10 border border-[#1c9cf0]/20 p-3">
-                  <h3 className="text-sm font-semibold text-foreground mb-1.5 flex items-center gap-1.5">
-                    <TrendingUp className="w-3.5 h-3.5 text-[#1c9cf0]" />
-                    Tips to Get More Referrals
-                  </h3>
-                  <ul className="space-y-1 text-xs text-muted-foreground">
-                    <li className="flex items-start gap-1.5">
-                      <span className="text-[#1c9cf0] mt-0.5">•</span>
-                      <span>Share on Twitter/X for maximum reach</span>
-                    </li>
-                    <li className="flex items-start gap-1.5">
-                      <span className="text-[#1c9cf0] mt-0.5">•</span>
-                      <span>Tell friends about competing with 21 AI traders</span>
-                    </li>
-                    <li className="flex items-start gap-1.5">
-                      <span className="text-[#1c9cf0] mt-0.5">•</span>
-                      <span>Share interesting markets or trades</span>
-                    </li>
-                  </ul>
+            {/* Referred Users List */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base font-bold text-foreground flex items-center gap-1.5">
+                  <Users className="w-4 h-4 text-[#1c9cf0]" />
+                  Your Referrals
+                </h2>
+              </div>
+
+              {referralData.referredUsers.length === 0 ? (
+                <div className="text-center py-8 bg-muted/30 rounded-lg border border-border">
+                  <Users className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+                  <h3 className="text-base font-semibold text-foreground mb-1">No referrals yet</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Share your referral link to start earning points
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {referralData.referredUsers.map((referredUser) => (
+                    <div
+                      key={referredUser.id}
+                      className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                    >
+                      {/* Avatar */}
+                      <Avatar
+                        src={referredUser.profileImageUrl || undefined}
+                        alt={referredUser.displayName || referredUser.username || 'User'}
+                        size="sm"
+                      />
+
+                      {/* User Info */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-semibold text-foreground truncate">
+                          {referredUser.displayName || referredUser.username || 'Anonymous'}
+                        </h3>
+                        {referredUser.username && (
+                          <p className="text-xs text-muted-foreground truncate">
+                            @{referredUser.username}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {new Date(referredUser.joinedAt || referredUser.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+
+                      {/* View Profile */}
+                      <a
+                        href={getProfileUrl(referredUser.id, referredUser.username)}
+                        className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label="View profile"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
           </div>
 
           {/* Rewards Widget Column */}
-          <div className="hidden xl:flex flex-col w-96 flex-shrink-0 overflow-y-auto bg-sidebar p-4">
+          {/* <div className="hidden xl:flex flex-col w-96 flex-shrink-0 overflow-y-auto bg-sidebar p-4">
             {user && <RewardsWidget userId={user.id} />}
-          </div>
+          </div> */}
         </div>
       )}
 
@@ -628,18 +474,39 @@ export default function RewardsPage() {
               <p className="text-muted-foreground">Complete tasks and invite friends to earn points</p>
             </div>
 
-            {/* Total Earned Card */}
-            <div className="rounded-lg bg-gradient-to-r from-[#1c9cf0]/20 to-purple-500/20 p-4 border border-[#1c9cf0]/30">
-              <div className="flex items-center gap-2 mb-3">
-                <Award className="w-5 h-5 text-yellow-500" />
-                <h2 className="text-base font-bold text-foreground">Total Rewards Earned</h2>
+            {/* Stats Row */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              {/* Total Earned */}
+              <div className="rounded-lg bg-gradient-to-r from-[#1c9cf0]/20 to-purple-500/20 p-3 border border-[#1c9cf0]/30">
+                <div className="flex items-center gap-1 mb-1">
+                  <Award className="w-4 h-4 text-yellow-500" />
+                  <h2 className="text-xs font-medium text-muted-foreground">Earned</h2>
+                </div>
+                <div className="text-2xl font-bold text-yellow-500">
+                  {calculateTotalEarned().toLocaleString()}
+                </div>
               </div>
-              <div className="text-3xl font-bold text-yellow-500 mb-2">
-                {calculateTotalEarned().toLocaleString()}
+
+              {/* Current Balance */}
+              <div className="rounded-lg bg-muted/30 border border-border p-3">
+                <div className="flex items-center gap-1 mb-1">
+                  <TrendingUp className="w-4 h-4 text-[#1c9cf0]" />
+                  <h2 className="text-xs font-medium text-muted-foreground">Balance</h2>
+                </div>
+                <div className="text-2xl font-bold text-foreground">
+                  {referralData.user.reputationPoints.toLocaleString()}
+                </div>
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Current Balance:</span>
-                <span className="font-bold text-foreground">{referralData.user.reputationPoints.toLocaleString()} pts</span>
+
+              {/* Total Referrals */}
+              <div className="rounded-lg bg-muted/30 border border-border p-3">
+                <div className="flex items-center gap-1 mb-1">
+                  <Users className="w-4 h-4 text-[#1c9cf0]" />
+                  <h2 className="text-xs font-medium text-muted-foreground">Referrals</h2>
+                </div>
+                <div className="text-2xl font-bold text-foreground">
+                  {referralData.stats.totalReferrals}
+                </div>
               </div>
             </div>
 
@@ -705,269 +572,109 @@ export default function RewardsPage() {
 
             <Separator />
 
-            {/* Referrals Section */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+            {/* Referral Link */}
+            <div className="rounded-lg bg-muted/30 border border-border p-4">
+              <div className="flex items-center gap-2 mb-3">
                 <Gift className="w-5 h-5 text-[#1c9cf0]" />
-                Referrals
-              </h2>
-
-              {/* Stats Cards - 3 columns on mobile */}
-              <div className="grid grid-cols-3 gap-2 sm:gap-4 w-full">
-                {/* Total Referrals */}
-                <div className="rounded-lg bg-muted/30 p-2 sm:p-4 border border-border w-full">
-                  <div className="flex items-center gap-1 sm:gap-2 mb-1 sm:mb-2">
-                    <Users className="w-3 h-3 sm:w-5 sm:h-5 text-[#1c9cf0]" />
-                    <h3 className="text-xs sm:text-sm font-medium text-foreground truncate">Total</h3>
-                  </div>
-                  <div className="text-xl sm:text-3xl font-bold text-foreground">
-                    {referralData.stats.totalReferrals}
-                  </div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 line-clamp-1">
-                    {referralData.stats.followingCount} following
-                  </p>
-                </div>
-
-                {/* Points Earned */}
-                <div className="rounded-lg bg-muted/30 p-2 sm:p-4 border border-border w-full">
-                  <div className="flex items-center gap-1 sm:gap-2 mb-1 sm:mb-2">
-                    <TrendingUp className="w-3 h-3 sm:w-5 sm:h-5 text-yellow-500" />
-                    <h3 className="text-xs sm:text-sm font-medium text-foreground truncate">Points</h3>
-                  </div>
-                  <div className="text-xl sm:text-3xl font-bold text-yellow-500">
-                    {referralData.stats.totalPointsEarned.toLocaleString()}
-                  </div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 line-clamp-1">
-                    +{POINTS.REFERRAL_SIGNUP} each
-                  </p>
-                </div>
-
-                {/* Following Back */}
-                <div className="rounded-lg bg-muted/30 p-2 sm:p-4 border border-border w-full">
-                  <div className="flex items-center gap-1 sm:gap-2 mb-1 sm:mb-2">
-                    <Heart className="w-3 h-3 sm:w-5 sm:h-5 text-[#1c9cf0]" />
-                    <h3 className="text-xs sm:text-sm font-medium text-foreground truncate">Following</h3>
-                  </div>
-                  <div className="text-xl sm:text-3xl font-bold text-[#1c9cf0]">
-                    {referralData.stats.followingCount}
-                  </div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 line-clamp-1">
-                    Auto-follow
-                  </p>
-                </div>
+                <h2 className="text-base font-bold text-foreground">Referral Link</h2>
+                <span className="text-xs text-muted-foreground">+{POINTS.REFERRAL_SIGNUP} points</span>
               </div>
 
-              {/* Referral Code Card */}
-              <div className="rounded-lg bg-muted/30 border border-border p-4 w-full">
-                <div className="flex items-center gap-2 mb-4">
-                  <Gift className="w-6 h-6 text-[#1c9cf0]" />
-                  <h2 className="text-lg font-bold text-foreground">Your Referral Code</h2>
-                </div>
-
-                <div className="space-y-4 w-full">
-                  {/* Code Display */}
-                  <div className="w-full">
-                    <label className="block text-xs text-muted-foreground uppercase tracking-wide mb-2">
-                      Referral Code
-                    </label>
-                    <div className="flex gap-2 w-full">
-                      <div className="flex-1 min-w-0 bg-sidebar-accent/50 rounded-lg px-4 py-3 font-mono text-base text-foreground border border-border break-all overflow-wrap-anywhere">
-                        {referralData.user.referralCode || (referralData.user.username ? referralData.user.username : 'Set a username')}
-                      </div>
-                      <button
-                        onClick={handleCopyCode}
-                        className="px-4 py-3 bg-sidebar-accent/50 hover:bg-sidebar-accent text-foreground rounded-lg transition-colors flex items-center justify-center border border-border flex-shrink-0"
-                        aria-label="Copy referral code"
-                      >
-                        {copiedCode ? (
-                          <Check className="w-5 h-5 text-green-500" />
-                        ) : (
-                          <Copy className="w-5 h-5" />
-                        )}
-                      </button>
-                    </div>
-                    {!referralData.user.username && (
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Set a username in your profile to get your referral code
-                      </p>
+              <div className="space-y-3">
+                {/* URL Display */}
+                <div className="flex gap-2">
+                  <div className="flex-1 min-w-0 bg-sidebar-accent/50 rounded-lg px-3 py-2 text-sm text-foreground border border-border break-all">
+                    {referralData.referralUrl || 'Set a username to get your referral link'}
+                  </div>
+                  <button
+                    onClick={handleCopyUrl}
+                    disabled={!referralData.referralUrl}
+                    className="px-3 py-2 bg-sidebar-accent/50 hover:bg-sidebar-accent text-foreground rounded-lg transition-colors flex items-center justify-center border border-border disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                    aria-label="Copy referral link"
+                  >
+                    {copiedUrl ? (
+                      <Check className="w-5 h-5 text-green-500" />
+                    ) : (
+                      <Copy className="w-5 h-5" />
                     )}
-                  </div>
-
-                  {/* URL Display */}
-                  <div className="w-full">
-                    <label className="block text-xs text-muted-foreground uppercase tracking-wide mb-2">
-                      Referral Link
-                    </label>
-                    <div className="flex gap-2 w-full">
-                      <div className="flex-1 min-w-0 bg-sidebar-accent/50 rounded-lg px-4 py-3 text-sm text-muted-foreground border border-border break-all overflow-wrap-anywhere">
-                        {referralData.referralUrl || 'Set a username to get your referral link'}
-                      </div>
-                      <button
-                        onClick={handleCopyUrl}
-                        disabled={!referralData.referralUrl}
-                        className="px-4 py-3 bg-sidebar-accent/50 hover:bg-sidebar-accent text-foreground rounded-lg transition-colors flex items-center justify-center border border-border disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                        aria-label="Copy referral link"
-                      >
-                        {copiedUrl ? (
-                          <Check className="w-5 h-5 text-green-500" />
-                        ) : (
-                          <Copy className="w-5 h-5" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Share Buttons */}
-                  {referralData.referralUrl && (
-                    <div className="flex gap-2 pt-2 w-full">
-                      <ShareButton
-                        contentType="referral"
-                        url={referralData.referralUrl}
-                        text="Join me on Babylon! 🎮"
-                        className="flex-1"
-                      />
-                    </div>
-                  )}
-
-                  {/* Reward Info */}
-                  <div className="bg-[#1c9cf0]/10 rounded-lg p-4 border border-[#1c9cf0]/20 w-full">
-                    <h3 className="text-base font-semibold text-foreground mb-2 flex items-center gap-2">
-                      <UserPlus className="w-4 h-4 text-[#1c9cf0]" />
-                      Referral Rewards
-                    </h3>
-                    <ul className="space-y-2 text-sm text-muted-foreground">
-                      <li className="flex items-start gap-2">
-                        <span className="w-2 h-2 bg-yellow-500 rounded-full mt-1.5 flex-shrink-0"></span>
-                        <span><strong className="text-yellow-500">+{POINTS.REFERRAL_SIGNUP} points</strong> for each friend who signs up</span>
-                      </li>
-                    <li className="flex items-start gap-2">
-                      <span className="w-2 h-2 bg-[#1c9cf0] rounded-full mt-1.5 flex-shrink-0"></span>
-                      <span><strong className="text-[#1c9cf0]">Auto-follow</strong> - you'll automatically follow them</span>
-                    </li>
-                      <li className="flex items-start gap-2">
-                        <span className="w-2 h-2 bg-green-500 rounded-full mt-1.5 flex-shrink-0"></span>
-                        <span><strong className="text-green-500">Unlimited</strong> - invite as many friends as you want!</span>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              {/* Referred Users List */}
-              <div className="w-full">
-                <div className="flex items-center justify-between mb-4 w-full">
-                  <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                    <Users className="w-5 h-5 text-[#1c9cf0]" />
-                    <span>Your Referrals ({referralData.stats.totalReferrals})</span>
-                  </h2>
-                  {referralData.stats.totalReferrals > 0 && (
-                    <a
-                      href="/leaderboard"
-                      className="text-sm text-[#1c9cf0] hover:text-[#1a8cd8] flex items-center gap-1 transition-colors flex-shrink-0 ml-2"
-                    >
-                      Leaderboard
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
-                  )}
+                  </button>
                 </div>
 
-                {referralData.referredUsers.length === 0 ? (
-                  <div className="text-center py-12 bg-muted/30 rounded-lg border border-border w-full">
-                    <Users className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-semibold text-foreground mb-2">No referrals yet</h3>
-                    <p className="text-sm text-muted-foreground mb-4 px-4">
-                      Share your referral link to start earning points!
-                    </p>
-                    <p className="text-xs text-muted-foreground px-4">
-                      Each friend who signs up earns you <strong className="text-yellow-500">+{POINTS.REFERRAL_SIGNUP} points</strong>
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3 w-full">
-                    {referralData.referredUsers.map((referredUser) => (
-                      <div
-                        key={referredUser.id}
-                        className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg border border-border hover:bg-muted/50 transition-colors w-full"
-                      >
-                        {/* Avatar */}
-                        <div className="flex-shrink-0">
-                          <Avatar
-                            id={referredUser.id}
-                            name={referredUser.displayName || referredUser.username || 'User'}
-                            src={referredUser.profileImageUrl || undefined}
-                            size="sm"
-                          />
-                        </div>
+                {/* Share Button */}
+                {referralData.referralUrl && (
+                  <ShareButton
+                    contentType="referral"
+                    url={referralData.referralUrl}
+                    text="Join me on Babylon! 🎮"
+                    className="w-full"
+                  />
+                )}
 
-                        {/* User Info */}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-base font-semibold text-foreground truncate">
-                            {referredUser.displayName || referredUser.username || 'Anonymous'}
-                          </h3>
-                          {referredUser.username && (
-                            <p className="text-sm text-muted-foreground truncate">
-                              @{referredUser.username}
-                            </p>
-                          )}
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Joined {new Date(referredUser.joinedAt || referredUser.createdAt).toLocaleDateString()}
-                          </p>
-                        </div>
-
-                        {/* Stats */}
-                        <div className="flex-shrink-0 text-right">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm font-semibold text-yellow-500">
-                              +{POINTS.REFERRAL_SIGNUP}
-                            </span>
-                          </div>
-                          {referredUser.isFollowing && (
-                            <div className="flex items-center gap-1 text-xs">
-                              <Heart className="w-3 h-3 text-[#1c9cf0] fill-[#1c9cf0]" />
-                              <span className="text-[#1c9cf0]">Following</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* View Profile Link */}
-                        <a
-                          href={getProfileUrl(referredUser.id, referredUser.username)}
-                          className="flex-shrink-0 p-2 text-muted-foreground hover:text-foreground transition-colors"
-                          aria-label="View profile"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                      </div>
-                    ))}
-                  </div>
+                {!referralData.referralUrl && (
+                  <p className="text-xs text-muted-foreground">
+                    Set a username in your profile to get your referral link
+                  </p>
                 )}
               </div>
+            </div>
 
-              {/* Tips Section */}
-              {referralData.stats.totalReferrals < 5 && (
-                <div className="rounded-lg bg-[#1c9cf0]/10 border border-[#1c9cf0]/20 p-4 w-full">
-                  <h3 className="text-base font-semibold text-foreground mb-2 flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-[#1c9cf0]" />
-                    Tips to Get More Referrals
-                  </h3>
-                  <ul className="space-y-2 text-sm text-muted-foreground">
-                    <li className="flex items-start gap-2">
-                      <span className="text-[#1c9cf0] mt-0.5 flex-shrink-0">•</span>
-                      <span>Share your referral link on Twitter/X for maximum reach</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-[#1c9cf0] mt-0.5 flex-shrink-0">•</span>
-                      <span>Tell friends about the 21 AI traders they can compete against</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-[#1c9cf0] mt-0.5 flex-shrink-0">•</span>
-                      <span>Share interesting markets or trades you've made</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-[#1c9cf0] mt-0.5 flex-shrink-0">•</span>
-                      <span>Your referrals automatically follow you - build your network!</span>
-                    </li>
-                  </ul>
+            {/* Referred Users List */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+                  <Users className="w-5 h-5 text-[#1c9cf0]" />
+                  Your Referrals
+                </h2>
+              </div>
+
+              {referralData.referredUsers.length === 0 ? (
+                <div className="text-center py-12 bg-muted/30 rounded-lg border border-border">
+                  <Users className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-lg font-semibold text-foreground mb-2">No referrals yet</h3>
+                  <p className="text-sm text-muted-foreground px-4">
+                    Share your referral link to start earning points
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {referralData.referredUsers.map((referredUser) => (
+                    <div
+                      key={referredUser.id}
+                      className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                    >
+                      {/* Avatar */}
+                      <Avatar
+                        id={referredUser.id}
+                        name={referredUser.displayName || referredUser.username || 'User'}
+                        src={referredUser.profileImageUrl || undefined}
+                        size="sm"
+                      />
+
+                      {/* User Info */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-semibold text-foreground truncate">
+                          {referredUser.displayName || referredUser.username || 'Anonymous'}
+                        </h3>
+                        {referredUser.username && (
+                          <p className="text-xs text-muted-foreground truncate">
+                            @{referredUser.username}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {new Date(referredUser.joinedAt || referredUser.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+
+                      {/* View Profile */}
+                      <a
+                        href={getProfileUrl(referredUser.id, referredUser.username)}
+                        className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label="View profile"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

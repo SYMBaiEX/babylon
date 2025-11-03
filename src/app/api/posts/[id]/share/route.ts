@@ -201,23 +201,27 @@ export async function POST(
       where: { id: postId },
       select: {
         authorId: true,
-        author: {
-          select: { id: true },
-        },
       },
     });
 
     if (
       postAuthor &&
       postAuthor.authorId &&
-      postAuthor.authorId !== user.userId &&
-      postAuthor.author // Only notify if author is a User (not an Actor)
+      postAuthor.authorId !== user.userId
     ) {
-      await notifyShare(
-        postAuthor.authorId,
-        user.userId,
-        postId
-      );
+      // Check if the authorId references a User (not an Actor)
+      const postAuthorUser = await prisma.user.findUnique({
+        where: { id: postAuthor.authorId },
+        select: { id: true },
+      });
+      
+      if (postAuthorUser) {
+        await notifyShare(
+          postAuthor.authorId,
+          user.userId,
+          postId
+        );
+      }
     }
 
     // Get updated share count

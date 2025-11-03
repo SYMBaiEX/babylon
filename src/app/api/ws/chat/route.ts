@@ -1,13 +1,18 @@
 /**
- * WebSocket Chat Route
+ * WebSocket Chat Route (DEPRECATED)
+ * 
+ * ⚠️ DEPRECATED: This WebSocket implementation is no longer used.
+ * The application now uses Server-Sent Events (SSE) for real-time updates.
+ * 
+ * See: /api/sse/events for the new SSE implementation
+ * See: SSE_MIGRATION.md for migration documentation
  * 
  * IMPORTANT: WebSocket server cannot run on Vercel (serverless limitation).
- * This WebSocket server must run on a separate server alongside the game engine daemon.
+ * This file is kept for reference only.
  * 
- * For Vercel deployment:
- * - This API route returns an error message explaining WebSocket limitation
- * - Real-time features require a separate WebSocket server (not deployed to Vercel)
- * - Alternative: Use Pusher, Ably, or polling for real-time updates on Vercel
+ * For real-time features on Vercel:
+ * - Use SSE endpoint: /api/sse/events
+ * - See hooks: useSSE, useChannelSubscription, useChatMessages
  */
 
 import type { NextRequest } from 'next/server'
@@ -15,12 +20,10 @@ import { NextResponse } from 'next/server'
 import type { WebSocket as WSWebSocket } from 'ws';
 import type { IncomingMessage } from 'http'
 import { parse } from 'url'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { logger } from '@/lib/logger'
 import type { JsonValue } from '@/types/common'
-
-const prisma = new PrismaClient()
 
 // Check if we're running on Vercel (serverless)
 const IS_VERCEL = process.env.VERCEL === '1' || process.env.VERCEL_ENV !== undefined

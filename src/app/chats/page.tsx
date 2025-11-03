@@ -5,10 +5,9 @@ import { MessageCircle, Send, Search, X, ArrowLeft, Users, AlertCircle, Check, L
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { usePrivy } from '@privy-io/react-auth'
-import { useChatMessages } from '@/hooks/useWebSocket'
+import { useChatMessages } from '@/hooks/useChatMessages'
 import { LoginButton } from '@/components/auth/LoginButton'
 import { PageContainer } from '@/components/shared/PageContainer'
-import { WidgetSidebar } from '@/components/shared/WidgetSidebar'
 import { Avatar } from '@/components/shared/Avatar'
 import { Separator } from '@/components/shared/Separator'
 import { cn } from '@/lib/utils'
@@ -94,10 +93,10 @@ export default function ChatsPage() {
 
   // Load user's chats from database
   useEffect(() => {
-    if (authenticated) {
+    if (authenticated || isDebugMode) {
       loadGroupChats()
     }
-  }, [authenticated])
+  }, [authenticated, isDebugMode])
 
   // Load selected chat details from database
   useEffect(() => {
@@ -114,8 +113,27 @@ export default function ChatsPage() {
   const loadGroupChats = async () => {
     try {
       setLoading(true)
+      
+      // In debug mode, fetch all game chats without auth
+      if (isDebugMode) {
+        const response = await fetch('/api/chats?all=true')
+        const data = await response.json()
+
+        if (response.ok) {
+          logger.info('Debug mode: Loaded all game chats', { count: data.chats?.length }, 'ChatsPage')
+          setGroupChats(data.chats || [])
+        } else {
+          logger.error('Failed to load chats in debug mode:', data, 'ChatsPage')
+        }
+        return
+      }
+
+      // Normal mode - requires auth
       const token = await getAccessToken()
-      if (!token) return
+      if (!token) {
+        logger.warn('No auth token, skipping chat load', undefined, 'ChatsPage')
+        return
+      }
 
       const response = await fetch('/api/chats', {
         headers: {
@@ -130,7 +148,10 @@ export default function ChatsPage() {
           ...(data.groupChats || []),
           ...(data.directChats || [])
         ]
+        logger.info('Loaded user chats', { count: allChats.length }, 'ChatsPage')
         setGroupChats(allChats)
+      } else {
+        logger.error('Failed to load chats:', data, 'ChatsPage')
       }
     } catch (error) {
       logger.error('Error loading chats:', error, 'ChatsPage')
@@ -142,8 +163,27 @@ export default function ChatsPage() {
   const loadChatDetails = async (chatId: string) => {
     try {
       setLoadingChat(true)
+      
+      // In debug mode, fetch chat details without auth
+      if (isDebugMode) {
+        const response = await fetch(`/api/chats/${chatId}?debug=true`)
+        const data = await response.json()
+
+        if (response.ok) {
+          logger.info('Debug mode: Loaded chat details', { chatId, messages: data.messages?.length }, 'ChatsPage')
+          setChatDetails(data)
+        } else {
+          logger.error('Failed to load chat details in debug mode:', data, 'ChatsPage')
+        }
+        return
+      }
+
+      // Normal mode - requires auth
       const token = await getAccessToken()
-      if (!token) return
+      if (!token) {
+        logger.warn('No auth token, skipping chat details load', undefined, 'ChatsPage')
+        return
+      }
 
       const response = await fetch(`/api/chats/${chatId}`, {
         headers: {
@@ -154,6 +194,8 @@ export default function ChatsPage() {
 
       if (response.ok) {
         setChatDetails(data)
+      } else {
+        logger.error('Failed to load chat details:', data, 'ChatsPage')
       }
     } catch (error) {
       logger.error('Error loading chat details:', error, 'ChatsPage')
@@ -339,10 +381,8 @@ export default function ChatsPage() {
         `
       }} />
       <PageContainer noPadding className="flex flex-col">
-        {/* Desktop: Content + Widgets layout */}
-        <div className="hidden xl:flex flex-1 overflow-hidden">
-          {/* Main content */}
-          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Desktop: Full width content */}
+        <div className="hidden xl:flex flex-1 flex-col overflow-hidden">
             {/* Header */}
 
         {/* Content */}
@@ -391,7 +431,7 @@ export default function ChatsPage() {
                   )}
                 </div>
 
-                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
                   <span>
                     {searchQuery ? (
                       <>
@@ -403,9 +443,14 @@ export default function ChatsPage() {
                     )}
                   </span>
                   {isDebugMode && (
-                    <span className="px-2 py-0.5 rounded text-xs bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 font-mono">
-                      DEBUG
-                    </span>
+                    <>
+                      <span className="px-2 py-0.5 rounded text-xs bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 font-mono">
+                        DEBUG MODE
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-xs bg-blue-500/20 text-blue-600 dark:text-blue-400 font-mono">
+                        ALL CHATS
+                      </span>
+                    </>
                   )}
                 </div>
               </div>
@@ -709,13 +754,9 @@ export default function ChatsPage() {
             )}
           </div>
         </div>
-          </div>
+      </div>
 
-          {/* Widget Sidebar */}
-          <WidgetSidebar />
-        </div>
-
-        {/* Mobile/Tablet: Full width content */}
+      {/* Mobile/Tablet: Full width content */}
         <div className="flex xl:hidden flex-col flex-1 overflow-hidden">
 
           {/* Content */}
@@ -760,7 +801,7 @@ export default function ChatsPage() {
                     )}
                   </div>
 
-                  <div className="text-sm text-muted-foreground flex items-center gap-2">
+                  <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
                     <span>
                       {searchQuery ? (
                         <>
@@ -772,9 +813,14 @@ export default function ChatsPage() {
                       )}
                     </span>
                     {isDebugMode && (
-                      <span className="px-2 py-0.5 rounded text-xs bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 font-mono">
-                        DEBUG
-                      </span>
+                      <>
+                        <span className="px-2 py-0.5 rounded text-xs bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 font-mono">
+                          DEBUG MODE
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-xs bg-blue-500/20 text-blue-600 dark:text-blue-400 font-mono">
+                          ALL CHATS
+                        </span>
+                      </>
                     )}
                   </div>
                 </div>

@@ -60,17 +60,55 @@ bun install
 
 # 2. Configure environment
 cp .env.example .env.local
-# Edit .env.local with your Privy credentials
+# Edit .env.local with your Privy credentials + GROQ_API_KEY
 
 # 3. Setup database
 npx prisma generate
 npx prisma migrate dev --name initial_setup
+npx prisma db seed
 
-# 4. Start everything
-bun run dev
+# 4. Start development
+bun run dev   # ← Automatically starts web + game engine!
 ```
 
-Visit `http://localhost:3000` - everything auto-starts!
+Visit `http://localhost:3000` - everything runs and generates content automatically!
+
+### Development Modes
+
+**Default Mode** (Recommended):
+```bash
+bun run dev   # ← Web + Game Engine (both automatically!)
+```
+Runs both web server AND game daemon. Content generates every 60 seconds.
+
+**Web Only** (No Content Generation):
+```bash
+bun run dev:web-only   # Just Next.js, no daemon
+```
+Use if you're only working on frontend and don't need live content.
+
+**Serverless Mode** (Test Vercel Cron Locally):
+```bash
+bun run dev:cron-mode   # Web + Cron simulator (not daemon)
+```
+Tests the serverless cron endpoint instead of daemon. Good for verifying Vercel behavior.
+
+### Real-Time Updates
+
+The application uses **Server-Sent Events (SSE)** for real-time updates (Vercel-compatible):
+- Feed updates (new posts)
+- Market price changes
+- Breaking news
+- Chat messages
+
+**For Production (Vercel):** Optionally set up Redis for cross-instance broadcasting:
+```bash
+# Add to Vercel environment variables
+UPSTASH_REDIS_REST_URL=https://your-redis-url.upstash.io
+UPSTASH_REDIS_REST_TOKEN=your-token
+```
+
+See [SSE_MIGRATION.md](./SSE_MIGRATION.md) for details.
 
 ---
 
@@ -313,34 +351,53 @@ Next.js App (Port 3000)
 
 ## 🚀 Deployment
 
-### Vercel (Production)
+### 🌩️ Fully Serverless on Vercel!
 
-Babylon is **Vercel-ready** with zero filesystem dependencies:
+Babylon is **100% serverless** - no servers to manage!
 
 ```bash
-# Deploy to Vercel
 vercel --prod
 ```
 
-**Requirements:**
-- PostgreSQL database (external hosting: Neon, Supabase, Railway)
-- Game engine daemon on separate server/VM
-- Environment variables configured in Vercel
+**✅ NO SEPARATE SERVER NEEDED!**
 
-📖 **Complete Guide**: See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md)
+### How It Works
+- 🔄 **Vercel Cron** - Generates content every minute
+- 🗄️ **PostgreSQL** - External database (Neon/Supabase)
+- ⚡ **Auto-scaling** - Handles any traffic
+- 📦 **Zero ops** - Deploy and forget
 
-**What runs where:**
-- ✅ **Vercel**: Next.js app, API routes, static assets
-- 🖥️ **Separate Server**: Game engine daemon, Eliza agents
-- 🗄️ **External DB**: PostgreSQL (Neon/Supabase/Railway)
+### Quick Start
+
+**15-minute setup** → [START_HERE_VERCEL.md](./START_HERE_VERCEL.md) 🔥
+
+**What you need:**
+1. PostgreSQL database (Neon - has free tier)
+2. Privy account (auth)
+3. Groq API key (free tier)
+4. Vercel Pro ($20/mo for cron jobs)
+
+### Architecture
+```
+Vercel (Web + Cron) → PostgreSQL Database → Done!
+```
+
+No servers. No DevOps. Just code.
+
+📖 **Guides:**
+- **[START_HERE_VERCEL.md](./START_HERE_VERCEL.md)** - ⭐ Begin here
+- **[DEPLOY_TO_VERCEL.md](./DEPLOY_TO_VERCEL.md)** - Detailed walkthrough
+- **[DEPLOYMENT_OPTIONS.md](./DEPLOYMENT_OPTIONS.md)** - Compare approaches
 
 ---
 
 ## 📚 Documentation
 
-- **[VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md)** - Complete Vercel deployment guide
-- **[VERCEL_CHANGES_SUMMARY.md](./VERCEL_CHANGES_SUMMARY.md)** - What changed for Vercel
+### Deployment & Architecture
+- **[VERCEL_SERVERLESS_GAME.md](./VERCEL_SERVERLESS_GAME.md)** - 🔥 Serverless game generation with Vercel Cron
 - **DEPLOYMENT_READY.md** - Complete system overview
+
+### Game Mechanics
 - **QUESTION_DRIVEN_FEED.md** - Feed mechanics
 - **ENHANCED_ENGINE_SUMMARY.md** - Engine improvements
 - **FEED_ENHANCEMENT_PLAN.md** - Implementation details

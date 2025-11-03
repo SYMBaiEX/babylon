@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { Home, TrendingUp, MessageCircle, Bell, Trophy, Gift, Plus } from 'lucide-react'
+import { Home, TrendingUp, MessageCircle, Bell, Trophy, Gift, Plus, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { LoginButton } from '@/components/auth/LoginButton'
@@ -61,6 +61,13 @@ export function Sidebar() {
       color: '#a855f7',
       active: pathname === '/rewards',
     },
+    {
+      name: 'Profile',
+      href: '/profile',
+      icon: User,
+      color: '#1c9cf0',
+      active: pathname === '/profile',
+    },
   ]
 
   return (
@@ -71,7 +78,7 @@ export function Sidebar() {
           'hidden md:flex md:flex-col h-screen sticky top-0',
           'bg-sidebar',
           'transition-all duration-300',
-          'md:w-20 lg:w-64 xl:w-72'
+          'md:w-20 lg:w-64'
         )}
       >
       {/* Header - Logo */}

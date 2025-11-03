@@ -16,7 +16,7 @@
 import { EventEmitter } from 'events';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '.prisma/client';
 import { FeedGenerator } from './FeedGenerator';
 import { QuestionManager } from './QuestionManager';
 import { PriceEngine } from './PriceEngine';
@@ -389,7 +389,7 @@ export class GameEngine extends EventEmitter {
       // This ensures posts are available in the database when feed refreshes
       if (posts.length > 0) {
         try {
-          const { broadcastToChannel } = await import('@/app/api/ws/chat/route');
+          const { broadcastToChannel } = await import('@/lib/sse/event-broadcaster');
           for (const post of posts) {
             broadcastToChannel('feed', {
               type: 'new_post',
@@ -404,6 +404,28 @@ export class GameEngine extends EventEmitter {
           logger.debug(`Broadcasted ${posts.length} posts to feed channel`, { count: posts.length }, 'GameEngine');
         } catch (error) {
           logger.debug('Could not broadcast posts:', error, 'GameEngine');
+        }
+      }
+
+      // Broadcast group chat messages to their respective chats
+      if (Object.keys(groupChatMessages).length > 0) {
+        try {
+          const { broadcastChatMessage } = await import('@/lib/sse/event-broadcaster');
+          for (const [chatId, messages] of Object.entries(groupChatMessages)) {
+            for (const msg of messages) {
+              broadcastChatMessage(chatId, {
+                id: `${chatId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                chatId: chatId,
+                senderId: msg.from,
+                content: msg.message,
+                createdAt: msg.timestamp,
+                isGameChat: true,
+              });
+            }
+          }
+          logger.debug(`Broadcasted ${Object.values(groupChatMessages).flat().length} group chat messages`, undefined, 'GameEngine');
+        } catch (error) {
+          logger.debug('Could not broadcast group chat messages:', error, 'GameEngine');
         }
       }
 
@@ -1108,10 +1130,10 @@ OUTPUT JSON:
           update: {},
         });
 
-        // Create welcome message from admin
+        // Create LLM-generated initial message from admin
         const admin = this.actors.find(a => a.id === chat.admin);
         if (admin) {
-          const welcomeMessage = `Welcome to my inner circle. Let's discuss what's happening in ${chat.theme || 'the world'}.`;
+          const initialMessage = await this.generateGroupChatInitialMessage(admin, chat);
           
           await db.prisma.message.upsert({
             where: { id: `${chat.id}-welcome` },
@@ -1119,7 +1141,7 @@ OUTPUT JSON:
               id: `${chat.id}-welcome`,
               chatId: chat.id,
               senderId: admin.id,
-              content: welcomeMessage,
+              content: initialMessage,
             },
             update: {},
           });
@@ -1154,6 +1176,29 @@ OUTPUT JSON:
       );
     }
 
+    // Persist group chat messages
+    if (Object.keys(tick.groupChatMessages).length > 0) {
+      for (const [chatId, messages] of Object.entries(tick.groupChatMessages)) {
+        for (const msg of messages) {
+          try {
+            await db.prisma.message.create({
+              data: {
+                id: `${chatId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                chatId: chatId,
+                senderId: msg.from,
+                content: msg.message,
+                createdAt: new Date(msg.timestamp),
+              },
+            });
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.warn(`Failed to persist chat message: ${errorMessage}`, { error, chatId }, 'GameEngine');
+          }
+        }
+      }
+      logger.debug(`Persisted ${Object.values(tick.groupChatMessages).flat().length} group chat messages`, undefined, 'GameEngine');
+    }
+
     if (tick.events.length > 0) {
       for (const event of tick.events) {
         try {
@@ -1168,7 +1213,7 @@ OUTPUT JSON:
             gameId: GameEngine.GAME_ID,
             dayNumber,
           });
-        } catch (error) {
+        } catch (error: unknown) {
           if (
             error instanceof Prisma.PrismaClientKnownRequestError &&
             error.code === 'P2002'
@@ -1186,7 +1231,7 @@ OUTPUT JSON:
         tick.priceUpdates.map(async (update) => {
           try {
             await db.updateOrganizationPrice(update.organizationId, update.newPrice);
-          } catch (error) {
+          } catch (error: unknown) {
             if (
               error instanceof Prisma.PrismaClientKnownRequestError &&
               error.code === 'P2025'
@@ -1214,7 +1259,7 @@ OUTPUT JSON:
               update.change,
               update.changePercent
             );
-          } catch (error) {
+          } catch (error: unknown) {
             if (
               error instanceof Prisma.PrismaClientKnownRequestError &&
               error.code === 'P2003'
@@ -1412,6 +1457,61 @@ OUTPUT JSON:
     return chats;
   }
   
+  /**
+   * Generate initial message for group chat using LLM
+   */
+  private async generateGroupChatInitialMessage(
+    admin: SelectedActor,
+    chat: GroupChat
+  ): Promise<string> {
+    const members = chat.members
+      .map(id => this.actors.find(a => a.id === id))
+      .filter((a): a is SelectedActor => a !== undefined)
+      .slice(0, 5);
+    
+    const memberNames = members.map(m => m.name).join(', ');
+    
+    const prompt = `You are ${admin.name}, the admin of a private group chat called "${chat.name}".
+
+YOUR CONTEXT:
+- Role: ${admin.role}
+- Domain: ${chat.theme || 'general'}
+- Description: ${admin.description || 'influential figure'}
+- Personality: ${admin.personality || 'strategic and connected'}
+
+GROUP MEMBERS: ${memberNames}
+
+Write the first message to this group chat. It should:
+1. Set the tone for insider discussions
+2. Reference your shared domain/interests (${chat.theme})
+3. Be 1-2 sentences, casual but strategic
+4. Sound like you're bringing together powerful people for a reason
+5. Match your personality and the satirical tone of the group name
+
+Examples for tone (but make it unique):
+- "Figured we should have a place to talk about what's really happening with AI before the peasants find out."
+- "Welcome. Let's discuss how we're all going to profit from this crypto crash."
+- "Time to coordinate our totally-not-coordinated strategy for the metaverse."
+
+OUTPUT JSON:
+{
+  "message": "your initial message here"
+}`;
+
+    try {
+      const response = await this.llm.generateJSON<{ message: string }>(
+        prompt,
+        undefined,
+        { temperature: 0.8, maxTokens: 500 }
+      );
+      
+      return response.message || `Welcome to ${chat.name}. Let's discuss what's happening in ${chat.theme}.`;
+    } catch (error) {
+      logger.warn('Failed to generate initial chat message, using fallback', { error, chatId: chat.id }, 'GameEngine');
+      return `Welcome to ${chat.name}. Let's discuss what's happening in ${chat.theme}.`;
+    }
+  }
+
   /**
    * Generate satirical group chat name using LLM
    */

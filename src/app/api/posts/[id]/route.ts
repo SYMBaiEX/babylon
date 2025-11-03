@@ -76,14 +76,27 @@ export async function GET(
       return errorResponse('Post not found', 404);
     }
 
+    // Get author information
+    const author = await prisma.user.findUnique({
+      where: { id: post.authorId },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        profileImageUrl: true,
+      },
+    });
+
     // Return database post
     return successResponse({
       data: {
         id: post.id,
         content: post.content,
         authorId: post.authorId,
-        authorName: post.authorId, // No author relation in schema
-        authorAvatar: undefined,
+        authorName: author?.displayName || author?.username || post.authorId,
+        authorUsername: author?.username || null,
+        authorProfileImageUrl: author?.profileImageUrl || null,
+        authorAvatar: author?.profileImageUrl || undefined,
         isActorPost: true, // Posts are from game actors
         timestamp: post.timestamp.toISOString(),
         createdAt: post.createdAt.toISOString(),

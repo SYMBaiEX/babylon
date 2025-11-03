@@ -49,7 +49,7 @@ export function Dropdown({ trigger, children, className, placement = 'bottom-rig
       }
 
   // Determine width based on width prop
-  const widthClass = width === 'sidebar' ? 'w-64 lg:w-64 xl:w-72' : 'w-52'
+  const widthClass = width === 'sidebar' ? 'w-64 lg:w-64 xl:w-72' : 'w-60'
 
   return (
     <div className={cn('relative', className)} ref={dropdownRef}>

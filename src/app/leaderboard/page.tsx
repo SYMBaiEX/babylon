@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { PageContainer } from '@/components/shared/PageContainer'
-import { WidgetSidebar } from '@/components/shared/WidgetSidebar'
 import { RankBadge, RankNumber } from '@/components/shared/RankBadge'
 import { Avatar } from '@/components/shared/Avatar'
 import { Trophy, ChevronLeft, ChevronRight, Users, TrendingUp } from 'lucide-react'
@@ -87,10 +86,8 @@ export default function LeaderboardPage() {
 
   return (
     <PageContainer noPadding className="flex flex-col">
-      {/* Desktop: Content + Widgets layout */}
-      <div className="hidden xl:flex flex-1 overflow-hidden">
-        {/* Main content */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      {/* Desktop: Full width content */}
+      <div className="hidden sm:flex flex-1 flex-col overflow-hidden">
 
       {/* Loading State */}
       {loading && (
@@ -250,14 +247,10 @@ export default function LeaderboardPage() {
           </div>
         </div>
       )}
-        </div>
-
-        {/* Widget Sidebar */}
-        <WidgetSidebar />
       </div>
 
       {/* Mobile/Tablet: Full width content */}
-      <div className="flex xl:hidden flex-col flex-1 overflow-hidden">
+      <div className="flex sm:hidden flex-col flex-1 overflow-hidden">
 
         {/* Loading State */}
         {loading && (

@@ -3,11 +3,10 @@
 import { useState, useMemo, useEffect, useLayoutEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, Briefcase, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Calendar, Briefcase, ShieldCheck, Search, Mail } from 'lucide-react'
 import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
-import { SearchBar } from '@/components/shared/SearchBar'
-import { FavoriteButton, InteractionBar, StartChatButton } from '@/components/interactions'
+import { InteractionBar } from '@/components/interactions'
 import { ProfileWidget } from '@/components/profile/ProfileWidget'
 import { cn } from '@/lib/utils'
 import { useFontSize } from '@/contexts/FontSizeContext'
@@ -465,99 +464,122 @@ export default function ActorProfilePage() {
           {/* Content area */}
           <div className="flex-1 overflow-y-auto">
         {/* Profile Header */}
-        <div>
-          <div className="w-full lg:max-w-[65%] lg:mx-auto px-4 lg:px-6">
-            {/* Cover Image */}
-            <div className="relative h-32 sm:h-48 bg-gradient-to-br from-primary/20 to-primary/5">
-              {actorInfo.isUser && actorInfo.type === 'user' && 'coverImageUrl' in actorInfo && actorInfo.coverImageUrl ? (
-                <img
-                  src={actorInfo.coverImageUrl as string}
-                  alt="Cover"
-                  className="w-full h-full object-cover"
-                />
-              ) : null}
-            </div>
+        <div className="border-b border-border">
+          {/* Cover Image */}
+          <div className="relative h-[200px] bg-muted">
+            {actorInfo.isUser && actorInfo.type === 'user' && 'coverImageUrl' in actorInfo && actorInfo.coverImageUrl ? (
+              <img
+                src={actorInfo.coverImageUrl as string}
+                alt="Cover"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/5" />
+            )}
+          </div>
 
-            {/* Profile Info */}
-            <div className="px-4 lg:px-4 pb-4">
-              {/* Profile Picture */}
-              <div className="relative -mt-20 sm:-mt-32 mb-4">
-                <Avatar
-                  id={actorInfo.id}
-                  name={(actorInfo.name ?? actorInfo.username ?? '') as string}
-                  type={actorInfo.type === 'organization' ? 'business' : actorInfo.type === 'user' ? undefined : (actorInfo.type as 'actor' | undefined)}
-                  size="lg"
-                  className="w-56 h-56 sm:w-64 sm:h-64"
-                />
+          {/* Profile Info Container */}
+          <div className="px-4 pb-4">
+            {/* Top Row: Avatar + Action Buttons */}
+            <div className="flex justify-between items-start mb-4">
+              {/* Profile Picture - Overlapping cover */}
+              <div className="relative -mt-16 sm:-mt-20">
+                <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full border-4 border-background bg-background overflow-hidden">
+                  <Avatar
+                    id={actorInfo.id}
+                    name={(actorInfo.name ?? actorInfo.username ?? '') as string}
+                    type={actorInfo.type === 'organization' ? 'business' : actorInfo.type === 'user' ? undefined : (actorInfo.type as 'actor' | undefined)}
+                    size="lg"
+                    className="w-full h-full"
+                  />
+                </div>
               </div>
 
-              {/* Profile Info */}
-              <h2 className="text-2xl font-bold mb-1">{actorInfo.name ?? actorInfo.username ?? ''}</h2>
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2 pt-3">
+                {authenticated && user && user.id !== actorInfo.id && (
+                  <>
+                    <button className="p-2 rounded-full border border-border hover:bg-muted/50 transition-colors">
+                      <Mail className="w-5 h-5" />
+                    </button>
+                    <button className="px-4 py-2 rounded-full font-bold bg-foreground text-background hover:bg-foreground/90 transition-colors">
+                      Follow
+                    </button>
+                  </>
+                )}
+                {isOwnProfile && (
+                  <Link
+                    href="/settings"
+                    className="px-4 py-2 rounded-full font-bold border border-border hover:bg-muted/50 transition-colors"
+                  >
+                    Edit profile
+                  </Link>
+                )}
+              </div>
+            </div>
+
+            {/* Name and Handle */}
+            <div className="mb-3">
+              <div className="flex items-center gap-1 mb-0.5">
+                <h2 className="text-xl font-bold">{actorInfo.name ?? actorInfo.username ?? ''}</h2>
+                {actorInfo.type === 'actor' && (
+                  <ShieldCheck className="w-5 h-5 text-blue-500 flex-shrink-0" fill="currentColor" />
+                )}
+              </div>
               {actorInfo.username && (
-                <p className="text-muted-foreground mb-3">@{actorInfo.username}</p>
+                <p className="text-muted-foreground text-[15px]">@{actorInfo.username}</p>
               )}
+            </div>
 
-              {/* Description/Bio */}
-              {actorInfo.description && (
-                <p className="text-foreground mb-4 whitespace-pre-wrap">{actorInfo.description}</p>
-              )}
+            {/* Description/Bio */}
+            {actorInfo.description && (
+              <p className="text-foreground text-[15px] mb-3 whitespace-pre-wrap">{actorInfo.description}</p>
+            )}
 
-              {/* Metadata */}
-              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-4">
+            {/* Metadata */}
+            {(actorInfo.role || actorInfo.game?.id) && (
+              <div className="flex flex-wrap items-center gap-3 text-[15px] text-muted-foreground mb-3">
                 {actorInfo.role && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <Briefcase className="w-4 h-4" />
                     <span>{actorInfo.role}</span>
                   </div>
                 )}
                 {actorInfo.game?.id && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <Calendar className="w-4 h-4" />
                     <span>Active in {actorInfo.game.id}</span>
                   </div>
                 )}
               </div>
+            )}
 
-              {/* Stats */}
-              {actorInfo.stats && (
-                <div className="flex gap-4 text-sm mb-4">
-                  <div>
-                    <span className="font-bold text-foreground">{actorInfo.stats.following || 0}</span>
-                    <span className="text-muted-foreground ml-1">Following</span>
-                  </div>
-                  <div>
-                    <span className="font-bold text-foreground">{actorInfo.stats.followers || 0}</span>
-                    <span className="text-muted-foreground ml-1">Followers</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-3">
-                <FavoriteButton
-                  profileId={actorInfo.id}
-                  variant="button"
-                  size="md"
-                />
-                {authenticated && user && user.id !== actorInfo.id && (
-                  <StartChatButton userId={actorInfo.id} isActor={actorInfo.type === 'actor'} />
-                )}
-              </div>
+            {/* Stats */}
+            <div className="flex gap-4 text-[15px]">
+              <Link href="#" className="hover:underline">
+                <span className="font-bold text-foreground">{actorInfo.stats?.following || 0}</span>
+                <span className="text-muted-foreground ml-1">Following</span>
+              </Link>
+              <Link href="#" className="hover:underline">
+                <span className="font-bold text-foreground">{actorInfo.stats?.followers || 0}</span>
+                <span className="text-muted-foreground ml-1">Followers</span>
+              </Link>
             </div>
           </div>
         </div>
 
         {/* Tabs: Posts vs Replies */}
-        <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-10">
-          <div className="w-full lg:max-w-[65%] lg:mx-auto px-4 lg:px-6">
-            <div className="flex items-center justify-around h-14">
+        <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-10 border-b border-border">
+          <div className="flex items-center justify-between h-14 px-4">
+            {/* Tab Buttons */}
+            <div className="flex items-center flex-1">
               <button
                 onClick={() => setTab('posts')}
                 className={cn(
-                  'flex-1 h-full font-semibold transition-all duration-300 relative',
+                  'px-4 h-full font-semibold transition-all duration-300 relative hover:bg-muted/30',
                   tab === 'posts'
                     ? 'text-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+                    : 'text-muted-foreground'
                 )}
               >
                 Posts
@@ -568,10 +590,10 @@ export default function ActorProfilePage() {
               <button
                 onClick={() => setTab('replies')}
                 className={cn(
-                  'flex-1 h-full font-semibold transition-all duration-300 relative',
+                  'px-4 h-full font-semibold transition-all duration-300 relative hover:bg-muted/30',
                   tab === 'replies'
                     ? 'text-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+                    : 'text-muted-foreground'
                 )}
               >
                 Replies
@@ -580,22 +602,23 @@ export default function ActorProfilePage() {
                 )}
               </button>
             </div>
-          </div>
-        </div>
 
-        {/* Search Bar */}
-        <div className="bg-background">
-          <div className="w-full lg:max-w-[65%] lg:mx-auto px-4 lg:px-6 py-3">
-            <SearchBar
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder={`Search ${tab}...`}
-            />
+            {/* Search Bar - Top Right */}
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={`Search ${tab}...`}
+                className="w-full pl-10 pr-4 py-2 rounded-full bg-muted border-0 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+              />
+            </div>
           </div>
         </div>
 
         {/* Posts */}
-        <div className="w-full lg:max-w-[65%] lg:mx-auto px-4 lg:px-6">
+        <div className="px-4">
           {loadingPosts ? (
             <div className="py-12 text-center">
               <p className="text-muted-foreground">Loading posts...</p>
@@ -738,99 +761,122 @@ export default function ActorProfilePage() {
         {/* Content area */}
         <div className="flex-1 overflow-y-auto">
           {/* Profile Header */}
-          <div>
-            <div className="w-full lg:max-w-[65%] lg:mx-auto px-4 lg:px-6">
-              {/* Cover Image */}
-              <div className="relative h-32 sm:h-48 bg-gradient-to-br from-primary/20 to-primary/5">
-                {actorInfo.isUser && actorInfo.type === 'user' && 'coverImageUrl' in actorInfo && actorInfo.coverImageUrl ? (
-                  <img
-                    src={actorInfo.coverImageUrl as string}
-                    alt="Cover"
-                    className="w-full h-full object-cover"
-                  />
-                ) : null}
-              </div>
+          <div className="border-b border-border">
+            {/* Cover Image */}
+            <div className="relative h-[200px] bg-muted">
+              {actorInfo.isUser && actorInfo.type === 'user' && 'coverImageUrl' in actorInfo && actorInfo.coverImageUrl ? (
+                <img
+                  src={actorInfo.coverImageUrl as string}
+                  alt="Cover"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/5" />
+              )}
+            </div>
 
-              {/* Profile Info */}
-              <div className="px-4 lg:px-4 pb-4">
-                {/* Profile Picture */}
-                <div className="relative -mt-20 sm:-mt-32 mb-4">
-                  <Avatar
-                    id={actorInfo.id}
-                    name={(actorInfo.name ?? actorInfo.username ?? '') as string}
-                    type={actorInfo.type === 'organization' ? 'business' : actorInfo.type === 'user' ? undefined : (actorInfo.type as 'actor' | undefined)}
-                    size="lg"
-                    className="w-56 h-56 sm:w-64 sm:h-64"
-                  />
+            {/* Profile Info Container */}
+            <div className="px-4 pb-4">
+              {/* Top Row: Avatar + Action Buttons */}
+              <div className="flex justify-between items-start mb-4">
+                {/* Profile Picture - Overlapping cover */}
+                <div className="relative -mt-16 sm:-mt-20">
+                  <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full border-4 border-background bg-background overflow-hidden">
+                    <Avatar
+                      id={actorInfo.id}
+                      name={(actorInfo.name ?? actorInfo.username ?? '') as string}
+                      type={actorInfo.type === 'organization' ? 'business' : actorInfo.type === 'user' ? undefined : (actorInfo.type as 'actor' | undefined)}
+                      size="lg"
+                      className="w-full h-full"
+                    />
+                  </div>
                 </div>
 
-                {/* Profile Info */}
-                <h2 className="text-2xl font-bold mb-1">{actorInfo.name ?? actorInfo.username ?? ''}</h2>
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2 pt-3">
+                  {authenticated && user && user.id !== actorInfo.id && (
+                    <>
+                      <button className="p-2 rounded-full border border-border hover:bg-muted/50 transition-colors">
+                        <Mail className="w-5 h-5" />
+                      </button>
+                      <button className="px-4 py-2 rounded-full font-bold bg-foreground text-background hover:bg-foreground/90 transition-colors">
+                        Follow
+                      </button>
+                    </>
+                  )}
+                  {isOwnProfile && (
+                    <Link
+                      href="/settings"
+                      className="px-4 py-2 rounded-full font-bold border border-border hover:bg-muted/50 transition-colors"
+                    >
+                      Edit profile
+                    </Link>
+                  )}
+                </div>
+              </div>
+
+              {/* Name and Handle */}
+              <div className="mb-3">
+                <div className="flex items-center gap-1 mb-0.5">
+                  <h2 className="text-xl font-bold">{actorInfo.name ?? actorInfo.username ?? ''}</h2>
+                  {actorInfo.type === 'actor' && (
+                    <ShieldCheck className="w-5 h-5 text-blue-500 flex-shrink-0" fill="currentColor" />
+                  )}
+                </div>
                 {actorInfo.username && (
-                  <p className="text-muted-foreground mb-3">@{actorInfo.username}</p>
+                  <p className="text-muted-foreground text-[15px]">@{actorInfo.username}</p>
                 )}
+              </div>
 
-                {/* Description/Bio */}
-                {actorInfo.description && (
-                  <p className="text-foreground mb-4 whitespace-pre-wrap">{actorInfo.description}</p>
-                )}
+              {/* Description/Bio */}
+              {actorInfo.description && (
+                <p className="text-foreground text-[15px] mb-3 whitespace-pre-wrap">{actorInfo.description}</p>
+              )}
 
-                {/* Metadata */}
-                <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-4">
+              {/* Metadata */}
+              {(actorInfo.role || actorInfo.game?.id) && (
+                <div className="flex flex-wrap items-center gap-3 text-[15px] text-muted-foreground mb-3">
                   {actorInfo.role && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       <Briefcase className="w-4 h-4" />
                       <span>{actorInfo.role}</span>
                     </div>
                   )}
                   {actorInfo.game?.id && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       <Calendar className="w-4 h-4" />
                       <span>Active in {actorInfo.game.id}</span>
                     </div>
                   )}
                 </div>
+              )}
 
-                {/* Stats */}
-                {actorInfo.stats && (
-                  <div className="flex gap-4 text-sm mb-4">
-                    <div>
-                      <span className="font-bold text-foreground">{actorInfo.stats.following || 0}</span>
-                      <span className="text-muted-foreground ml-1">Following</span>
-                    </div>
-                    <div>
-                      <span className="font-bold text-foreground">{actorInfo.stats.followers || 0}</span>
-                      <span className="text-muted-foreground ml-1">Followers</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex items-center gap-3">
-                  <FavoriteButton
-                    profileId={actorInfo.id}
-                    variant="button"
-                    size="md"
-                  />
-                  {authenticated && user && user.id !== actorInfo.id && (
-                    <StartChatButton userId={actorInfo.id} isActor={actorInfo.type === 'actor'} />
-                  )}
-                </div>
+              {/* Stats */}
+              <div className="flex gap-4 text-[15px]">
+                <Link href="#" className="hover:underline">
+                  <span className="font-bold text-foreground">{actorInfo.stats?.following || 0}</span>
+                  <span className="text-muted-foreground ml-1">Following</span>
+                </Link>
+                <Link href="#" className="hover:underline">
+                  <span className="font-bold text-foreground">{actorInfo.stats?.followers || 0}</span>
+                  <span className="text-muted-foreground ml-1">Followers</span>
+                </Link>
               </div>
             </div>
           </div>
 
           {/* Tabs: Posts vs Replies */}
-          <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-10">
-            <div className="w-full lg:max-w-[65%] lg:mx-auto px-4 lg:px-6">
-              <div className="flex items-center justify-around h-14">
+          <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-10 border-b border-border">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4">
+              {/* Tab Buttons */}
+              <div className="flex items-center flex-1">
                 <button
                   onClick={() => setTab('posts')}
                   className={cn(
-                    'flex-1 h-full font-semibold transition-all duration-300 relative',
+                    'px-4 h-14 font-semibold transition-all duration-300 relative hover:bg-muted/30',
                     tab === 'posts'
                       ? 'text-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+                      : 'text-muted-foreground'
                   )}
                 >
                   Posts
@@ -841,10 +887,10 @@ export default function ActorProfilePage() {
                 <button
                   onClick={() => setTab('replies')}
                   className={cn(
-                    'flex-1 h-full font-semibold transition-all duration-300 relative',
+                    'px-4 h-14 font-semibold transition-all duration-300 relative hover:bg-muted/30',
                     tab === 'replies'
                       ? 'text-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+                      : 'text-muted-foreground'
                   )}
                 >
                   Replies
@@ -853,22 +899,23 @@ export default function ActorProfilePage() {
                   )}
                 </button>
               </div>
-            </div>
-          </div>
 
-          {/* Search Bar */}
-          <div className="bg-background">
-            <div className="w-full lg:max-w-[65%] lg:mx-auto px-4 lg:px-6 py-3">
-              <SearchBar
-                value={searchQuery}
-                onChange={setSearchQuery}
-                placeholder={`Search ${tab}...`}
-              />
+              {/* Search Bar - Top Right (hidden on small screens) */}
+              <div className="relative w-full sm:w-64 py-2 sm:py-0">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={`Search ${tab}...`}
+                  className="w-full pl-10 pr-4 py-2 rounded-full bg-muted border-0 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                />
+              </div>
             </div>
           </div>
 
           {/* Posts */}
-          <div className="w-full lg:max-w-[65%] lg:mx-auto px-4 lg:px-6">
+          <div className="px-4">
             {loadingPosts ? (
               <div className="py-12 text-center">
                 <p className="text-muted-foreground">Loading posts...</p>

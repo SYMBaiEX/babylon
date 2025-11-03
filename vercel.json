@@ -13,10 +13,21 @@
       "NEXT_PUBLIC_CHAIN_ID": "84532"
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron/game-tick",
+      "schedule": "* * * * *"
+    }
+  ],
+  "_comment_crons": "Vercel Cron Jobs require Pro plan. Schedule: minute hour day month dayOfWeek. Current: every minute.",
   "functions": {
     "app/api/**/*.ts": {
       "memory": 1024,
       "maxDuration": 30
+    },
+    "app/api/cron/game-tick/route.ts": {
+      "memory": 1024,
+      "maxDuration": 60
     }
   },
   "headers": [
