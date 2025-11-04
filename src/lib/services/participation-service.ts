@@ -11,7 +11,7 @@
  * - Last activity timestamp
  */
 
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
 
 

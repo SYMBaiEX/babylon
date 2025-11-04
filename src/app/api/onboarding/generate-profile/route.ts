@@ -4,7 +4,7 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { successResponse, errorResponse } from '@/lib/api/auth-middleware';
+import { successResponse } from '@/lib/api/auth-middleware';
 import { logger } from '@/lib/logger';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
 
@@ -40,8 +40,8 @@ function generateRandomUsername(): string {
  * Generate a random display name
  */
 function generateRandomName(): string {
-  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
+  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)]!;
+  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)]!;
   // Capitalize first letter of each word
   return `${adj.charAt(0).toUpperCase() + adj.slice(1)} ${noun.charAt(0).toUpperCase() + noun.slice(1)}`;
 }
@@ -72,14 +72,14 @@ function generateRandomBio(): string {
     "Brain full of bees 🐝",
     "Zero thoughts, head empty 🎈"
   ];
-  return bios[Math.floor(Math.random() * bios.length)];
+  return bios[Math.floor(Math.random() * bios.length)]!;
 }
 
 /**
  * GET /api/onboarding/generate-profile
  * Generate AI profile data for onboarding
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // Try to generate with AI first, fall back to random if it fails
     let profileData: ProfileData;

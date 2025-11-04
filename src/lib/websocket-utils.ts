@@ -22,7 +22,12 @@ export interface WebSocketMessage {
 // In-memory channel subscribers (shared with WebSocket route)
 // This will be populated by the WebSocket route handler
 export const channelSubscribers = new Map<WebSocketChannel, Set<string>>();
-export const wsClients = new Map<string, any>(); // WebSocket client references
+export const wsClients = new Map<string, WebSocketLike>(); // WebSocket client references
+
+interface WebSocketLike {
+  readyState: number;
+  send: (data: string) => void;
+}
 
 /**
  * Broadcast to a channel (feed, markets, breaking-news, etc.)
@@ -48,11 +53,11 @@ export function broadcastToChannel(channel: WebSocketChannel, data: Record<strin
       try {
         client.send(JSON.stringify(messageData));
         sentCount++;
-      } catch (error) {
+      } catch {
         // Remove invalid client
         subscribers.delete(userId);
         wsClients.delete(userId);
-        logger.debug(`Removed invalid WebSocket client: ${userId}`, { error }, 'WebSocket');
+        logger.debug(`Removed invalid WebSocket client: ${userId}`, undefined, 'WebSocket');
       }
     } else {
       // Remove disconnected client
@@ -73,8 +78,9 @@ export function broadcastToChannel(channel: WebSocketChannel, data: Record<strin
 export function broadcastToChannelSafe(channel: WebSocketChannel, data: Record<string, JsonValue>) {
   try {
     broadcastToChannel(channel, data);
-  } catch (error) {
+  } catch {
     // Silently fail - WebSocket might not be initialized
+    // Errors already logged in broadcastToChannel
   }
 }
 

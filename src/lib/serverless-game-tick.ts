@@ -14,6 +14,7 @@ import { logger } from './logger';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
 import { ArticleGenerator } from '@/engine/ArticleGenerator';
 import type { Prisma } from '@prisma/client';
+import type { WorldEvent, ActorTier } from '@/shared/types';
 
 export interface GameTickResult {
   postsCreated: number;
@@ -276,15 +277,14 @@ async function generateArticles(timestamp: Date): Promise<number> {
   for (const event of eventsTocover) {
     try {
       // Convert Prisma event to WorldEvent type
-      const worldEvent = {
+      const worldEvent: WorldEvent = {
         id: event.id,
-        type: event.eventType,
+        type: event.eventType as WorldEvent['type'],
         description: event.description,
         actors: event.actors,
         relatedQuestion: event.relatedQuestion || undefined,
-        visibility: event.visibility as 'public' | 'private' | 'group',
+        visibility: event.visibility as WorldEvent['visibility'],
         day: event.dayNumber || 0,
-        timestamp: event.timestamp.toISOString(),
       };
 
       // Convert Prisma orgs to Organization type
@@ -305,7 +305,7 @@ async function generateArticles(timestamp: Date): Promise<number> {
         description: a.description || '',
         domain: a.domain,
         personality: a.personality || undefined,
-        tier: a.tier || undefined,
+        tier: (a.tier as ActorTier) || undefined,
         affiliations: a.affiliations,
         postStyle: a.postStyle || undefined,
         postExample: a.postExample,
@@ -322,29 +322,24 @@ async function generateArticles(timestamp: Date): Promise<number> {
         [] // No recent event context for now to keep it simple
       );
 
-      // Save articles to database
+      // Save articles as Posts with type='article'
       for (const article of articles) {
         try {
-          await prisma.article.create({
+          await prisma.post.create({
             data: {
-              title: article.title,
-              summary: article.summary,
-              content: article.content,
-              authorOrgId: article.authorOrgId,
-              authorOrgName: article.authorOrgName,
+              type: 'article',
+              content: article.summary, // Summary goes in content field (for feed preview)
+              fullContent: article.content, // Full article goes in fullContent
+              articleTitle: article.title,
               byline: article.byline || null,
-              bylineActorId: article.bylineActorId || null,
               biasScore: article.biasScore || null,
               sentiment: article.sentiment || null,
               slant: article.slant || null,
-              imageUrl: article.imageUrl || null,
-              relatedEventId: article.relatedEventId || null,
-              relatedQuestion: article.relatedQuestion || null,
-              relatedActorIds: article.relatedActorIds,
-              relatedOrgIds: article.relatedOrgIds,
               category: article.category || null,
-              tags: article.tags,
-              publishedAt: article.publishedAt,
+              authorId: article.authorOrgId, // Organization ID as author
+              gameId: 'continuous',
+              dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+              timestamp: article.publishedAt,
             },
           });
           articlesCreated++;

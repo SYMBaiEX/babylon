@@ -19,7 +19,7 @@ interface RandomAssets {
  * GET /api/onboarding/random-assets
  * Get random profile picture and banner indices
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const profilePictureIndex = Math.floor(Math.random() * TOTAL_PROFILE_PICTURES) + 1;
     const bannerIndex = Math.floor(Math.random() * TOTAL_BANNERS) + 1;

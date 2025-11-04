@@ -10,7 +10,7 @@
  * Sweeps run periodically (daily) to maintain chat quality
  */
 
-
+import { prisma } from '@/lib/database-service';
 
 export interface SweepDecision {
   shouldRemove: boolean;

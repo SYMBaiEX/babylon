@@ -15,7 +15,6 @@
 import { logger } from '@/lib/logger';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
 import type { WorldEvent, Organization, Actor } from '@/shared/types';
-import { loadPrompt } from '../prompts/loader';
 
 export interface Article {
   id: string;
@@ -75,9 +74,6 @@ export class ArticleGenerator {
 
     for (const org of coveringOrgs) {
       try {
-        // Find a journalist from this org (actor with matching affiliation)
-        const journalist = actors.find(a => a.affiliations?.includes(org.id));
-
         // Determine bias based on org's relationships
         const context = this.buildArticleContext(event, org, actors, recentEvents);
 
@@ -129,7 +125,7 @@ export class ArticleGenerator {
    * Generate a single article with bias based on organizational relationships
    */
   private async generateArticle(context: ArticleGenerationContext): Promise<Article> {
-    const { event, organization, journalist, alignedActors, opposingActors, recentEvents } = context;
+    const { event, organization, journalist, alignedActors, opposingActors, recentEvents: _recentEvents } = context;
 
     // Determine bias direction
     let biasDirection = 'neutral';
@@ -196,7 +192,7 @@ export class ArticleGenerator {
     context: ArticleGenerationContext,
     biasDirection: string
   ): Promise<string> {
-    const { event, organization, journalist, alignedActors, opposingActors, recentEvents } = context;
+    const { event, organization, journalist: _journalist, alignedActors, opposingActors, recentEvents } = context;
 
     let biasInstructions = '';
     if (biasDirection === 'protective') {
@@ -239,7 +235,7 @@ Style: ${organization.postStyle || 'Professional journalism'}
 
 EVENT TO COVER:
 ${event.description}
-Type: ${event.eventType}
+Type: ${event.type}
 ${event.relatedQuestion ? `Related to Prediction Market Question #${event.relatedQuestion}` : ''}
 ${recentContext}
 
@@ -272,7 +268,7 @@ FORMAT YOUR RESPONSE AS JSON:
    * Categorize event for article classification
    */
   private categorizeEvent(event: WorldEvent): string {
-    const type = event.eventType.toLowerCase();
+    const type = event.type.toLowerCase();
     
     if (type.includes('scandal') || type.includes('leak') || type.includes('revelation')) {
       return 'scandal';

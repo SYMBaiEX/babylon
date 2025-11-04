@@ -428,7 +428,7 @@ export default function FeedPage() {
   }
 
   return (
-    <PageContainer noPadding className="flex flex-col h-full w-full overflow-hidden">
+    <PageContainer noPadding className="flex flex-col min-h-screen w-full overflow-visible">
       {/* Mobile: Header with tabs, Hoot button, and search below */}
       <div className="sticky top-0 z-10 bg-background shadow-sm flex-shrink-0 md:hidden">
         {/* Top row: Tabs and Hoot button */}
@@ -439,16 +439,15 @@ export default function FeedPage() {
             <SearchBar
               value={searchQuery}
               onChange={setSearchQuery}
-              placeholder="Search Babylon..."
-              className="rounded-lg"
+              placeholder="Search..."
               compact
             />
           </div>
         </div>
       </div>
 
-      {/* Desktop: Multi-column layout */}
-      <div className="hidden lg:flex flex-1 overflow-hidden">
+      {/* Desktop: Multi-column layout - NO overflow-hidden, let page scroll naturally */}
+      <div className="hidden lg:flex flex-1 min-h-0">
         {/* Left: Feed area - aligned with sidebar, full width */}
         <div className="flex-1 flex flex-col min-w-0 border-l border-r border-[rgba(120,120,120,0.5)]">
           {/* Desktop: Top bar with tabs, search, and post button */}
@@ -460,15 +459,14 @@ export default function FeedPage() {
                 <SearchBar
                   value={searchQuery}
                   onChange={setSearchQuery}
-                  placeholder="Search Babylon..."
-                  className="rounded-lg"
+                  placeholder="Search..."
                 />
               </div>
             </div>
           </div>
 
-          {/* Feed content */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden bg-background">
+          {/* Feed content - NO overflow, page scroll handles this */}
+          <div className="flex-1 bg-background">
               {(loading || (tab === 'following' && loadingFollowing)) ? (
                 <div className="w-full p-4 sm:p-8 text-center">
                   <div className="text-muted-foreground py-12">
@@ -547,7 +545,13 @@ export default function FeedPage() {
 
                     const postData = {
                       id: post.id,
+                      type: ('type' in post ? post.type : 'post') as string | undefined,
                       content: post.content,
+                      articleTitle: ('articleTitle' in post ? post.articleTitle : null) as string | null | undefined,
+                      byline: ('byline' in post ? post.byline : null) as string | null | undefined,
+                      biasScore: ('biasScore' in post ? post.biasScore : null) as number | null | undefined,
+                      sentiment: ('sentiment' in post ? post.sentiment : null) as string | null | undefined,
+                      category: ('category' in post ? post.category : null) as string | null | undefined,
                       authorId,
                       authorName,
                       authorUsername: ('authorUsername' in post ? post.authorUsername : null) || null,
@@ -722,7 +726,13 @@ export default function FeedPage() {
 
               const postData = {
                 id: post.id,
+                type: ('type' in post ? post.type : 'post') as string | undefined,
                 content: post.content,
+                articleTitle: ('articleTitle' in post ? post.articleTitle : null) as string | null | undefined,
+                byline: ('byline' in post ? post.byline : null) as string | null | undefined,
+                biasScore: ('biasScore' in post ? post.biasScore : null) as number | null | undefined,
+                sentiment: ('sentiment' in post ? post.sentiment : null) as string | null | undefined,
+                category: ('category' in post ? post.category : null) as string | null | undefined,
                 authorId,
                 authorName,
                 authorUsername: ('authorUsername' in post ? post.authorUsername : null) || null,

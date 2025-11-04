@@ -5,7 +5,7 @@
  * Tracks all point transactions and ensures no duplicate awards
  */
 
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
 import type { JsonValue } from '@/types/common'
 

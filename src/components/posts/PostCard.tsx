@@ -15,7 +15,13 @@ import type { PostInteraction } from '@/types/interactions';
 export interface PostCardProps {
   post: {
     id: string;
+    type?: string; // "post" | "article"
     content: string;
+    articleTitle?: string | null;
+    byline?: string | null;
+    biasScore?: number | null;
+    sentiment?: string | null;
+    category?: string | null;
     authorId: string;
     authorName: string;
     authorUsername?: string | null;
@@ -150,14 +156,64 @@ export const PostCard = memo(function PostCard({
       </div>
 
       {/* Row 2: Post Content - Full width */}
-      <div className="text-foreground leading-relaxed whitespace-pre-wrap break-words w-full mb-3 post-content">
-        <TaggedText
-          text={post.content || ''}
-          onTagClick={(tag) => {
-            router.push(`/feed?search=${encodeURIComponent(tag)}`)
-          }}
-        />
-      </div>
+      {post.type === 'article' ? (
+        // Article card - Show title, summary, and "Read more" button
+        <div className="w-full mb-3">
+          {/* Article title */}
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2 leading-tight">
+            {post.articleTitle || 'Untitled Article'}
+          </h2>
+          
+          {/* Article metadata */}
+          <div className="flex flex-wrap items-center gap-2 mb-3 text-sm text-muted-foreground">
+            {post.byline && <span>{post.byline}</span>}
+            {post.category && (
+              <>
+                {post.byline && <span>·</span>}
+                <span className="px-2 py-0.5 bg-[#1c9cf0]/20 text-[#1c9cf0] rounded text-xs font-semibold uppercase">
+                  {post.category}
+                </span>
+              </>
+            )}
+            {post.biasScore !== null && post.biasScore !== undefined && Math.abs(post.biasScore) >= 0.3 && (
+              <>
+                <span>·</span>
+                <span className={cn(
+                  "text-xs font-semibold",
+                  post.biasScore > 0 ? "text-green-500" : "text-red-500"
+                )}>
+                  {post.biasScore > 0 ? '↗ Favorable' : '↘ Critical'}
+                </span>
+              </>
+            )}
+          </div>
+
+          {/* Article summary */}
+          <div className="text-foreground leading-relaxed whitespace-pre-wrap break-words mb-3">
+            {post.content}
+          </div>
+
+          {/* Read more button */}
+          {!isDetail && (
+            <button
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#1c9cf0] hover:bg-[#1a8cd8] text-white font-semibold rounded-lg transition-colors"
+              onClick={handleClick}
+            >
+              Read Full Article →
+            </button>
+          )}
+        </div>
+      ) : (
+        // Regular post - Show content as normal
+        <div className="text-foreground leading-relaxed whitespace-pre-wrap break-words w-full mb-3 post-content">
+          <TaggedText
+            text={post.content || ''}
+            onTagClick={(tag) => {
+              router.push(`/feed?search=${encodeURIComponent(tag)}`)
+            }}
+          />
+        </div>
+      )}
 
       {/* Row 3: Interaction Bar - Full width */}
       {showInteractions && (

@@ -4,7 +4,7 @@
  */
 
 import type { NextRequest } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/database-service'
 import { successResponse, errorResponse } from '@/lib/api/auth-middleware'
 import { logger } from '@/lib/logger'
 

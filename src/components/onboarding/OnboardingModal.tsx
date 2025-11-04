@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Sparkles, User, RefreshCw, Upload, Check, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react'
+import { X, Sparkles, RefreshCw, Upload, Check, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Image from 'next/image'
 import { logger } from '@/lib/logger'
@@ -29,7 +29,7 @@ interface ProfileData {
 const TOTAL_PROFILE_PICTURES = 100
 const TOTAL_BANNERS = 100
 
-export function OnboardingModal({ isOpen, onComplete, onSkip }: OnboardingModalProps) {
+export function OnboardingModal({ isOpen, onComplete, onSkip: _onSkip }: OnboardingModalProps) {
   // Profile data
   const [displayName, setDisplayName] = useState('')
   const [username, setUsername] = useState('')

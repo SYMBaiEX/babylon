@@ -43,13 +43,13 @@ export default function RootLayout({
           {/* Mobile Header */}
           <MobileHeader />
 
-          <div className="flex min-h-screen max-w-screen-xl mx-auto overflow-hidden">
+          <div className="flex min-h-screen max-w-screen-xl mx-auto">
             {/* Desktop Sidebar */}
             <Sidebar />
 
             {/* Main Content Area - Early 2000s: Simple boxy layout */}
-            <main className="flex-1 min-h-screen w-full pt-14 pb-14 md:pt-0 md:pb-0 bg-background md:bg-sidebar md:h-screen overflow-hidden">
-              <div className="h-[calc(100vh-7rem)] md:h-full w-full overflow-hidden">
+            <main className="flex-1 min-h-screen w-full pt-14 pb-14 md:pt-0 md:pb-0 bg-background md:bg-sidebar">
+              <div className="h-[calc(100vh-7rem)] md:h-auto w-full">
                 {children}
               </div>
             </main>

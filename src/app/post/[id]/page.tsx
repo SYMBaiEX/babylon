@@ -7,6 +7,7 @@ import { PostCard } from '@/components/posts/PostCard';
 import { FeedCommentSection } from '@/components/feed/FeedCommentSection';
 import { WidgetSidebar } from '@/components/shared/WidgetSidebar';
 import { PageContainer } from '@/components/shared/PageContainer';
+import { InteractionBar } from '@/components/interactions';
 import { useInteractionStore } from '@/stores/interactionStore';
 import { logger } from '@/lib/logger';
 
@@ -19,7 +20,15 @@ export default function PostPage({ params }: PostPageProps) {
   const router = useRouter();
   const [post, setPost] = useState<{
     id: string;
+    type?: string;
     content: string;
+    fullContent?: string | null;
+    articleTitle?: string | null;
+    byline?: string | null;
+    biasScore?: number | null;
+    sentiment?: string | null;
+    slant?: string | null;
+    category?: string | null;
     authorId: string;
     authorName: string;
     authorUsername?: string | null;
@@ -95,7 +104,15 @@ export default function PostPage({ params }: PostPageProps) {
 
         setPost({
           id: postData.id,
+          type: postData.type || 'post',
           content: postData.content || '[No content]',
+          fullContent: postData.fullContent || null,
+          articleTitle: postData.articleTitle || null,
+          byline: postData.byline || null,
+          biasScore: postData.biasScore !== undefined ? postData.biasScore : null,
+          sentiment: postData.sentiment || null,
+          slant: postData.slant || null,
+          category: postData.category || null,
           authorId: postData.authorId,
           authorName: postData.authorName || postData.authorId || 'Unknown',
           authorUsername: postData.authorUsername || null,
@@ -172,11 +189,89 @@ export default function PostPage({ params }: PostPageProps) {
             <div className="max-w-2xl mx-auto w-full">
               {/* Post */}
               <div className="border-b border-border">
-                <PostCard
-                  post={post}
-                  showInteractions={true}
-                  isDetail
-                />
+                {post.type === 'article' && post.fullContent ? (
+                  // Article detail view
+                  <article className="px-4 sm:px-6 py-4 sm:py-5">
+                    {/* Category badge */}
+                    {post.category && (
+                      <div className="mb-4">
+                        <span className="px-3 py-1 bg-[#1c9cf0]/20 text-[#1c9cf0] rounded text-sm font-semibold uppercase">
+                          {post.category}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Article title */}
+                    <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-4 leading-tight">
+                      {post.articleTitle || 'Untitled Article'}
+                    </h1>
+                    
+                    {/* Article metadata */}
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mb-6">
+                      <span className="font-semibold text-[#1c9cf0]">{post.authorName}</span>
+                      {post.byline && (
+                        <>
+                          <span>·</span>
+                          <span>{post.byline}</span>
+                        </>
+                      )}
+                      <span>·</span>
+                      <time>{new Date(post.timestamp).toLocaleDateString('en-US', { 
+                        month: 'long', 
+                        day: 'numeric', 
+                        year: 'numeric' 
+                      })}</time>
+                    </div>
+                    
+                    {/* Bias warning */}
+                    {post.biasScore !== null && post.biasScore !== undefined && Math.abs(post.biasScore) >= 0.3 && (
+                      <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg mb-6">
+                        <div className="flex items-start gap-2">
+                          <span className="text-yellow-500 text-lg">⚠️</span>
+                          <div>
+                            <p className="text-sm font-semibold text-yellow-500 mb-1">Biased Coverage</p>
+                            <p className="text-sm text-muted-foreground">
+                              This article shows {post.biasScore > 0 ? 'favorable' : 'critical'} bias.
+                              {post.slant && ` ${post.slant}`}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Full article content */}
+                    <div className="prose prose-lg prose-invert max-w-none mb-6">
+                      {post.fullContent.split('\n\n').map((paragraph, i) => (
+                        <p key={i} className="text-base sm:text-lg text-foreground leading-relaxed mb-4">
+                          {paragraph}
+                        </p>
+                      ))}
+                    </div>
+                    
+                    {/* Interaction bar */}
+                    <div className="mt-6 pt-4 border-t border-border">
+                      <InteractionBar
+                        postId={post.id}
+                        initialInteractions={{
+                          postId: post.id,
+                          likeCount: post.likeCount,
+                          commentCount: post.commentCount,
+                          shareCount: post.shareCount,
+                          isLiked: post.isLiked,
+                          isShared: post.isShared,
+                        }}
+                        postData={post}
+                      />
+                    </div>
+                  </article>
+                ) : (
+                  // Regular post
+                  <PostCard
+                    post={post}
+                    showInteractions={true}
+                    isDetail
+                  />
+                )}
               </div>
 
               {/* Comments Section */}
@@ -215,11 +310,88 @@ export default function PostPage({ params }: PostPageProps) {
         <div className="flex-1 overflow-y-auto">
           {/* Post */}
           <div className="border-b border-border">
-            <PostCard
-              post={post}
-              showInteractions={true}
-              isDetail
-            />
+            {post.type === 'article' && post.fullContent ? (
+              // Article detail view
+              <article className="px-4 sm:px-6 py-4 sm:py-5">
+                {/* Category badge */}
+                {post.category && (
+                  <div className="mb-4">
+                    <span className="px-3 py-1 bg-[#1c9cf0]/20 text-[#1c9cf0] rounded text-sm font-semibold uppercase">
+                      {post.category}
+                    </span>
+                  </div>
+                )}
+                
+                {/* Article title */}
+                <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-4 leading-tight">
+                  {post.articleTitle || 'Untitled Article'}
+                </h1>
+                
+                {/* Article metadata */}
+                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mb-4">
+                  <span className="font-semibold text-[#1c9cf0]">{post.authorName}</span>
+                  {post.byline && (
+                    <>
+                      <span>·</span>
+                      <span>{post.byline}</span>
+                    </>
+                  )}
+                  <span>·</span>
+                  <time>{new Date(post.timestamp).toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric' 
+                  })}</time>
+                </div>
+                
+                {/* Bias warning */}
+                {post.biasScore !== null && post.biasScore !== undefined && Math.abs(post.biasScore) >= 0.3 && (
+                  <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg mb-4">
+                    <div className="flex items-start gap-2">
+                      <span className="text-yellow-500">⚠️</span>
+                      <div>
+                        <p className="text-xs font-semibold text-yellow-500 mb-1">Biased Coverage</p>
+                        <p className="text-xs text-muted-foreground">
+                          {post.biasScore > 0 ? 'Favorable' : 'Critical'} bias.
+                          {post.slant && ` ${post.slant}`}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Full article content */}
+                <div className="prose prose-invert max-w-none mb-4">
+                  {post.fullContent.split('\n\n').map((paragraph, i) => (
+                    <p key={i} className="text-base text-foreground leading-relaxed mb-4">
+                      {paragraph}
+                    </p>
+                  ))}
+                </div>
+                
+                {/* Interaction bar */}
+                <div className="mt-4 pt-4 border-t border-border">
+                  <InteractionBar
+                    postId={post.id}
+                    initialInteractions={{
+                      postId: post.id,
+                      likeCount: post.likeCount,
+                      commentCount: post.commentCount,
+                      shareCount: post.shareCount,
+                      isLiked: post.isLiked,
+                      isShared: post.isShared,
+                    }}
+                    postData={post}
+                  />
+                </div>
+              </article>
+            ) : (
+              // Regular post
+              <PostCard
+                post={post}
+                showInteractions={true}
+                isDetail
+              />
+            )}
           </div>
 
           {/* Comments Section */}

@@ -261,9 +261,14 @@ export async function getCurrentTrendingTags(limit = 10) {
   }
 
   // Get all trending tags from the latest calculation
+  // Use >= comparison to handle potential timestamp precision issues
+  const cutoffTime = new Date(latestCalculation.calculatedAt.getTime() - 1000) // 1 second buffer
+
   return await prisma.trendingTag.findMany({
     where: {
-      calculatedAt: latestCalculation.calculatedAt,
+      calculatedAt: {
+        gte: cutoffTime,
+      },
     },
     include: {
       tag: true,

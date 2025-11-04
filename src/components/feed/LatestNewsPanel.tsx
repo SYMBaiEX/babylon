@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { Newspaper, TrendingUp, AlertCircle } from 'lucide-react'
 import { logger } from '@/lib/logger'
 import { useChannelSubscription } from '@/hooks/useChannelSubscription'
-import { ArticleDetailModal } from './ArticleDetailModal'
+// ArticleDetailModal removed - articles now use /post/[id] page
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
 
 interface ArticleItem {
@@ -24,20 +24,10 @@ interface ArticleItem {
 export function LatestNewsPanel() {
   const [articles, setArticles] = useState<ArticleItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedArticle, setSelectedArticle] = useState<string | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
   const { getLatestNews, setLatestNews } = useWidgetCacheStore()
 
   // Use ref to store fetchArticles function to break dependency chain
   const fetchArticlesRef = useRef<(() => void) | null>(null)
-
-  // Force close modal on HMR to prevent stuck state
-  useEffect(() => {
-    return () => {
-      setIsModalOpen(false)
-      setSelectedArticle(null)
-    }
-  }, [])
 
   const fetchArticles = useCallback(async (skipCache = false) => {
     // Check cache first (unless explicitly skipping)
@@ -51,15 +41,53 @@ export function LatestNewsPanel() {
     }
 
     try {
-      const response = await fetch('/api/feed/widgets/latest-news')
+      // Query posts API with type filter for articles
+      const response = await fetch('/api/posts?type=article&limit=10')
       const data = await response.json()
-      if (data.success) {
-        const articlesData = data.articles || []
+      
+      logger.debug('Articles response:', { 
+        success: !!data.posts, 
+        count: data.posts?.length || 0,
+        posts: data.posts 
+      }, 'LatestNewsPanel')
+      
+      if (data.posts && Array.isArray(data.posts)) {
+        // Transform posts to ArticleItem format
+        const articlesData: ArticleItem[] = data.posts.map((post: {
+          id: string;
+          articleTitle?: string;
+          authorId: string;
+          authorName?: string;
+          byline?: string;
+          sentiment?: string;
+          category?: string;
+          timestamp: string;
+          biasScore?: number;
+          slant?: string;
+          content: string;
+        }) => ({
+          id: post.id,
+          title: post.articleTitle || 'Untitled Article',
+          summary: post.content,
+          authorOrgName: post.authorName || post.authorId,
+          byline: post.byline,
+          sentiment: post.sentiment,
+          category: post.category,
+          publishedAt: post.timestamp,
+          slant: post.slant,
+          biasScore: post.biasScore,
+        }))
+        
+        logger.debug('Articles loaded:', { count: articlesData.length }, 'LatestNewsPanel')
         setArticles(articlesData)
         setLatestNews(articlesData) // Cache the data
+      } else {
+        logger.debug('No articles found', { data }, 'LatestNewsPanel')
+        setArticles([])
       }
     } catch (error) {
       logger.error('Error fetching latest news:', error, 'LatestNewsPanel')
+      setArticles([])
     } finally {
       setLoading(false)
     }
@@ -74,17 +102,19 @@ export function LatestNewsPanel() {
     fetchArticles()
   }, [fetchArticles])
 
-  // Subscribe to articles channel for real-time updates
+  // Subscribe to feed channel for real-time updates (articles are posts now)
   const handleChannelUpdate = useCallback((data: Record<string, unknown>) => {
-    if (data.type === 'new_article') {
-      // Refresh articles when new article arrives
-      logger.debug('New article received, refreshing...', { data }, 'LatestNewsPanel')
-      // Use ref to avoid dependency on fetchArticles
-      fetchArticlesRef.current?.()
+    if (data.type === 'new_post') {
+      const post = data.post as { type?: string }
+      // Only refresh if it's an article
+      if (post && post.type === 'article') {
+        logger.debug('New article received, refreshing...', { data }, 'LatestNewsPanel')
+        fetchArticlesRef.current?.()
+      }
     }
-  }, []) // Empty dependency array prevents re-creation
+  }, [])
 
-  useChannelSubscription('articles', handleChannelUpdate)
+  useChannelSubscription('feed', handleChannelUpdate)
 
   const getSentimentIcon = (sentiment?: string) => {
     switch (sentiment) {
@@ -107,7 +137,7 @@ export function LatestNewsPanel() {
       <span 
         className="text-xs font-semibold ml-1" 
         style={{ color: isPositive ? '#10b981' : '#ef4444' }}
-        title={`Bias: ${isPositive ? 'Favorable' : 'Critical'} (${Math.abs(biasScore).toFixed(2)})`}
+        title={`Bias: ${isPositive ? 'Favorable' : 'Critical'} (${strength.toFixed(2)})`}
       >
         {isPositive ? '↗' : '↘'}
       </span>
@@ -130,13 +160,8 @@ export function LatestNewsPanel() {
   }
 
   const handleArticleClick = (articleId: string) => {
-    setSelectedArticle(articleId)
-    setIsModalOpen(true)
-  }
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false)
-    setSelectedArticle(null)
+    // Navigate to post detail page
+    window.location.href = `/post/${articleId}`
   }
 
   return (
@@ -182,11 +207,6 @@ export function LatestNewsPanel() {
         )}
       </div>
 
-      <ArticleDetailModal
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        articleId={selectedArticle}
-      />
     </>
   )
 }

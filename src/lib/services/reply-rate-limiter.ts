@@ -7,7 +7,7 @@
  * - Just right: allows reply and tracks timing
  */
 
-
+import { prisma } from '@/lib/database-service';
 
 export interface RateLimitResult {
   allowed: boolean;

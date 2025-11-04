@@ -5,8 +5,7 @@
  * POST /api/posts - Create a new post
  */
 
-import { gameService } from '@/lib/game-service';
-import type { NextRequest} from 'next/server';
+import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-middleware';
 import { v4 as uuidv4 } from 'uuid';
@@ -49,6 +48,7 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get('limit') || '100');
     const offset = parseInt(searchParams.get('offset') || '0');
     const actorId = searchParams.get('actorId') || undefined;
+    const type = searchParams.get('type') || undefined; // Filter by post type: "post" or "article"
     const following = searchParams.get('following') === 'true';
     const userId = searchParams.get('userId') || undefined; // For following feed, need userId
 
@@ -163,19 +163,22 @@ export async function GET(request: Request) {
       });
     }
     // Get posts from database (GameEngine persists posts here)
-    let posts;
+    logger.info('Fetching posts from database', { limit, offset, actorId, type, hasActorId: !!actorId }, 'GET /api/posts');
     
-    logger.info('Fetching posts from database', { limit, offset, actorId, hasActorId: !!actorId }, 'GET /api/posts');
+    // Build where clause
+    const whereClause: {authorId?: string; type?: string} = {};
+    if (actorId) whereClause.authorId = actorId;
+    if (type) whereClause.type = type;
     
-    if (actorId) {
-      // Get posts by specific actor
-      posts = await gameService.getPostsByActor(actorId, limit);
-      logger.info('Fetched posts by actor', { actorId, count: posts.length }, 'GET /api/posts');
-    } else {
-      // Get recent posts from database
-      posts = await gameService.getRecentPosts(limit, offset);
-      logger.info('Fetched recent posts', { count: posts.length, limit, offset }, 'GET /api/posts');
-    }
+    // Query posts directly with filters
+    const posts = await prisma.post.findMany({
+      where: whereClause,
+      orderBy: { timestamp: 'desc' },
+      take: limit,
+      skip: offset,
+    });
+    
+    logger.info('Fetched posts', { count: posts.length, limit, offset, actorId, type }, 'GET /api/posts');
     
     // Log post structure for debugging
     if (posts.length > 0) {
@@ -193,13 +196,23 @@ export async function GET(request: Request) {
       }
     }
     
-    // Get unique author IDs to fetch user data
+    // Get unique author IDs to fetch user/organization data
     const authorIds = [...new Set(posts.map(p => p.authorId))];
-    const users = await prisma.user.findMany({
-      where: { id: { in: authorIds } },
-      select: { id: true, username: true, displayName: true, profileImageUrl: true },
-    });
+    
+    // Fetch both users and organizations
+    const [users, organizations] = await Promise.all([
+      prisma.user.findMany({
+        where: { id: { in: authorIds } },
+        select: { id: true, username: true, displayName: true, profileImageUrl: true },
+      }),
+      prisma.organization.findMany({
+        where: { id: { in: authorIds } },
+        select: { id: true, name: true },
+      }),
+    ]);
+    
     const userMap = new Map(users.map(u => [u.id, u]));
+    const orgMap = new Map(organizations.map(o => [o.id, o]));
     
     // Get interaction counts for all posts in parallel
     const postIds = posts.map(p => p.id);
@@ -236,17 +249,29 @@ export async function GET(request: Request) {
         }
         
         const user = userMap.get(post.authorId);
+        const org = orgMap.get(post.authorId);
         
         // Safely convert dates with null checks
         const timestamp = toISOStringSafe(post.timestamp);
         const createdAt = toISOStringSafe(post.createdAt);
         
+        // Determine author name (organization or user)
+        const authorName = org?.name || user?.displayName || user?.username || post.authorId || 'Unknown';
+        
         return {
           id: post.id,
+          type: post.type,
           content: post.content || '',
+          fullContent: post.fullContent || null,
+          articleTitle: post.articleTitle || null,
+          byline: post.byline || null,
+          biasScore: post.biasScore !== undefined ? post.biasScore : null,
+          sentiment: post.sentiment || null,
+          slant: post.slant || null,
+          category: post.category || null,
           author: post.authorId, // Use authorId as author
           authorId: post.authorId,
-          authorName: user?.displayName || user?.username || post.authorId || 'Unknown',
+          authorName,
           authorUsername: user?.username || null,
           authorProfileImageUrl: user?.profileImageUrl || null,
           timestamp,

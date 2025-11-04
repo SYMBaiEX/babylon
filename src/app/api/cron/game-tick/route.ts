@@ -34,13 +34,31 @@ function verifyVercelCronRequest(request: NextRequest): boolean {
     }
   }
   
-  // In production, require CRON_SECRET
+  // If CRON_SECRET is not configured, allow but warn (fail-open for missing config)
   if (!cronSecret) {
-    logger.error('CRON_SECRET not configured in production!', undefined, 'Cron');
+    logger.warn(
+      '⚠️  CRON_SECRET not configured! Cron endpoint is accessible without authentication. ' +
+      'Set CRON_SECRET environment variable in production for security.',
+      { 
+        environment: process.env.NODE_ENV,
+        hasAuthHeader: !!authHeader 
+      },
+      'Cron'
+    );
+    return true; // Allow execution but warn
+  }
+  
+  // If CRON_SECRET is set, verify it matches (fail-closed for wrong credentials)
+  if (authHeader !== `Bearer ${cronSecret}`) {
+    logger.error(
+      'CRON authentication failed - invalid secret provided',
+      { hasAuthHeader: !!authHeader },
+      'Cron'
+    );
     return false;
   }
   
-  return authHeader === `Bearer ${cronSecret}`;
+  return true;
 }
 
 export async function POST(request: NextRequest) {

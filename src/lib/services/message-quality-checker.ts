@@ -12,7 +12,7 @@
  * - Risk of being booted from group chats
  */
 
-
+import { prisma } from '@/lib/database-service';
 
 export interface QualityCheckResult {
   score: number; // 0-1, where 1 is perfect

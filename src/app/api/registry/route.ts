@@ -6,7 +6,7 @@
  */
 
 import type { NextRequest } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/database-service'
 import { successResponse, errorResponse } from '@/lib/api/auth-middleware'
 import { ReputationService } from '@/lib/services/reputation-service'
 import { logger } from '@/lib/logger'

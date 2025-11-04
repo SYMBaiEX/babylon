@@ -39,6 +39,8 @@
     "status": "bun run scripts/check-game-status.ts",
     "test:feed": "bun run scripts/test-feed.ts",
     "backfill:tags": "tsx scripts/backfill-tags.ts",
+    "trending:populate": "bun run scripts/populate-trending-manual.ts",
+    "trending:check": "bun run scripts/check-and-populate-trending.ts",
     "fix": "bun run scripts/quick-fix.ts",
     "bootstrap": "bun run scripts/bootstrap-content.ts",
     "agents": "bun run src/cli/autonomous-agents-demo.ts",

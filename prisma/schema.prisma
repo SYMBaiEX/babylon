@@ -100,10 +100,21 @@ model User {
   @@index([referralCode])
 }
 
-// Post model - social media posts
+// Post model - social media posts (includes both regular posts and articles)
 model Post {
   id             String   @id @default(uuid())
-  content        String
+  type           String   @default("post") // "post" | "article"
+  content        String   // For regular posts: full content. For articles: summary/preview
+  fullContent    String?  @db.Text // Only for articles: full long-form content (800-1500 words)
+  
+  // Article-specific fields (null for regular posts)
+  articleTitle   String?  // Headline for articles
+  byline         String?  // Journalist byline (e.g., "By Tech Reporter")
+  biasScore      Float?   // -1 (critical) to 1 (favorable) - indicates article bias
+  sentiment      String?  // "positive" | "negative" | "neutral"
+  slant          String?  // Description of the article's angle/bias
+  category       String?  // "tech" | "politics" | "finance" | "scandal" | "business" | "general"
+  
   authorId       String   // Can reference User.id or Actor.id (handled at application level)
   gameId         String?
   dayNumber      Int?
@@ -122,6 +133,7 @@ model Post {
 
   @@index([authorId, timestamp(sort: Desc)])
   @@index([timestamp(sort: Desc)])
+  @@index([type, timestamp(sort: Desc)]) // For filtering articles
   @@index([gameId, dayNumber])
   // @@index([originalPostId])  // Temporarily removed due to DB mismatch
 }
@@ -537,39 +549,6 @@ model Actor {
   @@index([role])
   @@index([hasPool])
   @@index([reputationPoints(sort: Desc)])
-}
-
-// Article model - Long-form news articles from organizations
-model Article {
-  id                  String   @id @default(uuid())
-  title               String
-  summary             String   // Short summary for listings
-  content             String   @db.Text // Long-form article content
-  authorOrgId         String   // Organization ID (media outlet)
-  authorOrgName       String   // Cached organization name
-  byline              String?  // Individual journalist name (from actors)
-  bylineActorId       String?  // Actor ID of journalist
-  biasScore           Float?   // -1 (negative bias) to 1 (positive bias)
-  sentiment           String?  // 'positive', 'negative', 'neutral'
-  slant               String?  // Description of the slant/bias
-  imageUrl            String?  // Article header image
-  relatedEventId      String?  // Related world event
-  relatedQuestion     Int?     // Related prediction market question
-  relatedActorIds     String[] // Actors mentioned in article
-  relatedOrgIds       String[] // Organizations mentioned in article
-  category            String?  // 'politics', 'tech', 'finance', etc.
-  tags                String[] // Article tags
-  viewCount           Int      @default(0)
-  shareCount          Int      @default(0)
-  publishedAt         DateTime @default(now())
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  @@index([authorOrgId, publishedAt(sort: Desc)])
-  @@index([publishedAt(sort: Desc)])
-  @@index([relatedEventId])
-  @@index([relatedQuestion])
-  @@index([category])
 }
 
 // Notification model - user notifications

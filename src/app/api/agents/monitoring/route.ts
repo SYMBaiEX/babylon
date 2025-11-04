@@ -8,11 +8,11 @@
  * - Agent health status
  */
 
-import type { NextRequest } from 'next/server'
-import { PrismaClient } from '@prisma/client'
-import type { Prisma } from '@prisma/client'
-import { successResponse, errorResponse, authenticate } from '@/lib/api/auth-middleware'
+import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-middleware'
+import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
+import type { Prisma } from '@prisma/client'
+import type { NextRequest } from 'next/server'
 
 
 interface AgentActivity {
@@ -93,98 +93,120 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    // Get activity stats for each agent
-    const agentActivities: AgentActivity[] = await Promise.all(
-      agents.map(async (agent) => {
-        // Count posts
-        const posts = await prisma.post.count({
-          where: {
-            authorId: agent.id,
-          },
-        })
+    // Batch fetch all activity data for all agents (7 queries total instead of 6N+1!)
+    const agentIds = agents.map(a => a.id)
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    
+    const [
+      postCounts,
+      lastPosts,
+      allPositions,
+      recentTrades,
+      lastComments,
+      lifetimePnLData
+    ] = await Promise.all([
+      // 1. Count posts by author (batched)
+      prisma.post.groupBy({
+        by: ['authorId'],
+        where: { authorId: { in: agentIds } },
+        _count: { id: true },
+      }),
+      // 2. Get last post for each author
+      prisma.post.findMany({
+        where: { authorId: { in: agentIds } },
+        orderBy: { timestamp: 'desc' },
+        select: { authorId: true, timestamp: true },
+        distinct: ['authorId'],
+      }),
+      // 3. Get all positions (batched)
+      prisma.position.findMany({
+        where: { userId: { in: agentIds } },
+        select: {
+          userId: true,
+          shares: true,
+          avgPrice: true,
+        },
+      }),
+      // 4. Get recent trades (batched)
+      prisma.balanceTransaction.findMany({
+        where: {
+          userId: { in: agentIds },
+          description: { contains: 'pred_' },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { userId: true, createdAt: true },
+        distinct: ['userId'],
+      }),
+      // 5. Get last comments (batched)
+      prisma.comment.findMany({
+        where: { authorId: { in: agentIds } },
+        orderBy: { createdAt: 'desc' },
+        select: { authorId: true, createdAt: true },
+        distinct: ['authorId'],
+      }),
+      // 6. Get lifetime P&L (batched)
+      prisma.user.findMany({
+        where: { id: { in: agentIds } },
+        select: { id: true, lifetimePnL: true },
+      }),
+    ])
 
-        // Get recent posts
-        const lastPost = await prisma.post.findFirst({
-          where: { authorId: agent.id },
-          orderBy: { timestamp: 'desc' },
-          select: { timestamp: true },
-        })
+    // Create lookup maps for O(1) access
+    const postCountMap = new Map(postCounts.map(p => [p.authorId, p._count.id]))
+    const lastPostMap = new Map(lastPosts.map(p => [p.authorId, p.timestamp]))
+    const lastCommentMap = new Map(lastComments.map(c => [c.authorId, c.createdAt]))
+    const recentTradeMap = new Map(recentTrades.map(t => [t.userId, t.createdAt]))
+    const pnlMap = new Map(lifetimePnLData.map(u => [u.id, u.lifetimePnL]))
+    
+    // Group positions by userId and calculate volume + count
+    const positionDataMap = new Map<string, { volume: number; count: number }>()
+    for (const pos of allPositions) {
+      const volume = Number(pos.shares) * Number(pos.avgPrice)
+      const existing = positionDataMap.get(pos.userId)
+      if (existing) {
+        existing.volume += volume
+        existing.count += 1
+      } else {
+        positionDataMap.set(pos.userId, { volume, count: 1 })
+      }
+    }
 
-        // Get positions and calculate volume
-        const positions = await prisma.position.findMany({
-          where: { userId: agent.id },
-          include: {
-            market: {
-              select: {
-                id: true,
-                question: true,
-              },
-            },
-          },
-        })
+    // Build agent activities using pre-fetched data
+    const agentActivities: AgentActivity[] = agents.map((agent) => {
+      const lastPost = lastPostMap.get(agent.id)
+      const lastComment = lastCommentMap.get(agent.id)
+      const lastTrade = recentTradeMap.get(agent.id)
+      const positionData = positionDataMap.get(agent.id) || { volume: 0, count: 0 }
+      
+      // Determine if agent is active (activity in last 24 hours)
+      const isActive = !!(
+        (lastPost && lastPost > oneDayAgo) ||
+        (lastComment && lastComment > oneDayAgo) ||
+        (lastTrade && lastTrade > oneDayAgo)
+      )
 
-        // Calculate total volume from positions
-        let totalVolume = 0
-        for (const pos of positions) {
-          totalVolume += Number(pos.shares) * Number(pos.avgPrice)
-        }
-
-        // Get recent trades (from balance transactions)
-        const recentTrades = await prisma.balanceTransaction.findMany({
-          where: {
-            userId: agent.id,
-            description: {
-              contains: 'pred_',
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          select: { createdAt: true },
-        })
-
-        // Get recent comments
-        const lastComment = await prisma.comment.findFirst({
-          where: { authorId: agent.id },
-          orderBy: { createdAt: 'desc' },
-          select: { createdAt: true },
-        })
-
-        // Determine if agent is active (activity in last 24 hours)
-        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
-        const isActive =
-          (lastPost && lastPost.timestamp > oneDayAgo) ||
-          (lastComment && lastComment.createdAt > oneDayAgo) ||
-          (recentTrades.length > 0 && recentTrades[0]!.createdAt > oneDayAgo)
-
-        // Get lifetime P&L
-        const user = await prisma.user.findUnique({
-          where: { id: agent.id },
-          select: { lifetimePnL: true },
-        })
-
-        return {
-          agentId: agent.username || agent.id,
-          username: agent.username,
-          displayName: agent.displayName,
-          tokenId: agent.nftTokenId,
-          walletAddress: agent.walletAddress,
-          stats: {
-            posts,
-            comments: agent._count.comments,
-            positions: agent._count.positions,
-            trades: positions.length, // Each position is a trade
-            totalVolume,
-            lifetimePnL: user ? Number(user.lifetimePnL) : 0,
-          },
-          recentActivity: {
-            lastPost: lastPost?.timestamp.toISOString(),
-            lastTrade: recentTrades[0]?.createdAt.toISOString(),
-            lastComment: lastComment?.createdAt.toISOString(),
-          },
-          isActive,
-        }
-      })
-    )
+      return {
+        agentId: agent.username || agent.id,
+        username: agent.username,
+        displayName: agent.displayName,
+        tokenId: agent.nftTokenId,
+        walletAddress: agent.walletAddress,
+        stats: {
+          posts: postCountMap.get(agent.id) || 0,
+          comments: agent._count.comments,
+          positions: agent._count.positions,
+          trades: positionData.count,
+          totalVolume: positionData.volume,
+          lifetimePnL: Number(pnlMap.get(agent.id) || 0),
+        },
+        recentActivity: {
+          lastPost: lastPost?.toISOString(),
+          lastTrade: lastTrade?.toISOString(),
+          lastComment: lastComment?.toISOString(),
+        },
+        isActive,
+      }
+    })
 
     // Calculate summary stats
     const summary = {

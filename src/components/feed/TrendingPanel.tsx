@@ -12,7 +12,7 @@ interface TrendingItem {
   tagSlug: string
   category?: string | null
   postCount: number
-  relatedContext?: string | null
+  summary?: string | null
   rank: number
 }
 
@@ -75,20 +75,10 @@ export function TrendingPanel() {
     router.push(`/trending/${item.tagSlug}`)
   }
 
-  const formatPostCount = (count: number): string => {
-    if (count >= 1000000) {
-      return `${(count / 1000000).toFixed(1)}M`
-    }
-    if (count >= 1000) {
-      return `${(count / 1000).toFixed(1)}K`
-    }
-    return count.toString()
-  }
-
   return (
     <div className="bg-sidebar rounded-lg p-4 flex-1 flex flex-col">
       <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-3 text-left">
-        What&apos;s happening
+        Trending
       </h2>
       {loading ? (
         <div className="text-base text-muted-foreground pl-3 flex-1">Loading...</div>
@@ -102,7 +92,7 @@ export function TrendingPanel() {
             <div
               key={item.id}
               onClick={() => handleTrendingClick(item)}
-              className="flex items-start gap-2.5 cursor-pointer hover:bg-muted/50 rounded-lg p-1.5 -ml-1.5 transition-colors duration-200"
+              className="flex items-start gap-2.5 cursor-pointer hover:bg-muted/50 rounded-lg -ml-1.5 transition-colors duration-200"
             >
               <div className="flex-1 min-w-0">
                 {/* Category and status */}
@@ -113,14 +103,10 @@ export function TrendingPanel() {
                 <p className="text-lg sm:text-xl font-semibold text-foreground leading-relaxed">
                   {item.tag}
                 </p>
-                {/* Related context if available */}
-                {item.relatedContext ? (
-                  <p className="text-sm text-muted-foreground">
-                    {item.relatedContext}
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    {formatPostCount(item.postCount)} posts
+                {/* Summary */}
+                {item.summary && (
+                  <p className="text-sm text-muted-foreground line-clamp-1">
+                    {item.summary}
                   </p>
                 )}
               </div>

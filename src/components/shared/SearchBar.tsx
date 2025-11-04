@@ -33,10 +33,12 @@ export function SearchBar({ value, onChange, placeholder = 'Search...', classNam
           'text-foreground',
           compact 
             ? 'pl-9 pr-9 py-1.5 text-sm' 
-            : 'pl-11 pr-10 py-2.5'
+            : 'pl-11 pr-10 py-2.5',
+          'rounded-lg'
         )}
         style={{
           borderColor: '#1c9cf0',
+          borderRadius: '2em',
         }}
       />
       {value && (

@@ -4,7 +4,7 @@
  */
 
 import type { NextRequest } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/database-service'
 import {
   authenticate,
   successResponse,
