@@ -4,9 +4,7 @@
  */
 
 import type { PrismaClient, Prisma } from '@prisma/client';
-import { cache } from '@/lib/cache/cache-service';
 import { DatabaseError, NotFoundError } from '@/lib/errors';
-import { logger } from '@/lib/logger';
 
 /**
  * Cache TTL presets (in seconds)
@@ -115,77 +113,43 @@ export abstract class BaseRepository<
   }
   
   /**
-   * Get from cache or fetch from database
+   * Get from cache or fetch from database (caching disabled for Vercel)
    */
   protected async getOrSet<R>(
-    cacheKey: string,
+    _cacheKey: string,
     fetcher: () => Promise<R>,
-    ttl?: number
+    _ttl?: number
   ): Promise<R> {
-    if (!this.enableCache) {
-      return fetcher();
-    }
-
-    try {
-      const cached = await cache.get<R>(cacheKey);
-      if (cached !== null) {
-        logger.debug(`Cache hit: ${cacheKey}`, undefined, 'Repository');
-        return cached;
-      }
-
-      logger.debug(`Cache miss: ${cacheKey}`, undefined, 'Repository');
-      const result = await fetcher();
-
-      if (result !== null && result !== undefined) {
-        await cache.set(cacheKey, result, ttl || this.defaultTTL);
-      }
-
-      return result;
-    } catch (error) {
-      logger.error(`Cache operation failed: ${error}`, undefined, 'Repository');
-      // Fallback to direct fetch on cache error
-      return fetcher();
-    }
+    // Caching disabled for Vercel deployment - always fetch fresh data
+    return fetcher();
   }
 
   /**
-   * Get cache instance for direct access
+   * Get cache instance for direct access (disabled for Vercel)
    */
   protected get cache(): { get: <T>(key: string) => Promise<T | null>; set: (key: string, value: unknown, ttl?: number) => Promise<void>; delete: (key: string) => Promise<void> } {
-    return cache
-  }
-
-  /**
-   * Invalidate cache for an entity
-   */
-  protected async invalidateCache(id?: string, additionalKeys: string[] = []): Promise<void> {
-    if (!this.enableCache) return;
-
-    const keysToInvalidate: string[] = [...additionalKeys];
-
-    if (id) {
-      keysToInvalidate.push(this.generateCacheKey('id', id));
+    // Return no-op cache for Vercel deployment
+    return {
+      get: async <T>(_key: string): Promise<T | null> => null,
+      set: async (_key: string, _value: unknown, _ttl?: number): Promise<void> => {},
+      delete: async (_key: string): Promise<void> => {}
     }
-
-    // Invalidate list caches
-    keysToInvalidate.push(
-      this.generateCacheKey('list'),
-      this.generateCacheKey('count')
-    );
-
-    await Promise.all(
-      keysToInvalidate.map(key => cache.delete(key))
-    );
   }
 
   /**
-   * Invalidate all cache for this repository
+   * Invalidate cache for an entity (no-op for Vercel)
+   */
+  protected async invalidateCache(_id?: string, _additionalKeys: string[] = []): Promise<void> {
+    // Caching disabled for Vercel deployment - no-op
+    return;
+  }
+
+  /**
+   * Invalidate all cache for this repository (no-op for Vercel)
    */
   async invalidateAllCache(): Promise<void> {
-    if (!this.enableCache) return;
-
-    // Invalidate by pattern
-    await cache.invalidatePattern(`${this.cachePrefix}*`);
+    // Caching disabled for Vercel deployment - no-op
+    return;
   }
 
   /**

@@ -141,7 +141,10 @@ export const CompleteOnboardingSchema = z.object({
 export const OnChainRegistrationSchema = z.object({
   walletAddress: WalletAddressSchema.optional(),
   username: z.string().min(1).max(50).optional(),
+  displayName: z.string().min(1).max(100).optional(),
   bio: createTrimmedStringSchema(undefined, 500).optional(),
+  profileImageUrl: URLSchema.optional(),
+  coverImageUrl: URLSchema.optional(),
   endpoint: URLSchema.optional(),
   referralCode: z.string().optional()
 });

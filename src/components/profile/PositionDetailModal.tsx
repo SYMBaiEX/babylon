@@ -528,7 +528,7 @@ export function PositionDetailModal({ isOpen, onClose, type, data, userId, onSuc
                           const totalShares = (predictionMarket.yesShares || 0) + (predictionMarket.noShares || 0)
                           return totalShares === 0 
                             ? '50.0' 
-                            : ((predictionMarket.yesShares / totalShares) * 100).toFixed(1)
+                            : (((predictionMarket.yesShares || 0) / totalShares) * 100).toFixed(1)
                         })()}%
                       </div>
                     </div>
@@ -539,7 +539,7 @@ export function PositionDetailModal({ isOpen, onClose, type, data, userId, onSuc
                           const totalShares = (predictionMarket.yesShares || 0) + (predictionMarket.noShares || 0)
                           return totalShares === 0 
                             ? '50.0' 
-                            : ((predictionMarket.noShares / totalShares) * 100).toFixed(1)
+                            : (((predictionMarket.noShares || 0) / totalShares) * 100).toFixed(1)
                         })()}%
                       </div>
                     </div>

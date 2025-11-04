@@ -368,14 +368,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           }, 'AgentOnboard')
           
           // Update database with Agent0 metadata
-          await prisma.user.update({
-            where: { id: dbUser.id },
-            data: {
-              agent0MetadataCID,
-              agent0LastSync: new Date(),
-              a2aEndpoint: endpoint || `wss://babylon.game/ws/a2a`,
-            },
-          })
+          // TODO: Add agent0MetadataCID and agent0LastSync fields to Prisma schema
+          // For now, no fields to update as they don't exist in schema yet
+          logger.info('Agent0 registration successful, metadata will be stored when schema is updated', {
+            agentId,
+            metadataCID: agent0MetadataCID
+          }, 'AgentOnboard')
         } catch (agent0Error) {
           // Log but don't fail - Agent0 SDK might not be installed yet
           logger.warn(
@@ -384,14 +382,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
             'AgentOnboard'
           )
           
-          // Still store IPFS CID
-          await prisma.user.update({
-            where: { id: dbUser.id },
-            data: {
-              agent0MetadataCID,
-              a2aEndpoint: endpoint || `wss://babylon.game/ws/a2a`,
-            },
-          })
+          // TODO: Add agent0MetadataCID field to Prisma schema
+          // For now, just log that metadata CID would be stored
+          logger.info('Agent0 SDK registration failed but metadata CID captured', {
+            agentId,
+            metadataCID: agent0MetadataCID
+          }, 'AgentOnboard')
         }
       } catch (error) {
         // Don't fail registration if Agent0/IPFS fails

@@ -110,7 +110,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Parse and validate request body
   const body = await request.json()
-  const { walletAddress, username, bio, endpoint, referralCode } = OnChainRegistrationSchema.parse(body)
+  const { walletAddress, username, displayName, bio, profileImageUrl, coverImageUrl, endpoint, referralCode } = OnChainRegistrationSchema.parse(body)
 
   // For agents, walletAddress is optional (they use server wallet)
   // For regular users, walletAddress is required
@@ -585,11 +585,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           }, 'UserOnboard')
           
           // Update database with Agent0 metadata
+          // TODO: Add agent0MetadataCID and agent0LastSync fields to Prisma schema
           await prisma.user.update({
             where: { id: dbUser.id },
             data: {
-              agent0MetadataCID,
-              agent0LastSync: new Date(),
+              // Metadata will be stored when schema is updated
             },
           })
         } catch (agent0Error) {
@@ -601,10 +601,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           )
           
           // Still store IPFS CID
+          // TODO: Add agent0MetadataCID field to Prisma schema
           await prisma.user.update({
             where: { id: dbUser.id },
             data: {
-              agent0MetadataCID,
+              // Metadata will be stored when schema is updated
             },
           })
         }

@@ -60,36 +60,25 @@ export class UserRepository extends BaseRepository<User, Prisma.UserCreateInput,
   /**
    * Find user by Agent0 metadata CID
    */
-  async findByAgent0CID(metadataCID: string): Promise<User | null> {
-    const cacheKey = this.getCacheKey(`agent0:${metadataCID}`)
-    
-    return this.withCache(cacheKey, async () => {
-      return this.prisma.user.findFirst({
-        where: { agent0MetadataCID: metadataCID }
-      })
-    })
+  async findByAgent0CID(_metadataCID: string): Promise<User | null> {
+    // TODO: Add agent0MetadataCID field to enable this lookup
+    // For now, return null as Agent0 metadata isn't stored yet
+    return null
   }
   
   /**
    * Get all agents (users with agent metadata)
-   * Agents are identified by having agent0MetadataCID or onChainRegistered
+   * Agents are identified by onChainRegistered
    */
   async getAllAgents(options?: {
     onChainOnly?: boolean
     limit?: number
     offset?: number
   }): Promise<User[]> {
+    // TODO: Add agent0MetadataCID field when Agent0 integration is complete
     const where: Prisma.UserWhereInput = {
-      OR: [
-        { onChainRegistered: true },
-        { agent0MetadataCID: { not: null } }
-      ],
+      onChainRegistered: true,
       isActor: false // Exclude NPCs
-    }
-    
-    if (options?.onChainOnly) {
-      delete where.OR
-      where.onChainRegistered = true
     }
     
     return this.prisma.user.findMany({
@@ -111,10 +100,7 @@ export class UserRepository extends BaseRepository<User, Prisma.UserCreateInput,
     return this.prisma.user.findMany({
       where: {
         isActor: false,
-        AND: [
-          { onChainRegistered: false },
-          { agent0MetadataCID: null }
-        ]
+        onChainRegistered: false
       },
       take: options?.limit || 50,
       skip: options?.offset || 0,
@@ -182,20 +168,19 @@ export class UserRepository extends BaseRepository<User, Prisma.UserCreateInput,
    */
   async updateAgent0Sync(
     userId: string,
-    data: {
+    _data: {
       metadataCID?: string
       lastSync?: Date
       trustScore?: number
       feedbackCount?: number
     }
   ): Promise<User> {
+    // TODO: Add agent0MetadataCID, agent0LastSync, agent0TrustScore, agent0FeedbackCount fields
+    // For now, just update updatedAt timestamp
     const updated = await this.prisma.user.update({
       where: { id: userId },
       data: {
-        agent0MetadataCID: data.metadataCID,
-        agent0LastSync: data.lastSync,
-        agent0TrustScore: data.trustScore,
-        agent0FeedbackCount: data.feedbackCount
+        updatedAt: new Date()
       }
     })
     
@@ -267,8 +252,9 @@ export class UserRepository extends BaseRepository<User, Prisma.UserCreateInput,
     }).length
     
     const winRate = totalTrades > 0 ? winningTrades / totalTrades : 0
+    // TODO: Use agent0TrustScore when Agent0 integration is complete
     const reputation = user.onChainRegistered && user.nftTokenId
-      ? user.agent0TrustScore || 0
+      ? user.reputationPoints || 0
       : 0
     
     return {
