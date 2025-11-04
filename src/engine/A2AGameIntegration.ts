@@ -22,6 +22,8 @@ import type {
   A2AServerConfig,
   AgentConnection
 } from '../a2a/types';
+import { getAgent0Client } from '@/agents/agent0/Agent0Client';
+import { getUnifiedDiscoveryService } from '@/agents/agent0/UnifiedDiscovery';
 
 export interface A2AGameConfig {
   enabled: boolean;
@@ -113,6 +115,20 @@ export class A2AGameIntegration extends EventEmitter {
       }
     }
 
+    // Initialize Agent0 integration (if enabled)
+    let agent0Client = null
+    let unifiedDiscovery = null
+    
+    if (process.env.AGENT0_ENABLED === 'true') {
+      try {
+        agent0Client = getAgent0Client()
+        unifiedDiscovery = getUnifiedDiscoveryService()
+        logger.info('Agent0 integration enabled for A2A server', undefined, 'A2AGameIntegration');
+      } catch (error) {
+        logger.warn('Agent0 integration failed to initialize, continuing without it', error, 'A2AGameIntegration');
+      }
+    }
+
     // Create A2A WebSocket server
     const serverConfig: A2AServerConfig = {
       port: this.config.port,
@@ -124,6 +140,8 @@ export class A2AGameIntegration extends EventEmitter {
       enableCoalitions: true,
       logLevel: 'info',
       registryClient: this.registryClient,
+      agent0Client: agent0Client ?? undefined,
+      unifiedDiscovery: unifiedDiscovery ?? undefined,
     };
 
     try {

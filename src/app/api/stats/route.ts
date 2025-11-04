@@ -1,29 +1,24 @@
 /**
  * Stats API Route
- * 
+ *
  * GET /api/stats - Get database stats
  */
 
+import type { NextRequest } from 'next/server'
 import { gameService } from '@/lib/game-service';
-import { NextResponse } from 'next/server';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger';
 
-export async function GET() {
-  try {
-    const stats = await gameService.getStats();
-    const status = await gameService.getStatus();
-    
-    return NextResponse.json({
-      success: true,
-      stats,
-      engineStatus: status,
-    });
-  } catch (error) {
-    logger.error('API Error:', error, 'GET /api/stats');
-    return NextResponse.json(
-      { success: false, error: 'Failed to get stats' },
-      { status: 500 }
-    );
-  }
-}
+export const GET = withErrorHandling(async (_request: NextRequest) => {
+  const stats = await gameService.getStats();
+  const status = await gameService.getStatus();
+
+  logger.info('Stats fetched successfully', { stats, engineStatus: status }, 'GET /api/stats')
+
+  return successResponse({
+    success: true,
+    stats,
+    engineStatus: status,
+  });
+})
 

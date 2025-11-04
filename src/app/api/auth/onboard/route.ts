@@ -10,13 +10,17 @@ import type { NextRequest } from 'next/server'
 import { createWalletClient, createPublicClient, http, parseEther, decodeEventLog, type Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
-import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-middleware'
-import { PrismaClient, Prisma } from '@prisma/client'
+import { authenticate } from '@/lib/api/auth-middleware'
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
+import { BusinessLogicError, ValidationError, InternalServerError } from '@/lib/errors'
+import { OnChainRegistrationSchema } from '@/lib/validation/schemas/user'
+import { prisma } from '@/lib/database-service'
+import { Prisma } from '@prisma/client'
 import { PointsService } from '@/lib/services/points-service'
 import { logger } from '@/lib/logger'
 import { notifyNewAccount } from '@/lib/services/notification-service'
-
-const prisma = new PrismaClient()
+import { Agent0Client } from '@/agents/agent0/Agent0Client'
+import type { AgentCapabilities } from '@/a2a/types'
 
 // Contract addresses
 const IDENTITY_REGISTRY = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA as Address
@@ -96,44 +100,35 @@ const REPUTATION_SYSTEM_ABI = [
   },
 ] as const
 
-interface RegistrationRequest {
-  walletAddress: string
-  username: string
-  bio?: string
-  endpoint?: string
-  referralCode?: string // Referral code from URL param
-}
-
 /**
  * POST /api/auth/onboard
  * Register a user to the on-chain identity system
  */
-export async function POST(request: NextRequest) {
-  try {
-    // Authenticate user (both regular users and agents)
-    const user = await authenticate(request)
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  // Authenticate user (both regular users and agents)
+  const user = await authenticate(request)
 
-    // Parse request body
-    const body: RegistrationRequest = await request.json()
-    const { walletAddress, username, bio, endpoint, referralCode } = body
+  // Parse and validate request body
+  const body = await request.json()
+  const { walletAddress, username, bio, endpoint, referralCode } = OnChainRegistrationSchema.parse(body)
 
-    // For agents, walletAddress is optional (they use server wallet)
-    // For regular users, walletAddress is required
-    if (!user.isAgent && !walletAddress) {
-      return errorResponse('Wallet address is required', 400)
-    }
+  // For agents, walletAddress is optional (they use server wallet)
+  // For regular users, walletAddress is required
+  if (!user.isAgent && !walletAddress) {
+    throw new BusinessLogicError('Wallet address is required for non-agent users', 'WALLET_REQUIRED');
+  }
 
-    // Generate random username if not provided
-    const finalUsername = username || `user_${Math.random().toString(36).substring(2, 10)}_${Date.now().toString(36).substring(2, 6)}`
+  // Generate random username if not provided
+  const finalUsername = username || `user_${Math.random().toString(36).substring(2, 10)}_${Date.now().toString(36).substring(2, 6)}`
 
-    // Validate wallet address format
-    if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
-      return errorResponse('Invalid wallet address format', 400)
-    }
+  // Validate wallet address format
+  if (walletAddress && !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+    throw new ValidationError('Invalid wallet address format', ['walletAddress'], [{ field: 'walletAddress', message: 'Must be a valid Ethereum address (0x...)' }]);
+  }
 
-    // Check if referral code is valid (if provided)
-    // Referral code is now the username (without @)
-    let referrerId: string | null = null
+  // Check if referral code is valid (if provided)
+  // Referral code is now the username (without @)
+  let referrerId: string | null = null
     if (referralCode) {
       // First, try to find user by username (new system - username is referral code)
       const referrer = await prisma.user.findUnique({
@@ -327,10 +322,10 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Create wallet client for server (to pay gas)
-    if (!DEPLOYER_PRIVATE_KEY) {
-      return errorResponse('Server wallet not configured', 500)
-    }
+  // Create wallet client for server (to pay gas)
+  if (!DEPLOYER_PRIVATE_KEY) {
+    throw new InternalServerError('Server wallet not configured for gas payments', { missing: 'DEPLOYER_PRIVATE_KEY' });
+  }
 
     const account = privateKeyToAccount(DEPLOYER_PRIVATE_KEY)
     const walletClient = createWalletClient({
@@ -387,9 +382,9 @@ export async function POST(request: NextRequest) {
       confirmations: 2, // Wait for 2 confirmations to ensure state is synced
     })
 
-    if (receipt.status !== 'success') {
-      return errorResponse('Registration transaction failed', 500)
-    }
+  if (receipt.status !== 'success') {
+    throw new BusinessLogicError('Blockchain registration transaction failed', 'REGISTRATION_TX_FAILED', { txHash, receipt: receipt.status });
+  }
 
     // Get the token ID from the event logs
     // Reset tokenId to null if not already set from database
@@ -415,12 +410,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // If we couldn't get tokenId from events, query it
-    if (!tokenId) {
-      if (user.isAgent) {
-        // For agents, tokenId MUST come from events (server wallet owns multiple NFTs)
-        throw new Error('Failed to extract token ID from AgentRegistered event. Transaction succeeded but event parsing failed.')
-      } else {
+  // If we couldn't get tokenId from events, query it
+  if (!tokenId) {
+    if (user.isAgent) {
+      // For agents, tokenId MUST come from events (server wallet owns multiple NFTs)
+      throw new InternalServerError('Failed to extract token ID from AgentRegistered event', { txHash, userId: user.userId });
+    } else {
         // For regular users, query by wallet address
         const queriedTokenId = await publicClient.readContract({
           address: IDENTITY_REGISTRY,
@@ -514,7 +509,7 @@ export async function POST(request: NextRequest) {
       // Don't fail registration if reputation setup fails
     }
 
-    // Update database
+    // Update database with ERC-8004 registration
     await prisma.user.update({
       where: { id: dbUser.id },
       data: {
@@ -526,6 +521,96 @@ export async function POST(request: NextRequest) {
         bio: bio || (user.isAgent ? `Autonomous AI agent: ${user.userId}` : undefined),
       },
     })
+
+    // Register with Agent0 SDK and publish to IPFS (if enabled)
+    let agent0MetadataCID: string | null = null
+    if (process.env.AGENT0_ENABLED === 'true' && !user.isAgent) {
+      // Only register regular users with Agent0 (agents are handled in /api/agents/onboard)
+      try {
+        logger.info('Registering user with Agent0 SDK...', { userId: dbUser.id, tokenId }, 'UserOnboard')
+
+        const userWalletAddress = walletAddress!.toLowerCase()
+        
+        // Create user metadata (Agent0 SDK will publish to IPFS)
+        const userMetadata = {
+          name: username || dbUser.username || user.userId,
+          description: bio || `Babylon player`,
+          version: '1.0.0',
+          type: 'user',
+          endpoints: {
+            api: `https://babylon.game/api/users/${dbUser.id}`,
+          },
+          capabilities: {
+            strategies: [],  // Users don't have automated strategies
+            markets: ['prediction', 'perpetuals'],
+            actions: ['trade', 'post', 'chat'],
+            version: '1.0.0'
+          } as AgentCapabilities,
+          babylon: {
+            agentId: dbUser.id,
+            tokenId,
+            walletAddress: userWalletAddress,
+            registrationTxHash: txHash
+          }
+        }
+        
+        // Register with Agent0 SDK (handles IPFS publishing internally)
+        try {
+          const agent0Client = new Agent0Client({
+            network: (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia',
+            rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_RPC_URL || '',
+            privateKey: DEPLOYER_PRIVATE_KEY
+          })
+          
+          const agent0Result = await agent0Client.registerAgent({
+            name: username || dbUser.username || user.userId,
+            description: bio || 'Babylon player',
+            walletAddress: userWalletAddress,
+            capabilities: userMetadata.capabilities
+          })
+          
+          // Extract metadata CID from Agent0 result
+          agent0MetadataCID = agent0Result.metadataCID || null
+          
+          logger.info(`User registered with Agent0 SDK`, { 
+            userId: dbUser.id, 
+            tokenId: agent0Result.tokenId,
+            metadataCID: agent0MetadataCID
+          }, 'UserOnboard')
+          
+          // Update database with Agent0 metadata
+          await prisma.user.update({
+            where: { id: dbUser.id },
+            data: {
+              agent0MetadataCID,
+              agent0LastSync: new Date(),
+            },
+          })
+        } catch (agent0Error) {
+          // Log but don't fail - Agent0 SDK might not be installed yet
+          logger.warn(
+            'Agent0 SDK registration failed (SDK may not be installed). Metadata published to IPFS.',
+            { error: agent0Error instanceof Error ? agent0Error.message : String(agent0Error), userId: dbUser.id },
+            'UserOnboard'
+          )
+          
+          // Still store IPFS CID
+          await prisma.user.update({
+            where: { id: dbUser.id },
+            data: {
+              agent0MetadataCID,
+            },
+          })
+        }
+      } catch (error) {
+        // Don't fail registration if Agent0/IPFS fails
+        logger.warn(
+          'Failed to register user with Agent0/IPFS (non-critical)',
+          { error: error instanceof Error ? error.message : String(error), userId: dbUser.id },
+          'UserOnboard'
+        )
+      }
+    }
 
     // Award 1,000 virtual balance points to user (only if not already awarded)
     // Skip for agents - they already have 10k points
@@ -674,38 +759,36 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return successResponse({
-      message: `Successfully registered ${user.isAgent ? 'agent' : 'user'} on-chain`,
-      tokenId,
-      walletAddress: user.isAgent ? undefined : walletAddress,
-      agentId: user.isAgent ? user.userId : undefined,
-      txHash,
-      blockNumber: Number(receipt.blockNumber),
-      gasUsed: Number(receipt.gasUsed),
-      pointsAwarded: user.isAgent ? 0 : 1000, // Agents don't get welcome bonus
-    })
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('Registration error:', { error: errorMessage }, 'POST /api/auth/onboard')
-    return errorResponse(
-      error instanceof Error ? error.message : 'Failed to register on-chain',
-      500
-    )
-  }
-}
+  logger.info('On-chain registration completed', {
+    userId: user.userId,
+    tokenId,
+    isAgent: user.isAgent,
+    pointsAwarded: user.isAgent ? 0 : 1000
+  }, 'POST /api/auth/onboard');
+
+  return successResponse({
+    message: `Successfully registered ${user.isAgent ? 'agent' : 'user'} on-chain`,
+    tokenId,
+    walletAddress: user.isAgent ? undefined : walletAddress,
+    agentId: user.isAgent ? user.userId : undefined,
+    txHash,
+    blockNumber: Number(receipt.blockNumber),
+    gasUsed: Number(receipt.gasUsed),
+    pointsAwarded: user.isAgent ? 0 : 1000, // Agents don't get welcome bonus
+  });
+});
 
 /**
  * GET /api/auth/onboard
  * Check registration status
  */
-export async function GET(request: NextRequest) {
-  try {
-    const user = await authenticate(request)
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  const user = await authenticate(request)
 
-    // Check database
-    let dbUser: { walletAddress: string | null; onChainRegistered: boolean; nftTokenId: number | null; registrationTxHash: string | null } | null = null
+  // Check database
+  let dbUser: { walletAddress: string | null; onChainRegistered: boolean; nftTokenId: number | null; registrationTxHash: string | null } | null = null
 
-    if (user.isAgent) {
+  if (user.isAgent) {
       // Agents: find by username
       dbUser = await prisma.user.findFirst({
         where: { username: user.userId },
@@ -771,19 +854,13 @@ export async function GET(request: NextRequest) {
       isRegistered = onChainRegistered
     }
 
-    return successResponse({
-      isRegistered,
-      tokenId,
-      walletAddress: dbUser.walletAddress,
-      txHash: dbUser.registrationTxHash,
-      dbRegistered: dbUser.onChainRegistered,
-    })
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('Status check error:', { error: errorMessage }, 'GET /api/auth/onboard')
-    return errorResponse(
-      error instanceof Error ? error.message : 'Failed to check registration status',
-      500
-    )
-  }
-}
+  logger.info('Registration status checked', { userId: user.userId, isRegistered }, 'GET /api/auth/onboard');
+
+  return successResponse({
+    isRegistered,
+    tokenId,
+    walletAddress: dbUser.walletAddress,
+    txHash: dbUser.registrationTxHash,
+    dbRegistered: dbUser.onChainRegistered,
+  });
+});

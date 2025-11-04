@@ -6,6 +6,8 @@
 import type { JsonValue } from '@/types/common';
 import type { JsonRpcParams, JsonRpcResult } from '@/types/json-rpc';
 import type { RegistryClient, X402Manager } from '@/types/a2a-server';
+import type { IAgent0Client } from '@/agents/agent0/types';
+import type { IUnifiedDiscoveryService } from '@/agents/agent0/types';
 
 // JSON-RPC 2.0 Base Types
 export interface JsonRpcRequest {
@@ -58,6 +60,7 @@ export enum A2AMethod {
   // Information Sharing
   SHARE_ANALYSIS = 'a2a.shareAnalysis',
   REQUEST_ANALYSIS = 'a2a.requestAnalysis',
+  GET_ANALYSES = 'a2a.getAnalyses',
 
   // x402 Micropayments
   PAYMENT_REQUEST = 'a2a.paymentRequest',
@@ -172,10 +175,12 @@ export interface MarketAnalysis {
 }
 
 export interface AnalysisRequest {
+  requestId: string
   marketId: string
   requester: string
   paymentOffer?: string // x402 payment amount
   deadline: number
+  timestamp: number
 }
 
 // x402 Micropayment Types
@@ -259,12 +264,16 @@ export interface A2AServerConfig {
   enableCoalitions?: boolean
   logLevel?: 'debug' | 'info' | 'warn' | 'error'
   registryClient?: RegistryClient
+  agent0Client?: IAgent0Client // Agent0Client - optional for external agent support
+  unifiedDiscovery?: IUnifiedDiscoveryService // UnifiedDiscoveryService - optional for enhanced discovery
 }
 
 // Server Options (used internally by websocket-server)
-export interface A2AServerOptions extends Omit<A2AServerConfig, 'registryClient'> {
+export interface A2AServerOptions extends Omit<A2AServerConfig, 'registryClient' | 'agent0Client' | 'unifiedDiscovery'> {
   registryClient?: RegistryClient
   x402Manager?: X402Manager
+  agent0Client?: IAgent0Client // Agent0Client - optional for external agent support
+  unifiedDiscovery?: IUnifiedDiscoveryService // UnifiedDiscoveryService - optional for enhanced discovery
 }
 
 // Client Configuration

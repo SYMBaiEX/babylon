@@ -4,15 +4,11 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import {
-  optionalAuth,
-  successResponse,
-  errorResponse,
-} from '@/lib/api/auth-middleware';
+import { prisma } from '@/lib/database-service';
+import { optionalAuth } from '@/lib/api/auth-middleware';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { PostFeedQuerySchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
-
-const prisma = new PrismaClient();
 
 /**
  * GET /api/posts/feed/favorites
@@ -21,27 +17,29 @@ const prisma = new PrismaClient();
  * - limit: number of posts to return (default 20, max 100)
  * - offset: pagination offset (default 0)
  */
-export async function GET(request: NextRequest) {
-  try {
-    // Optional authentication - returns null if not authenticated
-    const user = await optionalAuth(request);
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  // Optional authentication - returns null if not authenticated
+  const user = await optionalAuth(request);
 
-    // If not authenticated, return empty array
-    if (!user) {
-      return successResponse({
-        posts: [],
-        total: 0,
-        hasMore: false,
-      });
-    }
+  // If not authenticated, return empty array
+  if (!user) {
+    logger.info('Unauthenticated request for favorites feed', {}, 'GET /api/posts/feed/favorites');
+    return successResponse({
+      posts: [],
+      total: 0,
+      hasMore: false,
+    });
+  }
 
-    // Parse query parameters
-    const searchParams = request.nextUrl.searchParams;
-    const limit = Math.min(
-      Number.parseInt(searchParams.get('limit') || '20'),
-      100
-    );
-    const offset = Number.parseInt(searchParams.get('offset') || '0');
+  // Parse and validate query parameters
+  const { searchParams } = new URL(request.url);
+  const queryParams = {
+    limit: searchParams.get('limit'),
+    page: searchParams.get('page')
+  };
+  const validatedQuery = PostFeedQuerySchema.partial().parse(queryParams);
+  const limit = Math.min(validatedQuery.limit || 20, 100);
+  const offset = validatedQuery.page ? (validatedQuery.page - 1) * limit : 0;
 
     // Get favorited profile IDs
     const favorites = await prisma.favorite.findMany({
@@ -143,15 +141,13 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    return successResponse({
-      posts: transformedPosts,
-      total: totalCount,
-      hasMore,
-      limit,
-      offset,
-    });
-  } catch (error) {
-    logger.error('Error fetching favorites feed:', error, 'GET /api/posts/feed/favorites');
-    return errorResponse('Failed to fetch favorites feed');
-  }
-}
+  logger.info('Favorites feed fetched successfully', { userId: user.userId, count: transformedPosts.length, total: totalCount }, 'GET /api/posts/feed/favorites');
+
+  return successResponse({
+    posts: transformedPosts,
+    total: totalCount,
+    hasMore,
+    limit,
+    offset,
+  });
+});

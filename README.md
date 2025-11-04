@@ -50,6 +50,14 @@ A real-time prediction market game with autonomous NPCs, perpetual futures, and 
 - Multi-chain: Ethereum, Base, Optimism, Polygon, Arbitrum
 - Profile setup wizard
 
+### 🤖 Agent Infrastructure (ERC-8004 + Agent0)
+- **Universal Registration**: All entities (game, users, agents) registered on-chain
+- **Permissionless Discovery**: External agents discover Babylon through Agent0 registry
+- **A2A Protocol**: Real-time agent-to-agent communication via WebSocket
+- **MCP Server**: Model Context Protocol endpoint for tool discovery
+- **IPFS Metadata**: Decentralized agent card storage
+- **Reputation System**: On-chain reputation tracking and aggregation
+
 ---
 
 ## 🚀 Quick Start
@@ -63,11 +71,18 @@ cp .env.example .env.local
 # Edit .env.local with your Privy credentials + GROQ_API_KEY
 
 # 3. Setup database
-npx prisma generate
-npx prisma migrate dev --name initial_setup
-npx prisma db seed
+bun run prisma:generate
+bun run prisma:migrate
+bun run prisma:seed
 
-# 4. Start development
+# 4. (Optional) Enable Agent0 Integration
+# Add to .env.local:
+# AGENT0_ENABLED=true
+# BASE_SEPOLIA_RPC_URL=...
+# BABYLON_GAME_PRIVATE_KEY=...
+# Then register Babylon: bun run scripts/register-babylon-game.ts
+
+# 5. Start development
 bun run dev   # ← Automatically starts web + game engine!
 ```
 

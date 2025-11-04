@@ -12,10 +12,11 @@
  * Security: Uses Vercel Cron secret for authentication
  */
 
-import type { NextRequest} from 'next/server';
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { logger } from '@/lib/logger';
+import type { NextRequest } from 'next/server'
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
+import { AuthorizationError } from '@/lib/errors'
+import { prisma } from '@/lib/database-service'
+import { logger } from '@/lib/logger'
 
 // Verify this is a legitimate Vercel Cron request
 function verifyVercelCronRequest(request: NextRequest): boolean {
@@ -43,77 +44,63 @@ function verifyVercelCronRequest(request: NextRequest): boolean {
   return authHeader === `Bearer ${cronSecret}`;
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    // 1. Verify this is a legitimate cron request
-    if (!verifyVercelCronRequest(request)) {
-      logger.warn('Unauthorized cron request attempt', undefined, 'Cron');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const startTime = Date.now();
-    logger.info('🎮 Game tick started', undefined, 'Cron');
-
-    // 2. Check if we should skip (maintenance mode, etc.)
-    const gameState = await prisma.game.findFirst({
-      where: { isContinuous: true },
-    });
-
-    if (!gameState || !gameState.isRunning) {
-      logger.info('Game is paused - skipping tick', undefined, 'Cron');
-      return NextResponse.json({
-        success: true,
-        skipped: true,
-        reason: 'Game paused',
-      });
-    }
-
-    // 3. Import game tick logic dynamically (avoid bundling heavy dependencies)
-    const { executeGameTick } = await import('@/lib/serverless-game-tick');
-    
-    // 4. Execute the tick (generates posts, events, updates markets)
-    const result = await executeGameTick();
-
-    const duration = Date.now() - startTime;
-    logger.info('✅ Game tick completed', {
-      duration: `${duration}ms`,
-      posts: result.postsCreated,
-      events: result.eventsCreated,
-      marketsUpdated: result.marketsUpdated,
-    }, 'Cron');
-
-    return NextResponse.json({
-      success: true,
-      duration,
-      result,
-    });
-
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('❌ Game tick failed', { error: errorMessage }, 'Cron');
-    
-    return NextResponse.json({
-      success: false,
-      error: errorMessage,
-    }, { status: 500 });
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  // 1. Verify this is a legitimate cron request
+  if (!verifyVercelCronRequest(request)) {
+    logger.warn('Unauthorized cron request attempt', undefined, 'Cron');
+    throw new AuthorizationError('Unauthorized cron request', 'cron', 'execute');
   }
-}
+
+  const startTime = Date.now();
+  logger.info('🎮 Game tick started', undefined, 'Cron');
+
+  // 2. Check if we should skip (maintenance mode, etc.)
+  const gameState = await prisma.game.findFirst({
+    where: { isContinuous: true },
+  });
+
+  if (!gameState || !gameState.isRunning) {
+    logger.info('Game is paused - skipping tick', undefined, 'Cron');
+    return successResponse({
+      success: true,
+      skipped: true,
+      reason: 'Game paused',
+    });
+  }
+
+  // 3. Import game tick logic dynamically (avoid bundling heavy dependencies)
+  const { executeGameTick } = await import('@/lib/serverless-game-tick');
+
+  // 4. Execute the tick (generates posts, events, updates markets)
+  const result = await executeGameTick();
+
+  const duration = Date.now() - startTime;
+  logger.info('✅ Game tick completed', {
+    duration: `${duration}ms`,
+    posts: result.postsCreated,
+    events: result.eventsCreated,
+    marketsUpdated: result.marketsUpdated,
+  }, 'Cron');
+
+  return successResponse({
+    success: true,
+    duration,
+    result,
+  });
+});
 
 // GET endpoint for manual testing
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async (request: NextRequest) => {
   // Only allow in development or with admin token
   const isDev = process.env.NODE_ENV === 'development';
   const adminToken = request.headers.get('x-admin-token');
   const isAdmin = adminToken === process.env.ADMIN_TOKEN;
 
   if (!isDev && !isAdmin) {
-    return NextResponse.json({
-      error: 'Use POST for cron execution',
-      info: 'This endpoint is triggered by Vercel Cron',
-    }, { status: 405 });
+    throw new AuthorizationError('Use POST for cron execution. This endpoint is triggered by Vercel Cron', 'cron', 'execute');
   }
 
   // Allow manual trigger in dev
   return POST(request);
-}
+});
 

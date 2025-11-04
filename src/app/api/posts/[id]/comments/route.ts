@@ -3,19 +3,14 @@
  * Methods: GET (get comments), POST (add comment)
  */
 
-import {
-  authenticate,
-  authErrorResponse,
-  errorResponse,
-  optionalAuth,
-  successResponse,
-} from '@/lib/api/auth-middleware';
+import { authenticate, optionalAuth } from '@/lib/api/auth-middleware';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { BusinessLogicError, NotFoundError } from '@/lib/errors';
+import { CreateCommentSchema, IdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { notifyCommentOnPost, notifyReplyToComment } from '@/lib/services/notification-service';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/database-service';
 import type { NextRequest } from 'next/server';
-
-const prisma = new PrismaClient();
 
 /**
  * Build threaded comment structure recursively
@@ -90,29 +85,28 @@ function buildCommentTree(
  * GET /api/posts/[id]/comments
  * Get threaded comments for a post
  */
-export async function GET(
+export const GET = withErrorHandling(async (
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id: postId } = await params;
+  context?: { params: Promise<{ id: string }> }
+) => {
+  const { id: postId } = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
 
-    // Optional authentication (to show liked status for logged-in users)
-    const user = await optionalAuth(request);
+  // Optional authentication (to show liked status for logged-in users)
+  const user = await optionalAuth(request);
 
-    // Validate post ID
-    if (!postId) {
-      return errorResponse('Post ID is required', 400);
-    }
+  // Validate post ID
+  if (!postId) {
+    throw new BusinessLogicError('Post ID is required', 'POST_ID_REQUIRED');
+  }
 
-    // Check if post exists
-    const post = await prisma.post.findUnique({
-      where: { id: postId },
-    });
+  // Check if post exists
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+  });
 
-    if (!post) {
-      return errorResponse('Post not found', 404);
-    }
+  if (!post) {
+    throw new NotFoundError('Post', postId);
+  }
 
     // Get all comments for the post (including nested replies)
     const comments = await prisma.comment.findMany({
@@ -161,52 +155,37 @@ export async function GET(
     // Get total comment count (including replies)
     const totalComments = comments.length;
 
-    return successResponse({
-      data: {
-        comments: threadedComments,
-        total: totalComments,
-      },
-    });
-  } catch (error) {
-    logger.error('Error fetching comments:', error, 'GET /api/posts/[id]/comments');
-    return errorResponse('Failed to fetch comments');
-  }
-}
+  logger.info('Comments fetched successfully', { postId, total: totalComments }, 'GET /api/posts/[id]/comments');
+
+  return successResponse({
+    data: {
+      comments: threadedComments,
+      total: totalComments,
+    },
+  });
+});
 
 /**
  * POST /api/posts/[id]/comments
  * Add a comment to a post
  */
-export async function POST(
+export const POST = withErrorHandling(async (
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    // Authenticate user
-    const user = await authenticate(request);
-    const { id: postId } = await params;
+  context?: { params: Promise<{ id: string }> }
+) => {
+  // Authenticate user
+  const user = await authenticate(request);
+  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const { id: postId } = IdParamSchema.parse(params);
 
-    // Validate post ID
-    if (!postId) {
-      return errorResponse('Post ID is required', 400);
-    }
+  // Parse and validate request body
+  const body = await request.json();
+  const validatedData = CreateCommentSchema.parse(body);
+  const { content, parentCommentId } = validatedData;
 
-    // Parse request body
-    const body = await request.json();
-    const { content, parentCommentId } = body;
-
-    // Validate content
-    if (!content || typeof content !== 'string') {
-      return errorResponse('Comment content is required', 400);
-    }
-
-    if (content.trim().length === 0) {
-      return errorResponse('Comment cannot be empty', 400);
-    }
-
-    if (content.length > 5000) {
-      return errorResponse('Comment is too long (max 5000 characters)', 400);
-    }
+  if (content.length > 5000) {
+    throw new BusinessLogicError('Comment is too long (max 5000 characters)', 'COMMENT_TOO_LONG');
+  }
 
     // Ensure user exists in database (upsert pattern)
     await prisma.user.upsert({
@@ -283,7 +262,7 @@ export async function POST(
         }
       } else {
         // Unknown format, reject
-        return errorResponse('Invalid post ID format', 400);
+        throw new BusinessLogicError('Invalid post ID format', 'INVALID_POST_ID_FORMAT');
       }
 
       // Ensure post exists (upsert pattern)
@@ -307,11 +286,11 @@ export async function POST(
       });
 
       if (!parentComment) {
-        return errorResponse('Parent comment not found', 404);
+        throw new NotFoundError('Parent comment', parentCommentId);
       }
 
       if (parentComment.postId !== postId) {
-        return errorResponse('Parent comment does not belong to this post', 400);
+        throw new BusinessLogicError('Parent comment does not belong to this post', 'PARENT_COMMENT_MISMATCH');
       }
     }
 
@@ -393,26 +372,21 @@ export async function POST(
       }
     }
 
-    return successResponse(
-      {
-        id: comment.id,
-        content: comment.content,
-        postId: comment.postId,
-        authorId: comment.authorId,
-        parentCommentId: comment.parentCommentId,
-        createdAt: comment.createdAt,
-        updatedAt: comment.updatedAt,
-        author: comment.author,
-        likeCount: comment._count.reactions,
-        replyCount: comment._count.replies,
-      },
-      201
-    );
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Authentication failed') {
-      return authErrorResponse('Unauthorized');
-    }
-    logger.error('Error creating comment:', error, 'POST /api/posts/[id]/comments');
-    return errorResponse('Failed to create comment');
-  }
-}
+  logger.info('Comment created successfully', { postId, userId: user.userId, commentId: comment.id, parentCommentId }, 'POST /api/posts/[id]/comments');
+
+  return successResponse(
+    {
+      id: comment.id,
+      content: comment.content,
+      postId: comment.postId,
+      authorId: comment.authorId,
+      parentCommentId: comment.parentCommentId,
+      createdAt: comment.createdAt,
+      updatedAt: comment.updatedAt,
+      author: comment.author,
+      likeCount: comment._count.reactions,
+      replyCount: comment._count.replies,
+    },
+    201
+  );
+});

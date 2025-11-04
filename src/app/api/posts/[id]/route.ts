@@ -5,11 +5,10 @@
 
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/database-service';
-import {
-  optionalAuth,
-  successResponse,
-  errorResponse,
-} from '@/lib/api/auth-middleware';
+import { optionalAuth } from '@/lib/api/auth-middleware';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { BusinessLogicError, NotFoundError } from '@/lib/errors';
+import { IdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { gameService } from '@/lib/game-service';
 
@@ -17,20 +16,15 @@ import { gameService } from '@/lib/game-service';
  * GET /api/posts/[id]
  * Get a single post by ID
  */
-export async function GET(
+export const GET = withErrorHandling(async (
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id: postId } = await params;
-  try {
+  context?: { params: Promise<{ id: string }> }
+) => {
+  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const { id: postId } = IdParamSchema.parse(params);
 
-    // Optional authentication (to show liked status for logged-in users)
-    const user = await optionalAuth(request);
-
-    // Validate post ID
-    if (!postId) {
-      return errorResponse('Post ID is required', 400);
-    }
+  // Optional authentication (to show liked status for logged-in users)
+  const user = await optionalAuth(request);
 
     // Try to get post from database first
     let post = await prisma.post.findUnique({
@@ -373,9 +367,9 @@ export async function GET(
           },
         });
 
-        // If still not found, return 404
+        // If still not found, throw 404
         if (!post) {
-          return errorResponse('Post not found', 404);
+          throw new NotFoundError('Post', postId);
         }
       }
     }
@@ -383,7 +377,7 @@ export async function GET(
     // Validate post exists
     if (!post) {
       logger.error('Post is null after all attempts:', { postId }, 'GET /api/posts/[id]');
-      return errorResponse('Post not found', 404);
+      throw new NotFoundError('Post', postId);
     }
 
     // Get author name, username, and profile image from database
@@ -421,7 +415,9 @@ export async function GET(
     // Safely check reactions and shares - Prisma may return undefined even when included
     const reactionsArray = post.reactions && Array.isArray(post.reactions) ? post.reactions : [];
     const sharesArray = post.shares && Array.isArray(post.shares) ? post.shares : [];
-    
+
+    logger.info('Post fetched successfully', { postId, source: 'database' }, 'GET /api/posts/[id]');
+
     return successResponse({
       data: {
         id: post.id,
@@ -442,15 +438,5 @@ export async function GET(
         source: 'database',
       },
     });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    logger.error('Error fetching post:', { 
-      error: errorMessage, 
-      stack: errorStack,
-      postId 
-    }, 'GET /api/posts/[id]');
-    return errorResponse(`Failed to fetch post: ${errorMessage}`, 500);
-  }
-}
+});
 

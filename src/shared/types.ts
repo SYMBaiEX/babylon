@@ -199,6 +199,75 @@ export interface Scenario {
 }
 
 /**
+ * Eliza Character Message Example
+ * Used in character files for AI agent conversation training
+ */
+export interface ElizaMessageExample {
+  user: string;
+  content: {
+    text: string;
+    action?: string;
+  };
+}
+
+/**
+ * Eliza Character Definition
+ * Full character configuration for AI agents
+ */
+export interface ElizaCharacter {
+  name: string;
+  username: string;
+  bio: string[];
+  lore: string[];
+  messageExamples: ElizaMessageExample[][]; // Array of conversation arrays
+  postExamples: string[];
+  topics: string[];
+  adjectives: string[];
+  style: {
+    all: string[];
+    chat: string[];
+    post: string[];
+  };
+  clients: string[];
+  plugins?: string[];
+  modelProvider?: string;
+  settings?: {
+    secrets?: Record<string, string>;
+    voice?: {
+      model: string;
+    };
+    strategies?: string[];
+    riskTolerance?: number;
+    minConfidence?: number;
+    autoTrading?: boolean;
+  };
+}
+
+/**
+ * Extended Actor definition for data files
+ * Includes all fields from actors.json
+ */
+export interface ActorData extends Actor {
+  realName: string;
+  username: string;
+  nickname: string;
+  aliases: string[];
+  quirks?: string[];
+  canPostFeed?: boolean;
+  canPostGroups?: boolean;
+}
+
+/**
+ * Database seed data structure
+ * Used in prisma/seed.ts for seeding the database
+ * This extends the basic ActorsDatabase with additional seed-specific requirements
+ */
+export interface SeedActorsDatabase {
+  actors: ActorData[];
+  organizations: Organization[];
+}
+
+/**
  * Question for prediction market
  */
 export interface Question {
@@ -337,11 +406,10 @@ export interface GeneratedGame {
 
 /**
  * Actors database structure
+ * Used for loading actors.json data file
  */
 export interface ActorsDatabase {
-  version: string;
-  description: string;
-  actors: Actor[];
+  actors: ActorData[];
   organizations: Organization[];
 }
 

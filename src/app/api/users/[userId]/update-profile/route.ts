@@ -4,75 +4,50 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import {
-  authenticate,
-  successResponse,
-  errorResponse,
-} from '@/lib/api/auth-middleware';
+import { prisma } from '@/lib/database-service';
+import { authenticate } from '@/lib/api/auth-middleware';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { BusinessLogicError, AuthorizationError } from '@/lib/errors';
+import { UpdateUserSchema, UserIdParamSchema } from '@/lib/validation/schemas';
 import { PointsService } from '@/lib/services/points-service';
 import { logger } from '@/lib/logger';
 import { notifyProfileComplete } from '@/lib/services/notification-service';
-
-const prisma = new PrismaClient();
 
 /**
  * POST /api/users/[userId]/update-profile
  * Update user profile information
  */
-export async function POST(
+export const POST = withErrorHandling(async (
   request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
-) {
-  let authUser;
-  try {
-    authUser = await authenticate(request);
-  } catch (authError) {
-    const authErrorMessage = authError instanceof Error ? authError.message : 'Authentication failed';
-    logger.error('Authentication error in update-profile:', { message: authErrorMessage }, 'POST /api/users/[userId]/update-profile');
-    return errorResponse('Authentication required', 401);
+  context?: { params: Promise<{ userId: string }> }
+) => {
+  // Authenticate user
+  const authUser = await authenticate(request);
+  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const { userId } = UserIdParamSchema.parse(params);
+
+  // Ensure user can only update their own profile
+  if (authUser.userId !== userId) {
+    throw new AuthorizationError('You can only update your own profile', 'profile', 'update');
   }
 
-  try {
-    const { userId } = await params;
+  // Parse and validate request body
+  const body = await request.json();
+  const { username, displayName, bio, profileImageUrl, coverImageUrl } = UpdateUserSchema.parse(body);
 
-    if (!userId) {
-      return errorResponse('User ID is required', 400);
+  // Check if username is already taken (if provided and different)
+  if (username !== undefined && username !== null && username.trim().length > 0) {
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        username: username.trim(),
+        id: { not: userId },
+      },
+    });
+
+    if (existingUser) {
+      throw new BusinessLogicError('Username is already taken', 'USERNAME_TAKEN');
     }
-
-    // Ensure user can only update their own profile
-    if (authUser.userId !== userId) {
-      return errorResponse('Unauthorized: You can only update your own profile', 403);
-    }
-
-    const body = await request.json();
-    const { username, displayName, bio, profileImageUrl, coverImageUrl } = body;
-
-    // Validate username format if provided
-    if (username !== undefined && username !== null) {
-      const trimmedUsername = username.trim();
-      if (trimmedUsername.length > 0) {
-        // Username validation: alphanumeric, underscores, hyphens, 3-30 chars
-        const usernameRegex = /^[a-zA-Z0-9_-]{3,30}$/;
-        if (!usernameRegex.test(trimmedUsername)) {
-          return errorResponse('Username must be 3-30 characters and contain only letters, numbers, underscores, and hyphens', 400);
-        }
-      }
-    }
-
-    // Check if username is already taken (if provided and different)
-    if (username !== undefined && username !== null && username.trim().length > 0) {
-      const existingUser = await prisma.user.findFirst({
-        where: {
-          username: username.trim(),
-          id: { not: userId },
-        },
-      });
-
-      if (existingUser) {
-        return errorResponse('Username is already taken', 409);
-      }
-    }
+  }
 
     // Get current user state to check what changed
     const currentUser = await prisma.user.findUnique({
@@ -91,10 +66,10 @@ export async function POST(
     });
 
     // Check 24-hour rate limit for username changes
-    const isUsernameChanging = username !== undefined && 
-                               username !== null && 
+    const isUsernameChanging = username !== undefined &&
+                               username !== null &&
                                username.trim() !== currentUser?.username;
-    
+
     if (isUsernameChanging && currentUser?.usernameChangedAt) {
       const lastChangeTime = new Date(currentUser.usernameChangedAt).getTime();
       const now = Date.now();
@@ -104,9 +79,9 @@ export async function POST(
       if (hoursSinceChange < 24) {
         const hours = Math.floor(hoursRemaining);
         const minutes = Math.floor((hoursRemaining - hours) * 60);
-        return errorResponse(
+        throw new BusinessLogicError(
           `You can only change your username once every 24 hours. Please wait ${hours}h ${minutes}m before changing again.`,
-          429
+          'RATE_LIMIT_USERNAME_CHANGE'
         );
       }
     }
@@ -190,24 +165,11 @@ export async function POST(
       )
     }
 
+    logger.info('Profile updated successfully', { userId, pointsAwarded: pointsAwarded.length }, 'POST /api/users/[userId]/update-profile');
+
     return successResponse({
       user: updatedUser,
       message: 'Profile updated successfully',
       pointsAwarded,
     });
-  } catch (error) {
-    // Better error logging - extract error details properly
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    const errorDetails = {
-      message: errorMessage,
-      stack: errorStack,
-      error: error instanceof Error ? {
-        name: error.name,
-        message: error.message,
-      } : error,
-    };
-    logger.error('Error updating profile:', errorDetails, 'POST /api/users/[userId]/update-profile');
-    return errorResponse('Failed to update profile', 500);
-  }
-}
+});

@@ -4,90 +4,90 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import {
-  optionalAuth,
-  successResponse,
-  errorResponse,
-} from '@/lib/api/auth-middleware';
+import { prisma } from '@/lib/database-service';
+import { optionalAuth } from '@/lib/api/auth-middleware';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { BusinessLogicError, NotFoundError } from '@/lib/errors';
+import { UserIdParamSchema, UserFollowersQuerySchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
-
-const prisma = new PrismaClient();
 
 /**
  * GET /api/users/[userId]/followers
  * Get list of users following the target user
  */
-export async function GET(
+export const GET = withErrorHandling(async (
   request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
-) {
-  try {
-    // Optional authentication - if authenticated, can provide personalized data
-    const authUser = await optionalAuth(request);
-    const { userId: targetId } = await params;
+  context?: { params: Promise<{ userId: string }> }
+) => {
+  // Optional authentication - if authenticated, can provide personalized data
+  const authUser = await optionalAuth(request);
+  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const { userId: targetId } = UserIdParamSchema.parse(params);
+  
+  // Validate query parameters
+  const { searchParams } = new URL(request.url);
+  const queryParams = {
+    page: searchParams.get('page'),
+    limit: searchParams.get('limit'),
+    includeMutual: searchParams.get('includeMutual')
+  };
+  UserFollowersQuerySchema.parse(queryParams);
 
-    if (!targetId) {
-      return errorResponse('User ID is required', 400);
-    }
+  // Check if target is a user
+  const targetUser = await prisma.user.findUnique({
+    where: { id: targetId },
+    select: { id: true },
+  });
 
-    // Check if target is a user
-    const targetUser = await prisma.user.findUnique({
-      where: { id: targetId },
-      select: { id: true },
-    });
+  if (!targetUser) {
+    throw new NotFoundError('User', targetId);
+  }
 
-    if (!targetUser) {
-      return errorResponse('User not found', 404);
-    }
-
-    // Get followers (users who follow this user)
-    const follows = await prisma.follow.findMany({
-      where: {
-        followingId: targetId,
-      },
-      include: {
-        follower: {
-          select: {
-            id: true,
-            displayName: true,
-            username: true,
-            profileImageUrl: true,
-            bio: true,
-          },
+  // Get followers (users who follow this user)
+  const follows = await prisma.follow.findMany({
+    where: {
+      followingId: targetId,
+    },
+    include: {
+      follower: {
+        select: {
+          id: true,
+          displayName: true,
+          username: true,
+          profileImageUrl: true,
+          bio: true,
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
 
-    const followers = follows.map((f) => {
-      const followerData = {
-        id: f.follower.id,
-        displayName: f.follower.displayName,
-        username: f.follower.username,
-        profileImageUrl: f.follower.profileImageUrl,
-        bio: f.follower.bio,
-        followedAt: f.createdAt.toISOString(),
-      };
+  const followers = follows.map((f) => {
+    const followerData = {
+      id: f.follower.id,
+      displayName: f.follower.displayName,
+      username: f.follower.username,
+      profileImageUrl: f.follower.profileImageUrl,
+      bio: f.follower.bio,
+      followedAt: f.createdAt.toISOString(),
+    };
 
-      // If authenticated, check if current user follows this follower
-      if (authUser) {
-        // This could be extended to show mutual follows, etc.
-        return followerData;
-      }
-
+    // If authenticated, check if current user follows this follower
+    if (authUser) {
+      // This could be extended to show mutual follows, etc.
       return followerData;
-    });
+    }
 
-    return successResponse({
-      followers,
-      count: followers.length,
-    });
-  } catch (error) {
-    logger.error('Error fetching followers:', error, 'GET /api/users/[userId]/followers');
-    return errorResponse('Failed to fetch followers', 500);
-  }
-}
+    return followerData;
+  });
+
+  logger.info('Followers fetched successfully', { targetId, count: followers.length }, 'GET /api/users/[userId]/followers');
+
+  return successResponse({
+    followers,
+    count: followers.length,
+  });
+});
 

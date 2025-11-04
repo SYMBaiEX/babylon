@@ -15,6 +15,7 @@
 import { NextRequest } from 'next/server';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { getEventBroadcaster, type SSEClient, type Channel } from '@/lib/sse/event-broadcaster';
+import { SSEChannelsQuerySchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -26,7 +27,14 @@ export async function GET(request: NextRequest) {
   try {
     // Get token from query params (EventSource doesn't support custom headers)
     const { searchParams } = new URL(request.url);
-    const token = searchParams.get('token');
+    const queryParams = {
+      token: searchParams.get('token'),
+      channels: searchParams.get('channels')
+    };
+    
+    // Validate query parameters
+    const validatedQuery = SSEChannelsQuerySchema.parse(queryParams);
+    const token = validatedQuery.token;
     
     if (!token) {
       return new Response(
@@ -47,7 +55,7 @@ export async function GET(request: NextRequest) {
     const user = await authenticate(modifiedRequest);
     
     // Get channels from query params
-    const channelsParam = searchParams.get('channels');
+    const channelsParam = validatedQuery.channels;
     const channels = channelsParam ? channelsParam.split(',') as Channel[] : ['feed'];
 
     logger.info(`SSE connection request from user ${user.userId} for channels: ${channels.join(', ')}`, { userId: user.userId, channels }, 'SSE');

@@ -1,18 +1,20 @@
-import type { NextRequest} from 'next/server';
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import type { NextRequest } from 'next/server';
+import { prisma } from '@/lib/database-service';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { NotFoundError, BusinessLogicError } from '@/lib/errors';
+import { IdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 
 /**
  * GET /api/pools/[id]
  * Get detailed information about a specific pool
  */
-export async function GET(
+export const GET = withErrorHandling(async (
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
+  context?: { params: Promise<{ id: string }> }
+) => {
+  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const { id } = IdParamSchema.parse(params);
 
     const pool = await prisma.pool.findUnique({
       where: { id },
@@ -54,10 +56,7 @@ export async function GET(
     });
 
     if (!pool) {
-      return NextResponse.json(
-        { error: 'Pool not found' },
-        { status: 404 }
-      );
+      throw new NotFoundError('Pool', id);
     }
 
     // Calculate metrics
@@ -95,71 +94,66 @@ export async function GET(
       },
     };
 
-    return NextResponse.json({
-      pool: {
-        id: pool.id,
-        name: pool.name,
-        description: pool.description,
-        npcActor: pool.npcActor,
-        totalValue,
-        totalDeposits,
-        availableBalance,
-        lifetimePnL,
-        totalReturn,
-        performanceFeeRate: pool.performanceFeeRate,
-        totalFeesCollected: parseFloat(pool.totalFeesCollected.toString()),
-        activeInvestors: pool.deposits.length,
-        openPositions: pool.positions.length,
-        totalUnrealizedPnL,
-        totalTrades: pool.trades.length,
-        positionsByType,
-        openedAt: pool.openedAt.toISOString(),
-        updatedAt: pool.updatedAt.toISOString(),
-      },
-      deposits: pool.deposits.map(d => ({
-        id: d.id,
-        userId: d.userId,
-        amount: parseFloat(d.amount.toString()),
-        shares: parseFloat(d.shares.toString()),
-        currentValue: parseFloat(d.currentValue.toString()),
-        unrealizedPnL: parseFloat(d.unrealizedPnL.toString()),
-        depositedAt: d.depositedAt.toISOString(),
-      })),
-      positions: pool.positions.map(p => ({
-        id: p.id,
-        marketType: p.marketType,
-        ticker: p.ticker,
-        marketId: p.marketId,
-        side: p.side,
-        entryPrice: p.entryPrice,
-        currentPrice: p.currentPrice,
-        size: p.size,
-        shares: p.shares,
-        leverage: p.leverage,
-        liquidationPrice: p.liquidationPrice,
-        unrealizedPnL: p.unrealizedPnL,
-        openedAt: p.openedAt.toISOString(),
-      })),
-      recentTrades: pool.trades.map(t => ({
-        id: t.id,
-        marketType: t.marketType,
-        ticker: t.ticker,
-        marketId: t.marketId,
-        action: t.action,
-        side: t.side,
-        amount: t.amount,
-        price: t.price,
-        sentiment: t.sentiment,
-        reason: t.reason,
-        executedAt: t.executedAt.toISOString(),
-      })),
-    });
-  } catch (error) {
-    logger.error('Error fetching pool details:', error, 'GET /api/pools/[id]');
-    return NextResponse.json(
-      { error: 'Failed to fetch pool details' },
-      { status: 500 }
-    );
-  }
-}
+  logger.info('Pool details fetched successfully', { poolId: id, openPositions: pool.positions.length }, 'GET /api/pools/[id]');
+
+  return successResponse({
+    pool: {
+      id: pool.id,
+      name: pool.name,
+      description: pool.description,
+      npcActor: pool.npcActor,
+      totalValue,
+      totalDeposits,
+      availableBalance,
+      lifetimePnL,
+      totalReturn,
+      performanceFeeRate: pool.performanceFeeRate,
+      totalFeesCollected: parseFloat(pool.totalFeesCollected.toString()),
+      activeInvestors: pool.deposits.length,
+      openPositions: pool.positions.length,
+      totalUnrealizedPnL,
+      totalTrades: pool.trades.length,
+      positionsByType,
+      openedAt: pool.openedAt.toISOString(),
+      updatedAt: pool.updatedAt.toISOString(),
+    },
+    deposits: pool.deposits.map(d => ({
+      id: d.id,
+      userId: d.userId,
+      amount: parseFloat(d.amount.toString()),
+      shares: parseFloat(d.shares.toString()),
+      currentValue: parseFloat(d.currentValue.toString()),
+      unrealizedPnL: parseFloat(d.unrealizedPnL.toString()),
+      depositedAt: d.depositedAt.toISOString(),
+    })),
+    positions: pool.positions.map(p => ({
+      id: p.id,
+      marketType: p.marketType,
+      ticker: p.ticker,
+      marketId: p.marketId,
+      side: p.side,
+      entryPrice: p.entryPrice,
+      currentPrice: p.currentPrice,
+      size: p.size,
+      shares: p.shares,
+      leverage: p.leverage,
+      liquidationPrice: p.liquidationPrice,
+      unrealizedPnL: p.unrealizedPnL,
+      openedAt: p.openedAt.toISOString(),
+    })),
+    recentTrades: pool.trades.map(t => ({
+      id: t.id,
+      marketType: t.marketType,
+      ticker: t.ticker,
+      marketId: t.marketId,
+      action: t.action,
+      side: t.side,
+      amount: t.amount,
+      price: t.price,
+      sentiment: t.sentiment,
+      reason: t.reason,
+      executedAt: t.executedAt.toISOString(),
+    })),
+  });
+});
 

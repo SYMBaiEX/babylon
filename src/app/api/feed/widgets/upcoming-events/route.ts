@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server'
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { prisma } from '@/lib/database-service'
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
+import { UpcomingEventsQuerySchema } from '@/lib/validation/schemas'
 import { logger } from '@/lib/logger'
 import { FEED_WIDGET_CONFIG } from '@/shared/constants'
 
@@ -19,9 +20,15 @@ interface UpcomingEvent {
   relatedOrganizationId?: string
 }
 
-export async function GET(_request: NextRequest) {
-  try {
-    const events: UpcomingEvent[] = []
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  // Validate query parameters
+  const { searchParams } = new URL(request.url)
+  const queryParams = {
+    limit: searchParams.get('limit') || '10',
+    timeframe: searchParams.get('timeframe') || '7d'
+  }
+  UpcomingEventsQuerySchema.parse(queryParams)
+  const events: UpcomingEvent[] = []
 
     // 1. Get active questions that will resolve soon (within configured days)
     const activeQuestions = await prisma.question.findMany({
@@ -197,24 +204,19 @@ export async function GET(_request: NextRequest) {
       })
     }
 
-    // Sort by date/time and take top N
-    const sortedEvents = events
-      .sort((a, b) => {
-        const dateA = new Date(`${a.date} ${a.time || ''}`).getTime()
-        const dateB = new Date(`${b.date} ${b.time || ''}`).getTime()
-        return dateA - dateB
-      })
-      .slice(0, FEED_WIDGET_CONFIG.MAX_UPCOMING_EVENTS)
-
-    return NextResponse.json({
-      success: true,
-      events: sortedEvents,
+  // Sort by date/time and take top N
+  const sortedEvents = events
+    .sort((a, b) => {
+      const dateA = new Date(`${a.date} ${a.time || ''}`).getTime()
+      const dateB = new Date(`${b.date} ${b.time || ''}`).getTime()
+      return dateA - dateB
     })
-  } catch (error) {
-    logger.error('Error fetching upcoming events:', error, 'GET /api/feed/widgets/upcoming-events')
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch upcoming events' },
-      { status: 500 }
-    )
-  }
-}
+    .slice(0, FEED_WIDGET_CONFIG.MAX_UPCOMING_EVENTS)
+
+  logger.info('Upcoming events fetched successfully', { count: sortedEvents.length }, 'GET /api/feed/widgets/upcoming-events')
+
+  return successResponse({
+    success: true,
+    events: sortedEvents,
+  })
+})

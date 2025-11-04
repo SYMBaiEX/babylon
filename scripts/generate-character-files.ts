@@ -7,56 +7,9 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { logger } from '../src/lib/logger'
+import type { ActorData, ElizaCharacter, ElizaMessageExample } from '../src/shared/types'
 
-interface Actor {
-  id: string
-  name: string
-  realName: string
-  username: string
-  nickname: string
-  aliases: string[]
-  description: string
-  domain: string[]
-  personality: string
-  quirks: string[]
-  canPostFeed: boolean
-  canPostGroups: boolean
-  tier: string
-  affiliations: string[]
-  postStyle: string
-  postExample: string[]
-}
-
-interface ElizaCharacter {
-  name: string
-  username: string
-  bio: string[]
-  lore: string[]
-  messageExamples: any[]
-  postExamples: string[]
-  topics: string[]
-  adjectives: string[]
-  style: {
-    all: string[]
-    chat: string[]
-    post: string[]
-  }
-  clients: string[]
-  plugins: string[]
-  modelProvider: string
-  settings: {
-    secrets: Record<string, string>
-    voice: {
-      model: string
-    }
-    strategies: string[]
-    riskTolerance: number
-    minConfidence: number
-    autoTrading: boolean
-  }
-}
-
-function convertActorToCharacter(actor: Actor): ElizaCharacter {
+function convertActorToCharacter(actor: ActorData): ElizaCharacter {
   // Extract bio from description
   const bio = [
     actor.description.split('.')[0] + '.',

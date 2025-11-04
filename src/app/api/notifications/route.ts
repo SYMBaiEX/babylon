@@ -1,181 +1,156 @@
 /**
  * Notifications API Route
- * 
+ *
  * GET /api/notifications - Get user notifications
  * PATCH /api/notifications - Mark notifications as read
  */
 
 import type { NextRequest } from 'next/server';
-import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-middleware';
+import { authenticate } from '@/lib/api/auth-middleware';
 import { prisma } from '@/lib/database-service';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { InternalServerError } from '@/lib/errors';
+import { NotificationsQuerySchema, MarkNotificationsReadSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 
 /**
  * GET /api/notifications - Get user notifications
  */
-export async function GET(request: NextRequest) {
-  let authUser;
-  try {
-    authUser = await authenticate(request);
-  } catch (authError) {
-    const authErrorMessage = authError instanceof Error ? authError.message : 'Authentication failed';
-    logger.error('Authentication error in notifications:', { message: authErrorMessage }, 'GET /api/notifications');
-    return errorResponse('Authentication required', 401);
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  const authUser = await authenticate(request);
+
+  // Verify prisma is initialized
+  if (!prisma || !prisma.notification) {
+    logger.error('Prisma client not initialized', { prisma: !!prisma }, 'GET /api/notifications');
+    throw new InternalServerError('Database connection error');
   }
 
-  try {
-    // Verify prisma is initialized
-    if (!prisma || !prisma.notification) {
-      logger.error('Prisma client not initialized', { prisma: !!prisma }, 'GET /api/notifications');
-      return errorResponse('Database connection error', 500);
-    }
+  // Parse and validate query parameters
+  const { searchParams } = new URL(request.url);
+  const queryParams = {
+    limit: searchParams.get('limit'),
+    page: searchParams.get('page'),
+    unreadOnly: searchParams.get('unreadOnly'),
+    type: searchParams.get('type')
+  };
+  const { limit, unreadOnly, type } = NotificationsQuerySchema.parse(queryParams);
 
-    const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '50');
-    const unreadOnly = searchParams.get('unreadOnly') === 'true';
+  const where: {
+    userId: string
+    read?: boolean
+    type?: string
+  } = {
+    userId: authUser.userId,
+  };
 
-    const where: {
-      userId: string
-      read?: boolean
-      type?: string
-    } = {
-      userId: authUser.userId,
-    };
+  if (unreadOnly) {
+    where.read = false;
+  }
 
-    if (unreadOnly) {
-      where.read = false;
-    }
+  if (type) {
+    where.type = type;
+  }
 
-    const notifications = await prisma.notification.findMany({
-      where,
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: limit,
-      include: {
-        actor: {
-          select: {
-            id: true,
-            displayName: true,
-            username: true,
-            profileImageUrl: true,
-          },
+  const notifications = await prisma.notification.findMany({
+    where,
+    orderBy: {
+      createdAt: 'desc',
+    },
+    take: limit,
+    include: {
+      actor: {
+        select: {
+          id: true,
+          displayName: true,
+          username: true,
+          profileImageUrl: true,
         },
       },
-    });
+    },
+  });
 
-    const unreadCount = await prisma.notification.count({
-      where: {
-        userId: authUser.userId,
-        read: false,
-      },
-    });
+  const unreadCount = await prisma.notification.count({
+    where: {
+      userId: authUser.userId,
+      read: false,
+    },
+  });
 
-    return successResponse({
-      notifications: notifications.map((n) => ({
-        id: n.id,
-        type: n.type,
-        actorId: n.actorId,
-        actor: n.actor ? {
-          id: n.actor.id,
-          displayName: n.actor.displayName,
-          username: n.actor.username,
-          profileImageUrl: n.actor.profileImageUrl,
-        } : null,
-        postId: n.postId,
-        commentId: n.commentId,
-        message: n.message,
-        read: n.read,
-        createdAt: n.createdAt.toISOString(),
-      })),
-      unreadCount,
-    });
-  } catch (error) {
-    // Better error logging - extract error details properly
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    const errorDetails = {
-      message: errorMessage,
-      stack: errorStack,
-      error: error instanceof Error ? {
-        name: error.name,
-        message: error.message,
-      } : error,
-    };
-    logger.error('Error fetching notifications:', errorDetails, 'GET /api/notifications');
-    return errorResponse('Failed to fetch notifications', 500);
-  }
-}
+  logger.info('Notifications fetched successfully', { userId: authUser.userId, count: notifications.length, unreadCount }, 'GET /api/notifications');
+
+  return successResponse({
+    notifications: notifications.map((n) => ({
+      id: n.id,
+      type: n.type,
+      actorId: n.actorId,
+      actor: n.actor ? {
+        id: n.actor.id,
+        displayName: n.actor.displayName,
+        username: n.actor.username,
+        profileImageUrl: n.actor.profileImageUrl,
+      } : null,
+      postId: n.postId,
+      commentId: n.commentId,
+      message: n.message,
+      read: n.read,
+      createdAt: n.createdAt.toISOString(),
+    })),
+    unreadCount,
+  });
+});
 
 /**
  * PATCH /api/notifications - Mark notifications as read
  */
-export async function PATCH(request: NextRequest) {
-  let authUser;
-  try {
-    authUser = await authenticate(request);
-  } catch (authError) {
-    const authErrorMessage = authError instanceof Error ? authError.message : 'Authentication failed';
-    logger.error('Authentication error in notifications:', { message: authErrorMessage }, 'PATCH /api/notifications');
-    return errorResponse('Authentication required', 401);
+export const PATCH = withErrorHandling(async (request: NextRequest) => {
+  const authUser = await authenticate(request);
+
+  // Verify prisma is initialized
+  if (!prisma || !prisma.notification) {
+    logger.error('Prisma client not initialized', { prisma: !!prisma }, 'PATCH /api/notifications');
+    throw new InternalServerError('Database connection error');
   }
 
-  try {
-    // Verify prisma is initialized
-    if (!prisma || !prisma.notification) {
-      logger.error('Prisma client not initialized', { prisma: !!prisma }, 'PATCH /api/notifications');
-      return errorResponse('Database connection error', 500);
-    }
+  // Parse and validate request body
+  const body = await request.json();
+  const { notificationIds, markAllAsRead } = MarkNotificationsReadSchema.parse(body);
 
-    const body = await request.json();
-    const { notificationIds, markAllAsRead } = body;
+  if (markAllAsRead) {
+    // Mark all notifications as read
+    await prisma.notification.updateMany({
+      where: {
+        userId: authUser.userId,
+        read: false,
+      },
+      data: {
+        read: true,
+      },
+    });
 
-    if (markAllAsRead) {
-      // Mark all notifications as read
-      await prisma.notification.updateMany({
-        where: {
-          userId: authUser.userId,
-          read: false,
-        },
-        data: {
-          read: true,
-        },
-      });
+    logger.info('All notifications marked as read', { userId: authUser.userId }, 'PATCH /api/notifications');
 
-      return successResponse({ success: true, message: 'All notifications marked as read' });
-    }
-
-    if (notificationIds && Array.isArray(notificationIds) && notificationIds.length > 0) {
-      // Mark specific notifications as read
-      await prisma.notification.updateMany({
-        where: {
-          id: { in: notificationIds },
-          userId: authUser.userId, // Ensure user owns these notifications
-        },
-        data: {
-          read: true,
-        },
-      });
-
-      return successResponse({ success: true, message: 'Notifications marked as read' });
-    }
-
-    return errorResponse('Invalid request: provide notificationIds array or markAllAsRead=true', 400);
-  } catch (error) {
-    // Better error logging - extract error details properly
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    const errorDetails = {
-      message: errorMessage,
-      stack: errorStack,
-      error: error instanceof Error ? {
-        name: error.name,
-        message: error.message,
-      } : error,
-    };
-    logger.error('Error updating notifications:', errorDetails, 'PATCH /api/notifications');
-    return errorResponse('Failed to update notifications', 500);
+    return successResponse({ success: true, message: 'All notifications marked as read' });
   }
-}
+
+  if (notificationIds && notificationIds.length > 0) {
+    // Mark specific notifications as read
+    await prisma.notification.updateMany({
+      where: {
+        id: { in: notificationIds },
+        userId: authUser.userId, // Ensure user owns these notifications
+      },
+      data: {
+        read: true,
+      },
+    });
+
+    logger.info('Notifications marked as read', { userId: authUser.userId, count: notificationIds.length }, 'PATCH /api/notifications');
+
+    return successResponse({ success: true, message: 'Notifications marked as read' });
+  }
+
+  // This should not happen due to schema validation, but handle gracefully
+  throw new InternalServerError('Invalid request: provide notificationIds array or markAllAsRead=true');
+});
 
 

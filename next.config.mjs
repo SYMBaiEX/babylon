@@ -1,9 +1,23 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  turbopack: {},
+  // Specify workspace root to silence lockfile warning
+  outputFileTracingRoot: process.cwd(),
   experimental: {
     optimizePackageImports: ['lucide-react'],
+    // instrumentationHook removed - available by default in Next.js 15+
   },
+  // Externalize packages with native Node.js dependencies for server-side
+  serverExternalPackages: [
+    'ipfs-http-client',
+    '@helia/unixfs',
+    'helia',
+    'blockstore-core',
+    'datastore-core',
+    '@libp2p/interface',
+    'electron-fetch',
+  ],
   images: {
     remotePatterns: [
       {
@@ -11,6 +25,24 @@ const nextConfig = {
         hostname: '**',
       },
     ],
+  },
+  webpack: (config, { isServer }) => {
+    // Fix for IPFS, electron-fetch, and React Native dependencies
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      electron: false,
+      fs: false,
+      net: false,
+      tls: false,
+      '@react-native-async-storage/async-storage': false,
+    };
+
+    // Externalize electron-fetch for server-side
+    if (isServer) {
+      config.externals.push('electron');
+    }
+
+    return config;
   },
 }
 

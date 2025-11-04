@@ -14,6 +14,8 @@ import {
 import { SocialInteractionService } from "./services/services";
 import { BabylonChatService } from "./services/chat-service";
 import { BabylonA2AService } from "./a2a-service";
+import { Agent0Service } from "./agent0-service";
+import { BabylonDiscoveryService } from "./discovery-service";
 
 // Export plugin and services (following quick-starter pattern)
 export { 
@@ -23,6 +25,8 @@ export {
   SocialInteractionService,
   BabylonChatService,
   BabylonA2AService,
+  Agent0Service,
+  BabylonDiscoveryService,
 };
 
 // Export types and utilities for external use

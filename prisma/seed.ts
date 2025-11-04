@@ -18,10 +18,7 @@ import { logger } from '../src/lib/logger';
 
 const prisma = new PrismaClient();
 
-interface ActorsDatabase {
-  actors: any[];
-  organizations: any[];
-}
+import type { SeedActorsDatabase } from '../src/shared/types';
 
 async function main() {
   logger.info('SEEDING DATABASE', undefined, 'Script');
@@ -31,13 +28,13 @@ async function main() {
   if (!existsSync(actorsPath)) {
     actorsPath = join(process.cwd(), 'data', 'actors.json');
   }
-  
+
   if (!existsSync(actorsPath)) {
     logger.error('actors.json not found in public/data/ or data/', undefined, 'Script');
     throw new Error('actors.json not found');
   }
-  
-  const actorsData: ActorsDatabase = JSON.parse(readFileSync(actorsPath, 'utf-8'));
+
+  const actorsData: SeedActorsDatabase = JSON.parse(readFileSync(actorsPath, 'utf-8'));
 
   logger.info('Loaded:', {
     actors: actorsData.actors.length,

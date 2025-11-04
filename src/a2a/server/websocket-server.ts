@@ -79,8 +79,20 @@ export class A2AWebSocketServer extends EventEmitter {
     this.registryClient = config.registryClient
     this.x402Manager = config.x402Manager
     this.logger = new Logger(this.config.logLevel)
-    this.router = new MessageRouter(this.config as Required<A2AServerConfig>, this.registryClient ?? undefined, this.x402Manager ?? undefined)
-    this.authManager = new AuthManager(this.registryClient)
+    
+    // Extract Agent0-related clients from config
+    const agent0Client = (config as A2AServerOptions).agent0Client
+    const unifiedDiscovery = (config as A2AServerOptions).unifiedDiscovery
+    
+    this.router = new MessageRouter(
+      this.config as Required<A2AServerConfig>,
+      this.registryClient ?? undefined,
+      this.x402Manager ?? undefined,
+      agent0Client ?? undefined,
+      unifiedDiscovery ?? undefined,
+      this // Pass server for broadcasting
+    )
+    this.authManager = new AuthManager(this.registryClient, agent0Client ?? undefined)
     this.rateLimiter = new RateLimiter(this.config.messageRateLimit)
 
     // Check for existing server using singleton (prevent double initialization)

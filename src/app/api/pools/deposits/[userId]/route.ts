@@ -1,96 +1,98 @@
-import type { NextRequest} from 'next/server';
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import type { NextRequest } from 'next/server';
+import { prisma } from '@/lib/database-service';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { BusinessLogicError } from '@/lib/errors';
+import { UserIdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 
 /**
  * GET /api/pools/deposits/[userId]
  * Get all pool deposits for a specific user
  */
-export async function GET(
+export const GET = withErrorHandling(async (
   _request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
-) {
-  try {
-    const { userId } = await params;
+  context?: { params: Promise<{ userId: string }> }
+) => {
+  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const { userId } = UserIdParamSchema.parse(params);
 
-    const deposits = await prisma.poolDeposit.findMany({
-      where: {
-        userId,
-      },
-      include: {
-        pool: {
-          include: {
-            npcActor: {
-              select: {
-                id: true,
-                name: true,
-                tier: true,
-                personality: true,
-              },
+  const deposits = await prisma.poolDeposit.findMany({
+    where: {
+      userId,
+    },
+    include: {
+      pool: {
+        include: {
+          npcActor: {
+            select: {
+              id: true,
+              name: true,
+              tier: true,
+              personality: true,
             },
           },
         },
       },
-      orderBy: {
-        depositedAt: 'desc',
-      },
-    });
+    },
+    orderBy: {
+      depositedAt: 'desc',
+    },
+  });
 
-    // Format deposits with calculated metrics
-    const formattedDeposits = deposits.map(d => {
-      const amount = parseFloat(d.amount.toString());
-      const currentValue = parseFloat(d.currentValue.toString());
-      const unrealizedPnL = parseFloat(d.unrealizedPnL.toString());
-      const shares = parseFloat(d.shares.toString());
+  // Format deposits with calculated metrics
+  const formattedDeposits = deposits.map(d => {
+    const amount = parseFloat(d.amount.toString());
+    const currentValue = parseFloat(d.currentValue.toString());
+    const unrealizedPnL = parseFloat(d.unrealizedPnL.toString());
+    const shares = parseFloat(d.shares.toString());
 
-      const returnPercent = amount > 0 ? ((currentValue - amount) / amount) * 100 : 0;
+    const returnPercent = amount > 0 ? ((currentValue - amount) / amount) * 100 : 0;
 
-      return {
-        id: d.id,
-        poolId: d.poolId,
-        poolName: d.pool.name,
-        npcActor: d.pool.npcActor,
-        amount,
-        shares,
-        currentValue,
-        unrealizedPnL,
-        returnPercent,
-        depositedAt: d.depositedAt.toISOString(),
-        withdrawnAt: d.withdrawnAt?.toISOString() || null,
-        withdrawnAmount: d.withdrawnAmount ? parseFloat(d.withdrawnAmount.toString()) : null,
-        isActive: !d.withdrawnAt,
-      };
-    });
+    return {
+      id: d.id,
+      poolId: d.poolId,
+      poolName: d.pool.name,
+      npcActor: d.pool.npcActor,
+      amount,
+      shares,
+      currentValue,
+      unrealizedPnL,
+      returnPercent,
+      depositedAt: d.depositedAt.toISOString(),
+      withdrawnAt: d.withdrawnAt?.toISOString() || null,
+      withdrawnAmount: d.withdrawnAmount ? parseFloat(d.withdrawnAmount.toString()) : null,
+      isActive: !d.withdrawnAt,
+    };
+  });
 
-    // Separate active and historical
-    const activeDeposits = formattedDeposits.filter(d => d.isActive);
-    const historicalDeposits = formattedDeposits.filter(d => !d.isActive);
+  // Separate active and historical
+  const activeDeposits = formattedDeposits.filter(d => d.isActive);
+  const historicalDeposits = formattedDeposits.filter(d => !d.isActive);
 
-    // Calculate totals
-    const totalInvested = activeDeposits.reduce((sum, d) => sum + d.amount, 0);
-    const totalCurrentValue = activeDeposits.reduce((sum, d) => sum + d.currentValue, 0);
-    const totalUnrealizedPnL = activeDeposits.reduce((sum, d) => sum + d.unrealizedPnL, 0);
-    const totalReturnPercent = totalInvested > 0 ? ((totalCurrentValue - totalInvested) / totalInvested) * 100 : 0;
+  // Calculate totals
+  const totalInvested = activeDeposits.reduce((sum, d) => sum + d.amount, 0);
+  const totalCurrentValue = activeDeposits.reduce((sum, d) => sum + d.currentValue, 0);
+  const totalUnrealizedPnL = activeDeposits.reduce((sum, d) => sum + d.unrealizedPnL, 0);
+  const totalReturnPercent = totalInvested > 0 ? ((totalCurrentValue - totalInvested) / totalInvested) * 100 : 0;
 
-    return NextResponse.json({
-      activeDeposits,
-      historicalDeposits,
-      summary: {
-        totalInvested,
-        totalCurrentValue,
-        totalUnrealizedPnL,
-        totalReturnPercent,
-        activePools: activeDeposits.length,
-        historicalCount: historicalDeposits.length,
-      },
-    });
-  } catch (error) {
-    logger.error('Error fetching user pool deposits:', error, 'GET /api/pools/deposits/[userId]');
-    return NextResponse.json(
-      { error: 'Failed to fetch deposits' },
-      { status: 500 }
-    );
-  }
-}
+  logger.info('User pool deposits fetched successfully', {
+    userId,
+    activePools: activeDeposits.length,
+    totalInvested,
+    totalCurrentValue,
+  }, 'GET /api/pools/deposits/[userId]');
+
+  return successResponse({
+    activeDeposits,
+    historicalDeposits,
+    summary: {
+      totalInvested,
+      totalCurrentValue,
+      totalUnrealizedPnL,
+      totalReturnPercent,
+      activePools: activeDeposits.length,
+      historicalCount: historicalDeposits.length,
+    },
+  });
+})
 

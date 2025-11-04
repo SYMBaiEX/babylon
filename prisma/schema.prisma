@@ -27,6 +27,7 @@ model User {
   personality     String?
   postStyle       String?
   postExample     String?
+  role            String?  // Legacy field from Actor model - preserved for compatibility
 
   // Virtual wallet for trading
   virtualBalance       Decimal  @default(1000) @db.Decimal(18, 2) // Start with 1k
@@ -38,6 +39,14 @@ model User {
   onChainRegistered    Boolean  @default(false)
   nftTokenId           Int?     @unique  // ERC-8004 NFT token ID
   registrationTxHash   String?  // Transaction hash of on-chain registration
+
+  // Agent0 Integration
+  agent0MetadataCID    String?  // IPFS CID for agent metadata
+  agent0LastSync       DateTime? // Last sync with Agent0 network
+  mcpEndpoint          String?  // MCP server URL
+  a2aEndpoint          String?  // A2A WebSocket URL
+  agent0FeedbackCount  Int      @default(0)
+  agent0TrustScore     Int      @default(0)  // Cached from Agent0
 
   // Reputation/Points System
   reputationPoints     Int      @default(1000) // Start with 1000 points
@@ -98,6 +107,9 @@ model User {
   @@index([isActor])
   @@index([reputationPoints(sort: Desc)])
   @@index([referralCode])
+  @@index([onChainRegistered])
+  @@index([nftTokenId])
+  @@index([agent0MetadataCID])
 }
 
 // Post model - social media posts
@@ -720,4 +732,16 @@ model ShareAction {
   @@index([userId, createdAt(sort: Desc)])
   @@index([platform])
   @@index([contentType])
+}
+
+// GameConfig model - stores game-wide configuration including Agent0 registration
+model GameConfig {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     Json
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([key])
 }

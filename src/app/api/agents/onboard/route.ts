@@ -10,9 +10,14 @@ import type { NextRequest } from 'next/server'
 import { createWalletClient, createPublicClient, http, parseEther, decodeEventLog, type Address, type Hash } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
-import { errorResponse, successResponse, authenticate } from '@/lib/api/auth-middleware'
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
+import { AuthorizationError, InternalServerError } from '@/lib/errors'
+import { AgentOnboardSchema } from '@/lib/validation/schemas/agent'
+import { authenticate } from '@/lib/api/auth-middleware'
 import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
+import { Agent0Client } from '@/agents/agent0/Agent0Client'
+import type { AgentCapabilities } from '@/a2a/types'
 
 // Contract addresses
 const IDENTITY_REGISTRY = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA as Address
@@ -85,37 +90,34 @@ const REPUTATION_SYSTEM_ABI = [
   },
 ] as const
 
-interface AgentOnboardRequest {
-  agentName?: string
-  endpoint?: string
-}
-
 /**
  * POST /api/agents/onboard
  * Register an agent to the on-chain identity system
  */
-export async function POST(request: NextRequest) {
-  try {
-    // Validate contract addresses are configured
-    if (!IDENTITY_REGISTRY || !REPUTATION_SYSTEM) {
-      logger.error('Contract addresses not configured', { 
-        identityRegistry: !!IDENTITY_REGISTRY, 
-        reputationSystem: !!REPUTATION_SYSTEM 
-      }, 'AgentOnboard')
-      return errorResponse('On-chain registration not available - contracts not configured', 500)
-    }
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  // Validate contract addresses are configured
+  if (!IDENTITY_REGISTRY || !REPUTATION_SYSTEM) {
+    logger.error('Contract addresses not configured', {
+      identityRegistry: !!IDENTITY_REGISTRY,
+      reputationSystem: !!REPUTATION_SYSTEM
+    }, 'AgentOnboard')
+    throw new InternalServerError('On-chain registration not available - contracts not configured', {
+      identityRegistry: !!IDENTITY_REGISTRY,
+      reputationSystem: !!REPUTATION_SYSTEM
+    })
+  }
 
-    // Authenticate agent
-    const user = await authenticate(request)
-    if (!user.isAgent || !user.userId) {
-      return errorResponse('Only agents can use this endpoint', 403)
-    }
+  // Authenticate agent
+  const user = await authenticate(request)
+  if (!user.isAgent || !user.userId) {
+    throw new AuthorizationError('Only agents can use this endpoint', 'agent', 'onboard')
+  }
 
-    const agentId = user.userId
+  const agentId = user.userId
 
-    // Parse request body
-    const body: AgentOnboardRequest = await request.json()
-    const { agentName, endpoint } = body
+  // Parse and validate request body
+  const body = await request.json()
+  const { agentName, endpoint } = AgentOnboardSchema.parse(body)
 
     // Check if agent exists in database (use upsert to avoid race conditions)
     // Note: Agents don't have wallet addresses - they're registered via server wallet
@@ -162,10 +164,10 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Create wallet client for server (to pay gas)
-    if (!DEPLOYER_PRIVATE_KEY) {
-      return errorResponse('Server wallet not configured', 500)
-    }
+  // Create wallet client for server (to pay gas)
+  if (!DEPLOYER_PRIVATE_KEY) {
+    throw new InternalServerError('Server wallet not configured')
+  }
 
     const account = privateKeyToAccount(DEPLOYER_PRIVATE_KEY)
     const walletClient = createWalletClient({
@@ -212,9 +214,9 @@ export async function POST(request: NextRequest) {
       confirmations: 1,
     })
 
-    if (receipt.status !== 'success') {
-      return errorResponse('Agent registration transaction failed', 500)
-    }
+  if (receipt.status !== 'success') {
+    throw new InternalServerError('Agent registration transaction failed', { txHash, receipt: receipt.status })
+  }
 
     // Get the token ID from the event logs
     let tokenId: number | null = null
@@ -294,7 +296,7 @@ export async function POST(request: NextRequest) {
       logger.info('Initial reputation already set for agent', { tokenId }, 'AgentOnboard')
     }
 
-    // Update database
+    // Update database with ERC-8004 registration
     await prisma.user.update({
       where: { id: dbUser.id },
       data: {
@@ -306,71 +308,159 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    return successResponse({
-      message: 'Successfully registered agent on-chain',
-      tokenId,
-      agentId,
-      txHash,
-      blockNumber: Number(receipt.blockNumber),
-      gasUsed: Number(receipt.gasUsed),
-    })
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('Agent registration error', { error: errorMessage }, 'AgentOnboard')
-    return errorResponse(
-      error instanceof Error ? error.message : 'Failed to register agent on-chain',
-      500
-    )
-  }
-}
+    // Register with Agent0 SDK and publish to IPFS (if enabled)
+    let agent0MetadataCID: string | null = null
+    if (process.env.AGENT0_ENABLED === 'true') {
+      try {
+        logger.info('Registering agent with Agent0 SDK...', { agentId, tokenId }, 'AgentOnboard')
+
+        // Get agent wallet address (if available) or use server wallet
+        const agentWalletAddress = account.address
+        
+        // Create agent metadata (Agent0 SDK will publish to IPFS)
+        const agentMetadata = {
+          name: name,
+          description: dbUser.bio || `Autonomous AI agent: ${agentId}`,
+          version: '1.0.0',
+          type: 'agent',
+          endpoints: {
+            a2a: endpoint || `wss://babylon.game/ws/a2a`,
+            api: `https://babylon.game/api/agents/${agentId}`,
+          },
+          capabilities: {
+            strategies: ['momentum', 'sentiment', 'volume'], // Default capabilities
+            markets: ['prediction', 'perpetuals'],
+            actions: ['analyze', 'trade', 'coordinate'],
+            version: '1.0.0'
+          } as AgentCapabilities,
+          babylon: {
+            agentId,
+            tokenId,
+            walletAddress: agentWalletAddress,
+            registrationTxHash: txHash
+          }
+        }
+        
+        // Register with Agent0 SDK (handles IPFS publishing internally)
+        try {
+          const agent0Client = new Agent0Client({
+            network: (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia',
+            rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_RPC_URL || '',
+            privateKey: DEPLOYER_PRIVATE_KEY
+          })
+          
+          const agent0Result = await agent0Client.registerAgent({
+            name: name,
+            description: dbUser.bio || `Autonomous AI agent: ${agentId}`,
+            walletAddress: agentWalletAddress,
+            mcpEndpoint: undefined, // Agents don't expose MCP by default
+            a2aEndpoint: endpoint || `wss://babylon.game/ws/a2a`,
+            capabilities: agentMetadata.capabilities
+          })
+          
+          // Extract metadata CID from Agent0 result
+          agent0MetadataCID = agent0Result.metadataCID || null
+          
+          logger.info(`Agent registered with Agent0 SDK`, { 
+            agentId, 
+            tokenId: agent0Result.tokenId,
+            metadataCID: agent0MetadataCID
+          }, 'AgentOnboard')
+          
+          // Update database with Agent0 metadata
+          await prisma.user.update({
+            where: { id: dbUser.id },
+            data: {
+              agent0MetadataCID,
+              agent0LastSync: new Date(),
+              a2aEndpoint: endpoint || `wss://babylon.game/ws/a2a`,
+            },
+          })
+        } catch (agent0Error) {
+          // Log but don't fail - Agent0 SDK might not be installed yet
+          logger.warn(
+            'Agent0 SDK registration failed (SDK may not be installed). Metadata published to IPFS.',
+            { error: agent0Error instanceof Error ? agent0Error.message : String(agent0Error), agentId },
+            'AgentOnboard'
+          )
+          
+          // Still store IPFS CID
+          await prisma.user.update({
+            where: { id: dbUser.id },
+            data: {
+              agent0MetadataCID,
+              a2aEndpoint: endpoint || `wss://babylon.game/ws/a2a`,
+            },
+          })
+        }
+      } catch (error) {
+        // Don't fail registration if Agent0/IPFS fails
+        logger.warn(
+          'Failed to register agent with Agent0/IPFS (non-critical)',
+          { error: error instanceof Error ? error.message : String(error), agentId },
+          'AgentOnboard'
+        )
+      }
+    }
+
+  logger.info('Agent onboarded successfully', {
+    agentId,
+    tokenId,
+    txHash,
+    agent0MetadataCID: agent0MetadataCID || undefined
+  }, 'POST /api/agents/onboard')
+
+  return successResponse({
+    message: 'Successfully registered agent on-chain',
+    tokenId,
+    agentId,
+    txHash,
+    blockNumber: Number(receipt.blockNumber),
+    gasUsed: Number(receipt.gasUsed),
+    agent0MetadataCID: agent0MetadataCID || undefined,
+  })
+});
 
 /**
  * GET /api/agents/onboard
  * Check agent registration status
  */
-export async function GET(request: NextRequest) {
-  try {
-    const user = await authenticate(request)
-    if (!user.isAgent || !user.userId) {
-      return errorResponse('Only agents can use this endpoint', 403)
-    }
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  const user = await authenticate(request)
+  if (!user.isAgent || !user.userId) {
+    throw new AuthorizationError('Only agents can use this endpoint', 'agent', 'check-status')
+  }
 
-    const agentId = user.userId
+  const agentId = user.userId
 
-    // Check database
-    const dbUser = await prisma.user.findFirst({
-      where: { username: agentId },
-      select: {
-        onChainRegistered: true,
-        nftTokenId: true,
-        registrationTxHash: true,
-      },
-    })
+  // Check database
+  const dbUser = await prisma.user.findFirst({
+    where: { username: agentId },
+    select: {
+      onChainRegistered: true,
+      nftTokenId: true,
+      registrationTxHash: true,
+    },
+  })
 
-    if (!dbUser) {
-      return successResponse({
-        isRegistered: false,
-        agentId,
-      })
-    }
-
-    // Check registration status based on database tracking
-    const isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null
-
+  if (!dbUser) {
+    logger.info('Agent not registered', { agentId }, 'GET /api/agents/onboard')
     return successResponse({
-      isRegistered,
-      tokenId: dbUser.nftTokenId,
-      txHash: dbUser.registrationTxHash,
+      isRegistered: false,
       agentId,
     })
-
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('Agent status check error', { error: errorMessage }, 'AgentOnboard')
-    return errorResponse(
-      error instanceof Error ? error.message : 'Failed to check agent registration status',
-      500
-    )
   }
-}
+
+  // Check registration status based on database tracking
+  const isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null
+
+  logger.info('Agent registration status checked', { agentId, isRegistered }, 'GET /api/agents/onboard')
+
+  return successResponse({
+    isRegistered,
+    tokenId: dbUser.nftTokenId,
+    txHash: dbUser.registrationTxHash,
+    agentId,
+  })
+});
 

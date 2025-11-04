@@ -1,3 +1,12 @@
+---
+id: price-impact
+version: 1.0
+category: game
+description: Analyzes how game events affect company stock prices
+temperature: 0.3
+max_tokens: 200
+---
+
 # Stock Price Impact Analysis
 
 You are analyzing how a game event affects a company's stock price.

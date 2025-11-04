@@ -5,32 +5,34 @@
 
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/database-service';
-import {
-  optionalAuth,
-  successResponse,
-  errorResponse,
-} from '@/lib/api/auth-middleware';
+import { optionalAuth } from '@/lib/api/auth-middleware';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { BusinessLogicError } from '@/lib/errors';
+import { UserIdParamSchema, UserPostsQuerySchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 
 /**
  * GET /api/users/[userId]/posts
  * Get user's posts and comments/replies
  */
-export async function GET(
+export const GET = withErrorHandling(async (
   request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
-) {
-  try {
-    const { userId } = await params;
-    const { searchParams } = new URL(request.url);
-    const type = searchParams.get('type') || 'posts'; // 'posts' or 'replies'
+  context?: { params: Promise<{ userId: string }> }
+) => {
+  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const { userId } = UserIdParamSchema.parse(params);
+  
+  // Validate query parameters
+  const { searchParams } = new URL(request.url);
+  const queryParams = {
+    type: searchParams.get('type') || 'posts',
+    page: searchParams.get('page'),
+    limit: searchParams.get('limit')
+  };
+  const { type } = UserPostsQuerySchema.parse(queryParams);
 
-    if (!userId) {
-      return errorResponse('User ID is required', 400);
-    }
-
-    // Optional authentication
-    const user = await optionalAuth(request);
+  // Optional authentication
+  const user = await optionalAuth(request);
 
     if (type === 'replies') {
       // Get user's comments (replies)
@@ -151,6 +153,8 @@ export async function GET(
           },
         };
       });
+
+      logger.info('User replies fetched successfully', { userId, total: replies.length }, 'GET /api/users/[userId]/posts');
 
       return successResponse({
         type: 'replies',
@@ -330,15 +334,13 @@ export async function GET(
         (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
 
+      logger.info('User posts fetched successfully', { userId, total: allItems.length }, 'GET /api/users/[userId]/posts');
+
       return successResponse({
         type: 'posts',
         items: allItems,
         total: allItems.length,
       });
     }
-  } catch (error) {
-    logger.error('Error fetching user posts/comments:', error, 'GET /api/users/[userId]/posts');
-    return errorResponse('Failed to fetch posts/comments');
-  }
-}
+});
 

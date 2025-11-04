@@ -4,79 +4,46 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { PrismaClient, Prisma } from '@prisma/client';
-import {
-  authenticate,
-  authErrorResponse,
-  successResponse,
-  errorResponse,
-} from '@/lib/api/auth-middleware';
+import { Prisma } from '@prisma/client';
+import { prisma } from '@/lib/database-service';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { authenticate } from '@/lib/api/auth-middleware';
+import { PredictionMarketTradeSchema } from '@/lib/validation/schemas/trade';
+import { NotFoundError, BusinessLogicError, InsufficientFundsError } from '@/lib/errors';
 import { WalletService } from '@/lib/services/wallet-service';
 import { PredictionPricing } from '@/lib/prediction-pricing';
 import { logger } from '@/lib/logger';
-
-const prisma = new PrismaClient();
 
 /**
  * POST /api/markets/predictions/[id]/buy
  * Buy YES or NO shares in a prediction market
  */
-export async function POST(
+export const POST = withErrorHandling(async (
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id: marketId } = await params;
-  
-  let user;
-  try {
-    user = await authenticate(request);
-  } catch (authError) {
-    const authErrorMessage = authError instanceof Error ? authError.message : 'Authentication failed';
-    logger.error('Authentication error in buy prediction:', { message: authErrorMessage, marketId }, 'POST /api/markets/predictions/[id]/buy');
-    return authErrorResponse('Unauthorized');
-  }
+  context?: { params: Promise<{ id: string }> }
+) => {
+  const { id: marketId } = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
 
-  try {
+  // Authentication - errors propagate to withErrorHandling
+  const user = await authenticate(request);
 
-    if (!marketId) {
-      logger.error('Missing market ID in request', { params: await params }, 'POST /api/markets/predictions/[id]/buy');
-      return errorResponse('Market ID is required', 400);
-    }
+  logger.info('Buy request START', {
+    marketId,
+    userId: user.userId,
+    marketIdType: typeof marketId,
+    isNumber: !isNaN(Number(marketId))
+  }, 'POST /api/markets/predictions/[id]/buy');
 
-    logger.info('Buy request START', { 
-      marketId, 
-      userId: user.userId,
-      marketIdType: typeof marketId,
-      isNumber: !isNaN(Number(marketId))
-    }, 'POST /api/markets/predictions/[id]/buy');
+  // Parse and validate request body with schema
+  const body = await request.json();
+  const { side, amount } = PredictionMarketTradeSchema.parse(body);
 
-    // 2. Parse request body
-    const body = await request.json();
-    const { side, amount } = body; // side: 'yes' | 'no', amount: USD
-    
-    logger.info('Buy request params', { 
-      marketId, 
-      side, 
-      amount,
-      userId: user.userId 
-    }, 'POST /api/markets/predictions/[id]/buy');
-
-    // 3. Validate inputs
-    if (!side || !amount) {
-      return errorResponse('Missing required fields: side, amount', 400);
-    }
-
-    if (side !== 'yes' && side !== 'no') {
-      return errorResponse('Invalid side. Must be "yes" or "no"', 400);
-    }
-
-    if (amount <= 0) {
-      return errorResponse('Amount must be positive', 400);
-    }
-
-    if (amount < 1) {
-      return errorResponse('Minimum order size is $1', 400);
-    }
+  logger.info('Buy request params', {
+    marketId,
+    side,
+    amount,
+    userId: user.userId
+  }, 'POST /api/markets/predictions/[id]/buy');
 
     // 4. Get or create market from question
     logger.info('Step 4: Looking up market/question', { marketId }, 'POST /api/markets/predictions/[id]/buy');
@@ -132,17 +99,17 @@ export async function POST(
 
       if (!question) {
         logger.error('Neither market nor question found', { marketId }, 'POST /api/markets/predictions/[id]/buy');
-        return errorResponse('Market or question not found', 404);
+        throw new NotFoundError('Market or Question', marketId);
       }
 
       // Check if question is active
       if (question.status !== 'active') {
-        return errorResponse(`Question is ${question.status}, cannot trade`, 400);
+        throw new BusinessLogicError(`Question is ${question.status}, cannot trade`, 'QUESTION_INACTIVE', { status: question.status, marketId });
       }
 
       // Check if question has expired
       if (new Date(question.resolutionDate) < new Date()) {
-        return errorResponse('Question has expired', 400);
+        throw new BusinessLogicError('Question has expired', 'QUESTION_EXPIRED', { marketId, resolutionDate: question.resolutionDate });
       }
 
       logger.info('Step 4f: Creating market from question', { 
@@ -184,25 +151,22 @@ export async function POST(
     
     logger.info('Step 5: Market ready', { marketId: market.id }, 'POST /api/markets/predictions/[id]/buy');
 
-    // 5. Check if market is still active
-    if (market.resolved) {
-      return errorResponse('Market has already resolved', 400);
-    }
+  // 5. Check if market is still active
+  if (market.resolved) {
+    throw new BusinessLogicError('Market has already resolved', 'MARKET_RESOLVED', { marketId });
+  }
 
-    if (new Date() > market.endDate) {
-      return errorResponse('Market has expired', 400);
-    }
+  if (new Date() > market.endDate) {
+    throw new BusinessLogicError('Market has expired', 'MARKET_EXPIRED', { marketId, endDate: market.endDate });
+  }
 
-    // 6. Check balance
-    const hasFunds = await WalletService.hasSufficientBalance(user.userId, amount);
+  // 6. Check balance
+  const hasFunds = await WalletService.hasSufficientBalance(user.userId, amount);
 
-    if (!hasFunds) {
-      const balance = await WalletService.getBalance(user.userId);
-      return errorResponse(
-        `Insufficient balance. Need $${amount.toFixed(2)}, have $${balance.balance.toFixed(2)}`,
-        400
-      );
-    }
+  if (!hasFunds) {
+    const balance = await WalletService.getBalance(user.userId);
+    throw new InsufficientFundsError(amount, Number(balance.balance), 'USD');
+  }
 
     // 7. Calculate shares using AMM
     const calculation = PredictionPricing.calculateBuy(
@@ -276,51 +240,26 @@ export async function POST(
       // Could also store in agent_activity table if we create one
     }
 
-    const newBalance = await WalletService.getBalance(user.userId);
+  const newBalance = await WalletService.getBalance(user.userId);
 
-    return successResponse(
-      {
-        position: {
-          id: position.id,
-          marketId: position.marketId,
-          side: side,
-          shares: Number(position.shares),
-          avgPrice: Number(position.avgPrice),
-          totalCost: amount,
-        },
-        market: {
-          yesPrice: calculation.newYesPrice,
-          noPrice: calculation.newNoPrice,
-          priceImpact: calculation.priceImpact,
-        },
-        newBalance: newBalance.balance,
+  return successResponse(
+    {
+      position: {
+        id: position.id,
+        marketId: position.marketId,
+        side: side,
+        shares: Number(position.shares),
+        avgPrice: Number(position.avgPrice),
+        totalCost: amount,
       },
-      201
-    );
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('Insufficient balance')) {
-      return errorResponse(error.message, 400);
-    }
-    
-    // Better error logging - extract error details properly
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    const errorDetails = {
-      message: errorMessage,
-      stack: errorStack,
-      marketId,
-      error: error instanceof Error ? {
-        name: error.name,
-        message: error.message,
-      } : error,
-    };
-    logger.error('Error buying shares:', errorDetails, 'POST /api/markets/predictions/[id]/buy');
-    
-    // Return more detailed error for debugging
-    return errorResponse(
-      `Failed to buy shares: ${errorMessage}`,
-      500
-    );
-  }
-}
+      market: {
+        yesPrice: calculation.newYesPrice,
+        noPrice: calculation.newNoPrice,
+        priceImpact: calculation.priceImpact,
+      },
+      newBalance: newBalance.balance,
+    },
+    201
+  );
+});
 

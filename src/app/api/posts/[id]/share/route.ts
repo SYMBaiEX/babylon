@@ -4,36 +4,33 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import {
-  authenticate,
-  authErrorResponse,
-  successResponse,
-  errorResponse,
-} from '@/lib/api/auth-middleware';
+import { prisma } from '@/lib/database-service';
+import { authenticate } from '@/lib/api/auth-middleware';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { BusinessLogicError, NotFoundError } from '@/lib/errors';
+import { IdParamSchema, SharePostSchema } from '@/lib/validation/schemas';
 import { notifyShare } from '@/lib/services/notification-service';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
-
-const prisma = new PrismaClient();
 
 /**
  * POST /api/posts/[id]/share
  * Share/repost a post to user's feed
  */
-export async function POST(
+export const POST = withErrorHandling(async (
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    // Authenticate user
-    const user = await authenticate(request);
-    const { id: postId } = await params;
-
-    // Validate post ID
-    if (!postId) {
-      return errorResponse('Post ID is required', 400);
-    }
+  context?: { params: Promise<{ id: string }> }
+) => {
+  // Authenticate user
+  const user = await authenticate(request);
+  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const { id: postId } = IdParamSchema.parse(params);
+  
+  // Parse and validate request body (optional comment)
+  const body = await request.json().catch(() => ({}));
+  if (Object.keys(body).length > 0) {
+    SharePostSchema.parse(body);
+  }
 
     // Ensure user exists in database (upsert pattern)
     await prisma.user.upsert({
@@ -58,10 +55,10 @@ export async function POST(
     if (!post) {
       // Parse post ID to extract metadata
       const parseResult = parsePostId(postId);
-      
+
       // Require valid format for shares (unlike likes, which can use defaults)
       if (!parseResult.success) {
-        return errorResponse('Invalid post ID format', 400);
+        throw new BusinessLogicError('Invalid post ID format', 'INVALID_POST_ID_FORMAT');
       }
 
       const { gameId, authorId, timestamp } = parseResult.metadata;
@@ -91,7 +88,7 @@ export async function POST(
     });
 
     if (existingShare) {
-      return errorResponse('Post already shared', 400);
+      throw new BusinessLogicError('Post already shared', 'ALREADY_SHARED');
     }
 
     // Create share record
@@ -166,41 +163,31 @@ export async function POST(
       },
     });
 
-    return successResponse(
-      {
-        data: {
-          shareCount,
-          isShared: true,
-        },
+  logger.info('Post shared successfully', { postId, userId: user.userId, shareCount }, 'POST /api/posts/[id]/share');
+
+  return successResponse(
+    {
+      data: {
+        shareCount,
+        isShared: true,
       },
-      201
-    );
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Authentication failed') {
-      return authErrorResponse('Unauthorized');
-    }
-    logger.error('Error sharing post:', error, 'POST /api/posts/[id]/share');
-    return errorResponse('Failed to share post');
-  }
-}
+    },
+    201
+  );
+});
 
 /**
  * DELETE /api/posts/[id]/share
  * Unshare/remove repost
  */
-export async function DELETE(
+export const DELETE = withErrorHandling(async (
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    // Authenticate user
-    const user = await authenticate(request);
-    const { id: postId } = await params;
-
-    // Validate post ID
-    if (!postId) {
-      return errorResponse('Post ID is required', 400);
-    }
+  context?: { params: Promise<{ id: string }> }
+) => {
+  // Authenticate user
+  const user = await authenticate(request);
+  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const { id: postId } = IdParamSchema.parse(params);
 
     // Ensure user exists in database (upsert pattern)
     await prisma.user.upsert({
@@ -227,7 +214,7 @@ export async function DELETE(
     });
 
     if (!share) {
-      return errorResponse('Share not found', 404);
+      throw new NotFoundError('Share', `${postId}-${user.userId}`);
     }
 
     // Delete repost post if it exists
@@ -268,17 +255,12 @@ export async function DELETE(
       },
     });
 
-    return successResponse({
-      data: {
-        shareCount,
-        isShared: false,
-      },
-    });
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Authentication failed') {
-      return authErrorResponse('Unauthorized');
-    }
-    logger.error('Error unsharing post:', error, 'DELETE /api/posts/[id]/share');
-    return errorResponse('Failed to unshare post');
-  }
-}
+  logger.info('Post unshared successfully', { postId, userId: user.userId, shareCount }, 'DELETE /api/posts/[id]/share');
+
+  return successResponse({
+    data: {
+      shareCount,
+      isShared: false,
+    },
+  });
+});

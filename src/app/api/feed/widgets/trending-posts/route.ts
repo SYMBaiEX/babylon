@@ -4,11 +4,10 @@
  */
 
 import type { NextRequest } from 'next/server'
-import { PrismaClient } from '@prisma/client'
-import { successResponse, errorResponse } from '@/lib/api/auth-middleware'
+import { prisma } from '@/lib/database-service'
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
+import { TrendingPostsQuerySchema } from '@/lib/validation/schemas'
 import { logger } from '@/lib/logger'
-
-const prisma = new PrismaClient()
 
 interface TrendingPost {
   id: string
@@ -47,10 +46,17 @@ function calculateTrendingScore(
   return engagementScore * recencyFactor
 }
 
-export async function GET(_request: NextRequest) {
-  try {
-    // Get recent posts from last 24 hours
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  // Validate query parameters
+  const { searchParams } = new URL(request.url)
+  const queryParams = {
+    limit: searchParams.get('limit') || '10',
+    timeframe: searchParams.get('timeframe') || '24h',
+    minInteractions: searchParams.get('minInteractions') || '5'
+  }
+  TrendingPostsQuerySchema.parse(queryParams)
+  // Get recent posts from last 24 hours
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
     const posts = await prisma.post.findMany({
       where: {
@@ -136,13 +142,11 @@ export async function GET(_request: NextRequest) {
       .sort((a, b) => b.trendingScore - a.trendingScore) // Sort by trending score descending
       .slice(0, 5) // Top 5 trending posts
 
-    return successResponse({
-      posts: trendingPosts,
-    })
-  } catch (error) {
-    logger.error('Error fetching trending posts:', error, 'GET /api/feed/widgets/trending-posts')
-    return errorResponse('Failed to fetch trending posts')
-  }
-}
+  logger.info('Trending posts fetched successfully', { count: trendingPosts.length }, 'GET /api/feed/widgets/trending-posts')
+
+  return successResponse({
+    posts: trendingPosts,
+  })
+});
 
 

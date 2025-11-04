@@ -8,13 +8,13 @@
 import { gameService } from '@/lib/game-service';
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
-import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-middleware';
-import { PrismaClient } from '@prisma/client';
+import { authenticate } from '@/lib/api/auth-middleware';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { CreatePostSchema, PostFeedQuerySchema } from '@/lib/validation/schemas';
+import { prisma } from '@/lib/database-service';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '@/lib/logger';
 import { broadcastToChannel } from '@/app/api/ws/chat/route';
-
-const prisma = new PrismaClient();
 
 /**
  * Safely convert a date value to ISO string
@@ -42,17 +42,28 @@ function toISOStringSafe(date: Date | string | null | undefined): string {
   return new Date().toISOString();
 }
 
-export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '100');
-    const offset = parseInt(searchParams.get('offset') || '0');
-    const actorId = searchParams.get('actorId') || undefined;
-    const following = searchParams.get('following') === 'true';
-    const userId = searchParams.get('userId') || undefined; // For following feed, need userId
+export const GET = withErrorHandling(async (request: Request) => {
+  const { searchParams } = new URL(request.url);
+  
+  // Validate query parameters
+  const queryParams = {
+    page: searchParams.get('page'),
+    limit: searchParams.get('limit'),
+    userId: searchParams.get('userId') || undefined,
+    onlyFollowing: searchParams.get('following') || 'false',
+    sortBy: searchParams.get('sortBy'),
+    sortOrder: searchParams.get('sortOrder')
+  };
+  const validated = PostFeedQuerySchema.partial().parse(queryParams);
+  
+  const limit = validated.limit || 100;
+  const offset = ((validated.page || 1) - 1) * limit;
+  const actorId = searchParams.get('actorId') || undefined;
+  const following = validated.onlyFollowing || false;
+  const userId = validated.userId;
 
-    // If following feed is requested, filter by followed users/actors
-    if (following && userId) {
+  // If following feed is requested, filter by followed users/actors
+  if (following && userId) {
       // Get list of followed users
       const userFollows = await prisma.follow.findMany({
         where: {
@@ -291,50 +302,20 @@ export async function GET(request: Request) {
     // Real-time feeds should not be cached (no-store)
     // This ensures WebSocket updates reflect immediately
     response.headers.set('Cache-Control', 'no-store, must-revalidate');
-    
+
     return response;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    
-    logger.error('API Error in GET /api/posts', {
-      error: errorMessage,
-      stack: errorStack,
-      errorType: error?.constructor?.name,
-      errorString: String(error),
-    }, 'GET /api/posts');
-    
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to load posts',
-        message: process.env.NODE_ENV === 'development' ? errorMessage : undefined
-      },
-      { status: 500 }
-    );
-  }
-}
+});
 
 /**
  * POST /api/posts - Create a new post
  */
-export async function POST(request: NextRequest) {
-  try {
-    // Authenticate user
-    const authUser = await authenticate(request);
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  // Authenticate user
+  const authUser = await authenticate(request);
 
-    // Parse request body
-    const body = await request.json();
-    const { content } = body;
-
-    // Validate input
-    if (!content || typeof content !== 'string' || content.trim().length === 0) {
-      return errorResponse('Post content is required', 400);
-    }
-
-    if (content.length > 280) {
-      return errorResponse('Post content must be 280 characters or less', 400);
-    }
+  // Parse and validate request body
+  const body = await request.json();
+  const { content, marketId, side, sentiment, shareCount, imageUrl, repostOfId } = CreatePostSchema.parse(body);
 
     // Ensure user exists in database and fetch with username/displayName
     let dbUser = await prisma.user.findUnique({
@@ -402,27 +383,29 @@ export async function POST(request: NextRequest) {
       // Don't fail the request if SSE broadcast fails
     }
 
-    return successResponse({
-      success: true,
-      post: {
-        id: post.id,
-        content: post.content,
-        authorId: post.authorId,
-        authorName: authorName,
-        authorUsername: dbUser.username,
-        authorDisplayName: dbUser.displayName,
-        authorProfileImageUrl: dbUser.profileImageUrl,
-        timestamp: post.timestamp.toISOString(),
-        createdAt: post.createdAt.toISOString(),
-      },
-    });
-  } catch (error) {
-    logger.error('Error creating post:', error, 'POST /api/posts');
-    
-    if (error instanceof Error && error.message === 'Authentication failed') {
-      return errorResponse('Authentication required', 401);
-    }
-    
-    return errorResponse('Failed to create post', 500);
-  }
-}
+  logger.info('Post created successfully', {
+    postId: post.id,
+    authorId: authUser.userId,
+    marketId, // Optional: for analytics/tracking
+    side, // Optional: for analytics/tracking
+    sentiment, // Optional: for analytics/tracking
+    shareCount, // Optional: for analytics/tracking
+    imageUrl, // Optional: for analytics/tracking
+    repostOfId // Optional: for analytics/tracking
+  }, 'POST /api/posts');
+
+  return successResponse({
+    success: true,
+    post: {
+      id: post.id,
+      content: post.content,
+      authorId: post.authorId,
+      authorName: authorName,
+      authorUsername: dbUser.username,
+      authorDisplayName: dbUser.displayName,
+      authorProfileImageUrl: dbUser.profileImageUrl,
+      timestamp: post.timestamp.toISOString(),
+      createdAt: post.createdAt.toISOString(),
+    },
+  });
+});

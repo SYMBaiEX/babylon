@@ -4,79 +4,75 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import {
-  authenticate,
-  successResponse,
-  errorResponse,
-} from '@/lib/api/auth-middleware';
+import { prisma } from '@/lib/database-service';
+import { authenticate } from '@/lib/api/auth-middleware';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { BusinessLogicError, AuthorizationError } from '@/lib/errors';
+import { UserIdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
-
-const prisma = new PrismaClient();
 
 /**
  * GET /api/users/[userId]/is-new
  * Check if user needs profile setup
  */
-export async function GET(
+export const GET = withErrorHandling(async (
   request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
-) {
-  try {
-    // Optional authentication - if not authenticated, return needsSetup: false
-    const authUser = await authenticate(request).catch(() => null);
-    const { userId } = await params;
+  context?: { params: Promise<{ userId: string }> }
+) => {
+  // Optional authentication - if not authenticated, return needsSetup: false
+  const authUser = await authenticate(request).catch(() => null);
+  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const { userId } = UserIdParamSchema.parse(params);
 
-    if (!authUser) {
-      return successResponse({ needsSetup: false });
-    }
-
-    // Ensure requesting user matches the userId in the URL
-    if (authUser.userId !== userId) {
-      return errorResponse('Unauthorized', 403);
-    }
-
-    // Check if user exists and needs setup
-    const dbUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        username: true,
-        displayName: true,
-        bio: true,
-        profileImageUrl: true,
-        profileComplete: true,
-        hasUsername: true,
-        hasBio: true,
-        hasProfileImage: true,
-      },
-    });
-
-    if (!dbUser) {
-      // User doesn't exist yet - needs setup
-      return successResponse({ needsSetup: true });
-    }
-
-    // Check if profile is complete
-    // User needs setup if they don't have username, displayName, or bio
-    const needsSetup = !dbUser.profileComplete && (
-      !dbUser.username ||
-      !dbUser.displayName ||
-      !dbUser.hasUsername ||
-      !dbUser.hasBio
-    );
-
-    return successResponse({
-      needsSetup,
-      profileComplete: dbUser.profileComplete || false,
-      hasUsername: dbUser.hasUsername || false,
-      hasBio: dbUser.hasBio || false,
-      hasProfileImage: dbUser.hasProfileImage || false,
-    });
-  } catch (error) {
-    logger.error('Error checking new user status:', error, 'GET /api/users/[userId]/is-new');
-    // Return needsSetup: false on error to prevent blocking user
+  if (!authUser) {
+    logger.info('Unauthenticated user checking is-new status', {}, 'GET /api/users/[userId]/is-new');
     return successResponse({ needsSetup: false });
   }
-}
+
+  // Ensure requesting user matches the userId in the URL
+  if (authUser.userId !== userId) {
+    throw new AuthorizationError('You can only check your own setup status', 'user-setup', 'read');
+  }
+
+  // Check if user exists and needs setup
+  const dbUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      username: true,
+      displayName: true,
+      bio: true,
+      profileImageUrl: true,
+      profileComplete: true,
+      hasUsername: true,
+      hasBio: true,
+      hasProfileImage: true,
+    },
+  });
+
+  if (!dbUser) {
+    // User doesn't exist yet - needs setup
+    logger.info('User not found, needs setup', { userId }, 'GET /api/users/[userId]/is-new');
+    return successResponse({ needsSetup: true });
+  }
+
+  // Check if profile is complete
+  // User needs setup if they don't have username, displayName, or bio
+  const needsSetup = !dbUser.profileComplete && (
+    !dbUser.username ||
+    !dbUser.displayName ||
+    !dbUser.hasUsername ||
+    !dbUser.hasBio
+  );
+
+  logger.info('User setup status checked', { userId, needsSetup }, 'GET /api/users/[userId]/is-new');
+
+  return successResponse({
+    needsSetup,
+    profileComplete: dbUser.profileComplete || false,
+    hasUsername: dbUser.hasUsername || false,
+    hasBio: dbUser.hasBio || false,
+    hasProfileImage: dbUser.hasProfileImage || false,
+  });
+});
 
