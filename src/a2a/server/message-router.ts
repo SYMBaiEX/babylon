@@ -417,8 +417,10 @@ export class MessageRouter {
       const noShares = Number(market.noShares)
       const liquidity = Number(market.liquidity)
       
-      const yesPrice = yesShares / (yesShares + noShares)
-      const noPrice = noShares / (yesShares + noShares)
+      // Guard against division by zero for new markets with no shares
+      const totalShares = yesShares + noShares
+      const yesPrice = totalShares === 0 ? 0.5 : yesShares / totalShares
+      const noPrice = totalShares === 0 ? 0.5 : noShares / totalShares
       
       const marketData: MarketData = {
         marketId: market.id,
@@ -485,8 +487,10 @@ export class MessageRouter {
       const yesShares = Number(market.yesShares)
       const noShares = Number(market.noShares)
       
-      const yesPrice = yesShares / (yesShares + noShares)
-      const noPrice = noShares / (yesShares + noShares)
+      // Guard against division by zero for new markets with no shares
+      const totalShares = yesShares + noShares
+      const yesPrice = totalShares === 0 ? 0.5 : yesShares / totalShares
+      const noPrice = totalShares === 0 ? 0.5 : noShares / totalShares
       
       return {
         jsonrpc: '2.0',

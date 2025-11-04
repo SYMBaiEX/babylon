@@ -211,9 +211,14 @@ export class TradeRepository extends BaseRepository<Position, Prisma.PositionCre
     // Calculate current value using AMM formula
     const yesShares = Number(market.yesShares)
     const noShares = Number(market.noShares)
-    const currentPrice = position.side 
-      ? yesShares / (yesShares + noShares)
-      : noShares / (yesShares + noShares)
+    const totalShares = yesShares + noShares
+    
+    // Guard against division by zero for new markets
+    const currentPrice = totalShares === 0 
+      ? 0.5 
+      : position.side 
+        ? yesShares / totalShares
+        : noShares / totalShares
     
     return Number(position.shares) * currentPrice
   }

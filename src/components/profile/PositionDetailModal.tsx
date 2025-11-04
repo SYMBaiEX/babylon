@@ -524,17 +524,23 @@ export function PositionDetailModal({ isOpen, onClose, type, data, userId, onSuc
                     <div className="p-3 bg-green-600/15 rounded">
                       <div className="text-xs text-green-600 mb-1">YES</div>
                       <div className="text-2xl font-bold text-green-600">
-                        {predictionMarket.yesShares && predictionMarket.noShares
-                          ? ((predictionMarket.yesShares / (predictionMarket.yesShares + predictionMarket.noShares)) * 100).toFixed(1)
-                          : '50.0'}%
+                        {(() => {
+                          const totalShares = (predictionMarket.yesShares || 0) + (predictionMarket.noShares || 0)
+                          return totalShares === 0 
+                            ? '50.0' 
+                            : ((predictionMarket.yesShares / totalShares) * 100).toFixed(1)
+                        })()}%
                       </div>
                     </div>
                     <div className="p-3 bg-red-600/15 rounded">
                       <div className="text-xs text-red-600 mb-1">NO</div>
                       <div className="text-2xl font-bold text-red-600">
-                        {predictionMarket.yesShares && predictionMarket.noShares
-                          ? ((predictionMarket.noShares / (predictionMarket.yesShares + predictionMarket.noShares)) * 100).toFixed(1)
-                          : '50.0'}%
+                        {(() => {
+                          const totalShares = (predictionMarket.yesShares || 0) + (predictionMarket.noShares || 0)
+                          return totalShares === 0 
+                            ? '50.0' 
+                            : ((predictionMarket.noShares / totalShares) * 100).toFixed(1)
+                        })()}%
                       </div>
                     </div>
                   </div>
