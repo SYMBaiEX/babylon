@@ -1,183 +1,180 @@
-import type { NextRequest} from 'next/server';
-import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { Prisma } from '@prisma/client';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/database-service';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { NotFoundError, BusinessLogicError, InsufficientFundsError } from '@/lib/errors';
+import { PoolDepositBodySchema } from '@/lib/validation/schemas/pool';
 import { logger } from '@/lib/logger';
 
 /**
  * POST /api/pools/[id]/deposit
  * Deposit funds into a pool
  */
-export async function POST(
+export const POST = withErrorHandling(async (
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id: poolId } = await params;
-    const body = await request.json();
-    const { userId, amount } = body;
+  context?: { params: Promise<{ id: string }> }
+) => {
+  const { id: poolId } = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
 
-    if (!userId || !amount || amount <= 0) {
-      return NextResponse.json(
-        { error: 'Invalid request. userId and positive amount required.' },
-        { status: 400 }
-      );
+  // Parse and validate request body
+  const body = await request.json();
+  const { userId, amount } = PoolDepositBodySchema.parse(body);
+
+  // Use transaction to ensure atomicity
+  const result = await prisma.$transaction(async (tx) => {
+    // 1. Get pool
+    const pool = await tx.pool.findUnique({
+      where: { id: poolId },
+      include: {
+        deposits: {
+          where: { withdrawnAt: null },
+        },
+      },
+    });
+
+    if (!pool) {
+      throw new NotFoundError('Pool', poolId);
     }
 
-    // Use transaction to ensure atomicity
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Get pool
-      const pool = await tx.pool.findUnique({
-        where: { id: poolId },
-        include: {
-          deposits: {
-            where: { withdrawnAt: null },
-          },
-        },
-      });
+    if (!pool.isActive) {
+      throw new BusinessLogicError('Pool is not active', 'POOL_INACTIVE', { poolId });
+    }
 
-      if (!pool) {
-        throw new Error('Pool not found');
-      }
+    // 2. Check user balance
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+    });
 
-      if (!pool.isActive) {
-        throw new Error('Pool is not active');
-      }
+    if (!user) {
+      throw new NotFoundError('User', userId);
+    }
 
-      // 2. Check user balance
-      const user = await tx.user.findUnique({
-        where: { id: userId },
-      });
+    const userBalance = parseFloat(user.virtualBalance.toString());
+    if (userBalance < amount) {
+      throw new InsufficientFundsError(amount, userBalance, 'USD');
+    }
 
-      if (!user) {
-        throw new Error('User not found');
-      }
+    // 3. Calculate shares
+    // shares = (amount / totalValue) * totalShares
+    // If first deposit, shares = amount
+    const currentTotalValue = parseFloat(pool.totalValue.toString());
+    const currentTotalDeposits = parseFloat(pool.totalDeposits.toString());
 
-      const userBalance = parseFloat(user.virtualBalance.toString());
-      if (userBalance < amount) {
-        throw new Error('Insufficient balance');
-      }
+    let shares: number;
+    if (currentTotalValue === 0 || pool.deposits.length === 0) {
+      // First deposit
+      shares = amount;
+    } else {
+      // Calculate proportional shares based on current pool value
+      const totalShares = pool.deposits.reduce(
+        (sum, d) => sum + parseFloat(d.shares.toString()),
+        0
+      );
+      shares = (amount / currentTotalValue) * totalShares;
+    }
 
-      // 3. Calculate shares
-      // shares = (amount / totalValue) * totalShares
-      // If first deposit, shares = amount
-      const currentTotalValue = parseFloat(pool.totalValue.toString());
-      const currentTotalDeposits = parseFloat(pool.totalDeposits.toString());
-      
-      let shares: number;
-      if (currentTotalValue === 0 || pool.deposits.length === 0) {
-        // First deposit
-        shares = amount;
-      } else {
-        // Calculate proportional shares based on current pool value
-        const totalShares = pool.deposits.reduce(
-          (sum, d) => sum + parseFloat(d.shares.toString()),
-          0
-        );
-        shares = (amount / currentTotalValue) * totalShares;
-      }
+    // 4. Create deposit record
+    const deposit = await tx.poolDeposit.create({
+      data: {
+        poolId,
+        userId,
+        amount: new Prisma.Decimal(amount),
+        shares: new Prisma.Decimal(shares),
+        currentValue: new Prisma.Decimal(amount), // Initially equal to deposit
+        unrealizedPnL: new Prisma.Decimal(0),
+      },
+    });
 
-      // 4. Create deposit record
-      const deposit = await tx.poolDeposit.create({
-        data: {
-          poolId,
-          userId,
-          amount: new Prisma.Decimal(amount),
-          shares: new Prisma.Decimal(shares),
-          currentValue: new Prisma.Decimal(amount), // Initially equal to deposit
-          unrealizedPnL: new Prisma.Decimal(0),
-        },
-      });
+    // 5. Update pool totals
+    const newTotalValue = currentTotalValue + amount;
+    const newTotalDeposits = currentTotalDeposits + amount;
+    const newAvailableBalance = parseFloat(pool.availableBalance.toString()) + amount;
 
-      // 5. Update pool totals
-      const newTotalValue = currentTotalValue + amount;
-      const newTotalDeposits = currentTotalDeposits + amount;
-      const newAvailableBalance = parseFloat(pool.availableBalance.toString()) + amount;
+    await tx.pool.update({
+      where: { id: poolId },
+      data: {
+        totalValue: new Prisma.Decimal(newTotalValue),
+        totalDeposits: new Prisma.Decimal(newTotalDeposits),
+        availableBalance: new Prisma.Decimal(newAvailableBalance),
+      },
+    });
 
-      await tx.pool.update({
-        where: { id: poolId },
-        data: {
-          totalValue: new Prisma.Decimal(newTotalValue),
-          totalDeposits: new Prisma.Decimal(newTotalDeposits),
-          availableBalance: new Prisma.Decimal(newAvailableBalance),
-        },
-      });
+    // 6. Deduct from user balance
+    const newUserBalance = userBalance - amount;
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        virtualBalance: new Prisma.Decimal(newUserBalance),
+      },
+    });
 
-      // 6. Deduct from user balance
-      const newUserBalance = userBalance - amount;
+    // 7. Create balance transaction
+    await tx.balanceTransaction.create({
+      data: {
+        userId,
+        type: 'pool_deposit',
+        amount: new Prisma.Decimal(-amount),
+        balanceBefore: new Prisma.Decimal(userBalance),
+        balanceAfter: new Prisma.Decimal(newUserBalance),
+        relatedId: deposit.id,
+        description: `Deposited into ${pool.name}`,
+      },
+    });
+
+    // 8. Award reputation points for pool participation (+1 point per $100 deposited)
+    const reputationBonus = Math.floor(amount / 100);
+    if (reputationBonus > 0) {
+      const currentReputation = user.reputationPoints;
+      const newReputation = currentReputation + reputationBonus;
+
       await tx.user.update({
         where: { id: userId },
         data: {
-          virtualBalance: new Prisma.Decimal(newUserBalance),
+          reputationPoints: newReputation,
         },
       });
 
-      // 7. Create balance transaction
-      await tx.balanceTransaction.create({
+      await tx.pointsTransaction.create({
         data: {
           userId,
-          type: 'pool_deposit',
-          amount: new Prisma.Decimal(-amount),
-          balanceBefore: new Prisma.Decimal(userBalance),
-          balanceAfter: new Prisma.Decimal(newUserBalance),
-          relatedId: deposit.id,
-          description: `Deposited into ${pool.name}`,
+          amount: reputationBonus,
+          pointsBefore: currentReputation,
+          pointsAfter: newReputation,
+          reason: 'pool_deposit',
+          metadata: JSON.stringify({
+            poolId: pool.id,
+            poolName: pool.name,
+            depositAmount: amount,
+          }),
         },
       });
+    }
 
-      // 8. Award reputation points for pool participation (+1 point per $100 deposited)
-      const reputationBonus = Math.floor(amount / 100);
-      if (reputationBonus > 0) {
-        const currentReputation = user.reputationPoints;
-        const newReputation = currentReputation + reputationBonus;
+    return {
+      deposit: {
+        id: deposit.id,
+        poolId,
+        amount,
+        shares,
+        currentValue: amount,
+        depositedAt: deposit.depositedAt.toISOString(),
+      },
+      newBalance: newUserBalance,
+    };
+  });
 
-        await tx.user.update({
-          where: { id: userId },
-          data: {
-            reputationPoints: newReputation,
-          },
-        });
+  logger.info('Pool deposit successful', {
+    poolId,
+    userId,
+    amount,
+    shares: result.deposit.shares
+  }, 'POST /api/pools/[id]/deposit');
 
-        await tx.pointsTransaction.create({
-          data: {
-            userId,
-            amount: reputationBonus,
-            pointsBefore: currentReputation,
-            pointsAfter: newReputation,
-            reason: 'pool_deposit',
-            metadata: JSON.stringify({
-              poolId: pool.id,
-              poolName: pool.name,
-              depositAmount: amount,
-            }),
-          },
-        });
-      }
-
-      return {
-        deposit: {
-          id: deposit.id,
-          poolId,
-          amount,
-          shares,
-          currentValue: amount,
-          depositedAt: deposit.depositedAt.toISOString(),
-        },
-        newBalance: newUserBalance,
-      };
-    });
-
-    return NextResponse.json({
+  return successResponse(
+    {
       success: true,
       ...result,
-    });
-  } catch (error) {
-    logger.error('Error depositing into pool:', error, 'POST /api/pools/[id]/deposit');
-    const errorMessage = error instanceof Error ? error.message : 'Failed to deposit into pool';
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
-  }
-}
-
+    },
+    201
+  );
+});

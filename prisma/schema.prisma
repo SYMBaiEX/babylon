@@ -796,3 +796,15 @@ model WidgetCache {
 
   @@index([widget, updatedAt(sort: Desc)])
 }
+
+// GameConfig model - stores game-wide configuration including Agent0 registration
+model GameConfig {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     Json
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([key])
+}

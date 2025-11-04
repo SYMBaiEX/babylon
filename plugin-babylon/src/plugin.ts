@@ -79,6 +79,8 @@ import {
 import { BabylonA2AService } from "./a2a-service";
 import { BabylonChatService } from "./services/chat-service";
 import { SocialInteractionService } from "./services/services";
+import { Agent0Service } from "./agent0-service";
+import { BabylonDiscoveryService } from "./discovery-service";
 
 /**
  * Plugin configuration schema
@@ -157,9 +159,13 @@ export class BabylonClientService extends Service {
       string | number | boolean | undefined
     >;
 
+    // Try to get from discovery service first (if agent already discovered)
+    const discoveredApiUrl = runtime.getSetting?.('babylon.apiEndpoint') as string | undefined
+
     this.clientConfig = {
       characterId: runtime.character.name || "agent",
       apiBaseUrl:
+        discoveredApiUrl ||
         (typeof settings.babylonApiUrl === "string"
           ? settings.babylonApiUrl
           : undefined) ||
@@ -201,6 +207,29 @@ export class BabylonClientService extends Service {
     runtime: IAgentRuntime,
   ): Promise<BabylonClientService> {
     logger.info("Starting BabylonClientService");
+    
+    // Auto-discover Babylon API endpoint from Agent0 registry if available
+    if (process.env.AGENT0_ENABLED === 'true' && !runtime.getSetting?.('babylon.apiEndpoint')) {
+      try {
+        const discoveryService = runtime.getService('babylon-discovery') as {
+          discoverAndConnect?: () => Promise<{ endpoints: { api?: string } } | null>
+        } | null
+        if (discoveryService && typeof discoveryService.discoverAndConnect === 'function') {
+          logger.info('Attempting to discover Babylon API endpoint via Agent0 registry...');
+          const babylon = await discoveryService.discoverAndConnect()
+          if (babylon?.endpoints?.api) {
+            runtime.setSetting?.('babylon.apiEndpoint', babylon.endpoints.api)
+            logger.info(`✅ Discovered API endpoint via Agent0: ${babylon.endpoints.api}`);
+          } else {
+            logger.warn('Babylon not found in Agent0 registry, using configured endpoint');
+          }
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        logger.warn(`Discovery failed, falling back to configured endpoint: ${errorMsg}`);
+      }
+    }
+    
     const service = new BabylonClientService(runtime);
     logger.info(
       `BabylonClientService configuration: apiBaseUrl=${service.clientConfig.apiBaseUrl}, characterId=${service.clientConfig.characterId}, hasAuthToken=${!!service.clientConfig.authToken}`,
@@ -667,7 +696,16 @@ export const predictionMarketsPlugin: Plugin = {
       );
     }
   },
-  services: [BabylonClientService, BabylonTradingService, BabylonChatService, SocialInteractionService],
+  services: [
+    // Order matters: Discovery must run first to find Babylon
+    BabylonDiscoveryService,  // 1. Discovers Babylon from Agent0 registry
+    Agent0Service,            // 2. Agent0 integration (can use discovered data)
+    BabylonClientService,     // 3. REST API client (uses discovered API endpoint)
+    BabylonA2AService,        // 4. A2A protocol (uses discovered A2A endpoint)
+    BabylonTradingService,    // 5. Trading automation (depends on all above)
+    BabylonChatService,       // 6. Chat features
+    SocialInteractionService, // 7. Social interactions
+  ],
   actions: [
     buySharesAction,
     sellSharesAction,

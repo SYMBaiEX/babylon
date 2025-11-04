@@ -4,34 +4,28 @@
  */
 
 import type { NextRequest } from 'next/server';
-import {
-  authenticate,
-  authErrorResponse,
-  successResponse,
-  errorResponse,
-} from '@/lib/api/auth-middleware';
+import { prisma } from '@/lib/database-service';
+import { authenticate } from '@/lib/api/auth-middleware';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
-
+import { DMChatCreateSchema } from '@/lib/validation/schemas';
 
 /**
  * POST /api/chats/dm
  * Create or get a DM chat with another user
  */
-export async function POST(request: NextRequest) {
-  try {
-    const user = await authenticate(request);
-    const body = await request.json();
-    const { userId: targetUserId } = body;
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  const user = await authenticate(request);
 
-    if (!targetUserId) {
-      return errorResponse('User ID is required', 400);
-    }
+  // Validate request body
+  const body = await request.json();
+  const { userId: targetUserId } = DMChatCreateSchema.parse(body);
 
-    // Prevent DMing yourself
-    if (user.userId === targetUserId) {
-      return errorResponse('Cannot DM yourself', 400);
-    }
+  // Prevent DMing yourself (business rule validation)
+  if (user.userId === targetUserId) {
+    throw new BusinessLogicError('Cannot DM yourself', 'SELF_DM_NOT_ALLOWED');
+  }
 
     // Check if target user exists
     const targetUser = await prisma.user.findUnique({
@@ -39,17 +33,17 @@ export async function POST(request: NextRequest) {
       select: { id: true, isActor: true },
     });
 
-    // If not a user, check if it's an actor
-    if (!targetUser) {
-      const targetActor = await prisma.actor.findUnique({
-        where: { id: targetUserId },
-        select: { id: true },
-      });
+  // If not a user, check if it's an actor
+  if (!targetUser) {
+    const targetActor = await prisma.actor.findUnique({
+      where: { id: targetUserId },
+      select: { id: true },
+    });
 
-      if (!targetActor) {
-        return errorResponse('User or profile not found', 404);
-      }
+    if (!targetActor) {
+      throw new NotFoundError('User or profile', targetUserId);
     }
+  }
 
     // Create DM chat ID (consistent format - sort IDs for consistency)
     const sortedIds = [user.userId, targetUserId].sort();
@@ -122,20 +116,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return successResponse({
-      chat: {
-        id: chat.id,
-        name: chat.name,
-        isGroup: chat.isGroup,
-      },
-    }, 201);
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Authentication failed') {
-      return authErrorResponse('Unauthorized');
-    }
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('Error creating/getting DM chat:', { error: errorMessage }, 'POST /api/chats/dm');
-    return errorResponse('Failed to create DM chat');
-  }
-}
+  logger.info('DM chat created or retrieved successfully', { chatId: chat.id, userId: user.userId, targetUserId }, 'POST /api/chats/dm');
+
+  return successResponse({
+    chat: {
+      id: chat.id,
+      name: chat.name,
+      isGroup: chat.isGroup,
+    },
+  }, 201);
+});
 

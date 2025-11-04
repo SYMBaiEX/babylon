@@ -43,46 +43,60 @@ export function LatestNewsPanel() {
     try {
       // Query posts API with type filter for articles
       const response = await fetch('/api/posts?type=article&limit=10')
+      
+      if (!response.ok) {
+        logger.error('Failed to fetch articles:', { status: response.status }, 'LatestNewsPanel')
+        setArticles([])
+        return
+      }
+      
       const data = await response.json()
       
-      logger.debug('Articles response:', { 
-        success: !!data.posts, 
+      logger.info('Articles API response:', { 
+        hasPosts: !!data.posts, 
         count: data.posts?.length || 0,
-        posts: data.posts 
+        firstPost: data.posts?.[0] 
       }, 'LatestNewsPanel')
       
-      if (data.posts && Array.isArray(data.posts)) {
+      if (data.posts && Array.isArray(data.posts) && data.posts.length > 0) {
         // Transform posts to ArticleItem format
-        const articlesData: ArticleItem[] = data.posts.map((post: {
-          id: string;
-          articleTitle?: string;
-          authorId: string;
-          authorName?: string;
-          byline?: string;
-          sentiment?: string;
-          category?: string;
-          timestamp: string;
-          biasScore?: number;
-          slant?: string;
-          content: string;
-        }) => ({
-          id: post.id,
-          title: post.articleTitle || 'Untitled Article',
-          summary: post.content,
-          authorOrgName: post.authorName || post.authorId,
-          byline: post.byline,
-          sentiment: post.sentiment,
-          category: post.category,
-          publishedAt: post.timestamp,
-          slant: post.slant,
-          biasScore: post.biasScore,
-        }))
+        const articlesData: ArticleItem[] = data.posts
+          .filter((post: { type?: string }) => post.type === 'article') // Double-check type
+          .map((post: {
+            id: string;
+            articleTitle?: string | null;
+            authorId: string;
+            authorName?: string;
+            byline?: string | null;
+            sentiment?: string | null;
+            category?: string | null;
+            timestamp: string;
+            biasScore?: number | null;
+            slant?: string | null;
+            content: string;
+          }) => ({
+            id: post.id,
+            title: post.articleTitle || 'Untitled Article',
+            summary: post.content,
+            authorOrgName: post.authorName || post.authorId,
+            byline: post.byline || undefined,
+            sentiment: post.sentiment || undefined,
+            category: post.category || undefined,
+            publishedAt: post.timestamp,
+            slant: post.slant || undefined,
+            biasScore: post.biasScore !== null ? post.biasScore : undefined,
+          }))
         
-        logger.debug('Articles loaded:', { count: articlesData.length }, 'LatestNewsPanel')
+        logger.info('Articles processed:', { count: articlesData.length, articles: articlesData }, 'LatestNewsPanel')
         setArticles(articlesData)
         setLatestNews(articlesData) // Cache the data
       } else {
-        logger.debug('No articles found', { data }, 'LatestNewsPanel')
+        logger.warn('No articles in response', { 
+          hasData: !!data,
+          hasPosts: !!data.posts,
+          isArray: Array.isArray(data.posts),
+          length: data.posts?.length 
+        }, 'LatestNewsPanel')
         setArticles([])
       }
     } catch (error) {
@@ -102,13 +116,13 @@ export function LatestNewsPanel() {
     fetchArticles()
   }, [fetchArticles])
 
-  // Subscribe to feed channel for real-time updates (articles are posts now)
+  // Subscribe to feed channel for real-time updates via SSE
   const handleChannelUpdate = useCallback((data: Record<string, unknown>) => {
-    if (data.type === 'new_post') {
+    if (data.type === 'new_post' && data.post) {
       const post = data.post as { type?: string }
       // Only refresh if it's an article
-      if (post && post.type === 'article') {
-        logger.debug('New article received, refreshing...', { data }, 'LatestNewsPanel')
+      if (post?.type === 'article') {
+        logger.info('New article received via SSE, refreshing...', { postId: (post as { id?: string }).id }, 'LatestNewsPanel')
         fetchArticlesRef.current?.()
       }
     }

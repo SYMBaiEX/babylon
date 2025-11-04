@@ -3,171 +3,151 @@
  * Methods: POST (favorite), DELETE (unfavorite)
  */
 
-import type { NextRequest } from 'next/server';
 import {
   authenticate,
-  authErrorResponse,
-  successResponse,
-  errorResponse,
+  successResponse
 } from '@/lib/api/auth-middleware';
+import { prisma } from '@/lib/database-service';
+import { BusinessLogicError, NotFoundError } from '@/lib/errors';
+import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
-
+import { IdParamSchema } from '@/lib/validation/schemas';
+import type { NextRequest } from 'next/server';
 
 /**
  * POST /api/profiles/[id]/favorite
  * Favorite a profile
  */
-export async function POST(
+export const POST = withErrorHandling(async (
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    // Authenticate user
-    const user = await authenticate(request);
-    const { id: targetIdentifier } = await params;
+  context?: { params: Promise<{ id: string }> }
+) => {
+  // Authenticate user
+  const user = await authenticate(request);
+  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const { id: targetIdentifier } = IdParamSchema.parse(params);
 
-    // Validate target identifier
-    if (!targetIdentifier) {
-      return errorResponse('Profile ID is required', 400);
-    }
+  // Try to find user by ID first, then by username
+  let targetUser = await prisma.user.findUnique({
+    where: { id: targetIdentifier },
+  });
 
-    // Try to find user by ID first, then by username
-    let targetUser = await prisma.user.findUnique({
-      where: { id: targetIdentifier },
+  // If not found by ID, try username
+  if (!targetUser) {
+    targetUser = await prisma.user.findUnique({
+      where: { username: targetIdentifier },
     });
+  }
 
-    // If not found by ID, try username
-    if (!targetUser) {
-      targetUser = await prisma.user.findUnique({
-        where: { username: targetIdentifier },
-      });
-    }
+  if (!targetUser) {
+    throw new NotFoundError('Profile', targetIdentifier);
+  }
 
-    if (!targetUser) {
-      return errorResponse('Profile not found', 404);
-    }
+  const targetUserId = targetUser.id;
 
-    const targetUserId = targetUser.id;
+  // Prevent self-favoriting
+  if (user.userId === targetUserId) {
+    throw new BusinessLogicError('Cannot favorite yourself', 'SELF_FAVORITE_NOT_ALLOWED');
+  }
 
-    // Prevent self-favoriting
-    if (user.userId === targetUserId) {
-      return errorResponse('Cannot favorite yourself', 400);
-    }
-
-    // Check if already favorited
-    const existingFavorite = await prisma.favorite.findUnique({
-      where: {
-        userId_targetUserId: {
-          userId: user.userId,
-          targetUserId,
-        },
-      },
-    });
-
-    if (existingFavorite) {
-      return errorResponse('Profile already favorited', 400);
-    }
-
-    // Create favorite
-    const favorite = await prisma.favorite.create({
-      data: {
+  // Check if already favorited
+  const existingFavorite = await prisma.favorite.findUnique({
+    where: {
+      userId_targetUserId: {
         userId: user.userId,
         targetUserId,
       },
-      include: {
-        targetUser: {
-          select: {
-            id: true,
-            displayName: true,
-            username: true,
-            profileImageUrl: true,
-            bio: true,
-          },
+    },
+  });
+
+  if (existingFavorite) {
+    throw new BusinessLogicError('Profile already favorited', 'ALREADY_FAVORITED');
+  }
+
+  // Create favorite
+  const favorite = await prisma.favorite.create({
+    data: {
+      userId: user.userId,
+      targetUserId,
+    },
+    include: {
+      targetUser: {
+        select: {
+          id: true,
+          displayName: true,
+          username: true,
+          profileImageUrl: true,
+          bio: true,
         },
       },
-    });
+    },
+  });
 
-    return successResponse(
-      {
-        id: favorite.id,
-        targetUser: favorite.targetUser,
-        createdAt: favorite.createdAt,
-      },
-      201
-    );
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Authentication failed') {
-      return authErrorResponse('Unauthorized');
-    }
-    logger.error('Error favoriting profile:', error, 'POST /api/profiles/[id]/favorite');
-    return errorResponse('Failed to favorite profile');
-  }
-}
+  logger.info('Profile favorited successfully', { userId: user.userId, targetUserId }, 'POST /api/profiles/[id]/favorite');
+
+  return successResponse(
+    {
+      id: favorite.id,
+      targetUser: favorite.targetUser,
+      createdAt: favorite.createdAt,
+    },
+    201
+  );
+});
 
 /**
  * DELETE /api/profiles/[id]/favorite
  * Unfavorite a profile
  */
-export async function DELETE(
+export const DELETE = withErrorHandling(async (
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    // Authenticate user
-    const user = await authenticate(request);
-    const { id: targetIdentifier } = await params;
+  context?: { params: Promise<{ id: string }> }
+) => {
+  // Authenticate user
+  const user = await authenticate(request);
+  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const { id: targetIdentifier } = IdParamSchema.parse(params);
 
-    // Validate target identifier
-    if (!targetIdentifier) {
-      return errorResponse('Profile ID is required', 400);
-    }
+  // Try to find user by ID first, then by username
+  let targetUser = await prisma.user.findUnique({
+    where: { id: targetIdentifier },
+  });
 
-    // Try to find user by ID first, then by username
-    let targetUser = await prisma.user.findUnique({
-      where: { id: targetIdentifier },
+  // If not found by ID, try username
+  if (!targetUser) {
+    targetUser = await prisma.user.findUnique({
+      where: { username: targetIdentifier },
     });
-
-    // If not found by ID, try username
-    if (!targetUser) {
-      targetUser = await prisma.user.findUnique({
-        where: { username: targetIdentifier },
-      });
-    }
-
-    if (!targetUser) {
-      return errorResponse('Profile not found', 404);
-    }
-
-    const targetUserId = targetUser.id;
-
-    // Find existing favorite
-    const favorite = await prisma.favorite.findUnique({
-      where: {
-        userId_targetUserId: {
-          userId: user.userId,
-          targetUserId,
-        },
-      },
-    });
-
-    if (!favorite) {
-      return errorResponse('Favorite not found', 404);
-    }
-
-    // Delete favorite
-    await prisma.favorite.delete({
-      where: {
-        id: favorite.id,
-      },
-    });
-
-    return successResponse({ message: 'Profile unfavorited successfully' });
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Authentication failed') {
-      return authErrorResponse('Unauthorized');
-    }
-    logger.error('Error unfavoriting profile:', error, 'DELETE /api/profiles/[id]/favorite');
-    return errorResponse('Failed to unfavorite profile');
   }
-}
+
+  if (!targetUser) {
+    throw new NotFoundError('Profile', targetIdentifier);
+  }
+
+  const targetUserId = targetUser.id;
+
+  // Find existing favorite
+  const favorite = await prisma.favorite.findUnique({
+    where: {
+      userId_targetUserId: {
+        userId: user.userId,
+        targetUserId,
+      },
+    },
+  });
+
+  if (!favorite) {
+    throw new NotFoundError('Favorite', `${user.userId}-${targetUserId}`);
+  }
+
+  // Delete favorite
+  await prisma.favorite.delete({
+    where: {
+      id: favorite.id,
+    },
+  });
+
+  logger.info('Profile unfavorited successfully', { userId: user.userId, targetUserId }, 'DELETE /api/profiles/[id]/favorite');
+
+  return successResponse({ message: 'Profile unfavorited successfully' });
+});

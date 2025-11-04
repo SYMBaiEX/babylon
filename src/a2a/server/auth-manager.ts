@@ -6,6 +6,8 @@
 import { verifyMessage, hexlify, randomBytes } from 'ethers'
 import type { AgentCredentials } from '../types'
 import type { RegistryClient } from '@/types/a2a-server'
+import type { IAgent0Client } from '@/agents/agent0/types'
+import { logger } from '../utils/logger'
 
 interface AuthResult {
   success: boolean
@@ -17,9 +19,11 @@ export class AuthManager {
   private sessions: Map<string, { address: string; tokenId: number; expiresAt: number }> = new Map()
   private readonly SESSION_DURATION = 24 * 60 * 60 * 1000 // 24 hours
   private registryClient: RegistryClient | null = null
+  private agent0Client: IAgent0Client | null = null // Agent0Client - optional for external agent verification
 
-  constructor(registryClient?: RegistryClient) {
+  constructor(registryClient?: RegistryClient, agent0Client?: IAgent0Client | null) {
     this.registryClient = registryClient || null
+    this.agent0Client = agent0Client || null
   }
 
   /**
@@ -43,11 +47,40 @@ export class AuthManager {
       }
 
       // Verify agent ownership via ERC-8004 registry if available
+      let isValid = false
+      
       if (this.registryClient?.verifyAgent) {
-        const isValid = await this.registryClient.verifyAgent(credentials.address, credentials.tokenId)
-        if (!isValid) {
-          return { success: false, error: 'Agent does not own the specified token ID' }
+        isValid = await this.registryClient.verifyAgent(credentials.address, credentials.tokenId)
+        
+        if (isValid) {
+          logger.debug(`Agent verified via ERC-8004: ${credentials.address}:${credentials.tokenId}`)
+        } else {
+          logger.debug(`ERC-8004 verification failed for ${credentials.address}:${credentials.tokenId}, trying Agent0...`)
         }
+      }
+      
+      // Fallback to Agent0 verification if ERC-8004 verification failed or not available
+      if (!isValid && this.agent0Client) {
+        try {
+          const profile = await this.agent0Client.getAgentProfile(credentials.tokenId)
+          
+          if (profile && profile.walletAddress?.toLowerCase() === credentials.address.toLowerCase()) {
+            isValid = true
+            logger.debug(`Agent verified via Agent0: ${credentials.address}:${credentials.tokenId}`)
+          }
+        } catch (error) {
+          logger.debug(`Agent0 verification failed for ${credentials.address}:${credentials.tokenId}`, { error })
+        }
+      }
+      
+      // If no registry client available and no Agent0 client, skip verification (development mode)
+      if (!this.registryClient && !this.agent0Client) {
+        logger.warn('No registry client or Agent0 client available - skipping agent verification (development mode)')
+        isValid = true // Allow authentication in development mode
+      }
+      
+      if (!isValid) {
+        return { success: false, error: 'Agent does not own the specified token ID' }
       }
 
       // Generate session token

@@ -5,131 +5,47 @@
  * Uses internal agent credentials stored securely in environment variables.
  */
 
-import type { NextRequest} from 'next/server';
-import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { randomBytes } from 'crypto';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { AuthorizationError } from '@/lib/errors';
+import { AgentAuthSchema } from '@/lib/validation/schemas/agent';
 import { logger } from '@/lib/logger';
-
-interface AgentAuthRequest {
-  agentId: string;
-  agentSecret: string;
-}
-
-interface AgentSession {
-  sessionToken: string;
-  agentId: string;
-  expiresAt: number;
-}
-
-// In-memory session storage (in production, use Redis or database)
-const agentSessions = new Map<string, AgentSession>();
-
-// Session duration: 24 hours
-const SESSION_DURATION = 24 * 60 * 60 * 1000;
-
-/**
- * Clean up expired sessions
- */
-function cleanupExpiredSessions(): void {
-  const now = Date.now();
-  const tokensToDelete: string[] = [];
-
-  agentSessions.forEach((session, token) => {
-    if (now > session.expiresAt) {
-      tokensToDelete.push(token);
-    }
-  });
-
-  tokensToDelete.forEach(token => agentSessions.delete(token));
-}
-
-/**
- * Verify agent credentials against environment configuration
- */
-function verifyAgentCredentials(agentId: string, agentSecret: string): boolean {
-  // Get configured agent credentials from environment
-  const configuredAgentId = process.env.BABYLON_AGENT_ID || 'babylon-agent-alice';
-  const configuredAgentSecret = process.env.BABYLON_AGENT_SECRET;
-
-  if (!configuredAgentSecret) {
-    logger.error('BABYLON_AGENT_SECRET not configured in environment', undefined, 'AgentAuth');
-    return false;
-  }
-
-  return agentId === configuredAgentId && agentSecret === configuredAgentSecret;
-}
+import {
+  verifyAgentCredentials,
+  cleanupExpiredSessions,
+  createAgentSession,
+  getSessionDuration,
+} from '@/lib/auth/agent-auth';
 
 /**
  * POST /api/agents/auth
  * Authenticate agent and receive session token
  */
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json() as AgentAuthRequest;
-    const { agentId, agentSecret } = body;
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  const body = await request.json();
+  const { agentId, agentSecret } = AgentAuthSchema.parse(body);
 
-    // Validate request
-    if (!agentId || !agentSecret) {
-      return NextResponse.json(
-        { error: 'Missing agentId or agentSecret' },
-        { status: 400 }
-      );
-    }
-
-    // Verify agent credentials
-    if (!verifyAgentCredentials(agentId, agentSecret)) {
-      return NextResponse.json(
-        { error: 'Invalid agent credentials' },
-        { status: 401 }
-      );
-    }
-
-    // Clean up old sessions
-    cleanupExpiredSessions();
-
-    // Generate session token
-    const sessionToken = randomBytes(32).toString('hex');
-    const expiresAt = Date.now() + SESSION_DURATION;
-
-    // Store session
-    agentSessions.set(sessionToken, {
-      sessionToken,
-      agentId,
-      expiresAt,
-    });
-
-    logger.info(`Agent ${agentId} authenticated successfully`, undefined, 'POST /api/agents/auth');
-
-    return NextResponse.json({
-      success: true,
-      sessionToken,
-      expiresAt,
-      expiresIn: SESSION_DURATION / 1000, // seconds
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('Agent authentication error:', { error: errorMessage }, 'POST /api/agents/auth');
-    return NextResponse.json(
-      { error: 'Authentication failed' },
-      { status: 500 }
-    );
-  }
-}
-
-/**
- * Verify agent session token
- */
-export function verifyAgentSession(sessionToken: string): { agentId: string } | null {
-  const session = agentSessions.get(sessionToken);
-
-  if (!session) {
-    return null;
+  // Verify agent credentials
+  if (!verifyAgentCredentials(agentId, agentSecret)) {
+    throw new AuthorizationError('Invalid agent credentials', 'agent', 'authenticate');
   }
 
-  if (Date.now() > session.expiresAt) {
-    agentSessions.delete(sessionToken);
-    return null;
-  }
+  // Clean up old sessions
+  cleanupExpiredSessions();
 
-  return { agentId: session.agentId };
-}
+  // Generate session token
+  const sessionToken = randomBytes(32).toString('hex');
+
+  // Create session
+  const session = createAgentSession(agentId, sessionToken);
+
+  logger.info(`Agent ${agentId} authenticated successfully`, undefined, 'POST /api/agents/auth');
+
+  return successResponse({
+    success: true,
+    sessionToken,
+    expiresAt: session.expiresAt,
+    expiresIn: getSessionDuration() / 1000, // seconds
+  });
+});

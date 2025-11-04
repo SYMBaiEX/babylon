@@ -16,6 +16,7 @@
 import { $ } from 'bun';
 import { existsSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
+import { PrismaClient } from '@prisma/client';
 import { logger } from '../src/lib/logger';
 
 const CONTAINER_NAME = 'babylon-postgres';
@@ -89,7 +90,6 @@ if (running.trim() !== CONTAINER_NAME) {
 
 // Test database connection with Prisma
 logger.info('Testing database connection...', undefined, 'Script');
-const { PrismaClient } = await import('@prisma/client');
 const prisma = new PrismaClient();
 
 // Just try to connect - will throw if fails
@@ -179,8 +179,7 @@ if (actorCount === 0) {
   
   if (needsPointsUpdate || needsImageUpdate) {
     logger.info('Trader actors need initialization, updating...', undefined, 'Script');
-    const { existsSync } = await import('fs');
-    
+
     for (const actor of traderActors) {
       const imagePath = join(process.cwd(), 'public', 'images', 'actors', `${actor.id}.jpg`);
       const hasImage = existsSync(imagePath);

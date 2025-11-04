@@ -123,7 +123,35 @@ export class BabylonA2AService extends Service {
    * Connect to A2A server
    */
   async connect(): Promise<void> {
-    if (!this.a2aConfig.enabled || !this.a2aConfig.endpoint) {
+    if (!this.a2aConfig.enabled) {
+      return;
+    }
+
+    // Auto-discover Babylon endpoint from Agent0 registry if available
+    if (process.env.AGENT0_ENABLED === 'true') {
+      try {
+        const discoveryService = this.runtime.getService('babylon-discovery') as {
+          discoverAndConnect?: () => Promise<{ endpoints: { a2a?: string } } | null>
+        } | null
+        if (discoveryService && typeof discoveryService.discoverAndConnect === 'function') {
+          logger.info('Attempting to discover Babylon via Agent0 registry...');
+          const babylon = await discoveryService.discoverAndConnect()
+          if (babylon?.endpoints?.a2a) {
+            this.a2aConfig.endpoint = babylon.endpoints.a2a
+            logger.info(`✅ Discovered A2A endpoint via Agent0: ${babylon.endpoints.a2a}`);
+          } else {
+            logger.warn('Babylon not found in Agent0 registry, using configured endpoint');
+          }
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        logger.warn(`Discovery failed, falling back to configured endpoint: ${errorMsg}`);
+      }
+    }
+
+    // Ensure we have an endpoint (from discovery or config)
+    if (!this.a2aConfig.endpoint) {
+      logger.warn("A2A endpoint not available (discovery failed and no config)");
       return;
     }
 

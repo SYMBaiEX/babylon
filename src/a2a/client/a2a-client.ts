@@ -6,6 +6,7 @@
 import WebSocket from 'ws'
 import { ethers } from 'ethers'
 import { EventEmitter } from 'events'
+import { logger } from '@/lib/logger'
 import type {
   JsonRpcRequest,
   JsonRpcResponse,
@@ -186,8 +187,40 @@ export class A2AClient extends EventEmitter {
    * Handle server notifications
    */
   private handleNotification(notification: JsonRpcRequest): void {
-    // TODO: Handle different notification types
-    this.emit('notification', notification)
+    // Handle different notification types with typed events
+    const method = notification.method
+    const params = notification.params
+    
+    switch (method) {
+      case 'a2a.market_update':
+        this.emit(A2AEventType.MARKET_UPDATE, params)
+        break
+        
+      case 'a2a.coalition_notification':
+        this.emit(A2AEventType.COALITION_MESSAGE, params)
+        break
+        
+      case 'a2a.analysis_shared':
+        this.emit(A2AEventType.ANALYSIS_RECEIVED, params)
+        break
+        
+      case 'a2a.analysis_requested':
+        this.emit('analysis_requested', params)
+        break
+        
+      case 'a2a.agent_connected':
+        this.emit(A2AEventType.AGENT_CONNECTED, params)
+        break
+        
+      case 'a2a.agent_disconnected':
+        this.emit(A2AEventType.AGENT_DISCONNECTED, params)
+        break
+        
+      default:
+        // Generic notification for unknown types
+        this.emit('notification', notification)
+        logger.debug(`Received unhandled notification type: ${method}`)
+    }
   }
 
   /**

@@ -1,22 +1,27 @@
 #!/usr/bin/env bun
 /**
- * Bootstrap Content - Create initial questions and posts
- * 
- * This ensures there's content immediately when starting the app.
- * Run this once after seeding the database.
+ * Initialize Game Content - Create game state and initial content
+ *
+ * This script:
+ * 1. Creates/verifies game state
+ * 2. Verifies actors are seeded
+ * 3. Creates initial prediction questions
+ * 4. Creates initial posts
+ *
+ * Run this once after seeding the database to bootstrap content.
  */
 
 import { prisma } from '../src/lib/prisma';
 import { logger } from '../src/lib/logger';
 
 async function main() {
-  logger.info('🎬 Bootstrapping initial content...', undefined, 'Bootstrap');
-  
+  logger.info('🎬 Initializing game content...', undefined, 'Init');
+
   // 1. Ensure game state exists and is running
   let game = await prisma.game.findFirst({ where: { isContinuous: true } });
-  
+
   if (!game) {
-    logger.info('Creating game state...', undefined, 'Bootstrap');
+    logger.info('Creating game state...', undefined, 'Init');
     game = await prisma.game.create({
       data: {
         isContinuous: true,
@@ -27,29 +32,29 @@ async function main() {
       },
     });
   } else if (!game.isRunning) {
-    logger.info('Setting game to running...', undefined, 'Bootstrap');
+    logger.info('Setting game to running...', undefined, 'Init');
     await prisma.game.update({
       where: { id: game.id },
       data: { isRunning: true },
     });
   }
-  
-  logger.info('✅ Game state ready', undefined, 'Bootstrap');
-  
+
+  logger.info('✅ Game state ready', undefined, 'Init');
+
   // 2. Check if we have actors
   const actorCount = await prisma.actor.count();
   if (actorCount === 0) {
-    logger.error('❌ No actors! Run: bun run db:seed', undefined, 'Bootstrap');
+    logger.error('❌ No actors! Run: bun run db:seed', undefined, 'Init');
     process.exit(1);
   }
-  logger.info(`✅ ${actorCount} actors loaded`, undefined, 'Bootstrap');
-  
+  logger.info(`✅ ${actorCount} actors loaded`, undefined, 'Init');
+
   // 3. Create initial questions if none exist
   const questionCount = await prisma.question.count();
-  
+
   if (questionCount < 3) {
-    logger.info('Creating initial prediction questions...', undefined, 'Bootstrap');
-    
+    logger.info('Creating initial prediction questions...', undefined, 'Init');
+
     const questions = [
       {
         questionNumber: 1,
@@ -76,10 +81,10 @@ async function main() {
         resolutionDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
       },
     ];
-    
+
     for (const q of questions) {
       await prisma.question.create({ data: q });
-      
+
       // Also create a Market for trading
       await prisma.market.create({
         data: {
@@ -90,21 +95,21 @@ async function main() {
         },
       });
     }
-    
-    logger.info(`✅ Created ${questions.length} initial questions`, undefined, 'Bootstrap');
+
+    logger.info(`✅ Created ${questions.length} initial questions`, undefined, 'Init');
   } else {
-    logger.info(`✅ ${questionCount} questions already exist`, undefined, 'Bootstrap');
+    logger.info(`✅ ${questionCount} questions already exist`, undefined, 'Init');
   }
-  
+
   // 4. Create some initial posts if none exist
   const postCount = await prisma.post.count();
-  
+
   if (postCount === 0) {
-    logger.info('Creating initial posts...', undefined, 'Bootstrap');
-    
+    logger.info('Creating initial posts...', undefined, 'Init');
+
     const actors = await prisma.actor.findMany({ take: 5 });
     const questions = await prisma.question.findMany({ take: 3 });
-    
+
     const samplePosts = [
       "Just saw the latest AI developments. Market is about to get wild 🚀",
       "Technical analysis shows bullish patterns forming. Time to position? 📈",
@@ -112,7 +117,7 @@ async function main() {
       "Breaking: Major announcement incoming. This changes everything 🔥",
       "Market sentiment shifting fast. Watch closely next 24hrs ⏰",
     ];
-    
+
     for (let i = 0; i < 5 && i < actors.length; i++) {
       await prisma.post.create({
         data: {
@@ -124,25 +129,25 @@ async function main() {
         },
       });
     }
-    
-    logger.info('✅ Created 5 initial posts', undefined, 'Bootstrap');
+
+    logger.info('✅ Created 5 initial posts', undefined, 'Init');
   } else {
-    logger.info(`✅ ${postCount} posts already exist`, undefined, 'Bootstrap');
+    logger.info(`✅ ${postCount} posts already exist`, undefined, 'Init');
   }
-  
-  logger.info('', undefined, 'Bootstrap');
-  logger.info('🎉 Bootstrap complete!', undefined, 'Bootstrap');
-  logger.info('', undefined, 'Bootstrap');
-  logger.info('Next steps:', undefined, 'Bootstrap');
-  logger.info('1. Refresh browser at http://localhost:3000/feed', undefined, 'Bootstrap');
-  logger.info('2. Posts should now appear', undefined, 'Bootstrap');
-  logger.info('3. Daemon will continue generating every 60 seconds', undefined, 'Bootstrap');
-  
+
+  logger.info('', undefined, 'Init');
+  logger.info('🎉 Initialization complete!', undefined, 'Init');
+  logger.info('', undefined, 'Init');
+  logger.info('Next steps:', undefined, 'Init');
+  logger.info('1. Start the development server: bun run dev', undefined, 'Init');
+  logger.info('2. Visit http://localhost:3000/feed', undefined, 'Init');
+  logger.info('3. Posts and questions should now be visible', undefined, 'Init');
+  logger.info('4. Daemon will continue generating content automatically', undefined, 'Init');
+
   await prisma.$disconnect();
 }
 
 main().catch((error) => {
-  logger.error('Bootstrap failed:', error, 'Bootstrap');
+  logger.error('Initialization failed:', error, 'Init');
   process.exit(1);
 });
-

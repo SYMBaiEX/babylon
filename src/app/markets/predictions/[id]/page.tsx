@@ -94,7 +94,9 @@ export default function PredictionDetailPage() {
         const time = now - (i * 60 * 60 * 1000) // 1 hour intervals
         // Simulate some price movement
         const variation = Math.sin(i / 10) * 0.1 + (Math.random() - 0.5) * 0.05
-        const yesPrice = Math.max(0.1, Math.min(0.9, (yesShares / (yesShares + noShares)) + variation))
+        const totalShares = yesShares + noShares
+        const basePrice = totalShares === 0 ? 0.5 : yesShares / totalShares
+        const yesPrice = Math.max(0.1, Math.min(0.9, basePrice + variation))
         const noPrice = 1 - yesPrice
         const volume = Math.random() * 100
         history.push({ time, yesPrice, noPrice, volume })

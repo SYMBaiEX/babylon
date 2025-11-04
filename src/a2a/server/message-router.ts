@@ -11,7 +11,8 @@ import type {
   AgentProfile,
   MarketData,
   Coalition,
-  MarketAnalysis
+  MarketAnalysis,
+  AnalysisRequest
 } from '../types';
 import {
   A2AMethod,
@@ -21,7 +22,11 @@ import type { JsonRpcResult } from '@/types/json-rpc'
 import type { PaymentVerificationParams, PaymentVerificationResult } from '@/types/payments'
 import type { RegistryClient } from '@/types/a2a-server'
 import type { X402Manager } from '@/types/a2a-server'
+import type { IAgent0Client } from '@/agents/agent0/types'
+import type { IUnifiedDiscoveryService } from '@/agents/agent0/types'
 import { logger } from '../utils/logger'
+import { prisma } from '@/lib/database-service'
+import { getAnalysisService } from '../services/analysis-service'
 
 // Typed parameter interfaces for each method
 interface DiscoverParams {
@@ -94,17 +99,28 @@ export class MessageRouter {
   private config: Required<A2AServerConfig>
   private registryClient: RegistryClient | null = null
   private x402Manager: X402Manager | null = null
+  private agent0Client: IAgent0Client | null = null // Agent0Client - optional for external agent support
+  private unifiedDiscovery: IUnifiedDiscoveryService | null = null // UnifiedDiscoveryService - optional for enhanced discovery
   private marketSubscriptions: Map<string, Set<string>> = new Map() // marketId -> Set of agentIds
   private coalitions: Map<string, Coalition> = new Map()
+  private server: { broadcast: (agentIds: string[], message: unknown) => void } | null = null // WebSocket server for broadcasting
+  private analysisService = getAnalysisService() // Centralized analysis storage
+  private analysisRequests: Map<string, AnalysisRequest> = new Map() // requestId -> request
 
   constructor(
     config: Required<A2AServerConfig>,
     registryClient?: RegistryClient,
-    x402Manager?: X402Manager
+    x402Manager?: X402Manager,
+    agent0Client?: IAgent0Client | null,
+    unifiedDiscovery?: IUnifiedDiscoveryService | null,
+    server?: { broadcast: (agentIds: string[], message: unknown) => void } | null
   ) {
     this.config = config
     this.registryClient = registryClient || null
     this.x402Manager = x402Manager || null
+    this.agent0Client = agent0Client || null
+    this.unifiedDiscovery = unifiedDiscovery || null
+    this.server = server || null
   }
 
   /**
@@ -156,6 +172,8 @@ export class MessageRouter {
           return await this.handleShareAnalysis(agentId, request)
         case A2AMethod.REQUEST_ANALYSIS:
           return await this.handleRequestAnalysis(agentId, request)
+        case A2AMethod.GET_ANALYSES:
+          return await this.handleGetAnalyses(agentId, request)
 
         // x402 Micropayments
         case A2AMethod.PAYMENT_REQUEST:
@@ -205,16 +223,34 @@ export class MessageRouter {
     const discoverRequest = request.params as DiscoverParams
     let agents: AgentProfile[] = []
 
-    // Query ERC-8004 registry if available
-    if (this.registryClient) {
+    // Use UnifiedDiscoveryService if available (includes Agent0 network agents)
+    if (this.unifiedDiscovery) {
+      try {
+        const filters = {
+          strategies: discoverRequest.filters?.strategies,
+          markets: discoverRequest.filters?.markets,
+          minReputation: discoverRequest.filters?.minReputation,
+          includeExternal: process.env.AGENT0_ENABLED === 'true'
+        }
+        
+        agents = await this.unifiedDiscovery.discoverAgents(filters)
+        logger.debug(`UnifiedDiscovery found ${agents.length} agents`)
+      } catch (error) {
+        logger.warn('UnifiedDiscovery failed, falling back to local registry', { error })
+      }
+    }
+
+    // Fallback to local ERC-8004 registry if UnifiedDiscovery not available or failed
+    if (agents.length === 0 && this.registryClient) {
       if (this.registryClient?.discoverAgents) {
         agents = await this.registryClient.discoverAgents(discoverRequest.filters)
+        logger.debug(`Local registry found ${agents.length} agents`)
       }
+    }
 
-      // Apply limit if specified
-      if (discoverRequest.limit && discoverRequest.limit > 0) {
-        agents = agents.slice(0, discoverRequest.limit)
-      }
+    // Apply limit if specified
+    if (discoverRequest.limit && discoverRequest.limit > 0) {
+      agents = agents.slice(0, discoverRequest.limit)
     }
 
     return {
@@ -248,10 +284,75 @@ export class MessageRouter {
         'Invalid params: agentId is required'
       )
     }
-    // Query ERC-8004 registry if available
+
+    // Check if it's an external agent (agent0-{tokenId} format)
+    if (agentInfo.agentId.startsWith('agent0-')) {
+      const tokenId = parseInt(agentInfo.agentId.replace('agent0-', ''), 10)
+      
+      if (!isNaN(tokenId)) {
+        // Try Agent0Client first
+        if (this.agent0Client) {
+          try {
+            const profile = await this.agent0Client.getAgentProfile(tokenId)
+            if (profile) {
+              // Transform to AgentProfile format
+              const agentProfile: AgentProfile = {
+                agentId: agentInfo.agentId,
+                tokenId: profile.tokenId,
+                address: profile.walletAddress,
+                name: profile.name,
+                endpoint: profile.capabilities?.actions?.includes('a2a') ? '' : '', // Would need endpoint from metadata
+                capabilities: profile.capabilities || {
+                  strategies: [],
+                  markets: [],
+                  actions: [],
+                  version: '1.0.0'
+                },
+                reputation: {
+                  totalBets: 0,
+                  winningBets: 0,
+                  accuracyScore: profile.reputation?.accuracyScore || 0,
+                  trustScore: profile.reputation?.trustScore || 0,
+                  totalVolume: '0',
+                  profitLoss: 0,
+                  isBanned: false
+                },
+                isActive: true
+              }
+              
+              return {
+                jsonrpc: '2.0',
+                result: agentProfile as unknown as JsonRpcResult,
+                id: request.id
+              }
+            }
+          } catch (error) {
+            logger.warn(`Failed to get Agent0 profile for ${agentInfo.agentId}`, { error })
+          }
+        }
+        
+        // Fallback to UnifiedDiscovery
+        if (this.unifiedDiscovery) {
+          try {
+            const profile = await this.unifiedDiscovery.getAgent(agentInfo.agentId)
+            if (profile) {
+              return {
+                jsonrpc: '2.0',
+                result: profile as unknown as JsonRpcResult,
+                id: request.id
+              }
+            }
+          } catch (error) {
+            logger.warn(`Failed to get UnifiedDiscovery profile for ${agentInfo.agentId}`, { error })
+          }
+        }
+      }
+    }
+    
+    // Query ERC-8004 registry (local agents)
     if (this.registryClient) {
       // Extract token ID from agentId (format: "agent-{tokenId}")
-      const tokenId = parseInt(agentInfo.agentId.replace('agent-', ''))
+      const tokenId = parseInt(agentInfo.agentId.replace('agent-', ''), 10)
       if (!isNaN(tokenId)) {
         const profile = this.registryClient?.getAgentProfile 
           ? await this.registryClient.getAgentProfile(tokenId)
@@ -297,22 +398,53 @@ export class MessageRouter {
       )
     }
 
-    // TODO: Query blockchain for market data
-    const marketData: MarketData = {
-      marketId: marketRequest.marketId,
-      question: '',
-      outcomes: [],
-      prices: [],
-      volume: '0',
-      liquidity: '0',
-      resolveAt: 0,
-      resolved: false
-    }
+    // Query database for market data
+    try {
+      const market = await prisma.market.findUnique({
+        where: { id: marketRequest.marketId }
+      })
+      
+      if (!market) {
+        return this.errorResponse(
+          request.id,
+          ErrorCode.MARKET_NOT_FOUND,
+          `Market ${marketRequest.marketId} not found`
+        )
+      }
+      
+      // Calculate current prices using AMM formula
+      const yesShares = Number(market.yesShares)
+      const noShares = Number(market.noShares)
+      const liquidity = Number(market.liquidity)
+      
+      // Guard against division by zero for new markets with no shares
+      const totalShares = yesShares + noShares
+      const yesPrice = totalShares === 0 ? 0.5 : yesShares / totalShares
+      const noPrice = totalShares === 0 ? 0.5 : noShares / totalShares
+      
+      const marketData: MarketData = {
+        marketId: market.id,
+        question: market.question,
+        outcomes: ['YES', 'NO'],
+        prices: [yesPrice, noPrice],
+        volume: '0', // Would need to track from trades
+        liquidity: liquidity.toString(),
+        resolveAt: market.endDate.getTime(),
+        resolved: market.resolved
+      }
 
-    return {
-      jsonrpc: '2.0',
-      result: marketData as unknown as JsonRpcResult,
-      id: request.id
+      return {
+        jsonrpc: '2.0',
+        result: marketData as unknown as JsonRpcResult,
+        id: request.id
+      }
+    } catch (error) {
+      logger.error('Failed to get market data:', error)
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INTERNAL_ERROR,
+        'Failed to fetch market data'
+      )
     }
   }
 
@@ -337,15 +469,48 @@ export class MessageRouter {
         'Invalid params: marketId is required'
       )
     }
-    // TODO: Calculate current prices from blockchain state
-    return {
-      jsonrpc: '2.0',
-      result: {
-        marketId: pricesRequest.marketId,
-        prices: [],
-        timestamp: Date.now()
-      },
-      id: request.id
+    // Calculate current prices from database state
+    try {
+      const market = await prisma.market.findUnique({
+        where: { id: pricesRequest.marketId }
+      })
+      
+      if (!market) {
+        return this.errorResponse(
+          request.id,
+          ErrorCode.MARKET_NOT_FOUND,
+          `Market ${pricesRequest.marketId} not found`
+        )
+      }
+      
+      // Calculate prices using constant product AMM formula
+      const yesShares = Number(market.yesShares)
+      const noShares = Number(market.noShares)
+      
+      // Guard against division by zero for new markets with no shares
+      const totalShares = yesShares + noShares
+      const yesPrice = totalShares === 0 ? 0.5 : yesShares / totalShares
+      const noPrice = totalShares === 0 ? 0.5 : noShares / totalShares
+      
+      return {
+        jsonrpc: '2.0',
+        result: {
+          marketId: market.id,
+          prices: [
+            { outcome: 'YES', price: yesPrice },
+            { outcome: 'NO', price: noPrice }
+          ],
+          timestamp: Date.now()
+        } as unknown as JsonRpcResult,
+        id: request.id
+      }
+    } catch (error) {
+      logger.error('Failed to get market prices:', error)
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INTERNAL_ERROR,
+        'Failed to calculate prices'
+      )
     }
   }
 
@@ -518,14 +683,34 @@ export class MessageRouter {
       )
     }
 
-    // TODO: Broadcast message to coalition members
+    // Broadcast message to coalition members
+    const coalitionNotification = {
+      jsonrpc: '2.0',
+      method: 'a2a.coalition_notification',
+      params: {
+        coalitionId: messageData.coalitionId,
+        from: agentId,
+        messageType: messageData.messageType,
+        content: messageData.content,
+        timestamp: Date.now()
+      }
+    }
+    
+    // Get list of members to broadcast to (excluding sender)
+    const recipients = coalition.members.filter(memberId => memberId !== agentId)
+    
+    // Broadcast using server if available
+    if (this.server && recipients.length > 0) {
+      this.server.broadcast(recipients, coalitionNotification)
+      logger.debug(`Broadcasted coalition message to ${recipients.length} members`)
+    }
 
     return {
       jsonrpc: '2.0',
       result: {
         delivered: true,
-        recipients: coalition.members.length - 1
-      },
+        recipients: recipients.length
+      } as unknown as JsonRpcResult,
       id: request.id
     }
   }
@@ -603,15 +788,42 @@ export class MessageRouter {
       )
     }
 
-    // TODO: Store and distribute analysis to interested parties
-    // For now, log the analysis details
+    // Store analysis using centralized service
+    const analysisId = this.analysisService.storeAnalysis(analysis.marketId, analysis)
+    
     logger.info(`Agent ${agentId} shared analysis for market ${analysis.marketId}`)
+    
+    // Distribute to interested parties (agents subscribed to this market)
+    const subscribers = this.marketSubscriptions.get(analysis.marketId)
+    if (subscribers && subscribers.size > 0 && this.server) {
+      const notification = {
+        jsonrpc: '2.0',
+        method: 'a2a.analysis_shared',
+        params: {
+          analysisId,
+          marketId: analysis.marketId,
+          analyst: agentId,
+          prediction: analysis.prediction,
+          confidence: analysis.confidence,
+          timestamp: analysis.timestamp
+        }
+      }
+      
+      // Broadcast to all subscribers except the analyst
+      const recipients = Array.from(subscribers).filter(id => id !== agentId)
+      if (recipients.length > 0) {
+        this.server.broadcast(recipients, notification)
+        logger.debug(`Distributed analysis to ${recipients.length} subscribers`)
+      }
+    }
+    
     return {
       jsonrpc: '2.0',
       result: {
         shared: true,
-        analysisId: `analysis-${Date.now()}`
-      },
+        analysisId,
+        distributed: subscribers?.size || 0
+      } as unknown as JsonRpcResult,
       id: request.id
     }
   }
@@ -638,15 +850,102 @@ export class MessageRouter {
       )
     }
 
-    // TODO: Broadcast analysis request to capable agents
-    // For now, log the request details
+    // Store analysis request
+    const requestId = `request-${agentId}-${Date.now()}`
+    const request_data: AnalysisRequest = {
+      marketId: analysisRequest.marketId,
+      requester: agentId,
+      paymentOffer: analysisRequest.paymentOffer,
+      deadline: analysisRequest.deadline,
+      requestId,
+      timestamp: Date.now()
+    }
+    this.analysisRequests.set(requestId, request_data)
+    
     logger.info(`Agent ${agentId} requesting analysis for market ${analysisRequest.marketId}, deadline: ${analysisRequest.deadline}`)
+    
+    // Broadcast to capable agents (agents subscribed to this market or with analysis capabilities)
+    const subscribers = this.marketSubscriptions.get(analysisRequest.marketId)
+    const notification = {
+      jsonrpc: '2.0',
+      method: 'a2a.analysis_requested',
+      params: {
+        requestId,
+        marketId: analysisRequest.marketId,
+        requester: agentId,
+        paymentOffer: analysisRequest.paymentOffer,
+        deadline: analysisRequest.deadline
+      }
+    }
+    
+    let broadcastCount = 0
+    if (subscribers && subscribers.size > 0 && this.server) {
+      // Broadcast to all subscribers except the requester
+      const recipients = Array.from(subscribers).filter(id => id !== agentId)
+      if (recipients.length > 0) {
+        this.server.broadcast(recipients, notification)
+        broadcastCount = recipients.length
+        logger.debug(`Broadcasted analysis request to ${recipients.length} agents`)
+      }
+    }
+    
     return {
       jsonrpc: '2.0',
       result: {
-        requestId: `request-${Date.now()}`,
-        broadcasted: true
-      },
+        requestId,
+        broadcasted: true,
+        recipients: broadcastCount
+      } as unknown as JsonRpcResult,
+      id: request.id
+    }
+  }
+
+  /**
+   * Get shared analyses for a market
+   */
+  private async handleGetAnalyses(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
+    this.logRequest(agentId, A2AMethod.GET_ANALYSES)
+    
+    // Validate and type params
+    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: expected object'
+      )
+    }
+    
+    const params = request.params as { marketId: string; limit?: number }
+    
+    if (!params.marketId || typeof params.marketId !== 'string') {
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INVALID_PARAMS,
+        'Invalid params: marketId is required'
+      )
+    }
+    
+    // Get analyses for this market using analysis service
+    const limit = params.limit || 50
+    const analyses = this.analysisService.getAnalyses(params.marketId, limit)
+    
+    // Filter out sensitive data (signatures, detailed dataPoints)
+    const publicAnalyses = analyses.map((a: MarketAnalysis) => ({
+      marketId: a.marketId,
+      analyst: a.analyst,
+      prediction: a.prediction,
+      confidence: a.confidence,
+      reasoning: a.reasoning,
+      timestamp: a.timestamp
+    }))
+    
+    return {
+      jsonrpc: '2.0',
+      result: {
+        marketId: params.marketId,
+        analyses: publicAnalyses,
+        total: publicAnalyses.length
+      } as unknown as JsonRpcResult,
       id: request.id
     }
   }

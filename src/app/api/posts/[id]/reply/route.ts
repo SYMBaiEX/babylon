@@ -4,57 +4,42 @@
  */
 
 import type { NextRequest } from 'next/server';
-import {
-  authenticate,
-  authErrorResponse,
-  successResponse,
-  errorResponse,
-} from '@/lib/api/auth-middleware';
+import { prisma } from '@/lib/database-service';
+import { authenticate } from '@/lib/api/auth-middleware';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { BusinessLogicError } from '@/lib/errors';
+import { IdParamSchema, ReplyToPostSchema } from '@/lib/validation/schemas';
 import { ReplyRateLimiter } from '@/lib/services/reply-rate-limiter';
 import { MessageQualityChecker } from '@/lib/services/message-quality-checker';
 import { FollowingMechanics } from '@/lib/services/following-mechanics';
 import { GroupChatInvite } from '@/lib/services/group-chat-invite';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
-import { prisma } from '@/lib/prisma';
-
 
 /**
  * POST /api/posts/[id]/reply
  * Reply to a post with comprehensive checks
  */
-export async function POST(
+export const POST = withErrorHandling(async (
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    // 1. Authenticate user
-    const user = await authenticate(request);
-    const { id: postId } = await params;
+  context?: { params: Promise<{ id: string }> }
+) => {
+  // 1. Authenticate user
+  const user = await authenticate(request);
+  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const { id: postId } = IdParamSchema.parse(params);
 
-    if (!postId) {
-      return errorResponse('Post ID is required', 400);
-    }
+  // 2. Parse and validate request body
+  const body = await request.json();
+  const { content, marketId, sentiment } = ReplyToPostSchema.parse(body);
 
-    // 2. Parse request body
-    const body = await request.json();
-    const { content } = body;
+  // 3. Extract NPC/author ID from post ID
+  const parseResult = parsePostId(postId);
 
-    if (!content || typeof content !== 'string') {
-      return errorResponse('Reply content is required', 400);
-    }
-
-    if (content.trim().length === 0) {
-      return errorResponse('Reply cannot be empty', 400);
-    }
-
-    // 3. Extract NPC/author ID from post ID
-    const parseResult = parsePostId(postId);
-    
-    // Require valid format for replies (unlike likes, which can use defaults)
-    if (!parseResult.success) {
-      return errorResponse('Invalid post ID format', 400);
-    }
+  // Require valid format for replies (unlike likes, which can use defaults)
+  if (!parseResult.success) {
+    throw new BusinessLogicError('Invalid post ID format', 'INVALID_POST_ID_FORMAT');
+  }
 
     const { gameId, authorId: npcId, timestamp } = parseResult.metadata;
 
@@ -62,7 +47,7 @@ export async function POST(
     const rateLimitResult = await ReplyRateLimiter.canReply(user.userId, npcId);
 
     if (!rateLimitResult.allowed) {
-      return errorResponse(rateLimitResult.reason || 'Rate limit exceeded', 429);
+      throw new BusinessLogicError(rateLimitResult.reason || 'Rate limit exceeded', 'RATE_LIMIT_EXCEEDED');
     }
 
     // 5. Check message quality
@@ -74,10 +59,7 @@ export async function POST(
     );
 
     if (!qualityResult.passed) {
-      return errorResponse(
-        qualityResult.errors.join('; '),
-        400
-      );
+      throw new BusinessLogicError(qualityResult.errors.join('; '), 'QUALITY_CHECK_FAILED');
     }
 
     // 6. Ensure user exists in database
@@ -178,45 +160,48 @@ export async function POST(
       }
     }
 
-    // 12. Return success with all the feedback
-    return successResponse(
-      {
-        comment: {
-          id: comment.id,
-          content: comment.content,
-          postId: comment.postId,
-          authorId: comment.authorId,
-          createdAt: comment.createdAt,
-          author: comment.author,
-        },
-        quality: {
-          score: qualityResult.score,
-          warnings: qualityResult.warnings,
-          factors: qualityResult.factors,
-        },
-        streak: {
-          current: rateLimitResult.replyStreak || 0,
-          reason: rateLimitResult.reason,
-        },
-        following: {
-          followed,
-          probability: followingChance.probability,
-          reasons: followingChance.reasons,
-        },
-        groupChat: {
-          invited: invitedToChat,
-          ...(chatInfo || {}),
-        },
+  // 12. Return success with all the feedback
+  logger.info('Reply created successfully', {
+    postId,
+    userId: user.userId,
+    commentId: comment.id,
+    followed,
+    invitedToChat,
+    marketId, // Optional: for analytics/tracking
+    sentiment // Optional: for analytics/tracking
+  }, 'POST /api/posts/[id]/reply');
+
+  return successResponse(
+    {
+      comment: {
+        id: comment.id,
+        content: comment.content,
+        postId: comment.postId,
+        authorId: comment.authorId,
+        createdAt: comment.createdAt,
+        author: comment.author,
       },
-      201
-    );
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Authentication failed') {
-      return authErrorResponse('Unauthorized');
-    }
-    logger.error('Error creating reply:', error, 'POST /api/posts/[id]/reply');
-    return errorResponse('Failed to create reply');
-  }
-}
+      quality: {
+        score: qualityResult.score,
+        warnings: qualityResult.warnings,
+        factors: qualityResult.factors,
+      },
+      streak: {
+        current: rateLimitResult.replyStreak || 0,
+        reason: rateLimitResult.reason,
+      },
+      following: {
+        followed,
+        probability: followingChance.probability,
+        reasons: followingChance.reasons,
+      },
+      groupChat: {
+        invited: invitedToChat,
+        ...(chatInfo || {}),
+      },
+    },
+    201
+  );
+});
 
 

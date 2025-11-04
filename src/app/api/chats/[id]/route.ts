@@ -3,86 +3,85 @@
  * Methods: GET (get chat details and messages)
  */
 
-import type { NextRequest } from 'next/server';
-import {
-  authenticate,
-  authErrorResponse,
-  successResponse,
-  errorResponse,
-} from '@/lib/api/auth-middleware';
-import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
-
+import type { NextRequest } from 'next/server'
+import { prisma } from '@/lib/database-service'
+import { authenticate } from '@/lib/api/auth-middleware'
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
+import { BusinessLogicError, NotFoundError, AuthorizationError } from '@/lib/errors'
+import { logger } from '@/lib/logger'
+import { ChatQuerySchema } from '@/lib/validation/schemas'
 
 /**
  * GET /api/chats/[id]
  * Get chat details and messages
  */
-export async function GET(
+export const GET = withErrorHandling(async (
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id: chatId } = await params;
+  context?: { params: Promise<{ id: string }> }
+) => {
+  const { id: chatId } = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')))
 
-    if (!chatId) {
-      return errorResponse('Chat ID is required', 400);
-    }
+  // Validate query parameters
+  const { searchParams } = new URL(request.url)
+  const query = {
+    all: searchParams.get('all'),
+    debug: searchParams.get('debug')
+  }
+  const validatedQuery = ChatQuerySchema.parse(query)
 
-    // Check for debug mode (localhost access to game chats)
-    const { searchParams } = new URL(request.url);
-    const debugMode = searchParams.get('debug') === 'true';
-    
-    // Get chat first to check if it's a game chat
-    const chat = await prisma.chat.findUnique({
-      where: { id: chatId },
-    });
+  // Check for debug mode (localhost access to game chats)
+  const debugMode = validatedQuery.debug === 'true'
 
-    if (!chat) {
-      return errorResponse('Chat not found', 404);
-    }
+  // Get chat first to check if it's a game chat
+  const chat = await prisma.chat.findUnique({
+    where: { id: chatId },
+  })
 
-    // Allow debug access to game chats without auth
-    const isGameChat = chat.isGroup && chat.gameId === 'continuous';
-    let userId: string | undefined;
-    
-    if (isGameChat && debugMode) {
-      // Debug mode: skip authentication for game chats
-      logger.info(`Debug mode access to game chat: ${chatId}`, undefined, 'GET /api/chats/[id]');
-    } else {
-      // Normal mode: require authentication and membership
-      const user = await authenticate(request);
-      userId = user.userId;
-      
-      const isMember = await prisma.chatParticipant.findUnique({
-        where: {
-          chatId_userId: {
-            chatId,
-            userId: user.userId,
-          },
+  if (!chat) {
+    throw new NotFoundError('Chat', chatId)
+  }
+
+  // Allow debug access to game chats without auth
+  const isGameChat = chat.isGroup && chat.gameId === 'continuous'
+  let userId: string | undefined
+
+  if (isGameChat && debugMode) {
+    // Debug mode: skip authentication for game chats
+    logger.info(`Debug mode access to game chat: ${chatId}`, undefined, 'GET /api/chats/[id]')
+  } else {
+    // Normal mode: require authentication and membership
+    const user = await authenticate(request)
+    userId = user.userId
+
+    const isMember = await prisma.chatParticipant.findUnique({
+      where: {
+        chatId_userId: {
+          chatId,
+          userId: user.userId,
         },
-      });
-
-      if (!isMember) {
-        return errorResponse('You do not have access to this chat', 403);
-      }
-    }
-
-    // Get chat with messages
-    const fullChat = await prisma.chat.findUnique({
-      where: { id: chatId },
-      include: {
-        messages: {
-          orderBy: { createdAt: 'asc' },
-          take: 100, // Limit to last 100 messages
-        },
-        participants: true,
       },
-    });
+    })
 
-    if (!fullChat) {
-      return errorResponse('Chat not found', 404);
+    if (!isMember) {
+      throw new AuthorizationError('You do not have access to this chat', 'chat', 'read')
     }
+  }
+
+  // Get chat with messages
+  const fullChat = await prisma.chat.findUnique({
+    where: { id: chatId },
+    include: {
+      messages: {
+        orderBy: { createdAt: 'asc' },
+        take: 100, // Limit to last 100 messages
+      },
+      participants: true,
+    },
+  })
+
+  if (!fullChat) {
+    throw new NotFoundError('Chat', chatId)
+  }
 
     // Get participant details - need to check both users and actors
     const participantUserIds = fullChat.participants.map((p) => p.userId);
@@ -155,29 +154,23 @@ export async function GET(
       }
     }
 
-    return successResponse({
-      chat: {
-        id: fullChat.id,
-        name: displayName || fullChat.name,
-        isGroup: fullChat.isGroup,
-        createdAt: fullChat.createdAt,
-        updatedAt: fullChat.updatedAt,
-      },
-      messages: fullChat.messages.map((msg) => ({
-        id: msg.id,
-        content: msg.content,
-        senderId: msg.senderId,
-        createdAt: msg.createdAt,
-      })),
-      participants: participantsInfo,
-    });
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Authentication failed') {
-      return authErrorResponse('Unauthorized');
-    }
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('Error fetching chat:', { error: errorMessage }, 'GET /api/chats/[id]');
-    return errorResponse('Failed to fetch chat');
-  }
-}
+  logger.info('Chat fetched successfully', { chatId, isGameChat, debugMode }, 'GET /api/chats/[id]')
+
+  return successResponse({
+    chat: {
+      id: fullChat.id,
+      name: displayName || fullChat.name,
+      isGroup: fullChat.isGroup,
+      createdAt: fullChat.createdAt,
+      updatedAt: fullChat.updatedAt,
+    },
+    messages: fullChat.messages.map((msg) => ({
+      id: msg.id,
+      content: msg.content,
+      senderId: msg.senderId,
+      createdAt: msg.createdAt,
+    })),
+    participants: participantsInfo,
+  })
+})
 

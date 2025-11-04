@@ -4,65 +4,56 @@
  */
 
 import type { NextRequest } from 'next/server';
-import {
-  optionalAuth,
-  successResponse,
-  errorResponse,
-} from '@/lib/api/auth-middleware';
+import { prisma } from '@/lib/database-service';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { optionalAuth } from '@/lib/api/auth-middleware';
+import { BusinessLogicError, AuthorizationError } from '@/lib/errors';
+import { UserIdParamSchema } from '@/lib/validation/schemas';
 import { WalletService } from '@/lib/services/wallet-service';
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
-
-
 /**
  * GET /api/users/[userId]/balance
  * Get user's virtual balance and stats
  */
-export async function GET(
+export const GET = withErrorHandling(async (
   request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
-) {
-  try {
-    const { userId } = await params;
+  context?: { params: Promise<{ userId: string }> }
+) => {
+  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const { userId } = UserIdParamSchema.parse(params);
 
-    if (!userId) {
-      return errorResponse('User ID is required', 400);
-    }
+  // Optional authentication - check if user is requesting their own balance
+  const authUser = await optionalAuth(request);
 
-    // Optional authentication - check if user is requesting their own balance
-    const authUser = await optionalAuth(request);
-
-    // If authenticated, ensure they're requesting their own balance
-    if (authUser && authUser.userId !== userId) {
-      return errorResponse('Unauthorized - can only view your own balance', 403);
-    }
-
-    // Ensure user exists in database
-    let dbUser = await prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!dbUser) {
-      // Create user if they don't exist yet
-      dbUser = await prisma.user.create({
-        data: {
-          id: userId,
-          isActor: false,
-        },
-      });
-    }
-
-    // Get balance info
-    const balanceInfo = await WalletService.getBalance(userId);
-
-    return successResponse({
-      balance: balanceInfo.balance,
-      totalDeposited: balanceInfo.totalDeposited,
-      totalWithdrawn: balanceInfo.totalWithdrawn,
-      lifetimePnL: balanceInfo.lifetimePnL,
-    });
-  } catch (error) {
-    logger.error('Error fetching balance:', error, 'GET /api/users/[userId]/balance');
-    return errorResponse('Failed to fetch balance', 500);
+  // If authenticated, ensure they're requesting their own balance
+  if (authUser && authUser.userId !== userId) {
+    throw new AuthorizationError('Can only view your own balance', 'balance', 'read');
   }
-}
+
+  // Ensure user exists in database
+  let dbUser = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!dbUser) {
+    // Create user if they don't exist yet
+    dbUser = await prisma.user.create({
+      data: {
+        id: userId,
+        isActor: false,
+      },
+    });
+  }
+
+  // Get balance info
+  const balanceInfo = await WalletService.getBalance(userId);
+
+  logger.info('Balance fetched successfully', { userId, balance: balanceInfo.balance }, 'GET /api/users/[userId]/balance');
+
+  return successResponse({
+    balance: balanceInfo.balance,
+    totalDeposited: balanceInfo.totalDeposited,
+    totalWithdrawn: balanceInfo.totalWithdrawn,
+    lifetimePnL: balanceInfo.lifetimePnL,
+  });
+});

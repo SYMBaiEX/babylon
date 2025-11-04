@@ -4,35 +4,27 @@
  */
 
 import type { NextRequest } from 'next/server';
-import {
-  authenticate,
-  authErrorResponse,
-  successResponse,
-  errorResponse,
-} from '@/lib/api/auth-middleware';
+import { prisma } from '@/lib/database-service';
+import { authenticate } from '@/lib/api/auth-middleware';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { BusinessLogicError, NotFoundError } from '@/lib/errors';
+import { IdParamSchema } from '@/lib/validation/schemas';
 import { notifyReactionOnPost } from '@/lib/services/notification-service';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
-import { prisma } from '@/lib/prisma';
-
 
 /**
  * POST /api/posts/[id]/like
  * Like a post
  */
-export async function POST(
+export const POST = withErrorHandling(async (
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    // Authenticate user
-    const user = await authenticate(request);
-    const { id: postId } = await params;
-
-    // Validate post ID
-    if (!postId) {
-      return errorResponse('Post ID is required', 400);
-    }
+  context?: { params: Promise<{ id: string }> }
+) => {
+  // Authenticate user
+  const user = await authenticate(request);
+  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const { id: postId } = IdParamSchema.parse(params);
 
     // Ensure user exists in database (upsert pattern)
     await prisma.user.upsert({
@@ -92,7 +84,7 @@ export async function POST(
 
         if (!post) {
           logger.error('Failed to create or find post:', { postId, error }, 'POST /api/posts/[id]/like');
-          return errorResponse('Post not found and could not be created', 400);
+          throw new BusinessLogicError('Post not found and could not be created', 'POST_NOT_FOUND');
         }
       }
     }
@@ -109,7 +101,7 @@ export async function POST(
     });
 
     if (existingReaction) {
-      return errorResponse('Post already liked', 400);
+      throw new BusinessLogicError('Post already liked', 'ALREADY_LIKED');
     }
 
     // Create like reaction
@@ -139,38 +131,32 @@ export async function POST(
       },
     });
 
-    return successResponse({
-      data: {
-        likeCount,
-        isLiked: true,
-      },
-    });
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Authentication failed') {
-      return authErrorResponse('Unauthorized');
-    }
-    logger.error('Error liking post:', error, 'POST /api/posts/[id]/like');
-    return errorResponse('Failed to like post');
-  }
-}
+  logger.info('Post liked successfully', { postId, userId: user.userId, likeCount }, 'POST /api/posts/[id]/like');
+
+  return successResponse({
+    data: {
+      likeCount,
+      isLiked: true,
+    },
+  });
+});
 
 /**
  * DELETE /api/posts/[id]/like
  * Unlike a post
  */
-export async function DELETE(
+export const DELETE = withErrorHandling(async (
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    // Authenticate user
-    const user = await authenticate(request);
-    const { id: postId } = await params;
+  context?: { params: Promise<{ id: string }> }
+) => {
+  // Authenticate user
+  const user = await authenticate(request);
+  const { id: postId } = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
 
-    // Validate post ID
-    if (!postId) {
-      return errorResponse('Post ID is required', 400);
-    }
+  // Validate post ID
+  if (!postId) {
+    throw new BusinessLogicError('Post ID is required', 'POST_ID_REQUIRED');
+  }
 
     // Ensure user exists in database (upsert pattern)
     await prisma.user.upsert({
@@ -198,7 +184,7 @@ export async function DELETE(
     });
 
     if (!reaction) {
-      return errorResponse('Like not found', 404);
+      throw new NotFoundError('Like', `${postId}-${user.userId}`);
     }
 
     // Delete like
@@ -216,17 +202,12 @@ export async function DELETE(
       },
     });
 
-    return successResponse({
-      data: {
-        likeCount,
-        isLiked: false,
-      },
-    });
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Authentication failed') {
-      return authErrorResponse('Unauthorized');
-    }
-    logger.error('Error unliking post:', error, 'DELETE /api/posts/[id]/like');
-    return errorResponse('Failed to unlike post');
-  }
-}
+  logger.info('Post unliked successfully', { postId, userId: user.userId, likeCount }, 'DELETE /api/posts/[id]/like');
+
+  return successResponse({
+    data: {
+      likeCount,
+      isLiked: false,
+    },
+  });
+});

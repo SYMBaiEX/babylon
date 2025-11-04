@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server'
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { prisma } from '@/lib/database-service'
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
+import { BreakingNewsQuerySchema } from '@/lib/validation/schemas'
 import { logger } from '@/lib/logger'
 import { FEED_WIDGET_CONFIG } from '@/shared/constants'
 
@@ -19,9 +20,15 @@ interface BreakingNewsItem {
   relatedOrganizationId?: string
 }
 
-export async function GET(_request: NextRequest) {
-  try {
-    const newsItems: BreakingNewsItem[] = []
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  // Validate query parameters
+  const { searchParams } = new URL(request.url)
+  const queryParams = {
+    limit: searchParams.get('limit') || '5',
+    category: searchParams.get('category')
+  }
+  BreakingNewsQuerySchema.parse(queryParams)
+  const newsItems: BreakingNewsItem[] = []
 
     // 1. Get recent significant world events - dynamically determine event types from database
     // First, get all unique event types that exist in the database
@@ -323,25 +330,19 @@ export async function GET(_request: NextRequest) {
       }
     }
 
-    // Sort by timestamp (most recent first) and take top N
-    const sortedNews = newsItems
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS)
+  // Sort by timestamp (most recent first) and take top N
+  const sortedNews = newsItems
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS)
 
-    // Return sorted news (should always have content if game is running)
-    return NextResponse.json({
-      success: true,
-      news: sortedNews,
-    })
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('Error fetching breaking news:', { error: errorMessage }, 'GET /api/feed/widgets/breaking-news')
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch breaking news' },
-      { status: 500 }
-    )
-  }
-}
+  logger.info('Breaking news fetched successfully', { count: sortedNews.length }, 'GET /api/feed/widgets/breaking-news')
+
+  // Return sorted news (should always have content if game is running)
+  return successResponse({
+    success: true,
+    news: sortedNews,
+  })
+})
 
 function getTimeAgo(date: Date): string {
   const now = Date.now()

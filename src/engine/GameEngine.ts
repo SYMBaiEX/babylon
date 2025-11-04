@@ -13,38 +13,39 @@
  * - Satirical LLM-generated group chat names
  */
 
-import { EventEmitter } from 'events';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { Prisma } from '@prisma/client';
-import { FeedGenerator } from './FeedGenerator';
-import { QuestionManager } from './QuestionManager';
-import { PriceEngine } from './PriceEngine';
-import { PerpetualsEngine } from './PerpetualsEngine';
-import { A2AGameIntegration, type A2AGameConfig } from './A2AGameIntegration';
-import { BabylonLLMClient } from '../generator/llm/openai-client';
+import { logger } from '@/lib/logger';
+import { ActorSocialActions } from '@/lib/services/ActorSocialActions';
+import { broadcastChatMessage } from '@/lib/sse/event-broadcaster';
+import { broadcastToChannelSafe as broadcastToChannel } from '@/lib/websocket-utils';
+import type {
+  Actor,
+  ActorConnection,
+  ActorsDatabase,
+  ActorTier,
+  ChatMessage,
+  FeedPost,
+  GroupChat,
+  Organization,
+  PriceUpdate,
+  Question,
+  Scenario,
+  SelectedActor,
+  WorldEvent,
+} from '@/shared/types';
 import { shuffleArray, toQuestionIdNumber, toQuestionIdNumberOrNull } from '@/shared/utils';
+import type { JsonValue } from '@/types/common';
+import { Prisma } from '@prisma/client';
+import { EventEmitter } from 'events';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import { BabylonLLMClient } from '../generator/llm/openai-client';
 import { db } from '../lib/database-service';
 import { ReputationService } from '../lib/services/reputation-service';
-import { logger } from '@/lib/logger';
-import { broadcastToChannelSafe as broadcastToChannel } from '@/lib/websocket-utils';
-import { ActorSocialActions } from '@/lib/services/ActorSocialActions';
-import type {
-  SelectedActor,
-  Actor,
-  ActorTier,
-  Organization,
-  Question,
-  FeedPost,
-  PriceUpdate,
-  ActorConnection,
-  Scenario,
-  GroupChat,
-  WorldEvent,
-  ActorsDatabase,
-  ChatMessage,
-} from '@/shared/types';
-import type { JsonValue } from '@/types/common';
+import { A2AGameIntegration, type A2AGameConfig } from './A2AGameIntegration';
+import { FeedGenerator } from './FeedGenerator';
+import { PerpetualsEngine } from './PerpetualsEngine';
+import { PriceEngine } from './PriceEngine';
+import { QuestionManager } from './QuestionManager';
 
 interface GameConfig {
   tickIntervalMs?: number;
@@ -417,7 +418,6 @@ export class GameEngine extends EventEmitter {
       // Broadcast group chat messages to their respective chats
       if (Object.keys(groupChatMessages).length > 0) {
         try {
-          const { broadcastChatMessage } = await import('@/lib/sse/event-broadcaster');
           for (const [chatId, messages] of Object.entries(groupChatMessages)) {
             for (const msg of messages) {
               broadcastChatMessage(chatId, {

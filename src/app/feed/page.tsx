@@ -545,13 +545,7 @@ export default function FeedPage() {
 
                     const postData = {
                       id: post.id,
-                      type: ('type' in post ? post.type : 'post') as string | undefined,
                       content: post.content,
-                      articleTitle: ('articleTitle' in post ? post.articleTitle : null) as string | null | undefined,
-                      byline: ('byline' in post ? post.byline : null) as string | null | undefined,
-                      biasScore: ('biasScore' in post ? post.biasScore : null) as number | null | undefined,
-                      sentiment: ('sentiment' in post ? post.sentiment : null) as string | null | undefined,
-                      category: ('category' in post ? post.category : null) as string | null | undefined,
                       authorId,
                       authorName,
                       authorUsername: ('authorUsername' in post ? post.authorUsername : null) || null,
@@ -726,13 +720,7 @@ export default function FeedPage() {
 
               const postData = {
                 id: post.id,
-                type: ('type' in post ? post.type : 'post') as string | undefined,
                 content: post.content,
-                articleTitle: ('articleTitle' in post ? post.articleTitle : null) as string | null | undefined,
-                byline: ('byline' in post ? post.byline : null) as string | null | undefined,
-                biasScore: ('biasScore' in post ? post.biasScore : null) as number | null | undefined,
-                sentiment: ('sentiment' in post ? post.sentiment : null) as string | null | undefined,
-                category: ('category' in post ? post.category : null) as string | null | undefined,
                 authorId,
                 authorName,
                 authorUsername: ('authorUsername' in post ? post.authorUsername : null) || null,

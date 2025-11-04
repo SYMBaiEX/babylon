@@ -4,10 +4,10 @@
  * Supports both Privy user authentication and agent session tokens
  */
 
-import type { NextRequest} from 'next/server';
+import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { PrivyClient } from '@privy-io/server-auth';
-import { verifyAgentSession } from '@/app/api/agents/auth/route';
+import { verifyAgentSession } from '@/lib/auth/agent-auth';
 import { logger } from '@/lib/logger';
 
 import type { ErrorLike, JsonValue } from '@/types/common'

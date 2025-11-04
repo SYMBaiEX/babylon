@@ -4,62 +4,66 @@
  */
 
 import type { NextRequest } from 'next/server';
-import {
-  authenticate,
-  authErrorResponse,
-  successResponse,
-  errorResponse,
-} from '@/lib/api/auth-middleware';
+import { prisma } from '@/lib/database-service';
+import { authenticate } from '@/lib/api/auth-middleware';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
-
+import { ChatQuerySchema, ChatCreateSchema } from '@/lib/validation/schemas';
 
 /**
  * GET /api/chats
  * Get all chats for the authenticated user
  * Query params: ?all=true - Get all game chats (not just user's chats)
  */
-export async function GET(request: NextRequest) {
-  try {
-    // Check if requesting all game chats
-    const { searchParams } = new URL(request.url);
-    const getAllChats = searchParams.get('all') === 'true';
-    
-    if (getAllChats) {
-      // Return all game chats (no auth required for read-only game data)
-      const gameChats = await prisma.chat.findMany({
-        where: {
-          isGroup: true,
-          gameId: 'continuous',
-        },
-        include: {
-          messages: {
-            orderBy: { createdAt: 'desc' },
-            take: 1,
-          },
-          _count: {
-            select: {
-              messages: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'asc',
-        },
-      });
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  // Validate query parameters
+  const { searchParams } = new URL(request.url);
+  const query = {
+    all: searchParams.get('all'),
+    debug: searchParams.get('debug')
+  };
+  const validatedQuery = ChatQuerySchema.parse(query);
 
-      return successResponse({
-        chats: gameChats.map(chat => ({
-          id: chat.id,
-          name: chat.name,
-          isGroup: chat.isGroup,
-          messageCount: chat._count.messages,
-          lastMessage: chat.messages[0] || null,
-        })),
-      });
-    }
-    
-    const user = await authenticate(request);
+  // Check if requesting all game chats
+  const getAllChats = validatedQuery.all === 'true';
+
+  if (getAllChats) {
+    // Return all game chats (no auth required for read-only game data)
+    const gameChats = await prisma.chat.findMany({
+      where: {
+        isGroup: true,
+        gameId: 'continuous',
+      },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+        _count: {
+          select: {
+            messages: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    logger.info('All game chats fetched', { count: gameChats.length }, 'GET /api/chats');
+
+    return successResponse({
+      chats: gameChats.map(chat => ({
+        id: chat.id,
+        name: chat.name,
+        isGroup: chat.isGroup,
+        messageCount: chat._count.messages,
+        lastMessage: chat.messages[0] || null,
+      })),
+    });
+  }
+
+  const user = await authenticate(request);
 
     // Get user's group chat memberships
     const memberships = await prisma.groupChatMembership.findMany({
@@ -167,34 +171,25 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    return successResponse({
-      groupChats,
-      directChats,
-      total: groupChats.length + directChats.length,
-    });
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Authentication failed') {
-      return authErrorResponse('Unauthorized');
-    }
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('Error fetching chats:', { error: errorMessage }, 'GET /api/chats');
-    return errorResponse('Failed to fetch chats');
-  }
-}
+  logger.info('User chats fetched successfully', { userId: user.userId, groupChats: groupChats.length, directChats: directChats.length }, 'GET /api/chats');
+
+  return successResponse({
+    groupChats,
+    directChats,
+    total: groupChats.length + directChats.length,
+  });
+});
 
 /**
  * POST /api/chats
  * Create a new chat
  */
-export async function POST(request: NextRequest) {
-  try {
-    const user = await authenticate(request);
-    const body = await request.json();
-    const { name, isGroup, participantIds } = body;
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  const user = await authenticate(request);
 
-    if (isGroup && !name) {
-      return errorResponse('Group name is required', 400);
-    }
+  // Validate request body
+  const body = await request.json();
+  const { name, isGroup, participantIds } = ChatCreateSchema.parse(body);
 
     // Create the chat
     const chat = await prisma.chat.create({
@@ -212,28 +207,22 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Add other participants if provided
-    if (participantIds && Array.isArray(participantIds)) {
-      await Promise.all(
-        participantIds.map((participantId: string) =>
-          prisma.chatParticipant.create({
-            data: {
-              chatId: chat.id,
-              userId: participantId,
-            },
-          })
-        )
-      );
-    }
-
-    return successResponse({ chat }, 201);
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Authentication failed') {
-      return authErrorResponse('Unauthorized');
-    }
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('Error creating chat:', { error: errorMessage }, 'POST /api/chats');
-    return errorResponse('Failed to create chat');
+  // Add other participants if provided
+  if (participantIds && Array.isArray(participantIds)) {
+    await Promise.all(
+      participantIds.map((participantId: string) =>
+        prisma.chatParticipant.create({
+          data: {
+            chatId: chat.id,
+            userId: participantId,
+          },
+        })
+      )
+    );
   }
-}
+
+  logger.info('Chat created successfully', { chatId: chat.id, userId: user.userId, isGroup, participantCount: (participantIds?.length || 0) + 1 }, 'POST /api/chats');
+
+  return successResponse({ chat }, 201);
+});
 

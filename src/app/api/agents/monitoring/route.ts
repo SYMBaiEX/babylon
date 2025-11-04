@@ -8,12 +8,14 @@
  * - Agent health status
  */
 
-import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-middleware'
-import { prisma } from '@/lib/database-service'
-import { logger } from '@/lib/logger'
-import type { Prisma } from '@prisma/client'
 import type { NextRequest } from 'next/server'
-
+import { prisma } from '@/lib/database-service'
+import type { Prisma } from '@prisma/client'
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
+import { AuthorizationError } from '@/lib/errors'
+import { authenticate } from '@/lib/api/auth-middleware'
+import { logger } from '@/lib/logger'
+import { AgentMonitoringQuerySchema } from '@/lib/validation/schemas'
 
 interface AgentActivity {
   agentId: string
@@ -41,26 +43,32 @@ interface AgentActivity {
  * GET /api/agents/monitoring
  * Get activity metrics for all agents
  */
-export async function GET(request: NextRequest) {
-  try {
-    // Authenticate (admin or system only - can be relaxed later)
-    const user = await authenticate(request)
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  // Authenticate (admin or system only - can be relaxed later)
+  const user = await authenticate(request)
 
-    // Log monitoring access for audit trail
-    logger.info(`User ${user.userId} (isAgent: ${user.isAgent}) accessing agent monitoring`, { 
-      userId: user.userId, 
-      isAgent: user.isAgent ?? false
-    }, 'AgentMonitoring')
+  // Log monitoring access for audit trail
+  logger.info(`User ${user.userId} (isAgent: ${user.isAgent}) accessing agent monitoring`, {
+    userId: user.userId,
+    isAgent: user.isAgent ?? false
+  }, 'AgentMonitoring')
 
-    // For now, allow all authenticated users, but log access
-    // TODO: Add admin-only restriction when admin roles are implemented
-    if (!user.userId) {
-      return errorResponse('Authentication required for monitoring endpoint', 401)
-    }
+  // For now, allow all authenticated users, but log access
+  // TODO: Add admin-only restriction when admin roles are implemented
+  if (!user.userId) {
+    throw new AuthorizationError('Authentication required for monitoring endpoint', 'monitoring', 'read')
+  }
 
-    const { searchParams } = new URL(request.url)
-    const agentId = searchParams.get('agentId')
-    const limit = parseInt(searchParams.get('limit') || '50')
+  // Validate query parameters
+  const { searchParams } = new URL(request.url)
+  const query = {
+    agentId: searchParams.get('agentId'),
+    limit: searchParams.get('limit')
+  }
+  const validatedQuery = AgentMonitoringQuerySchema.parse(query)
+
+  const agentId = validatedQuery.agentId
+  const limit = validatedQuery.limit
 
     // Build where clause for agents
     const where: Prisma.UserWhereInput = {
@@ -208,28 +216,22 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Calculate summary stats
-    const summary = {
-      totalAgents: agentActivities.length,
-      activeAgents: agentActivities.filter((a) => a.isActive).length,
-      totalPosts: agentActivities.reduce((sum, a) => sum + a.stats.posts, 0),
-      totalTrades: agentActivities.reduce((sum, a) => sum + a.stats.trades, 0),
-      totalVolume: agentActivities.reduce((sum, a) => sum + a.stats.totalVolume, 0),
-    }
-
-    return successResponse({
-      agents: agentActivities,
-      summary,
-      timestamp: new Date().toISOString(),
-    })
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    logger.error('Agent monitoring error', { error: errorMessage }, 'AgentMonitoring')
-    return errorResponse(
-      error instanceof Error ? error.message : 'Failed to fetch agent monitoring data',
-      500
-    )
+  // Calculate summary stats
+  const summary = {
+    totalAgents: agentActivities.length,
+    activeAgents: agentActivities.filter((a) => a.isActive).length,
+    totalPosts: agentActivities.reduce((sum, a) => sum + a.stats.posts, 0),
+    totalTrades: agentActivities.reduce((sum, a) => sum + a.stats.trades, 0),
+    totalVolume: agentActivities.reduce((sum, a) => sum + a.stats.totalVolume, 0),
   }
-}
+
+  logger.info('Agent monitoring data fetched successfully', { totalAgents: summary.totalAgents, activeAgents: summary.activeAgents }, 'GET /api/agents/monitoring')
+
+  return successResponse({
+    agents: agentActivities,
+    summary,
+    timestamp: new Date().toISOString(),
+  })
+})
 
 
