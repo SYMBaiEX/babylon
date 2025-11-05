@@ -10,6 +10,22 @@ import { logger } from '@/lib/logger';
 
 export async function GET(_request: NextRequest) {
   try {
+    // Check database connection first
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+    } catch (dbError) {
+      logger.error('Database connection failed:', dbError, 'Debug');
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Database connection failed',
+          message: 'Cannot connect to database. Check DATABASE_URL environment variable.',
+          details: dbError instanceof Error ? dbError.message : String(dbError),
+        },
+        { status: 503 }
+      );
+    }
+
     // Get the continuous game
     let game = await prisma.game.findFirst({
       where: { isContinuous: true },

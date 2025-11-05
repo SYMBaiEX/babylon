@@ -20,14 +20,41 @@ interface GameState {
   activeQuestions: number;
 }
 
+interface DbCheck {
+  databaseConnection: string;
+  databaseUrl: {
+    exists: boolean;
+    isPlaceholder?: boolean;
+  };
+}
+
 export default function DebugPage() {
   const [game, setGame] = useState<GameState | null>(null);
+  const [dbCheck, setDbCheck] = useState<DbCheck | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const loadGameState = async () => {
     try {
+      // Check database first
+      const envResponse = await fetch('/debug/env');
+      const envData = await envResponse.json();
+      if (envData.checks) {
+        setDbCheck(envData.checks);
+      }
+
+      // If database is not configured, show error and stop
+      if (envData.checks?.databaseUrl?.isPlaceholder) {
+        setMessage({ 
+          type: 'error', 
+          text: '⚠️ Database not configured. See instructions below.' 
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Load game state
       const response = await fetch('/api/game/control');
       const data = await response.json();
       if (data.success && data.game) {
@@ -115,6 +142,46 @@ export default function DebugPage() {
             }`}
           >
             {message.text}
+          </div>
+        )}
+
+        {/* Database Status */}
+        {dbCheck && (
+          <div className={`border rounded-lg p-4 ${
+            dbCheck.databaseConnection.includes('✅')
+              ? 'bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800'
+              : 'bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800'
+          }`}>
+            <div className="flex items-center gap-2">
+              <span className="text-lg">
+                {dbCheck.databaseConnection.includes('✅') ? '✅' : '❌'}
+              </span>
+              <div>
+                <p className="font-semibold">
+                  Database Status: {dbCheck.databaseConnection}
+                </p>
+                {!dbCheck.databaseUrl.exists && (
+                  <p className="text-sm mt-1">
+                    DATABASE_URL environment variable is not set
+                  </p>
+                )}
+                {dbCheck.databaseUrl.isPlaceholder && (
+                  <div className="mt-2 text-sm space-y-1">
+                    <p className="font-semibold">📋 How to fix:</p>
+                    <ol className="list-decimal ml-5 space-y-1">
+                      <li>Go to Vercel Dashboard → Your Project → Settings → Environment Variables</li>
+                      <li>Add <code className="px-1 bg-white dark:bg-gray-900 rounded">DATABASE_URL</code></li>
+                      <li>Value: <code className="px-1 bg-white dark:bg-gray-900 rounded">postgresql://USER:PASSWORD@HOST:PORT/DATABASE</code></li>
+                      <li>Select all environments (Production, Preview, Development)</li>
+                      <li>Redeploy your application</li>
+                    </ol>
+                    <p className="mt-2">
+                      💡 Need a database? Try <a href="https://vercel.com/postgres" target="_blank" rel="noopener noreferrer" className="underline">Vercel Postgres</a> or <a href="https://railway.app" target="_blank" rel="noopener noreferrer" className="underline">Railway</a>
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
