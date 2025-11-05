@@ -13,41 +13,44 @@
  * - Satirical LLM-generated group chat names
  */
 
-import { logger } from '@/lib/logger';
-import { ActorSocialActions } from '@/lib/services/ActorSocialActions';
-import { broadcastChatMessage } from '@/lib/sse/event-broadcaster';
-import { broadcastToChannelSafe as broadcastToChannel } from '@/lib/websocket-utils';
-import type {
-  Actor,
-  ActorConnection,
-  ActorTier,
-  ChatMessage,
-  FeedPost,
-  GroupChat,
-  Organization,
-  PriceUpdate,
-  Question,
-  Scenario,
-  SelectedActor,
-  WorldEvent,
-} from '@/shared/types';
-import { shuffleArray, toQuestionIdNumber, toQuestionIdNumberOrNull } from '@/shared/utils';
-import type { JsonValue } from '@/types/common';
 import { EventEmitter } from 'events';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import { Prisma } from '@prisma/client';
+import { FeedGenerator } from './FeedGenerator';
+import { QuestionManager } from './QuestionManager';
+import { PriceEngine } from './PriceEngine';
+import { PerpetualsEngine } from './PerpetualsEngine';
+import { A2AGameIntegration, type A2AGameConfig } from './A2AGameIntegration';
 import { BabylonLLMClient } from '../generator/llm/openai-client';
+import { shuffleArray, toQuestionIdNumber, toQuestionIdNumberOrNull } from '@/shared/utils';
 import { db } from '../lib/database-service';
 import { ReputationService } from '../lib/services/reputation-service';
-import { A2AGameIntegration, type A2AGameConfig } from './A2AGameIntegration';
-import { ArticleGenerator } from './ArticleGenerator';
-import { FeedGenerator } from './FeedGenerator';
-import { PerpetualsEngine } from './PerpetualsEngine';
-import { PriceEngine } from './PriceEngine';
-import { QuestionManager } from './QuestionManager';
+import { logger } from '@/lib/logger';
+import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
+import { ActorSocialActions } from '@/lib/services/ActorSocialActions';
+import type {
+  SelectedActor,
+  Actor,
+  ActorTier,
+  Organization,
+  Question,
+  FeedPost,
+  PriceUpdate,
+  ActorConnection,
+  Scenario,
+  GroupChat,
+  WorldEvent,
+  ActorsDatabase,
+  ChatMessage,
+} from '@/shared/types';
+import type { JsonValue } from '@/types/common';
 
 interface GameConfig {
   tickIntervalMs?: number;
   postsPerTick?: number;
   historyDays?: number;
+  savePath?: string;
   a2a?: A2AGameConfig;
 }
 
@@ -69,7 +72,6 @@ export class GameEngine extends EventEmitter {
   private priceEngine: PriceEngine;
   private perpsEngine: PerpetualsEngine;
   private a2aIntegration: A2AGameIntegration;
-  private articleGenerator: ArticleGenerator;
 
   private actors: SelectedActor[] = [];
   private organizations: Organization[] = [];
@@ -97,6 +99,7 @@ export class GameEngine extends EventEmitter {
       tickIntervalMs: config?.tickIntervalMs || 60000,
       postsPerTick: config?.postsPerTick || 15,
       historyDays: config?.historyDays || 30,
+      savePath: config?.savePath || join(process.cwd(), 'games', 'babylon'),
       a2a: config?.a2a ?? { enabled: false },
     };
 
@@ -106,7 +109,6 @@ export class GameEngine extends EventEmitter {
     this.priceEngine = new PriceEngine(Date.now());
     this.perpsEngine = new PerpetualsEngine();
     this.a2aIntegration = new A2AGameIntegration(this.config.a2a);
-    this.articleGenerator = new ArticleGenerator(this.llm);
   }
 
   async initialize(): Promise<void> {
@@ -114,35 +116,15 @@ export class GameEngine extends EventEmitter {
     
     logger.info('INITIALIZING GAME ENGINE', undefined, 'GameEngine');
 
-    logger.info('Loading actors from database...', undefined, 'GameEngine');
-    const dbActors = await db.getAllActors();
-    // Convert database actors to Actor type (null -> undefined)
-    const actors: Actor[] = dbActors.map(a => ({
-      id: a.id,
-      name: a.name,
-      description: a.description ?? undefined,
-      domain: a.domain,
-      personality: a.personality ?? undefined,
-      role: a.role ?? undefined,
-      affiliations: a.affiliations,
-      postStyle: a.postStyle ?? undefined,
-      postExample: a.postExample,
-      tier: a.tier as ActorTier,
-      initialLuck: a.initialLuck as 'low' | 'medium' | 'high' | undefined,
-      initialMood: a.initialMood ?? undefined,
-      hasPool: a.hasPool,
-      tradingBalance: Number(a.tradingBalance),
-      reputationPoints: a.reputationPoints,
-      profileImageUrl: a.profileImageUrl ?? undefined,
-    }));
-    this.actors = this.selectAllActors(actors);
+    const actorsPath = join(process.cwd(), 'public/data/actors.json');
+    const actorsData = JSON.parse(readFileSync(actorsPath, 'utf-8')) as ActorsDatabase;
+
+    logger.info('Loading actors...', undefined, 'GameEngine');
+    this.actors = this.selectAllActors(actorsData.actors);
     logger.info(`Loaded ${this.actors.length} actors`, { actorCount: this.actors.length }, 'GameEngine');
 
-    logger.info('Loading organizations from database...', undefined, 'GameEngine');
-    const dbOrganizations = await db.getAllOrganizations();
-    this.organizations = dbOrganizations;
-    
-    logger.info('Initializing prices...', undefined, 'GameEngine');
+    logger.info('Initializing organizations and prices...', undefined, 'GameEngine');
+    this.organizations = actorsData.organizations;
     this.priceEngine.initializeCompanies(this.organizations);
     this.perpsEngine.initializeMarkets(this.organizations);
     const companies = this.organizations.filter(o => o.type === 'company');
@@ -168,26 +150,7 @@ export class GameEngine extends EventEmitter {
     this.initializeLuckMood();
     this.feedGenerator.setOrganizations(this.organizations);
 
-    // Load existing questions from database
-    logger.info('Loading questions from database...', undefined, 'GameEngine');
-    const dbQuestions = await db.prisma.question.findMany({
-      orderBy: { createdDate: 'desc' },
-    });
-    // Convert database questions to Question type
-    this.questions = dbQuestions.map(q => ({
-      id: q.id,
-      text: q.text,
-      scenario: q.scenarioId,
-      rank: q.rank,
-      resolutionDate: q.resolutionDate?.toISOString() ?? undefined,
-      outcome: q.outcome,
-      status: q.status as 'active' | 'resolved' | 'cancelled',
-      createdDate: q.createdDate.toISOString(),
-      questionNumber: q.questionNumber,
-      resolvedOutcome: q.resolvedOutcome ?? undefined,
-      scenarioId: q.scenarioId,
-    }));
-    logger.info(`Loaded ${this.questions.length} questions from database`, { questionCount: this.questions.length }, 'GameEngine');
+    await this.loadHistory();
 
     if (this.questions.length === 0) {
       logger.info('Generating initial questions...', undefined, 'GameEngine');
@@ -215,9 +178,15 @@ export class GameEngine extends EventEmitter {
     logger.info('STARTING ENGINE', undefined, 'GameEngine');
     this.isRunning = true;
 
-    void this.tick();
+    this.tick().catch(error => {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Tick error: ${errorMessage}`, { error }, 'GameEngine');
+    });
     this.intervalId = setInterval(() => {
-      void this.tick();
+      this.tick().catch(error => {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(`Tick error: ${errorMessage}`, { error }, 'GameEngine');
+      });
     }, this.config.tickIntervalMs);
 
     this.fundingIntervalId = setInterval(() => {
@@ -239,6 +208,7 @@ export class GameEngine extends EventEmitter {
     if (this.dailySnapshotIntervalId) clearInterval(this.dailySnapshotIntervalId);
 
     this.isRunning = false;
+    this.saveState();
 
     // Shutdown A2A integration
     await this.a2aIntegration.shutdown();
@@ -255,197 +225,252 @@ export class GameEngine extends EventEmitter {
     
     logger.debug(`Generating tick at ${timestamp}`, { timestamp }, 'GameEngine');
 
-    // Step 1: Resolve expired questions with resolution events
-    const activeQuestions = this.questions.filter(q => q.status === 'active');
-    const toResolve = this.questionManager.getQuestionsToResolve(activeQuestions, currentDate);
-    
-    const resolutionEvents: WorldEvent[] = [];
-    if (toResolve.length > 0) {
-      logger.info(`Resolving ${toResolve.length} questions`, { count: toResolve.length }, 'GameEngine');
-      for (const question of toResolve) {
-        // Generate definitive resolution event
-        const resolutionEvent: WorldEvent = await this.generateResolutionEvent(question);
-        resolutionEvents.push(resolutionEvent);
-
-        const resolved = this.questionManager.resolveQuestion(question, question.outcome);
-        const index = this.questions.findIndex(q => q.id === question.id);
-        if (index >= 0) {
-          this.questions[index] = resolved;
-        }
-
-        // Update on-chain reputation for all users who had positions
-        logger.info(`Updating on-chain reputation for market ${question.id}`, { questionId: question.id }, 'GameEngine');
-        const reputationUpdates = await ReputationService.updateReputationForResolvedMarket({
-          marketId: question.id.toString(),
-          outcome: question.outcome,
-        });
-
-        const winners = reputationUpdates.filter(u => u.change > 0).length;
-        const losers = reputationUpdates.filter(u => u.change < 0).length;
-        const errors = reputationUpdates.filter(u => u.error).length;
-
-        logger.info(`Reputation updated: ${winners} winners (+10), ${losers} losers (-5)${errors > 0 ? `, ${errors} errors` : ''}`, {
-          winners,
-          losers,
-          errors,
-          questionId: question.id
-        }, 'GameEngine');
-      }
-    }
-
-    // Step 2: Create new questions
-    const currentActive = this.questions.filter(q => q.status === 'active').length;
-    let questionsCreated = 0;
-    
-    if (currentActive < 15) {
-      const toCreate = Math.min(3, 20 - currentActive);
-      const newQuestions = await this.generateQuestions(toCreate);
-      this.questions.push(...newQuestions);
-      questionsCreated = newQuestions.length;
-      logger.info(`Created ${questionsCreated} new questions`, { count: questionsCreated }, 'GameEngine');
+    try {
+      // Step 1: Resolve expired questions with resolution events
+      const activeQuestions = this.questions.filter(q => q.status === 'active');
+      const toResolve = this.questionManager.getQuestionsToResolve(activeQuestions, currentDate);
       
-      if (questionsCreated > 0) {
-        broadcastToChannel('markets', {
-          type: 'new_questions',
-          count: questionsCreated,
-          timestamp: timestamp,
-        });
-        broadcastToChannel('upcoming-events', {
-          type: 'new_questions',
-          count: questionsCreated,
-          timestamp: timestamp,
-        });
-      }
-    }
+      const resolutionEvents: WorldEvent[] = [];
+      if (toResolve.length > 0) {
+        logger.info(`Resolving ${toResolve.length} questions`, { count: toResolve.length }, 'GameEngine');
+        for (const question of toResolve) {
+          // Generate definitive resolution event
+          const resolutionEvent: WorldEvent = await this.generateResolutionEvent(question);
+          resolutionEvents.push(resolutionEvent);
 
-    // Step 3: Generate events for active questions
-    const events = await this.generateQuestionDrivenEvents(activeQuestions, resolutionEvents);
-    
-    if (events.length > 0) {
-      const significantEvents = events.filter(e => 
-        e.visibility === 'public' && 
-        (e.type.toLowerCase().includes('announcement') || 
-         e.type.toLowerCase().includes('development') || 
-         e.type.toLowerCase().includes('scandal') ||
-         e.type.toLowerCase().includes('deal'))
-      );
-      for (const event of significantEvents) {
-        const broadcastEvent: Record<string, JsonValue> = {
-          type: 'new_event',
-          event: {
-            id: event.id,
+          const resolved = this.questionManager.resolveQuestion(question, question.outcome);
+          const index = this.questions.findIndex(q => q.id === question.id);
+          if (index >= 0) {
+            this.questions[index] = resolved;
+          }
+
+          // Update on-chain reputation for all users who had positions
+          logger.info(`Updating on-chain reputation for market ${question.id}`, { questionId: question.id }, 'GameEngine');
+          try {
+            const reputationUpdates = await ReputationService.updateReputationForResolvedMarket({
+              marketId: question.id.toString(),
+              outcome: question.outcome,
+            });
+
+            const winners = reputationUpdates.filter(u => u.change > 0).length;
+            const losers = reputationUpdates.filter(u => u.change < 0).length;
+            const errors = reputationUpdates.filter(u => u.error).length;
+
+            logger.info(`Reputation updated: ${winners} winners (+10), ${losers} losers (-5)${errors > 0 ? `, ${errors} errors` : ''}`, {
+              winners,
+              losers,
+              errors,
+              questionId: question.id
+            }, 'GameEngine');
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.error(`Failed to update reputation for market ${question.id}: ${errorMessage}`, { error, questionId: question.id }, 'GameEngine');
+            // Don't fail the entire tick if reputation update fails
+          }
+        }
+      }
+
+      // Step 2: Create new questions
+      const currentActive = this.questions.filter(q => q.status === 'active').length;
+      let questionsCreated = 0;
+      
+      if (currentActive < 15) {
+        const toCreate = Math.min(3, 20 - currentActive);
+        const newQuestions = await this.generateQuestions(toCreate);
+        this.questions.push(...newQuestions);
+        questionsCreated = newQuestions.length;
+        logger.info(`Created ${questionsCreated} new questions`, { count: questionsCreated }, 'GameEngine');
+        
+        // Broadcast new questions to markets and upcoming-events channels
+        if (questionsCreated > 0) {
+          try {
+            broadcastToChannel('markets', {
+              type: 'new_questions',
+              count: questionsCreated,
+              timestamp: timestamp,
+            });
+            broadcastToChannel('upcoming-events', {
+              type: 'new_questions',
+              count: questionsCreated,
+              timestamp: timestamp,
+            });
+          } catch (error) {
+            logger.debug('Could not broadcast new questions:', error, 'GameEngine');
+          }
+        }
+      }
+
+      // Step 3: Generate events for active questions
+      const events = await this.generateQuestionDrivenEvents(activeQuestions, resolutionEvents);
+      
+      // Broadcast significant events to breaking-news channel
+      if (events.length > 0) {
+        try {
+          const significantEvents = events.filter(e => 
+            e.visibility === 'public' && 
+            (e.type.toLowerCase().includes('announcement') || 
+             e.type.toLowerCase().includes('development') || 
+             e.type.toLowerCase().includes('scandal') ||
+             e.type.toLowerCase().includes('deal'))
+          );
+          for (const event of significantEvents) {
+            // Create properly typed event data for broadcast
+            // WorldEvent.description is always a string according to the type definition
+            const eventDescription = typeof event.description === 'string' 
+              ? event.description 
+              : '';
+            
+            const broadcastEvent: Record<string, JsonValue> = {
+              type: 'new_event',
+              event: {
+                id: event.id,
+                type: event.type,
+                description: eventDescription,
+                relatedQuestion: event.relatedQuestion ?? null,
+                timestamp: timestamp,
+              }
+            };
+            
+            broadcastToChannel('breaking-news', broadcastEvent);
+          }
+        } catch (error) {
+          logger.debug('Could not broadcast events:', error, 'GameEngine');
+        }
+      }
+      
+      // Step 4: Update prices based on events
+      const priceUpdates = await this.updatePrices(events);
+      if (priceUpdates.length > 0) {
+        logger.debug(`${priceUpdates.length} price updates`, { count: priceUpdates.length }, 'GameEngine');
+        
+        const priceMap = new Map<string, number>();
+        this.organizations.forEach(org => {
+          if (org.type === 'company' && org.currentPrice) {
+            priceMap.set(org.id, org.currentPrice);
+          }
+        });
+        this.perpsEngine.updatePositions(priceMap);
+        
+        // Broadcast price updates to markets channel
+        try {
+          broadcastToChannel('markets', {
+            type: 'price_update',
+            count: priceUpdates.length,
+            timestamp: timestamp,
+          });
+        } catch (error) {
+          logger.debug('Could not broadcast price updates:', error, 'GameEngine');
+        }
+      }
+
+      // Step 5: Generate posts using LLM
+      const posts = await this.generateLLMPosts(events, activeQuestions);
+      logger.info(`Generated ${posts.length} LLM posts`, { count: posts.length }, 'GameEngine');
+
+      // Step 6: Generate group chat messages about questions
+      const groupChatMessages = await this.generateGroupChatDiscussions(activeQuestions, events);
+
+      const tick: Tick = {
+        timestamp,
+        posts,
+        priceUpdates,
+        events,
+        groupChatMessages,
+        questionsResolved: toResolve.length,
+        questionsCreated,
+      };
+
+      this.recentTicks.push(tick);
+      
+      const maxTicks = this.config.historyDays * 24 * 60;
+      if (this.recentTicks.length > maxTicks) {
+        this.recentTicks = this.recentTicks.slice(-maxTicks);
+      }
+
+      // Persist tick data FIRST (before broadcasting) to ensure posts are in database
+      await this.persistTickData(tick).catch(error => {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(`Failed to persist tick data: ${errorMessage}`, { error }, 'GameEngine');
+      });
+
+      // Broadcast new posts to feed channel AFTER persistence
+      // This ensures posts are available in the database when feed refreshes
+      if (posts.length > 0) {
+        try {
+          for (const post of posts) {
+            broadcastToChannel('feed', {
+              type: 'new_post',
+              post: {
+                id: post.id,
+                content: post.content,
+                authorId: post.author,
+                timestamp: post.timestamp || timestamp,
+              }
+            });
+          }
+          logger.debug(`Broadcasted ${posts.length} posts to feed channel`, { count: posts.length }, 'GameEngine');
+        } catch (error) {
+          logger.debug('Could not broadcast posts:', error, 'GameEngine');
+        }
+      }
+
+      // Broadcast group chat messages to their respective chats
+      if (Object.keys(groupChatMessages).length > 0) {
+        try {
+          const { broadcastChatMessage } = await import('@/lib/sse/event-broadcaster');
+          for (const [chatId, messages] of Object.entries(groupChatMessages)) {
+            for (const msg of messages) {
+              broadcastChatMessage(chatId, {
+                id: `${chatId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                chatId: chatId,
+                senderId: msg.from,
+                content: msg.message,
+                createdAt: msg.timestamp,
+                isGameChat: true,
+              });
+            }
+          }
+          logger.debug(`Broadcasted ${Object.values(groupChatMessages).flat().length} group chat messages`, undefined, 'GameEngine');
+        } catch (error) {
+          logger.debug('Could not broadcast group chat messages:', error, 'GameEngine');
+        }
+      }
+
+      this.emit('tick', tick);
+
+      // Broadcast market data to A2A agents
+      if (this.a2aIntegration.getStatus().enabled) {
+        this.a2aIntegration.broadcastMarketData(this.questions, priceUpdates);
+
+        // Broadcast significant events
+        for (const event of events) {
+          this.a2aIntegration.broadcastGameEvent({
             type: event.type,
             description: event.description,
-            relatedQuestion: event.relatedQuestion ?? null,
-            timestamp: timestamp,
-          }
-        };
-        
-        broadcastToChannel('breaking-news', broadcastEvent);
-      }
-    }
-    
-    // Step 4: Update prices based on events
-    const priceUpdates = await this.updatePrices(events);
-    if (priceUpdates.length > 0) {
-      logger.debug(`${priceUpdates.length} price updates`, { count: priceUpdates.length }, 'GameEngine');
-      
-      const priceMap = new Map<string, number>();
-      this.organizations.forEach(org => {
-        if (org.type === 'company' && org.currentPrice) {
-          priceMap.set(org.id, org.currentPrice);
-        }
-      });
-      this.perpsEngine.updatePositions(priceMap);
-      
-      broadcastToChannel('markets', {
-        type: 'price_update',
-        count: priceUpdates.length,
-        timestamp: timestamp,
-      });
-    }
-
-    // Step 5: Generate posts using LLM
-    const posts = await this.generateLLMPosts(events, activeQuestions);
-    logger.info(`Generated ${posts.length} LLM posts`, { count: posts.length }, 'GameEngine');
-
-    // Step 5.5: Generate articles from recent events
-    await this.generateAndPersistArticles(events);
-
-    // Step 6: Generate group chat messages about questions
-    const groupChatMessages = await this.generateGroupChatDiscussions(activeQuestions, events);
-
-    const tick: Tick = {
-      timestamp,
-      posts,
-      priceUpdates,
-      events,
-      groupChatMessages,
-      questionsResolved: toResolve.length,
-      questionsCreated,
-    };
-
-    this.recentTicks.push(tick);
-    
-    const maxTicks = this.config.historyDays * 24 * 60;
-    if (this.recentTicks.length > maxTicks) {
-      this.recentTicks = this.recentTicks.slice(-maxTicks);
-    }
-
-    await this.persistTickData(tick);
-
-    if (posts.length > 0) {
-      for (const post of posts) {
-        broadcastToChannel('feed', {
-          type: 'new_post',
-          post: {
-            id: post.id,
-            content: post.content,
-            authorId: post.author,
-            timestamp: post.timestamp || timestamp,
-          }
-        });
-      }
-      logger.debug(`Broadcasted ${posts.length} posts to feed channel`, { count: posts.length }, 'GameEngine');
-    }
-
-    if (Object.keys(groupChatMessages).length > 0) {
-      for (const [chatId, messages] of Object.entries(groupChatMessages)) {
-        for (const msg of messages) {
-          broadcastChatMessage(chatId, {
-            id: `${chatId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            chatId: chatId,
-            senderId: msg.from,
-            content: msg.message,
-            createdAt: msg.timestamp,
-            isGameChat: true,
+            relatedQuestion: event.relatedQuestion ?? undefined,
+            timestamp: Date.now(),
           });
         }
       }
-      logger.debug(`Broadcasted ${Object.values(groupChatMessages).flat().length} group chat messages`, undefined, 'GameEngine');
-    }
 
-    this.emit('tick', tick);
-
-    // Broadcast market data to A2A agents
-    if (this.a2aIntegration.getStatus().enabled) {
-      this.a2aIntegration.broadcastMarketData(this.questions, priceUpdates);
-
-      // Broadcast significant events
-      for (const event of events) {
-        this.a2aIntegration.broadcastGameEvent({
-          type: event.type,
-          description: event.description,
-          relatedQuestion: event.relatedQuestion ?? undefined,
-          timestamp: Date.now(),
-        });
+      if (this.recentTicks.length % 10 === 0) {
+        this.saveState();
       }
-    }
 
-    if (this.recentTicks.length % 5 === 0) {
-      await ActorSocialActions.processRandomSocialActions();
-    }
+      // Process random social actions (invites/DMs) every 5 ticks (every ~5 minutes)
+      if (this.recentTicks.length % 5 === 0) {
+        try {
+          await ActorSocialActions.processRandomSocialActions();
+        } catch (error) {
+          logger.warn('Failed to process social actions:', error, 'GameEngine');
+        }
+      }
 
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Error in tick: ${errorMessage}`, { error }, 'GameEngine');
+      this.emit('error', error);
+    }
   }
 
   /**
@@ -515,21 +540,38 @@ OUTPUT JSON:
   "type": "announcement|scandal|deal|conflict|revelation"
 }`;
 
-    const response = await this.llm.generateJSON<{
-      description: string;
-      type: string;
-    }>(prompt, undefined, { temperature: 0.8, maxTokens: 500 });
+    try {
+      const response = await this.llm.generateJSON<{
+        description: string;
+        type: string;
+      }>(prompt, undefined, { temperature: 0.8, maxTokens: 500 });
 
-    return {
-      id: `event-${Date.now()}-${Math.random()}`,
-      day: currentDay,
-      type: (response.type as WorldEvent['type']) || 'announcement',
-      actors: involvedActors.map(a => a.id),
-      description: response.description || `Development in: ${question.text}`,
-      relatedQuestion: toQuestionIdNumberOrNull(question.id),
-      pointsToward: shouldPointToOutcome ? (question.outcome ? 'YES' : 'NO') : null,
-      visibility: 'public',
-    };
+      return {
+        id: `event-${Date.now()}-${Math.random()}`,
+        day: currentDay,
+        type: (response.type as WorldEvent['type']) || 'announcement',
+        actors: involvedActors.map(a => a.id),
+        description: response.description || `Development in: ${question.text}`,
+        relatedQuestion: toQuestionIdNumberOrNull(question.id),
+        pointsToward: shouldPointToOutcome ? (question.outcome ? 'YES' : 'NO') : null,
+        visibility: 'public',
+      };
+    } catch (eventGenerationError) {
+      const errorMessage = eventGenerationError instanceof Error ? eventGenerationError.message : 'Failed to generate event';
+      logger.error(`Failed to generate event: ${errorMessage}`, { error: eventGenerationError, questionId: question.id }, 'GameEngine');
+      
+      // Fallback to template-based event
+      return {
+        id: `event-${Date.now()}-${Math.random()}`,
+        day: currentDay,
+        type: 'announcement',
+        actors: involvedActors.map(a => a.id),
+        description: `${involvedActors[0]?.name || 'Someone'} makes move regarding: ${question.text}`,
+        relatedQuestion: toQuestionIdNumberOrNull(question.id),
+        pointsToward: shouldPointToOutcome ? (question.outcome ? 'YES' : 'NO') : null,
+        visibility: 'public',
+      };
+    }
   }
 
   /**
@@ -562,21 +604,37 @@ OUTPUT JSON:
   "type": "announcement|scandal|revelation"
 }`;
 
-    const response = await this.llm.generateJSON<{
-      description: string;
-      type: string;
-    }>(prompt, undefined, { temperature: 0.7, maxTokens: 500 });
+    try {
+      const response = await this.llm.generateJSON<{
+        description: string;
+        type: string;
+      }>(prompt, undefined, { temperature: 0.7, maxTokens: 500 });
 
-    return {
-      id: `resolution-${Date.now()}`,
-      day: currentDay,
-      type: (response.type as WorldEvent['type']) || 'announcement',
-      actors: involvedActors.map(a => a.id),
-      description: response.description,
-      relatedQuestion: toQuestionIdNumberOrNull(question.id),
-      pointsToward: question.outcome ? 'YES' : 'NO',
-      visibility: 'public',
-    };
+      return {
+        id: `resolution-${Date.now()}`,
+        day: currentDay,
+        type: (response.type as WorldEvent['type']) || 'announcement',
+        actors: involvedActors.map(a => a.id),
+        description: response.description,
+        relatedQuestion: toQuestionIdNumberOrNull(question.id),
+        pointsToward: question.outcome ? 'YES' : 'NO',
+        visibility: 'public',
+      };
+    } catch (resolutionError) {
+      const errorMessage = resolutionError instanceof Error ? resolutionError.message : 'Failed to generate resolution event';
+      logger.error(`Failed to generate resolution event: ${errorMessage}`, { error: resolutionError, questionId: question.id }, 'GameEngine');
+      
+      return {
+        id: `resolution-${Date.now()}`,
+        day: currentDay,
+        type: 'announcement',
+        actors: involvedActors.map(a => a.id),
+        description: `RESOLUTION: ${question.text} - Outcome is ${question.outcome ? 'YES' : 'NO'}`,
+        relatedQuestion: toQuestionIdNumberOrNull(question.id),
+        pointsToward: question.outcome ? 'YES' : 'NO',
+        visibility: 'public',
+      };
+    }
   }
 
   /**
@@ -602,15 +660,22 @@ OUTPUT JSON:
       const commentingActors = this.selectActorsForEvent(event, 3);
       
       for (const actor of commentingActors) {
-        const post = await this.generateActorPostAboutEvent(
-          actor,
-          event,
-          question,
-          clueStrength
-        );
-        posts.push(post);
-        
-        if (posts.length >= numPosts) break;
+        try {
+          const post = await this.generateActorPostAboutEvent(
+            actor,
+            event,
+            question,
+            clueStrength
+          );
+          posts.push(post);
+          
+          if (posts.length >= numPosts) break;
+        } catch (postGenerationError) {
+          // Skip this post if LLM fails, continue to next
+          const errorMessage = postGenerationError instanceof Error ? postGenerationError.message : 'Failed to generate post'
+          logger.warn('Failed to generate post, skipping', { error: errorMessage, actorId: actor.id, eventId: event.id }, 'GameEngine')
+          continue;
+        }
       }
       
       if (posts.length >= numPosts) break;
@@ -668,31 +733,37 @@ OUTPUT JSON:
   "pointsToward": true/false/null
 }`;
 
-    const response = await this.llm.generateJSON<{
-      post: string;
-      sentiment: number;
-      clueStrength: number;
-      pointsToward: boolean | null;
-    }>(prompt, undefined, { temperature: 0.9, maxTokens: 1000 });
+    try {
+      const response = await this.llm.generateJSON<{
+        post: string;
+        sentiment: number;
+        clueStrength: number;
+        pointsToward: boolean | null;
+      }>(prompt, undefined, { temperature: 0.9, maxTokens: 1000 });
 
-    // Strict validation
-    if (!response.post || typeof response.post !== 'string') {
-      throw new Error('Invalid LLM response for post');
+      // Strict validation
+      if (!response.post || typeof response.post !== 'string') {
+        throw new Error('Invalid LLM response for post');
+      }
+
+      return {
+        id: `post-${Date.now()}-${Math.random()}`,
+        day: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+        timestamp: new Date().toISOString(),
+        type: 'post',
+        content: response.post,
+        author: actor.id,
+        authorName: actor.name,
+        sentiment: response.sentiment || 0,
+        clueStrength: response.clueStrength || clueStrength,
+        pointsToward: response.pointsToward ?? (event.pointsToward === 'YES'),
+        relatedEvent: event.id,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to generate LLM post: ${errorMessage}`, { error, actorId: actor.id, eventId: event.id }, 'GameEngine');
+      throw error; // Propagate error instead of fallback
     }
-
-    return {
-      id: `post-${Date.now()}-${Math.random()}`,
-      day: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
-      timestamp: new Date().toISOString(),
-      type: 'post',
-      content: response.post,
-      author: actor.id,
-      authorName: actor.name,
-      sentiment: response.sentiment || 0,
-      clueStrength: response.clueStrength || clueStrength,
-      pointsToward: response.pointsToward ?? (event.pointsToward === 'YES'),
-      relatedEvent: event.id,
-    };
   }
 
   /**
@@ -718,90 +789,35 @@ OUTPUT JSON:
   "post": "your speculation here"
 }`;
 
-    const response = await this.llm.generateJSON<{ post: string }>(
-      prompt,
-      undefined,
-      { temperature: 0.9, maxTokens: 500 }
-    );
-
-    // Strict validation
-    if (!response.post || typeof response.post !== 'string') {
-      return null;
-    }
-
-    return {
-      id: `post-${Date.now()}-${Math.random()}`,
-      day: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
-      timestamp: new Date().toISOString(),
-      type: 'post',
-      content: response.post,
-      author: actor.id,
-      authorName: actor.name,
-      sentiment: Math.random() * 2 - 1,
-      clueStrength,
-      pointsToward: Math.random() > 0.5,
-    };
-  }
-
-  /**
-   * Generate and persist articles from recent events
-   */
-  private async generateAndPersistArticles(events: WorldEvent[]): Promise<void> {
-    const significantEvents = events.filter(e =>
-      e.visibility === 'public' &&
-      (e.type.toLowerCase().includes('announcement') ||
-       e.type.toLowerCase().includes('development') ||
-       e.type.toLowerCase().includes('scandal') ||
-       e.type.toLowerCase().includes('deal') ||
-       e.type.toLowerCase().includes('leak') ||
-       e.type.toLowerCase().includes('revelation'))
-    ).slice(0, 2);
-
-    if (significantEvents.length === 0) return;
-
-    const newsOrgs = this.organizations.filter(org => org.type === 'media');
-    if (newsOrgs.length === 0) return;
-
-    for (const event of significantEvents) {
-      const articles = await this.articleGenerator.generateArticlesForEvent(
-        event,
-        newsOrgs,
-        this.actors,
-        []
+    try {
+      const response = await this.llm.generateJSON<{ post: string }>(
+        prompt,
+        undefined,
+        { temperature: 0.9, maxTokens: 500 }
       );
 
-      for (const article of articles) {
-        await db.prisma.post.create({
-          data: {
-            type: 'article',
-            content: article.summary,
-            fullContent: article.content,
-            articleTitle: article.title,
-            byline: article.byline || null,
-            biasScore: article.biasScore !== undefined ? article.biasScore : null,
-            sentiment: article.sentiment || null,
-            slant: article.slant || null,
-            category: article.category || null,
-            authorId: article.authorOrgId,
-            gameId: GameEngine.GAME_ID,
-            timestamp: article.publishedAt,
-          },
-        });
-
-        broadcastToChannel('feed', {
-          type: 'new_post',
-          post: {
-            id: article.id,
-            type: 'article',
-            articleTitle: article.title,
-            content: article.summary,
-            authorId: article.authorOrgId,
-            timestamp: article.publishedAt.toISOString(),
-          }
-        });
-
-        logger.info(`✍️  Article: "${article.title}"`, { org: article.authorOrgName }, 'GameEngine');
+      // Strict validation
+      if (!response.post || typeof response.post !== 'string') {
+        return null;
       }
+
+      return {
+        id: `post-${Date.now()}-${Math.random()}`,
+        day: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+        timestamp: new Date().toISOString(),
+        type: 'post',
+        content: response.post,
+        author: actor.id,
+        authorName: actor.name,
+        sentiment: Math.random() * 2 - 1,
+        clueStrength,
+        pointsToward: Math.random() > 0.5,
+      };
+    } catch (llmError) {
+      // Don't create post if LLM fails
+      const errorMessage = llmError instanceof Error ? llmError.message : 'Failed to generate LLM post'
+      logger.warn('Failed to generate LLM post, returning null', { error: errorMessage, actorId: actor.id }, 'GameEngine')
+      return null;
     }
   }
 
@@ -848,8 +864,15 @@ OUTPUT JSON:
           const memberActor = this.actors.find(a => a.id === memberId);
           if (!memberActor) continue;
 
-          const response = await this.generateChatResponse(memberActor, question, relevantEvent, clueStrength);
-          chatMessages.push(response);
+          try {
+            const response = await this.generateChatResponse(memberActor, question, relevantEvent, clueStrength);
+            chatMessages.push(response);
+          } catch (chatError) {
+            // Skip this message if LLM fails
+            const errorMessage = chatError instanceof Error ? chatError.message : 'Failed to generate chat response'
+            logger.warn('Failed to generate chat response, skipping', { error: errorMessage, actorId: memberActor.id, questionId: question.id }, 'GameEngine')
+            continue;
+          }
         }
       }
 
@@ -884,18 +907,27 @@ OUTPUT JSON:
   "message": "your message"
 }`;
 
-    const response = await this.llm.generateJSON<{ message: string }>(
-      prompt,
-      undefined,
-      { temperature: 0.9, maxTokens: 500 }
-    );
+    try {
+      const response = await this.llm.generateJSON<{ message: string }>(
+        prompt,
+        undefined,
+        { temperature: 0.9, maxTokens: 500 }
+      );
 
-    return {
-      from: actor.id,
-      message: response.message,
-      timestamp: new Date().toISOString(),
-      clueStrength,
-    };
+      // Strict validation
+      if (!response.message || typeof response.message !== 'string') {
+        throw new Error('Invalid LLM response for message');
+      }
+
+      return {
+        from: actor.id,
+        message: response.message,
+        timestamp: new Date().toISOString(),
+        clueStrength,
+      };
+    } catch (error) {
+      throw error; // Propagate error instead of fallback
+    }
   }
 
   /**
@@ -1021,38 +1053,54 @@ OUTPUT JSON:
       logger.info(`Recording daily snapshot for ${this.lastDailySnapshot}`, { date: this.lastDailySnapshot }, 'GameEngine');
       this.perpsEngine.recordDailySnapshot(this.lastDailySnapshot);
       this.lastDailySnapshot = currentDate;
+      this.saveState();
     }
   }
 
   private async syncDatabaseState(): Promise<void> {
     logger.info('Syncing engine state to database...', undefined, 'GameEngine');
-    
-    const gameState = await db.getGameState();
-    if (!gameState) {
-      await db.initializeGame();
+    try {
+      const gameState = await db.getGameState();
+      if (!gameState) {
+        await db.initializeGame();
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.warn(`Failed to ensure game state exists: ${errorMessage}`, { error }, 'GameEngine');
     }
 
-    await Promise.all(
+    await Promise.allSettled(
       this.actors.map(async (actor) => {
-        const actorData: Actor = {
-          id: actor.id,
-          name: actor.name,
-          description: actor.description,
-          domain: actor.domain,
-          personality: actor.personality,
-          role: actor.role,
-          affiliations: actor.affiliations,
-          postStyle: actor.postStyle,
-          postExample: actor.postExample,
-          tier: actor.tier,
-        };
-        await db.upsertActor(actorData);
+        try {
+          // Convert SelectedActor to Actor
+          const actorData: Actor = {
+            id: actor.id,
+            name: actor.name,
+            description: actor.description,
+            domain: actor.domain,
+            personality: actor.personality,
+            role: actor.role,
+            affiliations: actor.affiliations,
+            postStyle: actor.postStyle,
+            postExample: actor.postExample,
+            tier: actor.tier,
+          };
+          await db.upsertActor(actorData);
+        } catch (syncError) {
+          const errorMessage = syncError instanceof Error ? syncError.message : 'Failed to sync actor';
+          logger.warn(`Failed to sync actor ${actor.id}: ${errorMessage}`, { error: syncError, actorId: actor.id }, 'GameEngine');
+        }
       })
     );
 
-    await Promise.all(
+    await Promise.allSettled(
       this.organizations.map(async (org) => {
-        await db.upsertOrganization(org);
+        try {
+          await db.upsertOrganization(org);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          logger.warn(`Failed to sync organization ${org.id}: ${errorMessage}`, { error, orgId: org.id }, 'GameEngine');
+        }
       })
     );
   }
@@ -1075,31 +1123,39 @@ OUTPUT JSON:
     }
     
     for (const chat of this.groupChats) {
-      // Create or update chat
-      await db.prisma.chat.upsert({
-        where: { id: chat.id },
-        create: {
-          id: chat.id,
-          name: chat.name,
-          isGroup: true,
-          gameId: 'continuous',
-        },
-        update: {},
-      });
+      try {
+        // Create or update chat
+        await db.prisma.chat.upsert({
+          where: { id: chat.id },
+          create: {
+            id: chat.id,
+            name: chat.name,
+            isGroup: true,
+            gameId: 'continuous',
+          },
+          update: {},
+        });
 
-      const admin = this.actors.find(a => a.id === chat.admin)!;
-      const initialMessage = await this.generateGroupChatInitialMessage(admin, chat);
-      
-      await db.prisma.message.upsert({
-        where: { id: `${chat.id}-welcome` },
-        create: {
-          id: `${chat.id}-welcome`,
-          chatId: chat.id,
-          senderId: admin.id,
-          content: initialMessage,
-        },
-        update: {},
-      });
+        // Create LLM-generated initial message from admin
+        const admin = this.actors.find(a => a.id === chat.admin);
+        if (admin) {
+          const initialMessage = await this.generateGroupChatInitialMessage(admin, chat);
+          
+          await db.prisma.message.upsert({
+            where: { id: `${chat.id}-welcome` },
+            create: {
+              id: `${chat.id}-welcome`,
+              chatId: chat.id,
+              senderId: admin.id,
+              content: initialMessage,
+            },
+            update: {},
+          });
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.warn(`Failed to sync group chat ${chat.id}: ${errorMessage}`, { error, chatId: chat.id }, 'GameEngine');
+      }
     }
     
     logger.info(`✅ Synced ${this.groupChats.length} group chats to database`, { count: this.groupChats.length }, 'GameEngine');
@@ -1130,15 +1186,20 @@ OUTPUT JSON:
     if (Object.keys(tick.groupChatMessages).length > 0) {
       for (const [chatId, messages] of Object.entries(tick.groupChatMessages)) {
         for (const msg of messages) {
-          await db.prisma.message.create({
-            data: {
-              id: `${chatId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              chatId: chatId,
-              senderId: msg.from,
-              content: msg.message,
-              createdAt: new Date(msg.timestamp),
-            },
-          });
+          try {
+            await db.prisma.message.create({
+              data: {
+                id: `${chatId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                chatId: chatId,
+                senderId: msg.from,
+                content: msg.message,
+                createdAt: new Date(msg.timestamp),
+              },
+            });
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.warn(`Failed to persist chat message: ${errorMessage}`, { error, chatId }, 'GameEngine');
+          }
         }
       }
       logger.debug(`Persisted ${Object.values(tick.groupChatMessages).flat().length} group chat messages`, undefined, 'GameEngine');
@@ -1146,38 +1207,145 @@ OUTPUT JSON:
 
     if (tick.events.length > 0) {
       for (const event of tick.events) {
-        await db.createEvent({
-          id: event.id,
-          eventType: event.type,
-          description: event.description,
-          actors: event.actors,
-          relatedQuestion: typeof event.relatedQuestion === 'number' ? event.relatedQuestion : undefined,
-          pointsToward: event.pointsToward ?? undefined,
-          visibility: event.visibility,
-          gameId: GameEngine.GAME_ID,
-          dayNumber,
-        });
+        try {
+          await db.createEvent({
+            id: event.id,
+            eventType: event.type,
+            description: event.description,
+            actors: event.actors,
+            relatedQuestion: typeof event.relatedQuestion === 'number' ? event.relatedQuestion : undefined,
+            pointsToward: event.pointsToward ?? undefined,
+            visibility: event.visibility,
+            gameId: GameEngine.GAME_ID,
+            dayNumber,
+          });
+        } catch (error: unknown) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2002'
+          ) {
+            // Duplicate event, skip
+            continue;
+          }
+          throw error;
+        }
       }
     }
 
     if (tick.priceUpdates.length > 0) {
       await Promise.allSettled(
         tick.priceUpdates.map(async (update) => {
-          await db.updateOrganizationPrice(update.organizationId, update.newPrice);
-          await db.recordPriceUpdate(
-            update.organizationId,
-            update.newPrice,
-            update.change,
-            update.changePercent
-          );
+          try {
+            await db.updateOrganizationPrice(update.organizationId, update.newPrice);
+          } catch (error: unknown) {
+            if (
+              error instanceof Prisma.PrismaClientKnownRequestError &&
+              error.code === 'P2025'
+            ) {
+              const org = this.organizations.find((o) => o.id === update.organizationId);
+              if (org) {
+                try {
+                  await db.upsertOrganization(org);
+                  await db.updateOrganizationPrice(update.organizationId, update.newPrice);
+                  return;
+                } catch (nestedError) {
+                  const nestedErrorMessage = nestedError instanceof Error ? nestedError.message : String(nestedError);
+                  logger.warn(`Failed to upsert organization ${update.organizationId}: ${nestedErrorMessage}`, { error: nestedError, organizationId: update.organizationId }, 'GameEngine');
+                }
+              }
+            }
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.warn(`Failed to update price for ${update.organizationId}: ${errorMessage}`, { error, organizationId: update.organizationId }, 'GameEngine');
+          }
+
+          try {
+            await db.recordPriceUpdate(
+              update.organizationId,
+              update.newPrice,
+              update.change,
+              update.changePercent
+            );
+          } catch (error: unknown) {
+            if (
+              error instanceof Prisma.PrismaClientKnownRequestError &&
+              error.code === 'P2003'
+            ) {
+              const org = this.organizations.find((o) => o.id === update.organizationId);
+              if (org) {
+                try {
+                  await db.upsertOrganization(org);
+                  await db.recordPriceUpdate(
+                    update.organizationId,
+                    update.newPrice,
+                    update.change,
+                    update.changePercent
+                  );
+                  return;
+                } catch (nestedError) {
+                  const nestedErrorMessage = nestedError instanceof Error ? nestedError.message : String(nestedError);
+                  logger.warn(`Failed to reconcile price update for ${update.organizationId}: ${nestedErrorMessage}`, { error: nestedError, organizationId: update.organizationId }, 'GameEngine');
+                }
+              }
+            }
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.warn(`Failed to record price update for ${update.organizationId}: ${errorMessage}`, { error, organizationId: update.organizationId }, 'GameEngine');
+          }
         })
       );
     }
 
-    await db.updateGameState({
-      lastTickAt: tickDate,
-      activeQuestions: this.questions.filter((q) => q.status === 'active').length,
-    });
+    try {
+      await db.updateGameState({
+        lastTickAt: tickDate,
+        activeQuestions: this.questions.filter((q) => q.status === 'active').length,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.warn(`Failed to update game state metadata: ${errorMessage}`, { error }, 'GameEngine');
+    }
+  }
+
+  private saveState(): void {
+    if (!existsSync(this.config.savePath)) {
+      mkdirSync(this.config.savePath, { recursive: true });
+    }
+
+    const state = {
+      ticks: this.recentTicks,
+      questions: this.questions,
+      organizations: this.priceEngine.getAllCompanies(),
+      perpsState: this.perpsEngine.exportState(),
+      lastDailySnapshot: this.lastDailySnapshot,
+      timestamp: new Date().toISOString(),
+    };
+
+    const statePath = join(this.config.savePath, 'history.json');
+    writeFileSync(statePath, JSON.stringify(state, null, 2));
+  }
+
+  private async loadHistory(): Promise<void> {
+    const historyPath = join(this.config.savePath, 'history.json');
+    
+    if (existsSync(historyPath)) {
+      try {
+        const data = JSON.parse(readFileSync(historyPath, 'utf-8'));
+        this.recentTicks = data.ticks || [];
+        this.questions = data.questions || [];
+        this.lastDailySnapshot = data.lastDailySnapshot || new Date().toISOString().split('T')[0]!;
+        
+        if (data.perpsState) {
+          this.perpsEngine.importState(data.perpsState);
+        }
+        
+        logger.info('Loaded history', {
+          ticks: this.recentTicks.length,
+          questions: this.questions.length
+        }, 'GameEngine');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(`Failed to load history: ${errorMessage}`, { error }, 'GameEngine');
+      }
+    }
   }
 
   private selectAllActors(actorList: Actor[]): SelectedActor[] {
@@ -1336,13 +1504,18 @@ OUTPUT JSON:
   "message": "your initial message here"
 }`;
 
-    const response = await this.llm.generateJSON<{ message: string }>(
-      prompt,
-      undefined,
-      { temperature: 0.8, maxTokens: 500 }
-    );
-    
-    return response.message;
+    try {
+      const response = await this.llm.generateJSON<{ message: string }>(
+        prompt,
+        undefined,
+        { temperature: 0.8, maxTokens: 500 }
+      );
+      
+      return response.message || `Welcome to ${chat.name}. Let's discuss what's happening in ${chat.theme}.`;
+    } catch (error) {
+      logger.warn('Failed to generate initial chat message, using fallback', { error, chatId: chat.id }, 'GameEngine');
+      return `Welcome to ${chat.name}. Let's discuss what's happening in ${chat.theme}.`;
+    }
   }
 
   /**
@@ -1387,13 +1560,18 @@ Return ONLY this JSON:
   "name": "the group chat name here"
 }`;
 
-    const response = await this.llm.generateJSON<{ name: string }>(
-      prompt,
-      undefined,
-      { temperature: 0.9, maxTokens: 500 }
-    );
-    
-    return response.name;
+    try {
+      const response = await this.llm.generateJSON<{ name: string }>(
+        prompt,
+        undefined,
+        { temperature: 0.9, maxTokens: 500 }
+      );
+      
+      return response.name || `${admin.name}'s Circle`;
+    } catch (error) {
+      logger.warn('Failed to generate group chat name, using fallback', { error, adminId: admin.id }, 'GameEngine');
+      return `${admin.name}'s Circle`;
+    }
   }
 
   private initializeLuckMood(): void {

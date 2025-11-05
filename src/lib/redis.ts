@@ -21,7 +21,7 @@ type RedisClient = UpstashRedis | IORedis | null
 
 // Check if Upstash Redis is configured (Vercel production)
 const hasUpstashConfig = () => {
-  return !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
+  return !!((process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL) && (process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN))
 }
 
 // Check if standard Redis URL is configured (local development)
@@ -32,11 +32,16 @@ const hasStandardRedisUrl = () => {
 // Create Redis client based on available configuration
 let redisClient: RedisClient = null
 let redisType: 'upstash' | 'standard' | null = null
+let isClosing = false
+const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build'
 
-if (hasUpstashConfig()) {
+// Skip Redis initialization during build time to avoid connection issues
+if (isBuildTime) {
+  logger.info('Build time detected - skipping Redis initialization', undefined, 'Redis')
+} else if (hasUpstashConfig()) {
   redisClient = new UpstashRedis({
-    url: process.env.UPSTASH_REDIS_REST_URL!,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+    url: process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN,
   })
   redisType = 'upstash'
   logger.info('Redis client initialized (Upstash REST API)', undefined, 'Redis')
@@ -55,6 +60,8 @@ if (hasUpstashConfig()) {
   
   redisClient.connect().then(() => {
     logger.info('Redis client initialized (Standard Redis Protocol)', undefined, 'Redis')
+  }).catch((err) => {
+    logger.error('Failed to connect to Redis', err, 'Redis')
   })
 } else {
   logger.info('Redis not configured - SSE will use local-only broadcasting', undefined, 'Redis')
@@ -123,14 +130,29 @@ export async function safePoll(channel: string, count: number = 10): Promise<str
  * Cleanup Redis connection on shutdown
  */
 export async function closeRedis(): Promise<void> {
+  // Prevent double-closing
+  if (isClosing) return
+  isClosing = true
+
   if (redis && redisType === 'standard') {
-    await (redis as IORedis).quit()
-    logger.info('Redis connection closed', undefined, 'Redis')
+    try {
+      const ioRedisClient = redis as IORedis
+      // Check if connection is still alive
+      if (ioRedisClient.status === 'ready' || ioRedisClient.status === 'connect') {
+        await ioRedisClient.quit()
+        logger.info('Redis connection closed', undefined, 'Redis')
+      }
+    } catch (err) {
+      // Ignore errors during cleanup (connection may already be closed)
+      if (err instanceof Error && !err.message.includes('Connection is closed')) {
+        logger.error('Error closing Redis connection', err, 'Redis')
+      }
+    }
   }
 }
 
-// Cleanup on process exit
-if (typeof process !== 'undefined') {
+// Cleanup on process exit (only if not build time)
+if (typeof process !== 'undefined' && !isBuildTime) {
   process.on('SIGINT', () => {
     void closeRedis()
   })

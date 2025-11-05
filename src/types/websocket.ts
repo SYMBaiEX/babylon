@@ -21,7 +21,7 @@ export interface ChatMessage {
 /**
  * WebSocket channel types
  */
-export type WebSocketChannel = 'feed' | 'markets' | 'breaking-news' | 'upcoming-events' | 'prices' | 'predictions'
+export type WebSocketChannel = 'feed' | 'markets' | 'breaking-news' | 'upcoming-events'
 
 /**
  * WebSocket message type discriminator
@@ -167,7 +167,7 @@ export function isValidWebSocketMessage(obj: unknown): obj is WebSocketMessage {
         typeof msg.data === 'object' &&
         msg.data !== null &&
         typeof (msg.data as Record<string, unknown>).channel === 'string' &&
-        ['feed', 'markets', 'breaking-news', 'upcoming-events', 'prices', 'predictions'].includes(
+        ['feed', 'markets', 'breaking-news', 'upcoming-events'].includes(
           (msg.data as Record<string, unknown>).channel as string
         )
       )
