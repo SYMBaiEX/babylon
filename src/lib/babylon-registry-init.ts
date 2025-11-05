@@ -158,28 +158,54 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
         ]
       }
     }
-  
-  logger.info('Registering Babylon with Agent0 SDK...', undefined, 'BabylonRegistry')
-  const agent0Client = new Agent0Client({
-    network: (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia',
-    rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_RPC_URL || '',
-    privateKey: gamePrivateKey
-  })
-  
-  const result = await agent0Client.registerAgent({
-    name: babylonCard.name,
-    description: babylonCard.description,
-    walletAddress: gameWalletAddress,
-    mcpEndpoint: babylonCard.endpoints.mcp,
-    a2aEndpoint: babylonCard.endpoints.a2a,
-    capabilities: {
-      strategies: babylonCard.capabilities.strategies || [],
-      markets: babylonCard.capabilities.markets,
-      actions: babylonCard.capabilities.actions,
-      version: '1.0.0'
+
+    // 2. Register with Agent0 SDK (which handles IPFS publishing internally)
+    logger.info('Registering Babylon with Agent0 SDK...', undefined, 'BabylonRegistry')
+
+    // Use Ethereum Sepolia RPC (where contracts are deployed)
+    const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || process.env.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com'
+
+    // Configure IPFS - use Pinata if available, otherwise use public IPFS node
+    const ipfsConfig = process.env.PINATA_JWT
+      ? { ipfsProvider: 'pinata' as const, pinataJwt: process.env.PINATA_JWT }
+      : { ipfsProvider: 'node' as const, ipfsNodeUrl: process.env.IPFS_NODE_URL || 'https://ipfs.io' }
+
+    const agent0Client = new Agent0Client({
+      network: (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia',
+      rpcUrl,
+      privateKey: gamePrivateKey,
+      ...ipfsConfig
+    })
+
+    // Note: This will throw an error until Agent0 SDK is properly installed
+    // The error message will guide users to install the SDK
+    let result: { tokenId: number; txHash: string; metadataCID?: string }
+
+    try {
+      result = await agent0Client.registerAgent({
+        name: babylonCard.name,
+        description: babylonCard.description,
+        walletAddress: gameWalletAddress,
+        mcpEndpoint: babylonCard.endpoints.mcp,
+        a2aEndpoint: babylonCard.endpoints.a2a,
+        capabilities: {
+          strategies: babylonCard.capabilities.strategies || [],
+          markets: babylonCard.capabilities.markets,
+          actions: babylonCard.capabilities.actions,
+          version: '1.0.0',
+          x402Support: false // Babylon doesn't require ERC-402 payment for access
+        }
+      })
+    } catch (error) {
+      // If Agent0 SDK is not available, registration failed
+      logger.error(
+        'Agent0 SDK registration failed. Check SDK installation and configuration.',
+        error,
+        'BabylonRegistry'
+      )
+      throw error
     }
-  })
-  
+
   const metadataCID = result.metadataCID || ''
   
   logger.info(`✅ Babylon registered in Agent0 registry!`, undefined, 'BabylonRegistry')

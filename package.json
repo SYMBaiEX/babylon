@@ -49,6 +49,8 @@
     "agents:many": "bun run src/cli/autonomous-agents-demo.ts --count 5",
     "eliza": "tsx src/eliza/agents/run-eliza-agent.ts",
     "eliza:alice": "tsx src/eliza/agents/run-eliza-agent.ts",
+    "agent0:register": "tsx scripts/register-babylon.ts",
+    "agent0:check": "tsx scripts/check-registration.ts",
     "eliza:auto": "tsx src/eliza/agents/run-eliza-agent.ts --auto-trade",
     "eliza:all": "bun run scripts/run-all-agents.ts",
     "eliza:all:auto": "bun run scripts/run-all-agents.ts --auto-trade",

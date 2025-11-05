@@ -448,33 +448,49 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       },
     })
 
-    const userWalletAddress = walletAddress!.toLowerCase()
-    
-    const agent0Client = new Agent0Client({
-      network: (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia',
-      rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_RPC_URL || '',
-      privateKey: DEPLOYER_PRIVATE_KEY
-    })
-    
-    const agent0Result = await agent0Client.registerAgent({
-      name: username || dbUser.username || user.userId,
-      description: bio || 'Babylon player',
-      walletAddress: userWalletAddress,
-      capabilities: {
-        strategies: [],
-        markets: ['prediction', 'perpetuals'],
-        actions: ['trade', 'post', 'chat'],
-        version: '1.0.0'
-      } as AgentCapabilities
-    })
-    
-    const agent0MetadataCID = agent0Result.metadataCID
-    
-    logger.info(`User registered with Agent0 SDK`, { 
-      userId: dbUser.id, 
-      tokenId: agent0Result.tokenId,
-      metadataCID: agent0MetadataCID
-    }, 'UserOnboard')
+    // Register with Agent0 SDK if enabled
+    if (process.env.AGENT0_ENABLED === 'true') {
+      const userWalletAddress = walletAddress!.toLowerCase()
+
+      logger.info('Registering user with Agent0 SDK...', { userId: dbUser.id }, 'UserOnboard')
+
+      // Use Ethereum Sepolia RPC (where Agent0 contracts are deployed)
+      const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || process.env.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com'
+
+      // Configure IPFS - use Pinata if available, otherwise use public IPFS node
+      const ipfsConfig = process.env.PINATA_JWT
+        ? { ipfsProvider: 'pinata' as const, pinataJwt: process.env.PINATA_JWT }
+        : { ipfsProvider: 'node' as const, ipfsNodeUrl: process.env.IPFS_NODE_URL || 'https://ipfs.io' }
+
+      const agent0Client = new Agent0Client({
+        network: (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia',
+        rpcUrl,
+        privateKey: DEPLOYER_PRIVATE_KEY,
+        ...ipfsConfig
+      })
+
+      const agent0Result = await agent0Client.registerAgent({
+        name: username || dbUser.username || user.userId,
+        description: bio || 'Babylon player',
+        walletAddress: userWalletAddress,
+        capabilities: {
+          strategies: [],
+          markets: ['prediction', 'perpetuals'],
+          actions: ['trade', 'post', 'chat'],
+          version: '1.0.0'
+        } as AgentCapabilities
+      })
+
+      const agent0MetadataCID = agent0Result.metadataCID
+
+      logger.info(`✅ User registered with Agent0 SDK`, {
+        userId: dbUser.id,
+        tokenId: agent0Result.tokenId,
+        metadataCID: agent0MetadataCID
+      }, 'UserOnboard')
+    } else {
+      logger.info('Agent0 integration disabled, skipping user registration', { userId: dbUser.id }, 'UserOnboard')
+    }
 
     const userWithBalance = await prisma.user.findUniqueOrThrow({
       where: { id: dbUser.id },

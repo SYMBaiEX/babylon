@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { UUIDSchema, UserIdSchema } from './common';
+import { UserIdSchema } from './common';
 
 /**
  * Game tick cron authentication schema
@@ -59,7 +59,7 @@ export const RegistryQuerySchema = z.object({
  * Award points schema
  */
 export const AwardPointsSchema = z.object({
-  userId: UUIDSchema,
+  userId: UserIdSchema,
   points: z.number().int().min(-1000000).max(1000000),
   reason: z.enum([
     'profile_completion',

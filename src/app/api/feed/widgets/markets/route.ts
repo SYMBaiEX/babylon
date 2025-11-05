@@ -1,6 +1,6 @@
 /**
  * Markets Widget API
- * 
+ *
  * GET /api/feed/widgets/markets - Get trending prediction markets for sidebar widget
  */
 
@@ -9,7 +9,7 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   const questions = await db.getActiveQuestions()
-  
+
   if (questions.length === 0) {
     return NextResponse.json({
       success: true,
@@ -54,13 +54,13 @@ export async function GET() {
       const aTime = a.endDate ? new Date(a.endDate).getTime() : Date.now()
       const bTime = b.endDate ? new Date(b.endDate).getTime() : Date.now()
       const now = Date.now()
-      
+
       const aRecency = Math.max(0, 1 - (aTime - now) / (30 * 24 * 60 * 60 * 1000))
       const bRecency = Math.max(0, 1 - (bTime - now) / (30 * 24 * 60 * 60 * 1000))
-      
+
       const aScore = (a.volume * 0.7) + (aRecency * 1000 * 0.3)
       const bScore = (b.volume * 0.7) + (bRecency * 1000 * 0.3)
-      
+
       return bScore - aScore
     })
     .slice(0, 5)

@@ -80,6 +80,7 @@ export interface AgentCapabilities {
   markets: string[]
   actions: string[]
   version: string
+  x402Support?: boolean // ERC-402 payment support for agent services
 }
 
 export interface AgentProfile {

@@ -75,6 +75,11 @@ model User {
   referralCount        Int      @default(0) // Number of successful referrals
   bannerLastShown      DateTime? // Track when invite banner was last shown
   bannerDismissCount   Int      @default(0) // Track how many times user dismissed banner
+  
+  // Agent0 legacy fields (preserved for existing data)
+  agent0FeedbackCount  Int?     // Legacy: Agent0 feedback count
+  agent0TrustScore     Float?   // Legacy: Agent0 trust score
+  role                 String?  // Legacy: User role
 
   // Relationships
   comments        Comment[]
@@ -588,6 +593,13 @@ model Pool {
   openedAt            DateTime @default(now())
   closedAt            DateTime?
   updatedAt           DateTime @updatedAt
+  
+  // Market widget fields
+  status              String   @default("ACTIVE") // "ACTIVE", "CLOSED", "PAUSED"
+  currentPrice        Float?   // Current share/token price
+  priceChange24h      Float?   // 24h price change percentage
+  volume24h           Decimal? @db.Decimal(18, 2) // 24h trading volume
+  tvl                 Decimal? @db.Decimal(18, 2) // Total Value Locked (can differ from totalValue)
 
   // Relationships
   npcActor  Actor         @relation(fields: [npcActorId], references: [id], onDelete: Cascade)
@@ -598,6 +610,8 @@ model Pool {
   @@index([npcActorId])
   @@index([isActive])
   @@index([totalValue])
+  @@index([status])
+  @@index([volume24h])
 }
 
 // PoolDeposit model - User deposits into pools

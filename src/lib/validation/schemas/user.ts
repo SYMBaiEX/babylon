@@ -143,8 +143,8 @@ export const OnChainRegistrationSchema = z.object({
   username: z.string().min(1).max(50).optional(),
   displayName: z.string().min(1).max(100).optional(),
   bio: createTrimmedStringSchema(undefined, 500).optional(),
-  profileImageUrl: URLSchema.optional(),
-  coverImageUrl: URLSchema.optional(),
+  profileImageUrl: z.union([z.string().url(), z.literal('')]).optional(),
+  coverImageUrl: z.union([z.string().url(), z.literal('')]).optional(),
   endpoint: URLSchema.optional(),
   referralCode: z.string().optional()
 });
@@ -209,8 +209,8 @@ export const UserListResponseSchema = z.object({
  */
 export const UserPostsQuerySchema = z.object({
   type: z.enum(['posts', 'replies']).default('posts'),
-  page: z.coerce.number().positive().default(1),
-  limit: z.coerce.number().positive().max(100).default(100)
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(100).default(100)
 });
 
 /**

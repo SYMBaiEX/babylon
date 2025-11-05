@@ -254,35 +254,74 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       },
     })
 
-    const agentWalletAddress = account.address
-    
-    const agent0Client = new Agent0Client({
-      network: (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia',
-      rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_RPC_URL || '',
-      privateKey: DEPLOYER_PRIVATE_KEY
-    })
-    
-    const agent0Result = await agent0Client.registerAgent({
-      name: name,
-      description: dbUser.bio || `Autonomous AI agent: ${agentId}`,
-      walletAddress: agentWalletAddress,
-      mcpEndpoint: undefined,
-      a2aEndpoint: endpoint || `wss://babylon.game/ws/a2a`,
-      capabilities: {
-        strategies: ['momentum', 'sentiment', 'volume'],
-        markets: ['prediction', 'perpetuals'],
-        actions: ['analyze', 'trade', 'coordinate'],
-        version: '1.0.0'
-      } as AgentCapabilities
-    })
-    
-    const agent0MetadataCID = agent0Result.metadataCID
-    
-    logger.info(`Agent registered with Agent0 SDK`, { 
-      agentId, 
-      tokenId: agent0Result.tokenId,
-      metadataCID: agent0MetadataCID
-    }, 'AgentOnboard')
+    // Register with Agent0 SDK and publish to IPFS (if enabled)
+    let agent0MetadataCID: string | null = null
+    if (process.env.AGENT0_ENABLED === 'true') {
+      logger.info('Registering agent with Agent0 SDK...', { agentId, tokenId }, 'AgentOnboard')
+
+      // Get agent wallet address (if available) or use server wallet
+      const agentWalletAddress = account.address
+
+      // Create agent metadata (Agent0 SDK will publish to IPFS)
+      const agentMetadata = {
+        name: name,
+        description: dbUser.bio || `Autonomous AI agent: ${agentId}`,
+        version: '1.0.0',
+        type: 'agent',
+        endpoints: {
+          a2a: endpoint || `wss://babylon.game/ws/a2a`,
+          api: `https://babylon.game/api/agents/${agentId}`,
+        },
+        capabilities: {
+          strategies: ['momentum', 'sentiment', 'volume'], // Default capabilities
+          markets: ['prediction', 'perpetuals'],
+          actions: ['analyze', 'trade', 'coordinate'],
+          version: '1.0.0'
+        } as AgentCapabilities,
+        babylon: {
+          agentId,
+          tokenId,
+          walletAddress: agentWalletAddress,
+          registrationTxHash: txHash
+        }
+      }
+
+      // Register with Agent0 SDK (handles IPFS publishing internally)
+      // Use Ethereum Sepolia RPC (where Agent0 contracts are deployed)
+      const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || process.env.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com'
+
+      // Configure IPFS - use Pinata if available, otherwise use public IPFS node
+      const ipfsConfig = process.env.PINATA_JWT
+        ? { ipfsProvider: 'pinata' as const, pinataJwt: process.env.PINATA_JWT }
+        : { ipfsProvider: 'node' as const, ipfsNodeUrl: process.env.IPFS_NODE_URL || 'https://ipfs.io' }
+
+      const agent0Client = new Agent0Client({
+        network: (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia',
+        rpcUrl,
+        privateKey: DEPLOYER_PRIVATE_KEY,
+        ...ipfsConfig
+      })
+
+      const agent0Result = await agent0Client.registerAgent({
+        name: name,
+        description: dbUser.bio || `Autonomous AI agent: ${agentId}`,
+        walletAddress: agentWalletAddress,
+        mcpEndpoint: undefined, // Agents don't expose MCP by default
+        a2aEndpoint: endpoint || `wss://babylon.game/ws/a2a`,
+        capabilities: agentMetadata.capabilities
+      })
+
+      // Extract metadata CID from Agent0 result
+      agent0MetadataCID = agent0Result.metadataCID || null
+
+      logger.info(`✅ Agent registered with Agent0 SDK`, {
+        agentId,
+        tokenId: agent0Result.tokenId,
+        metadataCID: agent0MetadataCID
+      }, 'AgentOnboard')
+    } else {
+      logger.info('Agent0 integration disabled, skipping agent registration', { agentId }, 'AgentOnboard')
+    }
 
   logger.info('Agent onboarded successfully', {
     agentId,
