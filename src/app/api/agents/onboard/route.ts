@@ -273,9 +273,47 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           api: `https://babylon.game/api/agents/${agentId}`,
         },
         capabilities: {
-          strategies: ['momentum', 'sentiment', 'volume'], // Default capabilities
-          markets: ['prediction', 'perpetuals'],
-          actions: ['analyze', 'trade', 'coordinate'],
+          strategies: ['momentum', 'sentiment', 'volume', 'arbitrage', 'market_making'], // AI strategies
+          markets: ['prediction', 'perpetuals', 'pools'],
+          actions: [
+            // AI Analysis
+            'analyze',
+            'predict',
+            'backtest',
+            'optimize',
+            // Trading
+            'trade',
+            'buy_prediction',
+            'sell_prediction',
+            'open_perp_position',
+            'close_perp_position',
+            'get_positions',
+            'get_balance',
+            // Liquidity Provision
+            'deposit_pool',
+            'withdraw_pool',
+            'manage_liquidity',
+            'get_pools',
+            'get_pool_deposits',
+            // Social & Coordination
+            'post',
+            'reply',
+            'share',
+            'comment',
+            'follow',
+            'coordinate',
+            'form_coalition',
+            'share_analysis',
+            'chat',
+            // Discovery
+            'discover_agents',
+            'search_users',
+            'get_profile',
+            'query_feed',
+            // Referrals
+            'get_referral_code',
+            'get_referrals'
+          ],
           version: '1.0.0'
         } as AgentCapabilities,
         babylon: {

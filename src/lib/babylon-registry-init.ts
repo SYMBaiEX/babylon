@@ -73,17 +73,43 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
       
       capabilities: {
         strategies: [],
-        markets: ['prediction', 'perpetuals'],
+        markets: ['prediction', 'perpetuals', 'pools'],
         actions: [
+          // Market Operations
           'query_markets',
           'get_market_data',
           'place_bet',
+          'buy_prediction',
+          'sell_prediction',
           'close_position',
           'get_balance',
           'get_positions',
+          'open_perp_position',
+          'close_perp_position',
+          // Liquidity Pools
+          'get_pools',
+          'get_pool_info',
+          'deposit_pool',
+          'withdraw_pool',
+          'get_pool_deposits',
+          // Social Features
+          'create_post',
+          'reply_post',
+          'like_post',
+          'share_post',
+          'comment_post',
+          'follow_user',
+          'unfollow_user',
+          'get_followers',
+          'get_following',
+          // Discovery & Search
+          'search_users',
+          'get_user_profile',
           'query_feed',
-          'post_comment',
-          'join_chat'
+          'join_chat',
+          // Referrals & Rewards
+          'get_referral_code',
+          'get_referrals'
         ],
         protocols: ['a2a', 'mcp', 'rest'],
         socialFeatures: true,
@@ -101,9 +127,10 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
       
       mcp: {
         tools: [
+          // Market Operations
           {
             name: 'get_markets',
-            description: 'Get all active prediction markets',
+            description: 'Get all active prediction and perpetual markets',
             inputSchema: {
               type: 'object',
               properties: {
@@ -116,21 +143,57 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
             }
           },
           {
-            name: 'place_bet',
-            description: 'Place a bet on a prediction market',
+            name: 'buy_prediction',
+            description: 'Buy shares in a prediction market',
             inputSchema: {
               type: 'object',
               properties: {
-                marketId: { type: 'string' },
-                side: { type: 'string', enum: ['YES', 'NO'] },
-                amount: { type: 'number' }
+                marketId: { type: 'string', description: 'Prediction market ID' },
+                amount: { type: 'number', description: 'Amount to spend' }
               },
-              required: ['marketId', 'side', 'amount']
+              required: ['marketId', 'amount']
+            }
+          },
+          {
+            name: 'sell_prediction',
+            description: 'Sell shares in a prediction market',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                marketId: { type: 'string', description: 'Prediction market ID' },
+                amount: { type: 'number', description: 'Amount of shares to sell' }
+              },
+              required: ['marketId', 'amount']
+            }
+          },
+          {
+            name: 'open_perp_position',
+            description: 'Open a perpetual market position',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                ticker: { type: 'string', description: 'Perpetual market ticker' },
+                side: { type: 'string', enum: ['long', 'short'], description: 'Position side' },
+                amount: { type: 'number', description: 'Position size' },
+                leverage: { type: 'number', description: 'Leverage multiplier' }
+              },
+              required: ['ticker', 'side', 'amount']
+            }
+          },
+          {
+            name: 'close_perp_position',
+            description: 'Close a perpetual market position',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                positionId: { type: 'string', description: 'Position ID to close' }
+              },
+              required: ['positionId']
             }
           },
           {
             name: 'get_balance',
-            description: "Get agent's current balance and P&L",
+            description: "Get current balance, P&L, and portfolio statistics",
             inputSchema: {
               type: 'object',
               properties: {}
@@ -138,21 +201,216 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
           },
           {
             name: 'get_positions',
-            description: 'Get all open positions',
+            description: 'Get all open positions across markets',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                marketType: { type: 'string', enum: ['prediction', 'perpetuals', 'all'] }
+              }
+            }
+          },
+          // Liquidity Pools
+          {
+            name: 'get_pools',
+            description: 'Get all available liquidity pools',
             inputSchema: {
               type: 'object',
               properties: {}
             }
           },
           {
-            name: 'close_position',
-            description: 'Close an open position',
+            name: 'get_pool_info',
+            description: 'Get detailed information about a specific pool',
             inputSchema: {
               type: 'object',
               properties: {
-                positionId: { type: 'string' }
+                poolId: { type: 'string', description: 'Pool ID' }
               },
-              required: ['positionId']
+              required: ['poolId']
+            }
+          },
+          {
+            name: 'deposit_pool',
+            description: 'Deposit funds into a liquidity pool',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                poolId: { type: 'string', description: 'Pool ID' },
+                amount: { type: 'number', description: 'Amount to deposit' }
+              },
+              required: ['poolId', 'amount']
+            }
+          },
+          {
+            name: 'withdraw_pool',
+            description: 'Withdraw funds from a liquidity pool',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                poolId: { type: 'string', description: 'Pool ID' },
+                amount: { type: 'number', description: 'Amount to withdraw' }
+              },
+              required: ['poolId', 'amount']
+            }
+          },
+          {
+            name: 'get_pool_deposits',
+            description: 'Get all pool deposits for a user',
+            inputSchema: {
+              type: 'object',
+              properties: {}
+            }
+          },
+          // Social Features
+          {
+            name: 'create_post',
+            description: 'Create a new post or prediction',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                content: { type: 'string', description: 'Post content' },
+                prediction: { type: 'object', description: 'Optional prediction data' }
+              },
+              required: ['content']
+            }
+          },
+          {
+            name: 'reply_post',
+            description: 'Reply to an existing post',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                postId: { type: 'string', description: 'Post ID to reply to' },
+                content: { type: 'string', description: 'Reply content' }
+              },
+              required: ['postId', 'content']
+            }
+          },
+          {
+            name: 'like_post',
+            description: 'Like or unlike a post',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                postId: { type: 'string', description: 'Post ID to like' }
+              },
+              required: ['postId']
+            }
+          },
+          {
+            name: 'share_post',
+            description: 'Share a post',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                postId: { type: 'string', description: 'Post ID to share' },
+                comment: { type: 'string', description: 'Optional comment' }
+              },
+              required: ['postId']
+            }
+          },
+          {
+            name: 'comment_post',
+            description: 'Add a comment to a post',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                postId: { type: 'string', description: 'Post ID' },
+                content: { type: 'string', description: 'Comment content' }
+              },
+              required: ['postId', 'content']
+            }
+          },
+          {
+            name: 'follow_user',
+            description: 'Follow another user',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                userId: { type: 'string', description: 'User ID to follow' }
+              },
+              required: ['userId']
+            }
+          },
+          {
+            name: 'get_followers',
+            description: 'Get list of followers',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                userId: { type: 'string', description: 'User ID (optional, defaults to self)' }
+              }
+            }
+          },
+          {
+            name: 'get_following',
+            description: 'Get list of users being followed',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                userId: { type: 'string', description: 'User ID (optional, defaults to self)' }
+              }
+            }
+          },
+          // Discovery & Search
+          {
+            name: 'search_users',
+            description: 'Search for users by username',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                username: { type: 'string', description: 'Username to search' }
+              },
+              required: ['username']
+            }
+          },
+          {
+            name: 'get_user_profile',
+            description: 'Get detailed user profile',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                userId: { type: 'string', description: 'User ID' }
+              },
+              required: ['userId']
+            }
+          },
+          {
+            name: 'query_feed',
+            description: 'Get personalized feed of posts and predictions',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                feedType: { type: 'string', enum: ['all', 'following', 'favorites'] }
+              }
+            }
+          },
+          {
+            name: 'join_chat',
+            description: 'Join a chat room or DM',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                chatId: { type: 'string', description: 'Chat ID or user ID for DM' }
+              },
+              required: ['chatId']
+            }
+          },
+          // Referrals & Rewards
+          {
+            name: 'get_referral_code',
+            description: 'Get user referral code',
+            inputSchema: {
+              type: 'object',
+              properties: {}
+            }
+          },
+          {
+            name: 'get_referrals',
+            description: 'Get list of referred users',
+            inputSchema: {
+              type: 'object',
+              properties: {}
             }
           }
         ]
