@@ -72,7 +72,7 @@ export async function authenticate(request: NextRequest): Promise<AuthenticatedU
   const token = authHeader.substring(7);
 
   // Try agent session authentication first (faster)
-  const agentSession = verifyAgentSession(token);
+  const agentSession = await verifyAgentSession(token);
   if (agentSession) {
     return {
       userId: agentSession.agentId,

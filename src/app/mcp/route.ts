@@ -157,7 +157,7 @@ async function authenticateAgent(auth: {
 }): Promise<{ agentId: string; userId: string } | null> {
   // Method 1: Session Token (from /api/agents/auth)
   if (auth.token) {
-    const session = verifyAgentSession(auth.token)
+    const session = await verifyAgentSession(auth.token)
     if (session) {
       // Find user ID for this agent
       const user = await prisma.user.findUnique({
@@ -401,4 +401,3 @@ async function executeQueryFeed(
     }))
   })
 }
-

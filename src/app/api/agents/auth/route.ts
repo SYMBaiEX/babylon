@@ -38,7 +38,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const sessionToken = randomBytes(32).toString('hex');
 
   // Create session
-  const session = createAgentSession(agentId, sessionToken);
+  const session = await createAgentSession(agentId, sessionToken);
 
   logger.info(`Agent ${agentId} authenticated successfully`, undefined, 'POST /api/agents/auth');
 

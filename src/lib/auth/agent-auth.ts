@@ -5,6 +5,9 @@
  */
 
 import { logger } from '@/lib/logger';
+import { redis, redisClientType, isRedisAvailable } from '@/lib/redis';
+import type { Redis as UpstashRedis } from '@upstash/redis';
+import type IORedis from 'ioredis';
 
 export interface AgentSession {
   sessionToken: string;
@@ -17,11 +20,18 @@ const agentSessions = new Map<string, AgentSession>();
 
 // Session duration: 24 hours
 const SESSION_DURATION = 24 * 60 * 60 * 1000;
+const SESSION_PREFIX = 'agent:session:';
+const useRedis = isRedisAvailable() && redis !== null;
 
 /**
  * Clean up expired sessions
  */
 export function cleanupExpiredSessions(): void {
+  if (useRedis) {
+    // Redis gère la péremption via TTL, rien à faire ici.
+    return;
+  }
+
   const now = Date.now();
   const tokensToDelete: string[] = [];
 
@@ -53,21 +63,76 @@ export function verifyAgentCredentials(agentId: string, agentSecret: string): bo
 /**
  * Create a new agent session
  */
-export function createAgentSession(agentId: string, sessionToken: string): AgentSession {
+export async function createAgentSession(agentId: string, sessionToken: string): Promise<AgentSession> {
   const expiresAt = Date.now() + SESSION_DURATION;
   const session: AgentSession = {
     sessionToken,
     agentId,
     expiresAt,
   };
-  agentSessions.set(sessionToken, session);
+
+  if (useRedis && redis) {
+    try {
+      const key = `${SESSION_PREFIX}${sessionToken}`;
+
+      if (redisClientType === 'upstash') {
+        await (redis as UpstashRedis).set(key, JSON.stringify(session), {
+          ex: Math.ceil(SESSION_DURATION / 1000),
+        });
+      } else if (redisClientType === 'standard') {
+        await (redis as IORedis).set(key, JSON.stringify(session), 'PX', SESSION_DURATION);
+      } else {
+        agentSessions.set(sessionToken, session);
+      }
+    } catch (error) {
+      logger.error('Failed to persist agent session in Redis', { error }, 'AgentAuth');
+      agentSessions.set(sessionToken, session);
+    }
+  } else {
+    agentSessions.set(sessionToken, session);
+  }
+
   return session;
 }
 
 /**
  * Verify agent session token
  */
-export function verifyAgentSession(sessionToken: string): { agentId: string } | null {
+export async function verifyAgentSession(sessionToken: string): Promise<{ agentId: string } | null> {
+  if (useRedis && redis) {
+    try {
+      const key = `${SESSION_PREFIX}${sessionToken}`;
+      let stored: unknown = null;
+
+      if (redisClientType === 'upstash') {
+        stored = await (redis as UpstashRedis).get<string | null>(key);
+      } else if (redisClientType === 'standard') {
+        stored = await (redis as IORedis).get(key);
+      }
+
+      if (typeof stored === 'string') {
+        const session = JSON.parse(stored) as AgentSession;
+        if (Date.now() <= session.expiresAt) {
+          return { agentId: session.agentId };
+        }
+        // Session expirée : suppression best-effort
+        try {
+          if (redisClientType === 'upstash') {
+            await (redis as UpstashRedis).del(key);
+          } else if (redisClientType === 'standard') {
+            await (redis as IORedis).del(key);
+          }
+        } catch {
+          // Ignore cleanup errors
+        }
+        return null;
+      }
+    } catch (error) {
+      logger.error('Failed to read agent session from Redis', { error }, 'AgentAuth');
+      // Fallback en mémoire
+    }
+  }
+
   const session = agentSessions.get(sessionToken);
 
   if (!session) {
