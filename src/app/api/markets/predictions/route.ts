@@ -19,17 +19,28 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const questions = await db.getActiveQuestions();
   const searchParams = request.nextUrl.searchParams;
   
-  // Validate query parameters
-  const queryParams = {
-    status: searchParams.get('status'),
-    category: searchParams.get('category'),
-    minLiquidity: searchParams.get('minLiquidity'),
-    maxLiquidity: searchParams.get('maxLiquidity'),
-    search: searchParams.get('search'),
-    page: searchParams.get('page'),
-    limit: searchParams.get('limit')
-  };
-  MarketQuerySchema.partial().parse(queryParams);
+  // Build query params object, filtering out null values
+  const queryParams: Record<string, string | number> = {};
+  const status = searchParams.get('status');
+  const category = searchParams.get('category');
+  const minLiquidity = searchParams.get('minLiquidity');
+  const maxLiquidity = searchParams.get('maxLiquidity');
+  const search = searchParams.get('search');
+  const page = searchParams.get('page');
+  const limit = searchParams.get('limit');
+  
+  if (status) queryParams.status = status;
+  if (category) queryParams.category = category;
+  if (minLiquidity) queryParams.minLiquidity = minLiquidity;
+  if (maxLiquidity) queryParams.maxLiquidity = maxLiquidity;
+  if (search) queryParams.search = search;
+  if (page) queryParams.page = page;
+  if (limit) queryParams.limit = limit;
+  
+  // Validate only if there are params to validate
+  if (Object.keys(queryParams).length > 0) {
+    MarketQuerySchema.partial().parse(queryParams);
+  }
   
   const userIdParam = searchParams.get('userId');
   const userId = userIdParam ? UserIdParamSchema.parse({ userId: userIdParam }).userId : undefined;

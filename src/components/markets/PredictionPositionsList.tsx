@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { CheckCircle, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { logger } from '@/lib/logger'
 
 interface PredictionPosition {
   id: string
@@ -29,37 +28,32 @@ export function PredictionPositionsList({ positions, onPositionSold }: Predictio
   const handleSell = async (position: PredictionPosition) => {
     setSellingId(position.id)
 
-    try {
-      const response = await fetch(`/api/markets/predictions/${position.marketId}/sell`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
-        },
-        body: JSON.stringify({
-          shares: position.shares,
-        }),
-      })
+    const response = await fetch(`/api/markets/predictions/${position.marketId}/sell`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
+      },
+      body: JSON.stringify({
+        shares: position.shares,
+      }),
+    })
 
-      const data = await response.json()
+    const data = await response.json()
 
-      if (!response.ok) {
-        toast.error(data.error || 'Failed to sell shares')
-        return
-      }
-
-      const pnl = data.pnl || 0
-      toast.success('Shares sold!', {
-        description: `Sold ${position.shares.toFixed(2)} ${position.side} shares for ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} PnL`,
-      })
-
-      if (onPositionSold) onPositionSold()
-    } catch (error) {
-      logger.error('Error selling shares:', error, 'PredictionPositionsList')
-      toast.error('Failed to sell shares')
-    } finally {
+    if (!response.ok) {
+      toast.error(data.error || 'Failed to sell shares')
       setSellingId(null)
+      return
     }
+
+    const pnl = data.pnl || 0
+    toast.success('Shares sold!', {
+      description: `Sold ${position.shares.toFixed(2)} ${position.side} shares for ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} PnL`,
+    })
+
+    if (onPositionSold) onPositionSold()
+    setSellingId(null)
   }
 
   const formatPrice = (price: number) => `$${price.toFixed(3)}`

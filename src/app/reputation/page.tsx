@@ -5,7 +5,6 @@ import { useAuth } from '@/hooks/useAuth'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { Award, TrendingUp, TrendingDown, Trophy, Target, Medal } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { logger } from '@/lib/logger'
 
 interface ReputationStats {
   currentReputation: number
@@ -34,37 +33,32 @@ export default function ReputationPage() {
     }
 
     const fetchReputation = async () => {
-      try {
-        setLoading(true)
-        const response = await fetch(`/api/users/${user.id}/reputation`)
+      setLoading(true)
+      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/reputation`)
 
-        if (response.ok) {
-          const data = await response.json()
+      if (response.ok) {
+        const data = await response.json()
 
-          if (data.hasNft) {
-            setStats({
-              currentReputation: data.currentReputation || 100,
-              totalWins: data.totalWins || 0,
-              totalLosses: data.totalLosses || 0,
-              winRate: data.winRate || 0,
-              recentActivity: data.recentActivity || []
-            })
-          } else {
-            // User doesn't have NFT yet
-            setStats({
-              currentReputation: 100,
-              totalWins: 0,
-              totalLosses: 0,
-              winRate: 0,
-              recentActivity: []
-            })
-          }
+        if (data.hasNft) {
+          setStats({
+            currentReputation: data.currentReputation || 100,
+            totalWins: data.totalWins || 0,
+            totalLosses: data.totalLosses || 0,
+            winRate: data.winRate || 0,
+            recentActivity: data.recentActivity || []
+          })
+        } else {
+          // User doesn't have NFT yet
+          setStats({
+            currentReputation: 100,
+            totalWins: 0,
+            totalLosses: 0,
+            winRate: 0,
+            recentActivity: []
+          })
         }
-      } catch (error) {
-        logger.error('Error fetching reputation:', error, 'ReputationPage')
-      } finally {
-        setLoading(false)
       }
+      setLoading(false)
     }
 
     fetchReputation()

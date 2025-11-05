@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import {
   UUIDSchema,
+  UserIdSchema,
   OrderSideSchema,
   OrderTypeSchema,
   DateTimeSchema,
@@ -124,7 +125,7 @@ export const MarketDataQuerySchema = z.object({
  */
 export const PositionQuerySchema = z.object({
   poolId: UUIDSchema.optional(),
-  userId: UUIDSchema.optional(),
+  userId: UserIdSchema.optional(),
   marketType: z.enum(['perp', 'prediction', 'spot']).optional(),
   ticker: z.string().optional(),
   marketId: z.string().optional(),
@@ -137,7 +138,7 @@ export const PositionQuerySchema = z.object({
  */
 export const TradeHistoryQuerySchema = z.object({
   poolId: UUIDSchema.optional(),
-  userId: UUIDSchema.optional(),
+  userId: UserIdSchema.optional(),
   marketType: z.enum(['perp', 'prediction', 'spot']).optional(),
   ticker: z.string().optional(),
   startDate: DateTimeSchema.optional(),

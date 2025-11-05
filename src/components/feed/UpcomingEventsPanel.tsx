@@ -1,8 +1,8 @@
 'use client'
 
+import { logger } from '@/lib/logger'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Calendar } from 'lucide-react'
-import { logger } from '@/lib/logger'
 import { useChannelSubscription } from '@/hooks/useChannelSubscription'
 import { UpcomingEventsDetailModal } from './UpcomingEventsDetailModal'
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
@@ -51,19 +51,14 @@ export function UpcomingEventsPanel() {
       }
     }
 
-    try {
-      const response = await fetch('/api/feed/widgets/upcoming-events')
-      const data = await response.json()
-      if (data.success) {
-        const eventsData = data.events || []
-        setEvents(eventsData)
-        setUpcomingEvents(eventsData) // Cache the data
-      }
-    } catch (error) {
-      logger.error('Error fetching upcoming events:', error, 'UpcomingEventsPanel')
-    } finally {
-      setLoading(false)
+    const response = await fetch('/api/feed/widgets/upcoming-events')
+    const data = await response.json()
+    if (data.success) {
+      const eventsData = data.events || []
+      setEvents(eventsData)
+      setUpcomingEvents(eventsData) // Cache the data
     }
+    setLoading(false)
   }, [getUpcomingEvents, setUpcomingEvents])
 
   // Update ref when fetchEvents changes

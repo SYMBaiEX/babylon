@@ -58,21 +58,17 @@ export function UpcomingEventsDetailModal({ isOpen, onClose, event }: UpcomingEv
   if (!isOpen || !event) return null
 
   const formatFullDate = (date: string, time?: string) => {
-    try {
-      // Try to parse if it's a full date string
-      const dateObj = new Date(date)
-      if (!isNaN(dateObj.getTime())) {
-        return dateObj.toLocaleString('en-US', {
-          month: 'long',
-          day: 'numeric',
-          year: 'numeric',
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true,
-        })
-      }
-    } catch {
-      // Fallback to original format
+    // Try to parse if it's a full date string
+    const dateObj = new Date(date)
+    if (!isNaN(dateObj.getTime())) {
+      return dateObj.toLocaleString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      })
     }
     
     return time ? `${date}, ${time}` : date

@@ -12,9 +12,8 @@
  * - Multiple perspectives from different outlets on same events
  */
 
-import { logger } from '@/lib/logger';
+import type { Actor, Organization, WorldEvent } from '@/shared/types';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
-import type { WorldEvent, Organization, Actor } from '@/shared/types';
 
 export interface Article {
   id: string;
@@ -73,15 +72,11 @@ export class ArticleGenerator {
     const coveringOrgs = this.selectNewsOrgs(newsOrganizations, numCovering);
 
     for (const org of coveringOrgs) {
-      try {
-        // Determine bias based on org's relationships
-        const context = this.buildArticleContext(event, org, actors, recentEvents);
+      // Determine bias based on org's relationships
+      const context = this.buildArticleContext(event, org, actors, recentEvents);
 
-        const article = await this.generateArticle(context);
-        articles.push(article);
-      } catch (error) {
-        logger.error('Failed to generate article', { error, orgId: org.id, eventId: event.id }, 'ArticleGenerator');
-      }
+      const article = await this.generateArticle(context);
+      articles.push(article);
     }
 
     return articles;

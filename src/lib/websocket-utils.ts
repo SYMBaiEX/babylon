@@ -50,15 +50,8 @@ export function broadcastToChannel(channel: WebSocketChannel, data: Record<strin
     const client = wsClients.get(userId);
     if (client && client.readyState === 1) {
       // WebSocket.OPEN = 1
-      try {
-        client.send(JSON.stringify(messageData));
-        sentCount++;
-      } catch {
-        // Remove invalid client
-        subscribers.delete(userId);
-        wsClients.delete(userId);
-        logger.debug(`Removed invalid WebSocket client: ${userId}`, undefined, 'WebSocket');
-      }
+      client.send(JSON.stringify(messageData));
+      sentCount++;
     } else {
       // Remove disconnected client
       subscribers.delete(userId);
@@ -76,11 +69,6 @@ export function broadcastToChannel(channel: WebSocketChannel, data: Record<strin
  * This prevents errors when importing in non-WebSocket contexts
  */
 export function broadcastToChannelSafe(channel: WebSocketChannel, data: Record<string, JsonValue>) {
-  try {
-    broadcastToChannel(channel, data);
-  } catch {
-    // Silently fail - WebSocket might not be initialized
-    // Errors already logged in broadcastToChannel
-  }
+  broadcastToChannel(channel, data);
 }
 

@@ -1,8 +1,8 @@
 'use client'
 
+import { logger } from '@/lib/logger'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Newspaper, TrendingUp, AlertCircle } from 'lucide-react'
-import { logger } from '@/lib/logger'
 import { useChannelSubscription } from '@/hooks/useChannelSubscription'
 // ArticleDetailModal removed - articles now use /post/[id] page
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
@@ -40,71 +40,66 @@ export function LatestNewsPanel() {
       }
     }
 
-    try {
-      // Query posts API with type filter for articles
-      const response = await fetch('/api/posts?type=article&limit=10')
-      
-      if (!response.ok) {
-        logger.error('Failed to fetch articles:', { status: response.status }, 'LatestNewsPanel')
-        setArticles([])
-        return
-      }
-      
-      const data = await response.json()
-      
-      logger.info('Articles API response:', { 
-        hasPosts: !!data.posts, 
-        count: data.posts?.length || 0,
-        firstPost: data.posts?.[0] 
-      }, 'LatestNewsPanel')
-      
-      if (data.posts && Array.isArray(data.posts) && data.posts.length > 0) {
-        // Transform posts to ArticleItem format
-        const articlesData: ArticleItem[] = data.posts
-          .filter((post: { type?: string }) => post.type === 'article') // Double-check type
-          .map((post: {
-            id: string;
-            articleTitle?: string | null;
-            authorId: string;
-            authorName?: string;
-            byline?: string | null;
-            sentiment?: string | null;
-            category?: string | null;
-            timestamp: string;
-            biasScore?: number | null;
-            slant?: string | null;
-            content: string;
-          }) => ({
-            id: post.id,
-            title: post.articleTitle || 'Untitled Article',
-            summary: post.content,
-            authorOrgName: post.authorName || post.authorId,
-            byline: post.byline || undefined,
-            sentiment: post.sentiment || undefined,
-            category: post.category || undefined,
-            publishedAt: post.timestamp,
-            slant: post.slant || undefined,
-            biasScore: post.biasScore !== null ? post.biasScore : undefined,
-          }))
-        
-        logger.info('Articles processed:', { count: articlesData.length, articles: articlesData }, 'LatestNewsPanel')
-        setArticles(articlesData)
-        setLatestNews(articlesData) // Cache the data
-      } else {
-        logger.warn('No articles in response', { 
-          hasData: !!data,
-          hasPosts: !!data.posts,
-          isArray: Array.isArray(data.posts),
-          length: data.posts?.length 
-        }, 'LatestNewsPanel')
-        setArticles([])
-      }
-    } catch (error) {
-      logger.error('Error fetching latest news:', error, 'LatestNewsPanel')
+    // Query posts API with type filter for articles
+    const response = await fetch('/api/posts?type=article&limit=10')
+    
+    if (!response.ok) {
+      logger.error('Failed to fetch articles:', { status: response.status }, 'LatestNewsPanel')
       setArticles([])
-    } finally {
       setLoading(false)
+      return
     }
+    
+    const data = await response.json()
+    
+    logger.info('Articles API response:', { 
+      hasPosts: !!data.posts, 
+      count: data.posts?.length || 0,
+      firstPost: data.posts?.[0] 
+    }, 'LatestNewsPanel')
+    
+    if (data.posts && Array.isArray(data.posts) && data.posts.length > 0) {
+      // Transform posts to ArticleItem format
+      const articlesData: ArticleItem[] = data.posts
+        .filter((post: { type?: string }) => post.type === 'article') // Double-check type
+        .map((post: {
+          id: string;
+          articleTitle?: string | null;
+          authorId: string;
+          authorName?: string;
+          byline?: string | null;
+          sentiment?: string | null;
+          category?: string | null;
+          timestamp: string;
+          biasScore?: number | null;
+          slant?: string | null;
+          content: string;
+        }) => ({
+          id: post.id,
+          title: post.articleTitle || 'Untitled Article',
+          summary: post.content,
+          authorOrgName: post.authorName || post.authorId,
+          byline: post.byline || undefined,
+          sentiment: post.sentiment || undefined,
+          category: post.category || undefined,
+          publishedAt: post.timestamp,
+          slant: post.slant || undefined,
+          biasScore: post.biasScore !== null ? post.biasScore : undefined,
+        }))
+      
+      logger.info('Articles processed:', { count: articlesData.length, articles: articlesData }, 'LatestNewsPanel')
+      setArticles(articlesData)
+      setLatestNews(articlesData) // Cache the data
+    } else {
+      logger.warn('No articles in response', { 
+        hasData: !!data,
+        hasPosts: !!data.posts,
+        isArray: Array.isArray(data.posts),
+        length: data.posts?.length 
+      }, 'LatestNewsPanel')
+      setArticles([])
+    }
+    setLoading(false)
   }, [getLatestNews, setLatestNews])
 
   // Update ref when fetchArticles changes

@@ -6,7 +6,6 @@
 
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server'
-import { logger } from '@/lib/logger'
 import { getPostsByTag } from '@/lib/services/tag-storage-service'
 import { prisma } from '@/lib/prisma'
 
@@ -14,37 +13,34 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ tag: string }> }
 ) {
-  try {
-    const { tag } = await params
-    const url = new URL(request.url)
-    const limit = parseInt(url.searchParams.get('limit') || '20')
-    const offset = parseInt(url.searchParams.get('offset') || '0')
+  const { tag } = await params
+  const url = new URL(request.url)
+  const limit = parseInt(url.searchParams.get('limit') || '20')
+  const offset = parseInt(url.searchParams.get('offset') || '0')
 
-    // Validate params
-    if (!tag) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Tag parameter is required',
-        },
-        { status: 400 }
-      )
-    }
+  if (!tag) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Tag parameter is required',
+      },
+      { status: 400 }
+    )
+  }
 
-    // Get posts with this tag
-    const result = await getPostsByTag(tag, { limit, offset })
+  const result = await getPostsByTag(tag, { limit, offset })
 
-    if (!result.tag) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Tag not found',
-          posts: [],
-          total: 0,
-        },
-        { status: 404 }
-      )
-    }
+  if (!result.tag) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Tag not found',
+        posts: [],
+        total: 0,
+      },
+      { status: 404 }
+    )
+  }
 
     // Enrich posts with author information and engagement stats
     const enrichedPosts = await Promise.all(
@@ -102,27 +98,15 @@ export async function GET(
       })
     )
 
-    return NextResponse.json({
-      success: true,
-      tag: {
-        name: result.tag.name,
-        displayName: result.tag.displayName,
-        category: result.tag.category,
-      },
-      posts: enrichedPosts,
-      total: result.total,
-    })
-  } catch (error) {
-    logger.error('Error fetching posts by tag:', error, 'GET /api/trending/[tag]')
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to fetch posts',
-        posts: [],
-        total: 0,
-      },
-      { status: 500 }
-    )
-  }
+  return NextResponse.json({
+    success: true,
+    tag: {
+      name: result.tag.name,
+      displayName: result.tag.displayName,
+      category: result.tag.category,
+    },
+    posts: enrichedPosts,
+    total: result.total,
+  })
 }
 

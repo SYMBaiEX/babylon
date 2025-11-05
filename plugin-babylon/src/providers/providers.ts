@@ -32,63 +32,44 @@ export const marketDataProvider: Provider = {
     _message: Memory,
     _state: State,
   ): Promise<ProviderResult> => {
-    try {
-      // Get client from BabylonClientService
-      const babylonService = runtime.getService<BabylonClientService>(
-        BabylonClientService.serviceType,
-      );
-      if (!babylonService) {
-        return {
-          text: "Market data unavailable - Babylon service not configured",
-        };
-      }
+    const babylonService = runtime.getService<BabylonClientService>(
+      BabylonClientService.serviceType,
+    )!;
 
-      const client = babylonService.getClient();
-      const markets = await client.getActiveMarkets();
+    const client = babylonService.getClient();
+    const markets = await client.getActiveMarkets();
 
-      if (markets.length === 0) {
-        return {
-          text: "No active markets currently available",
-        };
-      }
-
-      // Sort by volume to identify hottest markets
-      const sortedMarkets = markets.sort(
-        (a, b) => b.totalVolume - a.totalVolume,
-      );
-      const topMarket = sortedMarkets[0];
-      const highVolumeMarkets = sortedMarkets.filter(
-        (m) => m.totalVolume > 1000,
-      );
-
-      // Build market overview text with top market information
-      let overviewText = `📊 Market Overview:\n- Active Markets: ${markets.length}`;
-
-      // Add top market info if available (sortedMarkets has at least one element)
-      if (topMarket) {
-        overviewText += `\n- Top Volume: "${topMarket.question}" ($${topMarket.totalVolume.toFixed(0)})`;
-      }
-
-      overviewText += `\n- High Volume Markets (>$1000): ${highVolumeMarkets.length}`;
-      overviewText += `\n- Average Yes Price: ${((markets.reduce((sum, m) => sum + m.yesPrice, 0) / markets.length) * 100).toFixed(1)}%`;
-
+    if (markets.length === 0) {
       return {
-        text: overviewText,
-        data: {
-          markets,
-          topMarket,
-          highVolumeMarkets,
-        },
-      };
-    } catch (error) {
-      runtime.logger.error(
-        "Error in marketDataProvider:",
-        error instanceof Error ? error.message : String(error),
-      );
-      return {
-        text: "Market data temporarily unavailable",
+        text: "No active markets currently available",
       };
     }
+
+    const sortedMarkets = markets.sort(
+      (a, b) => b.totalVolume - a.totalVolume,
+    );
+    const topMarket = sortedMarkets[0];
+    const highVolumeMarkets = sortedMarkets.filter(
+      (m) => m.totalVolume > 1000,
+    );
+
+    let overviewText = `📊 Market Overview:\n- Active Markets: ${markets.length}`;
+
+    if (topMarket) {
+      overviewText += `\n- Top Volume: "${topMarket.question}" ($${topMarket.totalVolume.toFixed(0)})`;
+    }
+
+    overviewText += `\n- High Volume Markets (>$1000): ${highVolumeMarkets.length}`;
+    overviewText += `\n- Average Yes Price: ${((markets.reduce((sum, m) => sum + m.yesPrice, 0) / markets.length) * 100).toFixed(1)}%`;
+
+    return {
+      text: overviewText,
+      data: {
+        markets,
+        topMarket,
+        highVolumeMarkets,
+      },
+    };
   },
 };
 
@@ -105,47 +86,26 @@ export const walletStatusProvider: Provider = {
     _message: Memory,
     _state: State,
   ): Promise<ProviderResult> => {
-    try {
-      const babylonService = runtime.getService<BabylonClientService>(
-        BabylonClientService.serviceType,
-      );
-      if (!babylonService) {
-        return {
-          text: "Wallet status unavailable - Babylon service not configured",
-        };
-      }
+    const babylonService = runtime.getService<BabylonClientService>(
+      BabylonClientService.serviceType,
+    )!;
 
-      const client = babylonService.getClient();
-      const wallet = await client.getWallet();
+    const client = babylonService.getClient();
+    const wallet = await client.getWallet();
 
-      if (!wallet) {
-        return {
-          text: "Wallet information unavailable - not authenticated",
-        };
-      }
+    const utilizationRate =
+      wallet.balance > 0
+        ? ((wallet.lockedBalance / wallet.balance) * 100).toFixed(1)
+        : "0.0";
 
-      const utilizationRate =
-        wallet.balance > 0
-          ? ((wallet.lockedBalance / wallet.balance) * 100).toFixed(1)
-          : "0.0";
-
-      return {
-        text: `💰 Wallet Status:
+    return {
+      text: `💰 Wallet Status:
 - Available Balance: $${wallet.availableBalance.toFixed(2)}
 - Locked in Positions: $${wallet.lockedBalance.toFixed(2)}
 - Total Balance: $${wallet.balance.toFixed(2)}
 - Capital Utilization: ${utilizationRate}%`,
-        data: { wallet },
-      };
-    } catch (error) {
-      runtime.logger.error(
-        "Error in walletStatusProvider:",
-        error instanceof Error ? error.message : String(error),
-      );
-      return {
-        text: "Wallet status temporarily unavailable",
-      };
-    }
+      data: { wallet },
+    };
   },
 };
 
@@ -165,59 +125,44 @@ export const positionSummaryProvider: Provider = {
     _message: Memory,
     _state: State,
   ): Promise<ProviderResult> => {
-    try {
-      const babylonService = runtime.getService<BabylonClientService>(
-        BabylonClientService.serviceType,
-      );
-      if (!babylonService) {
-        return {
-          text: "Position data unavailable - Babylon service not configured",
-        };
-      }
+    const babylonService = runtime.getService<BabylonClientService>(
+      BabylonClientService.serviceType,
+    )!;
 
-      const client = babylonService.getClient();
-      const positions = await client.getPositions();
+    const client = babylonService.getClient();
+    const positions = await client.getPositions();
 
-      if (positions.length === 0) {
-        return {
-          text: "📈 Positions: No active positions",
-        };
-      }
-
-      const profitablePositions = positions.filter((p) => p.pnl > 0);
-      const losingPositions = positions.filter((p) => p.pnl < 0);
-      const totalPnL = positions.reduce((sum, p) => sum + p.pnl, 0);
-      const totalValue = positions.reduce((sum, p) => sum + p.currentValue, 0);
-      const winRate = (
-        (profitablePositions.length / positions.length) *
-        100
-      ).toFixed(1);
-
+    if (positions.length === 0) {
       return {
-        text: `📈 Position Summary:
+        text: "📈 Positions: No active positions",
+      };
+    }
+
+    const profitablePositions = positions.filter((p) => p.pnl > 0);
+    const losingPositions = positions.filter((p) => p.pnl < 0);
+    const totalPnL = positions.reduce((sum, p) => sum + p.pnl, 0);
+    const totalValue = positions.reduce((sum, p) => sum + p.currentValue, 0);
+    const winRate = (
+      (profitablePositions.length / positions.length) *
+      100
+    ).toFixed(1);
+
+    return {
+      text: `📈 Position Summary:
 - Active Positions: ${positions.length}
 - Profitable: ${profitablePositions.length} | Losing: ${losingPositions.length}
 - Win Rate: ${winRate}%
 - Total P&L: ${totalPnL >= 0 ? "+" : ""}$${totalPnL.toFixed(2)}
 - Position Value: $${totalValue.toFixed(2)}`,
-        data: {
-          positions,
-          profitablePositions,
-          losingPositions,
-          totalPnL,
-          totalValue,
-          winRate: parseFloat(winRate),
-        },
-      };
-    } catch (error) {
-      runtime.logger.error(
-        "Error in positionSummaryProvider:",
-        error instanceof Error ? error.message : String(error),
-      );
-      return {
-        text: "Position data temporarily unavailable",
-      };
-    }
+      data: {
+        positions,
+        profitablePositions,
+        losingPositions,
+        totalPnL,
+        totalValue,
+        winRate: parseFloat(winRate),
+      },
+    };
   },
 };
 
@@ -234,61 +179,42 @@ export const a2aMarketDataProvider: Provider = {
     _message: Memory,
     _state: State,
   ): Promise<ProviderResult> => {
-    try {
-      // Try to get A2A service first
-      const a2aService = runtime.getService?.(
-        "babylon-a2a" as ServiceTypeName,
-      );
+    const a2aService = runtime.getService?.(
+      "babylon-a2a" as ServiceTypeName,
+    );
+    
+    if (a2aService && "isConnected" in a2aService && typeof a2aService.isConnected === "function" && a2aService.isConnected()) {
+      const cacheKey = "a2a.market.updates";
+      const cachedDataPromise = runtime.getCache?.(cacheKey);
       
-      // If A2A service is available and connected, use cached market data
-      if (a2aService && "isConnected" in a2aService && typeof a2aService.isConnected === "function" && a2aService.isConnected()) {
-        // Get latest market updates from cache
-        const cacheKey = "a2a.market.updates";
-        const cachedDataPromise = runtime.getCache?.(cacheKey);
-        
-        if (cachedDataPromise) {
-          const cachedData = await cachedDataPromise;
-          if (cachedData && typeof cachedData === "object" && "markets" in cachedData && !("then" in cachedData)) {
-            return {
-              text: `📡 A2A Real-time Market Data: ${(cachedData as { markets: unknown[] }).markets.length} markets updated`,
-              data: cachedData as Record<string, unknown>,
-            };
-          }
+      if (cachedDataPromise) {
+        const cachedData = await cachedDataPromise;
+        if (cachedData && typeof cachedData === "object" && "markets" in cachedData && !("then" in cachedData)) {
+          return {
+            text: `📡 A2A Real-time Market Data: ${(cachedData as { markets: unknown[] }).markets.length} markets updated`,
+            data: cachedData as Record<string, unknown>,
+          };
         }
       }
-      
-      // Fallback to standard market data provider
-      const babylonService = runtime.getService<BabylonClientService>(
-        BabylonClientService.serviceType,
-      );
-      if (!babylonService) {
-        return {
-          text: "Market data unavailable - Babylon service not configured",
-        };
-      }
+    }
+    
+    const babylonService = runtime.getService<BabylonClientService>(
+      BabylonClientService.serviceType,
+    )!;
 
-      const client = babylonService.getClient();
-      const markets = await client.getActiveMarkets();
+    const client = babylonService.getClient();
+    const markets = await client.getActiveMarkets();
 
-      if (markets.length === 0) {
-        return {
-          text: "No active markets currently available",
-        };
-      }
-
+    if (markets.length === 0) {
       return {
-        text: `📊 Market Data (REST): ${markets.length} active markets`,
-        data: { markets, source: "rest" },
-      };
-    } catch (error) {
-      runtime.logger.error(
-        "Error in a2aMarketDataProvider:",
-        error instanceof Error ? error.message : String(error),
-      );
-      return {
-        text: "A2A market data temporarily unavailable",
+        text: "No active markets currently available",
       };
     }
+
+    return {
+      text: `📊 Market Data (REST): ${markets.length} active markets`,
+      data: { markets, source: "rest" },
+    };
   },
 };
 
@@ -305,71 +231,55 @@ export const socialFeedProvider: Provider = {
     _message: Memory,
     _state: State,
   ): Promise<ProviderResult> => {
-    try {
-      const babylonService = runtime.getService<BabylonClientService>(
-        BabylonClientService.serviceType,
-      );
-      if (!babylonService) {
-        return {
-          text: "Social feed unavailable - Babylon service not configured",
-        };
-      }
+    const babylonService = runtime.getService<BabylonClientService>(
+      BabylonClientService.serviceType,
+    )!;
 
-      const client = babylonService.getClient();
-      const posts = await client.getRecentPosts(20);
+    const client = babylonService.getClient();
+    const posts = await client.getRecentPosts(20);
 
-      if (posts.length === 0) {
-        return {
-          text: "No recent posts available",
-        };
-      }
-
-      // Build feed overview
-      const topPosts = posts
-        .filter((p) => p.likeCount > 0 || p.commentCount > 0)
-        .slice(0, 5);
-      
-      const popularAuthors = new Map<string, number>();
-      posts.forEach((post) => {
-        const engagement = post.likeCount + post.commentCount;
-        const current = popularAuthors.get(post.authorId) || 0;
-        popularAuthors.set(post.authorId, current + engagement);
-      });
-
-      const topAuthors = Array.from(popularAuthors.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([id]) => id);
-
-      let overviewText = `📱 Social Feed:\n- Recent Posts: ${posts.length}`;
-      
-      if (topPosts.length > 0) {
-        overviewText += `\n- Trending Posts: ${topPosts.length}`;
-        overviewText += `\n- Top Post Engagement: ${topPosts[0]?.likeCount || 0} likes, ${topPosts[0]?.commentCount || 0} comments`;
-      }
-      
-      if (topAuthors.length > 0) {
-        overviewText += `\n- Active Authors: ${topAuthors.length}`;
-      }
-
+    if (posts.length === 0) {
       return {
-        text: overviewText,
-        data: {
-          posts,
-          topPosts,
-          topAuthors,
-          totalPosts: posts.length,
-        },
-      };
-    } catch (error) {
-      runtime.logger.error(
-        "Error in socialFeedProvider:",
-        error instanceof Error ? error.message : String(error),
-      );
-      return {
-        text: "Social feed temporarily unavailable",
+        text: "No recent posts available",
       };
     }
+
+    const topPosts = posts
+      .filter((p) => p.likeCount > 0 || p.commentCount > 0)
+      .slice(0, 5);
+    
+    const popularAuthors = new Map<string, number>();
+    posts.forEach((post) => {
+      const engagement = post.likeCount + post.commentCount;
+      const current = popularAuthors.get(post.authorId) || 0;
+      popularAuthors.set(post.authorId, current + engagement);
+    });
+
+    const topAuthors = Array.from(popularAuthors.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([id]) => id);
+
+    let overviewText = `📱 Social Feed:\n- Recent Posts: ${posts.length}`;
+    
+    if (topPosts.length > 0) {
+      overviewText += `\n- Trending Posts: ${topPosts.length}`;
+      overviewText += `\n- Top Post Engagement: ${topPosts[0]?.likeCount || 0} likes, ${topPosts[0]?.commentCount || 0} comments`;
+    }
+    
+    if (topAuthors.length > 0) {
+      overviewText += `\n- Active Authors: ${topAuthors.length}`;
+    }
+
+    return {
+      text: overviewText,
+      data: {
+        posts,
+        topPosts,
+        topAuthors,
+        totalPosts: posts.length,
+      },
+    };
   },
 };
 

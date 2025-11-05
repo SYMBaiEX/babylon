@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
 import { PredictionPricing, calculateExpectedPayout } from '@/lib/prediction-pricing'
-import { logger } from '@/lib/logger'
 
 interface PredictionMarket {
   id: number | string
@@ -108,60 +107,34 @@ export function PredictionTradingModal({
 
     setLoading(true)
 
-    try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      if (!token) {
-        toast.error('Authentication required. Please log in.')
-        return
-      }
-
-      const response = await fetch(`/api/markets/predictions/${question.id}/buy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          side,
-          amount: amountNum,
-        }),
-      })
-
-      if (!response.ok) {
-        // Handle non-JSON responses (like 404 HTML pages)
-        let errorMessage = 'Failed to buy shares'
-        try {
-          const contentType = response.headers.get('content-type')
-          if (contentType && contentType.includes('application/json')) {
-            const data = await response.json()
-            errorMessage = data.error || data.message || `HTTP ${response.status}: ${response.statusText}`
-          } else {
-            errorMessage = `HTTP ${response.status}: ${response.statusText}`
-          }
-          errorMessage = `HTTP ${response.status}: ${response.statusText}`
-        } catch {
-          // If parsing fails, use default error message
-        }
-        toast.error(errorMessage)
-        logger.error('Failed to buy shares:', { status: response.status, statusText: response.statusText, questionId: question.id }, 'PredictionTradingModal')
-        return
-      }
-
-      await response.json()
-
-      toast.success(`Bought ${side.toUpperCase()} shares!`, {
-        description: `${calculation?.sharesBought.toFixed(2)} shares at ${(calculation?.avgPrice || 0).toFixed(3)} each`,
-      })
-
-      onClose()
-      if (onSuccess) onSuccess()
-    } catch (buyError) {
-      const errorMessage = buyError instanceof Error ? buyError.message : 'Failed to buy shares'
-      logger.error('Error buying shares:', errorMessage, 'PredictionTradingModal')
-      toast.error('Failed to buy shares')
-    } finally {
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    if (!token) {
+      toast.error('Authentication required. Please log in.')
       setLoading(false)
+      return
     }
+
+    const response = await fetch(`/api/markets/predictions/${question.id}/buy`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        side,
+        amount: amountNum,
+      }),
+    })
+
+    await response.json()
+
+    toast.success(`Bought ${side.toUpperCase()} shares!`, {
+      description: `${calculation?.sharesBought.toFixed(2)} shares at ${(calculation?.avgPrice || 0).toFixed(3)} each`,
+    })
+
+    onClose()
+    if (onSuccess) onSuccess()
+    setLoading(false)
   }
 
   const formatPrice = (price: number) => {

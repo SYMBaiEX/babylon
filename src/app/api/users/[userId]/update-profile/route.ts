@@ -147,14 +147,8 @@ export const POST = withErrorHandling(async (
             'POST /api/users/[userId]/update-profile'
           )
           
-          // Send profile completion notification
-          try {
-            await notifyProfileComplete(userId, result.pointsAwarded)
-            logger.info('Profile completion notification sent', { userId }, 'POST /api/users/[userId]/update-profile')
-          } catch (notificationError) {
-            logger.error('Error sending profile completion notification (non-critical):', notificationError, 'POST /api/users/[userId]/update-profile')
-            // Don't fail the request if notification fails
-          }
+          await notifyProfileComplete(userId, result.pointsAwarded)
+          logger.info('Profile completion notification sent', { userId }, 'POST /api/users/[userId]/update-profile')
         }
       }
     }

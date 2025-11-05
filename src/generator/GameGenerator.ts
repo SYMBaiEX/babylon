@@ -31,7 +31,18 @@ import { BabylonLLMClient } from './llm/openai-client';
 import { logger } from '@/lib/logger';
 import { generateActorContext } from '../engine/EmotionSystem';
 import { shuffleArray, toQuestionIdNumber, toQuestionIdNumberOrNull } from '@/shared/utils';
-import { loadPrompt } from '../prompts/loader';
+import { 
+  renderPrompt,
+  scenarios as scenariosPrompt,
+  questions as questionsPrompt,
+  baselineEvent,
+  questionRankings,
+  groupChatName,
+  dayEvents,
+  resolutionEvent,
+  groupMessages,
+  groupMessage
+} from '@/prompts';
 import type {
   Actor,
   ActorTier,
@@ -199,7 +210,7 @@ Organizations should:
     `- ${a.name}: ${a.description} (Domain: ${a.domain})${a.affiliations?.length ? ` [Affiliated: ${a.affiliations.join(', ')}]` : ''}`
   ).join('\n');
 
-  return loadPrompt('game/scenarios', {
+  return renderPrompt(scenariosPrompt, {
     mainActorsList,
     organizationContext
   });
@@ -224,7 +235,7 @@ Actors: ${s.mainActors.join(', ')}
 ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.join(', ')}` : ''}
 `).join('\n');
 
-  return loadPrompt('game/questions', {
+  return renderPrompt(questionsPrompt, {
     scenariosList,
     organizationContext
   });
@@ -563,7 +574,7 @@ export class GameGenerator {
   ): Promise<string> {
     const actorDescriptions = actors.map(a => `${a.name} (${a.description})`).join(', ');
 
-    const prompt = loadPrompt('game/baseline-event', {
+    const prompt = renderPrompt(baselineEvent, {
       dateStr,
       eventType: type,
       actorDescriptions
@@ -865,8 +876,8 @@ Otherwise, start fresh.`;
   private async rankAndSelectQuestions(questions: Question[]): Promise<Question[]> {
     const questionsList = questions.map((q, i) => `${i + 1}. ${q.text}`).join('\n');
 
-    const prompt = loadPrompt('game/question-rankings', {
-      questionCount: questions.length,
+    const prompt = renderPrompt(questionRankings, {
+      questionCount: questions.length.toString(),
       questionsList
     });
 
@@ -989,7 +1000,7 @@ Otherwise, start fresh.`;
       return `- ${m.name}: ${m.role || 'Notable figure'} at ${affiliations}`;
     }).join('\n');
 
-    const prompt = loadPrompt('game/group-chat-name', {
+    const prompt = renderPrompt(groupChatName, {
       adminName: admin.name,
       adminRole: admin.role || 'Notable figure',
       domain,
@@ -1287,10 +1298,10 @@ Otherwise, start fresh.`;
    One sentence, max 120 chars, satirical but plausible.`;
     }).join('\n');
 
-    const prompt = loadPrompt('game/day-events', {
+    const prompt = renderPrompt(dayEvents, {
       fullContext,
-      day,
-      eventCount: eventRequests.length,
+      day: day.toString(),
+      eventCount: eventRequests.length.toString(),
       eventRequestsList
     });
 
@@ -1367,7 +1378,7 @@ Max 120 characters, one sentence.`;
     const outcome = question.outcome ? 'YES' : 'NO';
     const outcomeContext = question.outcome ? 'PROVES it happened' : 'PROVES it failed/was cancelled';
 
-    const prompt = loadPrompt('game/resolution-event', {
+    const prompt = renderPrompt(resolutionEvent, {
       questionText: question.text,
       outcome,
       eventHistory,
@@ -1569,11 +1580,11 @@ ${req.members.map((m, idx) => {
    Max 200 chars each. PRIVATE conversation - strategic, vulnerable, gossipy.
 `).join('\n');
 
-    const prompt = loadPrompt('game/group-messages', {
+    const prompt = renderPrompt(groupMessages, {
       fullContext: fullContext || `Day ${day} of 30`,
       scenarioContext,
       questionContext,
-      day,
+      day: day.toString(),
       eventsList: events.map(e => e.description).join('; '),
       recentEventContext: recentEvent ? `\nMost talked about: ${recentEvent.description}` : '',
       groupCount: groupRequests.length,
@@ -1671,7 +1682,7 @@ ${req.members.map((m, idx) => {
     const eventContext = recentEvent ? `Recent event: ${recentEvent.description}` : `It's Day ${day} of 30`;
     const informationHint = day < 15 ? 'Drop vague hints' : 'Share more concrete information';
 
-    const prompt = loadPrompt('game/group-message', {
+    const prompt = renderPrompt(groupMessage, {
       actorName: actor.name,
       actorDescription: actor.description || '',
       personality: actor.personality || 'balanced',

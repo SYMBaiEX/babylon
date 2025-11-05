@@ -1,15 +1,14 @@
 'use client';
 
-import { cn } from '@/lib/utils';
-import { X, MessageCircle } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
-import { useInteractionStore } from '@/stores/interactionStore';
-import { EmptyState } from '@/components/shared/EmptyState';
-import { CommentInput } from '@/components/interactions/CommentInput';
 import { CommentCard } from '@/components/interactions/CommentCard';
+import { CommentInput } from '@/components/interactions/CommentInput';
 import { PostCard } from '@/components/posts/PostCard';
-import type { CommentWithReplies, CommentData } from '@/types/interactions';
-import { logger } from '@/lib/logger';
+import { EmptyState } from '@/components/shared/EmptyState';
+import { cn } from '@/lib/utils';
+import { useInteractionStore } from '@/stores/interactionStore';
+import type { CommentData, CommentWithReplies } from '@/types/interactions';
+import { MessageCircle, X } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 
 interface FeedCommentSectionProps {
   postId: string | null;
@@ -61,14 +60,9 @@ export function FeedCommentSection({
     if (!postId) return;
     
     setIsLoading(true);
-    try {
-      const loadedComments = await loadComments(postId);
-      setComments(loadedComments);
-    } catch (error) {
-      logger.error('Failed to load comments:', error, 'FeedCommentSection');
-    } finally {
-      setIsLoading(false);
-    }
+    const loadedComments = await loadComments(postId);
+    setComments(loadedComments);
+    setIsLoading(false);
   }, [postId, loadComments]);
 
   // Load post data when postId changes
@@ -86,17 +80,12 @@ export function FeedCommentSection({
       }
 
       setIsLoadingPost(true);
-      try {
-        const response = await fetch(`/api/posts/${postId}`);
-        if (response.ok) {
-          const result = await response.json();
-          setPost(result.data);
-        }
-      } catch (error) {
-        logger.error('Failed to load post:', error, 'FeedCommentSection');
-      } finally {
-        setIsLoadingPost(false);
+      const response = await fetch(`/api/posts/${postId}`);
+      if (response.ok) {
+        const result = await response.json();
+        setPost(result.data);
       }
+      setIsLoadingPost(false);
     };
 
     loadPostData();
@@ -112,24 +101,15 @@ export function FeedCommentSection({
   }, [postId, loadCommentsData]);
 
   const handleEdit = async (commentId: string, content: string) => {
-    try {
-      await editComment(commentId, content);
-      await loadCommentsData();
-    } catch (error) {
-      logger.error('Failed to edit comment:', error, 'FeedCommentSection');
-    }
+    await editComment(commentId, content);
+    await loadCommentsData();
   };
 
   const handleDelete = async (commentId: string) => {
     if (!postId) return;
     
-    try {
-      await deleteComment(commentId, postId);
-      setComments((prev) => removeCommentById(prev, commentId));
-    } catch (error) {
-      logger.error('Failed to delete comment:', error, 'FeedCommentSection');
-      await loadCommentsData();
-    }
+    await deleteComment(commentId, postId);
+    setComments((prev) => removeCommentById(prev, commentId));
   };
 
   // Helper to add a reply to the nested comment structure

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { Award, Users, TrendingUp, UserPlus, ArrowRight } from 'lucide-react'
-import { logger } from '@/lib/logger'
 import { Avatar } from '@/components/shared/Avatar'
 import Link from 'next/link'
 import { getProfileUrl } from '@/lib/profile-utils'
@@ -51,32 +50,28 @@ export function RewardsWidget({ userId }: RewardsWidgetProps) {
     if (!userId) return
 
     const fetchData = async () => {
-      try {
-        setLoading(true)
+      setLoading(true)
 
-        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-        if (!token) {
-          setLoading(false)
-          return
-        }
-
-        const response = await fetch(`/api/users/${userId}/referrals`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        })
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch referral data')
-        }
-
-        const result = await response.json()
-        setData(result)
-      } catch (error) {
-        logger.error('Error fetching referral widget data:', error, 'RewardsWidget')
-      } finally {
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      if (!token) {
         setLoading(false)
+        return
       }
+
+      const response = await fetch(`/api/users/${encodeURIComponent(userId)}/referrals`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        setLoading(false)
+        throw new Error('Failed to fetch referral data')
+      }
+
+      const result = await response.json()
+      setData(result)
+      setLoading(false)
     }
 
     fetchData()

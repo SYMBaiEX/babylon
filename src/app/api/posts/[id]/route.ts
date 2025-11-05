@@ -3,14 +3,14 @@
  * Methods: GET (get single post details)
  */
 
-import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
 import { optionalAuth } from '@/lib/api/auth-middleware';
-import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { BusinessLogicError, NotFoundError } from '@/lib/errors';
-import { IdParamSchema } from '@/lib/validation/schemas';
-import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/database-service';
+import { BusinessLogicError } from '@/lib/errors';
+import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { gameService } from '@/lib/game-service';
+import { logger } from '@/lib/logger';
+import { IdParamSchema } from '@/lib/validation/schemas';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/posts/[id]
@@ -82,108 +82,84 @@ export const GET = withErrorHandling(async (
 
     // If not in database, try to find it in game store/realtime feed first
     if (!post) {
-      const postContent = '[Game-generated post]'; // Default placeholder
-      let authorId = 'system'; // default author
-      let gameId = 'babylon'; // default game
-      let timestamp = new Date();
-
-      // First, try to get post from game store/realtime feed
-      let gamePost: {
-        id: string;
-        content: string;
-        authorId: string;
-        author?: string;
-        timestamp: string | Date;
-        createdAt?: string | Date;
-        gameId?: string | null;
-      } | null = null;
-
-      try {
-        // Try realtime posts first (most recent)
-        const realtimeResult = await gameService.getRealtimePosts(1000, 0);
-        if (realtimeResult) {
-          const foundPost = realtimeResult.posts.find(p => p.id === postId);
-          if (foundPost) {
-            gamePost = foundPost;
-          }
+      // Try realtime posts first (most recent)
+      const realtimeResult = await gameService.getRealtimePosts(1000, 0);
+      const realtimePost = realtimeResult?.posts.find(p => p.id === postId);
+      
+      let gamePost = realtimePost;
+      
+      // If not found in realtime, try database posts (synced posts)
+      if (!gamePost) {
+        const dbPosts = await gameService.getRecentPosts(1000, 0);
+        const foundPost = dbPosts.find(p => p.id === postId);
+        if (foundPost) {
+          gamePost = {
+            ...foundPost,
+            author: foundPost.authorId,
+            timestamp: foundPost.timestamp instanceof Date ? foundPost.timestamp.toISOString() : foundPost.timestamp,
+            createdAt: foundPost.createdAt instanceof Date ? foundPost.createdAt.toISOString() : foundPost.createdAt,
+          } as typeof realtimePost;
         }
-
-        // If not found in realtime, try database posts (synced posts)
-        if (!gamePost) {
-          const dbPosts = await gameService.getRecentPosts(1000, 0);
-          const foundPost = dbPosts.find(p => p.id === postId);
-          if (foundPost) {
-            gamePost = {
-              ...foundPost,
-              timestamp: foundPost.timestamp instanceof Date ? foundPost.timestamp.toISOString() : foundPost.timestamp,
-              createdAt: foundPost.createdAt instanceof Date ? foundPost.createdAt.toISOString() : foundPost.createdAt,
-            };
-          }
-        }
-      } catch (gameStoreError) {
-        // If game store fetch fails, log and continue to fallback
-        logger.debug('Could not fetch post from game store:', gameStoreError, 'GET /api/posts/[id]');
       }
 
-      // If found in game store, return it directly (don't need to create in DB)
+      // If found in game store, return it directly
       if (gamePost) {
-        // Get interaction counts from database (post might have interactions even if not fully synced)
         const [likeCount, commentCount, shareCount] = await Promise.all([
-          prisma.reaction.count({ where: { postId, type: 'like' } }).catch(() => 0),
-          prisma.comment.count({ where: { postId } }).catch(() => 0),
-          prisma.share.count({ where: { postId } }).catch(() => 0),
+          prisma.reaction.count({ where: { postId, type: 'like' } }),
+          prisma.comment.count({ where: { postId } }),
+          prisma.share.count({ where: { postId } }),
         ]);
 
-        // Get author name
+        const actor = await prisma.actor.findUnique({
+          where: { id: gamePost.authorId },
+          select: { name: true },
+        });
+        
         let authorName = gamePost.authorId;
         let authorUsername: string | null = null;
-        try {
-          const actor = await prisma.actor.findUnique({
+        
+        if (actor) {
+          authorName = actor.name;
+        } else {
+          const userRecord = await prisma.user.findUnique({
             where: { id: gamePost.authorId },
-            select: { name: true },
+            select: { displayName: true, username: true },
           });
-          if (actor) {
-            authorName = actor.name;
-          } else {
-            const userRecord = await prisma.user.findUnique({
-              where: { id: gamePost.authorId },
-              select: { displayName: true, username: true },
-            });
-            if (userRecord) {
-              authorName = userRecord.displayName || userRecord.username || gamePost.authorId;
-              authorUsername = userRecord.username || null;
-            }
+          if (userRecord) {
+            authorName = userRecord.displayName || userRecord.username || gamePost.authorId;
+            authorUsername = userRecord.username;
           }
-        } catch {
-          // Use authorId as fallback
         }
 
-        // Check if user liked/shared
         const isLiked = user
           ? (await prisma.reaction.findFirst({
               where: { postId, userId: user.userId, type: 'like' },
-            }).catch(() => null)) !== null
+            })) !== null
           : false;
         const isShared = user
           ? (await prisma.share.findFirst({
               where: { postId, userId: user.userId },
-            }).catch(() => null)) !== null
+            })) !== null
           : false;
 
-        const timestampStr = gamePost.timestamp instanceof Date 
-          ? gamePost.timestamp.toISOString() 
-          : (gamePost.timestamp || new Date().toISOString());
-        const createdAtStr = gamePost.createdAt instanceof Date
-          ? gamePost.createdAt.toISOString()
-          : (gamePost.createdAt || timestampStr);
+        const timestampStr = gamePost.timestamp as string;
+        const createdAtStr = (gamePost.createdAt || timestampStr) as string;
 
         return successResponse({
           data: {
             id: gamePost.id,
+            type: 'post',
             content: gamePost.content,
+            fullContent: null,
+            articleTitle: null,
+            byline: null,
+            biasScore: null,
+            sentiment: null,
+            slant: null,
+            category: null,
             authorId: gamePost.authorId,
-            authorName: authorName,
-            authorUsername: authorUsername,
+            authorName,
+            authorUsername,
             authorAvatar: undefined,
             isActorPost: true,
             timestamp: timestampStr,
@@ -198,16 +174,13 @@ export const GET = withErrorHandling(async (
         });
       }
 
-      // If not found in game store, try to parse ID format and create placeholder
-      // Fallback: Try to parse post ID format
-      // Format 1: gameId-gameTimestamp-authorId-isoTimestamp
-      // Format 2: post-{timestamp}-{random} (e.g., post-1762099655817-0.7781412938928327)
-      // Format 3: post-{timestamp}-{actorId}-{random}
+      let authorId = 'system';
+      let gameId = 'babylon';
+      let timestamp = new Date();
 
       const isoTimestampMatch = postId.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z)$/);
 
-      if (isoTimestampMatch && isoTimestampMatch[1]) {
-        // Format 1
+      if (isoTimestampMatch?.[1]) {
         const timestampStr = isoTimestampMatch[1];
         timestamp = new Date(timestampStr);
         const firstHyphenIndex = postId.indexOf('-');
@@ -221,194 +194,108 @@ export const GET = withErrorHandling(async (
           }
         }
       } else if (postId.startsWith('post-')) {
-        // Format 2 or 3
         const parts = postId.split('-');
         if (parts.length >= 3 && parts[1]) {
-          const timestampPart = parts[1];
-          const timestampNum = parseInt(timestampPart, 10);
+          const timestampNum = parseInt(parts[1], 10);
           if (!isNaN(timestampNum) && timestampNum > 1000000000000) {
             timestamp = new Date(timestampNum);
             if (parts.length >= 4 && parts[2] && !parts[2].includes('.')) {
               const potentialActorId = parts[2];
-              try {
-                const actor = await prisma.actor.findUnique({
-                  where: { id: potentialActorId },
-                  select: { id: true },
-                });
-                if (actor) {
-                  authorId = potentialActorId;
-                }
-              } catch (actorError) {
-                logger.debug('Could not lookup actor:', actorError, 'GET /api/posts/[id]');
+              const actor = await prisma.actor.findUnique({
+                where: { id: potentialActorId },
+                select: { id: true },
+              });
+              if (actor) {
+                authorId = potentialActorId;
               }
             }
           }
         }
       }
 
-      // Try to create the post in the database using upsert (only if not found in game store)
-      try {
-        const upsertedPost = await prisma.post.upsert({
-          where: { id: postId },
-          update: {}, // Don't update if exists
-          create: {
-            id: postId,
-            content: postContent,
-            authorId: authorId,
-            gameId: gameId,
-            timestamp: timestamp,
-          },
-          include: {
-            _count: {
-              select: {
-                reactions: {
-                  where: {
-                    type: 'like',
-                  },
+      post = await prisma.post.upsert({
+        where: { id: postId },
+        update: {},
+        create: {
+          id: postId,
+          content: '[Game-generated post]',
+          authorId,
+          gameId,
+          timestamp,
+        },
+        include: {
+          _count: {
+            select: {
+              reactions: {
+                where: {
+                  type: 'like',
                 },
-                comments: true,
-                shares: true,
               },
+              comments: true,
+              shares: true,
             },
-            reactions: user
-              ? {
-                  where: {
-                    userId: user.userId,
-                    type: 'like',
-                  },
-                  select: {
-                    id: true,
-                  },
-                }
-              : {
-                  where: {
-                    userId: 'never-match',
-                    type: 'like',
-                  },
-                  select: {
-                    id: true,
-                  },
-                },
-            shares: user
-              ? {
-                  where: {
-                    userId: user.userId,
-                  },
-                  select: {
-                    id: true,
-                  },
-                }
-              : {
-                  where: {
-                    userId: 'never-match',
-                  },
-                  select: {
-                    id: true,
-                  },
-                },
           },
-        });
-        post = upsertedPost;
-      } catch (upsertError) {
-        // If upsert fails, try to fetch again
-        const errorMessage = upsertError instanceof Error ? upsertError.message : String(upsertError);
-        logger.error('Failed to upsert post:', { error: errorMessage, postId }, 'GET /api/posts/[id]');
-        
-        post = await prisma.post.findUnique({
-          where: { id: postId },
-          include: {
-            _count: {
-              select: {
-                reactions: {
-                  where: {
-                    type: 'like',
-                  },
+          reactions: user
+            ? {
+                where: {
+                  userId: user.userId,
+                  type: 'like',
                 },
-                comments: true,
-                shares: true,
+                select: {
+                  id: true,
+                },
+              }
+            : {
+                where: {
+                  userId: 'never-match',
+                  type: 'like',
+                },
+                select: {
+                  id: true,
+                },
               },
-            },
-            reactions: user
-              ? {
-                  where: {
-                    userId: user.userId,
-                    type: 'like',
-                  },
-                  select: {
-                    id: true,
-                  },
-                }
-              : {
-                  where: {
-                    userId: 'never-match',
-                    type: 'like',
-                  },
-                  select: {
-                    id: true,
-                  },
+          shares: user
+            ? {
+                where: {
+                  userId: user.userId,
                 },
-            shares: user
-              ? {
-                  where: {
-                    userId: user.userId,
-                  },
-                  select: {
-                    id: true,
-                  },
-                }
-              : {
-                  where: {
-                    userId: 'never-match',
-                  },
-                  select: {
-                    id: true,
-                  },
+                select: {
+                  id: true,
                 },
-          },
-        });
-
-        // If still not found, throw 404
-        if (!post) {
-          throw new NotFoundError('Post', postId);
-        }
-      }
+              }
+            : {
+                where: {
+                  userId: 'never-match',
+                },
+                select: {
+                  id: true,
+                },
+              },
+        },
+      });
     }
 
-    // Validate post exists
-    if (!post) {
-      logger.error('Post is null after all attempts:', { postId }, 'GET /api/posts/[id]');
-      throw new NotFoundError('Post', postId);
-    }
-
-    // Get author name, username, and profile image from database
     let authorName = post.authorId;
     let authorUsername: string | null = null;
     let authorProfileImageUrl: string | null = null;
-    try {
-      // Try to get actor from database first
-      const actor = await prisma.actor.findUnique({
+    
+    const actor = await prisma.actor.findUnique({
+      where: { id: post.authorId },
+      select: { name: true, profileImageUrl: true },
+    });
+    if (actor) {
+      authorName = actor.name;
+      authorProfileImageUrl = actor.profileImageUrl || null;
+    } else {
+      const user = await prisma.user.findUnique({
         where: { id: post.authorId },
-        select: { name: true, profileImageUrl: true },
+        select: { displayName: true, username: true, profileImageUrl: true },
       });
-      if (actor) {
-        authorName = actor.name;
-        authorProfileImageUrl = actor.profileImageUrl || null;
-      } else {
-        // Check if it's a User instead of an Actor
-        const user = await prisma.user.findUnique({
-          where: { id: post.authorId },
-          select: { displayName: true, username: true, profileImageUrl: true },
-        });
-        if (user) {
-          authorName = user.displayName || user.username || post.authorId;
-          authorUsername = user.username || null;
-          authorProfileImageUrl = user.profileImageUrl || null;
-        }
+      if (user) {
+        authorName = user.displayName || user.username || post.authorId;
+        authorUsername = user.username || null;
+        authorProfileImageUrl = user.profileImageUrl || null;
       }
-    } catch (error) {
-      // Fallback to authorId if actor/user lookup fails
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.debug('Could not load author name:', { error: errorMessage, authorId: post.authorId }, 'GET /api/posts/[id]');
     }
 
     // Return database post
@@ -421,7 +308,15 @@ export const GET = withErrorHandling(async (
     return successResponse({
       data: {
         id: post.id,
+        type: post.type || 'post',
         content: post.content,
+        fullContent: post.fullContent || null,
+        articleTitle: post.articleTitle || null,
+        byline: post.byline || null,
+        biasScore: post.biasScore !== undefined ? post.biasScore : null,
+        sentiment: post.sentiment || null,
+        slant: post.slant || null,
+        category: post.category || null,
         authorId: post.authorId,
         authorName: authorName,
         authorUsername: authorUsername,

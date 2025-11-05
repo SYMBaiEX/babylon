@@ -1,11 +1,11 @@
 'use client'
 
+import { logger } from '@/lib/logger'
 import { useState, useEffect } from 'react'
 import { UserPlus, UserMinus, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
-import { logger } from '@/lib/logger'
 
 interface FollowButtonProps {
   userId: string
@@ -37,40 +37,33 @@ export function FollowButton({
     }
 
     const checkFollowStatus = async () => {
-      try {
-        if (!userId) {
-          setIsChecking(false)
-          return
-        }
-
-        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-        if (!token) {
-          setIsChecking(false)
-          return
-        }
-
-        // Encode userId to handle special characters
-        const encodedUserId = encodeURIComponent(userId)
-        const response = await fetch(`/api/users/${encodedUserId}/follow`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-          setIsFollowing(data.isFollowing || false)
-        } else {
-          // If check fails, assume not following (don't show error)
-          setIsFollowing(false)
-        }
-      } catch (error) {
-        logger.error('Error checking follow status:', error, 'FollowButton')
-        // On error, assume not following
-        setIsFollowing(false)
-      } finally {
+      if (!userId) {
         setIsChecking(false)
+        return
       }
+
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      if (!token) {
+        setIsChecking(false)
+        return
+      }
+
+      // Encode userId to handle special characters
+      const encodedUserId = encodeURIComponent(userId)
+      const response = await fetch(`/api/users/${encodedUserId}/follow`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setIsFollowing(data.isFollowing || false)
+      } else {
+        // If check fails, assume not following (don't show error)
+        setIsFollowing(false)
+      }
+      setIsChecking(false)
     }
 
     checkFollowStatus()
@@ -93,46 +86,40 @@ export function FollowButton({
     }
 
     setIsLoading(true)
-    try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      if (!token) {
-        toast.error('Authentication required')
-        setIsLoading(false)
-        return
-      }
-
-      // Encode userId to handle special characters
-      const encodedUserId = encodeURIComponent(userId)
-      const method = isFollowing ? 'DELETE' : 'POST'
-      const response = await fetch(`/api/users/${encodedUserId}/follow`, {
-        method,
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-
-      if (response.ok) {
-        const newFollowingState = !isFollowing
-        setIsFollowing(newFollowingState)
-        onFollowChange?.(newFollowingState)
-        toast.success(newFollowingState ? 'Following' : 'Unfollowed')
-      } else {
-        // Try to get error message, but don't show generic errors for 404s
-        const errorData = await response.json().catch(() => ({ error: null }))
-        if (response.status === 404) {
-          // If profile not found, silently fail or show a more helpful message
-          logger.warn('Profile not found for follow:', { userId }, 'FollowButton')
-          toast.error('Unable to follow this profile')
-        } else {
-          toast.error(errorData.error || 'Failed to update follow status')
-        }
-      }
-    } catch (error) {
-      logger.error('Error updating follow status:', error, 'FollowButton')
-      toast.error('An error occurred while trying to follow')
-    } finally {
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    if (!token) {
+      toast.error('Authentication required')
       setIsLoading(false)
+      return
     }
+
+    // Encode userId to handle special characters
+    const encodedUserId = encodeURIComponent(userId)
+    const method = isFollowing ? 'DELETE' : 'POST'
+    const response = await fetch(`/api/users/${encodedUserId}/follow`, {
+      method,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    })
+
+    if (response.ok) {
+      const newFollowingState = !isFollowing
+      setIsFollowing(newFollowingState)
+      onFollowChange?.(newFollowingState)
+      toast.success(newFollowingState ? 'Following' : 'Unfollowed')
+    } else {
+      // Try to get error message, but don't show generic errors for 404s
+      const errorData = await response.json().catch(() => ({ error: null }))
+      if (response.status === 404) {
+        // If profile not found, silently fail or show a more helpful message
+        logger.warn('Profile not found for follow:', { userId }, 'FollowButton')
+        toast.error('Unable to follow this profile')
+      } else {
+        toast.error(errorData.error || 'Failed to update follow status')
+      }
+    }
+    setIsLoading(false)
   }
 
   // Don't show button if checking or if user is viewing their own profile

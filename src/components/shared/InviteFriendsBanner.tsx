@@ -18,41 +18,37 @@ export function InviteFriendsBanner({ onDismiss }: InviteFriendsBannerProps) {
     const fetchReferralUrl = async () => {
       if (!user?.id) return
       
-      try {
-        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-        if (!token) return
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      if (!token) return
 
-        const referralRes = await fetch(`/api/users/${user.id}/referral-code`, {
-          headers: { 'Authorization': `Bearer ${token}` },
+      const referralRes = await fetch(`/api/users/${encodeURIComponent(user.id)}/referral-code`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      })
+      if (referralRes.ok) {
+        const data = await referralRes.json()
+        setReferralUrl(data.referralUrl)
+      }
+
+      // Track banner view in local storage
+      const viewKey = `banner_view_${user.id}`
+      const lastView = localStorage.getItem(viewKey)
+      const now = Date.now()
+      
+      // Store this view
+      localStorage.setItem(viewKey, now.toString())
+      
+      // Update server if more than 1 day since last tracked
+      if (!lastView || now - parseInt(lastView) > 86400000) {
+        await fetch(`/api/users/${encodeURIComponent(user.id)}/update-profile`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            bannerLastShown: new Date().toISOString(),
+          }),
         })
-        if (referralRes.ok) {
-          const data = await referralRes.json()
-          setReferralUrl(data.referralUrl)
-        }
-
-        // Track banner view in local storage
-        const viewKey = `banner_view_${user.id}`
-        const lastView = localStorage.getItem(viewKey)
-        const now = Date.now()
-        
-        // Store this view
-        localStorage.setItem(viewKey, now.toString())
-        
-        // Update server if more than 1 day since last tracked
-        if (!lastView || now - parseInt(lastView) > 86400000) {
-          await fetch(`/api/users/${user.id}/update-profile`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              bannerLastShown: new Date().toISOString(),
-            }),
-          })
-        }
-      } catch {
-        // Silently handle error - banner can still be shown
       }
     }
 
@@ -62,13 +58,9 @@ export function InviteFriendsBanner({ onDismiss }: InviteFriendsBannerProps) {
   const handleCopyReferral = async (e: React.MouseEvent) => {
     e.preventDefault()
     if (!referralUrl) return
-    try {
-      await navigator.clipboard.writeText(referralUrl)
-      setCopiedReferral(true)
-      setTimeout(() => setCopiedReferral(false), 2000)
-    } catch {
-      // Silently handle copy failure
-    }
+    await navigator.clipboard.writeText(referralUrl)
+    setCopiedReferral(true)
+    setTimeout(() => setCopiedReferral(false), 2000)
   }
 
   const handleDismiss = async (e: React.MouseEvent) => {
@@ -77,42 +69,37 @@ export function InviteFriendsBanner({ onDismiss }: InviteFriendsBannerProps) {
     
     if (!user?.id) return
 
-    try {
-      // Track dismiss in local storage
-      const dismissKey = `banner_dismiss_${user.id}`
-      const dismissCount = parseInt(localStorage.getItem(dismissKey) || '0')
-      localStorage.setItem(dismissKey, (dismissCount + 1).toString())
-      localStorage.setItem(`banner_dismiss_time_${user.id}`, Date.now().toString())
+    // Track dismiss in local storage
+    const dismissKey = `banner_dismiss_${user.id}`
+    const dismissCount = parseInt(localStorage.getItem(dismissKey) || '0')
+    localStorage.setItem(dismissKey, (dismissCount + 1).toString())
+    localStorage.setItem(`banner_dismiss_time_${user.id}`, Date.now().toString())
 
-      // Update server
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      if (token) {
-        await fetch(`/api/users/${user.id}/update-profile`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            bannerDismissCount: dismissCount + 1,
-          }),
+    // Update server
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    if (token) {
+      await fetch(`/api/users/${encodeURIComponent(user.id)}/update-profile`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          bannerDismissCount: dismissCount + 1,
+        }),
+      })
+
+      // Update local user state
+      if (user) {
+        setUser({
+          ...user,
+          bannerDismissCount: dismissCount + 1,
         })
-
-        // Update local user state
-        if (user) {
-          setUser({
-            ...user,
-            bannerDismissCount: dismissCount + 1,
-          })
-        }
       }
-
-      // Call parent dismiss handler
-      onDismiss?.()
-    } catch {
-      // Silently handle dismiss error - still call onDismiss
-      onDismiss?.()
     }
+
+    // Call parent dismiss handler
+    onDismiss?.()
   }
 
   if (!user?.referralCode || !referralUrl) {

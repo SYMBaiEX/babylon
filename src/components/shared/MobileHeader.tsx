@@ -9,7 +9,6 @@ import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { useLoginModal } from '@/hooks/useLoginModal'
 import { usePathname } from 'next/navigation'
-import { logger } from '@/lib/logger'
 import { Avatar } from '@/components/shared/Avatar'
 
 export function MobileHeader() {
@@ -27,25 +26,21 @@ export function MobileHeader() {
         return
       }
 
-      try {
-        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-        const headers: HeadersInit = {
-          'Content-Type': 'application/json',
-        }
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`
-        }
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
 
-        const response = await fetch(`/api/users/${user.id}/balance`, { headers })
-        if (response.ok) {
-          const data = await response.json()
-          setPointsData({
-            available: Number(data.balance || 0),
-            total: Number(data.totalDeposited || 0),
-          })
-        }
-      } catch (error) {
-        logger.error('Error fetching points:', error, 'MobileHeader')
+      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/balance`, { headers })
+      if (response.ok) {
+        const data = await response.json()
+        setPointsData({
+          available: Number(data.balance || 0),
+          total: Number(data.totalDeposited || 0),
+        })
       }
     }
 

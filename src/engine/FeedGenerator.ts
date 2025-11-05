@@ -40,7 +40,22 @@ import {
   shuffleArray,
   buildPhaseContext,
 } from '@/shared/utils';
-import { loadPrompt } from '../prompts/loader';
+import { 
+  renderPrompt,
+  newsPosts,
+  reactions,
+  commentary,
+  conspiracy,
+  journalistPost,
+  ambientPosts,
+  replies,
+  priceAnnouncement,
+  stockTicker,
+  analystReaction,
+  dayTransition,
+  questionResolvedFeed,
+  minuteAmbient
+} from '@/prompts';
 import type {
   Actor,
   ActorState,
@@ -436,12 +451,12 @@ export class FeedGenerator extends EventEmitter {
    NO hashtags or emojis.`;
     }).join('\n');
 
-    const prompt = loadPrompt('feed/news-posts', {
+    const prompt = renderPrompt(newsPosts, {
       eventDescription: worldEvent.description,
       eventType: worldEvent.type,
       sourceContext,
       outcomeFrame,
-      mediaCount: mediaEntities.length,
+      mediaCount: mediaEntities.length.toString(),
       mediaList
     });
 
@@ -521,10 +536,10 @@ export class FeedGenerator extends EventEmitter {
    React to event. Your private group chats inform your perspective.
    Write as YOURSELF (first person). Max 280 chars. No hashtags/emojis.`).join('\n');
 
-    const prompt = loadPrompt('feed/reactions', {
+    const prompt = renderPrompt(reactions, {
       eventDescription: worldEvent.description,
       eventContext,
-      actorCount: actors.length,
+      actorCount: actors.length.toString(),
       actorsList
     });
 
@@ -595,9 +610,9 @@ export class FeedGenerator extends EventEmitter {
    Let mood subtly influence tone. Match their writing style.
    NO hashtags or emojis.`).join('\n');
 
-    const prompt = loadPrompt('feed/commentary', {
+    const prompt = renderPrompt(commentary, {
       eventDescription: worldEvent.description,
-      commentatorCount: commentators.length,
+      commentatorCount: commentators.length.toString(),
       commentatorsList
     });
 
@@ -659,9 +674,9 @@ export class FeedGenerator extends EventEmitter {
    NO hashtags or emojis.
    ${outcome ? "Claim it's a distraction" : "Say they're hiding worse"}`).join('\n');
 
-    const prompt = loadPrompt('feed/conspiracy', {
+    const prompt = renderPrompt(conspiracy, {
       eventDescription: worldEvent.description,
-      conspiracistCount: conspiracists.length,
+      conspiracistCount: conspiracists.length.toString(),
       conspiracistsList
     });
 
@@ -733,7 +748,7 @@ export class FeedGenerator extends EventEmitter {
 
     const outcomeFrame = outcome ? 'Frame as potentially positive' : 'Highlight concerns or problems';
 
-    const prompt = loadPrompt('feed/journalist-post', {
+    const prompt = renderPrompt(journalistPost, {
       journalistName: journalist.name,
       journalistDescription: journalist.description || '',
       emotionalContext: emotionalContext ? emotionalContext + '\n' : '',
@@ -1334,14 +1349,7 @@ No other text.`;
    * Generate reply content for an actor replying to a post
    */
   private async generateReplyContent(actor: Actor, originalPost: FeedPost): Promise<string> {
-    if (!this.llm) {
-      // Fallback without LLM
-      const reactions = ['Interesting take', 'I disagree', 'This is huge', 'Nope', 'Facts', 'Cope', 'Based'];
-      return reactions[Math.floor(Math.random() * reactions.length)]!;
-    }
-
-    try {
-      const prompt = `You are ${actor.name} (${actor.personality || 'actor'}).
+    const prompt = `You are ${actor.name} (${actor.personality || 'actor'}).
       
 Original post by ${originalPost.authorName}:
 "${originalPost.content}"
@@ -1351,19 +1359,13 @@ ${actor.postStyle ? `Your style: ${actor.postStyle}` : ''}
 
 Respond with JSON: {"reply": "your reply here"}`;
 
-      const response = await this.llm.generateJSON<{ reply: string }>(
-        prompt,
-        undefined,
-        { temperature: 1.0, maxTokens: 500 }
-      );
+    const response = await this.llm!.generateJSON<{ reply: string }>(
+      prompt,
+      undefined,
+      { temperature: 1.0, maxTokens: 500 }
+    );
 
-      return response.reply || 'Interesting take';
-    } catch (error) {
-      // Fallback on error - log for debugging but don't fail
-      const errorMessage = error instanceof Error ? error.message : 'Failed to generate ambient post'
-      logger.warn('Failed to generate ambient post', { error: errorMessage }, 'FeedGenerator')
-      return 'Interesting take';
-    }
+    return response.reply;
   }
 
   /**
@@ -1408,11 +1410,11 @@ Respond with JSON: {"reply": "your reply here"}`;
    Write general thoughts. Your private group chats inform your perspective.
    Write as YOURSELF (first person). Max 280 chars. No hashtags/emojis.`).join('\n');
 
-    const prompt = loadPrompt('feed/ambient-posts', {
-      day,
+    const prompt = renderPrompt(ambientPosts, {
+      day: day.toString(),
       progressContext,
       atmosphereContext,
-      actorCount: actors.length,
+      actorCount: actors.length.toString(),
       actorsList
     });
 
@@ -1531,10 +1533,10 @@ Respond with JSON: {"reply": "your reply here"}`;
    Let emotional state and any relationship with ${originalPost.authorName} influence tone. Match their writing style.
 `).join('\n');
 
-    const prompt = loadPrompt('feed/replies', {
+    const prompt = renderPrompt(replies, {
       originalAuthorName: originalPost.authorName,
       originalContent: originalPost.content,
-      replierCount: actors.length,
+      replierCount: actors.length.toString(),
       repliersList
     });
 
@@ -1681,71 +1683,61 @@ No other text.`;
 
     // 1. Company announcement (for major moves >5%)
     if (Math.abs(priceUpdate.changePercent) >= 5) {
-      try {
-        const prompt = loadPrompt('game/price-announcement', {
-          companyName: company.name,
-          priceChange: priceUpdate.change.toFixed(2),
-          direction,
-          currentPrice: priceUpdate.newPrice.toFixed(2),
-          eventDescription: priceUpdate.reason,
-          phaseContext
-        });
-
-        const response = await this.llm.generateJSON<{
-          post: string;
-          sentiment: number;
-        }>(prompt, undefined, { temperature: 0.8, maxTokens: 500 });
-
-        posts.push({
-          id: `${company.id}-price-announcement-${day}`,
-          day,
-          timestamp: `${baseTime}${String(9 + Math.floor(Math.random() * 2)).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
-          type: 'news',
-          content: response.post,
-          author: company.id,
-          authorName: company.name,
-          sentiment: response.sentiment,
-          clueStrength: 0,
-          pointsToward: null,
-        });
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error('Failed to generate price announcement', { error: errorMessage, companyId: company.id, day }, 'FeedGenerator');
-      }
-    }
-
-    // 2. Stock ticker style post (always for significant moves)
-    try {
-      const prompt = loadPrompt('feed/stock-ticker', {
-        ticker: company.id.toUpperCase().slice(0, 4),
+      const prompt = renderPrompt(priceAnnouncement, {
         companyName: company.name,
-        currentPrice: priceUpdate.newPrice.toFixed(2),
         priceChange: priceUpdate.change.toFixed(2),
         direction,
-        volume: Math.floor(Math.random() * 1000000 + 500000).toString()
+        currentPrice: priceUpdate.newPrice.toFixed(2),
+        eventDescription: priceUpdate.reason,
+        phaseContext
       });
 
       const response = await this.llm.generateJSON<{
         post: string;
         sentiment: number;
-      }>(prompt, undefined, { temperature: 0.7, maxTokens: 300 });
+      }>(prompt, undefined, { temperature: 0.8, maxTokens: 500 });
 
       posts.push({
-        id: `${company.id}-ticker-${day}`,
+        id: `${company.id}-price-announcement-${day}`,
         day,
-        timestamp: `${baseTime}${String(9 + Math.floor(Math.random() * 3)).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
+        timestamp: `${baseTime}${String(9 + Math.floor(Math.random() * 2)).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
         type: 'news',
         content: response.post,
-        author: 'market-ticker',
-        authorName: 'Market Ticker',
+        author: company.id,
+        authorName: company.name,
         sentiment: response.sentiment,
         clueStrength: 0,
         pointsToward: null,
       });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error('Failed to generate ticker post', { error: errorMessage, companyId: company.id, day }, 'FeedGenerator');
     }
+
+    // 2. Stock ticker style post (always for significant moves)
+    const tickerPrompt = renderPrompt(stockTicker, {
+      ticker: company.id.toUpperCase().slice(0, 4),
+      companyName: company.name,
+      currentPrice: priceUpdate.newPrice.toFixed(2),
+      priceChange: priceUpdate.change.toFixed(2),
+      direction,
+      volume: Math.floor(Math.random() * 1000000 + 500000).toString()
+    });
+
+    const tickerResponse = await this.llm.generateJSON<{
+      post: string;
+      sentiment: number;
+    }>(tickerPrompt, undefined, { temperature: 0.7, maxTokens: 300 });
+
+    posts.push({
+      id: `${company.id}-ticker-${day}`,
+      day,
+      timestamp: `${baseTime}${String(9 + Math.floor(Math.random() * 3)).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
+      type: 'news',
+      content: tickerResponse.post,
+      author: 'market-ticker',
+      authorName: 'Market Ticker',
+      sentiment: tickerResponse.sentiment,
+      clueStrength: 0,
+      pointsToward: null,
+    });
 
     // 3. Analyst reactions (1-2 analysts for major moves)
     if (Math.abs(priceUpdate.changePercent) >= 3) {
@@ -1756,41 +1748,36 @@ No other text.`;
       ).slice(0, Math.abs(priceUpdate.changePercent) >= 5 ? 2 : 1);
 
       for (const analyst of analysts) {
-        try {
-          const state = this.actorStates.get(analyst.id);
+        const state = this.actorStates.get(analyst.id);
 
-          const prompt = loadPrompt('feed/analyst-reaction', {
-            analystName: analyst.name,
-            analystDescription: analyst.description || '',
-            companyName: company.name,
-            priceChange: Math.abs(priceUpdate.changePercent).toFixed(1),
-            direction,
-            eventDescription: priceUpdate.reason,
-            mood: state ? (state.mood > 0 ? 'optimistic' : state.mood < 0 ? 'pessimistic' : 'neutral') : 'neutral',
-            phaseContext
-          });
+        const prompt = renderPrompt(analystReaction, {
+          analystName: analyst.name,
+          analystDescription: analyst.description || '',
+          companyName: company.name,
+          priceChange: Math.abs(priceUpdate.changePercent).toFixed(1),
+          direction,
+          eventDescription: priceUpdate.reason,
+          mood: state ? (state.mood > 0 ? 'optimistic' : state.mood < 0 ? 'pessimistic' : 'neutral') : 'neutral',
+          phaseContext
+        });
 
-          const response = await this.llm.generateJSON<{
-            post: string;
-            sentiment: number;
-          }>(prompt, undefined, { temperature: 0.9, maxTokens: 500 });
+        const response = await this.llm.generateJSON<{
+          post: string;
+          sentiment: number;
+        }>(prompt, undefined, { temperature: 0.9, maxTokens: 500 });
 
-          posts.push({
-            id: `${analyst.id}-analyst-${company.id}-${day}`,
-            day,
-            timestamp: `${baseTime}${String(10 + Math.floor(Math.random() * 3)).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
-            type: 'post',
-            content: response.post,
-            author: analyst.id,
-            authorName: analyst.name,
-            sentiment: response.sentiment,
-            clueStrength: 0,
-            pointsToward: null,
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          logger.error(`Failed to generate analyst reaction for ${analyst.name}`, { error: errorMessage, analyst: analyst.name, companyId: company.id, day }, 'FeedGenerator');
-        }
+        posts.push({
+          id: `${analyst.id}-analyst-${company.id}-${day}`,
+          day,
+          timestamp: `${baseTime}${String(10 + Math.floor(Math.random() * 3)).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00Z`,
+          type: 'post',
+          content: response.post,
+          author: analyst.id,
+          authorName: analyst.name,
+          sentiment: response.sentiment,
+          clueStrength: 0,
+          pointsToward: null,
+        });
       }
     }
 
@@ -1836,39 +1823,33 @@ No other text.`;
       .map(a => a.name)
       .join(', ');
 
-    try {
-      const prompt = loadPrompt('game/day-transition', {
-        day: day.toString(),
-        phaseName,
-        phaseContext,
-        previousDayEvents: eventsContext || 'None',
-        activeQuestions: questionsContext || 'No active questions',
-        keyActors: keyActors || 'Various industry figures'
-      });
+    const prompt = renderPrompt(dayTransition, {
+      day: day.toString(),
+      phaseName,
+      phaseContext,
+      previousDayEvents: eventsContext || 'None',
+      activeQuestions: questionsContext || 'No active questions',
+      keyActors: keyActors || 'Various industry figures'
+    });
 
-      const response = await this.llm.generateJSON<{
-        event: string;
-        type: string;
-        tone: string;
-      }>(prompt, undefined, { temperature: 0.7, maxTokens: 500 });
+    const response = await this.llm.generateJSON<{
+      event: string;
+      type: string;
+      tone: string;
+    }>(prompt, undefined, { temperature: 0.7, maxTokens: 500 });
 
-      return {
-        id: `day-transition-${day}`,
-        day,
-        timestamp: baseTime,
-        type: 'news',
-        content: response.event,
-        author: 'game-narrator',
-        authorName: 'Game Narrator',
-        sentiment: 0,
-        clueStrength: 0,
-        pointsToward: null,
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`Failed to generate day transition post for day ${day}`, { error: errorMessage, day, eventCount: previousDayEvents.length }, 'FeedGenerator');
-      return null;
-    }
+    return {
+      id: `day-transition-${day}`,
+      day,
+      timestamp: baseTime,
+      type: 'news',
+      content: response.event,
+      author: 'game-narrator',
+      authorName: 'Game Narrator',
+      sentiment: 0,
+      clueStrength: 0,
+      pointsToward: null,
+    };
   }
 
   /**
@@ -1886,39 +1867,33 @@ No other text.`;
       return null;
     }
 
-    const baseTime = `2025-10-${String(day).padStart(2, '0')}T20:00:00Z`; // Evening announcement
+    const baseTime = `2025-10-${String(day).padStart(2, '0')}T20:00:00Z`;
     const outcomeText = question.resolvedOutcome ? 'YES' : 'NO';
 
-    try {
-      const prompt = loadPrompt('game/question-resolved-feed', {
-        questionText: question.text,
-        outcome: outcomeText,
-        resolutionEvent: resolutionEventDescription,
-        winningPercentage: winningPercentage.toFixed(0)
-      });
+    const prompt = renderPrompt(questionResolvedFeed, {
+      questionText: question.text,
+      outcome: outcomeText,
+      resolutionEvent: resolutionEventDescription,
+      winningPercentage: winningPercentage.toFixed(0)
+    });
 
-      const response = await this.llm.generateJSON<{
-        post: string;
-        sentiment: number;
-      }>(prompt, undefined, { temperature: 0.7, maxTokens: 400 });
+    const response = await this.llm.generateJSON<{
+      post: string;
+      sentiment: number;
+    }>(prompt, undefined, { temperature: 0.7, maxTokens: 400 });
 
-      return {
-        id: `question-resolved-${question.id}-${day}`,
-        day,
-        timestamp: baseTime,
-        type: 'news',
-        content: response.post,
-        author: 'market-oracle',
-        authorName: 'Market Oracle',
-        sentiment: response.sentiment,
-        clueStrength: 0,
-        pointsToward: null,
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`Failed to generate question resolution post for question ${question.id}`, { error: errorMessage, questionId: question.id, day, outcome: question.resolvedOutcome }, 'FeedGenerator');
-      return null;
-    }
+    return {
+      id: `question-resolved-${question.id}-${day}`,
+      day,
+      timestamp: baseTime,
+      type: 'news',
+      content: response.post,
+      author: 'market-oracle',
+      authorName: 'Market Oracle',
+      sentiment: response.sentiment,
+      clueStrength: 0,
+      pointsToward: null,
+    };
   }
 
   /**
@@ -1928,51 +1903,40 @@ No other text.`;
   public async generateMinuteAmbientPost(
     actor: { id: string; name: string; description?: string; role?: string; mood?: number },
     timestamp: Date
-  ): Promise<{ content: string; sentiment: number; energy: number } | null> {
-    if (!this.llm) {
-      return null;
-    }
+  ): Promise<{ content: string; sentiment: number; energy: number }> {
+    const currentTime = timestamp.toLocaleString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
 
-    try {
-      // Build context for the post
-      const currentTime = timestamp.toLocaleString('en-US', {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-      });
+    const emotionalContext = actor.mood
+      ? `Current mood: ${actor.mood > 0 ? 'positive' : actor.mood < 0 ? 'negative' : 'neutral'}`
+      : '';
 
-      const emotionalContext = actor.mood
-        ? `Current mood: ${actor.mood > 0 ? 'positive' : actor.mood < 0 ? 'negative' : 'neutral'}`
-        : '';
+    const atmosphereContext = '';
 
-      const atmosphereContext = ''; // Can be enhanced with recent events context
+    const prompt = renderPrompt(minuteAmbient, {
+      actorName: actor.name,
+      actorDescription: actor.description || actor.role || 'industry professional',
+      emotionalContext,
+      currentTime,
+      atmosphereContext,
+    });
 
-      const prompt = loadPrompt('feed/minute-ambient', {
-        actorName: actor.name,
-        actorDescription: actor.description || actor.role || 'industry professional',
-        emotionalContext,
-        currentTime,
-        atmosphereContext,
-      });
+    const response = await this.llm!.generateJSON<{
+      post: string;
+      sentiment: number;
+      energy: number;
+    }>(prompt, undefined, { temperature: 1.0, maxTokens: 300 });
 
-      const response = await this.llm.generateJSON<{
-        post: string;
-        sentiment: number;
-        energy: number;
-      }>(prompt, undefined, { temperature: 1.0, maxTokens: 300 });
-
-      return {
-        content: response.post,
-        sentiment: response.sentiment,
-        energy: response.energy,
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`Failed to generate ambient post for actor ${actor.name}`, { error: errorMessage, actor: actor.name, actorId: actor.id, timestamp: timestamp.toISOString() }, 'FeedGenerator');
-      return null;
-    }
+    return {
+      content: response.post,
+      sentiment: response.sentiment,
+      energy: response.energy,
+    };
   }
 
   /**

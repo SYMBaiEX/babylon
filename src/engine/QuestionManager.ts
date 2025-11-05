@@ -16,7 +16,7 @@
 
 import type { Question, Scenario, SelectedActor, Organization, DayTimeline } from '@/shared/types';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
-import { loadPrompt } from '../prompts/loader';
+import { questionGeneration, questionResolutionValidation, renderPrompt } from '@/prompts';
 import { logger } from '@/lib/logger';
 
 export interface QuestionCreationParams {
@@ -89,48 +89,43 @@ export class QuestionManager {
       numToGenerate
     );
 
-    try {
-      const response = await this.llm.generateJSON<{
-        questions: Array<{
-          text: string;
-          scenario: number;
-          daysUntilResolution: number; // 1-7 days
-          expectedOutcome: boolean;
-        }>;
-      }>(prompt, undefined, {
-        temperature: 0.9,
-        maxTokens: 8000,
-      });
+    const response = await this.llm.generateJSON<{
+      questions: Array<{
+        text: string;
+        scenario: number;
+        daysUntilResolution: number; // 1-7 days
+        expectedOutcome: boolean;
+      }>;
+    }>(prompt, undefined, {
+      temperature: 0.9,
+      maxTokens: 8000,
+    });
 
-      if (!response.questions || response.questions.length === 0) {
-        logger.warn('LLM returned no questions', undefined, 'QuestionManager');
-        return [];
-      }
-
-      // Convert to Question objects with dates and IDs
-      const questions: Question[] = response.questions.slice(0, numToGenerate).map((q, index) => {
-        const resolutionDate = new Date(currentDateObj);
-        resolutionDate.setDate(
-          resolutionDate.getDate() + Math.max(1, Math.min(7, q.daysUntilResolution || 3))
-        );
-
-        return {
-          id: nextQuestionId + index,
-          text: q.text,
-          scenario: q.scenario || 1,
-          outcome: q.expectedOutcome,
-          rank: 1,
-          createdDate: currentDate,
-          resolutionDate: resolutionDate.toISOString().split('T')[0]!,
-          status: 'active',
-        };
-      });
-
-      return questions;
-    } catch (error) {
-      logger.error('Failed to generate questions:', error, 'QuestionManager');
+    if (!response.questions || response.questions.length === 0) {
+      logger.warn('LLM returned no questions', undefined, 'QuestionManager');
       return [];
     }
+
+    // Convert to Question objects with dates and IDs
+    const questions: Question[] = response.questions.slice(0, numToGenerate).map((q, index) => {
+      const resolutionDate = new Date(currentDateObj);
+      resolutionDate.setDate(
+        resolutionDate.getDate() + Math.max(1, Math.min(7, q.daysUntilResolution || 3))
+      );
+
+      return {
+        id: nextQuestionId + index,
+        text: q.text,
+        scenario: q.scenario || 1,
+        outcome: q.expectedOutcome,
+        rank: 1,
+        createdDate: currentDate,
+        resolutionDate: resolutionDate.toISOString().split('T')[0]!,
+        status: 'active',
+      };
+    });
+
+    return questions;
   }
 
   /**
@@ -167,7 +162,7 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       .map(o => `- ${o.name}: ${o.description}`)
       .join('\n');
 
-    return loadPrompt('game/question-generation', {
+    return renderPrompt(questionGeneration, {
       scenariosList,
       actorsList,
       orgsList,
@@ -227,7 +222,7 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       ? 'PROVES it happened/succeeded' 
       : 'PROVES it failed/was cancelled/did not happen';
 
-    const prompt = loadPrompt('game/question-resolution-validation', {
+    const prompt = renderPrompt(questionResolutionValidation, {
       questionText: question.text,
       outcome: question.outcome ? 'YES' : 'NO',
       eventHistory,
@@ -235,18 +230,13 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       outcomeContext
     });
 
-    try {
-      const response = await this.llm.generateJSON<{ event: string; type: string }>(
-        prompt,
-        undefined,
-        { temperature: 0.7, maxTokens: 5000 }
-      );
+    const response = await this.llm.generateJSON<{ event: string; type: string }>(
+      prompt,
+      undefined,
+      { temperature: 0.7, maxTokens: 5000 }
+    );
 
-      return response.event || `Resolution: ${question.text} outcome is ${question.outcome ? 'YES' : 'NO'}`;
-    } catch (error) {
-      logger.error('Failed to generate resolution event:', error, 'QuestionManager');
-      return `Resolution: ${question.text} outcome is ${question.outcome ? 'YES' : 'NO'}`;
-    }
+    return response.event || `Resolution: ${question.text} outcome is ${question.outcome ? 'YES' : 'NO'}`;
   }
 
   /**

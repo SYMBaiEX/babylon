@@ -36,33 +36,28 @@ export function useChatMessages(chatId: string | null) {
     }
 
     setIsLoading(true);
-    try {
-      const response = await fetch(`/api/chats/${chatId}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.messages) {
-          const formattedMessages: ChatMessage[] = data.messages.map((msg: {
-            id: string;
-            content: string;
-            senderId: string;
-            createdAt: string | Date;
-          }) => ({
-            id: msg.id,
-            content: msg.content,
-            chatId: chatId,
-            senderId: msg.senderId,
-            createdAt: typeof msg.createdAt === 'string' ? msg.createdAt : msg.createdAt.toISOString(),
-          }));
-          setMessages(formattedMessages);
-          hasLoadedRef.current.add(chatId);
-          logger.debug(`Loaded ${formattedMessages.length} messages for chat ${chatId}`, { chatId, count: formattedMessages.length }, 'useChatMessages');
-        }
+    const response = await fetch(`/api/chats/${chatId}`);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.messages) {
+        const formattedMessages: ChatMessage[] = data.messages.map((msg: {
+          id: string;
+          content: string;
+          senderId: string;
+          createdAt: string | Date;
+        }) => ({
+          id: msg.id,
+          content: msg.content,
+          chatId: chatId,
+          senderId: msg.senderId,
+          createdAt: typeof msg.createdAt === 'string' ? msg.createdAt : msg.createdAt.toISOString(),
+        }));
+        setMessages(formattedMessages);
+        hasLoadedRef.current.add(chatId);
+        logger.debug(`Loaded ${formattedMessages.length} messages for chat ${chatId}`, { chatId, count: formattedMessages.length }, 'useChatMessages');
       }
-    } catch (error) {
-      logger.error('Error loading chat messages:', error, 'useChatMessages');
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
   }, []);
 
   // Handle SSE updates for this chat
@@ -122,6 +117,21 @@ export function useChatMessages(chatId: string | null) {
       }
       previousChatIdRef.current = chatId;
     }
+  }, [chatId, loadMessages]);
+
+  // Polling fallback: Refresh chat every 15 seconds
+  // Ensures new messages appear even if SSE fails in multi-instance serverless
+  useEffect(() => {
+    if (!chatId || !hasLoadedRef.current.has(chatId)) return
+    
+    const interval = setInterval(() => {
+      // Silently reload messages (don't show loading state)
+      loadMessages(chatId).catch(err => {
+        logger.debug('Background chat refresh failed', { error: err, chatId }, 'useChatMessages');
+      });
+    }, 15000); // 15 seconds (more frequent for chat)
+    
+    return () => clearInterval(interval);
   }, [chatId, loadMessages]);
 
   // Mark as loaded when connected

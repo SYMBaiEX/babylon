@@ -50,20 +50,8 @@ export type BabylonEnvironment = z.infer<typeof babylonEnvSchema>;
  */
 export function validateBabylonEnvironment(
   env: Record<string, string | undefined>,
-): {
-  success: boolean;
-  data?: BabylonEnvironment;
-  error?: z.ZodError;
-} {
-  try {
-    const validated = babylonEnvSchema.parse(env);
-    return { success: true, data: validated };
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return { success: false, error };
-    }
-    throw error;
-  }
+): BabylonEnvironment {
+  return babylonEnvSchema.parse(env);
 }
 
 /**
@@ -74,18 +62,7 @@ export function getBabylonSetting(
   key: keyof BabylonEnvironment,
   defaultValue?: string,
 ): string | undefined {
-  // Try character secrets/settings first
-  if (runtime.getSetting) {
-    const value = runtime.getSetting(key);
-    if (value) return value;
-  }
-
-  // Fall back to environment
-  const envValue = process.env[key];
-  if (envValue) return envValue;
-
-  // Use default
-  return defaultValue;
+  return runtime.getSetting?.(key) || process.env[key] || defaultValue;
 }
 
 /**

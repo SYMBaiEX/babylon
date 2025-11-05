@@ -1,15 +1,14 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { ArrowLeft, MessageCircle } from 'lucide-react';
-import { PostCard } from '@/components/posts/PostCard';
 import { FeedCommentSection } from '@/components/feed/FeedCommentSection';
-import { WidgetSidebar } from '@/components/shared/WidgetSidebar';
-import { PageContainer } from '@/components/shared/PageContainer';
 import { InteractionBar } from '@/components/interactions';
+import { PostCard } from '@/components/posts/PostCard';
+import { PageContainer } from '@/components/shared/PageContainer';
+import { WidgetSidebar } from '@/components/shared/WidgetSidebar';
 import { useInteractionStore } from '@/stores/interactionStore';
-import { logger } from '@/lib/logger';
+import { ArrowLeft, MessageCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { use, useEffect, useState } from 'react';
 
 interface PostPageProps {
   params: Promise<{ id: string }>;
@@ -44,92 +43,39 @@ export default function PostPage({ params }: PostPageProps) {
 
   useEffect(() => {
     const loadPost = async () => {
-      if (!postId) {
-        setError('Post ID is required');
-        setIsLoading(false);
-        return;
-      }
-
       setIsLoading(true);
       setError(null);
 
-      try {
-        logger.debug('Loading post:', { postId }, 'PostPage');
-        const response = await fetch(`/api/posts/${postId}`);
-        
-        if (!response.ok) {
-          let errorMessage = 'Failed to load post';
-          try {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorData.message || errorMessage;
-            logger.error('API error response:', { status: response.status, errorData }, 'PostPage');
-          } catch {
-            // If JSON parsing fails, use status-based message
-            if (response.status === 404) {
-              errorMessage = 'Post not found';
-            } else if (response.status === 500) {
-              errorMessage = 'Server error. Please try again later.';
-            }
-            logger.error('API error (no JSON):', { status: response.status }, 'PostPage');
-          }
-          setError(errorMessage);
-          setIsLoading(false);
-          return;
-        }
+      const response = await fetch(`/api/posts/${postId}`);
+      const result = await response.json();
+      
+      const postData = result.data || result;
 
-        const result = await response.json();
-        logger.debug('API response received:', { hasData: !!result.data, keys: Object.keys(result) }, 'PostPage');
-        
-        // successResponse wraps data in a data property: { data: {...} }
-        // But successResponse does NextResponse.json(data), so if we pass { data: {...} }
-        // it returns { data: {...} }
-        const postData = result.data || result;
-        
-        if (!postData || !postData.id) {
-          logger.error('Invalid post data:', { result, postData }, 'PostPage');
-          setError('Invalid post data received');
-          setIsLoading(false);
-          return;
-        }
-        
-        logger.debug('Post data parsed:', { 
-          id: postData.id, 
-          hasContent: !!postData.content,
-          authorName: postData.authorName 
-        }, 'PostPage');
+      const { postInteractions } = useInteractionStore.getState();
+      const storeData = postInteractions.get(postId);
 
-        // Get interaction data from store
-        const { postInteractions } = useInteractionStore.getState();
-        const storeData = postInteractions.get(postId);
-
-        setPost({
-          id: postData.id,
-          type: postData.type || 'post',
-          content: postData.content || '[No content]',
-          fullContent: postData.fullContent || null,
-          articleTitle: postData.articleTitle || null,
-          byline: postData.byline || null,
-          biasScore: postData.biasScore !== undefined ? postData.biasScore : null,
-          sentiment: postData.sentiment || null,
-          slant: postData.slant || null,
-          category: postData.category || null,
-          authorId: postData.authorId,
-          authorName: postData.authorName || postData.authorId || 'Unknown',
-          authorUsername: postData.authorUsername || null,
-          timestamp: postData.timestamp || postData.createdAt || new Date().toISOString(),
-          likeCount: storeData?.likeCount ?? postData.likeCount ?? 0,
-          commentCount: storeData?.commentCount ?? postData.commentCount ?? 0,
-          shareCount: storeData?.shareCount ?? postData.shareCount ?? 0,
-          isLiked: storeData?.isLiked ?? postData.isLiked ?? false,
-          isShared: storeData?.isShared ?? postData.isShared ?? false,
-        });
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to load post';
-        logger.error('Error loading post:', err, 'PostPage');
-        setError(errorMessage);
-      } finally {
-        setIsLoading(false);
-      }
+      setPost({
+        id: postData.id,
+        type: postData.type || 'post',
+        content: postData.content,
+        fullContent: postData.fullContent || null,
+        articleTitle: postData.articleTitle || null,
+        byline: postData.byline || null,
+        biasScore: postData.biasScore !== undefined ? postData.biasScore : null,
+        sentiment: postData.sentiment || null,
+        slant: postData.slant || null,
+        category: postData.category || null,
+        authorId: postData.authorId,
+        authorName: postData.authorName,
+        authorUsername: postData.authorUsername || null,
+        timestamp: postData.timestamp,
+        likeCount: storeData?.likeCount ?? postData.likeCount ?? 0,
+        commentCount: storeData?.commentCount ?? postData.commentCount ?? 0,
+        shareCount: storeData?.shareCount ?? postData.shareCount ?? 0,
+        isLiked: storeData?.isLiked ?? postData.isLiked ?? false,
+        isShared: storeData?.isShared ?? postData.isShared ?? false,
+      });
+      setIsLoading(false);
     };
 
     loadPost();

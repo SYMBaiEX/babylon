@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { TrendingUp, MessageCircle, Heart, Share2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
-import { logger } from '@/lib/logger'
 import { useRouter } from 'next/navigation'
 import { getProfileUrl } from '@/lib/profile-utils'
 import Link from 'next/link'
@@ -28,17 +27,12 @@ export function TrendingPostsPanel() {
 
   useEffect(() => {
     const fetchTrendingPosts = async () => {
-      try {
-        const response = await fetch('/api/feed/widgets/trending-posts')
-        const data = await response.json()
-        if (data.success) {
-          setPosts(data.posts || [])
-        }
-      } catch (error) {
-        logger.error('Error fetching trending posts:', error, 'TrendingPostsPanel')
-      } finally {
-        setLoading(false)
+      const response = await fetch('/api/feed/widgets/trending-posts')
+      const data = await response.json()
+      if (data.success) {
+        setPosts(data.posts || [])
       }
+      setLoading(false)
     }
 
     fetchTrendingPosts()

@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { UUIDSchema } from './common';
+import { UUIDSchema, UserIdSchema } from './common';
 
 /**
  * Game tick cron authentication schema
@@ -80,7 +80,7 @@ export const AwardPointsSchema = z.object({
  * Referral query schema
  */
 export const ReferralQuerySchema = z.object({
-  userId: UUIDSchema,
+  userId: UserIdSchema,
   includeStats: z.coerce.boolean().default(false)
 });
 
@@ -117,10 +117,21 @@ export const UsernameParamSchema = z.object({
 });
 
 /**
- * User ID param schema
+ * User ID param schema (accepts both UUID and Privy DID)
  */
 export const UserIdParamSchema = z.object({
-  userId: UUIDSchema
+  userId: z.string().refine(
+    (val) => {
+      // Check if it's a UUID
+      const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+      // Check if it's a Privy DID
+      const privyDidRegex = /^did:privy:[a-z0-9]+$/;
+      return uuidRegex.test(val) || privyDidRegex.test(val);
+    },
+    {
+      message: 'Invalid user ID format. Must be a UUID or Privy DID (did:privy:...)'
+    }
+  )
 });
 
 /**

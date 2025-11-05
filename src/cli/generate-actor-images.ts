@@ -7,7 +7,7 @@ import { fal } from "@fal-ai/client";
 import { readFile, writeFile, exists } from "fs/promises";
 import { join } from "path";
 import { config } from "dotenv";
-import { loadPrompt } from "../prompts/loader.js";
+import { renderPrompt, actorPortrait, organizationLogo } from "@/prompts";
 import { logger } from '@/lib/logger';
 
 // Load environment variables
@@ -108,8 +108,8 @@ async function generateActorImage(actor: Actor): Promise<string> {
   // Extract key satirical elements from description
   const descriptionParts = actor.description.split('.').slice(0, 3).join('. ');
 
-  // Load prompt template and render with variables
-  const prompt = loadPrompt('image/actor-portrait', {
+  // Render prompt template with variables
+  const prompt = renderPrompt(actorPortrait, {
     actorName: actor.name,
     realName: actor.realName || actor.name,
     descriptionParts,
@@ -153,8 +153,8 @@ async function generateOrganizationImage(org: Organization): Promise<string> {
   // Get the original company name for logo parody
   const originalCompany = getOriginalCompanyName(org.name, org.id);
 
-  // Load prompt template and render with variables
-  const prompt = loadPrompt('image/organization-logo', {
+  // Render prompt template with variables
+  const prompt = renderPrompt(organizationLogo, {
     organizationName: org.name,
     originalCompany,
     organizationType: org.type,

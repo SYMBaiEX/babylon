@@ -71,20 +71,14 @@ type PersistedInteractionState = {
 
 // Helper to get auth token from Privy
 async function getAuthToken(): Promise<string | null> {
-  try {
-    // Access the token from window object that gets set by useAuth hook
-    if (typeof window !== 'undefined' && window.__privyAccessToken) {
-      return window.__privyAccessToken;
-    }
-    
-    return null;
-  } catch (error) {
-    logger.error('Error getting auth token:', error, 'InteractionStore');
-    return null;
+  // Access the token from window object that gets set by useAuth hook
+  if (typeof window !== 'undefined' && window.__privyAccessToken) {
+    return window.__privyAccessToken;
   }
+  
+  return null;
 }
 
-// Helper to make API calls with auth and retry logic
 async function apiCall<T>(url: string, options: RequestInit = {}): Promise<T> {
   return retryIfRetryable(async () => {
     const token = await getAuthToken();
@@ -102,11 +96,6 @@ async function apiCall<T>(url: string, options: RequestInit = {}): Promise<T> {
       ...options,
       headers,
     });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(error.error || `API call failed: ${response.statusText}`);
-    }
 
     return response.json();
   }, {
@@ -131,7 +120,7 @@ export const useInteractionStore = create<InteractionStore>()(
 
       // Like actions
       toggleLike: async (postId: string) => {
-        const { postInteractions, setLoading, setError } = get();
+        const { postInteractions, setLoading } = get();
         const currentInteraction = postInteractions.get(postId) || {
           postId,
           likeCount: 0,
@@ -159,38 +148,25 @@ export const useInteractionStore = create<InteractionStore>()(
 
         setLoading(postId, true);
 
-        try {
-          const method = wasLiked ? 'DELETE' : 'POST';
-          const response = await apiCall<{ data: { likeCount: number; isLiked: boolean } }>(
-            `/api/posts/${postId}/like`,
-            { method }
-          );
+        const method = wasLiked ? 'DELETE' : 'POST';
+        const response = await apiCall<{ data: { likeCount: number; isLiked: boolean } }>(
+          `/api/posts/${postId}/like`,
+          { method }
+        );
 
-          // Update with server response
-          set((state) => ({
-            postInteractions: new Map(state.postInteractions).set(postId, {
-              ...currentInteraction,
-              likeCount: response.data.likeCount,
-              isLiked: response.data.isLiked,
-            }),
-          }));
-        } catch (error) {
-          // Rollback on error
-          set((state) => ({
-            postInteractions: new Map(state.postInteractions).set(postId, currentInteraction),
-          }));
+        set((state) => ({
+          postInteractions: new Map(state.postInteractions).set(postId, {
+            ...currentInteraction,
+            likeCount: response.data.likeCount,
+            isLiked: response.data.isLiked,
+          }),
+        }));
 
-          setError(postId, {
-            code: 'NETWORK_ERROR',
-            message: error instanceof Error ? error.message : 'Failed to toggle like',
-          });
-        } finally {
-          setLoading(postId, false);
-        }
+        setLoading(postId, false);
       },
 
       toggleCommentLike: async (commentId: string) => {
-        const { commentInteractions, setLoading, setError } = get();
+        const { commentInteractions, setLoading } = get();
         const currentInteraction = commentInteractions.get(commentId) || {
           commentId,
           likeCount: 0,
@@ -219,161 +195,110 @@ export const useInteractionStore = create<InteractionStore>()(
 
         setLoading(commentId, true);
 
-        try {
-          const method = wasLiked ? 'DELETE' : 'POST';
-          const response = await apiCall<{ data: { likeCount: number; isLiked: boolean } }>(
-            `/api/comments/${commentId}/like`,
-            { method }
-          );
+        const method = wasLiked ? 'DELETE' : 'POST';
+        const response = await apiCall<{ data: { likeCount: number; isLiked: boolean } }>(
+          `/api/comments/${commentId}/like`,
+          { method }
+        );
 
-          // Update with server response
-          set((state) => ({
-            commentInteractions: new Map(state.commentInteractions).set(commentId, {
-              ...currentInteraction,
-              likeCount: response.data.likeCount,
-              isLiked: response.data.isLiked,
-            }),
-          }));
-        } catch (error) {
-          // Rollback on error
-          set((state) => ({
-            commentInteractions: new Map(state.commentInteractions).set(
-              commentId,
-              currentInteraction
-            ),
-          }));
+        set((state) => ({
+          commentInteractions: new Map(state.commentInteractions).set(commentId, {
+            ...currentInteraction,
+            likeCount: response.data.likeCount,
+            isLiked: response.data.isLiked,
+          }),
+        }));
 
-          setError(commentId, {
-            code: 'NETWORK_ERROR',
-            message: error instanceof Error ? error.message : 'Failed to toggle comment like',
-          });
-        } finally {
-          setLoading(commentId, false);
-        }
+        setLoading(commentId, false);
       },
 
       // Comment actions
       addComment: async (postId: string, content: string, parentId?: string) => {
-        const { setLoading, setError, postInteractions } = get();
+        const { setLoading, postInteractions } = get();
         const loadingKey = `comment-${postId}-${parentId || 'root'}`;
 
         setLoading(loadingKey, true);
 
-        try {
-          const response = await apiCall<{ data: CommentData }>(
-            `/api/posts/${postId}/comments`,
-            {
-              method: 'POST',
-              body: JSON.stringify({ content, parentCommentId: parentId }),
-            }
-          );
-
-          // Increment comment count for the post (only for top-level comments)
-          if (!parentId) {
-            const currentInteraction = postInteractions.get(postId);
-            if (currentInteraction) {
-              set((state) => ({
-                postInteractions: new Map(state.postInteractions).set(postId, {
-                  ...currentInteraction,
-                  commentCount: currentInteraction.commentCount + 1,
-                }),
-              }));
-            }
+        const response = await apiCall<{ data: CommentData }>(
+          `/api/posts/${postId}/comments`,
+          {
+            method: 'POST',
+            body: JSON.stringify({ content, parentCommentId: parentId }),
           }
+        );
 
-          return response.data;
-        } catch (error) {
-          setError(loadingKey, {
-            code: 'NETWORK_ERROR',
-            message: error instanceof Error ? error.message : 'Failed to add comment',
-          });
-          return null;
-        } finally {
-          setLoading(loadingKey, false);
+        if (!parentId) {
+          const currentInteraction = postInteractions.get(postId);
+          if (currentInteraction) {
+            set((state) => ({
+              postInteractions: new Map(state.postInteractions).set(postId, {
+                ...currentInteraction,
+                commentCount: currentInteraction.commentCount + 1,
+              }),
+            }));
+          }
         }
+
+        setLoading(loadingKey, false);
+        return response.data;
       },
 
       editComment: async (commentId: string, content: string) => {
-        const { setLoading, setError } = get();
+        const { setLoading } = get();
         const loadingKey = `edit-comment-${commentId}`;
 
         setLoading(loadingKey, true);
 
-        try {
-          await apiCall(`/api/comments/${commentId}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ content }),
-          });
-        } catch (error) {
-          setError(loadingKey, {
-            code: 'NETWORK_ERROR',
-            message: error instanceof Error ? error.message : 'Failed to edit comment',
-          });
-          throw error;
-        } finally {
-          setLoading(loadingKey, false);
-        }
+        await apiCall(`/api/comments/${commentId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ content }),
+        });
+
+        setLoading(loadingKey, false);
       },
 
       deleteComment: async (commentId: string, postId?: string) => {
-        const { setLoading, setError, postInteractions } = get();
+        const { setLoading, postInteractions } = get();
         const loadingKey = `delete-comment-${commentId}`;
 
         setLoading(loadingKey, true);
 
-        try {
-          await apiCall(`/api/comments/${commentId}`, {
-            method: 'DELETE',
-          });
+        await apiCall(`/api/comments/${commentId}`, {
+          method: 'DELETE',
+        });
 
-          // Decrement comment count if postId provided
-          if (postId) {
-            const currentInteraction = postInteractions.get(postId);
-            if (currentInteraction && currentInteraction.commentCount > 0) {
-              set((state) => ({
-                postInteractions: new Map(state.postInteractions).set(postId, {
-                  ...currentInteraction,
-                  commentCount: currentInteraction.commentCount - 1,
-                }),
-              }));
-            }
+        if (postId) {
+          const currentInteraction = postInteractions.get(postId);
+          if (currentInteraction && currentInteraction.commentCount > 0) {
+            set((state) => ({
+              postInteractions: new Map(state.postInteractions).set(postId, {
+                ...currentInteraction,
+                commentCount: currentInteraction.commentCount - 1,
+              }),
+            }));
           }
-        } catch (error) {
-          setError(loadingKey, {
-            code: 'NETWORK_ERROR',
-            message: error instanceof Error ? error.message : 'Failed to delete comment',
-          });
-          throw error;
-        } finally {
-          setLoading(loadingKey, false);
         }
+
+        setLoading(loadingKey, false);
       },
 
       loadComments: async (postId: string) => {
-        const { setLoading, setError } = get();
+        const { setLoading } = get();
         const loadingKey = `load-comments-${postId}`;
 
         setLoading(loadingKey, true);
 
-        try {
-          const response = await apiCall<{ data: { comments: CommentWithReplies[] } }>(
-            `/api/posts/${postId}/comments`
-          );
-          return response.data.comments;
-        } catch (error) {
-          setError(loadingKey, {
-            code: 'NETWORK_ERROR',
-            message: error instanceof Error ? error.message : 'Failed to load comments',
-          });
-          return [];
-        } finally {
-          setLoading(loadingKey, false);
-        }
+        const response = await apiCall<{ data: { comments: CommentWithReplies[] } }>(
+          `/api/posts/${postId}/comments`
+        );
+
+        setLoading(loadingKey, false);
+        return response.data.comments;
       },
 
       // Share actions
       toggleShare: async (postId: string) => {
-        const { postInteractions, setLoading, setError } = get();
+        const { postInteractions, setLoading } = get();
         const currentInteraction = postInteractions.get(postId) || {
           postId,
           likeCount: 0,
@@ -388,7 +313,6 @@ export const useInteractionStore = create<InteractionStore>()(
           ? currentInteraction.shareCount - 1
           : currentInteraction.shareCount + 1;
 
-        // Optimistic update
         const optimisticInteraction: PostInteraction = {
           ...currentInteraction,
           isShared: !wasShared,
@@ -401,42 +325,28 @@ export const useInteractionStore = create<InteractionStore>()(
 
         setLoading(`share-${postId}`, true);
 
-        try {
-          const method = wasShared ? 'DELETE' : 'POST';
-          const response = await apiCall<{ data: { shareCount: number; isShared: boolean } }>(
-            `/api/posts/${postId}/share`,
-            { method }
-          );
+        const method = wasShared ? 'DELETE' : 'POST';
+        const response = await apiCall<{ data: { shareCount: number; isShared: boolean } }>(
+          `/api/posts/${postId}/share`,
+          { method }
+        );
 
-          // Update with server response
-          set((state) => ({
-            postInteractions: new Map(state.postInteractions).set(postId, {
-              ...currentInteraction,
-              shareCount: response.data.shareCount,
-              isShared: response.data.isShared,
-            }),
-          }));
-        } catch (error) {
-          // Rollback on error
-          set((state) => ({
-            postInteractions: new Map(state.postInteractions).set(postId, currentInteraction),
-          }));
+        set((state) => ({
+          postInteractions: new Map(state.postInteractions).set(postId, {
+            ...currentInteraction,
+            shareCount: response.data.shareCount,
+            isShared: response.data.isShared,
+          }),
+        }));
 
-          setError(`share-${postId}`, {
-            code: 'NETWORK_ERROR',
-            message: error instanceof Error ? error.message : 'Failed to toggle share',
-          });
-        } finally {
-          setLoading(`share-${postId}`, false);
-        }
+        setLoading(`share-${postId}`, false);
       },
 
       // Favorite actions (uses follow API)
       toggleFavorite: async (profileId: string) => {
-        const { favoritedProfiles, setLoading, setError } = get();
+        const { favoritedProfiles, setLoading } = get();
         const wasFavorited = favoritedProfiles.has(profileId);
 
-        // Optimistic update
         const newFavorites = new Set(favoritedProfiles);
         if (wasFavorited) {
           newFavorites.delete(profileId);
@@ -447,47 +357,27 @@ export const useInteractionStore = create<InteractionStore>()(
         set({ favoritedProfiles: newFavorites });
         setLoading(`favorite-${profileId}`, true);
 
-        try {
-          // Use follow API instead of favorite API
-          const method = wasFavorited ? 'DELETE' : 'POST';
-          const encodedProfileId = encodeURIComponent(profileId);
-          await apiCall(`/api/users/${encodedProfileId}/follow`, { method });
-        } catch (error) {
-          // Rollback on error
-          set({ favoritedProfiles });
+        const method = wasFavorited ? 'DELETE' : 'POST';
+        const encodedProfileId = encodeURIComponent(profileId);
+        await apiCall(`/api/users/${encodedProfileId}/follow`, { method });
 
-          setError(`favorite-${profileId}`, {
-            code: 'NETWORK_ERROR',
-            message: error instanceof Error ? error.message : 'Failed to toggle favorite',
-          });
-        } finally {
-          setLoading(`favorite-${profileId}`, false);
-        }
+        setLoading(`favorite-${profileId}`, false);
       },
 
       loadFavorites: async () => {
-        const { setLoading, setError } = get();
+        const { setLoading } = get();
 
         setLoading('favorites', true);
 
-        try {
-          const response = await apiCall<{ data: { profiles: FavoriteProfile[] } }>(
-            '/api/profiles/favorites'
-          );
+        const response = await apiCall<{ data: { profiles: FavoriteProfile[] } }>(
+          '/api/profiles/favorites'
+        );
 
-          const favoriteIds = new Set(response.data.profiles.map((p) => p.id));
-          set({ favoritedProfiles: favoriteIds });
+        const favoriteIds = new Set(response.data.profiles.map((p) => p.id));
+        set({ favoritedProfiles: favoriteIds });
 
-          return response.data.profiles;
-        } catch (error) {
-          setError('favorites', {
-            code: 'NETWORK_ERROR',
-            message: error instanceof Error ? error.message : 'Failed to load favorites',
-          });
-          return [];
-        } finally {
-          setLoading('favorites', false);
-        }
+        setLoading('favorites', false);
+        return response.data.profiles;
       },
 
       // Utility actions

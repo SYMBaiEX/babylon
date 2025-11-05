@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { TrendingUp, TrendingDown, BarChart3, DollarSign } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { logger } from '@/lib/logger'
 
 interface PerpMarket {
   ticker: string
@@ -40,33 +39,28 @@ export function MarketOverviewPanel() {
 
   useEffect(() => {
     const fetchOverview = async () => {
-      try {
-        const response = await fetch('/api/markets/perps')
-        const data = await response.json()
-        if (data.markets && Array.isArray(data.markets)) {
-          const markets = data.markets as PerpMarket[]
-          const totalVolume = markets.reduce((sum: number, m: PerpMarket) => sum + (m.volume24h || 0), 0)
-          const totalOI = markets.reduce((sum: number, m: PerpMarket) => sum + (m.openInterest || 0), 0)
-          const avgChange = markets.length > 0
-            ? markets.reduce((sum: number, m: PerpMarket) => sum + (m.changePercent24h || 0), 0) / markets.length
-            : 0
-          const marketsUp = markets.filter((m: PerpMarket) => (m.changePercent24h || 0) > 0).length
-          const marketsDown = markets.filter((m: PerpMarket) => (m.changePercent24h || 0) < 0).length
+      const response = await fetch('/api/markets/perps')
+      const data = await response.json()
+      if (data.markets && Array.isArray(data.markets)) {
+        const markets = data.markets as PerpMarket[]
+        const totalVolume = markets.reduce((sum: number, m: PerpMarket) => sum + (m.volume24h || 0), 0)
+        const totalOI = markets.reduce((sum: number, m: PerpMarket) => sum + (m.openInterest || 0), 0)
+        const avgChange = markets.length > 0
+          ? markets.reduce((sum: number, m: PerpMarket) => sum + (m.changePercent24h || 0), 0) / markets.length
+          : 0
+        const marketsUp = markets.filter((m: PerpMarket) => (m.changePercent24h || 0) > 0).length
+        const marketsDown = markets.filter((m: PerpMarket) => (m.changePercent24h || 0) < 0).length
 
-          setOverview({
-            totalMarkets: markets.length,
-            totalVolume24h: totalVolume,
-            totalOpenInterest: totalOI,
-            avgChange24h: avgChange,
-            marketsUp,
-            marketsDown,
-          })
-        }
-      } catch (error) {
-        logger.error('Error fetching market overview:', error, 'MarketOverviewPanel')
-      } finally {
-        setLoading(false)
+        setOverview({
+          totalMarkets: markets.length,
+          totalVolume24h: totalVolume,
+          totalOpenInterest: totalOI,
+          avgChange24h: avgChange,
+          marketsUp,
+          marketsDown,
+        })
       }
+      setLoading(false)
     }
 
     fetchOverview()

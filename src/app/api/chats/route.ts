@@ -18,11 +18,17 @@ import { ChatQuerySchema, ChatCreateSchema } from '@/lib/validation/schemas';
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Validate query parameters
   const { searchParams } = new URL(request.url);
-  const query = {
-    all: searchParams.get('all'),
-    debug: searchParams.get('debug')
-  };
-  const validatedQuery = ChatQuerySchema.parse(query);
+  const query: Record<string, string> = {};
+  
+  const all = searchParams.get('all');
+  const debug = searchParams.get('debug');
+  
+  if (all) query.all = all;
+  if (debug) query.debug = debug;
+  
+  const validatedQuery = Object.keys(query).length > 0 
+    ? ChatQuerySchema.parse(query) 
+    : { all: undefined, debug: undefined };
 
   // Check if requesting all game chats
   const getAllChats = validatedQuery.all === 'true';

@@ -12,6 +12,23 @@ export const UUIDSchema = z.string().uuid({
 });
 
 /**
+ * User ID schema that accepts both UUID and Privy DID formats
+ * Privy DIDs are in the format: did:privy:base58string
+ */
+export const UserIdSchema = z.string().refine(
+  (val) => {
+    // Check if it's a UUID
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+    // Check if it's a Privy DID
+    const privyDidRegex = /^did:privy:[a-z0-9]+$/;
+    return uuidRegex.test(val) || privyDidRegex.test(val);
+  },
+  {
+    message: 'Invalid user ID format. Must be a UUID or Privy DID (did:privy:...)'
+  }
+);
+
+/**
  * Email validation schema
  */
 export const EmailSchema = z.string().email({

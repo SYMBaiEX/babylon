@@ -30,21 +30,9 @@ export function FontSizeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
-      try {
-        const parsed = JSON.parse(stored)
-        setFontSizeState(parsed.fontSize || 1)
-        setFontSizePresetState(parsed.preset || 'medium')
-      } catch (parseError) {
-        // Handle parse errors - invalid localStorage data
-        if (parseError instanceof SyntaxError) {
-          // Invalid JSON format, reset to defaults
-          try {
-            localStorage.removeItem(STORAGE_KEY)
-          } catch {
-            // Ignore if localStorage is unavailable (e.g., in SSR)
-          }
-        }
-      }
+      const parsed = JSON.parse(stored)
+      setFontSizeState(parsed.fontSize || 1)
+      setFontSizePresetState(parsed.preset || 'medium')
     }
   }, [])
 

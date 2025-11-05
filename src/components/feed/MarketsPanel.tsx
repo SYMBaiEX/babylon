@@ -1,8 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { logger } from '@/lib/logger'
 import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useState } from 'react'
 
 interface Market {
   id: string
@@ -19,17 +18,12 @@ export function MarketsPanel() {
   const [loading, setLoading] = useState(true)
 
   const fetchMarkets = useCallback(async () => {
-    try {
-      const response = await fetch('/api/feed/widgets/markets')
-      const data = await response.json()
-      if (data.success) {
-        setMarkets(data.markets || [])
-      }
-    } catch (error) {
-      logger.error('Error fetching markets:', error, 'MarketsPanel')
-    } finally {
-      setLoading(false)
+    const response = await fetch('/api/feed/widgets/markets')
+    const data = await response.json()
+    if (data.success) {
+      setMarkets(data.markets || [])
     }
+    setLoading(false)
   }, [])
 
   useEffect(() => {

@@ -10,9 +10,8 @@
  * Vercel-compatible: No filesystem access, all data from database.
  */
 
-import { getEngine } from './engine';
 import { db } from './database-service';
-import { logger } from './logger';
+import { getEngine } from './engine';
 
 class GameService {
   async getRecentPosts(limit = 100, offset = 0) {
@@ -39,11 +38,7 @@ class GameService {
     // Try to get stats from engine if running, otherwise query database directly
     const engine = getEngine();
     if (engine) {
-      try {
-        return await engine.getStats();
-      } catch (error) {
-        logger.debug('Failed to get stats from engine, falling back to database', { error }, 'GameService');
-      }
+      return await engine.getStats();
     }
     
     // Fallback to database directly (daemon writes here)
@@ -64,11 +59,7 @@ class GameService {
   async getStatus() {
     const engine = getEngine();
     if (engine) {
-      try {
-        return await engine.getStatus();
-      } catch (error) {
-        logger.debug('Failed to get status from engine', { error }, 'GameService');
-      }
+      return await engine.getStatus();
     }
     
     // Engine not running (daemon not started)
@@ -84,34 +75,29 @@ class GameService {
   }
 
   async getRealtimePosts(limit = 100, offset = 0, actorId?: string) {
-    try {
-      // On Vercel: Read from database instead of filesystem
-      // The daemon writes posts to database, so we can query them directly
-      const posts = actorId 
-        ? await db.getPostsByActor(actorId, limit)
-        : await db.getRecentPosts(limit, offset);
-      
-      if (!posts || posts.length === 0) {
-        return null;
-      }
-
-      return {
-        posts: posts.map(post => ({
-          id: post.id,
-          content: post.content,
-          authorId: post.authorId,
-          author: post.authorId, // Post model doesn't have author field, use authorId
-          timestamp: post.createdAt.toISOString(),
-          createdAt: post.createdAt.toISOString(),
-          gameId: post.gameId,
-          dayNumber: post.dayNumber,
-        })),
-        total: posts.length,
-      };
-    } catch (error) {
-      logger.error('Failed to read realtime posts:', error, 'GameService');
+    // On Vercel: Read from database instead of filesystem
+    // The daemon writes posts to database, so we can query them directly
+    const posts = actorId 
+      ? await db.getPostsByActor(actorId, limit)
+      : await db.getRecentPosts(limit, offset);
+    
+    if (!posts || posts.length === 0) {
       return null;
     }
+
+    return {
+      posts: posts.map(post => ({
+        id: post.id,
+        content: post.content,
+        authorId: post.authorId,
+        author: post.authorId, // Post model doesn't have author field, use authorId
+        timestamp: post.createdAt.toISOString(),
+        createdAt: post.createdAt.toISOString(),
+        gameId: post.gameId,
+        dayNumber: post.dayNumber,
+      })),
+      total: posts.length,
+    };
   }
 }
 

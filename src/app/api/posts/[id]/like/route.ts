@@ -46,47 +46,19 @@ export const POST = withErrorHandling(async (
       select: { id: true, authorId: true },
     });
 
-    // If post doesn't exist, try to auto-create it based on format
     if (!post) {
-      // Parse post ID to extract metadata
       const parseResult = parsePostId(postId);
       const { gameId, authorId, timestamp } = parseResult.metadata;
-      
-      // Log warning if parsing failed (unknown format)
-      if (!parseResult.success) {
-        logger.warn('Unknown post ID format for like:', { postId }, 'POST /api/posts/[id]/like');
-      }
 
-      // Create minimal post record to allow reactions
-      try {
-        post = await prisma.post.create({
-          data: {
-            id: postId,
-            content: '[Game-generated post]',  // Placeholder content
-            authorId,
-            gameId,
-            timestamp,
-          },
-        });
-      } catch (error) {
-        // If creation fails (e.g., duplicate, validation error), try to fetch again
-        logger.error('Error creating post for like:', error, 'POST /api/posts/[id]/like');
-
-        // Check if it's a unique constraint violation (duplicate post)
-        const prismaError = error as { code?: string; message?: string };
-        if (prismaError?.code === 'P2002') {
-          // Post already exists, fetch it
-          post = await prisma.post.findUnique({
-            where: { id: postId },
-            select: { id: true, authorId: true },
-          });
-        }
-
-        if (!post) {
-          logger.error('Failed to create or find post:', { postId, error }, 'POST /api/posts/[id]/like');
-          throw new BusinessLogicError('Post not found and could not be created', 'POST_NOT_FOUND');
-        }
-      }
+      post = await prisma.post.create({
+        data: {
+          id: postId,
+          content: '[Game-generated post]',
+          authorId,
+          gameId,
+          timestamp,
+        },
+      });
     }
 
     // Check if already liked

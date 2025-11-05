@@ -38,45 +38,31 @@ export const GET = withErrorHandling(async () => {
         low24h = Math.min(...priceHistory.map(p => p.price), currentPrice);
       }
 
-      // Get open interest from positions
-      let positions: Array<{
-        id: string
-        userId: string
-        side: 'long' | 'short'
-        size: number
-        leverage: number
-        entryPrice: number
-        currentPrice: number
-      }> = [];
-      try {
-        const dbPositions = await db.prisma.perpPosition.findMany({
-          where: {
-            organizationId: company.id,
-            closedAt: null,
-          },
-          select: {
-            id: true,
-            userId: true,
-            side: true,
-            size: true,
-            leverage: true,
-            entryPrice: true,
-            currentPrice: true,
-          },
-        });
-        positions = dbPositions.map(p => ({
-          id: p.id,
-          userId: p.userId,
-          side: p.side as 'long' | 'short',
-          size: Number(p.size),
-          leverage: Number(p.leverage),
-          entryPrice: Number(p.entryPrice),
-          currentPrice: Number(p.currentPrice),
-        }));
-      } catch {
-        // Table might not exist yet or no positions
-        positions = [];
-      }
+      const dbPositions = await db.prisma.perpPosition.findMany({
+        where: {
+          organizationId: company.id,
+          closedAt: null,
+        },
+        select: {
+          id: true,
+          userId: true,
+          side: true,
+          size: true,
+          leverage: true,
+          entryPrice: true,
+          currentPrice: true,
+        },
+      });
+      
+      const positions = dbPositions.map(p => ({
+        id: p.id,
+        userId: p.userId,
+        side: p.side as 'long' | 'short',
+        size: Number(p.size),
+        leverage: Number(p.leverage),
+        entryPrice: Number(p.entryPrice),
+        currentPrice: Number(p.currentPrice),
+      }));
 
       const openInterest = positions.reduce((sum, p) => sum + (p.size * p.leverage), 0);
 

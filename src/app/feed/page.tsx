@@ -10,12 +10,12 @@ import { SearchBar } from '@/components/shared/SearchBar'
 import { PostCard } from '@/components/posts/PostCard'
 import { InviteFriendsBanner } from '@/components/shared/InviteFriendsBanner'
 import { WidgetSidebar } from '@/components/shared/WidgetSidebar'
+import { TrendingPanel } from '@/components/feed/TrendingPanel'
 import { CreatePostModal } from '@/components/posts/CreatePostModal'
 import { cn } from '@/lib/utils'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
 import { useAuth } from '@/hooks/useAuth'
 import type { FeedPost } from '@/shared/types'
-import { logger } from '@/lib/logger'
 import { useChannelSubscription } from '@/hooks/useChannelSubscription'
 
 const PAGE_SIZE = 20
@@ -93,22 +93,15 @@ export default function FeedPage() {
   // Enable error toast notifications
   useErrorToasts()
 
-  // Load actor names for display
   useEffect(() => {
     const loadActorNames = async () => {
-      try {
-        const response = await fetch('/data/actors.json')
-        if (response.ok) {
-          const data = await response.json() as { actors?: Array<{ id: string; name: string }> }
-          const nameMap = new Map<string, string>()
-          data.actors?.forEach((actor) => {
-            nameMap.set(actor.id, actor.name)
-          })
-          setActorNames(nameMap)
-        }
-      } catch (error) {
-        logger.error('Failed to load actor names:', error, 'FeedPage')
-      }
+      const response = await fetch('/data/actors.json')
+      const data = await response.json() as { actors?: Array<{ id: string; name: string }> }
+      const nameMap = new Map<string, string>()
+      data.actors?.forEach((actor) => {
+        nameMap.set(actor.id, actor.name)
+      })
+      setActorNames(nameMap)
     }
     loadActorNames()
   }, [])
@@ -119,63 +112,54 @@ export default function FeedPage() {
     if (append) setLoadingMore(true)
     else if (!isRefreshing) setLoading(true)
 
-    try {
-      const response = await fetch(`/api/posts?limit=${PAGE_SIZE}&offset=${requestOffset}`)
-      if (!response.ok) {
-        if (append) setHasMore(false)
-        return
-      }
+    const response = await fetch(`/api/posts?limit=${PAGE_SIZE}&offset=${requestOffset}`)
+    if (!response.ok) {
+      if (append) setHasMore(false)
+      return
+    }
 
-      const data = await response.json()
-      const newPosts = Array.isArray(data.posts) ? data.posts : []
-      const total = typeof data.total === 'number' ? data.total : undefined
+    const data = await response.json()
+    const newPosts = data.posts as FeedPost[]
+    const total = data.total as number | undefined
 
-      let uniqueAdded = 0
+    let uniqueAdded = 0
 
-      setPosts(prev => {
-        const prevSize = prev.length
-        // When refreshing (not appending), prepend new posts to existing ones
-        // This ensures new posts appear at the top while preserving scroll position
-        const combined = append ? [...prev, ...newPosts] : [...newPosts, ...prev]
-        const unique = new Map<string, FeedPost>()
-        combined.forEach(post => {
-          if (post?.id) {
-            unique.set(post.id, post)
-          }
-        })
-
-        const deduped = Array.from(unique.values()).sort((a, b) => {
-          const aTime = new Date(a.timestamp ?? 0).getTime()
-          const bTime = new Date(b.timestamp ?? 0).getTime()
-          return bTime - aTime // Newest first
-        })
-
-        uniqueAdded = deduped.length - prevSize
-        setOffset(deduped.length)
-        return deduped
+    setPosts(prev => {
+      const prevSize = prev.length
+      const combined = append ? [...prev, ...newPosts] : [...newPosts, ...prev]
+      const unique = new Map<string, FeedPost>()
+      combined.forEach(post => {
+        unique.set(post.id, post)
       })
 
-      if (append && uniqueAdded === 0) {
-        setHasMore(false)
-        return
-      }
+      const deduped = Array.from(unique.values()).sort((a, b) => {
+        const aTime = new Date(a.timestamp ?? 0).getTime()
+        const bTime = new Date(b.timestamp ?? 0).getTime()
+        return bTime - aTime
+      })
 
-      const moreAvailable =
-        newPosts.length === PAGE_SIZE &&
-        (total === undefined || requestOffset + newPosts.length < total)
+      uniqueAdded = deduped.length - prevSize
+      setOffset(deduped.length)
+      return deduped
+    })
 
-      if (!append && newPosts.length === 0 && requestOffset === 0) {
-        setHasMore(false)
-      } else {
-        setHasMore(moreAvailable)
-      }
-    } catch (error) {
-      logger.error('Failed to load posts:', error, 'FeedPage')
-      if (append) setHasMore(false)
-    } finally {
-      if (append) setLoadingMore(false)
-      else if (!isRefreshing) setLoading(false)
+    if (append && uniqueAdded === 0) {
+      setHasMore(false)
+      return
     }
+
+    const moreAvailable =
+      newPosts.length === PAGE_SIZE &&
+      (total === undefined || requestOffset + newPosts.length < total)
+
+    if (!append && newPosts.length === 0 && requestOffset === 0) {
+      setHasMore(false)
+    } else {
+      setHasMore(moreAvailable)
+    }
+
+    if (append) setLoadingMore(false)
+    else if (!isRefreshing) setLoading(false)
   }, [tab, isRefreshing])
 
   const handleRefresh = useCallback(async () => {
@@ -228,11 +212,22 @@ export default function FeedPage() {
     }
   }, [tab, fetchLatestPosts])
 
+  // Polling fallback: Refresh feed every 30 seconds
+  useEffect(() => {
+    if (tab !== 'latest') return
+    
+    const interval = setInterval(() => {
+      void fetchLatestPosts(0, false)
+    }, 30000)
+    
+    return () => clearInterval(interval)
+  }, [tab, fetchLatestPosts])
+
   // Subscribe to feed channel for real-time updates
   const handleFeedUpdate = useCallback((data: Record<string, unknown>) => {
     if (data.type === 'new_post' && data.post) {
       const newPost = data.post as FeedPost
-      logger.debug('New post received via WebSocket, inserting into feed...', { postId: newPost.id }, 'FeedPage')
+      console.debug('New post received via WebSocket, inserting into feed...', { postId: newPost.id })
 
       // Directly insert the new post into the state for instant update
       setPosts(prev => {
@@ -303,7 +298,6 @@ export default function FeedPage() {
     }
   }, [tab, hasMore, loading, loadingMore, searchQuery, offset, fetchLatestPosts])
 
-  // Fetch following posts when following tab is active
   useEffect(() => {
     const fetchFollowingPosts = async () => {
       if (tab !== 'following') return
@@ -314,37 +308,25 @@ export default function FeedPage() {
       }
 
       setLoadingFollowing(true)
-      try {
-        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
 
-        const headers: HeadersInit = {
-          'Content-Type': 'application/json',
-        }
-
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`
-        }
-
-        // Fetch posts from followed users/actors
-        const response = await fetch(
-          `/api/posts?following=true&userId=${user.id}&limit=${PAGE_SIZE}&offset=0`,
-          { headers }
-        )
-
-        if (response.ok) {
-          const data = await response.json()
-          const posts = Array.isArray(data.posts) ? data.posts : []
-          setFollowingPosts(posts)
-        } else {
-          logger.error('Failed to fetch following posts:', response.statusText, 'FeedPage')
-          setFollowingPosts([])
-        }
-      } catch (error) {
-        logger.error('Failed to fetch following:', error, 'FeedPage')
-        setFollowingPosts([])
-      } finally {
-        setLoadingFollowing(false)
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
       }
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
+      const response = await fetch(
+        `/api/posts?following=true&userId=${user.id}&limit=${PAGE_SIZE}&offset=0`,
+        { headers }
+      )
+
+      const data = await response.json()
+      setFollowingPosts(data.posts as FeedPost[])
+      setLoadingFollowing(false)
     }
 
     fetchFollowingPosts()
@@ -395,17 +377,13 @@ export default function FeedPage() {
     ? followingPosts 
     : (posts.length > 0 ? posts : (startTime && allGames.length > 0 ? timelinePosts : posts))
 
-  // Filter by search query (applies to whichever source is active)
-  // Note: basePosts can be FeedPost (from game store) or API post shape (from /api/posts)
   const filteredPosts = useMemo(() => {
     if (!searchQuery.trim()) return basePosts
     const query = searchQuery.toLowerCase()
     return basePosts.filter((post) => {
-      if (!post || typeof post !== 'object') return false
-      // Handle both FeedPost and API post shapes
-      const postContent = 'content' in post ? String(post.content || '') : ''
-      const authorField = 'author' in post ? String(post.author || '') : ('authorId' in post ? String((post as { authorId?: string }).authorId || '') : '')
-      const postAuthorName = 'authorName' in post ? String(post.authorName || '') : ''
+      const postContent = String(post.content)
+      const authorField = 'author' in post ? String(post.author) : String(post.authorId)
+      const postAuthorName = String(post.authorName)
       return (
         postContent.toLowerCase().includes(query) ||
         authorField.toLowerCase().includes(query) ||
@@ -600,7 +578,7 @@ export default function FeedPage() {
         <WidgetSidebar />
       </div>
 
-      {/* Mobile/Tablet: Feed area (full width) */}
+      {/* Mobile/Tablet: Feed area with optional trending */}
       <div 
         ref={scrollContainerRef}
         className="flex lg:hidden flex-1 overflow-y-auto overflow-x-hidden bg-background w-full relative"
@@ -608,6 +586,11 @@ export default function FeedPage() {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
+        {/* Trending panel (mobile/tablet view - shows above feed) */}
+        <div className="md:hidden sticky top-0 z-[5] bg-background px-4 py-3 border-b border-border">
+          <TrendingPanel />
+        </div>
+
         {/* Pull to refresh indicator */}
         {pullDistance > 0 && (
           <div 

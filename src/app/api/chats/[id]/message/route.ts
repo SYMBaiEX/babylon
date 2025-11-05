@@ -71,31 +71,12 @@ export const POST = withErrorHandling(async (
     }
   }
 
-  // 5. Check message quality (skip uniqueness check for game chats)
-  let qualityResult
-  try {
-    qualityResult = await MessageQualityChecker.checkQuality(
-      content,
-      user.userId,
-      'groupchat',
-      isGameChat ? '' : chatId // Pass empty string for game chats to skip DB queries
-    )
-  } catch (qualityError) {
-    const qualityErrorMessage = qualityError instanceof Error ? qualityError.message : String(qualityError)
-    logger.error('Quality check error:', { error: qualityErrorMessage }, 'POST /api/chats/[id]/message')
-    // For game chats, allow messages even if quality check fails
-    if (isGameChat) {
-      qualityResult = {
-        score: 0.8,
-        passed: true,
-        warnings: [],
-        errors: [],
-        factors: { length: 1.0, uniqueness: 1.0, contentQuality: 0.8 },
-      }
-    } else {
-      throw qualityError
-    }
-  }
+  const qualityResult = await MessageQualityChecker.checkQuality(
+    content,
+    user.userId,
+    'groupchat',
+    isGameChat ? '' : chatId
+  )
 
   if (!qualityResult.passed) {
     throw new BusinessLogicError(

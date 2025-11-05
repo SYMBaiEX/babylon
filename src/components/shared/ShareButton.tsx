@@ -37,43 +37,39 @@ export function ShareButton({
       return
     }
 
-    try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      if (!token) {
-        logger.warn('No access token available', undefined, 'ShareButton')
-        return
-      }
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    if (!token) {
+      logger.warn('No access token available', undefined, 'ShareButton')
+      return
+    }
 
-      const response = await fetch(`/api/users/${user.id}/share`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          platform,
-          contentType,
-          contentId,
-          url: shareUrl,
-        }),
-      })
+    const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/share`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        platform,
+        contentType,
+        contentId,
+        url: shareUrl,
+      }),
+    })
 
-      if (response.ok) {
-        const data = await response.json()
-        if (data.points?.awarded > 0) {
-          logger.info(
-            `Earned ${data.points.awarded} points for sharing to ${platform}`,
-            { platform, points: data.points.awarded },
-            'ShareButton'
-          )
-          
-          // Show success feedback
-          setShared(true)
-          setTimeout(() => setShared(false), 2000)
-        }
+    if (response.ok) {
+      const data = await response.json()
+      if (data.points?.awarded > 0) {
+        logger.info(
+          `Earned ${data.points.awarded} points for sharing to ${platform}`,
+          { platform, points: data.points.awarded },
+          'ShareButton'
+        )
+        
+        // Show success feedback
+        setShared(true)
+        setTimeout(() => setShared(false), 2000)
       }
-    } catch (error) {
-      logger.error('Error tracking share:', error, 'ShareButton')
     }
   }
 
@@ -85,30 +81,21 @@ export function ShareButton({
   }
 
   const handleCopyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(shareUrl)
-      trackShare('link')
-      setShared(true)
-      setTimeout(() => setShared(false), 2000)
-      setShowMenu(false)
-    } catch (error) {
-      logger.error('Error copying link:', error, 'ShareButton')
-    }
+    await navigator.clipboard.writeText(shareUrl)
+    trackShare('link')
+    setShared(true)
+    setTimeout(() => setShared(false), 2000)
+    setShowMenu(false)
   }
 
   const handleNativeShare = async () => {
     if (navigator.share) {
-      try {
-        await navigator.share({
-          title: shareText,
-          url: shareUrl,
-        })
-        trackShare('native')
-        setShowMenu(false)
-      } catch (error) {
-        // User cancelled or error occurred
-        logger.warn('Native share cancelled or failed:', error, 'ShareButton')
-      }
+      await navigator.share({
+        title: shareText,
+        url: shareUrl,
+      })
+      trackShare('native')
+      setShowMenu(false)
     }
   }
 

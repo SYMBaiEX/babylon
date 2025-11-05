@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { UUIDSchema, createTrimmedStringSchema, PaginationSchema } from './common';
+import { UUIDSchema, UserIdSchema, createTrimmedStringSchema, PaginationSchema } from './common';
 
 /**
  * Create post schema
@@ -70,7 +70,7 @@ export const ReplyToPostSchema = z.object({
  * Post feed query schema
  */
 export const PostFeedQuerySchema = PaginationSchema.extend({
-  userId: UUIDSchema.optional(),
+  userId: UserIdSchema.optional(),
   marketId: UUIDSchema.optional(),
   onlyFollowing: z.coerce.boolean().default(false),
   onlyFavorites: z.coerce.boolean().default(false),

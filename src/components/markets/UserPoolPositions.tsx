@@ -25,18 +25,12 @@ export function UserPoolPositions({ onWithdraw }: UserPoolPositionsProps) {
   const fetchDeposits = async () => {
     if (!user) return
     
-    try {
-      const res = await fetch(`/api/pools/deposits/${user.id}`)
-      const data = await res.json()
-      setDeposits(data.activeDeposits || [])
-      setSummary(data.summary)
-    } catch {
-      // Silently handle error - UI shows empty state
-      setDeposits([])
-      setSummary(null)
-    } finally {
-      setLoading(false)
-    }
+    setLoading(true)
+    const res = await fetch(`/api/pools/deposits/${encodeURIComponent(user.id)}`)
+    const data = await res.json()
+    setDeposits(data.activeDeposits || [])
+    setSummary(data.summary)
+    setLoading(false)
   }
 
   const handleWithdraw = async (depositId: string, poolId: string) => {
@@ -45,33 +39,27 @@ export function UserPoolPositions({ onWithdraw }: UserPoolPositionsProps) {
     const confirmed = confirm('Are you sure you want to withdraw from this pool? Performance fees will be calculated.')
     if (!confirmed) return
 
-    try {
-      setWithdrawing(depositId)
-      const res = await fetch(`/api/pools/${poolId}/withdraw`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.id,
-          depositId,
-        }),
-      })
+    setWithdrawing(depositId)
+    const res = await fetch(`/api/pools/${poolId}/withdraw`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: user.id,
+        depositId,
+      }),
+    })
 
-      const data = await res.json()
+    const data = await res.json()
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Withdrawal failed')
-      }
-
-      alert(`Withdrew $${data.withdrawalAmount.toFixed(2)}!\nProfit: $${data.pnl.toFixed(2)}\nFee: $${data.performanceFee.toFixed(2)}\nReputation: ${data.reputationChange >= 0 ? '+' : ''}${data.reputationChange}`)
-      
-      fetchDeposits()
-      onWithdraw?.()
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to withdraw'
-      alert(message)
-    } finally {
-      setWithdrawing(null)
+    if (!res.ok) {
+      throw new Error(data.error || 'Withdrawal failed')
     }
+
+    alert(`Withdrew $${data.withdrawalAmount.toFixed(2)}!\nProfit: $${data.pnl.toFixed(2)}\nFee: $${data.performanceFee.toFixed(2)}\nReputation: ${data.reputationChange >= 0 ? '+' : ''}${data.reputationChange}`)
+    
+    fetchDeposits()
+    onWithdraw?.()
+    setWithdrawing(null)
   }
 
   const formatCurrency = (value: number) => `$${value.toFixed(2)}`

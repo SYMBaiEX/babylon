@@ -82,80 +82,75 @@ export async function calculateTrendingTags(): Promise<void> {
   const startTime = Date.now()
   logger.info('Starting trending tags calculation', undefined, 'TrendingCalculationService')
 
-  try {
-    // Define time window (last 7 days)
-    const windowEnd = new Date()
-    const windowStart = new Date(windowEnd.getTime() - TRENDING_WINDOW_DAYS * 24 * 60 * 60 * 1000)
+  // Define time window (last 7 days)
+  const windowEnd = new Date()
+  const windowStart = new Date(windowEnd.getTime() - TRENDING_WINDOW_DAYS * 24 * 60 * 60 * 1000)
 
-    // Get tag statistics
-    const tagStats = await getTagStatistics(windowStart, windowEnd)
-    
-    if (tagStats.length === 0) {
-      logger.info('No tags to calculate trending for', undefined, 'TrendingCalculationService')
-      return
-    }
-
-    logger.debug('Retrieved tag statistics', {
-      tagCount: tagStats.length,
-    }, 'TrendingCalculationService')
-
-    // Calculate scores for each tag
-    const scoredTags = tagStats.map(tag => ({
-      tagId: tag.tagId,
-      tagName: tag.tagName,
-      tagDisplayName: tag.tagDisplayName,
-      tagCategory: tag.tagCategory,
-      postCount: tag.postCount,
-      score: calculateTrendingScore(
-        tag.postCount,
-        tag.recentPostCount,
-        tag.oldestPostDate,
-        tag.newestPostDate,
-        windowEnd
-      ),
-    }))
-
-    // Sort by score and assign ranks
-    scoredTags.sort((a, b) => b.score - a.score)
-    
-    // Take top 20 trending tags
-    const topTrending = scoredTags.slice(0, 20)
-
-    // Get related tags for context (async)
-    const trendingWithContext = await Promise.all(
-      topTrending.map(async (tag, index) => {
-        // Only add "Trending with" context for some tags
-        let relatedContext: string | undefined
-        if (index < 10 && Math.random() > 0.5) {
-          const relatedTags = await getRelatedTags(tag.tagId, 1)
-          if (relatedTags.length > 0) {
-            relatedContext = `Trending with ${relatedTags[0]}`
-          }
-        }
-
-        return {
-          tagId: tag.tagId,
-          score: tag.score,
-          postCount: tag.postCount,
-          rank: index + 1,
-          relatedContext,
-        }
-      })
-    )
-
-    // Store trending tags
-    await storeTrendingTags(trendingWithContext, windowStart, windowEnd)
-
-    const duration = Date.now() - startTime
-    logger.info('Trending tags calculation completed', {
-      duration: `${duration}ms`,
-      tagsCalculated: topTrending.length,
-      topTag: topTrending[0]?.tagDisplayName,
-    }, 'TrendingCalculationService')
-  } catch (error) {
-    logger.error('Error calculating trending tags', { error }, 'TrendingCalculationService')
-    throw error
+  // Get tag statistics
+  const tagStats = await getTagStatistics(windowStart, windowEnd)
+  
+  if (tagStats.length === 0) {
+    logger.info('No tags to calculate trending for', undefined, 'TrendingCalculationService')
+    return
   }
+
+  logger.debug('Retrieved tag statistics', {
+    tagCount: tagStats.length,
+  }, 'TrendingCalculationService')
+
+  // Calculate scores for each tag
+  const scoredTags = tagStats.map(tag => ({
+    tagId: tag.tagId,
+    tagName: tag.tagName,
+    tagDisplayName: tag.tagDisplayName,
+    tagCategory: tag.tagCategory,
+    postCount: tag.postCount,
+    score: calculateTrendingScore(
+      tag.postCount,
+      tag.recentPostCount,
+      tag.oldestPostDate,
+      tag.newestPostDate,
+      windowEnd
+    ),
+  }))
+
+  // Sort by score and assign ranks
+  scoredTags.sort((a, b) => b.score - a.score)
+  
+  // Take top 20 trending tags
+  const topTrending = scoredTags.slice(0, 20)
+
+  // Get related tags for context (async)
+  const trendingWithContext = await Promise.all(
+    topTrending.map(async (tag, index) => {
+      // Only add "Trending with" context for some tags
+      let relatedContext: string | undefined
+      if (index < 10 && Math.random() > 0.5) {
+        const relatedTags = await getRelatedTags(tag.tagId, 1)
+        if (relatedTags.length > 0) {
+          relatedContext = `Trending with ${relatedTags[0]}`
+        }
+      }
+
+      return {
+        tagId: tag.tagId,
+        score: tag.score,
+        postCount: tag.postCount,
+        rank: index + 1,
+        relatedContext,
+      }
+    })
+  )
+
+  // Store trending tags
+  await storeTrendingTags(trendingWithContext, windowStart, windowEnd)
+
+  const duration = Date.now() - startTime
+  logger.info('Trending tags calculation completed', {
+    duration: `${duration}ms`,
+    tagsCalculated: topTrending.length,
+    topTag: topTrending[0]?.tagDisplayName,
+  }, 'TrendingCalculationService')
 }
 
 /**

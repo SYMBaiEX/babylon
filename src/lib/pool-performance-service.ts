@@ -23,11 +23,7 @@ export class PoolPerformanceService {
     });
 
     for (const pool of activePools) {
-      try {
-        await this.updatePoolPerformance(pool.id);
-      } catch (error) {
-        logger.error(`Failed to update pool ${pool.id}:`, error, 'PoolPerformanceService');
-      }
+      await this.updatePoolPerformance(pool.id);
     }
 
     logger.info(`Updated ${activePools.length} pools`, {}, 'PoolPerformanceService');

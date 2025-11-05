@@ -30,73 +30,57 @@ export class AuthManager {
    * Authenticate agent credentials via signature verification
    */
   async authenticate(credentials: AgentCredentials): Promise<AuthResult> {
-    try {
-      // Validate timestamp (must be within 5 minutes)
-      const now = Date.now()
-      const timeDiff = Math.abs(now - credentials.timestamp)
-      if (timeDiff > 5 * 60 * 1000) {
-        return { success: false, error: 'Timestamp expired' }
-      }
-
-      // Verify signature
-      const message = this.createAuthMessage(credentials.address, credentials.tokenId, credentials.timestamp)
-      const recoveredAddress = verifyMessage(message, credentials.signature)
-
-      if (recoveredAddress.toLowerCase() !== credentials.address.toLowerCase()) {
-        return { success: false, error: 'Invalid signature' }
-      }
-
-      // Verify agent ownership via ERC-8004 registry if available
-      let isValid = false
-      
-      if (this.registryClient?.verifyAgent) {
-        isValid = await this.registryClient.verifyAgent(credentials.address, credentials.tokenId)
-        
-        if (isValid) {
-          logger.debug(`Agent verified via ERC-8004: ${credentials.address}:${credentials.tokenId}`)
-        } else {
-          logger.debug(`ERC-8004 verification failed for ${credentials.address}:${credentials.tokenId}, trying Agent0...`)
-        }
-      }
-      
-      // Fallback to Agent0 verification if ERC-8004 verification failed or not available
-      if (!isValid && this.agent0Client) {
-        try {
-          const profile = await this.agent0Client.getAgentProfile(credentials.tokenId)
-          
-          if (profile && profile.walletAddress?.toLowerCase() === credentials.address.toLowerCase()) {
-            isValid = true
-            logger.debug(`Agent verified via Agent0: ${credentials.address}:${credentials.tokenId}`)
-          }
-        } catch (error) {
-          logger.debug(`Agent0 verification failed for ${credentials.address}:${credentials.tokenId}`, { error })
-        }
-      }
-      
-      // If no registry client available and no Agent0 client, skip verification (development mode)
-      if (!this.registryClient && !this.agent0Client) {
-        logger.warn('No registry client or Agent0 client available - skipping agent verification (development mode)')
-        isValid = true // Allow authentication in development mode
-      }
-      
-      if (!isValid) {
-        return { success: false, error: 'Agent does not own the specified token ID' }
-      }
-
-      // Generate session token
-      const sessionToken = this.generateSessionToken()
-      const expiresAt = now + this.SESSION_DURATION
-
-      this.sessions.set(sessionToken, {
-        address: credentials.address,
-        tokenId: credentials.tokenId,
-        expiresAt
-      })
-
-      return { success: true, sessionToken }
-    } catch {
-      return { success: false, error: 'Authentication failed' }
+    const now = Date.now()
+    const timeDiff = Math.abs(now - credentials.timestamp)
+    if (timeDiff > 5 * 60 * 1000) {
+      return { success: false, error: 'Timestamp expired' }
     }
+
+    const message = this.createAuthMessage(credentials.address, credentials.tokenId, credentials.timestamp)
+    const recoveredAddress = verifyMessage(message, credentials.signature)
+
+    if (recoveredAddress.toLowerCase() !== credentials.address.toLowerCase()) {
+      return { success: false, error: 'Invalid signature' }
+    }
+
+    let isValid = false
+    
+    if (this.registryClient?.verifyAgent) {
+      isValid = await this.registryClient.verifyAgent(credentials.address, credentials.tokenId)
+      
+      if (isValid) {
+        logger.debug(`Agent verified via ERC-8004: ${credentials.address}:${credentials.tokenId}`)
+      }
+    }
+    
+    if (!isValid && this.agent0Client) {
+      const profile = await this.agent0Client.getAgentProfile(credentials.tokenId)
+      
+      if (profile?.walletAddress?.toLowerCase() === credentials.address.toLowerCase()) {
+        isValid = true
+        logger.debug(`Agent verified via Agent0: ${credentials.address}:${credentials.tokenId}`)
+      }
+    }
+    
+    if (!this.registryClient && !this.agent0Client) {
+      logger.warn('No registry client or Agent0 client available - skipping agent verification (development mode)')
+      isValid = true
+    }
+    
+    if (!isValid) {
+      return { success: false, error: 'Agent does not own the specified token ID' }
+    }
+
+    const sessionToken = this.generateSessionToken()
+    const expiresAt = now + this.SESSION_DURATION
+
+    this.sessions.set(sessionToken, {
+      address: credentials.address,
+      tokenId: credentials.tokenId,
+      expiresAt
+    })
+
+    return { success: true, sessionToken }
   }
 
   /**

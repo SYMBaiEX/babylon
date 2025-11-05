@@ -1,13 +1,12 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, TrendingUp, TrendingDown, Users, DollarSign, Calendar, Award, Info } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useAuth } from '@/hooks/useAuth'
-import { toast } from 'sonner'
-import { logger } from '@/lib/logger'
 import { PageContainer } from '@/components/shared/PageContainer'
+import { useAuth } from '@/hooks/useAuth'
+import { cn } from '@/lib/utils'
+import { ArrowLeft, Award, Calendar, DollarSign, Info, TrendingDown, TrendingUp, Users } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
+import { useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 interface Pool {
   id: string
@@ -46,38 +45,32 @@ export default function PoolDetailPage() {
   const [submitting, setSubmitting] = useState(false)
 
   const fetchPoolData = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/pools/${poolId}`)
-      
-      if (!response.ok) {
-        toast.error('Pool not found')
-        router.push('/markets')
-        return
-      }
-
-      const data = await response.json()
-      setPool(data.pool)
-
-      // Generate mock performance history (you'll want to replace this with real data)
-      const now = Date.now()
-      const history: PerformancePoint[] = []
-      const baseReturn = data.pool.returnPercent
-      
-      for (let i = 30; i >= 0; i--) {
-        const time = now - (i * 24 * 60 * 60 * 1000) // Daily for last 30 days
-        const variation = Math.sin(i / 5) * 5 + (Math.random() - 0.5) * 2
-        const returnPercent = Math.max(-10, Math.min(50, (baseReturn * (30 - i) / 30) + variation))
-        const value = data.pool.totalDeposits * (1 + returnPercent / 100)
-        history.push({ time, value, returnPercent })
-      }
-      
-      setPerformanceHistory(history)
-    } catch (error) {
-      logger.error('Error fetching pool data:', error, 'PoolDetailPage')
-      toast.error('Failed to load pool data')
-    } finally {
-      setLoading(false)
+    const response = await fetch(`/api/pools/${poolId}`)
+    
+    if (!response.ok) {
+      toast.error('Pool not found')
+      router.push('/markets')
+      return
     }
+
+    const data = await response.json()
+    setPool(data.pool)
+
+    // Generate mock performance history (you'll want to replace this with real data)
+    const now = Date.now()
+    const history: PerformancePoint[] = []
+    const baseReturn = data.pool.returnPercent
+    
+    for (let i = 30; i >= 0; i--) {
+      const time = now - (i * 24 * 60 * 60 * 1000) // Daily for last 30 days
+      const variation = Math.sin(i / 5) * 5 + (Math.random() - 0.5) * 2
+      const returnPercent = Math.max(-10, Math.min(50, (baseReturn * (30 - i) / 30) + variation))
+      const value = data.pool.totalDeposits * (1 + returnPercent / 100)
+      history.push({ time, value, returnPercent })
+    }
+    
+    setPerformanceHistory(history)
+    setLoading(false)
   }, [poolId, router])
 
   useEffect(() => {
@@ -100,38 +93,32 @@ export default function PoolDetailPage() {
 
     setSubmitting(true)
 
-    try {
-      const response = await fetch(`/api/pools/${pool.id}/deposit`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
-        },
-        body: JSON.stringify({
-          amount: depositNum,
-        }),
-      })
+    const response = await fetch(`/api/pools/${pool.id}/deposit`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
+      },
+      body: JSON.stringify({
+        amount: depositNum,
+      }),
+    })
 
-      const data = await response.json()
+    const data = await response.json()
 
-      if (!response.ok) {
-        toast.error(data.error || 'Failed to deposit')
-        return
-      }
-
-      toast.success('Deposit successful!', {
-        description: `Deposited ${formatPrice(depositNum)} into ${pool.name}`,
-      })
-
-      // Refresh data
-      await fetchPoolData()
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to deposit'
-      logger.error('Error depositing:', errorMessage, 'PoolDetailPage')
-      toast.error('Failed to deposit')
-    } finally {
+    if (!response.ok) {
+      toast.error(data.error || 'Failed to deposit')
       setSubmitting(false)
+      return
     }
+
+    toast.success('Deposit successful!', {
+      description: `Deposited ${formatPrice(depositNum)} into ${pool.name}`,
+    })
+
+    // Refresh data
+    await fetchPoolData()
+    setSubmitting(false)
   }
 
   const formatPrice = (price: number) => {

@@ -1,10 +1,10 @@
 'use client'
 
+import { logger } from '@/lib/logger'
 import { useState, useEffect } from 'react'
 import { X, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
-import { logger } from '@/lib/logger'
 
 interface CreatePostModalProps {
   isOpen: boolean
@@ -54,46 +54,40 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
     if (!authenticated || !user || !content.trim()) return
 
     setIsSubmitting(true)
-    try {
-      // Get auth token from window (set by useAuth hook)
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      
-      if (!token) {
-        alert('Please wait for authentication to complete.')
-        setIsSubmitting(false)
-        return
-      }
-
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      }
-
-      const response = await fetch('/api/posts', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          content: content.trim(),
-        }),
-      })
-
-      if (response.ok) {
-        await response.json()
-        setContent('')
-        // Pass the created post data to the callback
-        onPostCreated?.()
-        onClose()
-      } else {
-        const error = await response.json().catch(() => ({ error: 'Unknown error' }))
-        logger.error('Failed to create post:', error, 'CreatePostModal')
-        alert(error.error || 'Failed to create post. Please try again.')
-      }
-    } catch (error) {
-      logger.error('Error creating post:', error, 'CreatePostModal')
-      alert('An error occurred. Please try again.')
-    } finally {
+    // Get auth token from window (set by useAuth hook)
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    
+    if (!token) {
+      alert('Please wait for authentication to complete.')
       setIsSubmitting(false)
+      return
     }
+
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    }
+
+    const response = await fetch('/api/posts', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        content: content.trim(),
+      }),
+    })
+
+    if (response.ok) {
+      await response.json()
+      setContent('')
+      // Pass the created post data to the callback
+      onPostCreated?.()
+      onClose()
+    } else {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' }))
+      logger.error('Failed to create post:', error, 'CreatePostModal')
+      alert(error.error || 'Failed to create post. Please try again.')
+    }
+    setIsSubmitting(false)
   }
 
   return (

@@ -1,9 +1,9 @@
 'use client';
 
+import { logger } from '@/lib/logger'
 import type { ReactNode } from 'react';
 import { Component } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { logger } from '@/lib/logger';
 
 interface ErrorBoundaryProps {
   children: ReactNode;

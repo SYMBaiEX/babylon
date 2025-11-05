@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { MessageCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { LikeButton } from './LikeButton';
-import { ShareButton } from './ShareButton';
+import { RepostButton } from './RepostButton';
 import { CommentSection } from './CommentSection';
 import { useInteractionStore } from '@/stores/interactionStore';
 import { useAuth } from '@/hooks/useAuth';
@@ -94,7 +94,7 @@ export function InteractionBar({
 
         {/* Share button */}
         <div onClick={(e) => e.stopPropagation()}>
-          <ShareButton
+          <RepostButton
             postId={postId}
             shareCount={shareCount}
             initialShared={isShared}

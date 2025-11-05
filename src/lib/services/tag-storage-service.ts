@@ -21,64 +21,49 @@ export async function storeTagsForPost(
     return
   }
 
-  try {
-    // Batch fetch all existing tags in one query
-    const tagNames = tags.map(t => t.name)
-    const existingTags = await prisma.tag.findMany({
-      where: { name: { in: tagNames } },
-    })
-    
-    const existingTagMap = new Map(existingTags.map(t => [t.name, t]))
-    
-    // Find tags that need to be created
-    const tagsToCreate = tags.filter(t => !existingTagMap.has(t.name))
-    
-    // Batch create new tags
-    if (tagsToCreate.length > 0) {
-      const createdTags = await prisma.$transaction(
-        tagsToCreate.map(tag =>
-          prisma.tag.create({
-            data: {
-              name: tag.name,
-              displayName: tag.displayName,
-              category: tag.category || null,
-            },
-          })
-        )
+  const tagNames = tags.map(t => t.name)
+  const existingTags = await prisma.tag.findMany({
+    where: { name: { in: tagNames } },
+  })
+  
+  const existingTagMap = new Map(existingTags.map(t => [t.name, t]))
+  
+  const tagsToCreate = tags.filter(t => !existingTagMap.has(t.name))
+  
+  if (tagsToCreate.length > 0) {
+    const createdTags = await prisma.$transaction(
+      tagsToCreate.map(tag =>
+        prisma.tag.create({
+          data: {
+            name: tag.name,
+            displayName: tag.displayName,
+            category: tag.category || null,
+          },
+        })
       )
-      
-      // Add created tags to map
-      createdTags.forEach(t => existingTagMap.set(t.name, t))
-      logger.debug('Created new tags', { count: createdTags.length }, 'TagStorageService')
-    }
+    )
     
-    // Batch create post-tag associations
-    const postTagData = tags.map(tag => {
-      const dbTag = existingTagMap.get(tag.name)
-      if (!dbTag) throw new Error(`Tag not found: ${tag.name}`)
-      return {
-        postId,
-        tagId: dbTag.id,
-      }
-    })
-    
-    // Use createMany with skipDuplicates for better performance
-    await prisma.postTag.createMany({
-      data: postTagData,
-      skipDuplicates: true,
-    })
-
-    logger.debug('Stored tags for post', {
-      postId,
-      tagCount: tags.length,
-    }, 'TagStorageService')
-  } catch (error) {
-    logger.error('Error storing tags for post', {
-      error,
-      postId,
-      tags,
-    }, 'TagStorageService')
+    createdTags.forEach(t => existingTagMap.set(t.name, t))
+    logger.debug('Created new tags', { count: createdTags.length }, 'TagStorageService')
   }
+  
+  const postTagData = tags.map(tag => {
+    const dbTag = existingTagMap.get(tag.name)!
+    return {
+      postId,
+      tagId: dbTag.id,
+    }
+  })
+  
+  await prisma.postTag.createMany({
+    data: postTagData,
+    skipDuplicates: true,
+  })
+
+  logger.debug('Stored tags for post', {
+    postId,
+    tagCount: tags.length,
+  }, 'TagStorageService')
 }
 
 /**
@@ -215,35 +200,28 @@ export async function storeTrendingTags(
   windowStart: Date,
   windowEnd: Date
 ): Promise<void> {
-  try {
-    // Store all trending tags in a transaction
-    await prisma.$transaction(
-      tags.map(tag =>
-        prisma.trendingTag.create({
-          data: {
-            tagId: tag.tagId,
-            score: tag.score,
-            postCount: tag.postCount,
-            rank: tag.rank,
-            windowStart,
-            windowEnd,
-            relatedContext: tag.relatedContext || null,
-          },
-        })
-      )
+  // Store all trending tags in a transaction
+  await prisma.$transaction(
+    tags.map(tag =>
+      prisma.trendingTag.create({
+        data: {
+          tagId: tag.tagId,
+          score: tag.score,
+          postCount: tag.postCount,
+          rank: tag.rank,
+          windowStart,
+          windowEnd,
+          relatedContext: tag.relatedContext || null,
+        },
+      })
     )
+  )
 
-    logger.info('Stored trending tags', {
-      count: tags.length,
-      windowStart,
-      windowEnd,
-    }, 'TagStorageService')
-  } catch (error) {
-    logger.error('Error storing trending tags', {
-      error,
-      tags,
-    }, 'TagStorageService')
-  }
+  logger.info('Stored trending tags', {
+    count: tags.length,
+    windowStart,
+    windowEnd,
+  }, 'TagStorageService')
 }
 
 /**
@@ -303,24 +281,44 @@ export async function getRelatedTags(
   }
 
   // Find other tags that appear in the same posts
-  const coOccurringTags = await prisma.$queryRaw<Array<{
-    tagId: string
-    displayName: string
-    count: bigint
-  }>>`
-    SELECT 
-      t.id as "tagId",
-      t."displayName" as "displayName",
-      COUNT(*) as count
-    FROM "PostTag" pt
-    INNER JOIN "Tag" t ON t.id = pt."tagId"
-    WHERE pt."postId" = ANY(ARRAY[${postIds.map(id => `'${id}'`).join(',')}]::uuid[])
-      AND pt."tagId" != ${tagId}
-    GROUP BY t.id, t."displayName"
-    ORDER BY count DESC
-    LIMIT ${limit}
-  `
+  // Using simpler query approach
+  const coOccurringTags = await prisma.postTag.groupBy({
+    by: ['tagId'],
+    where: {
+      postId: {
+        in: postIds
+      },
+      tagId: {
+        not: tagId
+      }
+    },
+    _count: {
+      tagId: true
+    },
+    orderBy: {
+      _count: {
+        tagId: 'desc'
+      }
+    },
+    take: limit
+  })
 
-  return coOccurringTags.map(tag => tag.displayName)
+  // Get tag display names
+  const tagIds = coOccurringTags.map(t => t.tagId)
+  const tags = await prisma.tag.findMany({
+    where: {
+      id: {
+        in: tagIds
+      }
+    },
+    select: {
+      id: true,
+      displayName: true
+    }
+  })
+
+  // Map back to preserve order
+  const tagMap = new Map(tags.map(t => [t.id, t.displayName]))
+  return tagIds.map(id => tagMap.get(id)).filter((name): name is string => name !== undefined)
 }
 

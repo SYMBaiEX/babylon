@@ -1,8 +1,8 @@
 'use client'
 
+import { logger } from '@/lib/logger'
 import { usePrivy } from '@privy-io/react-auth'
 import { useEffect } from 'react'
-import { logger } from '@/lib/logger'
 
 interface LoginModalProps {
   isOpen: boolean

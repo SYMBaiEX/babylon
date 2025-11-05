@@ -5,7 +5,6 @@ import { PageContainer } from '@/components/shared/PageContainer'
 import { TaggedText } from '@/components/shared/TaggedText'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
-import { logger } from '@/lib/logger'
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal'
 import { 
   AlertCircle, 
@@ -170,29 +169,24 @@ export default function ProfilePage() {
 
     const loadContent = async () => {
       setLoadingPosts(true)
-      try {
-        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-        const headers: HeadersInit = { 'Content-Type': 'application/json' }
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`
-        }
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      const headers: HeadersInit = { 'Content-Type': 'application/json' }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
 
-        const response = await fetch(`/api/users/${user.id}/posts?type=${tab}`, { headers })
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success) {
-            if (tab === 'posts') {
-              setPosts(data.data.items || [])
-            } else {
-              setReplies(data.data.items || [])
-            }
+      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/posts?type=${tab}`, { headers })
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          if (tab === 'posts') {
+            setPosts(data.data.items || [])
+          } else {
+            setReplies(data.data.items || [])
           }
         }
-      } catch (error) {
-        logger.error('Failed to load content:', error, 'ProfilePage')
-      } finally {
-        setLoadingPosts(false)
       }
+      setLoadingPosts(false)
     }
 
     loadContent()
@@ -230,87 +224,65 @@ export default function ProfilePage() {
     setSaveError(null)
     setSaveSuccess(false)
 
-    try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      }
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
-      }
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    }
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
 
-      const response = await fetch(`/api/users/${user.id}/update-profile`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(updatedData),
-      })
+    const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/update-profile`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(updatedData),
+    })
 
-      if (!response.ok) {
-        let errorMessage = 'Failed to update profile'
-        try {
-          const contentType = response.headers.get('content-type')
-          if (contentType && contentType.includes('application/json')) {
-            const data = await response.json()
-            errorMessage = data.error || `HTTP ${response.status}: ${response.statusText}`
-          } else {
-            errorMessage = `HTTP ${response.status}: ${response.statusText}`
-          }
-          errorMessage = `HTTP ${response.status}: ${response.statusText}`
-        } catch {
-          // If parsing fails, use default error message
-        }
-        throw new Error(errorMessage)
-      }
+    const data = await response.json()
 
-      const data = await response.json()
+    setFormData({
+      username: data.user.username,
+      displayName: data.user.displayName,
+      bio: data.user.bio,
+      profileImageUrl: data.user.profileImageUrl,
+      coverImageUrl: data.user.coverImageUrl || '',
+    })
 
-      setFormData({
-        username: data.user.username,
-        displayName: data.user.displayName,
-        bio: data.user.bio,
-        profileImageUrl: data.user.profileImageUrl,
-        coverImageUrl: data.user.coverImageUrl || '',
-      })
+    const oldUsername = user.username
+    const newUsername = data.user.username
+    const usernameChanged = oldUsername !== newUsername && newUsername
+    
+    setUser({
+      ...user,
+      username: data.user.username,
+      displayName: data.user.displayName,
+      bio: data.user.bio,
+      profileImageUrl: data.user.profileImageUrl,
+      coverImageUrl: data.user.coverImageUrl,
+      profileComplete: data.user.profileComplete,
+      usernameChangedAt: data.user.usernameChangedAt,
+      referralCode: data.user.referralCode, // Update referral code if username changed
+    })
 
-      const oldUsername = user.username
-      const newUsername = data.user.username
-      const usernameChanged = oldUsername !== newUsername && newUsername
-      
+    // Redirect to username-based profile URL if username changed
+    if (usernameChanged && newUsername) {
+      const cleanUsername = newUsername.startsWith('@') ? newUsername.slice(1) : newUsername
+      router.replace(`/profile/${cleanUsername}`)
+    }
+
+    // Update user in store with all new data including reputation points
+    if (data.user.reputationPoints !== undefined) {
       setUser({
         ...user,
-        username: data.user.username,
-        displayName: data.user.displayName,
-        bio: data.user.bio,
-        profileImageUrl: data.user.profileImageUrl,
-        coverImageUrl: data.user.coverImageUrl,
-        profileComplete: data.user.profileComplete,
-        usernameChangedAt: data.user.usernameChangedAt,
-        referralCode: data.user.referralCode, // Update referral code if username changed
+        reputationPoints: data.user.reputationPoints,
+        referralCount: data.user.referralCount,
       })
-
-      // Redirect to username-based profile URL if username changed
-      if (usernameChanged && newUsername) {
-        const cleanUsername = newUsername.startsWith('@') ? newUsername.slice(1) : newUsername
-        router.replace(`/profile/${cleanUsername}`)
-      }
-
-      // Update user in store with all new data including reputation points
-      if (data.user.reputationPoints !== undefined) {
-        setUser({
-          ...user,
-          reputationPoints: data.user.reputationPoints,
-          referralCount: data.user.referralCount,
-        })
-      }
-
-      setSaveSuccess(true)
-      setEditing({ field: null, tempValue: '' })
-      setTimeout(() => setSaveSuccess(false), 3000)
-    } catch (error) {
-      setSaveError(error instanceof Error ? error.message : 'Failed to save changes')
-    } finally {
-      setIsSaving(false)
     }
+
+    setSaveSuccess(true)
+    setEditing({ field: null, tempValue: '' })
+    setTimeout(() => setSaveSuccess(false), 3000)
+    setIsSaving(false)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -333,48 +305,33 @@ export default function ProfilePage() {
       [platform]: newValue
     }))
     
-    try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      }
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
-      }
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    }
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
 
-      const response = await fetch(`/api/users/${user.id}/update-visibility`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          platform,
-          visible: newValue,
-        }),
+    const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/update-visibility`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        platform,
+        visible: newValue,
+      }),
+    })
+
+    const data = await response.json()
+    
+    // Update user in store
+    if (data.visibility) {
+      setUser({
+        ...user,
+        showTwitterPublic: data.visibility.twitter,
+        showFarcasterPublic: data.visibility.farcaster,
+        showWalletPublic: data.visibility.wallet,
       })
-
-      if (!response.ok) {
-        // Revert on error
-        setSocialVisibility(prev => ({
-          ...prev,
-          [platform]: !newValue
-        }))
-        throw new Error('Failed to update visibility')
-      }
-
-      const data = await response.json()
-      
-      // Update user in store
-      if (data.visibility) {
-        setUser({
-          ...user,
-          showTwitterPublic: data.visibility.twitter,
-          showFarcasterPublic: data.visibility.farcaster,
-          showWalletPublic: data.visibility.wallet,
-        })
-      }
-    } catch (error) {
-      logger.error('Error updating visibility:', error, 'ProfilePage')
-      setSaveError('Failed to update visibility preference')
-      setTimeout(() => setSaveError(null), 3000)
     }
   }
 
@@ -441,81 +398,58 @@ export default function ProfilePage() {
   }
 
   const confirmImageUpload = async () => {
-    if (!imageUpload.file || !imageUpload.type || !user?.id) return
-
     setImageUpload(prev => ({ ...prev, isUploading: true, error: null }))
 
-    try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      
-      // Upload image
-      const formData = new FormData()
-      formData.append('file', imageUpload.file)
-      formData.append('type', imageUpload.type === 'profileImageUrl' ? 'profile' : 'cover')
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    
+    const formData = new FormData()
+    formData.append('file', imageUpload.file!)
+    formData.append('type', imageUpload.type === 'profileImageUrl' ? 'profile' : 'cover')
 
-      const headers: HeadersInit = {}
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
-      }
-
-      const uploadResponse = await fetch('/api/upload/image', {
-        method: 'POST',
-        headers,
-        body: formData,
-      })
-
-      if (!uploadResponse.ok) {
-        const data = await uploadResponse.json()
-        throw new Error(data.error || 'Failed to upload image')
-      }
-
-      const uploadData = await uploadResponse.json()
-
-      // Update profile with new image URL
-      const updateResponse = await fetch(`/api/users/${user.id}/update-profile`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          ...formData,
-          [imageUpload.type]: uploadData.url,
-        }),
-      })
-
-      if (!updateResponse.ok) {
-        const data = await updateResponse.json()
-        throw new Error(data.error || 'Failed to update profile')
-      }
-
-      const profileData = await updateResponse.json()
-
-      // Update local state
-      const imageType = imageUpload.type as 'profileImageUrl' | 'coverImageUrl'
-      setFormData(prev => ({
-        ...prev,
-        [imageType]: uploadData.url,
-      }))
-
-      setUser({
-        ...user,
-        profileImageUrl: profileData.user.profileImageUrl,
-        coverImageUrl: profileData.user.coverImageUrl,
-      })
-
-      setSaveSuccess(true)
-      setTimeout(() => setSaveSuccess(false), 3000)
-
-      // Close modal
-      closeImageUpload()
-    } catch (error) {
-      setImageUpload(prev => ({
-        ...prev,
-        error: error instanceof Error ? error.message : 'Failed to upload image',
-        isUploading: false,
-      }))
+    const headers: HeadersInit = {}
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
     }
+
+    const uploadResponse = await fetch('/api/upload/image', {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+
+    const uploadData = await uploadResponse.json()
+
+    const updateResponse = await fetch(`/api/users/${encodeURIComponent(user!.id)}/update-profile`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        ...formData,
+        [imageUpload.type!]: uploadData.url,
+      }),
+    })
+
+    const profileData = await updateResponse.json()
+
+    const imageType = imageUpload.type!
+    setFormData(prev => ({
+      ...prev,
+      [imageType]: uploadData.url,
+    }))
+
+    setUser({
+      ...user!,
+      profileImageUrl: profileData.user.profileImageUrl,
+      coverImageUrl: profileData.user.coverImageUrl,
+    })
+
+    setSaveSuccess(true)
+    setTimeout(() => setSaveSuccess(false), 3000)
+
+    closeImageUpload()
+    setImageUpload(prev => ({...prev, isUploading: false}))
   }
 
   return (

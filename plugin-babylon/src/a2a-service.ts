@@ -33,7 +33,7 @@ export class BabylonA2AService extends Service {
   override capabilityDescription =
     "A2A WebSocket integration for real-time agent-to-agent communication and market data subscriptions";
 
-  private client: A2AClient | null = null;
+  private client!: A2AClient;
   private a2aConfig: A2AServiceConfig;
   private connected = false;
   private agentWalletAddress: string | null = null;
@@ -92,29 +92,19 @@ export class BabylonA2AService extends Service {
    * Load agent credentials from runtime or environment
    */
   private async loadAgentCredentials(): Promise<void> {
-    // Try to get from runtime state or agent auth service
-    // For now, we'll use environment variables or generate deterministically
-    const agentId =
-      this.runtime?.agentId || process.env.BABYLON_AGENT_ID || "default";
+    const agentId = this.runtime.agentId || process.env.BABYLON_AGENT_ID || "default";
 
     logger.info(`Loading A2A credentials for agent: ${agentId}`);
 
-    // Get wallet address and private key from agent auth or generate
-    // This should match the wallet used for on-chain registration
     this.agentWalletAddress = process.env.BABYLON_AGENT_WALLET_ADDRESS || null;
     this.agentPrivateKey = process.env.BABYLON_AGENT_PRIVATE_KEY || null;
 
-    // Get token ID from database or registration
     const tokenIdStr = process.env.BABYLON_AGENT_TOKEN_ID;
     this.agentTokenId = tokenIdStr ? parseInt(tokenIdStr, 10) : null;
 
-    if (!this.agentWalletAddress || !this.agentPrivateKey) {
-      logger.warn(
-        `A2A credentials not found for agent ${agentId} - using REST API fallback`,
-      );
-    } else {
+    if (this.agentWalletAddress && this.agentPrivateKey) {
       logger.info(
-        `A2A credentials loaded for agent ${agentId} - wallet: ${this.agentWalletAddress?.slice(0, 10)}...`,
+        `A2A credentials loaded for agent ${agentId} - wallet: ${this.agentWalletAddress.slice(0, 10)}...`,
       );
     }
   }
@@ -129,206 +119,158 @@ export class BabylonA2AService extends Service {
 
     // Auto-discover Babylon endpoint from Agent0 registry if available
     if (process.env.AGENT0_ENABLED === 'true') {
-      try {
-        const discoveryService = this.runtime.getService('babylon-discovery') as {
-          discoverAndConnect?: () => Promise<{ endpoints: { a2a?: string } } | null>
-        } | null
-        if (discoveryService && typeof discoveryService.discoverAndConnect === 'function') {
-          logger.info('Attempting to discover Babylon via Agent0 registry...');
-          const babylon = await discoveryService.discoverAndConnect()
-          if (babylon?.endpoints?.a2a) {
-            this.a2aConfig.endpoint = babylon.endpoints.a2a
-            logger.info(`✅ Discovered A2A endpoint via Agent0: ${babylon.endpoints.a2a}`);
-          } else {
-            logger.warn('Babylon not found in Agent0 registry, using configured endpoint');
-          }
+      const discoveryService = this.runtime.getService('babylon-discovery') as unknown as {
+        discoverAndConnect: () => Promise<{ endpoints: { a2a: string } } | null>
+      }
+      if (discoveryService?.discoverAndConnect) {
+        logger.info('Attempting to discover Babylon via Agent0 registry...');
+        const babylon = await discoveryService.discoverAndConnect()
+        if (babylon?.endpoints?.a2a) {
+          this.a2aConfig.endpoint = babylon.endpoints.a2a
+          logger.info(`✅ Discovered A2A endpoint via Agent0: ${babylon.endpoints.a2a}`);
         }
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error)
-        logger.warn(`Discovery failed, falling back to configured endpoint: ${errorMsg}`);
       }
     }
 
-    // Ensure we have an endpoint (from discovery or config)
     if (!this.a2aConfig.endpoint) {
-      logger.warn("A2A endpoint not available (discovery failed and no config)");
-      return;
+      throw new Error("A2A endpoint not available");
     }
 
     if (!this.agentWalletAddress || !this.agentPrivateKey) {
-      logger.warn("Cannot connect to A2A: missing credentials");
-      return;
+      throw new Error("Cannot connect to A2A: missing credentials");
     }
 
-    try {
-      // Define agent capabilities
-      const capabilities: AgentCapabilities = {
-        strategies: ["momentum", "sentiment", "volume"], // Can be customized per agent
-        markets: ["prediction"],
-        actions: ["analyze", "trade", "coordinate"],
-        version: "1.0.0",
-      };
+    // Define agent capabilities
+    const capabilities: AgentCapabilities = {
+      strategies: ["momentum", "sentiment", "volume"],
+      markets: ["prediction"],
+      actions: ["analyze", "trade", "coordinate"],
+      version: "1.0.0",
+    };
 
-      const clientConfig: A2AClientConfig = {
-        endpoint: this.a2aConfig.endpoint,
-        credentials: {
-          address: this.agentWalletAddress,
-          privateKey: this.agentPrivateKey,
-          tokenId: this.agentTokenId || 0,
-        },
-        capabilities,
-        autoReconnect: this.a2aConfig.autoReconnect,
-        reconnectInterval: this.a2aConfig.reconnectInterval,
-        heartbeatInterval: this.a2aConfig.heartbeatInterval,
-      };
+    const clientConfig: A2AClientConfig = {
+      endpoint: this.a2aConfig.endpoint,
+      credentials: {
+        address: this.agentWalletAddress,
+        privateKey: this.agentPrivateKey,
+        tokenId: this.agentTokenId || 0,
+      },
+      capabilities,
+      autoReconnect: this.a2aConfig.autoReconnect,
+      reconnectInterval: this.a2aConfig.reconnectInterval,
+      heartbeatInterval: this.a2aConfig.heartbeatInterval,
+    };
 
-      this.client = new A2AClient(clientConfig);
+    this.client = new A2AClient(clientConfig);
 
-      // Set up event handlers
-      this.setupEventHandlers();
+    // Set up event handlers
+    this.setupEventHandlers();
 
-      // Connect
-      await this.client.connect();
-      this.connected = true;
+    // Connect
+    await this.client.connect();
+    this.connected = true;
 
-      logger.info(`✅ Connected to A2A server: ${this.a2aConfig.endpoint}`);
-    } catch (error) {
-      logger.error(`Failed to connect to A2A server: ${error}`);
-      this.connected = false;
-    }
+    logger.info(`✅ Connected to A2A server: ${this.a2aConfig.endpoint}`);
   }
 
   /**
    * Set up A2A event handlers
    */
   private setupEventHandlers(): void {
-    if (!this.client) return;
-
     // Connection events
-    this.client.on(A2AEventType.AGENT_CONNECTED, (data) => {
+    this.client!.on(A2AEventType.AGENT_CONNECTED, (data) => {
       logger.info(`Agent connected to A2A: ${data.agentId}`);
       this.connected = true;
     });
 
-    this.client.on(A2AEventType.AGENT_DISCONNECTED, () => {
+    this.client!.on(A2AEventType.AGENT_DISCONNECTED, () => {
       logger.warn("Disconnected from A2A server");
       this.connected = false;
     });
 
     // Market update events - integrate with runtime providers
-    this.client.on(
+    this.client!.on(
       "market_update",
       (data: { marketId: string; prices?: number[]; volume?: string }) => {
         logger.info(`📊 Market update received: ${data.marketId}`);
         
-        // Store latest market update for provider access
-        if (this.runtime) {
-          // Emit runtime event for provider/action consumption
-          this.runtime.emitEvent?.("a2a.marketUpdate", {
-            marketId: data.marketId,
-            prices: data.prices,
-            volume: data.volume,
-            timestamp: Date.now(),
-          });
-          
-          // Update runtime cache for fast provider access
-          const cacheKey = `a2a.market.${data.marketId}`;
-          this.runtime.setCache?.(cacheKey, {
-            marketId: data.marketId,
-            prices: data.prices,
-            volume: data.volume,
-            timestamp: Date.now(),
-          });
-        }
+        this.runtime.emitEvent!("a2a.marketUpdate", {
+          marketId: data.marketId,
+          prices: data.prices,
+          volume: data.volume,
+          timestamp: Date.now(),
+        });
+        
+        const cacheKey = `a2a.market.${data.marketId}`;
+        this.runtime.setCache!(cacheKey, {
+          marketId: data.marketId,
+          prices: data.prices,
+          volume: data.volume,
+          timestamp: Date.now(),
+        });
       },
     );
 
     // Coalition events - integrate with runtime
-    this.client.on("coalition_created", (data: { coalitionId: string; [key: string]: unknown }) => {
+    this.client!.on("coalition_created", (data: { coalitionId: string; [key: string]: unknown }) => {
       logger.info(`🤝 Coalition created: ${data.coalitionId}`);
       
-      if (this.runtime) {
-        // Emit coalition event for agent awareness
-        const { coalitionId, ...restData } = data;
-        this.runtime.emitEvent?.("a2a.coalitionCreated", {
-          coalitionId,
-          ...restData,
-          timestamp: Date.now(),
-        });
-      }
+      const { coalitionId, ...restData } = data;
+      this.runtime.emitEvent!("a2a.coalitionCreated", {
+        coalitionId,
+        ...restData,
+        timestamp: Date.now(),
+      });
     });
 
-    this.client.on("coalition_message", (data: { coalitionId: string; message?: string; [key: string]: unknown }) => {
+    this.client!.on("coalition_message", (data: { coalitionId: string; message?: string; [key: string]: unknown }) => {
       logger.info(`💬 Coalition message received: ${data.coalitionId}`);
       
-      if (this.runtime) {
-        // Emit coalition message event
-        const { coalitionId, message, ...restData } = data;
-        this.runtime.emitEvent?.("a2a.coalitionMessage", {
-          coalitionId,
-          message,
-          ...restData,
-          timestamp: Date.now(),
-        });
-        
-        // Create memory of coalition interaction for agent context
-        if (message && this.runtime.createMemory && this.runtime.createRunId) {
-          const memoryId = this.runtime.createRunId();
-          const roomId = this.runtime.agentId;
-          const memory: Memory = {
-            id: memoryId,
-            agentId: this.runtime.agentId,
-            entityId: this.runtime.agentId,
-            roomId,
-            content: {
-              text: `Coalition ${coalitionId}: ${message}`,
-              source: "a2a",
-            },
-            createdAt: Date.now(),
-          };
-          this.runtime.createMemory(memory, roomId).catch((error) => {
-            logger.warn(`Failed to create coalition message memory: ${error}`);
-          });
-        }
+      const { coalitionId, message, ...restData } = data;
+      this.runtime.emitEvent!("a2a.coalitionMessage", {
+        coalitionId,
+        message,
+        ...restData,
+        timestamp: Date.now(),
+      });
+      
+      if (message) {
+        const memoryId = this.runtime.createRunId();
+        const roomId = this.runtime.agentId;
+        const memory: Memory = {
+          id: memoryId,
+          agentId: this.runtime.agentId,
+          entityId: this.runtime.agentId,
+          roomId,
+          content: {
+            text: `Coalition ${coalitionId}: ${message}`,
+            source: "a2a",
+          },
+          createdAt: Date.now(),
+        };
+        this.runtime.createMemory(memory, roomId);
       }
     });
 
     // Error handling
-    this.client.on("error", (error) => {
+    this.client!.on("error", (error) => {
       logger.error(`A2A client error: ${error}`);
     });
   }
 
   /**
-   * Get market data via A2A (preferred) or fallback to REST
+   * Get market data via A2A
    */
-  async getMarketData(marketId: string): Promise<MarketData | null> {
-    if (this.connected && this.client) {
-      try {
-        return await this.client.getMarketData(marketId);
-      } catch (error) {
-        logger.warn(
-          `A2A market data fetch failed, falling back to REST: ${error}`,
-        );
-      }
-    }
-    return null;
+  async getMarketData(marketId: string): Promise<MarketData> {
+    return await this.client!.getMarketData(marketId);
   }
 
   /**
    * Subscribe to market updates
    */
-  async subscribeMarket(marketId: string): Promise<boolean> {
-    if (this.connected && this.client) {
-      try {
-        await this.client.subscribeMarket(marketId);
-        logger.info(`Subscribed to market updates: ${marketId}`);
-        return true;
-      } catch (error) {
-        logger.error(`Failed to subscribe to market: ${error}`);
-      }
-    }
-    return false;
+  async subscribeMarket(marketId: string): Promise<void> {
+    await this.client!.subscribeMarket(marketId);
+    logger.info(`Subscribed to market updates: ${marketId}`);
   }
 
   /**
@@ -339,14 +281,7 @@ export class BabylonA2AService extends Service {
     minReputation?: number;
     markets?: string[];
   }): Promise<{ agents: AgentProfile[]; total: number }> {
-    if (this.connected && this.client) {
-      try {
-        return await this.client.discoverAgents(filters);
-      } catch (error) {
-        logger.error(`Failed to discover agents: ${error}`);
-      }
-    }
-    return { agents: [], total: 0 };
+    return await this.client!.discoverAgents(filters);
   }
 
   /**
@@ -360,56 +295,43 @@ export class BabylonA2AService extends Service {
     reasoning: string;
     dataPoints?: Record<string, unknown>;
     timestamp: number;
-  }): Promise<boolean> {
-    if (this.connected && this.client) {
-      try {
-        // Ensure dataPoints is always defined for the client
-        const analysisWithData: MarketAnalysis = {
-          ...analysis,
-          dataPoints: (analysis.dataPoints || {}) as Record<string, JsonValue>,
-        };
-        await this.client.shareAnalysis(analysisWithData);
-        logger.info(`Shared analysis for market: ${analysis.marketId}`);
-        return true;
-      } catch (error) {
-        logger.error(`Failed to share analysis: ${error}`);
-      }
-    }
-    return false;
+  }): Promise<void> {
+    const analysisWithData: MarketAnalysis = {
+      ...analysis,
+      dataPoints: (analysis.dataPoints || {}) as Record<string, JsonValue>,
+    };
+    await this.client!.shareAnalysis(analysisWithData);
+    logger.info(`Shared analysis for market: ${analysis.marketId}`);
   }
 
   /**
    * Check if A2A is connected
    */
   isConnected(): boolean {
-    return this.connected && (this.client?.isConnected() || false);
+    return this.connected && this.client!.isConnected();
   }
 
   /**
    * Get A2A client instance
    */
-  getClient(): A2AClient | null {
-    return this.client;
+  getClient(): A2AClient {
+    return this.client!;
   }
 
   /**
    * Disconnect from A2A server
    */
   async disconnect(): Promise<void> {
-    if (this.client) {
-      await this.client.disconnect();
-      this.connected = false;
-      logger.info("Disconnected from A2A server");
-    }
+    await this.client!.disconnect();
+    this.connected = false;
+    logger.info("Disconnected from A2A server");
   }
 
   /**
    * Instance stop method - cleanup
    */
   override async stop(): Promise<void> {
-    if (this.client) {
-      await this.disconnect();
-    }
+    await this.disconnect();
     this.connected = false;
     this.runtime.logger.info("✅ Babylon A2A Service stopped");
   }
@@ -422,11 +344,6 @@ export class BabylonA2AService extends Service {
     const service = runtime.getService<BabylonA2AService>(
       BabylonA2AService.serviceType,
     );
-    if (!service) {
-      throw new Error("BabylonA2AService not found");
-    }
-    if (typeof service.stop === "function") {
-      await service.stop();
-    }
+    await service?.stop();
   }
 }

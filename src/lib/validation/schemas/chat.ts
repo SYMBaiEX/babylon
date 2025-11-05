@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { UUIDSchema, PaginationSchema, createTrimmedStringSchema } from './common';
+import { UUIDSchema, UserIdSchema, PaginationSchema, createTrimmedStringSchema } from './common';
 
 /**
  * Chat message content schema
@@ -36,7 +36,7 @@ export const ChatCreateSchema = z.object({
  * DM chat creation schema
  */
 export const DMChatCreateSchema = z.object({
-  userId: UUIDSchema
+  userId: UserIdSchema
 });
 
 /**

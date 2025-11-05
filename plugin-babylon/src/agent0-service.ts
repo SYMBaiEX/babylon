@@ -47,36 +47,21 @@ export class Agent0Service extends Service {
       return
     }
     
-    try {
-      // Initialize services
-      this.discoveryService = getUnifiedDiscoveryService()
-      this.gameDiscoveryService = new GameDiscoveryService()
-      
-      // Initialize Agent0 client if credentials available
-      const privateKey = process.env.BABYLON_AGENT_PRIVATE_KEY || process.env.AGENT0_PRIVATE_KEY
-      const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_RPC_URL
-      
-      if (privateKey && rpcUrl && typeof privateKey === 'string' && typeof rpcUrl === 'string') {
-        try {
-          this.agent0Client = new Agent0Client({
-            network: (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia',
-            rpcUrl,
-            privateKey
-          })
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error)
-          this.runtime.logger.warn(
-            `Failed to initialize Agent0Client (SDK may not be installed): ${errorMessage}`,
-            'Agent0Service'
-          )
-        }
-      }
-      
-      this.runtime.logger.info('✅ Agent0 integration initialized', 'Agent0Service')
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      this.runtime.logger.error(`Failed to initialize Agent0 integration: ${errorMessage}`, 'Agent0Service')
+    this.discoveryService = getUnifiedDiscoveryService()
+    this.gameDiscoveryService = new GameDiscoveryService()
+    
+    const privateKey = process.env.BABYLON_AGENT_PRIVATE_KEY || process.env.AGENT0_PRIVATE_KEY
+    const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_RPC_URL
+    
+    if (privateKey && rpcUrl) {
+      this.agent0Client = new Agent0Client({
+        network: (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia',
+        rpcUrl,
+        privateKey
+      })
     }
+    
+    this.runtime.logger.info('✅ Agent0 integration initialized', 'Agent0Service')
   }
   
   /**
@@ -87,11 +72,7 @@ export class Agent0Service extends Service {
     markets?: string[]
     includeExternal?: boolean
   }) {
-    if (!this.discoveryService) {
-      throw new Error('Agent0Service not initialized')
-    }
-    
-    return this.discoveryService.discoverAgents({
+    return this.discoveryService!.discoverAgents({
       strategies: filters?.strategies,
       markets: filters?.markets,
       includeExternal: filters?.includeExternal ?? true
@@ -105,11 +86,7 @@ export class Agent0Service extends Service {
     type?: string
     markets?: string[]
   }) {
-    if (!this.gameDiscoveryService) {
-      throw new Error('Agent0Service not initialized')
-    }
-    
-    return this.gameDiscoveryService.discoverGames({
+    return this.gameDiscoveryService!.discoverGames({
       type: filters?.type || 'game-platform',
       markets: filters?.markets
     })
@@ -119,24 +96,12 @@ export class Agent0Service extends Service {
    * Find Babylon game specifically
    */
   async findBabylon() {
-    if (!this.gameDiscoveryService) {
-      throw new Error('Agent0Service not initialized')
-    }
-    
-    const babylon = await this.gameDiscoveryService.findBabylon()
+    const babylon = await this.gameDiscoveryService!.findBabylon()
     
     if (babylon) {
-      // Store endpoints for other services
-      if (babylon.endpoints.a2a) {
-        this.runtime.setSetting?.('babylon.a2aEndpoint', String(babylon.endpoints.a2a))
-      }
-      if (babylon.endpoints.mcp) {
-        this.runtime.setSetting?.('babylon.mcpEndpoint', String(babylon.endpoints.mcp))
-      }
-      if (babylon.endpoints.api) {
-        this.runtime.setSetting?.('babylon.apiEndpoint', String(babylon.endpoints.api))
-      }
-      
+      this.runtime.setSetting!('babylon.a2aEndpoint', babylon.endpoints.a2a)
+      this.runtime.setSetting!('babylon.mcpEndpoint', babylon.endpoints.mcp)
+      this.runtime.setSetting!('babylon.apiEndpoint', babylon.endpoints.api)
       this.runtime.logger.info(`✅ Discovered Babylon: ${babylon.name}`, undefined, 'Agent0Service')
     }
     
@@ -147,11 +112,7 @@ export class Agent0Service extends Service {
    * Submit feedback for an agent
    */
   async submitFeedback(targetAgentId: number, rating: number, comment: string): Promise<void> {
-    if (!this.agent0Client) {
-      throw new Error('Agent0Client not initialized')
-    }
-    
-    await this.agent0Client.submitFeedback({
+    await this.agent0Client!.submitFeedback({
       targetAgentId,
       rating,
       comment
@@ -170,10 +131,8 @@ export class Agent0Service extends Service {
    */
   static override async stop(runtime: IAgentRuntime): Promise<void> {
     logger.info('Stopping Agent0Service', undefined, 'Agent0Service')
-    const service = runtime.getService<Agent0Service>(Agent0Service.serviceType)
-    if (service && typeof service.stop === 'function') {
-      await service.stop()
-    }
+    const service = runtime.getService<Agent0Service>(Agent0Service.serviceType)!
+    await service.stop()
   }
 }
 

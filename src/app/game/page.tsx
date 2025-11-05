@@ -1,10 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Activity } from 'lucide-react'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { cn } from '@/lib/utils'
-import { logger } from '@/lib/logger'
+import { Activity } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 interface GameStats {
   totalPosts: number
@@ -27,24 +26,15 @@ export default function GamePage() {
   const [engineStatus, setEngineStatus] = useState<EngineStatus | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
-  // Load game stats and status
   const loadGameData = async () => {
     setRefreshing(true)
-    try {
-      const response = await fetch('/api/stats')
-      if (!response.ok) throw new Error('Failed to load game stats')
-      
-      const data = await response.json()
-      setStats(data.stats)
-      setEngineStatus(data.engineStatus)
-      setError(null)
-    } catch (err) {
-      logger.error('Failed to load game data:', err, 'GamePage')
-      setError('Failed to load game status')
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
+    const response = await fetch('/api/stats')
+    const data = await response.json()
+    setStats(data.stats)
+    setEngineStatus(data.engineStatus)
+    setError(null)
+    setLoading(false)
+    setRefreshing(false)
   }
 
   // Initial load

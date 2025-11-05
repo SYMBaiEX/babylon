@@ -8,7 +8,6 @@ import { TaggedText } from '@/components/shared/TaggedText'
 import { useFontSize } from '@/contexts/FontSizeContext'
 import { useAuth } from '@/hooks/useAuth'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
-import { logger } from '@/lib/logger'
 import { extractUsername, getProfileUrl, isUsername } from '@/lib/profile-utils'
 import { cn } from '@/lib/utils'
 import { POST_TYPES } from '@/shared/constants'
@@ -91,201 +90,182 @@ export default function ActorProfilePage() {
   
   useEffect(() => {
     const loadActorInfo = async () => {
-      try {
-        setLoading(true)
+      setLoading(true)
+      
+      // If it's a username (starts with @) or looks like a username, try to find user by username
+      if (isUsernameParam || (!actorId.startsWith('did:privy:') && actorId.length <= 42 && !actorId.includes('-'))) {
+        // Try to load user profile by username first
+        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+        }
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
         
-        // If it's a username (starts with @) or looks like a username, try to find user by username
-        if (isUsernameParam || (!actorId.startsWith('did:privy:') && actorId.length <= 42 && !actorId.includes('-'))) {
-          // Try to load user profile by username first
-          try {
-            const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-            const headers: HeadersInit = {
-              'Content-Type': 'application/json',
-            }
-            if (token) {
-              headers['Authorization'] = `Bearer ${token}`
+        // Try username lookup API
+        const usernameLookupResponse = await fetch(`/api/users/by-username/${encodeURIComponent(actorId)}`, { headers })
+        if (usernameLookupResponse.ok) {
+          const usernameData = await usernameLookupResponse.json()
+          if (usernameData.user) {
+            const user = usernameData.user
+            setActorInfo({
+              id: user.id,
+              name: user.displayName || user.username || 'User',
+              description: user.bio || '',
+              role: user.isActor ? 'Actor' : 'User',
+              type: user.isActor ? 'actor' : 'user' as const,
+              isUser: true,
+              username: user.username,
+              profileImageUrl: user.profileImageUrl,
+              coverImageUrl: user.coverImageUrl,
+              stats: user.stats,
+            })
+            
+            // Redirect to username-based URL if we're on ID-based URL (but not if it's the current user's own profile - handled by useEffect)
+            if (!isUsernameParam && user.username && !isOwnProfile) {
+              const cleanUsername = user.username.startsWith('@') ? user.username.slice(1) : user.username
+              router.replace(`/profile/${cleanUsername}`)
+              return // Don't render, just redirect
             }
             
-            // Try username lookup API
-            const usernameLookupResponse = await fetch(`/api/users/by-username/${encodeURIComponent(actorId)}`, { headers })
-            if (usernameLookupResponse.ok) {
-              const usernameData = await usernameLookupResponse.json()
-              if (usernameData.user) {
-                const user = usernameData.user
-                setActorInfo({
-                  id: user.id,
-                  name: user.displayName || user.username || 'User',
-                  description: user.bio || '',
-                  role: user.isActor ? 'Actor' : 'User',
-                  type: user.isActor ? 'actor' : 'user' as const,
-                  isUser: true,
-                  username: user.username,
-                  profileImageUrl: user.profileImageUrl,
-                  coverImageUrl: user.coverImageUrl,
-                  stats: user.stats,
-                })
-                
-                // Redirect to username-based URL if we're on ID-based URL (but not if it's the current user's own profile - handled by useEffect)
-                if (!isUsernameParam && user.username && !isOwnProfile) {
-                  const cleanUsername = user.username.startsWith('@') ? user.username.slice(1) : user.username
-                  router.replace(`/profile/${cleanUsername}`)
-                  return // Don't render, just redirect
-                }
-                
-                setLoading(false)
-                return
-              }
-            }
-          } catch (error) {
-            logger.error('Failed to load user profile by username:', error, 'ActorProfilePage')
+            setLoading(false)
+            return
           }
         }
-        
-        // Check if this is a user ID (starts with "did:privy:" or contains privy, or is the current user's ID)
-        const isUserId = actorId.startsWith('did:privy:') || 
-                        actorId.includes('privy') || 
-                        actorId.length > 42 ||
-                        (authenticated && user && (user.id === actorId || user.id === decodeURIComponent(identifier)))
-        
-        if (isUserId) {
-          // Load user profile from API by ID
-          try {
-            const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-            const headers: HeadersInit = {
-              'Content-Type': 'application/json',
-            }
-            if (token) {
-              headers['Authorization'] = `Bearer ${token}`
-            }
-            
-            const response = await fetch(`/api/users/${actorId}/profile`, { headers })
-            if (response.ok) {
-              const data = await response.json()
-              if (data.user) {
-                const user = data.user
-                setActorInfo({
-                  id: user.id,
-                  name: user.displayName || user.username || 'User',
-                  description: user.bio || '',
-                  role: user.isActor ? 'Actor' : 'User',
-                  type: user.isActor ? 'actor' : 'user' as const,
-                  isUser: true,
-                  username: user.username,
-                  profileImageUrl: user.profileImageUrl,
-                  coverImageUrl: user.coverImageUrl,
-                  stats: user.stats,
-                })
-                
-                // Redirect to username-based URL if username exists
-                if (user.username && !isUsernameParam) {
-                  const cleanUsername = user.username.startsWith('@') ? user.username.slice(1) : user.username
-                  // Always redirect to username URL if we have one and we're on an ID-based URL
-                  router.replace(`/profile/${cleanUsername}`)
-                  return // Don't render, just redirect
-                }
-                
-                setLoading(false)
-                return
-              }
-            }
-          } catch (error) {
-            logger.error('Failed to load user profile:', error, 'ActorProfilePage')
-          }
-        }
-        
-        // Try to load from actors.json (contains all actors)
-        const response = await fetch('/data/actors.json')
-        if (!response.ok) throw new Error('Failed to load actors')
-        
-        const actorsDb = await response.json() as { actors?: Actor[]; organizations?: Organization[] }
-        
-        // Find actor
-        let actor = actorsDb.actors?.find((a) => a.id === actorId)
-        if (!actor) {
-          actor = actorsDb.actors?.find((a) => a.name === actorId)
-        }
-        if (actor) {
-          // Find which game this actor belongs to
-          let gameId: string | null = null
-          for (const game of allGames) {
-            const allActors = [
-              ...(game.setup?.mainActors || []),
-              ...(game.setup?.supportingActors || []),
-              ...(game.setup?.extras || []),
-            ]
-            if (allActors.some(a => a.id === actorId)) {
-              gameId = game.id
-              break
-            }
-          }
-          
-          setActorInfo({
-            id: actor.id,
-            name: actor.name,
-            description: actor.description,
-            tier: actor.tier,
-            domain: actor.domain,
-            personality: actor.personality,
-            affiliations: actor.affiliations,
-            role: actor.role || actor.tier || 'Actor',
-            type: 'actor' as const,
-            game: gameId ? { id: gameId } : undefined,
-          })
-          setLoading(false)
-          return
-        }
-        
-        // Find organization
-        let org = actorsDb.organizations?.find((o) => o.id === actorId)
-        if (!org) {
-          org = actorsDb.organizations?.find((o) => o.name === actorId)
-        }
-        if (org) {
-          setActorInfo({
-            id: org.id,
-            name: org.name,
-            description: org.description,
-            type: 'organization' as const,
-            role: 'Organization',
-          })
-          setLoading(false)
-          return
-        }
-        
-        // Not found
-        setActorInfo(null)
-        setLoading(false)
-      } catch (error) {
-        logger.error('Failed to load actor:', error, 'ActorProfilePage')
-        setActorInfo(null)
-        setLoading(false)
       }
+      
+      // Check if this is a user ID (starts with "did:privy:" or contains privy, or is the current user's ID)
+      const isUserId = actorId.startsWith('did:privy:') || 
+                      actorId.includes('privy') || 
+                      actorId.length > 42 ||
+                      (authenticated && user && (user.id === actorId || user.id === decodeURIComponent(identifier)))
+      
+      if (isUserId) {
+        // Load user profile from API by ID
+        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+        }
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+        
+        const response = await fetch(`/api/users/${encodeURIComponent(actorId)}/profile`, { headers })
+        if (response.ok) {
+          const data = await response.json()
+          if (data.user) {
+            const user = data.user
+            setActorInfo({
+              id: user.id,
+              name: user.displayName || user.username || 'User',
+              description: user.bio || '',
+              role: user.isActor ? 'Actor' : 'User',
+              type: user.isActor ? 'actor' : 'user' as const,
+              isUser: true,
+              username: user.username,
+              profileImageUrl: user.profileImageUrl,
+              coverImageUrl: user.coverImageUrl,
+              stats: user.stats,
+            })
+            
+            // Redirect to username-based URL if username exists
+            if (user.username && !isUsernameParam) {
+              const cleanUsername = user.username.startsWith('@') ? user.username.slice(1) : user.username
+              // Always redirect to username URL if we have one and we're on an ID-based URL
+              router.replace(`/profile/${cleanUsername}`)
+              return // Don't render, just redirect
+            }
+            
+            setLoading(false)
+            return
+          }
+        }
+      }
+      
+      // Try to load from actors.json (contains all actors)
+      const response = await fetch('/data/actors.json')
+      if (!response.ok) throw new Error('Failed to load actors')
+      
+      const actorsDb = await response.json() as { actors?: Actor[]; organizations?: Organization[] }
+      
+      // Find actor
+      let actor = actorsDb.actors?.find((a) => a.id === actorId)
+      if (!actor) {
+        actor = actorsDb.actors?.find((a) => a.name === actorId)
+      }
+      if (actor) {
+        // Find which game this actor belongs to
+        let gameId: string | null = null
+        for (const game of allGames) {
+          const allActors = [
+            ...(game.setup?.mainActors || []),
+            ...(game.setup?.supportingActors || []),
+            ...(game.setup?.extras || []),
+          ]
+          if (allActors.some(a => a.id === actorId)) {
+            gameId = game.id
+            break
+          }
+        }
+        
+        setActorInfo({
+          id: actor.id,
+          name: actor.name,
+          description: actor.description,
+          tier: actor.tier,
+          domain: actor.domain,
+          personality: actor.personality,
+          affiliations: actor.affiliations,
+          role: actor.role || actor.tier || 'Actor',
+          type: 'actor' as const,
+          game: gameId ? { id: gameId } : undefined,
+        })
+        setLoading(false)
+        return
+      }
+      
+      // Find organization
+      let org = actorsDb.organizations?.find((o) => o.id === actorId)
+      if (!org) {
+        org = actorsDb.organizations?.find((o) => o.name === actorId)
+      }
+      if (org) {
+        setActorInfo({
+          id: org.id,
+          name: org.name,
+          description: org.description,
+          type: 'organization' as const,
+          role: 'Organization',
+        })
+        setLoading(false)
+        return
+      }
+      
+      // Not found
+      setActorInfo(null)
+      setLoading(false)
     }
     
     loadActorInfo()
-  }, [actorId, allGames])
+  }, [actorId, allGames, authenticated, identifier, isOwnProfile, isUsernameParam, router, user])
 
   useEffect(() => {
     const loadPosts = async () => {
       if (!actorId) return
       
       setLoadingPosts(true)
-      try {
-        // If we have actorInfo with ID, use that; otherwise use actorId (could be username)
-        const searchId = actorInfo?.id || actorId
-        // Fetch posts from API by authorId
-        const response = await fetch(`/api/posts?actorId=${encodeURIComponent(searchId)}&limit=100`)
-        if (response.ok) {
-          const data = await response.json()
-          if (data.posts && Array.isArray(data.posts)) {
-            setApiPosts(data.posts)
-          }
+      // If we have actorInfo with ID, use that; otherwise use actorId (could be username)
+      const searchId = actorInfo?.id || actorId
+      // Fetch posts from API by authorId
+      const response = await fetch(`/api/posts?actorId=${encodeURIComponent(searchId)}&limit=100`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.posts && Array.isArray(data.posts)) {
+          setApiPosts(data.posts)
         }
-      } catch (error) {
-        logger.error('Failed to load posts from API:', error, 'ActorProfilePage')
-      } finally {
-        setLoadingPosts(false)
       }
+      setLoadingPosts(false)
     }
 
     // Load posts when actorInfo is available (has the correct ID)

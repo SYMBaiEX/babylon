@@ -95,69 +95,46 @@ export const marketAnalysisEvaluator: Evaluator = {
   ): Promise<void> => {
     const babylonService = runtime.getService<BabylonClientService>(
       BabylonClientService.serviceType,
-    );
-
-    if (!babylonService) {
-      runtime.logger.error("Babylon service not configured");
-      return;
-    }
+    )!;
 
     const client = babylonService.getClient();
 
     const analysisState = state as MarketAnalysisState;
-    try {
-      // Get market to analyze
-      const marketId =
-        analysisState?.marketId ||
-        (message.content as { metadata?: { marketId?: string } })?.metadata?.marketId;
-      const minConfidence = analysisState?.minConfidence || 0.6;
+    
+    const marketId =
+      analysisState?.marketId ||
+      (message.content as { metadata?: { marketId?: string } })?.metadata?.marketId;
+    const minConfidence = analysisState?.minConfidence || 0.6;
 
-      if (!marketId) {
-        // Analyze all active markets
-        const markets = await client.getActiveMarkets();
+    if (!marketId) {
+      const markets = await client.getActiveMarkets();
 
-        if (markets.length === 0) {
-          analysisState.analysis = null;
-          analysisState.error = "No active markets found";
-          return;
-        }
-
-        // Analyze each market and return top opportunities
-        const analyses: MarketAnalysis[] = [];
-
-        for (const market of markets) {
-          const analysis = await analyzeMarket(runtime, market);
-          if (analysis && analysis.confidence >= minConfidence) {
-            analyses.push(analysis);
-          }
-        }
-
-        // Sort by confidence and return top 3
-        analyses.sort((a, b) => b.confidence - a.confidence);
-
-        analysisState.analyses = analyses.slice(0, 3);
-        analysisState.marketCount = markets.length;
-      } else {
-        // Analyze specific market
-        const market = await client.getMarket(marketId);
-
-        if (!market) {
-          analysisState.analysis = null;
-          analysisState.error = `Market ${marketId} not found`;
-          return;
-        }
-
-        const analysis = await analyzeMarket(runtime, market);
-
-        analysisState.analysis = analysis;
-        analysisState.market = market;
+      if (markets.length === 0) {
+        analysisState.analysis = null;
+        analysisState.error = "No active markets found";
+        return;
       }
-    } catch (error) {
-      runtime.logger.error(
-        `Error in marketAnalysisEvaluator: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      analysisState.error =
-        error instanceof Error ? error.message : "Unknown error";
+
+      const analyses: MarketAnalysis[] = [];
+
+      for (const market of markets) {
+        const analysis = await analyzeMarket(runtime, market);
+        if (analysis && analysis.confidence >= minConfidence) {
+          analyses.push(analysis);
+        }
+      }
+
+      analyses.sort((a, b) => b.confidence - a.confidence);
+
+      analysisState.analyses = analyses.slice(0, 3);
+      analysisState.marketCount = markets.length;
+    } else {
+      const market = await client.getMarket(marketId);
+
+      const analysis = await analyzeMarket(runtime, market);
+
+      analysisState.analysis = analysis;
+      analysisState.market = market;
     }
   },
   examples: [
@@ -323,103 +300,77 @@ export const portfolioManagementEvaluator: Evaluator = {
   ): Promise<void> => {
     const babylonService = runtime.getService<BabylonClientService>(
       BabylonClientService.serviceType,
-    );
-
-    if (!babylonService) {
-      runtime.logger.error("Babylon service not configured");
-      return;
-    }
+    )!;
 
     const client = babylonService.getClient();
     const portfolioState = state as PortfolioManagementState;
 
-    try {
-      // Extract any specific focus from message (e.g., "show risk" or "check exposure")
-      const messageText = message.content.text?.toLowerCase() || "";
-      const focusOnRisk = messageText.includes("risk");
-      const focusOnPnL =
-        messageText.includes("profit") ||
-        messageText.includes("loss") ||
-        messageText.includes("pnl");
+    const messageText = message.content.text?.toLowerCase() || "";
+    const focusOnRisk = messageText.includes("risk");
+    const focusOnPnL =
+      messageText.includes("profit") ||
+      messageText.includes("loss") ||
+      messageText.includes("pnl");
 
-      // Get current positions
-      const positions = await client.getPositions();
-      const wallet = await client.getWallet();
+    const positions = await client.getPositions();
+    const wallet = await client.getWallet();
 
-      if (!wallet) {
-        portfolioState.error = "Unable to fetch wallet information";
-        return;
-      }
+    const totalPositionValue = positions.reduce(
+      (sum, p) => sum + p.currentValue,
+      0,
+    );
+    const totalPnL = positions.reduce((sum, p) => sum + p.pnl, 0);
+    const profitablePositions = positions.filter((p) => p.pnl > 0).length;
+    const losingPositions = positions.filter((p) => p.pnl < 0).length;
 
-      // Calculate portfolio metrics
-      const totalPositionValue = positions.reduce(
-        (sum, p) => sum + p.currentValue,
-        0,
+    const exposureRatio = totalPositionValue / (wallet.balance || 1);
+    const winRate =
+      positions.length > 0 ? profitablePositions / positions.length : 0;
+
+    const recommendations: string[] = [];
+
+    if (exposureRatio > 0.8) {
+      recommendations.push(
+        "⚠️ High exposure: Consider reducing position sizes",
       );
-      const totalPnL = positions.reduce((sum, p) => sum + p.pnl, 0);
-      const profitablePositions = positions.filter((p) => p.pnl > 0).length;
-      const losingPositions = positions.filter((p) => p.pnl < 0).length;
-
-      // Risk assessment
-      const exposureRatio = totalPositionValue / (wallet.balance || 1);
-      const winRate =
-        positions.length > 0 ? profitablePositions / positions.length : 0;
-
-      // Generate recommendations (prioritize based on user focus)
-      const recommendations: string[] = [];
-
-      // Risk-focused recommendations (prioritize if user asked about risk)
-      if (exposureRatio > 0.8) {
-        recommendations.push(
-          "⚠️ High exposure: Consider reducing position sizes",
-        );
-      }
-
-      if (losingPositions > profitablePositions && positions.length >= 3) {
-        recommendations.push(
-          "📉 More losers than winners: Review trading strategy",
-        );
-      }
-
-      // PnL-focused recommendations (prioritize if user asked about profit/loss)
-      if (totalPnL < -wallet.balance * 0.1) {
-        const priority = focusOnPnL ? "🚨🚨" : "🚨";
-        recommendations.push(
-          `${priority} Significant losses: Consider implementing stop-losses`,
-        );
-      }
-
-      if (positions.length === 0 && wallet.availableBalance > 50) {
-        recommendations.push(
-          "💡 No active positions: Consider opening new trades",
-        );
-      }
-
-      // Add risk summary if user focused on risk
-      if (focusOnRisk && exposureRatio > 0) {
-        recommendations.push(
-          `📊 Current risk level: ${(exposureRatio * 100).toFixed(1)}% of balance in positions`,
-        );
-      }
-
-      portfolioState.positions = positions;
-      portfolioState.wallet = wallet;
-      portfolioState.portfolioMetrics = {
-        totalPositionValue,
-        totalPnL,
-        profitablePositions,
-        losingPositions,
-        exposureRatio,
-        winRate,
-      };
-      portfolioState.recommendations = recommendations;
-    } catch (error) {
-      runtime.logger.error(
-        `Error in portfolioManagementEvaluator: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      portfolioState.error =
-        error instanceof Error ? error.message : "Unknown error";
     }
+
+    if (losingPositions > profitablePositions && positions.length >= 3) {
+      recommendations.push(
+        "📉 More losers than winners: Review trading strategy",
+      );
+    }
+
+    if (totalPnL < -wallet.balance * 0.1) {
+      const priority = focusOnPnL ? "🚨🚨" : "🚨";
+      recommendations.push(
+        `${priority} Significant losses: Consider implementing stop-losses`,
+      );
+    }
+
+    if (positions.length === 0 && wallet.availableBalance > 50) {
+      recommendations.push(
+        "💡 No active positions: Consider opening new trades",
+      );
+    }
+
+    if (focusOnRisk && exposureRatio > 0) {
+      recommendations.push(
+        `📊 Current risk level: ${(exposureRatio * 100).toFixed(1)}% of balance in positions`,
+      );
+    }
+
+    portfolioState.positions = positions;
+    portfolioState.wallet = wallet;
+    portfolioState.portfolioMetrics = {
+      totalPositionValue,
+      totalPnL,
+      profitablePositions,
+      losingPositions,
+      exposureRatio,
+      winRate,
+    };
+    portfolioState.recommendations = recommendations;
   },
   examples: [
     {

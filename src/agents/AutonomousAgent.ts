@@ -121,10 +121,8 @@ export class AutonomousAgent extends EventEmitter {
       }
     });
 
-    // Error handling
     this.a2aClient.on('error', (error) => {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`${this.config.name} error: ${errorMessage}`, { error }, 'AutonomousAgent');
+      logger.error(`${this.config.name} error: ${error.message}`, { error }, 'AutonomousAgent');
       this.emit('error', error);
     });
   }
@@ -133,13 +131,7 @@ export class AutonomousAgent extends EventEmitter {
    * Connect to the A2A server
    */
   async connect(): Promise<void> {
-    try {
-      await this.a2aClient.connect();
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`Failed to connect ${this.config.name}: ${errorMessage}`, { error: errorMessage }, 'AutonomousAgent');
-      throw error;
-    }
+    await this.a2aClient.connect();
   }
 
   /**
@@ -208,24 +200,14 @@ export class AutonomousAgent extends EventEmitter {
       targetMarket: invite.targetMarket
     }, 'AutonomousAgent');
 
-    // Simple acceptance logic based on strategy match
     const shouldJoin = this.config.strategies.includes(invite.strategy);
 
     if (shouldJoin) {
-      try {
-        const result = await this.a2aClient.joinCoalition(invite.coalitionId);
-        if (result.joined) {
-          this.coalitions.add(invite.coalitionId);
-          logger.info(`${this.config.name} joined coalition: ${invite.coalitionId}`, { coalitionId: invite.coalitionId }, 'AutonomousAgent');
-          this.emit('coalitionJoined', invite);
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error(`Failed to join coalition: ${errorMessage}`, { 
-          error: errorMessage,
-          coalitionId: invite.coalitionId,
-          strategy: invite.strategy
-        }, 'AutonomousAgent');
+      const result = await this.a2aClient.joinCoalition(invite.coalitionId);
+      if (result.joined) {
+        this.coalitions.add(invite.coalitionId);
+        logger.info(`${this.config.name} joined coalition: ${invite.coalitionId}`, { coalitionId: invite.coalitionId }, 'AutonomousAgent');
+        this.emit('coalitionJoined', invite);
       }
     }
   }
@@ -234,59 +216,46 @@ export class AutonomousAgent extends EventEmitter {
    * Analyze a question using LLM
    */
   private async analyzeQuestion(question: Question): Promise<void> {
-    try {
-      // Build analysis prompt based on agent personality and question
-      const prompt = this.buildAnalysisPrompt(question);
+    const prompt = this.buildAnalysisPrompt(question);
 
-      // Get LLM analysis using JSON output
-      interface AnalysisResponse {
-        prediction: boolean;
-        confidence: number;
-        reasoning: string;
-      }
-
-      const response = await this.llm.generateJSON<AnalysisResponse>(
-        prompt,
-        {
-          required: ['prediction', 'confidence', 'reasoning'],
-          properties: {
-            prediction: { type: 'boolean' },
-            confidence: { type: 'number' },
-            reasoning: { type: 'string' }
-          }
-        },
-        {
-          temperature: 0.7,
-          maxTokens: 500
-        }
-      );
-
-      // Create analysis result from JSON response
-      // Convert question.id to number for AgentAnalysisResult
-      const questionIdNumber = typeof question.id === 'number' ? question.id : parseInt(String(question.id), 10) || 0;
-      const analysis: AgentAnalysisResult = {
-        questionId: questionIdNumber,
-        prediction: response.prediction,
-        confidence: response.confidence,
-        reasoning: response.reasoning,
-        timestamp: Date.now()
-      };
-      // Store analysis
-      this.analyses.set(question.id, analysis);
-
-      // Share with other agents if confidence is high
-      if (analysis.confidence > 0.7) {
-        await this.shareAnalysis(analysis);
-      }
-
-      this.emit('analysisComplete', analysis);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`Analysis failed for question ${question.id}: ${errorMessage}`, { 
-        error: errorMessage,
-        questionId: String(question.id)
-      }, 'AutonomousAgent');
+    interface AnalysisResponse {
+      prediction: boolean;
+      confidence: number;
+      reasoning: string;
     }
+
+    const response = await this.llm.generateJSON<AnalysisResponse>(
+      prompt,
+      {
+        required: ['prediction', 'confidence', 'reasoning'],
+        properties: {
+          prediction: { type: 'boolean' },
+          confidence: { type: 'number' },
+          reasoning: { type: 'string' }
+        }
+      },
+      {
+        temperature: 0.7,
+        maxTokens: 500
+      }
+    );
+
+    const questionIdNumber = typeof question.id === 'number' ? question.id : parseInt(String(question.id), 10);
+    const analysis: AgentAnalysisResult = {
+      questionId: questionIdNumber,
+      prediction: response.prediction,
+      confidence: response.confidence,
+      reasoning: response.reasoning,
+      timestamp: Date.now()
+    };
+    
+    this.analyses.set(question.id, analysis);
+
+    if (analysis.confidence > 0.7) {
+      await this.shareAnalysis(analysis);
+    }
+
+    this.emit('analysisComplete', analysis);
   }
 
   /**
@@ -318,27 +287,18 @@ Be concise and analytical.`;
    * Share analysis with other agents via A2A
    */
   private async shareAnalysis(analysis: AgentAnalysisResult): Promise<void> {
-    try {
-      const marketAnalysis: MarketAnalysis = {
-        marketId: `question-${analysis.questionId}`,
-        analyst: this.a2aClient.getAgentId()!,
-        prediction: analysis.prediction ? 1 : 0,
-        confidence: analysis.confidence,
-        reasoning: analysis.reasoning,
-        dataPoints: {},
-        timestamp: analysis.timestamp
-      };
+    const marketAnalysis: MarketAnalysis = {
+      marketId: `question-${analysis.questionId}`,
+      analyst: this.a2aClient.getAgentId()!,
+      prediction: analysis.prediction ? 1 : 0,
+      confidence: analysis.confidence,
+      reasoning: analysis.reasoning,
+      dataPoints: {},
+      timestamp: analysis.timestamp
+    };
 
-      await this.a2aClient.shareAnalysis(marketAnalysis);
-      logger.info(`${this.config.name} shared analysis for question ${analysis.questionId}`, { questionId: analysis.questionId }, 'AutonomousAgent');
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`Failed to share analysis: ${errorMessage}`, { 
-        error: errorMessage,
-        questionId: analysis.questionId,
-        confidence: analysis.confidence
-      }, 'AutonomousAgent');
-    }
+    await this.a2aClient.shareAnalysis(marketAnalysis);
+    logger.info(`${this.config.name} shared analysis for question ${analysis.questionId}`, { questionId: analysis.questionId }, 'AutonomousAgent');
   }
 
   /**
@@ -349,34 +309,19 @@ Be concise and analytical.`;
     targetMarket: string,
     minMembers: number = 2,
     maxMembers: number = 5
-  ): Promise<string | null> {
-    if (!this.isConnected) {
-      logger.warn('Not connected to A2A server', undefined, 'AutonomousAgent');
-      return null;
-    }
+  ): Promise<string> {
+    const strategy = this.config.strategies[0]!;
+    const result = await this.a2aClient.proposeCoalition(
+      name,
+      targetMarket,
+      strategy,
+      minMembers,
+      maxMembers
+    );
 
-    try {
-      const strategy = this.config.strategies[0] || 'general';
-      const result = await this.a2aClient.proposeCoalition(
-        name,
-        targetMarket,
-        strategy,
-        minMembers,
-        maxMembers
-      );
-
-      this.coalitions.add(result.coalitionId);
-      logger.info(`${this.config.name} created coalition: ${name}`, { coalitionId: result.coalitionId, name }, 'AutonomousAgent');
-      return result.coalitionId;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`Failed to propose coalition: ${errorMessage}`, { 
-        error: errorMessage,
-        name,
-        targetMarket
-      }, 'AutonomousAgent');
-      return null;
-    }
+    this.coalitions.add(result.coalitionId);
+    logger.info(`${this.config.name} created coalition: ${name}`, { coalitionId: result.coalitionId, name }, 'AutonomousAgent');
+    return result.coalitionId;
   }
 
   /**

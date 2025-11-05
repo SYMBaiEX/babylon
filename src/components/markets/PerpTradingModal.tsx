@@ -5,7 +5,6 @@ import { X, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
-import { logger } from '@/lib/logger'
 
 interface PerpMarket {
   ticker: string
@@ -87,41 +86,35 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
 
     setLoading(true)
 
-    try {
-      const response = await fetch('/api/markets/perps/open', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
-        },
-        body: JSON.stringify({
-          ticker: market.ticker,
-          side,
-          size: sizeNum,
-          leverage,
-        }),
-      })
+    const response = await fetch('/api/markets/perps/open', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
+      },
+      body: JSON.stringify({
+        ticker: market.ticker,
+        side,
+        size: sizeNum,
+        leverage,
+      }),
+    })
 
-      const data = await response.json()
+    const data = await response.json()
 
-      if (!response.ok) {
-        toast.error(data.error || 'Failed to open position')
-        return
-      }
-
-      toast.success('Position opened!', {
-        description: `Opened ${leverage}x ${side} on ${market.ticker} at $${market.currentPrice.toFixed(2)}`,
-      })
-
-      onClose()
-      if (onSuccess) onSuccess()
-    } catch (openError) {
-      const errorMessage = openError instanceof Error ? openError.message : 'Failed to open position'
-      logger.error('Error opening position:', errorMessage, 'PerpTradingModal')
-      toast.error('Failed to open position')
-    } finally {
+    if (!response.ok) {
+      toast.error(data.error || 'Failed to open position')
       setLoading(false)
+      return
     }
+
+    toast.success('Position opened!', {
+      description: `Opened ${leverage}x ${side} on ${market.ticker} at $${market.currentPrice.toFixed(2)}`,
+    })
+
+    onClose()
+    if (onSuccess) onSuccess()
+    setLoading(false)
   }
 
   const formatPrice = (price: number) => {

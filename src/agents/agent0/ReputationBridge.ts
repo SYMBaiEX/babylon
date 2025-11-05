@@ -24,43 +24,22 @@ export class ReputationBridge implements IReputationBridge {
    * Get aggregated reputation from both ERC-8004 and Agent0
    */
   async getAggregatedReputation(tokenId: number): Promise<AggregatedReputation> {
-    try {
-      // Get reputation from both systems in parallel
-      const [local, agent0] = await Promise.all([
-        this.getLocalReputation(tokenId),
-        this.getAgent0Reputation(tokenId)
-      ])
-      
-      // Aggregate scores
-      return {
-        totalBets: local.totalBets + agent0.totalBets,
-        winningBets: local.winningBets + agent0.winningBets,
-        accuracyScore: this.calculateWeightedAccuracy(local, agent0),
-        trustScore: this.calculateTrustScore(local, agent0),
-        totalVolume: this.sumVolumes(local.totalVolume, agent0.totalVolume),
-        profitLoss: local.profitLoss + agent0.profitLoss,
-        isBanned: local.isBanned || agent0.isBanned,
-        sources: {
-          local: local.trustScore,
-          agent0: agent0.trustScore
-        }
-      }
-    } catch (error) {
-      logger.error(`Failed to get aggregated reputation for token ${tokenId}:`, error, 'ReputationBridge')
-      
-      // Return default reputation
-      return {
-        totalBets: 0,
-        winningBets: 0,
-        accuracyScore: 0,
-        trustScore: 0,
-        totalVolume: '0',
-        profitLoss: 0,
-        isBanned: false,
-        sources: {
-          local: 0,
-          agent0: 0
-        }
+    const [local, agent0] = await Promise.all([
+      this.getLocalReputation(tokenId),
+      this.getAgent0Reputation(tokenId)
+    ])
+    
+    return {
+      totalBets: local.totalBets + agent0.totalBets,
+      winningBets: local.winningBets + agent0.winningBets,
+      accuracyScore: this.calculateWeightedAccuracy(local, agent0),
+      trustScore: this.calculateTrustScore(local, agent0),
+      totalVolume: this.sumVolumes(local.totalVolume, agent0.totalVolume),
+      profitLoss: local.profitLoss + agent0.profitLoss,
+      isBanned: local.isBanned || agent0.isBanned,
+      sources: {
+        local: local.trustScore,
+        agent0: agent0.trustScore
       }
     }
   }
@@ -73,39 +52,29 @@ export class ReputationBridge implements IReputationBridge {
       return this.getDefaultReputation()
     }
     
-    try {
-      return await this.erc8004Registry.getAgentReputation(tokenId)
-    } catch (error) {
-      logger.warn(`Failed to get local reputation for token ${tokenId}:`, error, 'ReputationBridge')
-      return this.getDefaultReputation()
-    }
+    return await this.erc8004Registry.getAgentReputation(tokenId)
   }
   
   /**
    * Get reputation from Agent0 network
    */
   private async getAgent0Reputation(tokenId: number): Promise<AgentReputation> {
-    try {
-      const agent = await this.subgraphClient.getAgent(tokenId)
-      
-      if (!agent || !agent.reputation) {
-        return this.getDefaultReputation()
-      }
-      
-      const rep = agent.reputation
-      
-      return {
-        totalBets: rep.totalBets || 0,
-        winningBets: rep.winningBets || 0,
-        accuracyScore: (rep.accuracyScore || 0) / 100,  // Convert from 0-10000 to 0-1
-        trustScore: (rep.trustScore || 0) / 100,  // Convert from 0-10000 to 0-1
-        totalVolume: '0',  // Not available in Agent0
-        profitLoss: 0,  // Not available in Agent0
-        isBanned: false
-      }
-    } catch (error) {
-      logger.warn(`Failed to get Agent0 reputation for token ${tokenId}:`, error, 'ReputationBridge')
+    const agent = await this.subgraphClient.getAgent(tokenId)
+    
+    if (!agent || !agent.reputation) {
       return this.getDefaultReputation()
+    }
+    
+    const rep = agent.reputation
+    
+    return {
+      totalBets: rep.totalBets || 0,
+      winningBets: rep.winningBets || 0,
+      accuracyScore: (rep.accuracyScore || 0) / 100,
+      trustScore: (rep.trustScore || 0) / 100,
+      totalVolume: '0',
+      profitLoss: 0,
+      isBanned: false
     }
   }
   
@@ -166,13 +135,9 @@ export class ReputationBridge implements IReputationBridge {
    * Sum two volume strings (wei amounts)
    */
   private sumVolumes(volume1: string, volume2: string): string {
-    try {
-      const v1 = BigInt(volume1 || '0')
-      const v2 = BigInt(volume2 || '0')
-      return (v1 + v2).toString()
-    } catch {
-      return volume1 || volume2 || '0'
-    }
+    const v1 = BigInt(volume1 || '0')
+    const v2 = BigInt(volume2 || '0')
+    return (v1 + v2).toString()
   }
   
   /**
@@ -194,41 +159,28 @@ export class ReputationBridge implements IReputationBridge {
    * Sync local reputation to Agent0 network
    * This can be called periodically to keep both systems in sync
    */
-  async syncReputationToAgent0(tokenId: number, agent0Client?: { submitFeedback: (params: { targetAgentId: number; rating: number; comment: string }) => Promise<void> }): Promise<void> {
+  async syncReputationToAgent0(tokenId: number, agent0Client: { submitFeedback: (params: { targetAgentId: number; rating: number; comment: string }) => Promise<void> }): Promise<void> {
     logger.info(`Syncing reputation for token ${tokenId} to Agent0 network`, undefined, 'ReputationBridge')
     
-    try {
-      // Get local reputation
-      const localRep = await this.getLocalReputation(tokenId)
-      
-      // Only sync if agent has significant activity
-      if (localRep.totalBets === 0) {
-        logger.debug(`No local activity for token ${tokenId}, skipping sync`, undefined, 'ReputationBridge')
-        return
-      }
-      
-      // Convert local reputation to feedback format
-      // Map accuracy score (0-1) to rating (-5 to +5)
-      // 0.0 = -5, 0.5 = 0, 1.0 = +5
-      const rating = Math.round((localRep.accuracyScore - 0.5) * 10)
-      const clampedRating = Math.max(-5, Math.min(5, rating))
-      
-      const comment = `Local reputation sync: ${localRep.totalBets} bets, ${localRep.winningBets} wins, ${(localRep.accuracyScore * 100).toFixed(1)}% accuracy`
-      
-      if (agent0Client) {
-        await agent0Client.submitFeedback({
-          targetAgentId: tokenId,
-          rating: clampedRating,
-          comment
-        })
-        
-        logger.info(`✅ Synced reputation for token ${tokenId} to Agent0 network`, undefined, 'ReputationBridge')
-      } else {
-        logger.warn(`Agent0Client not available, cannot sync reputation for token ${tokenId}`, undefined, 'ReputationBridge')
-      }
-    } catch (error) {
-      logger.error(`Failed to sync reputation for token ${tokenId}:`, error, 'ReputationBridge')
+    const localRep = await this.getLocalReputation(tokenId)
+    
+    if (localRep.totalBets === 0) {
+      logger.debug(`No local activity for token ${tokenId}, skipping sync`, undefined, 'ReputationBridge')
+      return
     }
+    
+    const rating = Math.round((localRep.accuracyScore - 0.5) * 10)
+    const clampedRating = Math.max(-5, Math.min(5, rating))
+    
+    const comment = `Local reputation sync: ${localRep.totalBets} bets, ${localRep.winningBets} wins, ${(localRep.accuracyScore * 100).toFixed(1)}% accuracy`
+    
+    await agent0Client.submitFeedback({
+      targetAgentId: tokenId,
+      rating: clampedRating,
+      comment
+    })
+    
+    logger.info(`✅ Synced reputation for token ${tokenId} to Agent0 network`, undefined, 'ReputationBridge')
   }
 }
 

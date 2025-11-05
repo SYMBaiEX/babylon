@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { TrendingUp, TrendingDown, HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { logger } from '@/lib/logger'
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
 import { PositionDetailModal } from './PositionDetailModal'
 import type {
@@ -58,76 +57,71 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
         }
       }
 
-      try {
-        setLoading(true)
-        
-        // Fetch all data in parallel
-        const [balanceRes, positionsRes, poolsRes, profileRes] = await Promise.all([
-          fetch(`/api/users/${userId}/balance`),
-          fetch(`/api/markets/positions/${userId}`),
-          fetch(`/api/pools/deposits/${userId}`),
-          fetch(`/api/users/${userId}/profile`),
-        ])
+      setLoading(true)
+      
+      // Fetch all data in parallel
+      const [balanceRes, positionsRes, poolsRes, profileRes] = await Promise.all([
+        fetch(`/api/users/${encodeURIComponent(userId)}/balance`),
+        fetch(`/api/markets/positions/${encodeURIComponent(userId)}`),
+        fetch(`/api/pools/deposits/${encodeURIComponent(userId)}`),
+        fetch(`/api/users/${encodeURIComponent(userId)}/profile`),
+      ])
 
-        let balanceData: UserBalanceData | null = null
-        let predictionsData: PredictionPosition[] = []
-        let perpsData: PerpPositionFromAPI[] = []
-        let poolsData: ProfileWidgetPoolDeposit[] = []
-        let statsData: UserProfileStats | null = null
+      let balanceData: UserBalanceData | null = null
+      let predictionsData: PredictionPosition[] = []
+      let perpsData: PerpPositionFromAPI[] = []
+      let poolsData: ProfileWidgetPoolDeposit[] = []
+      let statsData: UserProfileStats | null = null
 
-        // Process balance
-        if (balanceRes.ok) {
-          const balanceJson = await balanceRes.json()
-          balanceData = {
-            balance: Number(balanceJson.balance || 0),
-            totalDeposited: Number(balanceJson.totalDeposited || 0),
-            totalWithdrawn: Number(balanceJson.totalWithdrawn || 0),
-            lifetimePnL: Number(balanceJson.lifetimePnL || 0),
-          }
-          setBalance(balanceData)
+      // Process balance
+      if (balanceRes.ok) {
+        const balanceJson = await balanceRes.json()
+        balanceData = {
+          balance: Number(balanceJson.balance || 0),
+          totalDeposited: Number(balanceJson.totalDeposited || 0),
+          totalWithdrawn: Number(balanceJson.totalWithdrawn || 0),
+          lifetimePnL: Number(balanceJson.lifetimePnL || 0),
         }
-
-        // Process positions
-        if (positionsRes.ok) {
-          const positionsJson = await positionsRes.json()
-          predictionsData = positionsJson.predictions?.positions || []
-          perpsData = positionsJson.perpetuals?.positions || []
-          setPredictions(predictionsData)
-          setPerps(perpsData)
-        }
-
-        // Process pools
-        if (poolsRes.ok) {
-          const poolsJson = await poolsRes.json()
-          poolsData = poolsJson.activeDeposits || []
-          setPools(poolsData)
-        }
-
-        // Process stats
-        if (profileRes.ok) {
-          const profileJson = await profileRes.json()
-          const userStats = profileJson.user?.stats || {}
-          statsData = {
-            following: userStats.following || 0,
-            followers: userStats.followers || 0,
-            totalActivity: (userStats.comments || 0) + (userStats.reactions || 0) + (userStats.positions || 0),
-          }
-          setStats(statsData)
-        }
-
-        // Cache all the data
-        setProfileWidget(userId, {
-          balance: balanceData,
-          predictions: predictionsData,
-          perps: perpsData,
-          pools: poolsData,
-          stats: statsData,
-        })
-      } catch (error) {
-        logger.error('Error fetching profile widget data:', error, 'ProfileWidget')
-      } finally {
-        setLoading(false)
+        setBalance(balanceData)
       }
+
+      // Process positions
+      if (positionsRes.ok) {
+        const positionsJson = await positionsRes.json()
+        predictionsData = positionsJson.predictions?.positions || []
+        perpsData = positionsJson.perpetuals?.positions || []
+        setPredictions(predictionsData)
+        setPerps(perpsData)
+      }
+
+      // Process pools
+      if (poolsRes.ok) {
+        const poolsJson = await poolsRes.json()
+        poolsData = poolsJson.activeDeposits || []
+        setPools(poolsData)
+      }
+
+      // Process stats
+      if (profileRes.ok) {
+        const profileJson = await profileRes.json()
+        const userStats = profileJson.user?.stats || {}
+        statsData = {
+          following: userStats.following || 0,
+          followers: userStats.followers || 0,
+          totalActivity: (userStats.comments || 0) + (userStats.reactions || 0) + (userStats.positions || 0),
+        }
+        setStats(statsData)
+      }
+
+      // Cache all the data
+      setProfileWidget(userId, {
+        balance: balanceData,
+        predictions: predictionsData,
+        perps: perpsData,
+        pools: poolsData,
+        stats: statsData,
+      })
+      setLoading(false)
     }
 
     fetchData()
@@ -392,35 +386,23 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
         type={modalType}
         data={selectedPosition}
         userId={userId}
-        onSuccess={() => {
-          // Refresh data after successful trade
-          const fetchData = async () => {
-            try {
-              const [balanceRes, positionsRes] = await Promise.all([
-                fetch(`/api/users/${userId}/balance`),
-                fetch(`/api/markets/positions/${userId}`),
-              ])
-              
-              if (balanceRes.ok) {
-                const balanceJson = await balanceRes.json()
-                setBalance({
-                  balance: Number(balanceJson.balance || 0),
-                  totalDeposited: Number(balanceJson.totalDeposited || 0),
-                  totalWithdrawn: Number(balanceJson.totalWithdrawn || 0),
-                  lifetimePnL: Number(balanceJson.lifetimePnL || 0),
-                })
-              }
-              
-              if (positionsRes.ok) {
-                const positionsJson = await positionsRes.json()
-                setPredictions(positionsJson.predictions?.positions || [])
-                setPerps(positionsJson.perpetuals?.positions || [])
-              }
-            } catch (error) {
-              logger.error('Error refreshing data:', error, 'ProfileWidget')
-            }
-          }
-          fetchData()
+        onSuccess={async () => {
+          const [balanceRes, positionsRes] = await Promise.all([
+            fetch(`/api/users/${encodeURIComponent(userId)}/balance`),
+            fetch(`/api/markets/positions/${encodeURIComponent(userId)}`),
+          ])
+          
+          const balanceJson = await balanceRes.json()
+          setBalance({
+            balance: Number(balanceJson.balance),
+            totalDeposited: Number(balanceJson.totalDeposited),
+            totalWithdrawn: Number(balanceJson.totalWithdrawn),
+            lifetimePnL: Number(balanceJson.lifetimePnL),
+          })
+          
+          const positionsJson = await positionsRes.json()
+          setPredictions(positionsJson.predictions.positions)
+          setPerps(positionsJson.perpetuals.positions)
         }}
       />
     </div>

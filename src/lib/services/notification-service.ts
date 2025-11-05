@@ -23,46 +23,32 @@ interface CreateNotificationParams {
  * Create a notification
  */
 export async function createNotification(params: CreateNotificationParams): Promise<void> {
-  try {
-    // Verify that the userId exists in the User table before creating notification
-    // This prevents foreign key constraint errors
-    const userExists = await prisma.user.findUnique({
-      where: { id: params.userId },
-      select: { id: true },
-    });
+  // Verify that the userId exists in the User table before creating notification
+  // This prevents foreign key constraint errors
+  const userExists = await prisma.user.findUnique({
+    where: { id: params.userId },
+    select: { id: true },
+  });
 
-    if (!userExists) {
-      logger.warn(
-        `Skipping notification creation: userId ${params.userId} does not exist in User table (may be an Actor)`,
-        undefined,
-        'NotificationService'
-      );
-      return;
-    }
-
-    await prisma.notification.create({
-      data: {
-        userId: params.userId,
-        type: params.type,
-        actorId: params.actorId,
-        postId: params.postId,
-        commentId: params.commentId,
-        message: params.message,
-      },
-    });
-  } catch (error) {
-    // Handle Prisma foreign key constraint errors gracefully
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2003') {
-      logger.warn(
-        `Foreign key constraint error creating notification for userId ${params.userId} (likely an Actor, not a User)`,
-        undefined,
-        'NotificationService'
-      );
-      return;
-    }
-    logger.error('Error creating notification:', error, 'NotificationService');
-    // Don't throw - notifications are non-critical
+  if (!userExists) {
+    logger.warn(
+      `Skipping notification creation: userId ${params.userId} does not exist in User table (may be an Actor)`,
+      undefined,
+      'NotificationService'
+    );
+    return;
   }
+
+  await prisma.notification.create({
+    data: {
+      userId: params.userId,
+      type: params.type,
+      actorId: params.actorId,
+      postId: params.postId,
+      commentId: params.commentId,
+      message: params.message,
+    },
+  });
 }
 
 /**

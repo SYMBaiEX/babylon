@@ -1,26 +1,25 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { LoginButton } from '@/components/auth/LoginButton'
+import { RewardsWidget } from '@/components/referrals/RewardsWidget'
+import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { Separator } from '@/components/shared/Separator'
 import { ShareButton } from '@/components/shared/ShareButton'
-import { Avatar } from '@/components/shared/Avatar'
-import { LoginButton } from '@/components/auth/LoginButton'
 import { useAuth } from '@/hooks/useAuth'
-import { useAuthStore } from '@/stores/authStore'
-import { 
-  Gift, 
-  Copy, 
-  Check, 
-  Users, 
-  TrendingUp, 
-  UserPlus,
-  ExternalLink,
-  Heart
-} from 'lucide-react'
-import { logger } from '@/lib/logger'
 import { getProfileUrl } from '@/lib/profile-utils'
-import { RewardsWidget } from '@/components/referrals/RewardsWidget'
+import { useAuthStore } from '@/stores/authStore'
+import {
+  Check,
+  Copy,
+  ExternalLink,
+  Gift,
+  Heart,
+  TrendingUp,
+  UserPlus,
+  Users
+} from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 interface ReferredUser {
   id: string
@@ -74,56 +73,43 @@ export default function ReferralsPage() {
   const fetchReferralData = async () => {
     if (!user?.id) return
 
-    try {
-      setLoading(true)
-      setError(null)
+    setLoading(true)
+    setError(null)
 
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      if (!token) {
-        setError('Authentication required')
-        return
-      }
-
-      const response = await fetch(`/api/users/${user.id}/referrals`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch referral data')
-      }
-
-      const data = await response.json()
-      setReferralData(data)
-    } catch (err) {
-      logger.error('Error fetching referral data:', err, 'ReferralsPage')
-      setError(err instanceof Error ? err.message : 'Failed to load referrals')
-    } finally {
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    if (!token) {
+      setError('Authentication required')
       setLoading(false)
+      return
     }
+
+    const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/referrals`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch referral data')
+    }
+
+    const data = await response.json()
+    setReferralData(data)
+    setLoading(false)
   }
 
   const handleCopyCode = async () => {
     if (!referralData?.user.referralCode) return
-    try {
-      await navigator.clipboard.writeText(referralData.user.referralCode)
-      setCopiedCode(true)
-      setTimeout(() => setCopiedCode(false), 2000)
-    } catch (error) {
-      logger.error('Error copying code:', error, 'ReferralsPage')
-    }
+    await navigator.clipboard.writeText(referralData.user.referralCode)
+    setCopiedCode(true)
+    setTimeout(() => setCopiedCode(false), 2000)
   }
 
   const handleCopyUrl = async () => {
     if (!referralData?.referralUrl) return
-    try {
-      await navigator.clipboard.writeText(referralData.referralUrl)
-      setCopiedUrl(true)
-      setTimeout(() => setCopiedUrl(false), 2000)
-    } catch (error) {
-      logger.error('Error copying URL:', error, 'ReferralsPage')
-    }
+    await navigator.clipboard.writeText(referralData.referralUrl)
+    setCopiedUrl(true)
+    setTimeout(() => setCopiedUrl(false), 2000)
   }
 
   return (

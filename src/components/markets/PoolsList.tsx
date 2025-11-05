@@ -49,16 +49,10 @@ export function PoolsList({ onPoolClick }: PoolsListProps) {
   }, [])
 
   const fetchPools = async () => {
-    try {
-      const res = await fetch('/api/pools')
-      const data = await res.json()
-      setPools(data.pools || [])
-    } catch {
-      // Silently handle error - UI shows empty state
-      setPools([])
-    } finally {
-      setLoading(false)
-    }
+    const res = await fetch('/api/pools')
+    const data = await res.json()
+    setPools(data.pools || [])
+    setLoading(false)
   }
 
   const sortedPools = [...pools].sort((a, b) => {

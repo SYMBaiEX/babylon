@@ -3,7 +3,7 @@
  * Includes: likes, comments, shares, and favorites
  */
 
-import type { JsonValue } from '@/types/common'
+import type { JsonValue } from '@/types/common';
 
 // ============================================================================
 // Post Interaction Types
@@ -304,7 +304,7 @@ export interface CommentButtonProps {
   className?: string;
 }
 
-export interface ShareButtonProps {
+export interface RepostButtonProps {
   postId: string;
   shareCount: number;
   initialShared?: boolean;

@@ -1,15 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { useTheme } from 'next-themes'
-import { ArrowLeft, User, Bell, Palette, Shield, Save } from 'lucide-react'
+import { LoginButton } from '@/components/auth/LoginButton'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { useAuth } from '@/hooks/useAuth'
-import { useAuthStore } from '@/stores/authStore'
 import { cn } from '@/lib/utils'
-import { LoginButton } from '@/components/auth/LoginButton'
-import { logger } from '@/lib/logger'
+import { useAuthStore } from '@/stores/authStore'
+import { ArrowLeft, Bell, Palette, Save, Shield, User } from 'lucide-react'
+import { useTheme } from 'next-themes'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -74,52 +73,46 @@ export default function SettingsPage() {
     setSaving(true)
     setSaved(false)
     
-    try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      }
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
-      }
-
-      const response = await fetch(`/api/users/${user.id}/update-profile`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          displayName,
-          username,
-          bio,
-        }),
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to save settings')
-      }
-
-      const data = await response.json()
-      
-      // Update user in store
-      if (data.user && user) {
-        setUser({
-          ...user,
-          username: data.user.username,
-          displayName: data.user.displayName,
-          bio: data.user.bio,
-          usernameChangedAt: data.user.usernameChangedAt,
-          referralCode: data.user.referralCode, // Update referral code if username changed
-        })
-      }
-
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-    } catch (error) {
-      // Error handling - could show toast here
-      logger.error('Failed to save settings:', error, 'SettingsPage')
-    } finally {
-      setSaving(false)
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
     }
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
+    const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/update-profile`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        displayName,
+        username,
+        bio,
+      }),
+    })
+
+    if (!response.ok) {
+      const data = await response.json()
+      throw new Error(data.error || 'Failed to save settings')
+    }
+
+    const data = await response.json()
+    
+    // Update user in store
+    if (data.user && user) {
+      setUser({
+        ...user,
+        username: data.user.username,
+        displayName: data.user.displayName,
+        bio: data.user.bio,
+        usernameChangedAt: data.user.usernameChangedAt,
+        referralCode: data.user.referralCode, // Update referral code if username changed
+      })
+    }
+
+    setSaved(true)
+    setTimeout(() => setSaved(false), 3000)
+    setSaving(false)
   }
 
   if (!ready) {

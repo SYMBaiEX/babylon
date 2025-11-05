@@ -5,7 +5,6 @@ import { X, TrendingUp, TrendingDown, Clock, CheckCircle, XCircle, AlertTriangle
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
-import { logger } from '@/lib/logger'
 import { FollowButton } from '@/components/interactions'
 import { PredictionPricing, calculateExpectedPayout } from '@/lib/prediction-pricing'
 import type { PredictionPosition, PerpPositionFromAPI, ProfileWidgetPoolDeposit } from '@/types/profile'
@@ -67,31 +66,23 @@ export function PositionDetailModal({ isOpen, onClose, type, data, userId, onSuc
   }, [isOpen, type, data])
 
   const fetchPerpMarket = async (ticker: string) => {
-    try {
-      const response = await fetch('/api/markets/perps')
-      if (response.ok) {
-        const data = await response.json()
-        const market = data.markets?.find((m: PerpMarket) => m.ticker === ticker)
-        if (market) {
-          setPerpMarket(market)
-          setSide(market.ticker ? 'long' : 'long')
-        }
+    const response = await fetch('/api/markets/perps')
+    if (response.ok) {
+      const data = await response.json()
+      const market = data.markets?.find((m: PerpMarket) => m.ticker === ticker)
+      if (market) {
+        setPerpMarket(market)
+        setSide(market.ticker ? 'long' : 'long')
       }
-    } catch (error) {
-      logger.error('Error fetching perp market:', error, 'PositionDetailModal')
     }
   }
 
   const fetchPredictionMarket = async (marketId: string) => {
-    try {
-      const response = await fetch(`/api/markets/predictions/${marketId}`)
-      if (response.ok) {
-        const data = await response.json()
-        setPredictionMarket(data)
-        setSide('yes')
-      }
-    } catch (error) {
-      logger.error('Error fetching prediction market:', error, 'PositionDetailModal')
+    const response = await fetch(`/api/markets/predictions/${marketId}`)
+    if (response.ok) {
+      const data = await response.json()
+      setPredictionMarket(data)
+      setSide('yes')
     }
   }
 
@@ -105,36 +96,31 @@ export function PositionDetailModal({ isOpen, onClose, type, data, userId, onSuc
     }
 
     setLoading(true)
-    try {
-      const response = await fetch('/api/markets/perps/open', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
-        },
-        body: JSON.stringify({
-          ticker: perpMarket.ticker,
-          side,
-          size: sizeNum,
-          leverage,
-        }),
-      })
+    const response = await fetch('/api/markets/perps/open', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
+      },
+      body: JSON.stringify({
+        ticker: perpMarket.ticker,
+        side,
+        size: sizeNum,
+        leverage,
+      }),
+    })
 
-      const responseData = await response.json()
-      if (!response.ok) {
-        toast.error(responseData.error || 'Failed to open position')
-        return
-      }
-
-      toast.success('Position opened!')
-      onClose()
-      if (onSuccess) onSuccess()
-    } catch (error) {
-      logger.error('Error opening position:', error, 'PositionDetailModal')
-      toast.error('Failed to open position')
-    } finally {
+    const responseData = await response.json()
+    if (!response.ok) {
+      toast.error(responseData.error || 'Failed to open position')
       setLoading(false)
+      return
     }
+
+    toast.success('Position opened!')
+    onClose()
+    if (onSuccess) onSuccess()
+    setLoading(false)
   }
 
   const handlePredictionTrade = async () => {
@@ -147,40 +133,36 @@ export function PositionDetailModal({ isOpen, onClose, type, data, userId, onSuc
     }
 
     setLoading(true)
-    try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      if (!token) {
-        toast.error('Authentication required')
-        return
-      }
-
-      const response = await fetch(`/api/markets/predictions/${predictionMarket.id}/buy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          side,
-          amount: amountNum,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to buy shares' }))
-        toast.error(errorData.error || 'Failed to buy shares')
-        return
-      }
-
-      toast.success(`Bought ${side.toUpperCase()} shares!`)
-      onClose()
-      if (onSuccess) onSuccess()
-    } catch (error) {
-      logger.error('Error buying shares:', error, 'PositionDetailModal')
-      toast.error('Failed to buy shares')
-    } finally {
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    if (!token) {
+      toast.error('Authentication required')
       setLoading(false)
+      return
     }
+
+    const response = await fetch(`/api/markets/predictions/${predictionMarket.id}/buy`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        side,
+        amount: amountNum,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Failed to buy shares' }))
+      toast.error(errorData.error || 'Failed to buy shares')
+      setLoading(false)
+      return
+    }
+
+    toast.success(`Bought ${side.toUpperCase()} shares!`)
+    onClose()
+    if (onSuccess) onSuccess()
+    setLoading(false)
   }
 
   if (!isOpen || !data) return null

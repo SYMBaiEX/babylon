@@ -1,13 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import Link from 'next/link'
+import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { RankBadge, RankNumber } from '@/components/shared/RankBadge'
-import { Avatar } from '@/components/shared/Avatar'
-import { Trophy, ChevronLeft, ChevronRight, Users, TrendingUp } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { logger } from '@/lib/logger'
+import { ChevronLeft, ChevronRight, TrendingUp, Trophy, Users } from 'lucide-react'
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
 
 interface LeaderboardUser {
   id: string
@@ -45,26 +44,20 @@ export default function LeaderboardPage() {
   // Fetch leaderboard data
   useEffect(() => {
     async function fetchLeaderboard() {
-      try {
-        setLoading(true)
-        setError(null)
+      setLoading(true)
+      setError(null)
 
-        const response = await fetch(
-          `/api/leaderboard?page=${currentPage}&pageSize=${pageSize}&minPoints=${minPoints}`
-        )
+      const response = await fetch(
+        `/api/leaderboard?page=${currentPage}&pageSize=${pageSize}&minPoints=${minPoints}`
+      )
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch leaderboard')
-        }
-
-        const data = await response.json()
-        setLeaderboardData(data)
-      } catch (err) {
-        logger.error('Error fetching leaderboard:', err, 'LeaderboardPage')
-        setError(err instanceof Error ? err.message : 'Failed to load leaderboard')
-      } finally {
-        setLoading(false)
+      if (!response.ok) {
+        throw new Error('Failed to fetch leaderboard')
       }
+
+      const data = await response.json()
+      setLeaderboardData(data)
+      setLoading(false)
     }
 
     fetchLeaderboard()

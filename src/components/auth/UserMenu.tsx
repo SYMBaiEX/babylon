@@ -1,12 +1,11 @@
 'use client'
 
+import { Avatar } from '@/components/shared/Avatar'
+import { Dropdown, DropdownItem } from '@/components/shared/Dropdown'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
-import { Dropdown, DropdownItem } from '@/components/shared/Dropdown'
-import { LogOut, Copy, Check } from 'lucide-react'
-import { Avatar } from '@/components/shared/Avatar'
-import { useState, useEffect } from 'react'
-import { logger } from '@/lib/logger'
+import { Check, Copy, LogOut } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 export function UserMenu() {
   const { logout } = useAuth()
@@ -23,33 +22,29 @@ export function UserMenu() {
         return
       }
 
-      try {
-        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-        const headers: HeadersInit = {
-          'Content-Type': 'application/json',
-        }
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`
-        }
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
 
-        // Fetch points
-        const balanceResponse = await fetch(`/api/users/${user.id}/balance`, { headers })
-        if (balanceResponse.ok) {
-          const data = await balanceResponse.json()
-          setPointsData({
-            available: Number(data.balance || 0),
-            total: Number(data.totalDeposited || 0),
-          })
-        }
+      // Fetch points
+      const balanceResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/balance`, { headers })
+      if (balanceResponse.ok) {
+        const data = await balanceResponse.json()
+        setPointsData({
+          available: Number(data.balance || 0),
+          total: Number(data.totalDeposited || 0),
+        })
+      }
 
-        // Fetch referral code
-        const referralResponse = await fetch(`/api/users/${user.id}/referrals`, { headers })
-        if (referralResponse.ok) {
-          const data = await referralResponse.json()
-          setReferralCode(data.user?.referralCode || null)
-        }
-      } catch (error) {
-        logger.error('Error fetching user data:', error, 'UserMenu')
+      // Fetch referral code
+      const referralResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/referrals`, { headers })
+      if (referralResponse.ok) {
+        const data = await referralResponse.json()
+        setReferralCode(data.user?.referralCode || null)
       }
     }
 
@@ -60,15 +55,11 @@ export function UserMenu() {
 
   const handleCopyReferralCode = async () => {
     if (!referralCode) return
-    try {
-      // Create full referral URL
-      const referralUrl = `${window.location.origin}?ref=${referralCode}`
-      await navigator.clipboard.writeText(referralUrl)
-      setCopiedCode(true)
-      setTimeout(() => setCopiedCode(false), 2000)
-    } catch (error) {
-      logger.error('Error copying referral code:', error, 'UserMenu')
-    }
+    // Create full referral URL
+    const referralUrl = `${window.location.origin}?ref=${referralCode}`
+    await navigator.clipboard.writeText(referralUrl)
+    setCopiedCode(true)
+    setTimeout(() => setCopiedCode(false), 2000)
   }
 
   if (!user) {

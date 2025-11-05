@@ -3,7 +3,6 @@
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { useAuth } from '@/hooks/useAuth'
-import { logger } from '@/lib/logger'
 import { PredictionPricing, calculateExpectedPayout } from '@/lib/prediction-pricing'
 import { cn } from '@/lib/utils'
 import { ArrowLeft, CheckCircle, Clock, Info, TrendingUp, Users, XCircle } from 'lucide-react'
@@ -67,48 +66,42 @@ export default function PredictionDetailPage() {
   const [userPosition, setUserPosition] = useState<PredictionPosition | null>(null)
 
   const fetchMarketData = useCallback(async () => {
-    try {
-      const userId = authenticated && user?.id ? `?userId=${user.id}` : ''
-      const response = await fetch(`/api/markets/predictions${userId}`)
-      const data = await response.json()
-      const foundMarket = data.questions?.find((q: PredictionMarket) => 
-        q.id.toString() === marketId
-      )
-      
-      if (!foundMarket) {
-        toast.error('Market not found')
-        router.push('/markets')
-        return
-      }
-
-      setMarket(foundMarket)
-      setUserPosition(foundMarket.userPosition as PredictionPosition | null)
-
-      // Generate mock price history (you'll want to replace this with real data)
-      const now = Date.now()
-      const history: PricePoint[] = []
-      const yesShares = foundMarket.yesShares || 500
-      const noShares = foundMarket.noShares || 500
-      
-      for (let i = 100; i >= 0; i--) {
-        const time = now - (i * 60 * 60 * 1000) // 1 hour intervals
-        // Simulate some price movement
-        const variation = Math.sin(i / 10) * 0.1 + (Math.random() - 0.5) * 0.05
-        const totalShares = yesShares + noShares
-        const basePrice = totalShares === 0 ? 0.5 : yesShares / totalShares
-        const yesPrice = Math.max(0.1, Math.min(0.9, basePrice + variation))
-        const noPrice = 1 - yesPrice
-        const volume = Math.random() * 100
-        history.push({ time, yesPrice, noPrice, volume })
-      }
-      
-      setPriceHistory(history)
-    } catch (error) {
-      logger.error('Error fetching market data:', error, 'PredictionDetailPage')
-      toast.error('Failed to load market data')
-    } finally {
-      setLoading(false)
+    const userId = authenticated && user?.id ? `?userId=${user.id}` : ''
+    const response = await fetch(`/api/markets/predictions${userId}`)
+    const data = await response.json()
+    const foundMarket = data.questions?.find((q: PredictionMarket) => 
+      q.id.toString() === marketId
+    )
+    
+    if (!foundMarket) {
+      toast.error('Market not found')
+      router.push('/markets')
+      return
     }
+
+    setMarket(foundMarket)
+    setUserPosition(foundMarket.userPosition as PredictionPosition | null)
+
+    // Generate mock price history (you'll want to replace this with real data)
+    const now = Date.now()
+    const history: PricePoint[] = []
+    const yesShares = foundMarket.yesShares || 500
+    const noShares = foundMarket.noShares || 500
+    
+    for (let i = 100; i >= 0; i--) {
+      const time = now - (i * 60 * 60 * 1000) // 1 hour intervals
+      // Simulate some price movement
+      const variation = Math.sin(i / 10) * 0.1 + (Math.random() - 0.5) * 0.05
+      const totalShares = yesShares + noShares
+      const basePrice = totalShares === 0 ? 0.5 : yesShares / totalShares
+      const yesPrice = Math.max(0.1, Math.min(0.9, basePrice + variation))
+      const noPrice = 1 - yesPrice
+      const volume = Math.random() * 100
+      history.push({ time, yesPrice, noPrice, volume })
+    }
+    
+    setPriceHistory(history)
+    setLoading(false)
   }, [marketId, router, authenticated, user?.id])
 
   useEffect(() => {
@@ -131,58 +124,41 @@ export default function PredictionDetailPage() {
 
     setSubmitting(true)
 
-    try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      if (!token) {
-        toast.error('Authentication required. Please log in.')
-        return
-      }
-
-      const response = await fetch(`/api/markets/predictions/${market.id}/buy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          side,
-          amount: amountNum,
-        }),
-      })
-
-      if (!response.ok) {
-        let errorMessage = 'Failed to buy shares'
-        try {
-          const contentType = response.headers.get('content-type')
-          if (contentType && contentType.includes('application/json')) {
-            const data = await response.json()
-            errorMessage = data.error || data.message || `HTTP ${response.status}: ${response.statusText}`
-          } else {
-            errorMessage = `HTTP ${response.status}: ${response.statusText}`
-          }
-        } catch {
-          // Use default error message
-        }
-        toast.error(errorMessage)
-        return
-      }
-
-      const data = await response.json()
-      const calculation = data.calculation
-
-      toast.success(`Bought ${side.toUpperCase()} shares!`, {
-        description: `${calculation?.sharesBought?.toFixed(2) || ''} shares at ${(calculation?.avgPrice || 0).toFixed(3)} each`,
-      })
-
-      // Refresh data
-      await fetchMarketData()
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to buy shares'
-      logger.error('Error buying shares:', errorMessage, 'PredictionDetailPage')
-      toast.error('Failed to buy shares')
-    } finally {
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    if (!token) {
+      toast.error('Authentication required. Please log in.')
       setSubmitting(false)
+      return
     }
+
+    const response = await fetch(`/api/markets/predictions/${market.id}/buy`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        side,
+        amount: amountNum,
+      }),
+    })
+
+    const data = await response.json()
+    
+    if (!response.ok) {
+      toast.error(data.error || data.message || 'Failed to buy shares')
+      setSubmitting(false)
+      return
+    }
+    const calculation = data.calculation
+
+    toast.success(`Bought ${side.toUpperCase()} shares!`, {
+      description: `${calculation?.sharesBought?.toFixed(2) || ''} shares at ${(calculation?.avgPrice || 0).toFixed(3)} each`,
+    })
+
+    // Refresh data
+    await fetchMarketData()
+    setSubmitting(false)
   }
 
   const formatPrice = (price: number) => {

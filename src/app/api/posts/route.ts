@@ -43,14 +43,13 @@ function toISOStringSafe(date: Date | string | null | undefined): string {
 }
 
 export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '100');
-    const offset = parseInt(searchParams.get('offset') || '0');
-    const actorId = searchParams.get('actorId') || undefined;
-    const type = searchParams.get('type') || undefined; // Filter by post type: "post" or "article"
-    const following = searchParams.get('following') === 'true';
-    const userId = searchParams.get('userId') || undefined; // For following feed, need userId
+  const { searchParams } = new URL(request.url);
+  const limit = parseInt(searchParams.get('limit') || '100');
+  const offset = parseInt(searchParams.get('offset') || '0');
+  const actorId = searchParams.get('actorId') || undefined;
+  const type = searchParams.get('type') || undefined;
+  const following = searchParams.get('following') === 'true';
+  const userId = searchParams.get('userId') || undefined;
 
     // If following feed is requested, filter by followed users/actors
     if (following && userId) {
@@ -180,22 +179,6 @@ export async function GET(request: Request) {
     
     logger.info('Fetched posts', { count: posts.length, limit, offset, actorId, type }, 'GET /api/posts');
     
-    // Log post structure for debugging
-    if (posts.length > 0) {
-      const samplePost = posts[0];
-      if (samplePost) {
-        logger.debug('Sample post structure', {
-          id: samplePost.id,
-          hasTimestamp: !!samplePost.timestamp,
-          timestampType: typeof samplePost.timestamp,
-          timestampValue: samplePost.timestamp,
-          hasCreatedAt: !!samplePost.createdAt,
-          createdAtType: typeof samplePost.createdAt,
-          createdAtValue: samplePost.createdAt,
-        }, 'GET /api/posts');
-      }
-    }
-    
     // Get unique author IDs to fetch user/organization data
     const authorIds = [...new Set(posts.map(p => p.authorId))];
     
@@ -241,130 +224,88 @@ export async function GET(request: Request) {
     
     // Format posts to match FeedPost interface
     const formattedPosts = posts.map((post) => {
-      try {
-        // Validate post structure
-        if (!post || !post.id) {
-          logger.warn('Invalid post structure detected', { post }, 'GET /api/posts');
-          return null;
-        }
-        
-        const user = userMap.get(post.authorId);
-        const org = orgMap.get(post.authorId);
-        
-        // Safely convert dates with null checks
-        const timestamp = toISOStringSafe(post.timestamp);
-        const createdAt = toISOStringSafe(post.createdAt);
-        
-        // Determine author name (organization or user)
-        const authorName = org?.name || user?.displayName || user?.username || post.authorId || 'Unknown';
-        
-        return {
-          id: post.id,
-          type: post.type,
-          content: post.content || '',
-          fullContent: post.fullContent || null,
-          articleTitle: post.articleTitle || null,
-          byline: post.byline || null,
-          biasScore: post.biasScore !== undefined ? post.biasScore : null,
-          sentiment: post.sentiment || null,
-          slant: post.slant || null,
-          category: post.category || null,
-          author: post.authorId, // Use authorId as author
-          authorId: post.authorId,
-          authorName,
-          authorUsername: user?.username || null,
-          authorProfileImageUrl: user?.profileImageUrl || null,
-          timestamp,
-          createdAt,
-          gameId: post.gameId || undefined,
-          dayNumber: post.dayNumber || undefined,
-          likeCount: reactionMap.get(post.id) ?? 0,
-          commentCount: commentMap.get(post.id) ?? 0,
-          shareCount: shareMap.get(post.id) ?? 0,
-          isLiked: false, // Will be updated by interaction store polling
-          isShared: false, // Will be updated by interaction store polling
-        };
-      } catch (error) {
-        logger.error('Error formatting post', { error, postId: post?.id, post }, 'GET /api/posts');
-        return null;
-      }
-    }).filter((post): post is NonNullable<typeof post> => post !== null);
-    
-    logger.info('Formatted posts', { 
-      originalCount: posts.length, 
-      formattedCount: formattedPosts.length,
-      filteredOut: posts.length - formattedPosts.length 
-    }, 'GET /api/posts');
-    
-    // Next.js 16: Add cache headers for real-time feeds
-    // Use 'no-store' to ensure fresh data for real-time updates
-    // This prevents stale data in client-side caches
-    logger.info('Returning formatted posts', { 
-      postCount: formattedPosts.length,
-      total: formattedPosts.length,
-      limit,
-      offset 
-    }, 'GET /api/posts');
-    
-    const response = NextResponse.json({
-      success: true,
-      posts: formattedPosts,
-      total: formattedPosts.length,
-      limit,
-      offset,
+      const user = userMap.get(post.authorId);
+      const org = orgMap.get(post.authorId);
+      
+      const timestamp = toISOStringSafe(post.timestamp);
+      const createdAt = toISOStringSafe(post.createdAt);
+      
+      const authorName = org?.name || user?.displayName || user?.username || post.authorId;
+      
+      return {
+        id: post.id,
+        type: post.type,
+        content: post.content,
+        fullContent: post.fullContent,
+        articleTitle: post.articleTitle,
+        byline: post.byline,
+        biasScore: post.biasScore,
+        sentiment: post.sentiment,
+        slant: post.slant,
+        category: post.category,
+        author: post.authorId,
+        authorId: post.authorId,
+        authorName,
+        authorUsername: user?.username || null,
+        authorProfileImageUrl: user?.profileImageUrl || null,
+        timestamp,
+        createdAt,
+        gameId: post.gameId,
+        dayNumber: post.dayNumber,
+        likeCount: reactionMap.get(post.id) ?? 0,
+        commentCount: commentMap.get(post.id) ?? 0,
+        shareCount: shareMap.get(post.id) ?? 0,
+        isLiked: false,
+        isShared: false,
+      };
     });
     
-    // Real-time feeds should not be cached (no-store)
-    // This ensures WebSocket updates reflect immediately
-    response.headers.set('Cache-Control', 'no-store, must-revalidate');
-    
-    return response;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    
-    logger.error('API Error in GET /api/posts', {
-      error: errorMessage,
-      stack: errorStack,
-      errorType: error?.constructor?.name,
-      errorString: String(error),
-    }, 'GET /api/posts');
-    
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to load posts',
-        message: process.env.NODE_ENV === 'development' ? errorMessage : undefined
-      },
-      { status: 500 }
-    );
-  }
+  const response = NextResponse.json({
+    success: true,
+    posts: formattedPosts,
+    total: formattedPosts.length,
+    limit,
+    offset,
+  });
+  
+  response.headers.set('Cache-Control', 'no-store, must-revalidate');
+  
+  return response;
 }
 
 /**
  * POST /api/posts - Create a new post
  */
 export async function POST(request: NextRequest) {
-  try {
-    // Authenticate user
-    const authUser = await authenticate(request);
+  const authUser = await authenticate(request);
 
-    // Parse request body
-    const body = await request.json();
-    const { content } = body;
+  const body = await request.json();
+  const { content } = body;
 
-    // Validate input
-    if (!content || typeof content !== 'string' || content.trim().length === 0) {
-      return errorResponse('Post content is required', 400);
-    }
+  if (!content || typeof content !== 'string' || content.trim().length === 0) {
+    return errorResponse('Post content is required', 400);
+  }
 
-    if (content.length > 280) {
-      return errorResponse('Post content must be 280 characters or less', 400);
-    }
+  if (content.length > 280) {
+    return errorResponse('Post content must be 280 characters or less', 400);
+  }
 
-    // Ensure user exists in database and fetch with username/displayName
-    let dbUser = await prisma.user.findUnique({
-      where: { id: authUser.userId },
+  let dbUser = await prisma.user.findUnique({
+    where: { id: authUser.userId },
+    select: {
+      id: true,
+      username: true,
+      displayName: true,
+      profileImageUrl: true,
+    },
+  });
+
+  if (!dbUser) {
+    dbUser = await prisma.user.create({
+      data: {
+        id: authUser.userId,
+        isActor: false,
+      },
       select: {
         id: true,
         username: true,
@@ -372,95 +313,58 @@ export async function POST(request: NextRequest) {
         profileImageUrl: true,
       },
     });
-
-    if (!dbUser) {
-      // Create user if they don't exist yet
-      dbUser = await prisma.user.create({
-        data: {
-          id: authUser.userId,
-          isActor: false,
-        },
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-          profileImageUrl: true,
-        },
-      });
-    }
-
-    // Create post
-    const post = await prisma.post.create({
-      data: {
-        id: uuidv4(),
-        content: content.trim(),
-        authorId: authUser.userId,
-        timestamp: new Date(),
-      },
-      include: {
-        comments: false,
-        reactions: false,
-        shares: false,
-      },
-    });
-
-    // Determine author name for display (prefer username or displayName, fallback to generated name)
-    const authorName = dbUser.username || dbUser.displayName || `user_${authUser.userId.slice(0, 8)}`;
-
-    // Generate and store tags asynchronously (don't block response)
-    void (async () => {
-      try {
-        const tags = await generateTagsFromPost(post.content);
-        if (tags.length > 0) {
-          await storeTagsForPost(post.id, tags);
-        }
-      } catch (error) {
-        logger.error('Failed to generate/store tags for post:', error, 'POST /api/posts');
-      }
-    })();
-
-    // Broadcast new post to SSE feed channel for real-time updates
-    try {
-      broadcastToChannel('feed', {
-        type: 'new_post',
-        post: {
-          id: post.id,
-          content: post.content,
-          authorId: post.authorId,
-          authorName: authorName,
-          authorUsername: dbUser.username,
-          authorDisplayName: dbUser.displayName,
-          authorProfileImageUrl: dbUser.profileImageUrl,
-          timestamp: post.timestamp.toISOString(),
-        },
-      });
-      logger.info('Broadcast new user post to feed channel', { postId: post.id }, 'POST /api/posts');
-    } catch (error) {
-      logger.error('Failed to broadcast post to SSE:', error, 'POST /api/posts');
-      // Don't fail the request if SSE broadcast fails
-    }
-
-    return successResponse({
-      success: true,
-      post: {
-        id: post.id,
-        content: post.content,
-        authorId: post.authorId,
-        authorName: authorName,
-        authorUsername: dbUser.username,
-        authorDisplayName: dbUser.displayName,
-        authorProfileImageUrl: dbUser.profileImageUrl,
-        timestamp: post.timestamp.toISOString(),
-        createdAt: post.createdAt.toISOString(),
-      },
-    });
-  } catch (error) {
-    logger.error('Error creating post:', error, 'POST /api/posts');
-    
-    if (error instanceof Error && error.message === 'Authentication failed') {
-      return errorResponse('Authentication required', 401);
-    }
-    
-    return errorResponse('Failed to create post', 500);
   }
+
+  const post = await prisma.post.create({
+    data: {
+      id: uuidv4(),
+      content: content.trim(),
+      authorId: authUser.userId,
+      timestamp: new Date(),
+    },
+    include: {
+      comments: false,
+      reactions: false,
+      shares: false,
+    },
+  });
+
+  const authorName = dbUser.username || dbUser.displayName || `user_${authUser.userId.slice(0, 8)}`;
+
+  void (async () => {
+    const tags = await generateTagsFromPost(post.content);
+    if (tags.length > 0) {
+      await storeTagsForPost(post.id, tags);
+    }
+  })();
+
+  broadcastToChannel('feed', {
+    type: 'new_post',
+    post: {
+      id: post.id,
+      content: post.content,
+      authorId: post.authorId,
+      authorName: authorName,
+      authorUsername: dbUser.username,
+      authorDisplayName: dbUser.displayName,
+      authorProfileImageUrl: dbUser.profileImageUrl,
+      timestamp: post.timestamp.toISOString(),
+    },
+  });
+  logger.info('Broadcast new user post to feed channel', { postId: post.id }, 'POST /api/posts');
+
+  return successResponse({
+    success: true,
+    post: {
+      id: post.id,
+      content: post.content,
+      authorId: post.authorId,
+      authorName: authorName,
+      authorUsername: dbUser.username,
+      authorDisplayName: dbUser.displayName,
+      authorProfileImageUrl: dbUser.profileImageUrl,
+      timestamp: post.timestamp.toISOString(),
+      createdAt: post.createdAt.toISOString(),
+    },
+  });
 }

@@ -1,8 +1,8 @@
 'use client'
 
+import { logger } from '@/lib/logger'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { TrendingUp, Calendar, DollarSign, Activity } from 'lucide-react'
-import { logger } from '@/lib/logger'
 import { useChannelSubscription } from '@/hooks/useChannelSubscription'
 import { BreakingNewsDetailModal } from './BreakingNewsDetailModal'
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
@@ -51,19 +51,14 @@ export function BreakingNewsPanel() {
       }
     }
 
-    try {
-      const response = await fetch('/api/feed/widgets/breaking-news')
-      const data = await response.json()
-      if (data.success) {
-        const newsData = data.news || []
-        setNews(newsData)
-        setBreakingNews(newsData) // Cache the data
-      }
-    } catch (error) {
-      logger.error('Error fetching breaking news:', error, 'BreakingNewsPanel')
-    } finally {
-      setLoading(false)
+    const response = await fetch('/api/feed/widgets/breaking-news')
+    const data = await response.json()
+    if (data.success) {
+      const newsData = data.news || []
+      setNews(newsData)
+      setBreakingNews(newsData) // Cache the data
     }
+    setLoading(false)
   }, [getBreakingNews, setBreakingNews])
 
   // Update ref when fetchNews changes

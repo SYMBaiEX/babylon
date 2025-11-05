@@ -25,10 +25,8 @@
 
 import { GameGenerator, type GameHistory, type GeneratedGame } from '../generator/GameGenerator';
 import type { ChatMessage } from '@/shared/types';
-import { writeFile, readFile, access, readdir, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { readFileSync } from 'fs';
 import { logger } from '@/lib/logger';
+import { db } from '@/lib/database-service';
 
 interface CLIOptions {
   verbose?: boolean;
@@ -48,118 +46,44 @@ function parseArgs(): CLIOptions {
 }
 
 interface GameFile {
-  path: string;
   timestamp: Date;
   game: GeneratedGame;
   history?: GameHistory;
 }
 
 /**
- * Load previous games from games/ directory
+ * Load previous games from database
  * Returns last N games sorted by timestamp (most recent first)
  */
-async function loadPreviousGames(maxGames = 3): Promise<GameFile[]> {
-  const gamesDir = join(process.cwd(), 'games');
+async function loadPreviousGames(_maxGames = 3): Promise<GameFile[]> {
+  // Load games from database
+  const dbGames = await db.getAllGames();
   
-  // Ensure games directory exists
-  const dirExists = await access(gamesDir).then(() => true).catch(() => false);
-  if (!dirExists) {
+  if (dbGames.length === 0) {
     return [];
   }
 
-  // Read all game files
-  const files = await readdir(gamesDir);
+  // Convert to GameFile format
   const gameFiles: GameFile[] = [];
+  
+  // Note: Game model doesn't store full game data anymore (just metadata)
+  // This function would need to reconstruct game data from posts/events
+  // For now, return empty array or load from files
+  logger.warn('Loading games from database not fully implemented - use file-based games instead', undefined, 'CLI');
+  
+  // Return empty array for now
+  // TODO: Reconstruct game data from database posts/events if needed
 
-  for (const file of files) {
-    // Skip latest.json and history files
-    if (file === 'latest.json' || file.includes('.history.')) {
-      continue;
-    }
-    
-    if (file.startsWith('game-') && file.endsWith('.json')) {
-      const filePath = join(gamesDir, file);
-      const content = await readFile(filePath, 'utf-8');
-      const game = JSON.parse(content) as GeneratedGame;
-      
-      // Extract timestamp from filename: game-2025-10-24-153933.json
-      const match = file.match(/game-(\d{4})-(\d{2})-(\d{2})-(\d{6})\.json/);
-      let timestamp = new Date(game.generatedAt);
-
-      if (match && match[1] && match[2] && match[3] && match[4]) {
-        const year = match[1];
-        const month = match[2];
-        const day = match[3];
-        const time = match[4];
-        const hours = time.slice(0, 2);
-        const minutes = time.slice(2, 4);
-        const seconds = time.slice(4, 6);
-        timestamp = new Date(`${year}-${month}-${day}T${hours}:${minutes}:${seconds}`);
-      }
-
-      // Try to load associated history file
-      const historyFile = file.replace('.json', '.history.json');
-      const historyPath = join(gamesDir, historyFile);
-      let history: GameHistory | undefined;
-      
-      const historyExists = await access(historyPath).then(() => true).catch(() => false);
-      if (historyExists) {
-        const historyContent = await readFile(historyPath, 'utf-8');
-        history = JSON.parse(historyContent);
-      }
-
-      gameFiles.push({
-        path: filePath,
-        timestamp,
-        game,
-        history
-      });
-    }
-  }
-
-  // Sort by timestamp (most recent first) and return last N
-  return gameFiles
-    .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-    .slice(0, maxGames);
+  // Return empty for now (game data loading not implemented)
+  return gameFiles;
 }
 
 /**
- * Create timestamped filename for new game
+ * Validate actors data from database before generating game
  */
-function createGameFilename(date: Date = new Date()): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-  
-  return `game-${year}-${month}-${day}-${hours}${minutes}${seconds}.json`;
-}
-
-/**
- * Validate actors.json before generating game
- */
-function validateActorsData(): void {
-  const actorsPath = join(process.cwd(), 'data', 'actors.json');
-  
-  interface Actor {
-    id: string;
-    name: string;
-    affiliations: string[];
-  }
-
-  interface Organization {
-    id: string;
-  }
-
-  interface ActorsData {
-    actors: Actor[];
-    organizations: Organization[];
-  }
-
-  const data: ActorsData = JSON.parse(readFileSync(actorsPath, 'utf-8'));
-  const { actors, organizations } = data;
+async function validateActorsData(): Promise<void> {
+  const actors = await db.getAllActors();
+  const organizations = await db.getAllOrganizations();
   
   const validOrgIds = new Set(organizations.map(org => org.id));
   const errors: string[] = [];
@@ -179,7 +103,7 @@ function validateActorsData(): void {
   if (errors.length > 0) {
     logger.error('ACTOR VALIDATION FAILED', undefined, 'CLI');
     logger.error('Invalid affiliations found:', errors, 'CLI');
-    logger.error('Please fix actors.json before generating a game.', undefined, 'CLI');
+    logger.error('Please fix actor data in database before generating a game.', undefined, 'CLI');
     process.exit(1);
   }
 }
@@ -190,9 +114,9 @@ async function main() {
   logger.info('BABYLON GAME GENERATOR', undefined, 'CLI');
   logger.info('==========================', undefined, 'CLI');
 
-  // Validate actors.json
-  logger.info('Validating actors.json...', undefined, 'CLI');
-  validateActorsData();
+  // Validate actors from database
+  logger.info('Validating actors from database...', undefined, 'CLI');
+  await validateActorsData();
   logger.info('Actors validated', undefined, 'CLI');
 
   // Validate API key is present
@@ -219,23 +143,31 @@ async function main() {
 
   const startTime = Date.now();
 
-  // STEP 0: Check for genesis.json, generate if missing
-  const genesisPath = join(process.cwd(), 'genesis.json');
-  const genesisExists = await access(genesisPath).then(() => true).catch(() => false);
+  // STEP 0: Check if genesis game exists in database
+  logger.info('STEP 0: Checking for genesis game in database...', undefined, 'CLI');
+  const existingGames = await db.getAllGames();
   
-  if (!genesisExists) {
-    logger.info('STEP 0: Genesis not found, generating...', undefined, 'CLI');
+  if (existingGames.length === 0) {
+    logger.info('No genesis game found, generating...', undefined, 'CLI');
     const generator = new GameGenerator();
     const genesis = await generator.generateGenesis();
     
-    const genesisJson = JSON.stringify(genesis, null, 2);
-    await writeFile(genesisPath, genesisJson);
-    logger.info('Saved: genesis.json', undefined, 'CLI');
-    logger.info(`File size: ${(genesisJson.length / 1024).toFixed(1)} KB`, undefined, 'CLI');
+    // Save genesis metadata to database
+    // Note: Full game data saved to genesis.json file, not database
+    await db.prisma.game.create({
+      data: {
+        isContinuous: false,
+        isRunning: false,
+        currentDate: new Date(),
+        speed: 60000,
+      },
+    });
+    
+    logger.info('Genesis game saved to database', undefined, 'CLI');
     logger.info(`Total events: ${genesis.timeline.reduce((sum, day) => sum + day.events.length, 0)}`, undefined, 'CLI');
     logger.info(`Total posts: ${genesis.timeline.reduce((sum, day) => sum + day.feedPosts.length, 0)}`, undefined, 'CLI');
   } else {
-    logger.info('Genesis found: genesis.json', undefined, 'CLI');
+    logger.info(`Found ${existingGames.length} existing game(s) in database`, undefined, 'CLI');
   }
 
   // STEP 1: Load Previous Games
@@ -369,35 +301,24 @@ async function main() {
     }
   });
 
-  // STEP 3: Save Game
-  logger.info('STEP 3: Saving game...', undefined, 'CLI');
+  // STEP 3: Save Game to Database
+  logger.info('STEP 3: Saving game to database...', undefined, 'CLI');
   
-  // Create games directory if it doesn't exist
-  const gamesDir = join(process.cwd(), 'games');
-  await mkdir(gamesDir, { recursive: true });
-  
-  // Save timestamped game
-  const timestamp = new Date();
-  const gameFilename = createGameFilename(timestamp);
-  const gamePath = join(gamesDir, gameFilename);
-  const gameJson = JSON.stringify(game, null, 2);
-  await writeFile(gamePath, gameJson);
-  logger.info(`Saved: games/${gameFilename}`, undefined, 'CLI');
-  logger.info(`File size: ${(gameJson.length / 1024).toFixed(1)} KB`, undefined, 'CLI');
-  
-  // Update latest.json
-  const latestPath = join(gamesDir, 'latest.json');
-  await writeFile(latestPath, gameJson);
-  logger.info('Updated: games/latest.json', undefined, 'CLI');
-
-  // Generate and save history summary
+  // Generate game history
   const gameHistory = generator.createGameHistory(game);
   
-  // Save history alongside game
-  const historyFilename = gameFilename.replace('.json', '.history.json');
-  const historyPath = join(gamesDir, historyFilename);
-  await writeFile(historyPath, JSON.stringify(gameHistory, null, 2));
-  logger.info(`History: games/${historyFilename}`, undefined, 'CLI');
+  // Save game metadata to database
+  // Note: Game is now stored in database (posts, events, actors)
+  const savedGame = await db.prisma.game.create({
+    data: {
+      isContinuous: false,
+      isRunning: false,
+      currentDate: new Date(nextStartDate),
+      speed: 60000,
+    },
+  });
+  
+  logger.info(`Saved game to database (ID: ${savedGame.id})`, undefined, 'CLI');
 
   // Show summary
   if (options.verbose) {

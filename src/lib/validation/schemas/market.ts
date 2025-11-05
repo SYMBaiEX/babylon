@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { UUIDSchema, NumericStringSchema, PaginationSchema } from './common';
+import { UUIDSchema, UserIdSchema, NumericStringSchema, PaginationSchema } from './common';
 
 /**
  * Open perp position schema
@@ -66,7 +66,7 @@ export const MarketQuerySchema = PaginationSchema.extend({
  * User positions query schema
  */
 export const UserPositionsQuerySchema = z.object({
-  userId: UUIDSchema,
+  userId: UserIdSchema,
   type: z.enum(['perp', 'prediction', 'all']).default('all'),
   status: z.enum(['open', 'closed', 'all']).default('open'),
   page: z.coerce.number().positive().default(1),

@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Search, Shield, TrendingUp, User, ExternalLink, Filter } from 'lucide-react'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { cn } from '@/lib/utils'
-import { logger } from '@/lib/logger'
+import { ExternalLink, Filter, Search, Shield, TrendingUp, User } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 interface RegistryUser {
   id: string
@@ -51,28 +50,23 @@ export default function RegistryPage() {
   const [totalCount, setTotalCount] = useState(0)
 
   const fetchRegistry = async () => {
-    try {
-      setLoading(true)
-      const params = new URLSearchParams({
-        onChainOnly: onChainOnly.toString(),
-        sortBy,
-        sortOrder,
-        limit: '100',
-        offset: '0',
-      })
+    setLoading(true)
+    const params = new URLSearchParams({
+      onChainOnly: onChainOnly.toString(),
+      sortBy,
+      sortOrder,
+      limit: '100',
+      offset: '0',
+    })
 
-      const response = await fetch(`/api/registry?${params}`)
-      const data: RegistryResponse = await response.json()
+    const response = await fetch(`/api/registry?${params}`)
+    const data: RegistryResponse = await response.json()
 
-      if (data.users && data.pagination) {
-        setUsers(data.users)
-        setTotalCount(data.pagination.total)
-      }
-    } catch (error) {
-      logger.error('Error fetching registry:', error, 'RegistryPage')
-    } finally {
-      setLoading(false)
+    if (data.users && data.pagination) {
+      setUsers(data.users)
+      setTotalCount(data.pagination.total)
     }
+    setLoading(false)
   }
 
   useEffect(() => {

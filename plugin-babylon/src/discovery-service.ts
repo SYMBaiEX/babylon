@@ -16,7 +16,7 @@ export class BabylonDiscoveryService extends Service {
   override capabilityDescription =
     'Babylon game discovery through Agent0 registry for permissionless agent onboarding'
   
-  private gameDiscoveryService: GameDiscoveryService | null = null
+  private gameDiscoveryService!: GameDiscoveryService
   
   constructor(runtime: IAgentRuntime) {
     super(runtime)
@@ -43,35 +43,25 @@ export class BabylonDiscoveryService extends Service {
       return
     }
     
-    try {
-      this.gameDiscoveryService = new GameDiscoveryService()
-      this.runtime.logger.info('✅ BabylonDiscoveryService initialized', undefined, 'BabylonDiscoveryService')
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      this.runtime.logger.error(`Failed to initialize BabylonDiscoveryService: ${errorMessage}`, undefined, 'BabylonDiscoveryService')
-    }
+    this.gameDiscoveryService = new GameDiscoveryService()
+    this.runtime.logger.info('✅ BabylonDiscoveryService initialized', undefined, 'BabylonDiscoveryService')
   }
   
   /**
    * Discover and connect to Babylon
    * This is the main entry point for agents to find Babylon
    */
-  async discoverAndConnect(): Promise<DiscoverableGame | null> {
-    if (!this.gameDiscoveryService) {
-      throw new Error('BabylonDiscoveryService not initialized. Ensure AGENT0_ENABLED=true')
-    }
-    
+  async discoverAndConnect(): Promise<DiscoverableGame> {
     const babylon = await this.gameDiscoveryService.findBabylon()
     
     if (!babylon) {
-      this.runtime.logger.warn('Babylon game not found in registry!', undefined, 'BabylonDiscoveryService')
-      return null
+      throw new Error('Babylon game not found in registry!')
     }
     
     // Store endpoints for other services to use
-    this.runtime.setSetting?.('babylon.a2aEndpoint', babylon.endpoints.a2a)
-    this.runtime.setSetting?.('babylon.mcpEndpoint', babylon.endpoints.mcp)
-    this.runtime.setSetting?.('babylon.apiEndpoint', babylon.endpoints.api)
+    this.runtime.setSetting!('babylon.a2aEndpoint', babylon.endpoints.a2a)
+    this.runtime.setSetting!('babylon.mcpEndpoint', babylon.endpoints.mcp)
+    this.runtime.setSetting!('babylon.apiEndpoint', babylon.endpoints.api)
     
     this.runtime.logger.info(`✅ Discovered Babylon: ${babylon.name}`, undefined, 'BabylonDiscoveryService')
     this.runtime.logger.info(`   A2A: ${babylon.endpoints.a2a}`, undefined, 'BabylonDiscoveryService')
@@ -88,10 +78,6 @@ export class BabylonDiscoveryService extends Service {
     type?: string
     markets?: string[]
   }): Promise<DiscoverableGame[]> {
-    if (!this.gameDiscoveryService) {
-      throw new Error('BabylonDiscoveryService not initialized')
-    }
-    
     return this.gameDiscoveryService.discoverGames({
       type: filters?.type || 'game-platform',
       markets: filters?.markets
@@ -102,10 +88,6 @@ export class BabylonDiscoveryService extends Service {
    * Get game by token ID
    */
   async getGameByTokenId(tokenId: number): Promise<DiscoverableGame | null> {
-    if (!this.gameDiscoveryService) {
-      throw new Error('BabylonDiscoveryService not initialized')
-    }
-    
     return this.gameDiscoveryService.getGameByTokenId(tokenId)
   }
   
@@ -122,9 +104,7 @@ export class BabylonDiscoveryService extends Service {
   static override async stop(runtime: IAgentRuntime): Promise<void> {
     logger.info('Stopping BabylonDiscoveryService', undefined, 'BabylonDiscoveryService')
     const service = runtime.getService<BabylonDiscoveryService>(BabylonDiscoveryService.serviceType)
-    if (service && typeof service.stop === 'function') {
-      await service.stop()
-    }
+    await service?.stop()
   }
 }
 

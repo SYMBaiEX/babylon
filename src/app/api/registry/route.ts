@@ -70,17 +70,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Get total count for pagination
   const totalCount = await prisma.user.count({ where })
 
-  // Fetch reputation scores for all users (in parallel)
   const usersWithReputation = await Promise.all(
     users.map(async (user) => {
       let reputation: number | null = null
       if (user.onChainRegistered && user.nftTokenId) {
-        try {
-          reputation = await ReputationService.getOnChainReputation(user.id)
-        } catch (error) {
-          logger.error(`Failed to fetch reputation for user ${user.id}:`, error, 'GET /api/registry')
-          // Continue without reputation if fetch fails
-        }
+        reputation = await ReputationService.getOnChainReputation(user.id)
       }
 
       return {

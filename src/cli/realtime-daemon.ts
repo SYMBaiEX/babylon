@@ -46,19 +46,15 @@ function parseArgs(): CLIOptions {
  * Returns PID if found, null otherwise
  */
 function checkExistingDaemon(): number | null {
-  try {
-    const result = execSync('pgrep -f "realtime-daemon"', { encoding: 'utf-8' }).trim();
-    if (result) {
-      const firstLine = result.split('\n')[0];
-      if (!firstLine) return null;
-      const pid = parseInt(firstLine, 10);
-      // Make sure it's not this process
-      if (pid && pid !== process.pid) {
-        return pid;
-      }
+  const result = execSync('pgrep -f "realtime-daemon"', { encoding: 'utf-8' }).trim();
+  if (result) {
+    const firstLine = result.split('\n')[0];
+    if (!firstLine) return null;
+    const pid = parseInt(firstLine, 10);
+    // Make sure it's not this process
+    if (pid && pid !== process.pid) {
+      return pid;
     }
-  } catch {
-    // pgrep returns non-zero if no process found, which is fine
   }
   return null;
 }
@@ -149,30 +145,24 @@ async function main() {
   });
 
   // Initialize and start
-  try {
-    await engine.initialize();
-    engine.start();
-    
-    // Register engine instance so API routes can query status
-    setEngineInstance(engine);
-    logger.info('Engine instance registered for API access', undefined, 'CLI');
+  await engine.initialize();
+  engine.start();
+  
+  // Register engine instance so API routes can query status
+  setEngineInstance(engine);
+  logger.info('Engine instance registered for API access', undefined, 'CLI');
 
-    // Auto-start agents only if explicitly enabled
-    const autoStartAgents = process.env.AUTO_START_AGENTS === 'true'; // Default to false
-    if (autoStartAgents) {
-      logger.info('Starting agents (AUTO_START_AGENTS=true)...', undefined, 'CLI');
-      await startAgents();
-    } else {
-      logger.info('Agent auto-start disabled. Start agents separately with: bun run eliza:all', undefined, 'CLI');
-    }
-
-    // Keep process alive
-    await new Promise(() => {});
-  } catch (error) {
-    logger.error('Fatal Error:', error, 'CLI');
-    clearEngineInstance();
-    process.exit(1);
+  // Auto-start agents only if explicitly enabled
+  const autoStartAgents = process.env.AUTO_START_AGENTS === 'true'; // Default to false
+  if (autoStartAgents) {
+    logger.info('Starting agents (AUTO_START_AGENTS=true)...', undefined, 'CLI');
+    await startAgents();
+  } else {
+    logger.info('Agent auto-start disabled. Start agents separately with: bun run eliza:all', undefined, 'CLI');
   }
+
+  // Keep process alive
+  await new Promise(() => {});
 }
 
 // Track if agents have been started to prevent duplicate spawning
@@ -190,73 +180,60 @@ async function startAgents(): Promise<void> {
     return;
   }
 
-  try {
-    const agentScript = join(process.cwd(), 'scripts', 'run-all-agents.ts');
-    const autoTrade = process.env.AGENT_AUTO_TRADE === 'true';
-    
-    logger.info(`Spawning agents with auto-trade: ${autoTrade ? 'ENABLED' : 'DISABLED'}`, undefined, 'CLI');
-    
-    agentProcess = spawn('bun', [
-      agentScript,
-      '--max=1', // Only start 1 agent on daemon bootup
-      ...(autoTrade ? ['--auto-trade'] : []),
-    ], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: {
-        ...process.env,
-      },
-    });
+  const agentScript = join(process.cwd(), 'scripts', 'run-all-agents.ts');
+  const autoTrade = process.env.AGENT_AUTO_TRADE === 'true';
+  
+  logger.info(`Spawning agents with auto-trade: ${autoTrade ? 'ENABLED' : 'DISABLED'}`, undefined, 'CLI');
+  
+  agentProcess = spawn('bun', [
+    agentScript,
+    '--max=1', // Only start 1 agent on daemon bootup
+    ...(autoTrade ? ['--auto-trade'] : []),
+  ], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: {
+      ...process.env,
+    },
+  });
 
-    agentsStarted = true;
+  agentsStarted = true;
 
-    // Log agent output
-    agentProcess.stdout?.on('data', (data) => {
-      const lines = data.toString().split('\n').filter((line: string) => line.trim());
-      lines.forEach((line: string) => {
-        if (line.includes('✅') || line.includes('❌') || line.includes('Starting')) {
-          logger.info(line, undefined, 'CLI');
-        }
-      });
-    });
-
-    agentProcess.stderr?.on('data', (data) => {
-      const errorLines = data.toString().split('\n').filter((line: string) => line.trim());
-      errorLines.forEach((line: string) => {
-        if (line.includes('Error') || line.includes('error')) {
-          logger.warn(line, undefined, 'CLI');
-        }
-      });
-    });
-
-    agentProcess.on('exit', (code) => {
-      agentsStarted = false;
-      agentProcess = null;
-      if (code !== 0 && code !== null) {
-        logger.warn(`Agent spawn process exited with code ${code}`, undefined, 'CLI');
+  // Log agent output
+  agentProcess.stdout?.on('data', (data) => {
+    const lines = data.toString().split('\n').filter((line: string) => line.trim());
+    lines.forEach((line: string) => {
+      if (line.includes('✅') || line.includes('❌') || line.includes('Starting')) {
+        logger.info(line, undefined, 'CLI');
       }
     });
+  });
 
-    // Wait a bit to see if agents start successfully
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    
-    logger.info('Agent spawn process started', undefined, 'CLI');
-  } catch (error) {
+  agentProcess.stderr?.on('data', (data) => {
+    const errorLines = data.toString().split('\n').filter((line: string) => line.trim());
+    errorLines.forEach((line: string) => {
+      if (line.includes('Error') || line.includes('error')) {
+        logger.warn(line, undefined, 'CLI');
+      }
+    });
+  });
+
+  agentProcess.on('exit', (code) => {
     agentsStarted = false;
     agentProcess = null;
-    logger.error('Failed to start agents:', error, 'CLI');
-    logger.error('Agents can be started manually with: bun run eliza:all', undefined, 'CLI');
-  }
+    if (code !== 0 && code !== null) {
+      logger.warn(`Agent spawn process exited with code ${code}`, undefined, 'CLI');
+    }
+  });
+
+  // Wait a bit to see if agents start successfully
+  await new Promise(resolve => setTimeout(resolve, 5000));
+  
+  logger.info('Agent spawn process started', undefined, 'CLI');
 }
 
 // Run if called directly
 if (import.meta.main) {
-  main().catch(error => {
-    logger.error('Error:', error.message, 'CLI');
-    if (error.stack) {
-      logger.error('Stack trace:', error.stack, 'CLI');
-    }
-    process.exit(1);
-  });
+  main()
 }
 
 export { main };

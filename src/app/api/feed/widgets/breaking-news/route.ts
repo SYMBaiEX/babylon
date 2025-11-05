@@ -86,17 +86,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       const trendingThreshold = FEED_WIDGET_CONFIG.TRENDING_HOURS * 60 * 60 * 1000
       const isTrending = eventDate.getTime() > Date.now() - trendingThreshold
 
-      // Try to get actor image if event has actors
       let imageUrl: string | undefined
       if (event.actors && event.actors.length > 0) {
-        try {
-          const actor = await prisma.actor.findUnique({
-            where: { id: event.actors[0] },
-          })
-          imageUrl = (actor as { profileImageUrl?: string } | null)?.profileImageUrl || undefined
-        } catch {
-          // Actor might not exist, ignore
-        }
+        const actor = await prisma.actor.findUnique({
+          where: { id: event.actors[0] },
+        })
+        imageUrl = actor?.profileImageUrl || undefined
       }
 
       newsItems.push({

@@ -21,40 +21,43 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     includeVolume: searchParams.get('includeVolume') || 'true'
   }
   StatsQuerySchema.parse(queryParams)
-  // Get active users (logged in within last 7 days) - exclude actors
+  // Get all stats in parallel for better performance
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-  const activePlayers = await prisma.user.count({
-    where: {
-      isActor: false, // Only real users, not NPCs
-      updatedAt: {
-        gte: sevenDaysAgo,
+  
+  const [activePlayers, aiAgents, totalHoots, userPointsResult, actorPointsResult] = await Promise.all([
+    // Get active users (logged in within last 7 days) - exclude actors
+    prisma.user.count({
+      where: {
+        isActor: false, // Only real users, not NPCs
+        updatedAt: {
+          gte: sevenDaysAgo,
+        },
       },
-    },
-  })
-
-  // Get AI agents from Actor table (all actors, not just those with pools)
-  // This represents NPCs/characters in the game
-  const aiAgents = await prisma.actor.count()
-
-  // Get total posts (hoots) - all posts from both users and actors
-  const totalHoots = await prisma.post.count()
-
-  // Calculate points in circulation (sum of all user virtual balances + actor trading balances)
-  // This represents the total virtual currency in the game economy
-  const userPointsResult = await prisma.user.aggregate({
-    _sum: {
-      virtualBalance: true,
-    },
-    where: {
-      isActor: false, // Only count real users' virtual balances
-    },
-  })
-
-  const actorPointsResult = await prisma.actor.aggregate({
-    _sum: {
-      tradingBalance: true,
-    },
-  })
+    }),
+    
+    // Get AI agents from Actor table (all actors, not just those with pools)
+    prisma.actor.count(),
+    
+    // Get total posts (hoots) - all posts from both users and actors
+    prisma.post.count(),
+    
+    // Calculate points in circulation (sum of all user virtual balances)
+    prisma.user.aggregate({
+      _sum: {
+        virtualBalance: true,
+      },
+      where: {
+        isActor: false, // Only count real users' virtual balances
+      },
+    }),
+    
+    // Sum actor trading balances
+    prisma.actor.aggregate({
+      _sum: {
+        tradingBalance: true,
+      },
+    })
+  ])
 
   const userPoints = userPointsResult._sum.virtualBalance || BigInt(0)
   const actorPoints = actorPointsResult._sum.tradingBalance || BigInt(0)

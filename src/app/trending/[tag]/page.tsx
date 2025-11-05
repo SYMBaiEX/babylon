@@ -1,10 +1,10 @@
 'use client'
 
+import { logger } from '@/lib/logger'
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PostCard } from '@/components/posts/PostCard'
-import { logger } from '@/lib/logger'
 import { ArrowLeft } from 'lucide-react'
 interface PostData {
   id: string
@@ -42,58 +42,54 @@ export default function TrendingTagPage() {
     if (append) setLoadingMore(true)
     else setLoading(true)
 
-    try {
-      const response = await fetch(
-        `/api/trending/${encodeURIComponent(tag)}?limit=${PAGE_SIZE}&offset=${requestOffset}`
-      )
-      
-      if (!response.ok) {
-        if (response.status === 404) {
-          logger.warn('Tag not found', { tag }, 'TrendingTagPage')
-        }
-        if (append) setHasMore(false)
-        return
+    const response = await fetch(
+      `/api/trending/${encodeURIComponent(tag)}?limit=${PAGE_SIZE}&offset=${requestOffset}`
+    )
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        logger.warn('Tag not found', { tag }, 'TrendingTagPage')
       }
-
-      const data = await response.json()
-      
-      if (data.success) {
-        if (!append && data.tag) {
-          setTagInfo(data.tag)
-        }
-
-        const newPosts = data.posts || []
-        
-        setPosts(prev => {
-          const combined = append ? [...prev, ...newPosts] : newPosts
-          const unique = new Map<string, PostData>()
-          combined.forEach((post: PostData) => {
-            if (post?.id) {
-              unique.set(post.id, post)
-            }
-          })
-          
-          const deduped = Array.from(unique.values()).sort((a, b) => {
-            const aTime = new Date(a.timestamp ?? 0).getTime()
-            const bTime = new Date(b.timestamp ?? 0).getTime()
-            return bTime - aTime
-          })
-          
-          return deduped
-        })
-
-        setOffset(requestOffset + newPosts.length)
-        
-        const moreAvailable = newPosts.length === PAGE_SIZE
-        setHasMore(moreAvailable)
-      }
-    } catch (error) {
-      logger.error('Failed to load posts for tag:', error, 'TrendingTagPage')
       if (append) setHasMore(false)
-    } finally {
       if (append) setLoadingMore(false)
       else setLoading(false)
+      return
     }
+
+    const data = await response.json()
+    
+    if (data.success) {
+      if (!append && data.tag) {
+        setTagInfo(data.tag)
+      }
+
+      const newPosts = data.posts || []
+      
+      setPosts(prev => {
+        const combined = append ? [...prev, ...newPosts] : newPosts
+        const unique = new Map<string, PostData>()
+        combined.forEach((post: PostData) => {
+          if (post?.id) {
+            unique.set(post.id, post)
+          }
+        })
+        
+        const deduped = Array.from(unique.values()).sort((a, b) => {
+          const aTime = new Date(a.timestamp ?? 0).getTime()
+          const bTime = new Date(b.timestamp ?? 0).getTime()
+          return bTime - aTime
+        })
+        
+        return deduped
+      })
+
+      setOffset(requestOffset + newPosts.length)
+      
+      const moreAvailable = newPosts.length === PAGE_SIZE
+      setHasMore(moreAvailable)
+    }
+    if (append) setLoadingMore(false)
+    else setLoading(false)
   }, [tag])
 
   useEffect(() => {

@@ -17,41 +17,39 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     if (!authenticated || !user || hasCheckedOnboarding) return
 
     const checkUsernameAndOnboarding = async () => {
-      try {
-        // Check if user exists in database and has username
-        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-        if (!token) return
+      // Check if user exists in database and has username
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      if (!token) return
 
-        const response = await fetch(`/api/users/${user.id}/is-new`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        })
+      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/is-new`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
 
-        if (!response.ok) return
+      if (!response.ok) {
+        setHasCheckedOnboarding(true)
+        return
+      }
 
-        const data = await response.json()
+      const data = await response.json()
 
-        // If user doesn't have a username, show onboarding modal
-        if (data.needsSetup && !data.hasUsername && !storeUser?.username) {
-          // Wait for wallet if needed
-          if (!wallet?.address) {
-            // Retry after wallet is available
-            setTimeout(() => {
-              if (wallet?.address) {
-                setShowOnboardingModal(true)
-                setHasCheckedOnboarding(true)
-              }
-            }, 2000)
-            return
-          }
-          setShowOnboardingModal(true)
-          setHasCheckedOnboarding(true)
-        } else {
-          setHasCheckedOnboarding(true)
+      // If user doesn't have a username, show onboarding modal
+      if (data.needsSetup && !data.hasUsername && !storeUser?.username) {
+        // Wait for wallet if needed
+        if (!wallet?.address) {
+          // Retry after wallet is available
+          setTimeout(() => {
+            if (wallet?.address) {
+              setShowOnboardingModal(true)
+              setHasCheckedOnboarding(true)
+            }
+          }, 2000)
+          return
         }
-      } catch (error) {
-        logger.warn('Error checking username:', error, 'OnboardingProvider')
+        setShowOnboardingModal(true)
+        setHasCheckedOnboarding(true)
+      } else {
         setHasCheckedOnboarding(true)
       }
     }
@@ -66,42 +64,26 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     profileImageUrl?: string
     coverImageUrl?: string
   }) => {
-    if (!user || !wallet?.address) return
-
     setShowOnboardingModal(false)
 
-    try {
-      // Get referral code from sessionStorage
-      let referralCode: string | null = null
-      try {
-        referralCode = sessionStorage.getItem('referralCode')
-      } catch (error) {
-        logger.warn('Could not access referral code', error, 'OnboardingProvider')
-      }
+    const referralCode = sessionStorage.getItem('referralCode')
 
-      // Complete onboarding with all profile data
-      const result = await OnboardingService.completeOnboarding(
-        user.id,
-        wallet.address,
-        data.username,
-        data.bio,
-        referralCode || undefined,
-        data.displayName,
-        data.profileImageUrl,
-        data.coverImageUrl
-      )
+    const result = await OnboardingService.completeOnboarding(
+      user!.id,
+      wallet!.address,
+      data.username,
+      data.bio,
+      referralCode || undefined,
+      data.displayName,
+      data.profileImageUrl,
+      data.coverImageUrl
+    )
 
-      if (result.success) {
-        logger.info('Onboarding complete:', { username: data.username, displayName: data.displayName }, 'OnboardingProvider')
-        // Reload user profile to get updated data
-        if (typeof window !== 'undefined') {
-          window.location.reload()
-        }
-      } else {
-        logger.error('Onboarding failed:', result.error, 'OnboardingProvider')
+    if (result.success) {
+      logger.info('Onboarding complete:', { username: data.username, displayName: data.displayName }, 'OnboardingProvider')
+      if (typeof window !== 'undefined') {
+        window.location.reload()
       }
-    } catch (error) {
-      logger.error('Error completing onboarding:', error, 'OnboardingProvider')
     }
   }
 

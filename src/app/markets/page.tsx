@@ -10,12 +10,11 @@ import { PageContainer } from '@/components/shared/PageContainer'
 import { WalletBalance } from '@/components/shared/WalletBalance'
 import { useAuth } from '@/hooks/useAuth'
 import { useChannelSubscription } from '@/hooks/useChannelSubscription'
-import { logger } from '@/lib/logger'
 import { cn } from '@/lib/utils'
 import type { PerpPosition } from '@/shared/perps-types'
 import { ArrowUpDown, Clock, Flame, Search, TrendingDown, TrendingUp } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 interface PredictionPosition {
   id: string
@@ -118,49 +117,44 @@ export default function MarketsPage() {
 
   // Fetch data - use refs inside to avoid dependencies on authenticated/user
   const fetchData = useCallback(async () => {
-    try {
-      const isAuth = authenticatedRef.current
-      const userId = userIdRef.current
-      
-      const [perpsRes, predictionsRes, poolsRes] = await Promise.all([
-        fetch('/api/markets/perps'),
-        fetch(`/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`),
-        fetch('/api/pools'),
-      ])
+    const isAuth = authenticatedRef.current
+    const userId = userIdRef.current
+    
+    const [perpsRes, predictionsRes, poolsRes] = await Promise.all([
+      fetch('/api/markets/perps'),
+      fetch(`/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`),
+      fetch('/api/pools'),
+    ])
 
-      const perpsData = await perpsRes.json()
-      const predictionsData = await predictionsRes.json()
-      const poolsData = await poolsRes.json()
+    const perpsData = await perpsRes.json()
+    const predictionsData = await predictionsRes.json()
+    const poolsData = await poolsRes.json()
 
-      setPerpMarkets(perpsData.markets || [])
-      setPredictions(predictionsData.questions || [])
-      
-      // Get top 6 pools by return percentage
-      const pools = poolsData.pools || []
-      const sortedPools = [...pools]
-        .filter((p: Pool) => p.totalDeposits > 0) // Only pools with deposits
-        .sort((a: Pool, b: Pool) => b.returnPercent - a.returnPercent)
-        .slice(0, 6)
-      setTopPools(sortedPools)
+    setPerpMarkets(perpsData.markets || [])
+    setPredictions(predictionsData.questions || [])
+    
+    // Get top 6 pools by return percentage
+    const pools = poolsData.pools || []
+    const sortedPools = [...pools]
+      .filter((p: Pool) => p.totalDeposits > 0) // Only pools with deposits
+      .sort((a: Pool, b: Pool) => b.returnPercent - a.returnPercent)
+      .slice(0, 6)
+    setTopPools(sortedPools)
 
-      if (isAuth && userId) {
-        const positionsRes = await fetch(`/api/markets/positions/${userId}`)
-        const positionsData = await positionsRes.json()
+    if (isAuth && userId) {
+      const positionsRes = await fetch(`/api/markets/positions/${encodeURIComponent(userId)}`)
+      const positionsData = await positionsRes.json()
 
-        const perpPos = positionsData.perpetuals?.positions || []
-        const predPos = positionsData.predictions?.positions || []
+      const perpPos = positionsData.perpetuals?.positions || []
+      const predPos = positionsData.predictions?.positions || []
 
-        setPerpPositions(perpPos)
-        setPredictionPositions(predPos)
-      }
-
-      // Trigger balance refresh after data fetch (after trades)
-      setBalanceRefreshTrigger(Date.now())
-    } catch (error) {
-      logger.error('Error fetching markets data:', error, 'MarketsPage')
-    } finally {
-      setLoading(false)
+      setPerpPositions(perpPos)
+      setPredictionPositions(predPos)
     }
+
+    // Trigger balance refresh after data fetch (after trades)
+    setBalanceRefreshTrigger(Date.now())
+    setLoading(false)
   }, []) // Empty dependency array - fetchData never changes
 
   // Store fetchData in ref (fetchData is stable with empty deps)

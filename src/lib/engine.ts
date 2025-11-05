@@ -73,26 +73,21 @@ export async function initializeEngine(): Promise<void> {
 
   logger.info('STARTING BABYLON ENGINE (via initializeEngine)', undefined, 'Engine');
 
-  try {
-    // Dynamic import to avoid bundling GameEngine on Vercel
-    const { GameEngine } = await import('@/engine/GameEngine');
-    
-    const engine = new GameEngine({
-      tickIntervalMs: 60000, // 1 minute ticks
-      postsPerTick: 12,      // 12 LLM-generated posts per minute
-      historyDays: 30,
-    });
-    
-    await engine.initialize();
-    engine.start();
-    
-    engineInstance = engine;
-    
-    logger.info('ENGINE RUNNING', undefined, 'Engine');
-  } catch (error) {
-    logger.error('Failed to initialize engine:', error, 'Engine');
-    throw error;
-  }
+  // Dynamic import to avoid bundling GameEngine on Vercel
+  const { GameEngine } = await import('@/engine/GameEngine');
+  
+  const engine = new GameEngine({
+    tickIntervalMs: 60000, // 1 minute ticks
+    postsPerTick: 12,      // 12 LLM-generated posts per minute
+    historyDays: 30,
+  });
+  
+  await engine.initialize();
+  engine.start();
+  
+  engineInstance = engine;
+  
+  logger.info('ENGINE RUNNING', undefined, 'Engine');
 }
 
 /**

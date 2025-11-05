@@ -107,18 +107,23 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   });
 });
 
-// GET endpoint for manual testing
+// GET endpoint for Vercel Cron (Vercel Cron uses GET requests by default)
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  // Only allow in development or with admin token
+  // Allow Vercel Cron requests (identified by user-agent header)
+  const userAgent = request.headers.get('user-agent');
+  const isVercelCron = userAgent?.includes('vercel-cron');
+  
+  // Also allow in development or with admin token for manual testing
   const isDev = process.env.NODE_ENV === 'development';
   const adminToken = request.headers.get('x-admin-token');
-  const isAdmin = adminToken === process.env.ADMIN_TOKEN;
+  const hasAdminSecret = !!process.env.ADMIN_TOKEN;
+  const isAdmin = hasAdminSecret && adminToken === process.env.ADMIN_TOKEN;
 
-  if (!isDev && !isAdmin) {
+  if (!isVercelCron && !isDev && !isAdmin) {
     throw new AuthorizationError('Use POST for cron execution. This endpoint is triggered by Vercel Cron', 'cron', 'execute');
   }
 
-  // Allow manual trigger in dev
+  // Forward to POST handler
   return POST(request);
 });
 

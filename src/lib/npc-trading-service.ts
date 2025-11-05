@@ -426,11 +426,7 @@ export class NPCTradingService {
     logger.info(`Processing ${recentPosts.length} recent posts for NPC trading`);
 
     for (const post of recentPosts) {
-      try {
-        await this.analyzePostAndTrade(post.id, post.content, post.authorId, marketContext);
-      } catch (error) {
-        logger.error(`Failed to process post ${post.id}:`, error);
-      }
+      await this.analyzePostAndTrade(post.id, post.content, post.authorId, marketContext);
     }
   }
 }

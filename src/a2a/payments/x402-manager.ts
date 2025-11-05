@@ -84,74 +84,57 @@ export class X402Manager {
    * Verify a payment receipt against blockchain transaction
    */
   async verifyPayment(verificationData: PaymentVerificationParams): Promise<PaymentVerificationResult> {
-    try {
-      // Get pending payment request
-      const pending = this.pendingPayments.get(verificationData.requestId)
-      if (!pending) {
-        return { verified: false, error: 'Payment request not found or expired' }
-      }
-
-      // Check if already verified
-      if (pending.verified) {
-        return { verified: true }
-      }
-
-      // Check expiration
-      if (Date.now() > pending.request.expiresAt) {
-        this.pendingPayments.delete(verificationData.requestId)
-        return { verified: false, error: 'Payment request expired' }
-      }
-
-      // Fetch transaction from blockchain
-      const tx = await this.provider.getTransaction(verificationData.txHash)
-      if (!tx) {
-        return { verified: false, error: 'Transaction not found on blockchain' }
-      }
-
-      // Verify transaction is confirmed
-      const txReceipt = await this.provider.getTransactionReceipt(verificationData.txHash)
-      if (!txReceipt) {
-        return { verified: false, error: 'Transaction not yet confirmed' }
-      }
-
-      if (txReceipt.status !== 1) {
-        return { verified: false, error: 'Transaction failed on blockchain' }
-      }
-
-      // Verify transaction details match payment request
-      const errors: string[] = []
-
-      // Check sender
-      if (tx.from.toLowerCase() !== pending.request.from.toLowerCase()) {
-        errors.push(`Sender mismatch: expected ${pending.request.from}, got ${tx.from}`)
-      }
-
-      // Check recipient
-      if (tx.to?.toLowerCase() !== pending.request.to.toLowerCase()) {
-        errors.push(`Recipient mismatch: expected ${pending.request.to}, got ${tx.to}`)
-      }
-
-      // Check amount (must be at least the requested amount)
-      const requestedAmount = BigInt(pending.request.amount)
-      const paidAmount = tx.value
-      if (paidAmount < requestedAmount) {
-        errors.push(`Insufficient payment: expected ${requestedAmount}, got ${paidAmount}`)
-      }
-
-      if (errors.length > 0) {
-        return { verified: false, error: errors.join('; ') }
-      }
-
-      // Mark as verified
-      pending.verified = true
-
-      return { verified: true }
-    } catch (error) {
-      return {
-        verified: false,
-        error: error instanceof Error ? error.message : 'Payment verification failed'
-      }
+    const pending = this.pendingPayments.get(verificationData.requestId)
+    if (!pending) {
+      return { verified: false, error: 'Payment request not found or expired' }
     }
+
+    if (pending.verified) {
+      return { verified: true }
+    }
+
+    if (Date.now() > pending.request.expiresAt) {
+      this.pendingPayments.delete(verificationData.requestId)
+      return { verified: false, error: 'Payment request expired' }
+    }
+
+    const tx = await this.provider.getTransaction(verificationData.txHash)
+    if (!tx) {
+      return { verified: false, error: 'Transaction not found on blockchain' }
+    }
+
+    const txReceipt = await this.provider.getTransactionReceipt(verificationData.txHash)
+    if (!txReceipt) {
+      return { verified: false, error: 'Transaction not yet confirmed' }
+    }
+
+    if (txReceipt.status !== 1) {
+      return { verified: false, error: 'Transaction failed on blockchain' }
+    }
+
+    const errors: string[] = []
+
+    if (tx.from.toLowerCase() !== pending.request.from.toLowerCase()) {
+      errors.push(`Sender mismatch: expected ${pending.request.from}, got ${tx.from}`)
+    }
+
+    if (tx.to?.toLowerCase() !== pending.request.to.toLowerCase()) {
+      errors.push(`Recipient mismatch: expected ${pending.request.to}, got ${tx.to}`)
+    }
+
+    const requestedAmount = BigInt(pending.request.amount)
+    const paidAmount = tx.value
+    if (paidAmount < requestedAmount) {
+      errors.push(`Insufficient payment: expected ${requestedAmount}, got ${paidAmount}`)
+    }
+
+    if (errors.length > 0) {
+      return { verified: false, error: errors.join('; ') }
+    }
+
+    pending.verified = true
+
+    return { verified: true }
   }
 
   /**

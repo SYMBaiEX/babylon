@@ -82,118 +82,53 @@ export const buySharesAction: Action = {
   ): Promise<ActionResult> => {
     const babylonService = runtime.getService<BabylonClientService>(
       BabylonClientService.serviceType,
-    );
-
-    if (!babylonService) {
-      const errorResult: ActionResult = {
-        success: false,
-        text: "Error: Babylon service not configured",
-        error: "Babylon service not configured",
-      };
-      callback?.({
-        text: errorResult.text,
-        action: "BUY_SHARES",
-      });
-      return errorResult;
-    }
+    )!;
 
     const client = babylonService.getClient();
 
-    try {
-      // Log user intent for debugging (message content may provide context)
-      if (message.content.text) {
-        runtime.logger.debug(
-          `BUY_SHARES triggered by: ${message.content.text.substring(0, 100)}`,
-        );
-      }
-
-      // Extract trade parameters from message or state
-      const actionState = state as BabylonActionState | undefined;
-      const actionOptions = options as BabylonActionOptions | undefined;
-      const marketId = actionState?.marketId || actionOptions?.marketId;
-      
-      // Validate parameters
-      if (!marketId || typeof marketId !== 'string') {
-        const errorResult: ActionResult = {
-          success: false,
-          text: "Error: No market specified for trade",
-          error: "No market specified",
-        };
-        callback?.({
-          text: errorResult.text,
-          action: "BUY_SHARES",
-        });
-        return errorResult;
-      }
-
-      const tradeRequest: TradeRequest = {
-        marketId,
-        side: (actionState?.side || actionOptions?.side || "yes") as "yes" | "no",
-        amount: actionState?.amount || actionOptions?.amount || 10,
-      };
-
-      // Check wallet balance
-      const wallet = await client.getWallet();
-      if (!wallet || wallet.availableBalance < tradeRequest.amount) {
-        const errorResult: ActionResult = {
-          success: false,
-          text: `Insufficient balance. Available: $${wallet?.availableBalance || 0}, Required: $${tradeRequest.amount}`,
-          error: "Insufficient balance",
-        };
-        callback?.({
-          text: errorResult.text,
-          action: "BUY_SHARES",
-        });
-        return errorResult;
-      }
-
-      // Execute trade
-      runtime.logger.info(
-        `Buying ${tradeRequest.side} shares for $${tradeRequest.amount} on market ${tradeRequest.marketId}`,
+    if (message.content.text) {
+      runtime.logger.debug(
+        `BUY_SHARES triggered by: ${message.content.text.substring(0, 100)}`,
       );
-      const result = await client.buyShares(tradeRequest);
-
-      if (result.success) {
-        const responseText = `✅ Trade executed! Bought ${result.shares?.toFixed(2)} shares at avg price $${result.avgPrice?.toFixed(2)}`;
-
-        callback?.({
-          text: responseText,
-          action: "BUY_SHARES",
-          data: result,
-        });
-
-        return {
-          success: true,
-          text: responseText,
-          data: result,
-        };
-      } else {
-        const errorResult: ActionResult = {
-          success: false,
-          text: `❌ Trade failed: ${result.error}`,
-          error: result.error,
-        };
-        callback?.({
-          text: errorResult.text,
-          action: "BUY_SHARES",
-        });
-        return errorResult;
-      }
-    } catch (error) {
-      runtime.logger.error(
-        `Error in buySharesAction: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      const errorResult: ActionResult = {
-        success: false,
-        text: `Error executing trade: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error: error instanceof Error ? error : new Error("Unknown error"),
-      };
-      callback?.({
-        text: errorResult.text,
-        action: "BUY_SHARES",
-      });
-      return errorResult;
     }
+
+    const actionState = state as BabylonActionState | undefined;
+    const actionOptions = options as BabylonActionOptions | undefined;
+    const marketId = actionState?.marketId || actionOptions?.marketId;
+    
+    if (!marketId || typeof marketId !== 'string') {
+      throw new Error("No market specified for trade");
+    }
+
+    const tradeRequest: TradeRequest = {
+      marketId,
+      side: (actionState?.side || actionOptions?.side || "yes") as "yes" | "no",
+      amount: actionState?.amount || actionOptions?.amount || 10,
+    };
+
+    const wallet = await client.getWallet();
+    if (wallet.availableBalance < tradeRequest.amount) {
+      throw new Error(`Insufficient balance. Available: $${wallet.availableBalance}, Required: $${tradeRequest.amount}`);
+    }
+
+    runtime.logger.info(
+      `Buying ${tradeRequest.side} shares for $${tradeRequest.amount} on market ${tradeRequest.marketId}`,
+    );
+    const result = await client.buyShares(tradeRequest);
+
+    const responseText = `✅ Trade executed! Bought ${result.shares?.toFixed(2) || 0} shares at avg price $${result.avgPrice?.toFixed(2) || 0}`;
+
+    callback?.({
+      text: responseText,
+      action: "BUY_SHARES",
+      data: result,
+    });
+
+    return {
+      success: true,
+      text: responseText,
+      data: result,
+    };
   },
   examples: [
     [
@@ -272,99 +207,51 @@ export const sellSharesAction: Action = {
   ): Promise<ActionResult> => {
     const babylonService = runtime.getService<BabylonClientService>(
       BabylonClientService.serviceType,
-    );
-
-    if (!babylonService) {
-      const errorResult: ActionResult = {
-        success: false,
-        text: "Error: Babylon service not configured",
-        error: "Babylon service not configured",
-      };
-      callback?.({ text: errorResult.text, action: "SELL_SHARES" });
-      return errorResult;
-    }
+    )!;
 
     const client = babylonService.getClient();
 
-    try {
-      // Log user intent for debugging (message content may provide context)
-      if (message.content.text) {
-        runtime.logger.debug(
-          `SELL_SHARES triggered by: ${message.content.text.substring(0, 100)}`,
-        );
-      }
-
-      const actionState = state as BabylonActionState | undefined;
-      const actionOptions = options as BabylonActionOptions | undefined;
-      const marketId = actionState?.marketId || actionOptions?.marketId;
-      const shares = actionState?.shares || actionOptions?.shares;
-
-      if (!marketId) {
-        const errorResult: ActionResult = {
-          success: false,
-          text: "Error: No market specified",
-          error: "No market specified",
-        };
-        callback?.({ text: errorResult.text, action: "SELL_SHARES" });
-        return errorResult;
-      }
-
-      // Get current position
-      const positions = await client.getPositions();
-      const position = positions.find((p) => p.marketId === marketId);
-
-      if (!position) {
-        const errorResult: ActionResult = {
-          success: false,
-          text: `No position found for market ${marketId}`,
-          error: "Position not found",
-        };
-        callback?.({ text: errorResult.text, action: "SELL_SHARES" });
-        return errorResult;
-      }
-
-      // Sell shares
-      const sharesToSell = (shares || position.shares) as number;
-      runtime.logger.info(
-        `Selling ${sharesToSell} shares from market ${marketId}`,
+    if (message.content.text) {
+      runtime.logger.debug(
+        `SELL_SHARES triggered by: ${message.content.text.substring(0, 100)}`,
       );
-      const result = await client.sellShares(marketId, sharesToSell);
-
-      if (result.success) {
-        const responseText = `✅ Position closed! Sold ${sharesToSell.toFixed(2)} shares. P&L: ${position.pnl >= 0 ? "+" : ""}$${position.pnl.toFixed(2)}`;
-
-        callback?.({
-          text: responseText,
-          action: "SELL_SHARES",
-          data: result,
-        });
-
-        return {
-          success: true,
-          text: responseText,
-          data: result,
-        };
-      } else {
-        const errorResult: ActionResult = {
-          success: false,
-          text: `❌ Sale failed: ${result.error}`,
-          error: result.error,
-        };
-        callback?.({ text: errorResult.text, action: "SELL_SHARES" });
-        return errorResult;
-      }
-    } catch (error) {
-      runtime.logger.error(
-        `Error in sellSharesAction: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      const errorResult: ActionResult = {
-        success: false,
-        text: `Error selling shares: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error: error instanceof Error ? error : new Error("Unknown error"),
-      };
-      callback?.({ text: errorResult.text, action: "SELL_SHARES" });
-      return errorResult;
     }
+
+    const actionState = state as BabylonActionState | undefined;
+    const actionOptions = options as BabylonActionOptions | undefined;
+    const marketId = actionState?.marketId || actionOptions?.marketId;
+    const shares = actionState?.shares || actionOptions?.shares;
+
+    if (!marketId) {
+      throw new Error("No market specified");
+    }
+
+    const positions = await client.getPositions();
+    const position = positions.find((p) => p.marketId === marketId);
+
+    if (!position) {
+      throw new Error(`No position found for market ${marketId}`);
+    }
+
+    const sharesToSell = (shares || position.shares) as number;
+    runtime.logger.info(
+      `Selling ${sharesToSell} shares from market ${marketId}`,
+    );
+    const result = await client.sellShares(marketId, sharesToSell);
+
+    const responseText = `✅ Position closed! Sold ${sharesToSell.toFixed(2)} shares. P&L: ${position.pnl >= 0 ? "+" : ""}$${position.pnl.toFixed(2)}`;
+
+    callback?.({
+      text: responseText,
+      action: "SELL_SHARES",
+      data: result,
+    });
+
+    return {
+      success: true,
+      text: responseText,
+      data: result,
+    };
   },
   examples: [
     [
@@ -421,94 +308,55 @@ export const checkWalletAction: Action = {
   ): Promise<ActionResult> => {
     const babylonService = runtime.getService<BabylonClientService>(
       BabylonClientService.serviceType,
-    );
-
-    if (!babylonService) {
-      const errorResult: ActionResult = {
-        success: false,
-        text: "Error: Babylon service not configured",
-        error: "Babylon service not configured",
-      };
-      callback?.({ text: errorResult.text, action: "CHECK_WALLET" });
-      return errorResult;
-    }
+    )!;
 
     const client = babylonService.getClient();
 
-    try {
-      // Extract display preferences from options
-      const actionOptions = options as BabylonActionOptions | undefined;
-      const actionState = state as BabylonActionState | undefined;
-      const showDetailed = actionOptions?.detailed === true;
-      const includeTradingContext = actionOptions?.includeTradingContext === true;
+    const actionOptions = options as BabylonActionOptions | undefined;
+    const actionState = state as BabylonActionState | undefined;
+    const showDetailed = actionOptions?.detailed === true;
+    const includeTradingContext = actionOptions?.includeTradingContext === true;
 
-      // Check state for trading context
-      const inTradingFlow = actionState?.inTradingFlow === true;
-      const pendingTradeAmount = actionState?.pendingTradeAmount;
+    const inTradingFlow = actionState?.inTradingFlow === true;
+    const pendingTradeAmount = actionState?.pendingTradeAmount;
 
-      // Extract any specific request from message (e.g., "detailed balance")
-      const messageText = message.content.text?.toLowerCase() || "";
-      const detailedRequest = messageText.includes("detail") || showDetailed;
+    const messageText = message.content.text?.toLowerCase() || "";
+    const detailedRequest = messageText.includes("detail") || showDetailed;
 
-      const wallet = await client.getWallet();
+    const wallet = await client.getWallet();
 
-      if (!wallet) {
-        const errorResult: ActionResult = {
-          success: false,
-          text: "Error fetching wallet information",
-          error: "Wallet information unavailable",
-        };
-        callback?.({ text: errorResult.text, action: "CHECK_WALLET" });
-        return errorResult;
-      }
+    let responseText = `💰 Wallet Status:\nTotal Balance: $${wallet.balance.toFixed(2)}\nAvailable: $${wallet.availableBalance.toFixed(2)}\nLocked in positions: $${wallet.lockedBalance.toFixed(2)}`;
 
-      // Build response with optional details
-      let responseText = `💰 Wallet Status:\nTotal Balance: $${wallet.balance.toFixed(2)}\nAvailable: $${wallet.availableBalance.toFixed(2)}\nLocked in positions: $${wallet.lockedBalance.toFixed(2)}`;
-
-      // Add detailed analysis if requested
-      if (detailedRequest && wallet.balance > 0) {
-        const utilizationRate = (
-          (wallet.lockedBalance / wallet.balance) *
-          100
-        ).toFixed(1);
-        responseText += `\n\nDetailed Analysis:\n- Capital Utilization: ${utilizationRate}%\n- Available for Trading: ${((wallet.availableBalance / wallet.balance) * 100).toFixed(1)}%`;
-      }
-
-      // Add trading context if in trading flow
-      if ((inTradingFlow || includeTradingContext) && pendingTradeAmount) {
-        const canAfford = wallet.availableBalance >= pendingTradeAmount;
-        const remainingAfterTrade =
-          wallet.availableBalance - pendingTradeAmount;
-
-        responseText += `\n\n🔄 Trading Context:\n- Pending Trade: $${pendingTradeAmount.toFixed(2)}`;
-        responseText += canAfford
-          ? `\n- Status: ✅ Sufficient funds\n- Remaining after trade: $${remainingAfterTrade.toFixed(2)}`
-          : `\n- Status: ❌ Insufficient funds (need $${(pendingTradeAmount - wallet.availableBalance).toFixed(2)} more)`;
-      }
-
-      callback?.({
-        text: responseText,
-        action: "CHECK_WALLET",
-        data: wallet,
-      });
-
-      return {
-        success: true,
-        text: responseText,
-        data: wallet,
-      };
-    } catch (error) {
-      runtime.logger.error(
-        `Error in checkWalletAction: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      const errorResult: ActionResult = {
-        success: false,
-        text: `Error checking wallet: ${error instanceof Error ? error.message : "Unknown error"}`,
-        error: error instanceof Error ? error : new Error("Unknown error"),
-      };
-      callback?.({ text: errorResult.text, action: "CHECK_WALLET" });
-      return errorResult;
+    if (detailedRequest && wallet.balance > 0) {
+      const utilizationRate = (
+        (wallet.lockedBalance / wallet.balance) *
+        100
+      ).toFixed(1);
+      responseText += `\n\nDetailed Analysis:\n- Capital Utilization: ${utilizationRate}%\n- Available for Trading: ${((wallet.availableBalance / wallet.balance) * 100).toFixed(1)}%`;
     }
+
+    if ((inTradingFlow || includeTradingContext) && pendingTradeAmount) {
+      const canAfford = wallet.availableBalance >= pendingTradeAmount;
+      const remainingAfterTrade =
+        wallet.availableBalance - pendingTradeAmount;
+
+      responseText += `\n\n🔄 Trading Context:\n- Pending Trade: $${pendingTradeAmount.toFixed(2)}`;
+      responseText += canAfford
+        ? `\n- Status: ✅ Sufficient funds\n- Remaining after trade: $${remainingAfterTrade.toFixed(2)}`
+        : `\n- Status: ❌ Insufficient funds (need $${(pendingTradeAmount - wallet.availableBalance).toFixed(2)} more)`;
+    }
+
+    callback?.({
+      text: responseText,
+      action: "CHECK_WALLET",
+      data: wallet,
+    });
+
+    return {
+      success: true,
+      text: responseText,
+      data: wallet,
+    };
   },
   examples: [
     [
@@ -571,25 +419,14 @@ export const likePostAction: Action = {
   ): Promise<ActionResult> => {
     const babylonService = runtime.getService<BabylonClientService>(
       BabylonClientService.serviceType,
-    );
-
-    if (!babylonService) {
-      return {
-        success: false,
-        text: "Error: Babylon service not configured",
-        error: "Babylon service not configured",
-      };
-    }
+    )!;
 
     const client = babylonService.getClient();
     
-    // Try to extract postId from options, state, or message content
     let postId = (options?.postId || state?.postId) as string;
     
-    // If not found, try to extract from message content (e.g., "like post post-123")
     if (!postId && message.content.text) {
       const content = message.content.text;
-      // Look for post ID patterns in the message
       const postIdMatch = content.match(/post[_-]?[\w-]+/i) || content.match(/[\w-]+(?:-\d+){2,}/);
       if (postIdMatch) {
         postId = postIdMatch[0];
@@ -597,43 +434,20 @@ export const likePostAction: Action = {
     }
 
     if (!postId) {
-      runtime.logger.error("Like post action: Post ID not found in options, state, or message content");
-      return {
-        success: false,
-        text: "Error: Post ID is required. Please specify which post to like.",
-        error: "Post ID is required",
-      };
+      throw new Error("Post ID is required. Please specify which post to like.");
     }
 
-    try {
-      const result = await client.likePost(postId);
-      
-      if (result.success) {
-        const responseText = `✅ Liked post ${postId}`;
-        callback?.({
-          text: responseText,
-          action: "LIKE_POST",
-        });
-        return {
-          success: true,
-          text: responseText,
-        };
-      } else {
-        return {
-          success: false,
-          text: `Failed to like post: ${result.error || "Unknown error"}`,
-          error: result.error,
-        };
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      runtime.logger.error(`Error in likePostAction: ${errorMessage}`);
-      return {
-        success: false,
-        text: `Error liking post: ${errorMessage}`,
-        error: errorMessage,
-      };
-    }
+    await client.likePost(postId);
+    
+    const responseText = `✅ Liked post ${postId}`;
+    callback?.({
+      text: responseText,
+      action: "LIKE_POST",
+    });
+    return {
+      success: true,
+      text: responseText,
+    };
   },
 };
 
@@ -678,56 +492,27 @@ export const createPostAction: Action = {
   ): Promise<ActionResult> => {
     const babylonService = runtime.getService<BabylonClientService>(
       BabylonClientService.serviceType,
-    );
-
-    if (!babylonService) {
-      return {
-        success: false,
-        text: "Error: Babylon service not configured",
-        error: "Babylon service not configured",
-      };
-    }
+    )!;
 
     const client = babylonService.getClient();
     const content = (options?.content || state?.postContent || message.content.text) as string;
 
     if (!content || content.trim().length === 0) {
-      return {
-        success: false,
-        text: "Error: Post content is required",
-        error: "Post content is required",
-      };
+      throw new Error("Post content is required");
     }
 
-    try {
-      const result = await client.createPost(content);
-      
-      if (result.success) {
-        const responseText = `✅ Created post: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`;
-        callback?.({
-          text: responseText,
-          action: "CREATE_POST",
-        });
-        return {
-          success: true,
-          text: responseText,
-        };
-      } else {
-        return {
-          success: false,
-          text: `Failed to create post: ${result.error || "Unknown error"}`,
-          error: result.error,
-        };
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      runtime.logger.error(`Error in createPostAction: ${errorMessage}`);
-      return {
-        success: false,
-        text: `Error creating post: ${errorMessage}`,
-        error: errorMessage,
-      };
-    }
+    const result = await client.createPost(content);
+    
+    const responseText = `✅ Created post: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`;
+    callback?.({
+      text: responseText,
+      action: "CREATE_POST",
+    });
+    return {
+      success: true,
+      text: responseText,
+      data: result,
+    };
   },
 };
 
@@ -771,30 +556,18 @@ export const followUserAction: Action = {
   ): Promise<ActionResult> => {
     const babylonService = runtime.getService<BabylonClientService>(
       BabylonClientService.serviceType,
-    );
-
-    if (!babylonService) {
-      return {
-        success: false,
-        text: "Error: Babylon service not configured",
-        error: "Babylon service not configured",
-      };
-    }
+    )!;
 
     const client = babylonService.getClient();
     
-    // Try to extract userId from options, state, or message content
     let userId = (options?.userId || state?.userId) as string;
     
-    // If not found, try to extract from message content (e.g., "follow @username" or "follow user-123")
     if (!userId && message.content.text) {
       const content = message.content.text;
-      // Look for @mentions or user ID patterns
       const mentionMatch = content.match(/@(\w+)/i);
       const userIdMatch = content.match(/(?:user|actor)[_-]?[\w-]+/i) || content.match(/[\w-]+(?:-\d+){1,}/);
       
       if (mentionMatch) {
-        // @mention found - would need to resolve username to userId (handled by options/state typically)
         runtime.logger.debug(`Found mention in follow message: ${mentionMatch[1]}`);
       } else if (userIdMatch) {
         userId = userIdMatch[0];
@@ -802,43 +575,20 @@ export const followUserAction: Action = {
     }
 
     if (!userId) {
-      runtime.logger.error("Follow user action: User ID not found in options, state, or message content");
-      return {
-        success: false,
-        text: "Error: User ID is required. Please specify which user to follow.",
-        error: "User ID is required",
-      };
+      throw new Error("User ID is required. Please specify which user to follow.");
     }
 
-    try {
-      const result = await client.followUser(userId);
-      
-      if (result.success) {
-        const responseText = `✅ Started following user ${userId}`;
-        callback?.({
-          text: responseText,
-          action: "FOLLOW_USER",
-        });
-        return {
-          success: true,
-          text: responseText,
-        };
-      } else {
-        return {
-          success: false,
-          text: `Failed to follow user: ${result.error || "Unknown error"}`,
-          error: result.error,
-        };
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      runtime.logger.error(`Error in followUserAction: ${errorMessage}`);
-      return {
-        success: false,
-        text: `Error following user: ${errorMessage}`,
-        error: errorMessage,
-      };
-    }
+    await client.followUser(userId);
+    
+    const responseText = `✅ Started following user ${userId}`;
+    callback?.({
+      text: responseText,
+      action: "FOLLOW_USER",
+    });
+    return {
+      success: true,
+      text: responseText,
+    };
   },
 };
 
@@ -883,80 +633,42 @@ export const commentOnPostAction: Action = {
   ): Promise<ActionResult> => {
     const babylonService = runtime.getService<BabylonClientService>(
       BabylonClientService.serviceType,
-    );
-
-    if (!babylonService) {
-      return {
-        success: false,
-        text: "Error: Babylon service not configured",
-        error: "Babylon service not configured",
-      };
-    }
+    )!;
 
     const client = babylonService.getClient();
     
-    // Try to extract postId from options, state, or message content
     let postId = (options?.postId || state?.postId) as string;
     
-    // If not found, try to extract from message content (e.g., "comment on post-123")
     if (!postId && message.content.text) {
       const content = message.content.text;
-      // Look for post ID patterns in the message
       const postIdMatch = content.match(/post[_-]?[\w-]+/i) || content.match(/[\w-]+(?:-\d+){2,}/);
       if (postIdMatch) {
         postId = postIdMatch[0];
       }
     }
     
-    // Extract comment content from options, state, or message
     const content = (options?.content || state?.commentContent || message.content.text) as string;
 
     if (!postId) {
-      runtime.logger.error("Comment on post action: Post ID not found in options, state, or message content");
-      return {
-        success: false,
-        text: "Error: Post ID is required. Please specify which post to comment on.",
-        error: "Post ID is required",
-      };
+      throw new Error("Post ID is required. Please specify which post to comment on.");
     }
 
     if (!content || content.trim().length === 0) {
-      return {
-        success: false,
-        text: "Error: Comment content is required",
-        error: "Comment content is required",
-      };
+      throw new Error("Comment content is required");
     }
 
-    try {
-      const result = await client.commentOnPost(postId, content);
-      
-      if (result.success) {
-        const responseText = `✅ Commented on post ${postId}`;
-        callback?.({
-          text: responseText,
-          action: "COMMENT_ON_POST",
-        });
-        return {
-          success: true,
-          text: responseText,
-        };
-      } else {
-        return {
-          success: false,
-          text: `Failed to comment: ${result.error || "Unknown error"}`,
-          error: result.error,
-        };
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      runtime.logger.error(`Error in commentOnPostAction: ${errorMessage}`);
-      return {
-        success: false,
-        text: `Error commenting: ${errorMessage}`,
-        error: errorMessage,
-      };
-    }
+    const result = await client.commentOnPost(postId, content);
+    
+    const responseText = `✅ Commented on post ${postId}`;
+    callback?.({
+      text: responseText,
+      action: "COMMENT_ON_POST",
+    });
+    return {
+      success: true,
+      text: responseText,
+      data: result,
+    };
   },
 };
 

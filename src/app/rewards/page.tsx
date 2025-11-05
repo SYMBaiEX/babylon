@@ -1,30 +1,30 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { LoginButton } from '@/components/auth/LoginButton'
+import { Avatar } from '@/components/shared/Avatar'
+import { ExternalShareButton } from '@/components/shared/ExternalShareButton'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { Separator } from '@/components/shared/Separator'
 import { ShareButton } from '@/components/shared/ShareButton'
-import { Avatar } from '@/components/shared/Avatar'
-import { LoginButton } from '@/components/auth/LoginButton'
 import { useAuth } from '@/hooks/useAuth'
-import { useAuthStore } from '@/stores/authStore'
-import { 
-  Gift, 
-  Copy, 
-  Check, 
-  Users, 
-  TrendingUp, 
-  UserPlus,
-  ExternalLink,
-  Twitter,
-  Wallet,
-  Share2,
-  Link as LinkIcon,
-  Award
-} from 'lucide-react'
-import { logger } from '@/lib/logger'
 import { getProfileUrl } from '@/lib/profile-utils'
 import { POINTS } from '@/lib/services/points-service'
+import { useAuthStore } from '@/stores/authStore'
+import {
+  Award,
+  Check,
+  Copy,
+  ExternalLink,
+  Gift,
+  Link as LinkIcon,
+  Share2,
+  TrendingUp,
+  Twitter,
+  UserPlus,
+  Users,
+  Wallet
+} from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 interface ReferredUser {
   id: string
@@ -85,45 +85,36 @@ export default function RewardsPage() {
   const fetchReferralData = async () => {
     if (!user?.id) return
 
-    try {
-      setLoading(true)
-      setError(null)
+    setLoading(true)
+    setError(null)
 
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      if (!token) {
-        setError('Authentication required')
-        return
-      }
-
-      const response = await fetch(`/api/users/${user.id}/referrals`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch referral data')
-      }
-
-      const data = await response.json()
-      setReferralData(data)
-    } catch (err) {
-      logger.error('Error fetching referral data:', err, 'RewardsPage')
-      setError(err instanceof Error ? err.message : 'Failed to load rewards')
-    } finally {
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    if (!token) {
+      setError('Authentication required')
       setLoading(false)
+      return
     }
+
+    const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/referrals`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch referral data')
+    }
+
+    const data = await response.json()
+    setReferralData(data)
+    setLoading(false)
   }
 
   const handleCopyUrl = async () => {
     if (!referralData?.referralUrl) return
-    try {
-      await navigator.clipboard.writeText(referralData.referralUrl)
-      setCopiedUrl(true)
-      setTimeout(() => setCopiedUrl(false), 2000)
-    } catch (error) {
-      logger.error('Error copying URL:', error, 'RewardsPage')
-    }
+    await navigator.clipboard.writeText(referralData.referralUrl)
+    setCopiedUrl(true)
+    setTimeout(() => setCopiedUrl(false), 2000)
   }
 
   // Calculate total points earned from all sources
@@ -379,10 +370,10 @@ export default function RewardsPage() {
 
                 {/* Share Button */}
                 {referralData.referralUrl && (
-                  <ShareButton
+                  <ExternalShareButton
                     contentType="referral"
-                    url={referralData.referralUrl}
                     text="Join me on Babylon! 🎮"
+                    url={referralData.referralUrl}
                     className="w-full"
                   />
                 )}
@@ -602,10 +593,10 @@ export default function RewardsPage() {
 
                 {/* Share Button */}
                 {referralData.referralUrl && (
-                  <ShareButton
+                  <ExternalShareButton
                     contentType="referral"
-                    url={referralData.referralUrl}
                     text="Join me on Babylon! 🎮"
+                    url={referralData.referralUrl}
                     className="w-full"
                   />
                 )}

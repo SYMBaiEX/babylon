@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import {
   UUIDSchema,
+  UserIdSchema,
   DecimalPercentageSchema,
   createTrimmedStringSchema,
   NumericStringSchema,
@@ -44,7 +45,7 @@ export const CreatePoolDepositSchema = z.object({
  * Pool deposit body schema (poolId from route params)
  */
 export const PoolDepositBodySchema = z.object({
-  userId: UUIDSchema,
+  userId: UserIdSchema,
   amount: z.number().positive().min(100, { message: 'Minimum deposit is $100' }).max(1000000, { message: 'Maximum deposit is $1M' })
 });
 
@@ -52,7 +53,7 @@ export const PoolDepositBodySchema = z.object({
  * Pool withdrawal body schema (poolId from route params)
  */
 export const PoolWithdrawBodySchema = z.object({
-  userId: UUIDSchema,
+  userId: UserIdSchema,
   depositId: UUIDSchema
 });
 
@@ -131,11 +132,19 @@ export const CreateNPCTradeSchema = z.object({
  * Pool query filters
  */
 export const PoolQuerySchema = z.object({
-  isActive: z.boolean().optional(),
+  isActive: z.preprocess((val) => {
+    if (val === 'true') return true;
+    if (val === 'false') return false;
+    return val;
+  }, z.boolean().optional()),
   npcActorId: UUIDSchema.optional(),
-  minValue: z.number().optional(),
-  maxValue: z.number().optional(),
-  hasOpenPositions: z.boolean().optional(),
+  minValue: z.coerce.number().optional(),
+  maxValue: z.coerce.number().optional(),
+  hasOpenPositions: z.preprocess((val) => {
+    if (val === 'true') return true;
+    if (val === 'false') return false;
+    return val;
+  }, z.boolean().optional()),
   sortBy: z.enum(['totalValue', 'lifetimePnL', 'performanceFeeRate', 'totalDeposits', 'createdAt']).optional(),
   search: z.string().optional()
 });

@@ -20,69 +20,46 @@ describe('Agent0Client', () => {
     const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/test'
     const privateKey = process.env.BABYLON_GAME_PRIVATE_KEY || '0x0000000000000000000000000000000000000000000000000000000000000001'
     
-    try {
-      const client = new Agent0Client({
-        network: 'sepolia',
-        rpcUrl,
-        privateKey
-      })
-      
-      expect(client).toBeDefined()
-      expect(typeof client.isAvailable).toBe('function')
-    } catch (error) {
-      // May fail if SDK has issues, but constructor should accept config
-      console.log('⚠️  Agent0Client initialization test:', error)
-    }
+    const client = new Agent0Client({
+      network: 'sepolia',
+      rpcUrl,
+      privateKey
+    })
+    
+    expect(client).toBeDefined()
+    expect(typeof client.isAvailable).toBe('function')
   })
   
   test('searchAgents returns array', async () => {
-    const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL
-    const privateKey = process.env.BABYLON_GAME_PRIVATE_KEY
+    const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/test'
+    const privateKey = process.env.BABYLON_GAME_PRIVATE_KEY || '0x0000000000000000000000000000000000000000000000000000000000000001'
     
-    if (!rpcUrl || !privateKey) {
-      console.log('⚠️  Missing config, skipping searchAgents test')
-      return
-    }
+    const client = new Agent0Client({
+      network: 'sepolia',
+      rpcUrl,
+      privateKey
+    })
     
-    try {
-      const client = new Agent0Client({
-        network: 'sepolia',
-        rpcUrl,
-        privateKey
-      })
-      
-      const results = await client.searchAgents({
-        markets: ['prediction']
-      })
-      
-      expect(Array.isArray(results)).toBe(true)
-    } catch (error) {
-      console.log('⚠️  searchAgents test failed:', error)
-    }
+    const results = await client.searchAgents({
+      markets: ['prediction']
+    })
+    
+    expect(Array.isArray(results)).toBe(true)
   })
   
   test('getAgentProfile returns profile or null', async () => {
-    const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL
-    const privateKey = process.env.BABYLON_GAME_PRIVATE_KEY
+    const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/test'
+    const privateKey = process.env.BABYLON_GAME_PRIVATE_KEY || '0x0000000000000000000000000000000000000000000000000000000000000001'
     
-    if (!rpcUrl || !privateKey) {
-      console.log('⚠️  Missing config, skipping getAgentProfile test')
-      return
-    }
+    const client = new Agent0Client({
+      network: 'sepolia',
+      rpcUrl,
+      privateKey
+    })
     
-    try {
-      const client = new Agent0Client({
-        network: 'sepolia',
-        rpcUrl,
-        privateKey
-      })
-      
-      const profile = await client.getAgentProfile(1)
-      
-      expect(profile === null || typeof profile === 'object').toBe(true)
-    } catch (error) {
-      console.log('⚠️  getAgentProfile test failed:', error)
-    }
+    const profile = await client.getAgentProfile(1)
+    
+    expect(profile === null || typeof profile === 'object').toBe(true)
   })
 })
 

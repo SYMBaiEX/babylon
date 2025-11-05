@@ -6,7 +6,6 @@
  * All database operations must go through API endpoints
  */
 
-import { logger } from '@/lib/logger';
 
 interface OnboardingResult {
   success: boolean
@@ -25,7 +24,7 @@ export class OnboardingService {
    * - Process referral code if provided
    */
   static async completeOnboarding(
-    userId: string,
+    _userId: string,
     walletAddress: string,
     username?: string,
     bio?: string,
@@ -34,77 +33,50 @@ export class OnboardingService {
     profileImageUrl?: string,
     coverImageUrl?: string
   ): Promise<OnboardingResult> {
-    try {
-      // Get access token from global state
-      const accessToken = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      if (!accessToken) {
-        return { success: false, error: 'Not authenticated' }
-      }
+    const accessToken = typeof window !== 'undefined' ? window.__privyAccessToken : null;
 
-      // Call on-chain registration API
-      const response = await fetch('/api/auth/onboard', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          walletAddress,
-          username: username, // Username is required - should be provided by onboarding modal
-          bio: bio || '',
-          displayName: displayName || username,
-          profileImageUrl: profileImageUrl,
-          coverImageUrl: coverImageUrl,
-          referralCode: referralCode || undefined, // Include referral code if provided
-        }),
-      })
-
-      // Check if response is JSON before parsing
-      const contentType = response.headers.get('content-type')
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text()
-        logger.warn('Non-JSON response from onboard endpoint:', text.substring(0, 100), 'OnboardingService')
-        return { success: false, error: 'Invalid response from server' }
-      }
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        // If already registered, that's OK
-        if (data.tokenId) {
-          return {
-            success: true,
-            tokenId: data.tokenId,
-            points: 1000, // Assume already awarded
-          }
-        }
-        return { success: false, error: data.error || 'Onboarding failed' }
-      }
-
-      return {
-        success: true,
-        tokenId: data.tokenId,
-        points: 1000,
-        transactionHash: data.txHash,
-      }
-    } catch (error) {
-      // Better error logging - extract error details properly
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const errorStack = error instanceof Error ? error.stack : undefined;
-      const errorDetails = {
-        message: errorMessage,
-        stack: errorStack,
-        error: error instanceof Error ? {
-          name: error.name,
-          message: error.message,
-        } : error,
-        userId,
+    if (!accessToken) {
+      return { 
+        success: false, 
+        error: 'Not authenticated. Please sign in first.' 
       };
-      logger.error('Onboarding error:', errorDetails, 'OnboardingService')
-      return {
-        success: false,
-        error: errorMessage,
+    }
+
+    const response = await fetch('/api/auth/onboard', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        walletAddress,
+        username: username,
+        bio: bio || '',
+        displayName: displayName || username,
+        profileImageUrl: profileImageUrl,
+        coverImageUrl: coverImageUrl,
+        referralCode: referralCode || undefined,
+      }),
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      if (data.tokenId) {
+        return {
+          success: true,
+          tokenId: data.tokenId,
+          points: 1000,
+        }
       }
+      return { success: false, error: data.error }
+    }
+
+    return {
+      success: true,
+      tokenId: data.tokenId,
+      points: 1000,
+      transactionHash: data.txHash,
     }
   }
 
@@ -112,57 +84,32 @@ export class OnboardingService {
    * Check if user is already onboarded
    * MUST be called from client-side only - uses API endpoint
    */
-  static async checkOnboardingStatus(userId: string): Promise<{
+  static async checkOnboardingStatus(_userId: string): Promise<{
     isOnboarded: boolean
     tokenId?: number
   }> {
-    try {
-      // Get access token from browser
-      const accessToken = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      if (!accessToken) {
-        return { isOnboarded: false }
-      }
+    const accessToken = typeof window !== 'undefined' ? window.__privyAccessToken : null;
 
-      // Call API endpoint to check status (Prisma runs server-side in the API)
-      const response = await fetch('/api/auth/onboard', {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
-      })
-
-      // Check if response is JSON before parsing
-      const contentType = response.headers.get('content-type')
-      if (!contentType || !contentType.includes('application/json')) {
-        logger.warn('Non-JSON response from onboard status check', undefined, 'OnboardingService')
-        return { isOnboarded: false }
-      }
-
-      const data = await response.json()
-
-      if (response.ok && data.isRegistered) {
-        return {
-          isOnboarded: true,
-          tokenId: data.tokenId,
-        }
-      }
-
-      return { isOnboarded: false }
-    } catch (error) {
-      // Better error logging - extract error details properly
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const errorStack = error instanceof Error ? error.stack : undefined;
-      const errorDetails = {
-        message: errorMessage,
-        stack: errorStack,
-        error: error instanceof Error ? {
-          name: error.name,
-          message: error.message,
-        } : error,
-        userId,
-      };
-      logger.error('Error checking onboarding status:', errorDetails, 'OnboardingService')
-      return { isOnboarded: false }
+    if (!accessToken) {
+      return { isOnboarded: false };
     }
+
+    const response = await fetch('/api/auth/onboard', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    })
+
+    const data = await response.json()
+
+    if (response.ok && data.isRegistered) {
+      return {
+        isOnboarded: true,
+        tokenId: data.tokenId,
+      }
+    }
+
+    return { isOnboarded: false }
   }
 
   /**
@@ -173,44 +120,27 @@ export class OnboardingService {
     amount: number,
     reason: string
   ): Promise<boolean> {
-    try {
-      const accessToken = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      if (!accessToken) {
-        return false
-      }
+    const accessToken = typeof window !== 'undefined' ? window.__privyAccessToken : null;
 
-      const response = await fetch('/api/users/points/award', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId,
-          amount,
-          reason,
-        }),
-      })
+    if (!accessToken) {
+      console.warn('Cannot award points: User not authenticated');
+      return false;
+    }
 
-      return response.ok
-    } catch (error) {
-      // Better error logging - extract error details properly
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const errorStack = error instanceof Error ? error.stack : undefined;
-      const errorDetails = {
-        message: errorMessage,
-        stack: errorStack,
-        error: error instanceof Error ? {
-          name: error.name,
-          message: error.message,
-        } : error,
+    const response = await fetch('/api/users/points/award', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
         userId,
         amount,
         reason,
-      };
-      logger.error('Error awarding points:', errorDetails, 'OnboardingService')
-      return false
-    }
+      }),
+    })
+
+    return response.ok
   }
 }
 

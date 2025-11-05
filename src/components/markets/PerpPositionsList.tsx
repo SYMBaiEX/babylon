@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { logger } from '@/lib/logger'
 
 interface PerpPosition {
   id: string
@@ -32,33 +31,28 @@ export function PerpPositionsList({ positions, onPositionClosed }: PerpPositions
   const handleClose = async (positionId: string, ticker: string) => {
     setClosingId(positionId)
 
-    try {
-      const response = await fetch(`/api/markets/perps/${positionId}/close`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
-        },
-      })
+    const response = await fetch(`/api/markets/perps/${positionId}/close`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
+      },
+    })
 
-      const data = await response.json()
+    const data = await response.json()
 
-      if (!response.ok) {
-        toast.error(data.error || 'Failed to close position')
-        return
-      }
-
-      const pnl = data.pnl || 0
-      toast.success('Position closed!', {
-        description: `${ticker}: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} PnL`,
-      })
-
-      if (onPositionClosed) onPositionClosed()
-    } catch (error) {
-      logger.error('Error closing position:', error, 'PerpPositionsList')
-      toast.error('Failed to close position')
-    } finally {
+    if (!response.ok) {
+      toast.error(data.error || 'Failed to close position')
       setClosingId(null)
+      return
     }
+
+    const pnl = data.pnl || 0
+    toast.success('Position closed!', {
+      description: `${ticker}: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} PnL`,
+    })
+
+    if (onPositionClosed) onPositionClosed()
+    setClosingId(null)
   }
 
   const formatPrice = (price: number) => {

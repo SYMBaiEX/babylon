@@ -85,13 +85,8 @@ export class SubgraphClient {
       }
     `
     
-    try {
-      const data = await this.client.request(query, { tokenId }) as { agent: SubgraphAgent | null }
-      return data.agent
-    } catch (error) {
-      logger.error(`Failed to get agent ${tokenId} from subgraph:`, error, 'SubgraphClient')
-      return null
-    }
+    const data = await this.client.request(query, { tokenId }) as { agent: SubgraphAgent | null }
+    return data.agent
   }
   
   /**
@@ -104,7 +99,6 @@ export class SubgraphClient {
     minTrustScore?: number
     limit?: number
   }): Promise<SubgraphAgent[]> {
-    // Build where clause dynamically
     const whereConditions: string[] = []
     
     if (filters.type) {
@@ -114,9 +108,6 @@ export class SubgraphClient {
     if (filters.minTrustScore !== undefined) {
       whereConditions.push(`reputation_trustScore_gte: ${filters.minTrustScore}`)
     }
-    
-    // Note: Capabilities filtering might need custom logic depending on subgraph schema
-    // This is a simplified version
     
     const whereClause = whereConditions.length > 0 
       ? `where: { ${whereConditions.join(', ')} }`
@@ -151,41 +142,26 @@ export class SubgraphClient {
       }
     `
     
-    try {
-      const data = await this.client.request(query) as { agents: SubgraphAgent[] }
-      
-      // Filter by capabilities if needed (client-side filtering)
-      let results = data.agents
-      
-      if (filters.strategies && filters.strategies.length > 0) {
-        results = results.filter(agent => {
-          try {
-            const caps = agent.capabilities ? JSON.parse(agent.capabilities) : {}
-            const agentStrategies = caps.strategies || []
-            return filters.strategies!.some(s => agentStrategies.includes(s))
-          } catch {
-            return false
-          }
-        })
-      }
-      
-      if (filters.markets && filters.markets.length > 0) {
-        results = results.filter(agent => {
-          try {
-            const caps = agent.capabilities ? JSON.parse(agent.capabilities) : {}
-            const agentMarkets = caps.markets || []
-            return filters.markets!.some(m => agentMarkets.includes(m))
-          } catch {
-            return false
-          }
-        })
-      }
-      
-      return results
-    } catch (error) {
-      logger.error('Failed to search agents from subgraph:', error, 'SubgraphClient')
-      return []
+    const data = await this.client.request(query) as { agents: SubgraphAgent[] }
+    let results = data.agents
+    
+    if (filters.strategies && filters.strategies.length > 0) {
+      results = results.filter(agent => {
+        const caps = agent.capabilities ? JSON.parse(agent.capabilities) : {}
+        const agentStrategies = caps.strategies || []
+        return filters.strategies!.some(s => agentStrategies.includes(s))
+      })
     }
+    
+    if (filters.markets && filters.markets.length > 0) {
+      results = results.filter(agent => {
+        const caps = agent.capabilities ? JSON.parse(agent.capabilities) : {}
+        const agentMarkets = caps.markets || []
+        return filters.markets!.some(m => agentMarkets.includes(m))
+      })
+    }
+    
+    return results
   }
   
   /**

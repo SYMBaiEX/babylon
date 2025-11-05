@@ -392,128 +392,48 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     throw new BusinessLogicError('Blockchain registration transaction failed', 'REGISTRATION_TX_FAILED', { txHash, receipt: receipt.status });
   }
 
-    // Get the token ID from the event logs
-    // Reset tokenId to null if not already set from database
-    if (!tokenId) {
-      tokenId = null
-    }
-    
-    for (const log of receipt.logs) {
-      try {
-        // Try to decode as AgentRegistered event
-        const decodedLog = decodeEventLog({
-          abi: IDENTITY_REGISTRY_ABI,
-          data: log.data,
-          topics: log.topics,
-        })
+    const agentRegisteredLog = receipt.logs.find(log => {
+      const decodedLog = decodeEventLog({
+        abi: IDENTITY_REGISTRY_ABI,
+        data: log.data,
+        topics: log.topics,
+      })
+      return decodedLog.eventName === 'AgentRegistered'
+    })
 
-        if (decodedLog.eventName === 'AgentRegistered') {
-          tokenId = Number(decodedLog.args.tokenId)
-          break
-        }
-      } catch {
-        // Skip logs we can't decode
-      }
-    }
-
-  // If we couldn't get tokenId from events, query it
-  if (!tokenId) {
-    if (user.isAgent) {
-      // For agents, tokenId MUST come from events (server wallet owns multiple NFTs)
-      throw new InternalServerError('Failed to extract token ID from AgentRegistered event', { txHash, userId: user.userId });
-    } else {
-        // For regular users, query by wallet address
-        const queriedTokenId = await publicClient.readContract({
-          address: IDENTITY_REGISTRY,
-          abi: IDENTITY_REGISTRY_ABI,
-          functionName: 'getTokenId',
-          args: [walletAddress! as Address],
-        })
-        tokenId = Number(queriedTokenId)
-      }
-    }
+    const decodedLog = decodeEventLog({
+      abi: IDENTITY_REGISTRY_ABI,
+      data: agentRegisteredLog!.data,
+      topics: agentRegisteredLog!.topics,
+    })
+    tokenId = Number(decodedLog.args.tokenId)
 
     logger.info('Registered with token ID:', tokenId, 'POST /api/auth/onboard')
+    logger.info('Setting initial reputation to 70...', undefined, 'POST /api/auth/onboard')
 
-    // Set initial reputation to 70 (by recording 10 bets with 7 wins = 70% accuracy)
-    // This gives trustScore ≈ 7000 (70 out of 100)
-    // Note: We already waited for transaction confirmation above, but we need to verify token exists
-    try {
-      logger.info('Setting initial reputation to 70...', undefined, 'POST /api/auth/onboard')
-      
-      // Wait a bit for state to sync after registration
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      // Verify token exists before attempting reputation calls
-      // Use isRegistered instead of ownerOf to avoid reverts
-      const verifyAddress = user.isAgent ? account.address : (walletAddress! as Address)
-      const isRegistered = await publicClient.readContract({
-        address: IDENTITY_REGISTRY,
-        abi: IDENTITY_REGISTRY_ABI,
-        functionName: 'isRegistered',
-        args: [verifyAddress],
+    for (let i = 0; i < 10; i++) {
+      await walletClient.writeContract({
+        address: REPUTATION_SYSTEM,
+        abi: REPUTATION_SYSTEM_ABI,
+        functionName: 'recordBet',
+        args: [BigInt(tokenId), parseEther('100')],
       })
-
-      if (!isRegistered) {
-        logger.warn('Token not registered yet, skipping reputation setup', undefined, 'POST /api/auth/onboard')
-        throw new Error('Token not registered - cannot set reputation')
-      }
-
-      // Also verify ownerOf works (will revert if token doesn't exist)
-      try {
-        const owner = await publicClient.readContract({
-          address: IDENTITY_REGISTRY,
-          abi: IDENTITY_REGISTRY_ABI,
-          functionName: 'ownerOf',
-          args: [BigInt(tokenId)],
-        }) as Address
-
-        if (!owner || owner === '0x0000000000000000000000000000000000000000') {
-          throw new Error('Token owner is zero address')
-        }
-
-        logger.info('Token verified in registry, owner:', owner, 'POST /api/auth/onboard')
-      } catch {
-        logger.warn('Could not verify token owner, but isRegistered=true, proceeding anyway', undefined, 'POST /api/auth/onboard')
-      }
-
-      // Record 10 bets total
-      for (let i = 0; i < 10; i++) {
-        await walletClient.writeContract({
-          address: REPUTATION_SYSTEM,
-          abi: REPUTATION_SYSTEM_ABI,
-          functionName: 'recordBet',
-          args: [BigInt(tokenId), parseEther('100')],
-        })
-      }
-
-      // Record 7 wins to achieve 70% accuracy (7/10 = 70%)
-      for (let i = 0; i < 7; i++) {
-        const winTxHash = await walletClient.writeContract({
-          address: REPUTATION_SYSTEM,
-          abi: REPUTATION_SYSTEM_ABI,
-          functionName: 'recordWin',
-          args: [BigInt(tokenId), parseEther('100')],
-        })
-        
-        // Wait for each transaction (except batch the last ones)
-        if (i < 2) {
-          await publicClient.waitForTransactionReceipt({
-            hash: winTxHash,
-            confirmations: 1,
-          })
-        }
-      }
-
-      // Wait for remaining transactions
-      await new Promise(resolve => setTimeout(resolve, 2000))
-
-      logger.info('Initial reputation set to 70 (7 wins out of 10 bets)', undefined, 'POST /api/auth/onboard')
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error('Failed to set initial reputation:', { error: errorMessage }, 'POST /api/auth/onboard')
-      // Don't fail registration if reputation setup fails
     }
+
+    for (let i = 0; i < 7; i++) {
+      const winTxHash = await walletClient.writeContract({
+        address: REPUTATION_SYSTEM,
+        abi: REPUTATION_SYSTEM_ABI,
+        functionName: 'recordWin',
+        args: [BigInt(tokenId), parseEther('100')],
+      })
+      await publicClient.waitForTransactionReceipt({
+        hash: winTxHash,
+        confirmations: 1,
+      })
+    }
+
+    logger.info('Initial reputation set to 70 (7 wins out of 10 bets)', undefined, 'POST /api/auth/onboard')
 
     // Update database with ERC-8004 registration
     await prisma.user.update({
@@ -528,249 +448,120 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       },
     })
 
-    // Register with Agent0 SDK and publish to IPFS (if enabled)
-    let agent0MetadataCID: string | null = null
-    if (process.env.AGENT0_ENABLED === 'true' && !user.isAgent) {
-      // Only register regular users with Agent0 (agents are handled in /api/agents/onboard)
-      try {
-        logger.info('Registering user with Agent0 SDK...', { userId: dbUser.id, tokenId }, 'UserOnboard')
+    const userWalletAddress = walletAddress!.toLowerCase()
+    
+    const agent0Client = new Agent0Client({
+      network: (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia',
+      rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_RPC_URL || '',
+      privateKey: DEPLOYER_PRIVATE_KEY
+    })
+    
+    const agent0Result = await agent0Client.registerAgent({
+      name: username || dbUser.username || user.userId,
+      description: bio || 'Babylon player',
+      walletAddress: userWalletAddress,
+      capabilities: {
+        strategies: [],
+        markets: ['prediction', 'perpetuals'],
+        actions: ['trade', 'post', 'chat'],
+        version: '1.0.0'
+      } as AgentCapabilities
+    })
+    
+    const agent0MetadataCID = agent0Result.metadataCID
+    
+    logger.info(`User registered with Agent0 SDK`, { 
+      userId: dbUser.id, 
+      tokenId: agent0Result.tokenId,
+      metadataCID: agent0MetadataCID
+    }, 'UserOnboard')
 
-        const userWalletAddress = walletAddress!.toLowerCase()
-        
-        // Create user metadata (Agent0 SDK will publish to IPFS)
-        const userMetadata = {
-          name: username || dbUser.username || user.userId,
-          description: bio || `Babylon player`,
-          version: '1.0.0',
-          type: 'user',
-          endpoints: {
-            api: `https://babylon.game/api/users/${dbUser.id}`,
+    const userWithBalance = await prisma.user.findUniqueOrThrow({
+      where: { id: dbUser.id },
+      select: { virtualBalance: true },
+    })
+    
+    const balanceBefore = userWithBalance.virtualBalance
+    const amountDecimal = new Prisma.Decimal(1000)
+    const balanceAfter = balanceBefore.plus(amountDecimal)
+
+    await prisma.balanceTransaction.create({
+      data: {
+        userId: dbUser.id,
+        type: 'deposit',
+        amount: amountDecimal,
+        balanceBefore,
+        balanceAfter,
+        description: 'Welcome bonus - initial signup',
+      },
+    })
+
+    await prisma.user.update({
+      where: { id: dbUser.id },
+      data: {
+        virtualBalance: { increment: 1000 },
+        totalDeposited: { increment: 1000 },
+      },
+    })
+
+    logger.info('Successfully awarded 1,000 points to user', undefined, 'POST /api/auth/onboard')
+
+    await notifyNewAccount(dbUser.id)
+    logger.info('Welcome notification sent to new user', { userId: dbUser.id }, 'POST /api/auth/onboard')
+
+    if (referrerId && referralCode) {
+      const referralResult = await PointsService.awardReferralSignup(referrerId, dbUser.id)
+
+      await prisma.referral.upsert({
+        where: { referralCode },
+        update: {
+          status: 'completed',
+          referredUserId: dbUser.id,
+          completedAt: new Date(),
+          pointsAwarded: true,
+        },
+        create: {
+          referrerId,
+          referralCode,
+          referredUserId: dbUser.id,
+          status: 'completed',
+          completedAt: new Date(),
+          pointsAwarded: true,
+        },
+      })
+
+      await prisma.follow.upsert({
+        where: {
+          followerId_followingId: {
+            followerId: referrerId,
+            followingId: dbUser.id,
           },
-          capabilities: {
-            strategies: [],  // Users don't have automated strategies
-            markets: ['prediction', 'perpetuals'],
-            actions: ['trade', 'post', 'chat'],
-            version: '1.0.0'
-          } as AgentCapabilities,
-          babylon: {
-            agentId: dbUser.id,
-            tokenId,
-            walletAddress: userWalletAddress,
-            registrationTxHash: txHash
-          }
-        }
-        
-        // Register with Agent0 SDK (handles IPFS publishing internally)
-        try {
-          const agent0Client = new Agent0Client({
-            network: (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia',
-            rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_RPC_URL || '',
-            privateKey: DEPLOYER_PRIVATE_KEY
-          })
-          
-          const agent0Result = await agent0Client.registerAgent({
-            name: username || dbUser.username || user.userId,
-            description: bio || 'Babylon player',
-            walletAddress: userWalletAddress,
-            capabilities: userMetadata.capabilities
-          })
-          
-          // Extract metadata CID from Agent0 result
-          agent0MetadataCID = agent0Result.metadataCID || null
-          
-          logger.info(`User registered with Agent0 SDK`, { 
-            userId: dbUser.id, 
-            tokenId: agent0Result.tokenId,
-            metadataCID: agent0MetadataCID
-          }, 'UserOnboard')
-          
-          // Update database with Agent0 metadata
-          // TODO: Add agent0MetadataCID and agent0LastSync fields to Prisma schema
-          await prisma.user.update({
-            where: { id: dbUser.id },
-            data: {
-              // Metadata will be stored when schema is updated
-            },
-          })
-        } catch (agent0Error) {
-          // Log but don't fail - Agent0 SDK might not be installed yet
-          logger.warn(
-            'Agent0 SDK registration failed (SDK may not be installed). Metadata published to IPFS.',
-            { error: agent0Error instanceof Error ? agent0Error.message : String(agent0Error), userId: dbUser.id },
-            'UserOnboard'
-          )
-          
-          // Still store IPFS CID
-          // TODO: Add agent0MetadataCID field to Prisma schema
-          await prisma.user.update({
-            where: { id: dbUser.id },
-            data: {
-              // Metadata will be stored when schema is updated
-            },
-          })
-        }
-      } catch (error) {
-        // Don't fail registration if Agent0/IPFS fails
-        logger.warn(
-          'Failed to register user with Agent0/IPFS (non-critical)',
-          { error: error instanceof Error ? error.message : String(error), userId: dbUser.id },
-          'UserOnboard'
-        )
-      }
-    }
+        },
+        update: {},
+        create: {
+          followerId: referrerId,
+          followingId: dbUser.id,
+        },
+      })
 
-    // Award 1,000 virtual balance points to user (only if not already awarded)
-    // Skip for agents - they already have 10k points
-    if (!user.isAgent) {
-      try {
-        // Check if welcome bonus was already awarded
-        const existingBonus = await prisma.balanceTransaction.findFirst({
-          where: {
-            userId: dbUser.id,
-            description: 'Welcome bonus - initial signup',
-          },
-        })
+      logger.info(
+        `Referrer ${referrerId} auto-followed new user ${dbUser.id}`,
+        { referrerId, referredUserId: dbUser.id },
+        'POST /api/auth/onboard'
+      )
 
-        if (!existingBonus) {
-          // Fetch current balance
-          const userWithBalance = await prisma.user.findUnique({
-            where: { id: dbUser.id },
-            select: { virtualBalance: true },
-          })
-          
-          const balanceBefore = userWithBalance?.virtualBalance || new Prisma.Decimal(0)
-          const amountDecimal = new Prisma.Decimal(1000)
-          const balanceAfter = balanceBefore.plus(amountDecimal)
-
-        // Create transaction record
-        await prisma.balanceTransaction.create({
-          data: {
-            userId: dbUser.id,
-            type: 'deposit',
-            amount: amountDecimal,
-            balanceBefore,
-            balanceAfter,
-            description: 'Welcome bonus - initial signup',
-          },
-        })
-
-        // Update user balance
-        await prisma.user.update({
-          where: { id: dbUser.id },
-          data: {
-            virtualBalance: { increment: 1000 },
-            totalDeposited: { increment: 1000 },
-          },
-        })
-
-        logger.info('Successfully awarded 1,000 points to user', undefined, 'POST /api/auth/onboard')
-
-        // Send welcome notification to new user
-        try {
-          await notifyNewAccount(dbUser.id)
-          logger.info('Welcome notification sent to new user', { userId: dbUser.id }, 'POST /api/auth/onboard')
-        } catch (notificationError) {
-          const notificationErrorMessage = notificationError instanceof Error ? notificationError.message : String(notificationError);
-          logger.error('Error sending welcome notification (non-critical):', { error: notificationErrorMessage }, 'POST /api/auth/onboard')
-          // Don't fail registration if notification fails
-        }
-
-        // Award referral bonus to referrer if applicable
-        if (referrerId && referralCode) {
-          try {
-            // Award points to referrer
-            const referralResult = await PointsService.awardReferralSignup(referrerId, dbUser.id)
-            
-            if (referralResult.success) {
-              // Create or update referral record
-              // For username-based referrals, the record might not exist yet
-              const existingReferral = await prisma.referral.findUnique({
-                where: { referralCode },
-              })
-
-              if (existingReferral) {
-                // Update existing referral
-                await prisma.referral.update({
-                  where: { referralCode },
-                  data: {
-                    status: 'completed',
-                    referredUserId: dbUser.id,
-                    completedAt: new Date(),
-                    pointsAwarded: true,
-                  },
-                })
-              } else {
-                // Create new referral record for username-based referrals
-                await prisma.referral.create({
-                  data: {
-                    referrerId,
-                    referralCode,
-                    referredUserId: dbUser.id,
-                    status: 'completed',
-                    completedAt: new Date(),
-                    pointsAwarded: true,
-                  },
-                })
-              }
-
-              // Auto-follow: Referrer follows the new user (they invited them!)
-              try {
-                const existingFollow = await prisma.follow.findUnique({
-                  where: {
-                    followerId_followingId: {
-                      followerId: referrerId,
-                      followingId: dbUser.id,
-                    },
-                  },
-                })
-
-                if (!existingFollow) {
-                  await prisma.follow.create({
-                    data: {
-                      followerId: referrerId,
-                      followingId: dbUser.id,
-                    },
-                  })
-
-                  logger.info(
-                    `Referrer ${referrerId} auto-followed new user ${dbUser.id}`,
-                    { referrerId, referredUserId: dbUser.id },
-                    'POST /api/auth/onboard'
-                  )
-                }
-              } catch (followError) {
-                const followErrorMessage = followError instanceof Error ? followError.message : String(followError);
-                logger.error('Error creating auto-follow (non-critical):', { error: followErrorMessage }, 'POST /api/auth/onboard')
-                // Don't fail registration if auto-follow fails
-              }
-
-              logger.info(
-                `Awarded ${referralResult.pointsAwarded} referral points to user ${referrerId}`,
-                { referrerId, referredUserId: dbUser.id, points: referralResult.pointsAwarded },
-                'POST /api/auth/onboard'
-              )
-            }
-          } catch (referralError) {
-            const referralErrorMessage = referralError instanceof Error ? referralError.message : String(referralError);
-            logger.error('Error awarding referral points (non-critical):', { error: referralErrorMessage }, 'POST /api/auth/onboard')
-            // Don't fail registration if referral points award fails
-          }
-        }
-      } else {
-          logger.info('Welcome bonus already awarded to user', undefined, 'POST /api/auth/onboard')
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error('Error awarding points (non-critical):', { error: errorMessage }, 'POST /api/auth/onboard')
-        // Don't fail registration if points award fails
-      }
+      logger.info(
+        `Awarded ${referralResult.pointsAwarded} referral points to user ${referrerId}`,
+        { referrerId, referredUserId: dbUser.id, points: referralResult.pointsAwarded },
+        'POST /api/auth/onboard'
+      )
     }
 
   logger.info('On-chain registration completed', {
     userId: user.userId,
     tokenId,
     isAgent: user.isAgent,
-    pointsAwarded: user.isAgent ? 0 : 1000
+    pointsAwarded: 1000
   }, 'POST /api/auth/onboard');
 
   return successResponse({
@@ -781,7 +572,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     txHash,
     blockNumber: Number(receipt.blockNumber),
     gasUsed: Number(receipt.gasUsed),
-    pointsAwarded: user.isAgent ? 0 : 1000, // Agents don't get welcome bonus
+    pointsAwarded: 1000,
   });
 });
 

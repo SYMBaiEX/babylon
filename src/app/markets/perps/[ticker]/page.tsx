@@ -1,15 +1,14 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, TrendingUp, TrendingDown, AlertTriangle, Info } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useAuth } from '@/hooks/useAuth'
-import { toast } from 'sonner'
-import { logger } from '@/lib/logger'
-import { PageContainer } from '@/components/shared/PageContainer'
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList'
+import { PageContainer } from '@/components/shared/PageContainer'
+import { useAuth } from '@/hooks/useAuth'
+import { cn } from '@/lib/utils'
 import type { PerpPosition } from '@/shared/perps-types'
+import { AlertTriangle, ArrowLeft, Info, TrendingDown, TrendingUp } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
+import { useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 interface PerpMarket {
   ticker: string
@@ -52,48 +51,42 @@ export default function PerpDetailPage() {
   const [userPositions, setUserPositions] = useState<PerpPosition[]>([])
 
   const fetchMarketData = useCallback(async () => {
-    try {
-      const response = await fetch('/api/markets/perps')
-      const data = await response.json()
-      const foundMarket = data.markets?.find((m: PerpMarket) => m.ticker === ticker)
-      
-      if (!foundMarket) {
-        toast.error('Market not found')
-        router.push('/markets')
-        return
-      }
-
-      setMarket(foundMarket)
-
-      // Generate mock price history (you'll want to replace this with real data)
-      const now = Date.now()
-      const history: PricePoint[] = []
-      const basePrice = foundMarket.currentPrice
-      const volatility = basePrice * 0.02 // 2% volatility
-      
-      for (let i = 100; i >= 0; i--) {
-        const time = now - (i * 15 * 60 * 1000) // 15 min intervals for last ~25 hours
-        const randomChange = (Math.random() - 0.5) * volatility
-        const price = basePrice + randomChange + (foundMarket.change24h / 100) * (100 - i) / 100
-        history.push({ time, price })
-      }
-      
-      setPriceHistory(history)
-
-      // Fetch user positions if authenticated
-      if (authenticated && user?.id) {
-        const positionsRes = await fetch(`/api/markets/positions/${user.id}`)
-        const positionsData = await positionsRes.json()
-        const perpPos = positionsData.perpetuals?.positions || []
-        const tickerPositions = perpPos.filter((p: PerpPosition) => p.ticker === ticker)
-        setUserPositions(tickerPositions)
-      }
-    } catch (error) {
-      logger.error('Error fetching market data:', error, 'PerpDetailPage')
-      toast.error('Failed to load market data')
-    } finally {
-      setLoading(false)
+    const response = await fetch('/api/markets/perps')
+    const data = await response.json()
+    const foundMarket = data.markets?.find((m: PerpMarket) => m.ticker === ticker)
+    
+    if (!foundMarket) {
+      toast.error('Market not found')
+      router.push('/markets')
+      return
     }
+
+    setMarket(foundMarket)
+
+    // Generate mock price history (you'll want to replace this with real data)
+    const now = Date.now()
+    const history: PricePoint[] = []
+    const basePrice = foundMarket.currentPrice
+    const volatility = basePrice * 0.02 // 2% volatility
+    
+    for (let i = 100; i >= 0; i--) {
+      const time = now - (i * 15 * 60 * 1000) // 15 min intervals for last ~25 hours
+      const randomChange = (Math.random() - 0.5) * volatility
+      const price = basePrice + randomChange + (foundMarket.change24h / 100) * (100 - i) / 100
+      history.push({ time, price })
+    }
+    
+    setPriceHistory(history)
+
+    // Fetch user positions if authenticated
+    if (authenticated && user?.id) {
+      const positionsRes = await fetch(`/api/markets/positions/${encodeURIComponent(user.id)}`)
+      const positionsData = await positionsRes.json()
+      const perpPos = positionsData.perpetuals?.positions || []
+      const tickerPositions = perpPos.filter((p: PerpPosition) => p.ticker === ticker)
+      setUserPositions(tickerPositions)
+    }
+    setLoading(false)
   }, [ticker, router, authenticated, user?.id])
 
   useEffect(() => {
@@ -116,41 +109,35 @@ export default function PerpDetailPage() {
 
     setSubmitting(true)
 
-    try {
-      const response = await fetch('/api/markets/perps/open', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
-        },
-        body: JSON.stringify({
-          ticker: market.ticker,
-          side,
-          size: sizeNum,
-          leverage,
-        }),
-      })
+    const response = await fetch('/api/markets/perps/open', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
+      },
+      body: JSON.stringify({
+        ticker: market.ticker,
+        side,
+        size: sizeNum,
+        leverage,
+      }),
+    })
 
-      const data = await response.json()
+    const data = await response.json()
 
-      if (!response.ok) {
-        toast.error(data.error || 'Failed to open position')
-        return
-      }
-
-      toast.success('Position opened!', {
-        description: `Opened ${leverage}x ${side} on ${market.ticker} at $${market.currentPrice.toFixed(2)}`,
-      })
-
-      // Refresh data
-      await fetchMarketData()
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to open position'
-      logger.error('Error opening position:', errorMessage, 'PerpDetailPage')
-      toast.error('Failed to open position')
-    } finally {
+    if (!response.ok) {
+      toast.error(data.error || 'Failed to open position')
       setSubmitting(false)
+      return
     }
+
+    toast.success('Position opened!', {
+      description: `Opened ${leverage}x ${side} on ${market.ticker} at $${market.currentPrice.toFixed(2)}`,
+    })
+
+    // Refresh data
+    await fetchMarketData()
+    setSubmitting(false)
   }
 
   const formatPrice = (price: number) => {

@@ -140,28 +140,23 @@ async function main() {
   }
 
   // Connect all agents
-  try {
-    logger.info('Connecting agents...', undefined, 'CLI');
-    await Promise.all(agents.map(agent => agent.connect()));
-    logger.info('All agents connected successfully!', undefined, 'CLI');
+  logger.info('Connecting agents...', undefined, 'CLI');
+  await Promise.all(agents.map(agent => agent.connect()));
+  logger.info('All agents connected successfully!', undefined, 'CLI');
 
-    // Register agents with registry
-    logger.info('Registering agents with registry...', undefined, 'CLI');
-    for (const agent of agents) {
-      registry.register(agent);
-    }
-
-    // Display registry stats
-    const stats = registry.getStats();
-    logger.info('Registry Statistics:', {
-      totalAgents: stats.totalAgents,
-      activeAgents: stats.activeAgents,
-      strategies: Object.fromEntries(stats.strategies)
-    }, 'CLI');
-  } catch (error) {
-    logger.error('Failed to connect agents:', error, 'CLI');
-    process.exit(1);
+  // Register agents with registry
+  logger.info('Registering agents with registry...', undefined, 'CLI');
+  for (const agent of agents) {
+    registry.register(agent);
   }
+
+  // Display registry stats
+  const stats = registry.getStats();
+  logger.info('Registry Statistics:', {
+    totalAgents: stats.totalAgents,
+    activeAgents: stats.activeAgents,
+    strategies: Object.fromEntries(stats.strategies)
+  }, 'CLI');
 
   // After 10 seconds, demonstrate agent discovery and coalition formation
   setTimeout(async () => {
@@ -244,13 +239,7 @@ async function main() {
 
 // Run if called directly
 if (import.meta.main) {
-  main().catch(error => {
-    logger.error('Error:', error.message, 'CLI');
-    if (error.stack) {
-      logger.error('Stack trace:', error.stack, 'CLI');
-    }
-    process.exit(1);
-  });
+  main()
 }
 
 export { main };

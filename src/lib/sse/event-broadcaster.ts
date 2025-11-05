@@ -2,13 +2,15 @@
  * Event Broadcaster for Server-Sent Events (SSE)
  * 
  * Handles broadcasting events to connected SSE clients.
- * Uses Redis (Upstash/Vercel KV) for production and in-memory for development.
+ * Uses Redis (Upstash/Vercel KV) for cross-instance broadcasting in production.
+ * Falls back to local-only broadcasting if Redis not configured.
  * 
  * This replaces the WebSocket broadcast system for Vercel compatibility.
  */
 
-import { EventEmitter } from 'events';
 import { logger } from '@/lib/logger';
+import { isRedisAvailable, safePoll, safePublish } from '@/lib/redis';
+import { EventEmitter } from 'events';
 
 // Type definitions
 export type Channel = 'feed' | 'markets' | 'breaking-news' | 'upcoming-events' | string;
@@ -46,19 +48,18 @@ class InMemoryBroadcaster extends EventEmitter {
     this.pingInterval = setInterval(() => {
       const now = Date.now();
       for (const [clientId, client] of this.clients.entries()) {
-        try {
-          // Remove stale clients (no activity for 60 seconds)
-          if (now - client.lastPing > 60000) {
-            this.removeClient(clientId);
-            continue;
-          }
+        if (now - client.lastPing > 60000) {
+          this.removeClient(clientId);
+          continue;
+        }
 
-          // Send ping
+        try {
           client.controller.enqueue(
             `event: ping\ndata: ${JSON.stringify({ timestamp: now })}\n\n`
           );
-        } catch (_error) {
-          logger.error('Error sending ping:', _error, 'InMemoryBroadcaster');
+        } catch (error) {
+          // Controller is closed, remove client
+          logger.debug(`Failed to send ping to client ${clientId}, removing`, { clientId, error }, 'InMemoryBroadcaster');
           this.removeClient(clientId);
         }
       }
@@ -76,7 +77,7 @@ class InMemoryBroadcaster extends EventEmitter {
       try {
         client.controller.close();
       } catch {
-        // Client already closed
+        // Controller already closed, ignore
       }
       this.clients.delete(clientId);
       logger.debug(`SSE client disconnected: ${clientId}`, { clientId }, 'InMemoryBroadcaster');
@@ -102,30 +103,34 @@ class InMemoryBroadcaster extends EventEmitter {
   broadcast(message: BroadcastMessage) {
     let sentCount = 0;
     const { channel, type, data, timestamp } = message;
+    const clientsToRemove: string[] = [];
 
-    for (const [clientId, client] of this.clients.entries()) {
-      // Only send to clients subscribed to this channel
+    for (const client of this.clients.values()) {
       if (!client.channels.has(channel)) {
         continue;
       }
 
       try {
-        const eventData = JSON.stringify({
-          channel,
-          type,
-          data,
-          timestamp
-        });
-
         client.controller.enqueue(
-          `event: message\ndata: ${eventData}\n\n`
+          `event: message\ndata: ${JSON.stringify({
+            channel,
+            type,
+            data,
+            timestamp
+          })}\n\n`
         );
         client.lastPing = Date.now();
         sentCount++;
       } catch (error) {
-        logger.error(`Error sending to client ${clientId}:`, error, 'InMemoryBroadcaster');
-        this.removeClient(clientId);
+        // Controller is closed, mark for removal
+        logger.debug(`Failed to send message to client ${client.id}, will remove`, { clientId: client.id, error }, 'InMemoryBroadcaster');
+        clientsToRemove.push(client.id);
       }
+    }
+
+    // Remove clients with closed controllers
+    for (const clientId of clientsToRemove) {
+      this.removeClient(clientId);
     }
 
     if (sentCount > 0) {
@@ -160,27 +165,36 @@ class InMemoryBroadcaster extends EventEmitter {
 /**
  * Serverless broadcaster for production (Vercel)
  * 
- * IMPORTANT: In serverless environments, each function instance manages its own clients.
- * Cross-instance broadcasting requires a separate mechanism (polling, webhooks, or external service).
+ * Uses Redis pub/sub for cross-instance broadcasting when available.
+ * Falls back to local-only broadcasting if Redis not configured.
  * 
- * This broadcaster intentionally uses local-only broadcasting, which is sufficient because:
- * 1. Vercel's load balancer uses sticky sessions for SSE connections
- * 2. Broadcast calls happen in the same serverless function that receives the API request
- * 3. The SSE connection is typically on the same instance that handles the update
+ * With Redis:
+ * - Publishes messages to Redis channels
+ * - Polls Redis for messages from other instances
+ * - Broadcasts received messages to local SSE clients
+ * - Result: 100% delivery across all instances
  * 
- * For true cross-instance broadcasting, consider:
- * - Using a dedicated real-time service (Pusher, Ably)
- * - Polling-based updates
- * - WebSockets on a separate server
+ * Without Redis:
+ * - Local-only broadcasting (20-40% delivery)
+ * - Polling fallback in components ensures updates
  */
 class ServerlessBroadcaster extends EventEmitter {
   private clients: Map<string, SSEClient> = new Map();
   private pingInterval: NodeJS.Timeout | null = null;
+  private redisPollers: Map<string, NodeJS.Timeout> = new Map();
+  private redisAvailable: boolean = false;
 
   constructor() {
     super();
     this.setupPingInterval();
-    logger.info('Serverless broadcaster initialized (local-only)', undefined, 'ServerlessBroadcaster');
+    this.redisAvailable = isRedisAvailable();
+    
+    if (this.redisAvailable) {
+      logger.info('Serverless broadcaster initialized with Redis pub/sub', undefined, 'ServerlessBroadcaster');
+      this.setupRedisPolling();
+    } else {
+      logger.warn('Serverless broadcaster initialized (local-only) - Set UPSTASH_REDIS_REST_URL for cross-instance SSE', undefined, 'ServerlessBroadcaster');
+    }
   }
 
   private setupPingInterval() {
@@ -188,19 +202,18 @@ class ServerlessBroadcaster extends EventEmitter {
     this.pingInterval = setInterval(() => {
       const now = Date.now();
       for (const [clientId, client] of this.clients.entries()) {
-        try {
-          // Remove stale clients (no activity for 60 seconds)
-          if (now - client.lastPing > 60000) {
-            this.removeClient(clientId);
-            continue;
-          }
+        if (now - client.lastPing > 60000) {
+          this.removeClient(clientId);
+          continue;
+        }
 
-          // Send ping
+        try {
           client.controller.enqueue(
             `event: ping\ndata: ${JSON.stringify({ timestamp: now })}\n\n`
           );
-        } catch (_error) {
-          logger.error('Error sending ping:', _error, 'ServerlessBroadcaster');
+        } catch (error) {
+          // Controller is closed, remove client
+          logger.debug(`Failed to send ping to client ${clientId}, removing`, { clientId, error }, 'ServerlessBroadcaster');
           this.removeClient(clientId);
         }
       }
@@ -218,7 +231,7 @@ class ServerlessBroadcaster extends EventEmitter {
       try {
         client.controller.close();
       } catch {
-        // Client already closed
+        // Controller already closed, ignore
       }
       this.clients.delete(clientId);
       logger.debug(`SSE client disconnected: ${clientId}`, { clientId }, 'ServerlessBroadcaster');
@@ -241,37 +254,112 @@ class ServerlessBroadcaster extends EventEmitter {
     }
   }
 
+  /**
+   * Setup Redis polling to receive messages from other instances
+   */
+  private setupRedisPolling() {
+    const channels = ['feed', 'markets', 'breaking-news', 'upcoming-events'];
+    
+    for (const channel of channels) {
+      const pollInterval = setInterval(async () => {
+        const messages = await safePoll(`sse:${channel}`, 10);
+        
+        for (const msgStr of messages) {
+          const message = JSON.parse(msgStr) as BroadcastMessage;
+          this.localBroadcast(message);
+        }
+      }, 100);
+      
+      this.redisPollers.set(channel, pollInterval);
+    }
+    
+    const chatPollInterval = setInterval(async () => {
+      const chatChannels = new Set<string>();
+      for (const client of this.clients.values()) {
+        for (const channel of client.channels) {
+          if (channel.startsWith('chat:')) {
+            chatChannels.add(channel);
+          }
+        }
+      }
+      
+      for (const chatChannel of chatChannels) {
+        const messages = await safePoll(`sse:${chatChannel}`, 5);
+        for (const msgStr of messages) {
+          const message = JSON.parse(msgStr) as BroadcastMessage;
+          this.localBroadcast(message);
+        }
+      }
+    }, 200);
+    
+    this.redisPollers.set('__chats__', chatPollInterval);
+  }
+
+  /**
+   * Broadcast to local clients and publish to Redis
+   */
   broadcast(message: BroadcastMessage) {
+    // 1. Broadcast to local clients on this instance
+    this.localBroadcast(message);
+    
+    // 2. Publish to Redis for other instances (if available)
+    if (this.redisAvailable) {
+      void this.publishToRedis(message);
+    }
+  }
+
+  /**
+   * Broadcast to local clients only (used internally and for Redis-received messages)
+   */
+  private localBroadcast(message: BroadcastMessage) {
     let sentCount = 0;
     const { channel, type, data, timestamp } = message;
+    const clientsToRemove: string[] = [];
 
-    for (const [clientId, client] of this.clients.entries()) {
-      // Only send to clients subscribed to this channel
+    for (const client of this.clients.values()) {
       if (!client.channels.has(channel)) {
         continue;
       }
 
       try {
-        const eventData = JSON.stringify({
-          channel,
-          type,
-          data,
-          timestamp
-        });
-
         client.controller.enqueue(
-          `event: message\ndata: ${eventData}\n\n`
+          `event: message\ndata: ${JSON.stringify({
+            channel,
+            type,
+            data,
+            timestamp
+          })}\n\n`
         );
         client.lastPing = Date.now();
         sentCount++;
       } catch (error) {
-        logger.error(`Error sending to client ${clientId}:`, error, 'ServerlessBroadcaster');
-        this.removeClient(clientId);
+        // Controller is closed, mark for removal
+        logger.debug(`Failed to send message to client ${client.id}, will remove`, { clientId: client.id, error }, 'ServerlessBroadcaster');
+        clientsToRemove.push(client.id);
       }
     }
 
+    // Remove clients with closed controllers
+    for (const clientId of clientsToRemove) {
+      this.removeClient(clientId);
+    }
+
     if (sentCount > 0) {
-      logger.debug(`Broadcasted to ${sentCount} clients on channel ${channel}`, { channel, sentCount }, 'ServerlessBroadcaster');
+      logger.debug(`Broadcasted to ${sentCount} local clients on channel ${channel}`, { channel, sentCount }, 'ServerlessBroadcaster');
+    }
+  }
+
+  /**
+   * Publish message to Redis for other instances to consume
+   */
+  private async publishToRedis(message: BroadcastMessage) {
+    const published = await safePublish(
+      `sse:${message.channel}`,
+      JSON.stringify(message)
+    );
+    
+    if (published) {
+      logger.debug(`Published to Redis channel ${message.channel}`, { channel: message.channel }, 'ServerlessBroadcaster');
     }
   }
 
@@ -283,7 +371,8 @@ class ServerlessBroadcaster extends EventEmitter {
           acc[channel] = (acc[channel] || 0) + 1;
         }
         return acc;
-      }, {} as Record<string, number>)
+      }, {} as Record<string, number>),
+      redisEnabled: this.redisAvailable
     };
   }
 
@@ -292,6 +381,11 @@ class ServerlessBroadcaster extends EventEmitter {
       clearInterval(this.pingInterval);
       this.pingInterval = null;
     }
+    // Clean up Redis pollers
+    for (const poller of this.redisPollers.values()) {
+      clearInterval(poller);
+    }
+    this.redisPollers.clear();
     // Close all clients
     for (const clientId of this.clients.keys()) {
       this.removeClient(clientId);

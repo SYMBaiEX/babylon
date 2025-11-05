@@ -65,23 +65,18 @@ export class IPFSPublisher {
    * Simple and reliable - no IPFS node needed
    */
   async fetchMetadata(cid: string): Promise<AgentMetadata> {
-    try {
-      const gatewayUrl = this.getGatewayUrl(cid)
-      const response = await fetch(gatewayUrl, {
-        headers: { 'Accept': 'application/json' }
-      })
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch from IPFS gateway: ${response.status} ${response.statusText}`)
-      }
-      
-      const metadata = await response.json() as AgentMetadata
-      logger.debug(`Metadata fetched from IPFS gateway: ${cid}`, undefined, 'IPFSPublisher')
-      return metadata
-    } catch (error) {
-      logger.error(`Failed to fetch metadata from IPFS (CID: ${cid}):`, error, 'IPFSPublisher')
-      throw error
+    const gatewayUrl = this.getGatewayUrl(cid)
+    const response = await fetch(gatewayUrl, {
+      headers: { 'Accept': 'application/json' }
+    })
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch from IPFS gateway: ${response.status} ${response.statusText}`)
     }
+    
+    const metadata = await response.json() as AgentMetadata
+    logger.debug(`Metadata fetched from IPFS gateway: ${cid}`, undefined, 'IPFSPublisher')
+    return metadata
   }
   
   /**

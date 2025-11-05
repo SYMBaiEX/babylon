@@ -1,11 +1,10 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { Send, X } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
 import { useInteractionStore } from '@/stores/interactionStore';
 import type { CommentInputProps } from '@/types/interactions';
-import { logger } from '@/lib/logger';
+import { Send, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 
 const MAX_COMMENT_LENGTH = 5000;
 
@@ -63,30 +62,22 @@ export function CommentInput({
     setContent('');
     setIsFocused(false);
 
-    try {
-      const comment = await addComment(postId, trimmedContent, parentCommentId);
+    const comment = await addComment(postId, trimmedContent, parentCommentId);
 
-      if (comment) {
-        // Clear optimistic state on success
-        setOptimisticComment(null);
+    if (comment) {
+      // Clear optimistic state on success
+      setOptimisticComment(null);
 
-        // Call onSubmit callback if provided
-        if (onSubmit) {
-          onSubmit(comment);
-        }
-      } else {
-        // Restore content if failed
-        setContent(originalContent);
-        setOptimisticComment(null);
+      // Call onSubmit callback if provided
+      if (onSubmit) {
+        onSubmit(comment);
       }
-    } catch (error) {
-      logger.error('Failed to add comment:', error, 'CommentInput');
-      // Restore content on error
+    } else {
+      // Restore content if failed
       setContent(originalContent);
       setOptimisticComment(null);
-    } finally {
-      setIsSubmitting(false);
     }
+    setIsSubmitting(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

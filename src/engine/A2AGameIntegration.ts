@@ -103,16 +103,12 @@ export class A2AGameIntegration extends EventEmitter {
 
     // Set up blockchain registry if enabled
     if (this.config.enableBlockchain && this.config.rpcUrl) {
-      try {
-        this.registryClient = new RegistryClient({
-          rpcUrl: this.config.rpcUrl,
-          identityRegistryAddress: this.config.identityRegistryAddress,
-          reputationSystemAddress: this.config.reputationSystemAddress,
-        });
-        logger.info('Blockchain registry connected', undefined, 'A2AGameIntegration');
-      } catch (error) {
-        logger.warn('Blockchain registry unavailable, continuing without it', error, 'A2AGameIntegration');
-      }
+      this.registryClient = new RegistryClient({
+        rpcUrl: this.config.rpcUrl,
+        identityRegistryAddress: this.config.identityRegistryAddress,
+        reputationSystemAddress: this.config.reputationSystemAddress,
+      });
+      logger.info('Blockchain registry connected', undefined, 'A2AGameIntegration');
     }
 
     // Initialize Agent0 integration (if enabled)
@@ -120,13 +116,9 @@ export class A2AGameIntegration extends EventEmitter {
     let unifiedDiscovery = null
     
     if (process.env.AGENT0_ENABLED === 'true') {
-      try {
-        agent0Client = getAgent0Client()
-        unifiedDiscovery = getUnifiedDiscoveryService()
-        logger.info('Agent0 integration enabled for A2A server', undefined, 'A2AGameIntegration');
-      } catch (error) {
-        logger.warn('Agent0 integration failed to initialize, continuing without it', error, 'A2AGameIntegration');
-      }
+      agent0Client = getAgent0Client()
+      unifiedDiscovery = getUnifiedDiscoveryService()
+      logger.info('Agent0 integration enabled for A2A server', undefined, 'A2AGameIntegration');
     }
 
     // Create A2A WebSocket server
@@ -144,47 +136,19 @@ export class A2AGameIntegration extends EventEmitter {
       unifiedDiscovery: unifiedDiscovery ?? undefined,
     };
 
-    try {
-      // Check if server already exists using singleton (prevent double initialization)
-      const existing = a2aServerSingleton.getInstance(this.config.port)
-      if (existing) {
-        logger.info('Reusing existing A2A WebSocket server from singleton', undefined, 'A2AGameIntegration');
-        this.server = existing;
-        this.setupServerEventHandlers();
-        return;
-      }
-      
-      this.server = new A2AWebSocketServer(serverConfig);
-      
-      // Store in singleton (handled by A2AWebSocketServer constructor)
-      await this.server.waitForReady();
-
-      // Set up event handlers
+    const existing = a2aServerSingleton.getInstance(this.config.port)
+    if (existing) {
+      logger.info('Reusing existing A2A WebSocket server from singleton', undefined, 'A2AGameIntegration');
+      this.server = existing;
       this.setupServerEventHandlers();
-
-      logger.info(`A2A server listening on ws://${this.config.host}:${this.config.port}`, undefined, 'A2AGameIntegration');
-    } catch (error) {
-      const err = error as Error & { code?: string; message?: string }
-      // Handle port conflicts gracefully - don't crash the daemon
-      if (err?.code === 'EADDRINUSE' || err?.message?.includes('EADDRINUSE') || err?.message?.includes('already in use')) {
-        logger.warn(`Port ${this.config.port} is already in use. A2A protocol disabled. The daemon will continue without A2A.`, undefined, 'A2AGameIntegration');
-        logger.warn('To fix: Stop the process using port 8080 or change A2A port in daemon configuration.', undefined, 'A2AGameIntegration');
-        
-        // Check if there's an existing server in singleton
-        const existing = a2aServerSingleton.getInstance(this.config.port)
-        if (existing) {
-          logger.info('Reusing existing A2A server from singleton', undefined, 'A2AGameIntegration');
-          this.server = existing;
-          this.setupServerEventHandlers();
-          return;
-        }
-        
-        this.server = undefined;
-        return; // Continue without A2A
-      }
-      // Re-throw other errors
-      throw error;
+      return;
     }
+    
+    this.server = new A2AWebSocketServer(serverConfig);
+    await this.server.waitForReady();
+    this.setupServerEventHandlers();
+
+    logger.info(`A2A server listening on ws://${this.config.host}:${this.config.port}`, undefined, 'A2AGameIntegration');
   }
 
   /**
@@ -264,28 +228,24 @@ export class A2AGameIntegration extends EventEmitter {
       reasoning: string;
     };
   }): void {
-    try {
-      const analysis: AgentAnalysis = {
-        agentId: data.agentId,
-        questionId: data.params.questionId,
-        prediction: data.params.prediction,
-        confidence: data.params.confidence,
-        reasoning: data.params.reasoning,
-        timestamp: Date.now(),
-      };
+    const analysis: AgentAnalysis = {
+      agentId: data.agentId,
+      questionId: data.params.questionId,
+      prediction: data.params.prediction,
+      confidence: data.params.confidence,
+      reasoning: data.params.reasoning,
+      timestamp: Date.now(),
+    };
 
-      // Store analysis
-      const questionAnalyses = this.agentAnalyses.get(analysis.questionId) || [];
-      questionAnalyses.push(analysis);
-      this.agentAnalyses.set(analysis.questionId, questionAnalyses);
+    // Store analysis
+    const questionAnalyses = this.agentAnalyses.get(analysis.questionId) || [];
+    questionAnalyses.push(analysis);
+    this.agentAnalyses.set(analysis.questionId, questionAnalyses);
 
-      // Emit event for game engine to process
-      this.emit('agent.analysis', analysis);
+    // Emit event for game engine to process
+    this.emit('agent.analysis', analysis);
 
-      logger.info(`Agent ${analysis.agentId} shared analysis for question ${analysis.questionId}`, undefined, 'A2AGameIntegration');
-    } catch (error) {
-      logger.error('Error handling analysis share:', error, 'A2AGameIntegration');
-    }
+    logger.info(`Agent ${analysis.agentId} shared analysis for question ${analysis.questionId}`, undefined, 'A2AGameIntegration');
   }
 
   /**
@@ -323,35 +283,31 @@ export class A2AGameIntegration extends EventEmitter {
       strategy: string;
     };
   }): void {
-    try {
-      const coalition: Coalition = {
-        id: `coalition-${Date.now()}`,
-        name: data.params.name,
-        members: [data.agentId, ...data.params.invitedAgents],
-        strategy: data.params.strategy,
-        createdAt: Date.now(),
-        active: true,
-      };
+    const coalition: Coalition = {
+      id: `coalition-${Date.now()}`,
+      name: data.params.name,
+      members: [data.agentId, ...data.params.invitedAgents],
+      strategy: data.params.strategy,
+      createdAt: Date.now(),
+      active: true,
+    };
 
-      this.coalitions.set(coalition.id, coalition);
+    this.coalitions.set(coalition.id, coalition);
 
-      // Broadcast to invited agents
-      this.server?.broadcast(data.params.invitedAgents, {
-        jsonrpc: '2.0',
-        method: 'a2a.coalitionInvite',
-        params: {
-          coalitionId: coalition.id,
-          proposer: data.agentId,
-          name: coalition.name,
-          strategy: coalition.strategy,
-        },
-      });
+    // Broadcast to invited agents
+    this.server?.broadcast(data.params.invitedAgents, {
+      jsonrpc: '2.0',
+      method: 'a2a.coalitionInvite',
+      params: {
+        coalitionId: coalition.id,
+        proposer: data.agentId,
+        name: coalition.name,
+        strategy: coalition.strategy,
+      },
+    });
 
-      this.emit('coalition.created', coalition);
-      logger.info(`Coalition "${coalition.name}" created by ${data.agentId}`, undefined, 'A2AGameIntegration');
-    } catch (error) {
-      logger.error('Error handling coalition proposal:', error, 'A2AGameIntegration');
-    }
+    this.emit('coalition.created', coalition);
+    logger.info(`Coalition "${coalition.name}" created by ${data.agentId}`, undefined, 'A2AGameIntegration');
   }
 
   /**

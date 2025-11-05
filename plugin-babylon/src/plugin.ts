@@ -208,26 +208,14 @@ export class BabylonClientService extends Service {
   ): Promise<BabylonClientService> {
     logger.info("Starting BabylonClientService");
     
-    // Auto-discover Babylon API endpoint from Agent0 registry if available
     if (process.env.AGENT0_ENABLED === 'true' && !runtime.getSetting?.('babylon.apiEndpoint')) {
-      try {
-        const discoveryService = runtime.getService('babylon-discovery') as {
-          discoverAndConnect?: () => Promise<{ endpoints: { api?: string } } | null>
-        } | null
-        if (discoveryService && typeof discoveryService.discoverAndConnect === 'function') {
-          logger.info('Attempting to discover Babylon API endpoint via Agent0 registry...');
-          const babylon = await discoveryService.discoverAndConnect()
-          if (babylon?.endpoints?.api) {
-            runtime.setSetting?.('babylon.apiEndpoint', babylon.endpoints.api)
-            logger.info(`✅ Discovered API endpoint via Agent0: ${babylon.endpoints.api}`);
-          } else {
-            logger.warn('Babylon not found in Agent0 registry, using configured endpoint');
-          }
-        }
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error)
-        logger.warn(`Discovery failed, falling back to configured endpoint: ${errorMsg}`);
+      const discoveryService = runtime.getService('babylon-discovery') as unknown as {
+        discoverAndConnect: () => Promise<{ endpoints: { api: string } }>
       }
+      logger.info('Attempting to discover Babylon API endpoint via Agent0 registry...');
+      const babylon = await discoveryService.discoverAndConnect()
+      runtime.setSetting!('babylon.apiEndpoint', babylon.endpoints.api)
+      logger.info(`✅ Discovered API endpoint via Agent0: ${babylon.endpoints.api}`);
     }
     
     const service = new BabylonClientService(runtime);
@@ -244,13 +232,8 @@ export class BabylonClientService extends Service {
     logger.info("Stopping BabylonClientService");
     const service = runtime.getService<BabylonClientService>(
       BabylonClientService.serviceType,
-    );
-    if (!service) {
-      throw new Error("BabylonClientService not found");
-    }
-    if ("stop" in service && typeof service.stop === "function") {
-      await service.stop();
-    }
+    )!;
+    await service.stop();
   }
 
   /**
@@ -326,13 +309,8 @@ export class BabylonTradingService extends Service {
     logger.info("Stopping BabylonTradingService");
     const service = runtime.getService<BabylonTradingService>(
       BabylonTradingService.serviceType,
-    );
-    if (!service) {
-      throw new Error("BabylonTradingService not found");
-    }
-    if ("stop" in service && typeof service.stop === "function") {
-      await service.stop();
-    }
+    )!;
+    await service.stop();
   }
 
   /**
@@ -341,22 +319,11 @@ export class BabylonTradingService extends Service {
   async start(): Promise<void> {
     this.runtime.logger.info("🚀 Starting Babylon Trading Service...");
 
-    // Get BabylonClientService
-    const babylonService = this.runtime.getService<BabylonClientService>(
+    this.runtime.getService<BabylonClientService>(
       BabylonClientService.serviceType,
-    );
-    if (!babylonService) {
-      this.runtime.logger.error(
-        "❌ Babylon client service not available - service will not start",
-      );
-      return;
-    }
+    )!;
 
-    // Check if auto-trading is enabled
-    const settings = (this.runtime.character.settings || {}) as Record<
-      string,
-      unknown
-    >;
+    const settings = this.runtime.character.settings as Record<string, unknown>;
     this.isAutoTrading = settings.autoTrading === true;
 
     if (!this.isAutoTrading) {
@@ -368,26 +335,12 @@ export class BabylonTradingService extends Service {
 
     this.runtime.logger.info("📊 Starting automated market monitoring...");
 
-    // Start market monitoring loop (every 60 seconds)
     this.marketMonitorInterval = setInterval(async () => {
-      try {
-        await this.monitorMarkets();
-      } catch (error) {
-        this.runtime.logger.error(
-          `Error in market monitoring: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
+      await this.monitorMarkets();
     }, 60000);
 
-    // Start portfolio review loop (every 5 minutes)
     this.portfolioReviewInterval = setInterval(async () => {
-      try {
-        await this.reviewPortfolio();
-      } catch (error) {
-        this.runtime.logger.error(
-          `Error in portfolio review: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
+      await this.reviewPortfolio();
     }, 300000);
 
     this.runtime.logger.info("✅ Babylon Trading Service initialized");
@@ -397,169 +350,129 @@ export class BabylonTradingService extends Service {
    * Monitor markets and execute trades based on analysis
    */
   private async monitorMarkets(): Promise<void> {
-    // Get BabylonClientService - already checked in start()
-    const babylonService = this.runtime.getService<BabylonClientService>(
-      BabylonClientService.serviceType,
-    );
-    if (!babylonService) {
-      return;
-    }
     this.runtime.logger.info(
       `📊 [${new Date().toLocaleTimeString()}] Checking markets...`,
     );
 
-    try {
-      // Create analysis message
-      const analysisMessage: Memory = {
-        entityId: "system" as UUID,
-        agentId: this.runtime.agentId,
-        roomId: "babylon" as UUID,
-        content: {
-          text: "analyze markets",
-        },
-        createdAt: Date.now(),
-      };
+    const analysisMessage: Memory = {
+      entityId: "system" as UUID,
+      agentId: this.runtime.agentId,
+      roomId: "babylon" as UUID,
+      content: {
+        text: "analyze markets",
+      },
+      createdAt: Date.now(),
+    };
 
-      // Use runtime.composeState to get full context with all providers
-      const state: BabylonState =
-        await this.runtime.composeState(analysisMessage);
+    const state: BabylonState = await this.runtime.composeState(analysisMessage);
+    await this.runtime.evaluate(analysisMessage, state, false);
 
-      // Trigger market analysis evaluator
-      await this.runtime.evaluate(analysisMessage, state, false);
+    const analyses = state.analyses;
 
-      // Check if we have analyses from evaluator
-      const analyses = state.analyses;
+    if (analyses && analyses.length > 0) {
+      this.runtime.logger.info(`   Found ${analyses.length} opportunities:`);
 
-      if (analyses && analyses.length > 0) {
-        this.runtime.logger.info(`   Found ${analyses.length} opportunities:`);
+      for (const analysis of analyses) {
+        this.runtime.logger.info(`   📈 Market ${analysis.marketId}:`);
+        this.runtime.logger.info(
+          `      Recommendation: ${analysis.recommendation.toUpperCase()}`,
+        );
+        this.runtime.logger.info(
+          `      Confidence: ${(analysis.confidence * 100).toFixed(1)}%`,
+        );
+        this.runtime.logger.info(
+          `      Side: ${analysis.targetSide.toUpperCase()}`,
+        );
+        this.runtime.logger.info(`      Reasoning: ${analysis.reasoning}`);
 
-        for (const analysis of analyses) {
-          this.runtime.logger.info(`   📈 Market ${analysis.marketId}:`);
-          this.runtime.logger.info(
-            `      Recommendation: ${analysis.recommendation.toUpperCase()}`,
+        if (
+          analysis.confidence >= 0.7 &&
+          (analysis.recommendation === "buy" ||
+            analysis.recommendation === "strong_buy")
+        ) {
+          this.runtime.logger.info("   💰 Executing trade...");
+
+          const tradeMessage: Memory = {
+            entityId: "system" as UUID,
+            agentId: this.runtime.agentId,
+            roomId: "babylon" as UUID,
+            content: {
+              text: `buy ${analysis.targetSide} shares`,
+            },
+            createdAt: Date.now(),
+          };
+
+          const tradeState: BabylonState =
+            await this.runtime.composeState(tradeMessage);
+
+          await this.runtime.processActions(
+            tradeMessage,
+            [],
+            tradeState,
+            async (response) => {
+              if (response.error) {
+                this.runtime.logger.error(
+                  `   ❌ Trade failed: ${response.text}`,
+                );
+              } else {
+                this.runtime.logger.info(`   ✅ ${response.text}`);
+              }
+              return [];
+            },
           );
-          this.runtime.logger.info(
-            `      Confidence: ${(analysis.confidence * 100).toFixed(1)}%`,
-          );
-          this.runtime.logger.info(
-            `      Side: ${analysis.targetSide.toUpperCase()}`,
-          );
-          this.runtime.logger.info(`      Reasoning: ${analysis.reasoning}`);
-
-          // Execute trade if high confidence
-          if (
-            analysis.confidence >= 0.7 &&
-            (analysis.recommendation === "buy" ||
-              analysis.recommendation === "strong_buy")
-          ) {
-            this.runtime.logger.info("   💰 Executing trade...");
-
-            const tradeMessage: Memory = {
-              entityId: "system" as UUID,
-              agentId: this.runtime.agentId,
-              roomId: "babylon" as UUID,
-              content: {
-                text: `buy ${analysis.targetSide} shares`,
-              },
-              createdAt: Date.now(),
-            };
-
-            // Create state for trade action with market details
-            const tradeState: BabylonState =
-              await this.runtime.composeState(tradeMessage);
-
-            // Trigger buy action
-            await this.runtime.processActions(
-              tradeMessage,
-              [],
-              tradeState,
-              async (response) => {
-                if (response.error) {
-                  this.runtime.logger.error(
-                    `   ❌ Trade failed: ${response.text}`,
-                  );
-                } else {
-                  this.runtime.logger.info(`   ✅ ${response.text}`);
-                }
-                return [];
-              },
-            );
-          }
         }
-      } else {
-        this.runtime.logger.info("   No trading opportunities found");
       }
-
-      this.runtime.logger.info("");
-    } catch (error) {
-      this.runtime.logger.error(
-        `Error in market monitoring: ${error instanceof Error ? error.message : String(error)}`,
-      );
+    } else {
+      this.runtime.logger.info("   No trading opportunities found");
     }
+
+    this.runtime.logger.info("");
   }
 
   /**
    * Review portfolio performance and provide insights
    */
   private async reviewPortfolio(): Promise<void> {
-    // Get BabylonClientService - already checked in start()
-    const babylonService = this.runtime.getService<BabylonClientService>(
-      BabylonClientService.serviceType,
-    );
-    if (!babylonService) {
-      return;
-    }
     this.runtime.logger.info(
       `📊 [${new Date().toLocaleTimeString()}] Portfolio review...`,
     );
 
-    try {
-      const portfolioMessage: Memory = {
-        entityId: "system" as UUID,
-        agentId: this.runtime.agentId,
-        roomId: "babylon" as UUID,
-        content: {
-          text: "review portfolio",
-        },
-        createdAt: Date.now(),
-      };
+    const portfolioMessage: Memory = {
+      entityId: "system" as UUID,
+      agentId: this.runtime.agentId,
+      roomId: "babylon" as UUID,
+      content: {
+        text: "review portfolio",
+      },
+      createdAt: Date.now(),
+    };
 
-      // Use runtime.composeState to get full context with all providers
-      const state: BabylonState =
-        await this.runtime.composeState(portfolioMessage);
+    const state: BabylonState = await this.runtime.composeState(portfolioMessage);
+    await this.runtime.evaluate(portfolioMessage, state, false);
 
-      // Trigger portfolio evaluator
-      await this.runtime.evaluate(portfolioMessage, state, false);
+    const portfolioMetrics = state.portfolioMetrics;
 
-      // Check if we have portfolio metrics from evaluator
-      const portfolioMetrics = state.portfolioMetrics;
-
-      if (portfolioMetrics) {
-        this.runtime.logger.info(
-          `   Total P&L: $${portfolioMetrics.totalPnL.toFixed(2)}`,
-        );
-        this.runtime.logger.info(
-          `   Win Rate: ${(portfolioMetrics.winRate * 100).toFixed(1)}%`,
-        );
-        this.runtime.logger.info(
-          `   Positions: ${portfolioMetrics.profitablePositions}W / ${portfolioMetrics.losingPositions}L`,
-        );
-
-        const recommendations = state.recommendations;
-        if (recommendations && recommendations.length > 0) {
-          this.runtime.logger.info("   Recommendations:");
-          recommendations.forEach((rec: string) =>
-            this.runtime.logger.info(`      ${rec}`),
-          );
-        }
-      }
-
-      this.runtime.logger.info("");
-    } catch (error) {
-      this.runtime.logger.error(
-        `Error in portfolio review: ${error instanceof Error ? error.message : String(error)}`,
+    if (portfolioMetrics) {
+      this.runtime.logger.info(
+        `   Total P&L: $${portfolioMetrics.totalPnL.toFixed(2)}`,
       );
+      this.runtime.logger.info(
+        `   Win Rate: ${(portfolioMetrics.winRate * 100).toFixed(1)}%`,
+      );
+      this.runtime.logger.info(
+        `   Positions: ${portfolioMetrics.profitablePositions}W / ${portfolioMetrics.losingPositions}L`,
+      );
+
+      const recommendations = state.recommendations;
+      if (recommendations && recommendations.length > 0) {
+        this.runtime.logger.info("   Recommendations:");
+        recommendations.forEach((rec: string) =>
+          this.runtime.logger.info(`      ${rec}`),
+        );
+      }
     }
+
+    this.runtime.logger.info("");
   }
 
   /**
@@ -645,54 +558,29 @@ export const predictionMarketsPlugin: Plugin = {
     runtime: IAgentRuntime,
   ): Promise<void> {
     logger.info("Initializing plugin-babylon");
-    try {
-      const validatedConfig = await configSchema.parseAsync(config);
+    const validatedConfig = await configSchema.parseAsync(config);
 
-      // Set all environment variables at once
-      for (const [key, value] of Object.entries(validatedConfig)) {
-        if (value !== undefined && value !== null) {
-          process.env[key] = String(value);
-        }
-      }
+    // Set all environment variables at once
+    for (const [key, value] of Object.entries(validatedConfig)) {
+      process.env[key] = String(value);
+    }
 
-      // Log initialization with runtime context
+    logger.info(
+      `Babylon plugin initialized for agent: ${runtime.agentId}`,
+    );
+
+    if (validatedConfig.BABYLON_A2A_ENABLED && validatedConfig.BABYLON_A2A_ENDPOINT) {
+      const a2aService = await BabylonA2AService.start(runtime, {
+        endpoint: validatedConfig.BABYLON_A2A_ENDPOINT,
+        enabled: validatedConfig.BABYLON_A2A_ENABLED,
+      });
+      const serviceType = BabylonA2AService.serviceType as ServiceTypeName;
+      const existing = runtime.services.get(serviceType) || [];
+      existing.push(a2aService);
+      runtime.services.set(serviceType, existing);
+      await a2aService.start();
       logger.info(
-        `Babylon plugin initialized for agent: ${runtime.agentId || "unknown"}`,
-      );
-
-      // Note: Services in the services array are automatically initialized by ElizaOS
-      // Only manually register conditional services (like A2A) if needed
-      // For now, A2A is handled conditionally in init() but could also be in services array
-      if (
-        validatedConfig.BABYLON_A2A_ENABLED &&
-        validatedConfig.BABYLON_A2A_ENDPOINT
-      ) {
-        // A2A service is conditionally enabled, so we initialize it manually
-        // This is acceptable for optional/conditional services
-        const a2aService = await BabylonA2AService.start(runtime, {
-          endpoint: validatedConfig.BABYLON_A2A_ENDPOINT,
-          enabled: validatedConfig.BABYLON_A2A_ENABLED,
-        });
-        // Register service directly in services Map
-        const serviceType = BabylonA2AService.serviceType as ServiceTypeName;
-        const existing = runtime.services.get(serviceType) || [];
-        existing.push(a2aService);
-        runtime.services.set(serviceType, existing);
-        // Start the service instance
-        await a2aService.start();
-        logger.info(
-          `A2A service initialized: ${validatedConfig.BABYLON_A2A_ENDPOINT}`,
-        );
-      }
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const errorMessages =
-          error.issues?.map((e) => e.message)?.join(", ") ||
-          "Unknown validation error";
-        throw new Error(`Invalid plugin configuration: ${errorMessages}`);
-      }
-      throw new Error(
-        `Invalid plugin configuration: ${error instanceof Error ? error.message : String(error)}`,
+        `A2A service initialized: ${validatedConfig.BABYLON_A2A_ENDPOINT}`,
       );
     }
   },

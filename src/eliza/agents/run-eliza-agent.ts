@@ -116,21 +116,15 @@ async function loadCharacter(characterPath?: string): Promise<Character> {
     characterPath = path.join(__dirname, '../characters/alice-trader.json');
   }
 
-  try {
-    const characterData = fs.readFileSync(characterPath, 'utf-8');
-    const character = JSON.parse(characterData);
+  const characterData = fs.readFileSync(characterPath, 'utf-8');
+  const character = JSON.parse(characterData);
 
-    // Validate required fields
-    if (!character.name) {
-      throw new Error('Character missing required field: name');
-    }
-
-    return character;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error(`Error loading character from ${characterPath}:`, errorMessage);
-    throw error;
+  // Validate required fields
+  if (!character.name) {
+    throw new Error('Character missing required field: name');
   }
+
+  return character;
 }
 
 /**

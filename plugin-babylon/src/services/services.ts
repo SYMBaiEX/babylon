@@ -62,15 +62,11 @@ export class SocialInteractionService extends Service {
     // Start periodic social feed checks
     this.socialCheckInterval = setInterval(async () => {
       if (Date.now() - this.lastCheckTime < this.interactionCooldown) {
-        return; // Rate limiting
+        return;
       }
       
-      try {
-        await this.checkAndInteract();
-        this.lastCheckTime = Date.now();
-      } catch (error) {
-        this.runtime.logger.error(`Error in social interaction check: ${error}`);
-      }
+      await this.checkAndInteract();
+      this.lastCheckTime = Date.now();
     }, this.checkIntervalMs);
   }
 
@@ -93,13 +89,8 @@ export class SocialInteractionService extends Service {
     logger.info("Stopping SocialInteractionService");
     const service = runtime.getService<SocialInteractionService>(
       SocialInteractionService.serviceType,
-    );
-    if (!service) {
-      throw new Error("SocialInteractionService not found");
-    }
-    if (typeof service.stop === "function") {
-      await service.stop();
-    }
+    )!;
+    await service.stop();
   }
 
   /**
@@ -111,56 +102,44 @@ export class SocialInteractionService extends Service {
       `📱 [${new Date().toLocaleTimeString()}] Checking social feed...`,
     );
 
-    try {
-      // Step 1: Create message to trigger evaluation
-      const socialMessage: Memory = {
-        entityId: "system" as UUID,
-        agentId: this.runtime.agentId,
-        roomId: "babylon" as UUID,
-        content: {
-          text: "check social feed",
-        },
-        createdAt: Date.now(),
-      };
+    const socialMessage: Memory = {
+      entityId: "system" as UUID,
+      agentId: this.runtime.agentId,
+      roomId: "babylon" as UUID,
+      content: {
+        text: "check social feed",
+      },
+      createdAt: Date.now(),
+    };
 
-      // Step 2: Compose state (triggers providers including socialFeedProvider)
-      const state = await this.runtime.composeState(socialMessage);
+    const state = await this.runtime.composeState(socialMessage);
+    await this.runtime.evaluate(socialMessage, state, false);
 
-      // Step 3: Evaluate (triggers socialInteractionEvaluator)
-      await this.runtime.evaluate(socialMessage, state, false);
+    const shouldLike = (state as any).shouldLike;
+    const shouldComment = (state as any).shouldComment;
+    const shouldFollow = (state as any).shouldFollow;
+    const shouldPost = (state as any).shouldPost;
+    const targetPostId = (state as any).targetPostId;
+    const targetUserId = (state as any).targetUserId;
 
-      // Step 4: Check evaluator decisions from state
-      const shouldLike = (state as any).shouldLike;
-      const shouldComment = (state as any).shouldComment;
-      const shouldFollow = (state as any).shouldFollow;
-      const shouldPost = (state as any).shouldPost;
-      const targetPostId = (state as any).targetPostId;
-      const targetUserId = (state as any).targetUserId;
+    if (shouldLike && targetPostId) {
+      await this.executeLikeAction(targetPostId);
+    }
 
-      // Step 5: Execute actions based on evaluator decisions
-      if (shouldLike && targetPostId) {
-        await this.executeLikeAction(targetPostId);
-      }
+    if (shouldComment && targetPostId) {
+      await this.executeCommentAction(targetPostId);
+    }
 
-      if (shouldComment && targetPostId) {
-        await this.executeCommentAction(targetPostId);
-      }
+    if (shouldFollow && targetUserId) {
+      await this.executeFollowAction(targetUserId);
+    }
 
-      if (shouldFollow && targetUserId) {
-        await this.executeFollowAction(targetUserId);
-      }
+    if (shouldPost) {
+      await this.executePostAction();
+    }
 
-      if (shouldPost) {
-        await this.executePostAction();
-      }
-
-      if (!shouldLike && !shouldComment && !shouldFollow && !shouldPost) {
-        this.runtime.logger.info("   No social interactions recommended");
-      }
-    } catch (error) {
-      this.runtime.logger.error(
-        `Error checking social feed: ${error instanceof Error ? error.message : String(error)}`,
-      );
+    if (!shouldLike && !shouldComment && !shouldFollow && !shouldPost) {
+      this.runtime.logger.info("   No social interactions recommended");
     }
   }
 

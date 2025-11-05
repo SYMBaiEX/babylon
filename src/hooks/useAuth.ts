@@ -37,17 +37,9 @@ export function useAuth(): UseAuthReturn {
   useEffect(() => {
     const updateAccessToken = async () => {
       if (authenticated) {
-        try {
-          const token = await getAccessToken()
-          if (typeof window !== 'undefined') {
-            window.__privyAccessToken = token
-          }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          logger.error('Error getting access token:', { message: errorMessage, error }, 'useAuth')
-          if (typeof window !== 'undefined') {
-            window.__privyAccessToken = null
-          }
+        const token = await getAccessToken()
+        if (typeof window !== 'undefined') {
+          window.__privyAccessToken = token
         }
       } else {
         if (typeof window !== 'undefined') {
@@ -83,48 +75,38 @@ export function useAuth(): UseAuthReturn {
       setIsLoadingProfile(true)
       setLoadedUserId(privyUser.id)
       
-      try {
-        const response = await fetch(`/api/users/${privyUser.id}/profile`)
-        const data = await response.json()
+      const response = await fetch(`/api/users/${encodeURIComponent(privyUser.id)}/profile`)
+      const data = await response.json()
 
-        if (!response.ok) {
-          throw new Error(data?.error || 'Failed to load user profile')
-        }
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to load user profile')
+      }
 
-        if (data.user) {
-          setUser({
-            id: privyUser.id,
-            walletAddress: wallet?.address,
-            displayName: data.user.displayName || privyUser.email?.address || wallet?.address || 'Anonymous',
-            email: privyUser.email?.address,
-            username: data.user.username,
-            bio: data.user.bio,
-            profileImageUrl: data.user.profileImageUrl,
-            coverImageUrl: data.user.coverImageUrl,
-            profileComplete: data.user.profileComplete,
-            reputationPoints: data.user.reputationPoints,
-            referralCount: data.user.referralCount,
-            referralCode: data.user.referralCode,
-            hasFarcaster: data.user.hasFarcaster,
-            hasTwitter: data.user.hasTwitter,
-            farcasterUsername: data.user.farcasterUsername,
-            twitterUsername: data.user.twitterUsername,
-            usernameChangedAt: data.user.usernameChangedAt,
-            nftTokenId: data.user.nftTokenId,
-            createdAt: data.user.createdAt,
-            stats: data.user.stats,
-          })
-          setIsLoadingProfile(false)
-          return
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        const errorDetails = {
-          message: errorMessage,
-          userId: privyUser.id,
-          error: error instanceof Error ? { name: error.name, message: error.message } : error,
-        };
-        logger.error('Error loading user profile:', errorDetails, 'useAuth')
+      if (data.user) {
+        setUser({
+          id: privyUser.id,
+          walletAddress: wallet?.address,
+          displayName: data.user.displayName || privyUser.email?.address || wallet?.address || 'Anonymous',
+          email: privyUser.email?.address,
+          username: data.user.username,
+          bio: data.user.bio,
+          profileImageUrl: data.user.profileImageUrl,
+          coverImageUrl: data.user.coverImageUrl,
+          profileComplete: data.user.profileComplete,
+          reputationPoints: data.user.reputationPoints,
+          referralCount: data.user.referralCount,
+          referralCode: data.user.referralCode,
+          hasFarcaster: data.user.hasFarcaster,
+          hasTwitter: data.user.hasTwitter,
+          farcasterUsername: data.user.farcasterUsername,
+          twitterUsername: data.user.twitterUsername,
+          usernameChangedAt: data.user.usernameChangedAt,
+          nftTokenId: data.user.nftTokenId,
+          createdAt: data.user.createdAt,
+          stats: data.user.stats,
+        })
+        setIsLoadingProfile(false)
+        return
       }
 
       // Fallback if profile fetch fails
@@ -138,208 +120,130 @@ export function useAuth(): UseAuthReturn {
     }
 
     const checkNewUser = async () => {
-      try {
-        const token = await getAccessToken()
-        if (!token) return // Skip if no token
+      const token = await getAccessToken()
+      if (!token) return
 
-        const response = await fetch(`/api/users/${privyUser.id}/is-new`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        })
+      const response = await fetch(`/api/users/${encodeURIComponent(privyUser.id)}/is-new`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
 
-        if (!response.ok) {
-          // Don't throw - silently fail if endpoint doesn't exist or errors
-          logger.warn('Failed to check new user status:', { status: response.status, statusText: response.statusText }, 'useAuth')
-          return
-        }
+      if (!response.ok) return
 
-        // Check if response is JSON before parsing
-        const contentType = response.headers.get('content-type')
-        if (!contentType || !contentType.includes('application/json')) {
-          logger.warn('Non-JSON response from is-new endpoint', undefined, 'useAuth')
-          return
-        }
-
-        const data = await response.json()
-        // Note: Removed redirect to /profile - users can complete onboarding from any page via modal
-        // The OnboardingProvider handles showing the modal when needed
-        if (data.needsSetup) {
-          logger.info('User needs profile setup - onboarding modal will be shown', undefined, 'useAuth')
-        }
-      } catch (error) {
-        // Silently handle errors - don't block user flow
-        logger.warn('Error checking new user status:', error, 'useAuth')
+      const data = await response.json()
+      if (data.needsSetup) {
+        logger.info('User needs profile setup - onboarding modal will be shown', undefined, 'useAuth')
       }
     }
 
     const checkOnboarding = async () => {
-      try {
-        // Check if user is already onboarded on-chain (doesn't require wallet)
-        const status = await OnboardingService.checkOnboardingStatus(privyUser.id)
+      // Check if user is already onboarded on-chain (doesn't require wallet)
+      const status = await OnboardingService.checkOnboardingStatus(privyUser.id)
 
-        if (status.isOnboarded) {
-          logger.info('User already onboarded on-chain with NFT #', status.tokenId, 'useAuth')
-          return
-        }
+      if (status.isOnboarded) {
+        logger.info('User already onboarded on-chain with NFT #', status.tokenId, 'useAuth')
+        return
+      }
 
-        // For onboarding, we need a wallet address
-        // Privy creates embedded wallets for email-only users, so wait for wallet
-        if (!wallet?.address) {
-          // If user authenticated but no wallet yet, wait a bit for embedded wallet creation
-          // Privy creates embedded wallets automatically for users-without-wallets
-          logger.debug('Waiting for wallet connection for onboarding...', undefined, 'useAuth')
-          
-          // Retry after a short delay (embedded wallet creation can take a moment)
-          setTimeout(() => {
-            if (wallets.length > 0 && wallets[0]?.address && !checkedOnboardingUsers.has(privyUser.id)) {
-              checkedOnboardingUsers.add(privyUser.id)
-              void checkOnboarding()
-            }
-          }, 2000)
-          return
-        }
-
-        logger.info('User not onboarded, triggering on-chain registration...', undefined, 'useAuth')
-
-        // Get referral code from sessionStorage (captured by ReferralCaptureProvider)
-        let referralCode: string | null = null
-        try {
-          referralCode = sessionStorage.getItem('referralCode')
-          if (referralCode) {
-            logger.info(`Using referral code for onboarding: ${referralCode}`, undefined, 'useAuth')
+      // For onboarding, we need a wallet address
+      // Privy creates embedded wallets for email-only users, so wait for wallet
+      if (!wallet?.address) {
+        // If user authenticated but no wallet yet, wait a bit for embedded wallet creation
+        // Privy creates embedded wallets automatically for users-without-wallets
+        logger.debug('Waiting for wallet connection for onboarding...', undefined, 'useAuth')
+        
+        // Retry after a short delay (embedded wallet creation can take a moment)
+        setTimeout(() => {
+          if (wallets.length > 0 && wallets[0]?.address && !checkedOnboardingUsers.has(privyUser.id)) {
+            checkedOnboardingUsers.add(privyUser.id)
+            void checkOnboarding()
           }
-        } catch (error) {
-          logger.warn('Could not access referral code from sessionStorage', error, 'useAuth')
-        }
+        }, 2000)
+        return
+      }
 
-        // Trigger on-chain registration and points award
-        const result = await OnboardingService.completeOnboarding(
-          privyUser.id,
-          wallet.address,
-          undefined, // username - will be auto-generated
-          undefined, // bio
-          referralCode || undefined // referral code from URL
-        )
+      logger.info('User not onboarded, triggering on-chain registration...', undefined, 'useAuth')
 
-        if (result.success) {
-          // Clear referral code after successful onboarding
-          try {
-            sessionStorage.removeItem('referralCode')
-            sessionStorage.removeItem('referralCodeTimestamp')
-          } catch (error) {
-            // Silently handle errors - sessionStorage may not be available
-            logger.debug('Error clearing referral code after onboarding:', error, 'useAuth')
-          }
-          logger.info('Onboarding complete!', {
-            tokenId: result.tokenId,
-            points: result.points,
-            txHash: result.transactionHash,
-          }, 'useAuth')
+      const referralCode = sessionStorage.getItem('referralCode')
+      if (referralCode) {
+        logger.info(`Using referral code for onboarding: ${referralCode}`, undefined, 'useAuth')
+      }
 
-          // Show success notification (optional, requires toast library)
-          if (typeof window !== 'undefined') {
-            const windowWithToast = window as typeof window & {
-              toast?: {
-                success: (message: string) => void
-              }
-            }
-            if (windowWithToast.toast) {
-              windowWithToast.toast.success(
-                `Welcome! You've received ${result.points} points and NFT #${result.tokenId}`
-              )
-            }
-          }
-        } else {
-          // Don't log as error if it's just "user not found" - that's expected for new users
-          // The user will be created when they try to onboard
-          if (result.error && !result.error.includes('not found')) {
-            logger.error('Onboarding failed:', result.error, 'useAuth')
-          } else {
-            logger.debug('Onboarding pending - user may need to complete signup first', undefined, 'useAuth')
-          }
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        const errorDetails = {
-          message: errorMessage,
-          userId: privyUser.id,
-          error: error instanceof Error ? { name: error.name, message: error.message } : error,
-        };
-        logger.error('Error during onboarding check:', errorDetails, 'useAuth')
+      const result = await OnboardingService.completeOnboarding(
+        privyUser.id,
+        wallet.address,
+        undefined,
+        undefined,
+        referralCode || undefined
+      )
+
+      if (result.success) {
+        sessionStorage.removeItem('referralCode')
+        sessionStorage.removeItem('referralCodeTimestamp')
+        
+        logger.info('Onboarding complete!', {
+          tokenId: result.tokenId,
+          points: result.points,
+          txHash: result.transactionHash,
+        }, 'useAuth')
       }
     }
 
     const checkAndLinkSocialAccounts = async () => {
-      try {
-        const token = await getAccessToken()
-        if (!token) return
+      const token = await getAccessToken()
+      if (!token) return
 
-        // Check for Farcaster connection
-        const userWithFarcaster = privyUser as PrivyUser & { farcaster?: { username?: string; displayName?: string } }
-        if (userWithFarcaster.farcaster) {
-          const farcaster = userWithFarcaster.farcaster
-          try {
-            await fetch(`/api/users/${privyUser.id}/link-social`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                platform: 'farcaster',
-                username: farcaster.username || farcaster.displayName,
-              }),
-            })
-            logger.info('Detected and linked Farcaster account', { username: farcaster.username }, 'useAuth')
-          } catch (error) {
-            logger.warn('Error linking Farcaster account:', error, 'useAuth')
-          }
-        }
+      // Check for Farcaster connection
+      const userWithFarcaster = privyUser as PrivyUser & { farcaster?: { username?: string; displayName?: string } }
+      if (userWithFarcaster.farcaster) {
+        const farcaster = userWithFarcaster.farcaster
+        await fetch(`/api/users/${encodeURIComponent(privyUser.id)}/link-social`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            platform: 'farcaster',
+            username: farcaster.username || farcaster.displayName,
+          }),
+        })
+        logger.info('Detected and linked Farcaster account', { username: farcaster.username }, 'useAuth')
+      }
 
-        // Check for Twitter/X connection
-        const userWithTwitter = privyUser as PrivyUser & { twitter?: { username?: string } }
-        if (userWithTwitter.twitter) {
-          const twitter = userWithTwitter.twitter
-          try {
-            await fetch(`/api/users/${privyUser.id}/link-social`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                platform: 'twitter',
-                username: twitter.username,
-              }),
-            })
-            logger.info('Detected and linked Twitter account', { username: twitter.username }, 'useAuth')
-          } catch (error) {
-            logger.warn('Error linking Twitter account:', error, 'useAuth')
-          }
-        }
+      // Check for Twitter/X connection
+      const userWithTwitter = privyUser as PrivyUser & { twitter?: { username?: string } }
+      if (userWithTwitter.twitter) {
+        const twitter = userWithTwitter.twitter
+        await fetch(`/api/users/${encodeURIComponent(privyUser.id)}/link-social`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            platform: 'twitter',
+            username: twitter.username,
+          }),
+        })
+        logger.info('Detected and linked Twitter account', { username: twitter.username }, 'useAuth')
+      }
 
-        // Check for wallet connection
-        if (wallet?.address) {
-          try {
-            await fetch(`/api/users/${privyUser.id}/link-social`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                platform: 'wallet',
-                address: wallet.address,
-              }),
-            })
-            logger.info('Detected and linked wallet', { address: wallet.address }, 'useAuth')
-          } catch (error) {
-            logger.warn('Error linking wallet:', error, 'useAuth')
-          }
-        }
-      } catch (error) {
-        logger.warn('Error checking social accounts:', error, 'useAuth')
+      // Check for wallet connection
+      if (wallet?.address) {
+        await fetch(`/api/users/${encodeURIComponent(privyUser.id)}/link-social`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            platform: 'wallet',
+            address: wallet.address,
+          }),
+        })
+        logger.info('Detected and linked wallet', { address: wallet.address }, 'useAuth')
       }
     }
 

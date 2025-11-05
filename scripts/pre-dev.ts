@@ -19,30 +19,46 @@ import { join } from 'path';
 import { PrismaClient } from '@prisma/client';
 import { logger } from '../src/lib/logger';
 
-const CONTAINER_NAME = 'babylon-postgres';
+const POSTGRES_CONTAINER_NAME = 'babylon-postgres';
+const REDIS_CONTAINER_NAME = 'babylon-redis';
 const COMPOSE_FILE = 'docker-compose.yml';
 const DATABASE_URL = 'postgresql://babylon:babylon_dev_password@localhost:5432/babylon';
+const REDIS_URL = 'redis://localhost:6380';
 
 logger.info('Pre-development checks...', undefined, 'Script');
 
-// Check/create .env file with DATABASE_URL
+// Check/create .env file with DATABASE_URL and REDIS_URL
 const envPath = join(process.cwd(), '.env');
 if (!existsSync(envPath)) {
   logger.info('Creating .env file...', undefined, 'Script');
-  writeFileSync(envPath, `DATABASE_URL="${DATABASE_URL}"\n`);
+  writeFileSync(envPath, `DATABASE_URL="${DATABASE_URL}"\nREDIS_URL="${REDIS_URL}"\n`);
   logger.info('.env created', undefined, 'Script');
 } else {
-  // Check if DATABASE_URL exists in .env
-  const envContent = readFileSync(envPath, 'utf-8');
+  // Check if DATABASE_URL and REDIS_URL exist in .env
+  let envContent = readFileSync(envPath, 'utf-8');
+  let needsUpdate = false;
+  
   if (!envContent.includes('DATABASE_URL=')) {
     logger.info('Adding DATABASE_URL to .env...', undefined, 'Script');
-    writeFileSync(envPath, envContent + `\nDATABASE_URL="${DATABASE_URL}"\n`);
-    logger.info('DATABASE_URL added', undefined, 'Script');
+    envContent += `\nDATABASE_URL="${DATABASE_URL}"\n`;
+    needsUpdate = true;
+  }
+  
+  if (!envContent.includes('REDIS_URL=')) {
+    logger.info('Adding REDIS_URL to .env...', undefined, 'Script');
+    envContent += `REDIS_URL="${REDIS_URL}"\n`;
+    needsUpdate = true;
+  }
+  
+  if (needsUpdate) {
+    writeFileSync(envPath, envContent);
+    logger.info('.env updated', undefined, 'Script');
   }
 }
 
 // Load environment variables
 process.env.DATABASE_URL = DATABASE_URL;
+process.env.REDIS_URL = REDIS_URL;
 
 // Check Docker is installed
 await $`docker --version`.quiet();
@@ -59,9 +75,9 @@ if (!existsSync(join(process.cwd(), COMPOSE_FILE))) {
 }
 
 // Check if PostgreSQL is running
-const running = await $`docker ps --filter name=${CONTAINER_NAME} --format "{{.Names}}"`.quiet().text();
+const postgresRunning = await $`docker ps --filter name=${POSTGRES_CONTAINER_NAME} --format "{{.Names}}"`.quiet().text();
 
-if (running.trim() !== CONTAINER_NAME) {
+if (postgresRunning.trim() !== POSTGRES_CONTAINER_NAME) {
   // Not running, start it
   logger.info('Starting PostgreSQL...', undefined, 'Script');
   await $`docker-compose up -d postgres`;
@@ -69,7 +85,7 @@ if (running.trim() !== CONTAINER_NAME) {
   // Wait for health check
   let attempts = 0;
   while (attempts < 30) {
-    const health = await $`docker inspect --format='{{.State.Health.Status}}' ${CONTAINER_NAME}`.quiet().text();
+    const health = await $`docker inspect --format='{{.State.Health.Status}}' ${POSTGRES_CONTAINER_NAME}`.quiet().text();
     
     if (health.trim() === 'healthy') {
       logger.info('PostgreSQL ready', undefined, 'Script');
@@ -86,6 +102,48 @@ if (running.trim() !== CONTAINER_NAME) {
   }
 } else {
   logger.info('PostgreSQL running', undefined, 'Script');
+}
+
+// Check if Redis is running
+const redisRunning = await $`docker ps --filter name=${REDIS_CONTAINER_NAME} --format "{{.Names}}"`.quiet().text();
+
+if (redisRunning.trim() !== REDIS_CONTAINER_NAME) {
+  // Not running, try to start it
+  logger.info('Starting Redis (on port 6380)...', undefined, 'Script');
+  
+  try {
+    await $`docker-compose up -d redis`;
+    
+    // Wait for health check
+    let attempts = 0;
+    while (attempts < 30) {
+      try {
+        const health = await $`docker inspect --format='{{.State.Health.Status}}' ${REDIS_CONTAINER_NAME}`.quiet().text();
+        
+        if (health.trim() === 'healthy') {
+          logger.info('Redis ready (localhost:6380)', undefined, 'Script');
+          break;
+        }
+      } catch {
+        // Container might not be fully created yet
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      attempts++;
+    }
+    
+    if (attempts === 30) {
+      logger.warn('Redis health check timeout (continuing anyway)', undefined, 'Script');
+      logger.info('Redis is optional - SSE will use polling fallback', undefined, 'Script');
+    }
+  } catch (error) {
+    // Redis failed to start (port conflict, etc.)
+    logger.warn('Could not start Redis container (this is OK)', undefined, 'Script');
+    logger.info('Redis is optional - you can use existing Redis on port 6379', undefined, 'Script');
+    logger.info('Or the app will use polling fallback for real-time features', undefined, 'Script');
+  }
+} else {
+  logger.info('Redis running (localhost:6380)', undefined, 'Script');
 }
 
 // Test database connection with Prisma

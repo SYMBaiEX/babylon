@@ -8,11 +8,15 @@
 import { logger } from '@/lib/logger'
 import OpenAI from 'openai'
 
+// Try Groq first, then OpenAI (Groq is faster and often more reliable)
+const apiKey = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY
+const baseURL = process.env.GROQ_API_KEY
+  ? 'https://api.groq.com/openai/v1'
+  : 'https://api.openai.com/v1'
+
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY,
-  baseURL: process.env.OPENAI_API_KEY 
-    ? 'https://api.openai.com/v1' 
-    : 'https://api.groq.com/openai/v1',
+  apiKey,
+  baseURL,
 })
 
 export interface GeneratedTag {
@@ -25,8 +29,7 @@ export interface GeneratedTag {
  * Generate 1-3 organic tags from post content
  */
 export async function generateTagsFromPost(content: string): Promise<GeneratedTag[]> {
-  try {
-    const prompt = `Analyze this social media post and extract 1-3 organic, trending-worthy tags.
+  const prompt = `Analyze this social media post and extract 1-3 organic, trending-worthy tags.
 
 Post: "${content}"
 
@@ -52,83 +55,77 @@ Return ONLY a JSON array of objects with this exact format:
 
 If no good tags can be extracted, return an empty array: []`
 
-    const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_API_KEY ? 'gpt-4' : 'llama-3.1-70b-versatile',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a trending topics extraction expert. You analyze social media posts and extract organic, searchable tags that would appear in trending sections.',
-        },
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      temperature: 0.3,
-      max_tokens: 200,
-    })
+  const model = process.env.GROQ_API_KEY 
+    ? 'llama-3.3-70b-versatile' // Updated Groq model
+    : 'gpt-4o-mini'
 
-    const content_text = response.choices[0]?.message?.content?.trim()
-    if (!content_text) {
-      logger.warn('No content in tag generation response', { content }, 'TagGenerationService')
-      return []
-    }
+  const response = await openai.chat.completions.create({
+    model,
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a trending topics extraction expert. You analyze social media posts and extract organic, searchable tags that would appear in trending sections.',
+      },
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ],
+    temperature: 0.3,
+    max_tokens: 200,
+  })
 
-    // Parse JSON response
-    let tags: Array<{ displayName: string; category?: string }>
-    try {
-      // Remove markdown code blocks if present
-      const jsonContent = content_text
-        .replace(/```json\n?/g, '')
-        .replace(/```\n?/g, '')
-        .trim()
-      
-      tags = JSON.parse(jsonContent)
-    } catch (parseError) {
-      logger.error('Failed to parse tag generation JSON', { content_text, parseError }, 'TagGenerationService')
-      return []
-    }
-
-    // Validate and normalize tags
-    const generatedTags: GeneratedTag[] = []
-    for (const tag of tags) {
-      if (!tag.displayName || typeof tag.displayName !== 'string') {
-        continue
-      }
-
-      const displayName = tag.displayName.trim()
-      if (displayName.length === 0 || displayName.length > 50) {
-        continue
-      }
-
-      // Normalize to lowercase, replace spaces with hyphens
-      const name = displayName
-        .toLowerCase()
-        .replace(/[^\w\s-]/g, '') // Remove special chars except hyphens
-        .replace(/\s+/g, '-')     // Replace spaces with hyphens
-        .replace(/-+/g, '-')      // Collapse multiple hyphens
-        .trim()
-
-      if (name.length > 0) {
-      generatedTags.push({
-        name,
-        displayName,
-        category: tag.category || undefined,
-      })
-      }
-    }
-
-    logger.debug('Generated tags from post', {
-      content: content.slice(0, 100),
-      tagsCount: generatedTags.length,
-      tags: generatedTags,
-    }, 'TagGenerationService')
-
-    return generatedTags
-  } catch (error) {
-    logger.error('Error generating tags from post', { error, content }, 'TagGenerationService')
+  const content_text = response.choices[0]?.message?.content?.trim()
+  if (!content_text) {
+    logger.warn('No content in tag generation response', { content }, 'TagGenerationService')
     return []
   }
+
+  // Parse JSON response
+  // Remove markdown code blocks if present
+  const jsonContent = content_text
+    .replace(/```json\n?/g, '')
+    .replace(/```\n?/g, '')
+    .trim()
+  
+  const tags = JSON.parse(jsonContent) as Array<{ displayName: string; category?: string }>
+
+  // Validate and normalize tags
+  const generatedTags: GeneratedTag[] = []
+  for (const tag of tags) {
+    if (!tag.displayName || typeof tag.displayName !== 'string') {
+      continue
+    }
+
+    const displayName = tag.displayName.trim()
+    if (displayName.length === 0 || displayName.length > 50) {
+      continue
+    }
+
+    // Normalize to lowercase, replace spaces with hyphens
+    const name = displayName
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, '') // Remove special chars except hyphens
+      .replace(/\s+/g, '-')     // Replace spaces with hyphens
+      .replace(/-+/g, '-')      // Collapse multiple hyphens
+      .trim()
+
+    if (name.length > 0) {
+    generatedTags.push({
+      name,
+      displayName,
+      category: tag.category || undefined,
+    })
+    }
+  }
+
+  logger.debug('Generated tags from post', {
+    content: content.slice(0, 100),
+    tagsCount: generatedTags.length,
+    tags: generatedTags,
+  }, 'TagGenerationService')
+
+  return generatedTags
 }
 
 /**

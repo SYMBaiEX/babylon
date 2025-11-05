@@ -78,32 +78,25 @@ async function checkUsernameAvailability(baseUsername: string): Promise<Username
  * Query params: username (required)
  */
 export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const username = searchParams.get('username');
+  const { searchParams } = new URL(request.url);
+  const username = searchParams.get('username');
 
-    if (!username) {
-      return errorResponse('Username is required', 400);
-    }
-
-    // Validate username format
-    if (username.length < 3) {
-      return errorResponse('Username must be at least 3 characters', 400);
-    }
-
-    if (username.length > 20) {
-      return errorResponse('Username must be 20 characters or less', 400);
-    }
-
-    const result = await checkUsernameAvailability(username);
-
-    logger.info('Username check result', result, 'GET /api/onboarding/check-username');
-
-    return successResponse(result);
-
-  } catch (error) {
-    logger.error('Error checking username:', error, 'GET /api/onboarding/check-username');
-    return errorResponse('Failed to check username availability', 500);
+  if (!username) {
+    return errorResponse('Username is required', 400);
   }
+
+  if (username.length < 3) {
+    return errorResponse('Username must be at least 3 characters', 400);
+  }
+
+  if (username.length > 20) {
+    return errorResponse('Username must be 20 characters or less', 400);
+  }
+
+  const result = await checkUsernameAvailability(username);
+
+  logger.info('Username check result', result, 'GET /api/onboarding/check-username');
+
+  return successResponse(result);
 }
 

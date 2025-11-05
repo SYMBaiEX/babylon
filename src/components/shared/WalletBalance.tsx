@@ -1,10 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Wallet, TrendingUp, TrendingDown } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
-import { logger } from '@/lib/logger'
+import { cn } from '@/lib/utils'
+import { TrendingDown, TrendingUp, Wallet } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 interface WalletBalanceProps {
   refreshTrigger?: number; // Timestamp or counter to force refresh
@@ -23,19 +22,14 @@ export function WalletBalance({ refreshTrigger }: WalletBalanceProps = {}) {
       return
     }
 
-    try {
-      setLoading(true)
-      const response = await fetch(`/api/users/${user.id}/balance`)
-      if (response.ok) {
-        const data = await response.json()
-        setBalance(data.balance || 0)
-        setLifetimePnL(data.lifetimePnL || 0)
-      }
-    } catch (error) {
-      logger.error('Error fetching balance:', error, 'WalletBalance')
-    } finally {
-      setLoading(false)
+    setLoading(true)
+    const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/balance`)
+    if (response.ok) {
+      const data = await response.json()
+      setBalance(data.balance || 0)
+      setLifetimePnL(data.lifetimePnL || 0)
     }
+    setLoading(false)
   }
 
   // Initial fetch and periodic refresh

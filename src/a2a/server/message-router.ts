@@ -131,69 +131,49 @@ export class MessageRouter {
     request: JsonRpcRequest,
     connection: AgentConnection
   ): Promise<JsonRpcResponse> {
-    try {
-      // Validate connection is authenticated
-      if (!connection.authenticated) {
-        return this.errorResponse(
-          request.id,
-          ErrorCode.NOT_AUTHENTICATED,
-          'Connection not authenticated'
-        )
-      }
-
-      // Route to method handler
-      switch (request.method) {
-        // Agent Discovery
-        case A2AMethod.DISCOVER_AGENTS:
-          return await this.handleDiscover(agentId, request)
-        case A2AMethod.GET_AGENT_INFO:
-          return await this.handleGetAgentInfo(agentId, request)
-
-        // Market Operations
-        case A2AMethod.GET_MARKET_DATA:
-          return await this.handleGetMarketData(agentId, request)
-        case A2AMethod.GET_MARKET_PRICES:
-          return await this.handleGetMarketPrices(agentId, request)
-        case A2AMethod.SUBSCRIBE_MARKET:
-          return await this.handleSubscribeMarket(agentId, request)
-
-        // Coalition Operations
-        case A2AMethod.PROPOSE_COALITION:
-          return await this.handleProposeCoalition(agentId, request)
-        case A2AMethod.JOIN_COALITION:
-          return await this.handleJoinCoalition(agentId, request)
-        case A2AMethod.COALITION_MESSAGE:
-          return await this.handleCoalitionMessage(agentId, request)
-        case A2AMethod.LEAVE_COALITION:
-          return await this.handleLeaveCoalition(agentId, request)
-
-        // Information Sharing
-        case A2AMethod.SHARE_ANALYSIS:
-          return await this.handleShareAnalysis(agentId, request)
-        case A2AMethod.REQUEST_ANALYSIS:
-          return await this.handleRequestAnalysis(agentId, request)
-        case A2AMethod.GET_ANALYSES:
-          return await this.handleGetAnalyses(agentId, request)
-
-        // x402 Micropayments
-        case A2AMethod.PAYMENT_REQUEST:
-          return await this.handlePaymentRequest(agentId, request)
-        case A2AMethod.PAYMENT_RECEIPT:
-          return await this.handlePaymentReceipt(agentId, request)
-
-        default:
-          return this.errorResponse(
-            request.id,
-            ErrorCode.METHOD_NOT_FOUND,
-            `Method ${request.method} not found`
-          )
-      }
-    } catch (error) {
+    if (!connection.authenticated) {
       return this.errorResponse(
         request.id,
-        ErrorCode.INTERNAL_ERROR,
-        error instanceof Error ? error.message : 'Internal error'
+        ErrorCode.NOT_AUTHENTICATED,
+        'Connection not authenticated'
       )
+    }
+
+    switch (request.method) {
+      case A2AMethod.DISCOVER_AGENTS:
+        return await this.handleDiscover(agentId, request)
+      case A2AMethod.GET_AGENT_INFO:
+        return await this.handleGetAgentInfo(agentId, request)
+      case A2AMethod.GET_MARKET_DATA:
+        return await this.handleGetMarketData(agentId, request)
+      case A2AMethod.GET_MARKET_PRICES:
+        return await this.handleGetMarketPrices(agentId, request)
+      case A2AMethod.SUBSCRIBE_MARKET:
+        return await this.handleSubscribeMarket(agentId, request)
+      case A2AMethod.PROPOSE_COALITION:
+        return await this.handleProposeCoalition(agentId, request)
+      case A2AMethod.JOIN_COALITION:
+        return await this.handleJoinCoalition(agentId, request)
+      case A2AMethod.COALITION_MESSAGE:
+        return await this.handleCoalitionMessage(agentId, request)
+      case A2AMethod.LEAVE_COALITION:
+        return await this.handleLeaveCoalition(agentId, request)
+      case A2AMethod.SHARE_ANALYSIS:
+        return await this.handleShareAnalysis(agentId, request)
+      case A2AMethod.REQUEST_ANALYSIS:
+        return await this.handleRequestAnalysis(agentId, request)
+      case A2AMethod.GET_ANALYSES:
+        return await this.handleGetAnalyses(agentId, request)
+      case A2AMethod.PAYMENT_REQUEST:
+        return await this.handlePaymentRequest(agentId, request)
+      case A2AMethod.PAYMENT_RECEIPT:
+        return await this.handlePaymentReceipt(agentId, request)
+      default:
+        return this.errorResponse(
+          request.id,
+          ErrorCode.METHOD_NOT_FOUND,
+          `Method ${request.method} not found`
+        )
     }
   }
 
@@ -223,29 +203,21 @@ export class MessageRouter {
     const discoverRequest = request.params as DiscoverParams
     let agents: AgentProfile[] = []
 
-    // Use UnifiedDiscoveryService if available (includes Agent0 network agents)
     if (this.unifiedDiscovery) {
-      try {
-        const filters = {
-          strategies: discoverRequest.filters?.strategies,
-          markets: discoverRequest.filters?.markets,
-          minReputation: discoverRequest.filters?.minReputation,
-          includeExternal: process.env.AGENT0_ENABLED === 'true'
-        }
-        
-        agents = await this.unifiedDiscovery.discoverAgents(filters)
-        logger.debug(`UnifiedDiscovery found ${agents.length} agents`)
-      } catch (error) {
-        logger.warn('UnifiedDiscovery failed, falling back to local registry', { error })
+      const filters = {
+        strategies: discoverRequest.filters?.strategies,
+        markets: discoverRequest.filters?.markets,
+        minReputation: discoverRequest.filters?.minReputation,
+        includeExternal: process.env.AGENT0_ENABLED === 'true'
       }
+      
+      agents = await this.unifiedDiscovery.discoverAgents(filters)
+      logger.debug(`UnifiedDiscovery found ${agents.length} agents`)
     }
 
-    // Fallback to local ERC-8004 registry if UnifiedDiscovery not available or failed
-    if (agents.length === 0 && this.registryClient) {
-      if (this.registryClient?.discoverAgents) {
-        agents = await this.registryClient.discoverAgents(discoverRequest.filters)
-        logger.debug(`Local registry found ${agents.length} agents`)
-      }
+    if (agents.length === 0 && this.registryClient?.discoverAgents) {
+      agents = await this.registryClient.discoverAgents(discoverRequest.filters)
+      logger.debug(`Local registry found ${agents.length} agents`)
     }
 
     // Apply limit if specified
@@ -290,60 +262,49 @@ export class MessageRouter {
       const tokenId = parseInt(agentInfo.agentId.replace('agent0-', ''), 10)
       
       if (!isNaN(tokenId)) {
-        // Try Agent0Client first
         if (this.agent0Client) {
-          try {
-            const profile = await this.agent0Client.getAgentProfile(tokenId)
-            if (profile) {
-              // Transform to AgentProfile format
-              const agentProfile: AgentProfile = {
-                agentId: agentInfo.agentId,
-                tokenId: profile.tokenId,
-                address: profile.walletAddress,
-                name: profile.name,
-                endpoint: profile.capabilities?.actions?.includes('a2a') ? '' : '', // Would need endpoint from metadata
-                capabilities: profile.capabilities || {
-                  strategies: [],
-                  markets: [],
-                  actions: [],
-                  version: '1.0.0'
-                },
-                reputation: {
-                  totalBets: 0,
-                  winningBets: 0,
-                  accuracyScore: profile.reputation?.accuracyScore || 0,
-                  trustScore: profile.reputation?.trustScore || 0,
-                  totalVolume: '0',
-                  profitLoss: 0,
-                  isBanned: false
-                },
-                isActive: true
-              }
-              
-              return {
-                jsonrpc: '2.0',
-                result: agentProfile as unknown as JsonRpcResult,
-                id: request.id
-              }
+          const profile = await this.agent0Client.getAgentProfile(tokenId)
+          if (profile) {
+            const agentProfile: AgentProfile = {
+              agentId: agentInfo.agentId,
+              tokenId: profile.tokenId,
+              address: profile.walletAddress,
+              name: profile.name,
+              endpoint: profile.capabilities?.actions?.includes('a2a') ? '' : '',
+              capabilities: profile.capabilities || {
+                strategies: [],
+                markets: [],
+                actions: [],
+                version: '1.0.0'
+              },
+              reputation: {
+                totalBets: 0,
+                winningBets: 0,
+                accuracyScore: profile.reputation?.accuracyScore || 0,
+                trustScore: profile.reputation?.trustScore || 0,
+                totalVolume: '0',
+                profitLoss: 0,
+                isBanned: false
+              },
+              isActive: true
             }
-          } catch (error) {
-            logger.warn(`Failed to get Agent0 profile for ${agentInfo.agentId}`, { error })
+            
+            return {
+              jsonrpc: '2.0',
+              result: agentProfile as unknown as JsonRpcResult,
+              id: request.id
+            }
           }
         }
         
-        // Fallback to UnifiedDiscovery
         if (this.unifiedDiscovery) {
-          try {
-            const profile = await this.unifiedDiscovery.getAgent(agentInfo.agentId)
-            if (profile) {
-              return {
-                jsonrpc: '2.0',
-                result: profile as unknown as JsonRpcResult,
-                id: request.id
-              }
+          const profile = await this.unifiedDiscovery.getAgent(agentInfo.agentId)
+          if (profile) {
+            return {
+              jsonrpc: '2.0',
+              result: profile as unknown as JsonRpcResult,
+              id: request.id
             }
-          } catch (error) {
-            logger.warn(`Failed to get UnifiedDiscovery profile for ${agentInfo.agentId}`, { error })
           }
         }
       }
@@ -398,53 +359,41 @@ export class MessageRouter {
       )
     }
 
-    // Query database for market data
-    try {
-      const market = await prisma.market.findUnique({
-        where: { id: marketRequest.marketId }
-      })
-      
-      if (!market) {
-        return this.errorResponse(
-          request.id,
-          ErrorCode.MARKET_NOT_FOUND,
-          `Market ${marketRequest.marketId} not found`
-        )
-      }
-      
-      // Calculate current prices using AMM formula
-      const yesShares = Number(market.yesShares)
-      const noShares = Number(market.noShares)
-      const liquidity = Number(market.liquidity)
-      
-      // Guard against division by zero for new markets with no shares
-      const totalShares = yesShares + noShares
-      const yesPrice = totalShares === 0 ? 0.5 : yesShares / totalShares
-      const noPrice = totalShares === 0 ? 0.5 : noShares / totalShares
-      
-      const marketData: MarketData = {
-        marketId: market.id,
-        question: market.question,
-        outcomes: ['YES', 'NO'],
-        prices: [yesPrice, noPrice],
-        volume: '0', // Would need to track from trades
-        liquidity: liquidity.toString(),
-        resolveAt: market.endDate.getTime(),
-        resolved: market.resolved
-      }
-
-      return {
-        jsonrpc: '2.0',
-        result: marketData as unknown as JsonRpcResult,
-        id: request.id
-      }
-    } catch (error) {
-      logger.error('Failed to get market data:', error)
+    const market = await prisma.market.findUnique({
+      where: { id: marketRequest.marketId }
+    })
+    
+    if (!market) {
       return this.errorResponse(
         request.id,
-        ErrorCode.INTERNAL_ERROR,
-        'Failed to fetch market data'
+        ErrorCode.MARKET_NOT_FOUND,
+        `Market ${marketRequest.marketId} not found`
       )
+    }
+    
+    const yesShares = Number(market.yesShares)
+    const noShares = Number(market.noShares)
+    const liquidity = Number(market.liquidity)
+    
+    const totalShares = yesShares + noShares
+    const yesPrice = totalShares === 0 ? 0.5 : yesShares / totalShares
+    const noPrice = totalShares === 0 ? 0.5 : noShares / totalShares
+    
+    const marketData: MarketData = {
+      marketId: market.id,
+      question: market.question,
+      outcomes: ['YES', 'NO'],
+      prices: [yesPrice, noPrice],
+      volume: '0',
+      liquidity: liquidity.toString(),
+      resolveAt: market.endDate.getTime(),
+      resolved: market.resolved
+    }
+
+    return {
+      jsonrpc: '2.0',
+      result: marketData as unknown as JsonRpcResult,
+      id: request.id
     }
   }
 
@@ -469,48 +418,36 @@ export class MessageRouter {
         'Invalid params: marketId is required'
       )
     }
-    // Calculate current prices from database state
-    try {
-      const market = await prisma.market.findUnique({
-        where: { id: pricesRequest.marketId }
-      })
-      
-      if (!market) {
-        return this.errorResponse(
-          request.id,
-          ErrorCode.MARKET_NOT_FOUND,
-          `Market ${pricesRequest.marketId} not found`
-        )
-      }
-      
-      // Calculate prices using constant product AMM formula
-      const yesShares = Number(market.yesShares)
-      const noShares = Number(market.noShares)
-      
-      // Guard against division by zero for new markets with no shares
-      const totalShares = yesShares + noShares
-      const yesPrice = totalShares === 0 ? 0.5 : yesShares / totalShares
-      const noPrice = totalShares === 0 ? 0.5 : noShares / totalShares
-      
-      return {
-        jsonrpc: '2.0',
-        result: {
-          marketId: market.id,
-          prices: [
-            { outcome: 'YES', price: yesPrice },
-            { outcome: 'NO', price: noPrice }
-          ],
-          timestamp: Date.now()
-        } as unknown as JsonRpcResult,
-        id: request.id
-      }
-    } catch (error) {
-      logger.error('Failed to get market prices:', error)
+    const market = await prisma.market.findUnique({
+      where: { id: pricesRequest.marketId }
+    })
+    
+    if (!market) {
       return this.errorResponse(
         request.id,
-        ErrorCode.INTERNAL_ERROR,
-        'Failed to calculate prices'
+        ErrorCode.MARKET_NOT_FOUND,
+        `Market ${pricesRequest.marketId} not found`
       )
+    }
+    
+    const yesShares = Number(market.yesShares)
+    const noShares = Number(market.noShares)
+    
+    const totalShares = yesShares + noShares
+    const yesPrice = totalShares === 0 ? 0.5 : yesShares / totalShares
+    const noPrice = totalShares === 0 ? 0.5 : noShares / totalShares
+    
+    return {
+      jsonrpc: '2.0',
+      result: {
+        marketId: market.id,
+        prices: [
+          { outcome: 'YES', price: yesPrice },
+          { outcome: 'NO', price: noPrice }
+        ],
+        timestamp: Date.now()
+      } as unknown as JsonRpcResult,
+      id: request.id
     }
   }
 
@@ -989,34 +926,24 @@ export class MessageRouter {
       )
     }
 
-    try {
-      // Get agent address from agentId (format: "agent-{tokenId}")
-      const from = paymentRequest.from || ''
+    const from = paymentRequest.from || ''
 
-      // Create payment request via x402 manager
-      const createdPaymentRequest = this.x402Manager.createPaymentRequest(
-        from,
-        paymentRequest.to,
-        paymentRequest.amount,
-        paymentRequest.service,
-        paymentRequest.metadata as Record<string, string | number | boolean | null> | undefined
-      )
+    const createdPaymentRequest = this.x402Manager.createPaymentRequest(
+      from,
+      paymentRequest.to,
+      paymentRequest.amount,
+      paymentRequest.service,
+      paymentRequest.metadata as Record<string, string | number | boolean | null> | undefined
+    )
 
-      return {
-        jsonrpc: '2.0',
-        result: {
-          requestId: createdPaymentRequest.requestId,
-          amount: createdPaymentRequest.amount,
-          expiresAt: createdPaymentRequest.expiresAt
-        },
-        id: request.id
-      }
-    } catch (error) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.PAYMENT_FAILED,
-        error instanceof Error ? error.message : 'Payment request failed'
-      )
+    return {
+      jsonrpc: '2.0',
+      result: {
+        requestId: createdPaymentRequest.requestId,
+        amount: createdPaymentRequest.amount,
+        expiresAt: createdPaymentRequest.expiresAt
+      },
+      id: request.id
     }
   }
 
@@ -1057,54 +984,44 @@ export class MessageRouter {
       )
     }
 
-    try {
-      // Get payment request details
-      const storedPaymentRequest = this.x402Manager.getPaymentRequest(receipt.requestId)
-      if (!storedPaymentRequest) {
-        return this.errorResponse(
-          request.id,
-          ErrorCode.PAYMENT_FAILED,
-          'Payment request not found or expired'
-        )
-      }
-
-      // Verify payment on blockchain
-      const verificationData: PaymentVerificationParams = {
-        requestId: receipt.requestId,
-        txHash: receipt.txHash,
-        from: storedPaymentRequest.from,
-        to: storedPaymentRequest.to,
-        amount: storedPaymentRequest.amount,
-        timestamp: Date.now(),
-        confirmed: false // Will be checked by verifyPayment
-      }
-      const verificationResult: PaymentVerificationResult = await this.x402Manager.verifyPayment(verificationData)
-
-      if (!verificationResult.verified) {
-        return {
-          jsonrpc: '2.0',
-          result: {
-            verified: false,
-            message: verificationResult.error || 'Payment verification failed'
-          },
-          id: request.id
-        }
-      }
-
-      return {
-        jsonrpc: '2.0',
-        result: {
-          verified: true,
-          message: 'Payment verified successfully'
-        },
-        id: request.id
-      }
-    } catch (error) {
+    const storedPaymentRequest = this.x402Manager.getPaymentRequest(receipt.requestId)
+    if (!storedPaymentRequest) {
       return this.errorResponse(
         request.id,
         ErrorCode.PAYMENT_FAILED,
-        error instanceof Error ? error.message : 'Payment verification failed'
+        'Payment request not found or expired'
       )
+    }
+
+    const verificationData: PaymentVerificationParams = {
+      requestId: receipt.requestId,
+      txHash: receipt.txHash,
+      from: storedPaymentRequest.from,
+      to: storedPaymentRequest.to,
+      amount: storedPaymentRequest.amount,
+      timestamp: Date.now(),
+      confirmed: false
+    }
+    const verificationResult: PaymentVerificationResult = await this.x402Manager.verifyPayment(verificationData)
+
+    if (!verificationResult.verified) {
+      return {
+        jsonrpc: '2.0',
+        result: {
+          verified: false,
+          message: verificationResult.error || 'Payment verification failed'
+        },
+        id: request.id
+      }
+    }
+
+    return {
+      jsonrpc: '2.0',
+      result: {
+        verified: true,
+        message: 'Payment verified successfully'
+      },
+      id: request.id
     }
   }
 

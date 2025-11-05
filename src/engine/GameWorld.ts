@@ -16,13 +16,12 @@
  * @module engine/GameWorld
  */
 
+import { daySummary, expertAnalysis, newsReport, npcConversation, renderPrompt, rumor } from '@/prompts';
+import type { JsonValue } from '@/types/common';
 import { EventEmitter } from 'events';
 import { v4 as uuid } from 'uuid';
-import { FeedGenerator, type FeedEvent } from './FeedGenerator';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
-import { loadPrompt } from '../prompts/loader';
-import { logger } from '@/lib/logger';
-import type { JsonValue } from '@/types/common';
+import { FeedGenerator, type FeedEvent } from './FeedGenerator';
 
 export interface WorldConfig {
   /** Predetermined outcome (true = success, false = failure) */
@@ -483,7 +482,7 @@ export class GameWorld extends EventEmitter {
     const reputationContext = journalist.reliability > 0.7 ? 'reliable' : 'questionable';
     const truthContext = journalist.knowsTruth ? 'hints at' : 'speculates about';
 
-    const prompt = loadPrompt('world/news-report', {
+    const prompt = renderPrompt(newsReport, {
       day: day.toString(),
       question: this.generateQuestion(),
       outcome: this.config.outcome ? 'YES' : 'NO',
@@ -495,15 +494,8 @@ export class GameWorld extends EventEmitter {
       truthContext
     });
 
-    try {
-      const response = await this.llm.generateJSON<{ headline: string; report: string }>(prompt);
-      return `${response.headline}\n\n${response.report}`;
-    } catch (error) {
-      logger.error('LLM generation failed, using fallback:', error, 'GameWorld');
-      return this.config.outcome
-        ? `Day ${day} analysis: Sources suggest positive developments`
-        : `Day ${day} investigation: Multiple concerns raised by experts`;
-    }
+    const response = await this.llm.generateJSON<{ headline: string; report: string }>(prompt);
+    return `${response.headline}\n\n${response.report}`;
   }
 
   private async generateRumor(day: number, events: WorldEvent[]): Promise<string> {
@@ -518,7 +510,7 @@ export class GameWorld extends EventEmitter {
 
     const outcomeHint = this.config.outcome ? 'Leans positive' : 'Raises concerns';
 
-    const prompt = loadPrompt('world/rumor', {
+    const prompt = renderPrompt(rumor, {
       day: day.toString(),
       question: this.generateQuestion(),
       outcome: this.config.outcome ? 'YES' : 'NO',
@@ -526,17 +518,8 @@ export class GameWorld extends EventEmitter {
       outcomeHint
     });
 
-    try {
-      const response = await this.llm.generateJSON<{ rumor: string }>(prompt);
-      return response.rumor;
-    } catch (error) {
-      logger.error('LLM generation failed, using fallback:', error, 'GameWorld');
-      const rumors = this.config.outcome
-        ? ["Unconfirmed: Test results exceeding expectations", "Rumor: Key milestone reached ahead of schedule"]
-        : ["Unconfirmed: Internal memos show concerns", "Rumor: Key stakeholders expressing doubts"];
-      const index = Math.floor(Math.random() * rumors.length);
-      return rumors[index] ?? rumors[0]!;
-    }
+    const response = await this.llm.generateJSON<{ rumor: string }>(prompt);
+    return response.rumor;
   }
 
   private async generateNPCConversation(day: number, npcs: NPC[], events: WorldEvent[]): Promise<string> {
@@ -547,7 +530,7 @@ export class GameWorld extends EventEmitter {
     const participants = npcs.slice(0, 3);
     const participantsStr = participants.map(n => `${n.name} (${n.role}, knows truth: ${n.knowsTruth})`).join(', ');
 
-    const prompt = loadPrompt('world/npc-conversation', {
+    const prompt = renderPrompt(npcConversation, {
       day: day.toString(),
       question: this.generateQuestion(),
       outcome: this.config.outcome ? 'YES' : 'NO',
@@ -555,13 +538,8 @@ export class GameWorld extends EventEmitter {
       recentEvents: events.slice(-2).map(e => e.description).join('; ')
     });
 
-    try {
-      const response = await this.llm.generateJSON<{ conversation: string }>(prompt);
-      return response.conversation;
-    } catch (error) {
-      logger.error('LLM generation failed, using fallback:', error, 'GameWorld');
-      return `NPCs debate the situation on Day ${day}. Mixed opinions emerge.`;
-    }
+    const response = await this.llm.generateJSON<{ conversation: string }>(prompt);
+    return response.conversation;
   }
 
   private async generateExpertAnalysis(expert: NPC, events: WorldEvent[]): Promise<string> {
@@ -572,7 +550,7 @@ export class GameWorld extends EventEmitter {
     const confidenceContext = expert.knowsTruth ? 'Confidently points toward truth' : 'Makes educated guesses';
     const reliabilityContext = expert.reliability > 0.7 ? 'accurate' : 'sometimes wrong';
 
-    const prompt = loadPrompt('world/expert-analysis', {
+    const prompt = renderPrompt(expertAnalysis, {
       expertName: expert.name,
       question: this.generateQuestion(),
       outcome: this.config.outcome ? 'YES' : 'NO',
@@ -584,13 +562,8 @@ export class GameWorld extends EventEmitter {
       reliabilityContext
     });
 
-    try {
-      const response = await this.llm.generateJSON<{ analysis: string }>(prompt);
-      return `${expert.name}: ${response.analysis}`;
-    } catch (error) {
-      logger.error('LLM generation failed, using fallback:', error, 'GameWorld');
-      return `${expert.name} publishes analysis: ${this.config.outcome ? 'Indicators positive' : 'Warning signs evident'}`;
-    }
+    const response = await this.llm.generateJSON<{ analysis: string }>(prompt);
+    return `${expert.name}: ${response.analysis}`;
   }
 
   private async generateDaySummary(day: number, events: WorldEvent[]): Promise<string> {
@@ -602,24 +575,15 @@ export class GameWorld extends EventEmitter {
       return `Day ${day}: ${events.length} events`;
     }
 
-    const prompt = loadPrompt('world/day-summary', {
+    const prompt = renderPrompt(daySummary, {
       day: day.toString(),
       question: this.generateQuestion(),
       eventsToday: events.map(e => `${e.type}: ${e.description}`).join('; '),
       outcome: this.config.outcome ? 'YES' : 'NO'
     });
 
-    try {
-      const response = await this.llm.generateJSON<{ summary: string }>(prompt);
-      return response.summary;
-    } catch (error) {
-      logger.error('LLM generation failed, using fallback:', error, 'GameWorld');
-      if (events.length === 0) return `Day ${day}: Quiet day, no major developments`;
-      const types = events.map(e => e.type);
-      if (types.includes('development:occurred')) return `Day ${day}: MAJOR DEVELOPMENT`;
-      if (types.includes('news:published')) return `Day ${day}: News coverage`;
-      return `Day ${day}: ${events.length} events`;
-    }
+    const response = await this.llm.generateJSON<{ summary: string }>(prompt);
+    return response.summary;
   }
 
   private calculateFeedSentiment(feedPosts: FeedEvent[]): number {

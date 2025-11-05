@@ -59,106 +59,88 @@ export function useSSE(options: SSEHookOptions = {}): SSEHookReturn {
   const channelsRef = useRef<Set<Channel>>(new Set(channels));
 
   const connect = useCallback(async () => {
-    try {
-      // Check if already connected
-      const g = getGlobal();
-      const existing = g.__babylon_sse_source__;
-      if (existing && existing.readyState === EventSource.OPEN) {
-        eventSourceRef.current = existing;
-        setIsConnected(true);
-        setError(null);
-        g.__babylon_sse_subscribers__ = (g.__babylon_sse_subscribers__ || 0) + 1;
-        return;
-      }
-
-      const token = await getAccessToken();
-      if (!token) {
-        setError(null); // Not an error, user just not authenticated
-        return;
-      }
-
-      // Build SSE URL with channels and token
-      // Note: EventSource doesn't support custom headers, so we pass token as query param
-      const channelsList = Array.from(channelsRef.current).join(',');
-      const sseUrl = `${window.location.origin}/api/sse/events?channels=${encodeURIComponent(channelsList)}&token=${encodeURIComponent(token)}`;
-
-      logger.debug('Connecting to SSE endpoint...', { channels: channelsList }, 'useSSE');
-
-      const eventSource = new EventSource(sseUrl);
-
-      eventSource.onopen = () => {
-        logger.info('SSE connected', undefined, 'useSSE');
-        setIsConnected(true);
-        setError(null);
-        reconnectAttemptsRef.current = 0;
-      };
-
-      eventSource.addEventListener('connected', (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          logger.debug('SSE connection confirmed:', data, 'useSSE');
-        } catch (error) {
-          logger.error('Error parsing connected event:', error, 'useSSE');
-        }
-      });
-
-      eventSource.addEventListener('message', (event) => {
-        try {
-          const message: SSEMessage = JSON.parse(event.data);
-          
-          // Dispatch to channel subscribers
-          const subscribers = subscriptionsRef.current.get(message.channel);
-          if (subscribers) {
-            subscribers.forEach(callback => {
-              try {
-                callback(message);
-              } catch (error) {
-                logger.error('Error in SSE message callback:', error, 'useSSE');
-              }
-            });
-          }
-        } catch (error) {
-          logger.error('Error parsing SSE message:', error, 'useSSE');
-        }
-      });
-
-      eventSource.onerror = () => {
-        setIsConnected(false);
-
-        if (eventSource.readyState === EventSource.CLOSED) {
-          logger.warn('SSE connection closed', undefined, 'useSSE');
-
-          // Attempt to reconnect with exponential backoff and jitter
-          if (autoReconnect && reconnectAttemptsRef.current < maxReconnectAttempts) {
-            // Exponential backoff: base * 2^attempts
-            const exponentialDelay = reconnectDelay * Math.pow(2, reconnectAttemptsRef.current);
-            // Add jitter (±25%) to prevent thundering herd
-            const jitter = exponentialDelay * 0.25 * (Math.random() * 2 - 1);
-            const delay = Math.min(exponentialDelay + jitter, 30000);
-            
-            logger.debug(`Reconnecting SSE in ${Math.round(delay)}ms... (attempt ${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})`, undefined, 'useSSE');
-
-            reconnectTimeoutRef.current = setTimeout(() => {
-              reconnectAttemptsRef.current++;
-              connect();
-            }, delay);
-          } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-            setError('Unable to connect to real-time updates. Please refresh the page.');
-            logger.error('SSE: Max reconnection attempts reached', undefined, 'useSSE');
-          }
-        }
-      };
-
-      eventSourceRef.current = eventSource;
-      
-      // Store globally
-      g.__babylon_sse_source__ = eventSource;
+    // Check if already connected
+    const g = getGlobal();
+    const existing = g.__babylon_sse_source__;
+    if (existing && existing.readyState === EventSource.OPEN) {
+      eventSourceRef.current = existing;
+      setIsConnected(true);
+      setError(null);
       g.__babylon_sse_subscribers__ = (g.__babylon_sse_subscribers__ || 0) + 1;
-
-    } catch (err) {
-      logger.error('Failed to connect SSE:', err, 'useSSE');
-      setError('Failed to connect to real-time updates');
+      return;
     }
+
+    const token = await getAccessToken();
+    if (!token) {
+      setError(null); // Not an error, user just not authenticated
+      return;
+    }
+
+    // Build SSE URL with channels and token
+    // Note: EventSource doesn't support custom headers, so we pass token as query param
+    const channelsList = Array.from(channelsRef.current).join(',');
+    const sseUrl = `${window.location.origin}/api/sse/events?channels=${encodeURIComponent(channelsList)}&token=${encodeURIComponent(token)}`;
+
+    logger.debug('Connecting to SSE endpoint...', { channels: channelsList }, 'useSSE');
+
+    const eventSource = new EventSource(sseUrl);
+
+    eventSource.onopen = () => {
+      logger.info('SSE connected', undefined, 'useSSE');
+      setIsConnected(true);
+      setError(null);
+      reconnectAttemptsRef.current = 0;
+    };
+
+    eventSource.addEventListener('connected', (event) => {
+      const data = JSON.parse(event.data);
+      logger.debug('SSE connection confirmed:', data, 'useSSE');
+    });
+
+    eventSource.addEventListener('message', (event) => {
+      const message: SSEMessage = JSON.parse(event.data);
+      
+      // Dispatch to channel subscribers
+      const subscribers = subscriptionsRef.current.get(message.channel);
+      if (subscribers) {
+        subscribers.forEach(callback => {
+          callback(message);
+        });
+      }
+    });
+
+    eventSource.onerror = () => {
+      setIsConnected(false);
+
+      if (eventSource.readyState === EventSource.CLOSED) {
+        logger.warn('SSE connection closed', undefined, 'useSSE');
+
+        // Attempt to reconnect with exponential backoff and jitter
+        if (autoReconnect && reconnectAttemptsRef.current < maxReconnectAttempts) {
+          // Exponential backoff: base * 2^attempts
+          const exponentialDelay = reconnectDelay * Math.pow(2, reconnectAttemptsRef.current);
+          // Add jitter (±25%) to prevent thundering herd
+          const jitter = exponentialDelay * 0.25 * (Math.random() * 2 - 1);
+          const delay = Math.min(exponentialDelay + jitter, 30000);
+          
+          logger.debug(`Reconnecting SSE in ${Math.round(delay)}ms... (attempt ${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})`, undefined, 'useSSE');
+
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectAttemptsRef.current++;
+            connect();
+          }, delay);
+        } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
+          setError('Unable to connect to real-time updates. Please refresh the page.');
+          logger.error('SSE: Max reconnection attempts reached', undefined, 'useSSE');
+        }
+      }
+    };
+
+    eventSourceRef.current = eventSource;
+    
+    // Store globally
+    g.__babylon_sse_source__ = eventSource;
+    g.__babylon_sse_subscribers__ = (g.__babylon_sse_subscribers__ || 0) + 1;
   }, [getAccessToken, autoReconnect, reconnectDelay, maxReconnectAttempts]);
 
   const disconnect = useCallback(() => {

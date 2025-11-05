@@ -33,13 +33,8 @@ export function getPerpsEngine(): PerpetualsEngine {
 async function initializePerpsEngine() {
   if (!perpsEngineInstance) return;
   
-  try {
-    const organizations = await db.getAllOrganizations() as Organization[];
-    perpsEngineInstance.initializeMarkets(organizations);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('Failed to load organizations for perps engine', { error: errorMessage }, 'PerpsService');
-  }
+  const organizations = await db.getAllOrganizations() as Organization[];
+  perpsEngineInstance.initializeMarkets(organizations);
 }
 
 // NOTE: Singleton export removed to prevent initialization during Next.js build

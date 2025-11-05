@@ -4,13 +4,12 @@
  * Supports both Privy user authentication and agent session tokens
  */
 
+import { verifyAgentSession } from '@/lib/auth/agent-auth';
+import { PrivyClient } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { PrivyClient } from '@privy-io/server-auth';
-import { verifyAgentSession } from '@/lib/auth/agent-auth';
-import { logger } from '@/lib/logger';
 
-import type { ErrorLike, JsonValue } from '@/types/common'
+import type { ErrorLike, JsonValue } from '@/types/common';
 
 // Define error types locally since they were not in a shared file
 export type AuthenticationError = Error & {
@@ -80,25 +79,15 @@ export async function authenticate(request: NextRequest): Promise<AuthenticatedU
   }
 
   // Fall back to Privy user authentication
-  try {
-    const privy = getPrivyClient();
-    const claims = await privy.verifyAuthToken(token);
+  const privy = getPrivyClient();
+  const claims = await privy.verifyAuthToken(token);
 
-    return {
-      userId: claims.userId,
-      walletAddress: undefined, // Would need to fetch from Privy user
-      email: undefined,
-      isAgent: false,
-    };
-  } catch (error) {
-    const errorMessage = extractErrorMessage(error);
-    logger.error('Auth verification error:', errorMessage, 'AuthMiddleware');
-    const authError: AuthenticationError = Object.assign(new Error('Authentication failed'), {
-      code: 'AUTH_FAILED' as const,
-      message: errorMessage,
-    });
-    throw authError;
-  }
+  return {
+    userId: claims.userId,
+    walletAddress: undefined, // Would need to fetch from Privy user
+    email: undefined,
+    isAgent: false,
+  };
 }
 
 /**

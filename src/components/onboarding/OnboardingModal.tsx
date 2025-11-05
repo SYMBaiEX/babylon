@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { X, Sparkles, RefreshCw, Upload, Check, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Image from 'next/image'
-import { logger } from '@/lib/logger'
 
 interface OnboardingModalProps {
   isOpen: boolean
@@ -70,64 +69,49 @@ export function OnboardingModal({ isOpen, onComplete, onSkip: _onSkip }: Onboard
 
   async function initializeProfile() {
     setIsLoading(true)
-    try {
-      // Generate profile data and random asset indices in parallel
-      const [profileRes, assetsRes] = await Promise.all([
-        fetch('/api/onboarding/generate-profile'),
-        fetch('/api/onboarding/random-assets')
-      ])
+    // Generate profile data and random asset indices in parallel
+    const [profileRes, assetsRes] = await Promise.all([
+      fetch('/api/onboarding/generate-profile'),
+      fetch('/api/onboarding/random-assets')
+    ])
 
-      if (profileRes.ok && assetsRes.ok) {
-        const profileData: ProfileData = (await profileRes.json()).data
-        const assetsData = (await assetsRes.json()).data
+    if (profileRes.ok && assetsRes.ok) {
+      const profileData: ProfileData = (await profileRes.json()).data
+      const assetsData = (await assetsRes.json()).data
 
-        setDisplayName(profileData.name)
-        setUsername(profileData.username)
-        setBio(profileData.bio)
-        setProfilePictureIndex(assetsData.profilePictureIndex)
-        setBannerIndex(assetsData.bannerIndex)
-      }
-    } catch (error) {
-      logger.error('Failed to initialize profile', error, 'OnboardingModal')
-    } finally {
-      setIsLoading(false)
+      setDisplayName(profileData.name)
+      setUsername(profileData.username)
+      setBio(profileData.bio)
+      setProfilePictureIndex(assetsData.profilePictureIndex)
+      setBannerIndex(assetsData.bannerIndex)
     }
+    setIsLoading(false)
   }
 
   async function regenerateProfile() {
     setIsGenerating(true)
-    try {
-      const response = await fetch('/api/onboarding/generate-profile')
-      if (response.ok) {
-        const profileData: ProfileData = (await response.json()).data
-        setDisplayName(profileData.name)
-        setUsername(profileData.username)
-        setBio(profileData.bio)
-      }
-    } catch (error) {
-      logger.error('Failed to regenerate profile', error, 'OnboardingModal')
-    } finally {
-      setIsGenerating(false)
+    const response = await fetch('/api/onboarding/generate-profile')
+    if (response.ok) {
+      const profileData: ProfileData = (await response.json()).data
+      setDisplayName(profileData.name)
+      setUsername(profileData.username)
+      setBio(profileData.bio)
     }
+    setIsGenerating(false)
   }
 
   async function checkUsernameAvailability(username: string) {
     setIsCheckingUsername(true)
     setUsernameSuggestion(null)
-    try {
-      const response = await fetch(`/api/onboarding/check-username?username=${encodeURIComponent(username)}`)
-      if (response.ok) {
-        const result = (await response.json()).data
-        setUsernameStatus(result.available ? 'available' : 'taken')
-        if (!result.available && result.suggestion) {
-          setUsernameSuggestion(result.suggestion)
-        }
+    const response = await fetch(`/api/onboarding/check-username?username=${encodeURIComponent(username)}`)
+    if (response.ok) {
+      const result = (await response.json()).data
+      setUsernameStatus(result.available ? 'available' : 'taken')
+      if (!result.available && result.suggestion) {
+        setUsernameSuggestion(result.suggestion)
       }
-    } catch (error) {
-      logger.error('Failed to check username', error, 'OnboardingModal')
-    } finally {
-      setIsCheckingUsername(false)
     }
+    setIsCheckingUsername(false)
   }
 
   function cycleProfilePicture(direction: 'next' | 'prev') {

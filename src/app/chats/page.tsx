@@ -12,7 +12,6 @@ import { Avatar } from '@/components/shared/Avatar'
 import { Separator } from '@/components/shared/Separator'
 import { TaggedText } from '@/components/shared/TaggedText'
 import { cn } from '@/lib/utils'
-import { logger } from '@/lib/logger'
 
 interface Chat {
   id: string
@@ -112,97 +111,52 @@ export default function ChatsPage() {
   }, [chatDetails?.messages])
 
   const loadGroupChats = async () => {
-    try {
-      setLoading(true)
-      
-      // In debug mode, fetch all game chats without auth
-      if (isDebugMode) {
-        const response = await fetch('/api/chats?all=true')
-        const data = await response.json()
-
-        if (response.ok) {
-          logger.info('Debug mode: Loaded all game chats', { count: data.chats?.length }, 'ChatsPage')
-          setGroupChats(data.chats || [])
-        } else {
-          logger.error('Failed to load chats in debug mode:', data, 'ChatsPage')
-        }
-        return
-      }
-
-      // Normal mode - requires auth
-      const token = await getAccessToken()
-      if (!token) {
-        logger.warn('No auth token, skipping chat load', undefined, 'ChatsPage')
-        return
-      }
-
-      const response = await fetch('/api/chats', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+    setLoading(true)
+    
+    if (isDebugMode) {
+      const response = await fetch('/api/chats?all=true')
       const data = await response.json()
-
-      if (response.ok) {
-        // Combine groupChats and directChats from API response
-        const allChats = [
-          ...(data.groupChats || []),
-          ...(data.directChats || [])
-        ]
-        logger.info('Loaded user chats', { count: allChats.length }, 'ChatsPage')
-        setGroupChats(allChats)
-      } else {
-        logger.error('Failed to load chats:', data, 'ChatsPage')
-      }
-    } catch (error) {
-      logger.error('Error loading chats:', error, 'ChatsPage')
-    } finally {
+      setGroupChats(data.chats || [])
       setLoading(false)
+      return
     }
+
+    const token = await getAccessToken()
+    const response = await fetch('/api/chats', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await response.json()
+
+    const allChats = [
+      ...(data.groupChats || []),
+      ...(data.directChats || [])
+    ]
+    setGroupChats(allChats)
+    setLoading(false)
   }
 
   const loadChatDetails = async (chatId: string) => {
-    try {
-      setLoadingChat(true)
-      
-      // In debug mode, fetch chat details without auth
-      if (isDebugMode) {
-        const response = await fetch(`/api/chats/${chatId}?debug=true`)
-        const data = await response.json()
-
-        if (response.ok) {
-          logger.info('Debug mode: Loaded chat details', { chatId, messages: data.messages?.length }, 'ChatsPage')
-          setChatDetails(data)
-        } else {
-          logger.error('Failed to load chat details in debug mode:', data, 'ChatsPage')
-        }
-        return
-      }
-
-      // Normal mode - requires auth
-      const token = await getAccessToken()
-      if (!token) {
-        logger.warn('No auth token, skipping chat details load', undefined, 'ChatsPage')
-        return
-      }
-
-      const response = await fetch(`/api/chats/${chatId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+    setLoadingChat(true)
+    
+    if (isDebugMode) {
+      const response = await fetch(`/api/chats/${chatId}?debug=true`)
       const data = await response.json()
-
-      if (response.ok) {
-        setChatDetails(data)
-      } else {
-        logger.error('Failed to load chat details:', data, 'ChatsPage')
-      }
-    } catch (error) {
-      logger.error('Error loading chat details:', error, 'ChatsPage')
-    } finally {
+      setChatDetails(data)
       setLoadingChat(false)
+      return
     }
+
+    const token = await getAccessToken()
+    const response = await fetch(`/api/chats/${chatId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await response.json()
+    setChatDetails(data)
+    setLoadingChat(false)
   }
 
   const sendMessage = async () => {
@@ -212,96 +166,72 @@ export default function ChatsPage() {
     setSendError(null)
     setSendSuccess(false)
 
-    try {
-      const token = await getAccessToken()
-      if (!token) {
-        throw new Error('Authentication required')
-      }
+    const token = await getAccessToken()
 
-      if (selectedChatId.includes('game-')) {
-        // For game chats, use the group chat message endpoint
-        const response = await fetch(`/api/chats/${selectedChatId}/message`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ content: messageInput.trim() }),
-        })
+    if (selectedChatId.includes('game-')) {
+      const response = await fetch(`/api/chats/${selectedChatId}/message`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ content: messageInput.trim() }),
+      })
 
-        const data = await response.json()
+      const data = await response.json()
 
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to send message')
-        }
-
-        // Show quality feedback
-        if (data.warnings && data.warnings.length > 0) {
-          setSendError(data.warnings.join('. '))
-          setTimeout(() => setSendError(null), 5000)
-        } else {
-          setSendSuccess(true)
-          setTimeout(() => setSendSuccess(false), 2000)
-        }
-
-        // Add message to WebSocket state for immediate display
-        if (data.message && selectedChatId) {
-          addWsMessage({
-            id: data.message.id,
-            content: data.message.content,
-            chatId: data.message.chatId,
-            senderId: data.message.senderId,
-            createdAt: data.message.createdAt,
-            isGameChat: true
-          })
-        }
-
-        setMessageInput('')
+      if (data.warnings && data.warnings.length > 0) {
+        setSendError(data.warnings.join('. '))
+        setTimeout(() => setSendError(null), 5000)
       } else {
-        // For user chats
-        const response = await fetch(`/api/chats/${selectedChatId}/message`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ content: messageInput.trim() }),
-        })
-
-        const data = await response.json()
-
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to send message')
-        }
-
-        // Add message to local state
-        if (chatDetails && data.message) {
-          setChatDetails({
-            ...chatDetails,
-            messages: [...chatDetails.messages, data.message],
-          })
-        }
-
-        // Show quality feedback
-        if (data.warnings && data.warnings.length > 0) {
-          setSendError(data.warnings.join('. '))
-          setTimeout(() => setSendError(null), 5000)
-        } else {
-          setSendSuccess(true)
-          setTimeout(() => setSendSuccess(false), 2000)
-        }
-
-        setMessageInput('')
-        
-        // Reload chat list to update last message
-        loadGroupChats()
+        setSendSuccess(true)
+        setTimeout(() => setSendSuccess(false), 2000)
       }
-    } catch (error) {
-      setSendError(error instanceof Error ? error.message : 'Failed to send message')
-      setTimeout(() => setSendError(null), 5000)
-    } finally {
-      setSending(false)
+
+      if (data.message && selectedChatId) {
+        addWsMessage({
+          id: data.message.id,
+          content: data.message.content,
+          chatId: data.message.chatId,
+          senderId: data.message.senderId,
+          createdAt: data.message.createdAt,
+          isGameChat: true
+        })
+      }
+
+      setMessageInput('')
+    } else {
+      const response = await fetch(`/api/chats/${selectedChatId}/message`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ content: messageInput.trim() }),
+      })
+
+      const data = await response.json()
+
+      if (chatDetails && data.message) {
+        setChatDetails({
+          ...chatDetails,
+          messages: [...chatDetails.messages, data.message],
+        })
+      }
+
+      if (data.warnings && data.warnings.length > 0) {
+        setSendError(data.warnings.join('. '))
+        setTimeout(() => setSendError(null), 5000)
+      } else {
+        setSendSuccess(true)
+        setTimeout(() => setSendSuccess(false), 2000)
+      }
+
+      setMessageInput('')
+      void loadGroupChats()
     }
+    
+    setSending(false)
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

@@ -32,13 +32,7 @@ export class BabylonChatService extends Service {
   async start(): Promise<void> {
     const babylonService = this.runtime.getService<BabylonClientService>(
       BabylonClientService.serviceType,
-    )
-    if (!babylonService) {
-      this.runtime.logger.error(
-        'Babylon client service not available - chat service will not start',
-      )
-      return
-    }
+    )!
     this.apiClient = babylonService.getClient()
     this.runtime.logger.info('🚀 Starting Babylon Chat Service...')
     this.chatInterval = setInterval(
@@ -49,35 +43,22 @@ export class BabylonChatService extends Service {
   }
 
   private async postRandomMessage(): Promise<void> {
-    if (!this.apiClient) {
+    this.runtime.logger.info('🤖 Checking for a random chat to post in...')
+    const chats = await this.apiClient!.getChats()
+
+    if (chats.length === 0) {
+      this.runtime.logger.info('No active chats to post in.')
       return
     }
 
-    try {
-      this.runtime.logger.info('🤖 Checking for a random chat to post in...')
-      const chats = await this.apiClient.getChats()
+    const randomChat = chats[Math.floor(Math.random() * chats.length)]!
 
-      if (chats.length === 0) {
-        this.runtime.logger.info('No active chats to post in.')
-        return
-      }
+    const messageContent = await this.generateChatMessage(randomChat.theme)
 
-      const randomChat = chats[Math.floor(Math.random() * chats.length)]
-      if (!randomChat) {
-        return
-      }
-
-      const messageContent = await this.generateChatMessage(randomChat.theme)
-
-      if (messageContent) {
-        await this.apiClient.sendMessage(randomChat.id, messageContent)
-        this.runtime.logger.info(
-          `📬 Posted message to chat "${randomChat.name}": "${messageContent}"`,
-        )
-      }
-    } catch (error) {
-      this.runtime.logger.error(
-        `Error posting random message: ${error instanceof Error ? error.message : String(error)}`,
+    if (messageContent) {
+      await this.apiClient!.sendMessage(randomChat.id, messageContent)
+      this.runtime.logger.info(
+        `📬 Posted message to chat "${randomChat.name}": "${messageContent}"`,
       )
     }
   }
@@ -115,12 +96,7 @@ export class BabylonChatService extends Service {
     logger.info('Stopping BabylonChatService')
     const service = runtime.getService<BabylonChatService>(
       BabylonChatService.serviceType,
-    )
-    if (!service) {
-      throw new Error('BabylonChatService not found')
-    }
-    if (typeof service.stop === 'function') {
-      await service.stop()
-    }
+    )!
+    await service.stop()
   }
 }

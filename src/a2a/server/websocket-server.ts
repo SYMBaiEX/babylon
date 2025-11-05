@@ -105,41 +105,30 @@ export class A2AWebSocketServer extends EventEmitter {
       return
     }
     
-    try {
-      this.wss = new WebSocketServer({
-        port: this.config.port,
-        host: this.config.host,
-        maxPayload: 1024 * 1024 // 1MB max message size
-      })
+    this.wss = new WebSocketServer({
+      port: this.config.port,
+      host: this.config.host,
+      maxPayload: 1024 * 1024
+    })
 
-      // Handle port conflict errors - store error instead of emitting to prevent uncaught exception
-      this.wss.on('error', (error: Error & { code?: string }) => {
-        if (error.code === 'EADDRINUSE') {
-          this.logger.error(`Port ${this.config.port} is already in use. Please stop the process using this port or change the port configuration.`, error)
-          this._initializationError = error
-          // Don't emit error event here - let waitForReady() handle it
-        } else {
-          this.logger.error('WebSocket server error:', error)
-          this._initializationError = error
-        }
-      })
+    this.wss.on('error', (error: Error & { code?: string }) => {
+      if (error.code === 'EADDRINUSE') {
+        this.logger.error(`Port ${this.config.port} is already in use. Please stop the process using this port or change the port configuration.`, error)
+        this._initializationError = error
+      } else {
+        this.logger.error('WebSocket server error:', error)
+        this._initializationError = error
+      }
+    })
 
-      // Listen for successful binding
-      this.wss.on('listening', () => {
-        this._ready = true
-        this.logger.info(`A2A WebSocket server listening on ${this.config.host}:${this.config.port}`, 'A2AWebSocketServer')
-        // Store in singleton for reuse
-        a2aServerSingleton.setInstance(this, this.config.port)
-      })
+    this.wss.on('listening', () => {
+      this._ready = true
+      this.logger.info(`A2A WebSocket server listening on ${this.config.host}:${this.config.port}`, 'A2AWebSocketServer')
+      a2aServerSingleton.setInstance(this, this.config.port)
+    })
 
-      this.setupServer()
-      this.logger.info(`A2A WebSocket server created on ${this.config.host}:${this.config.port}`, 'A2AWebSocketServer')
-    } catch (error) {
-      // Catch synchronous errors during server creation
-      this._initializationError = error instanceof Error ? error : new Error(String(error))
-      this.logger.error('Failed to create WebSocket server:', this._initializationError)
-      throw this._initializationError
-    }
+    this.setupServer()
+    this.logger.info(`A2A WebSocket server created on ${this.config.host}:${this.config.port}`, 'A2AWebSocketServer')
   }
 
   private setupServer(): void {
@@ -165,82 +154,62 @@ export class A2AWebSocketServer extends EventEmitter {
         }
       }, this.config.authTimeout)
 
-      // Handle messages
       ws.on('message', async (data: Buffer) => {
-        try {
-          const message = JSON.parse(data.toString()) as JsonRpcRequest
+        const message = JSON.parse(data.toString()) as JsonRpcRequest
 
-          // Validate JSON-RPC format
-          if (!this.isValidJsonRpc(message)) {
-            ws.send(JSON.stringify({
-              jsonrpc: '2.0',
-              error: {
-                code: ErrorCode.INVALID_REQUEST,
-                message: 'Invalid JSON-RPC request'
-              },
-              id: null
-            }))
-            return
-          }
-
-          const connection = this.connections.get(tempId)
-
-          // Handle handshake (authentication) separately
-          if (message.method === 'a2a.handshake') {
-            clearTimeout(authTimeout)
-            await this.handleHandshake(ws, tempId, message)
-            return
-          }
-
-          // Check authentication for all other methods
-          if (!connection?.authenticated) {
-            ws.send(JSON.stringify({
-              jsonrpc: '2.0',
-              error: {
-                code: ErrorCode.NOT_AUTHENTICATED,
-                message: 'Not authenticated. Please perform handshake first.'
-              },
-              id: message.id
-            }))
-            return
-          }
-
-          // Rate limiting
-          if (!this.rateLimiter.checkLimit(connection.agentId)) {
-            ws.send(JSON.stringify({
-              jsonrpc: '2.0',
-              error: {
-                code: ErrorCode.RATE_LIMIT_EXCEEDED,
-                message: 'Rate limit exceeded. Please slow down.'
-              },
-              id: message.id
-            }))
-            return
-          }
-
-          // Update last activity
-          connection.lastActivity = Date.now()
-
-          // Route message
-          const response = await this.router.route(
-            connection.agentId,
-            message,
-            connection
-          )
-
-          ws.send(JSON.stringify(response))
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error(`Message handling error for ${tempId}:`, { error: errorMessage })
+        if (!this.isValidJsonRpc(message)) {
           ws.send(JSON.stringify({
             jsonrpc: '2.0',
             error: {
-              code: ErrorCode.INTERNAL_ERROR,
-              message: 'Internal server error'
+              code: ErrorCode.INVALID_REQUEST,
+              message: 'Invalid JSON-RPC request'
             },
             id: null
           }))
+          return
         }
+
+        const connection = this.connections.get(tempId)
+
+        if (message.method === 'a2a.handshake') {
+          clearTimeout(authTimeout)
+          await this.handleHandshake(ws, tempId, message)
+          return
+        }
+
+        if (!connection?.authenticated) {
+          ws.send(JSON.stringify({
+            jsonrpc: '2.0',
+            error: {
+              code: ErrorCode.NOT_AUTHENTICATED,
+              message: 'Not authenticated. Please perform handshake first.'
+            },
+            id: message.id
+          }))
+          return
+        }
+
+        if (!this.rateLimiter.checkLimit(connection.agentId)) {
+          ws.send(JSON.stringify({
+            jsonrpc: '2.0',
+            error: {
+              code: ErrorCode.RATE_LIMIT_EXCEEDED,
+              message: 'Rate limit exceeded. Please slow down.'
+            },
+            id: message.id
+          }))
+          return
+        }
+
+        connection.lastActivity = Date.now()
+
+        const response = await this.router.route(
+          connection.agentId,
+          message,
+          connection
+        )
+
+        ws.send(JSON.stringify(response))
       })
 
       // Handle connection close
@@ -291,80 +260,64 @@ export class A2AWebSocketServer extends EventEmitter {
     tempId: string,
     message: JsonRpcRequest
   ): Promise<void> {
-    try {
-      const handshakeData = message.params as {
-        credentials: {
-          address: string
-          tokenId: number
-          signature: string
-          timestamp: number
-        }
-        capabilities: {
-          strategies: string[]
-          markets: string[]
-          actions: string[]
-          version: string
-        }
-        endpoint: string
+    const handshakeData = message.params as {
+      credentials: {
+        address: string
+        tokenId: number
+        signature: string
+        timestamp: number
       }
-
-      // Validate credentials
-      const authResult = await this.authManager.authenticate(handshakeData.credentials)
-
-      if (!authResult.success) {
-        ws.send(JSON.stringify({
-          jsonrpc: '2.0',
-          error: {
-            code: ErrorCode.AUTHENTICATION_FAILED,
-            message: authResult.error || 'Authentication failed'
-          },
-          id: message.id
-        }))
-        ws.close(1008, 'Authentication failed')
-        this.connections.delete(tempId)
-        return
+      capabilities: {
+        strategies: string[]
+        markets: string[]
+        actions: string[]
+        version: string
       }
+      endpoint: string
+    }
 
-      // Update connection with authenticated info
-      const connection = this.connections.get(tempId)!
-      connection.agentId = `agent-${handshakeData.credentials.tokenId}`
-      connection.address = handshakeData.credentials.address
-      connection.tokenId = handshakeData.credentials.tokenId
-      connection.capabilities = handshakeData.capabilities
-      connection.authenticated = true
+    const authResult = await this.authManager.authenticate(handshakeData.credentials)
 
-      // Send handshake response
-      const response: JsonRpcResponse = {
-        jsonrpc: '2.0',
-        result: {
-          agentId: connection.agentId,
-          sessionToken: authResult.sessionToken,
-          serverCapabilities: this.getServerCapabilities(),
-          expiresAt: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
-        } as unknown as JsonRpcResult,
-        id: message.id
-      }
-
-      ws.send(JSON.stringify(response))
-
-      this.logger.info(`Agent authenticated: ${connection.agentId}`)
-      this.emit(A2AEventType.AGENT_CONNECTED, {
-        agentId: connection.agentId,
-        address: connection.address,
-        tokenId: connection.tokenId
-      })
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error('Handshake error:', { error: errorMessage })
+    if (!authResult.success) {
       ws.send(JSON.stringify({
         jsonrpc: '2.0',
         error: {
-          code: ErrorCode.INTERNAL_ERROR,
-          message: 'Handshake failed'
+          code: ErrorCode.AUTHENTICATION_FAILED,
+          message: authResult.error || 'Authentication failed'
         },
         id: message.id
       }))
+      ws.close(1008, 'Authentication failed')
+      this.connections.delete(tempId)
+      return
     }
+
+    const connection = this.connections.get(tempId)!
+    connection.agentId = `agent-${handshakeData.credentials.tokenId}`
+    connection.address = handshakeData.credentials.address
+    connection.tokenId = handshakeData.credentials.tokenId
+    connection.capabilities = handshakeData.capabilities
+    connection.authenticated = true
+
+    const response: JsonRpcResponse = {
+      jsonrpc: '2.0',
+      result: {
+        agentId: connection.agentId,
+        sessionToken: authResult.sessionToken,
+        serverCapabilities: this.getServerCapabilities(),
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000
+      } as unknown as JsonRpcResult,
+      id: message.id
+    }
+
+    ws.send(JSON.stringify(response))
+
+    this.logger.info(`Agent authenticated: ${connection.agentId}`)
+    this.emit(A2AEventType.AGENT_CONNECTED, {
+      agentId: connection.agentId,
+      address: connection.address,
+      tokenId: connection.tokenId
+    })
   }
 
   private isValidJsonRpc(message: unknown): message is JsonRpcRequest {

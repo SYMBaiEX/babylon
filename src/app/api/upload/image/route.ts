@@ -4,7 +4,8 @@
  *
  * Handles image uploads for user profiles (avatar, cover images)
  * Uses S3-compatible storage (MinIO for dev, Cloudflare R2 for production)
- * Falls back to local filesystem storage if external storage is unavailable
+ * 
+ * ⚠️  Vercel-compatible: No local filesystem fallback on production
  */
 
 import type { NextRequest } from 'next/server';
@@ -13,12 +14,14 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { ImageUploadSchema } from '@/lib/validation/schemas'
 import { getStorageClient } from '@/lib/storage/s3-client'
 import { logger } from '@/lib/logger'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
 import sharp from 'sharp'
 
-// Configuration
-const USE_LOCAL_STORAGE = process.env.USE_LOCAL_STORAGE === 'true' || process.env.NODE_ENV === 'development'
+// Configuration - only allow local storage in development
+const USE_LOCAL_STORAGE = process.env.USE_LOCAL_STORAGE === 'true' && process.env.NODE_ENV === 'development'
+
+// Runtime configuration for Vercel
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/upload/image
@@ -58,45 +61,39 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const bytes = await file.arrayBuffer()
   const buffer = Buffer.from(bytes)
 
-  // Use local storage for development or when configured
   if (USE_LOCAL_STORAGE) {
-    try {
-      // Optimize image
-      const optimized = await sharp(buffer)
-        .webp({ quality: 85 })
-        .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
-        .toBuffer()
+    const { writeFile, mkdir } = await import('fs/promises')
+    const { join } = await import('path')
+    
+    const optimized = await sharp(buffer)
+      .webp({ quality: 85 })
+      .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
+      .toBuffer()
 
-      // Create upload directory structure
-      const uploadDir = join(process.cwd(), 'public', 'uploads', folder)
-      await mkdir(uploadDir, { recursive: true })
+    const uploadDir = join(process.cwd(), 'public', 'uploads', folder)
+    await mkdir(uploadDir, { recursive: true })
 
-      // Save file to public/uploads
-      const filePath = join(uploadDir, filename)
-      await writeFile(filePath, optimized)
+    const filePath = join(uploadDir, filename)
+    await writeFile(filePath, optimized)
 
-      const url = `/uploads/${folder}/${filename}`
+    const url = `/uploads/${folder}/${filename}`
 
-      logger.info(`Image uploaded successfully to local storage`, {
-        userId: authUser.userId,
-        filename,
-        path: filePath,
-        size: optimized.length,
-        originalSize: file.size,
-        type: imageType || 'unknown',
-      }, 'POST /api/upload/image')
+    logger.info(`Image uploaded successfully to local storage (dev only)`, {
+      userId: authUser.userId,
+      filename,
+      path: filePath,
+      size: optimized.length,
+      originalSize: file.size,
+      type: imageType || 'unknown',
+    }, 'POST /api/upload/image')
 
-      return successResponse({
-        success: true,
-        url,
-        key: `${folder}/${filename}`,
-        size: optimized.length,
-        filename,
-      })
-    } catch (localError) {
-      logger.error('Local storage upload failed:', localError, 'POST /api/upload/image')
-      // Fall through to try external storage
-    }
+    return successResponse({
+      success: true,
+      url,
+      key: `${folder}/${filename}`,
+      size: optimized.length,
+      filename,
+    })
   }
 
   // Upload to S3-compatible storage (production or fallback)

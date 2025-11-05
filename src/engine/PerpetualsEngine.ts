@@ -544,33 +544,27 @@ export class PerpetualsEngine extends EventEmitter {
     const positionsToSync = Array.from(this.dirtyPositions);
     this.dirtyPositions.clear();
 
-    try {
-      // Batch update positions in database
-      const updates = positionsToSync.map((positionId) => {
-        const position = this.positions.get(positionId);
-        if (!position) return null;
+    // Batch update positions in database
+    const updates = positionsToSync.map((positionId) => {
+      const position = this.positions.get(positionId);
+      if (!position) return null;
 
-        return prisma.perpPosition.update({
-          where: { id: positionId },
-          data: {
-            currentPrice: position.currentPrice,
-            unrealizedPnL: position.unrealizedPnL,
-            unrealizedPnLPercent: position.unrealizedPnLPercent,
-            fundingPaid: position.fundingPaid,
-            lastUpdated: new Date(position.lastUpdated),
-          },
-        });
-      }).filter(Boolean);
+      return prisma.perpPosition.update({
+        where: { id: positionId },
+        data: {
+          currentPrice: position.currentPrice,
+          unrealizedPnL: position.unrealizedPnL,
+          unrealizedPnLPercent: position.unrealizedPnLPercent,
+          fundingPaid: position.fundingPaid,
+          lastUpdated: new Date(position.lastUpdated),
+        },
+      });
+    }).filter(Boolean);
 
-      await Promise.all(updates);
+    await Promise.all(updates);
 
-      if (updates.length > 0) {
-        logger.debug(`Synced ${updates.length} positions to database`, undefined, 'PerpetualsEngine');
-      }
-    } catch (error) {
-      logger.error('Failed to sync positions:', error, 'PerpetualsEngine');
-      // Re-add failed positions to dirty set
-      positionsToSync.forEach((id) => this.dirtyPositions.add(id));
+    if (updates.length > 0) {
+      logger.debug(`Synced ${updates.length} positions to database`, undefined, 'PerpetualsEngine');
     }
   }
 

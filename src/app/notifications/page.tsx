@@ -7,7 +7,6 @@ import { PageContainer } from '@/components/shared/PageContainer'
 import { Avatar } from '@/components/shared/Avatar'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
-import { logger } from '@/lib/logger'
 import { toast } from 'sonner'
 
 interface Notification {
@@ -35,38 +34,33 @@ export default function NotificationsPage() {
   const [markingAsRead, setMarkingAsRead] = useState(false)
 
   const fetchNotifications = useCallback(async (showLoading = true) => {
-    try {
-      if (showLoading) {
-        setLoading(true)
-      }
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    if (showLoading) {
+      setLoading(true)
+    }
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
 
-      if (!token) {
-        if (showLoading) {
-          setLoading(false)
-        }
-        return
-      }
-
-      const response = await fetch('/api/notifications?limit=100', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setNotifications(data.notifications || [])
-        setUnreadCount(data.unreadCount || 0)
-      } else {
-        logger.error('Failed to fetch notifications:', response.statusText, 'NotificationsPage')
-      }
-    } catch (error) {
-      logger.error('Error fetching notifications:', error, 'NotificationsPage')
-    } finally {
+    if (!token) {
       if (showLoading) {
         setLoading(false)
       }
+      return
+    }
+
+    const response = await fetch('/api/notifications?limit=100', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      setNotifications(data.notifications || [])
+      setUnreadCount(data.unreadCount || 0)
+    } else {
+      console.error('Failed to fetch notifications:', response.statusText)
+    }
+    if (showLoading) {
+      setLoading(false)
     }
   }, [])
 
@@ -91,69 +85,62 @@ export default function NotificationsPage() {
   }, [authenticated, user, fetchNotifications])
 
   const markAsRead = async (notificationId: string) => {
-    try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
 
-      if (!token) return
+    if (!token) return
 
-      const response = await fetch('/api/notifications', {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          notificationIds: [notificationId],
-        }),
-      })
+    const response = await fetch('/api/notifications', {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        notificationIds: [notificationId],
+      }),
+    })
 
-      if (response.ok) {
-        // Update local state optimistically
-        setNotifications(prev =>
-          prev.map(n => (n.id === notificationId ? { ...n, read: true } : n))
-        )
-        setUnreadCount(prev => Math.max(0, prev - 1))
-      } else {
-        logger.error('Failed to mark notification as read:', response.statusText, 'NotificationsPage')
-      }
-    } catch (error) {
-      logger.error('Error marking notification as read:', error, 'NotificationsPage')
+    if (response.ok) {
+      // Update local state optimistically
+      setNotifications(prev =>
+        prev.map(n => (n.id === notificationId ? { ...n, read: true } : n))
+      )
+      setUnreadCount(prev => Math.max(0, prev - 1))
+    } else {
+      console.error('Failed to mark notification as read:', response.statusText)
     }
   }
 
   const markAllAsRead = async () => {
-    try {
-      setMarkingAsRead(true)
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    setMarkingAsRead(true)
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
 
-      if (!token) return
-
-      const response = await fetch('/api/notifications', {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          markAllAsRead: true,
-        }),
-      })
-
-      if (response.ok) {
-        // Update local state optimistically
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-        setUnreadCount(0)
-        toast.success('All notifications marked as read')
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
-        toast.error(errorData.message || 'Failed to mark all as read')
-      }
-    } catch (error) {
-      logger.error('Error marking all as read:', error, 'NotificationsPage')
-      toast.error('Failed to mark all as read')
-    } finally {
+    if (!token) {
       setMarkingAsRead(false)
+      return
     }
+
+    const response = await fetch('/api/notifications', {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        markAllAsRead: true,
+      }),
+    })
+
+    if (response.ok) {
+      // Update local state optimistically
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+      setUnreadCount(0)
+      toast.success('All notifications marked as read')
+    } else {
+      const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
+      toast.error(errorData.message || 'Failed to mark all as read')
+    }
+    setMarkingAsRead(false)
   }
 
   const formatTimeAgo = (dateString: string) => {

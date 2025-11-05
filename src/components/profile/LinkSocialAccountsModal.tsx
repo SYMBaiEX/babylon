@@ -32,57 +32,53 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
 
     setLinking(platform)
 
-    try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      }
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
-      }
-
-      const response = await fetch(`/api/users/${user.id}/link-social`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          platform,
-          username,
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Failed to link account' }))
-        throw new Error(error.error || 'Failed to link account')
-      }
-
-      const data = await response.json()
-
-      // Update user in store
-      const updates = {
-        ...user,
-        ...(platform === 'twitter' 
-          ? { hasTwitter: true, twitterUsername: username }
-          : { hasFarcaster: true, farcasterUsername: username }
-        ),
-        // Add points if awarded
-        ...(data.points?.awarded ? { reputationPoints: data.points.newTotal } : {}),
-      }
-
-      if (data.points?.awarded) {
-        toast.success(`Account linked! +${data.points.awarded} points awarded`)
-      } else {
-        toast.success('Account linked successfully!')
-      }
-
-      setUser(updates)
-
-      // Clear input
-      setInputValues(prev => ({ ...prev, [platform]: '' }))
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to link account')
-    } finally {
-      setLinking(null)
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
     }
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
+    const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/link-social`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        platform,
+        username,
+      }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to link account' }))
+      setLinking(null)
+      throw new Error(error.error || 'Failed to link account')
+    }
+
+    const data = await response.json()
+
+    // Update user in store
+    const updates = {
+      ...user,
+      ...(platform === 'twitter' 
+        ? { hasTwitter: true, twitterUsername: username }
+        : { hasFarcaster: true, farcasterUsername: username }
+      ),
+      // Add points if awarded
+      ...(data.points?.awarded ? { reputationPoints: data.points.newTotal } : {}),
+    }
+
+    if (data.points?.awarded) {
+      toast.success(`Account linked! +${data.points.awarded} points awarded`)
+    } else {
+      toast.success('Account linked successfully!')
+    }
+
+    setUser(updates)
+
+    // Clear input
+    setInputValues(prev => ({ ...prev, [platform]: '' }))
+    setLinking(null)
   }
 
   return (

@@ -1,16 +1,14 @@
 'use client';
 
-import { cn } from '@/lib/utils';
-import { X, MessageCircle } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { useInteractionStore } from '@/stores/interactionStore';
-import { EmptyState } from '@/components/shared/EmptyState';
-import { CommentInput } from './CommentInput';
-import { CommentCard } from './CommentCard';
 import { PostCard } from '@/components/posts/PostCard';
-import type { CommentSectionProps } from '@/types/interactions';
-import type { CommentWithReplies, CommentData } from '@/types/interactions';
-import { logger } from '@/lib/logger';
+import { EmptyState } from '@/components/shared/EmptyState';
+import { cn } from '@/lib/utils';
+import { useInteractionStore } from '@/stores/interactionStore';
+import type { CommentData, CommentSectionProps, CommentWithReplies } from '@/types/interactions';
+import { MessageCircle, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { CommentCard } from './CommentCard';
+import { CommentInput } from './CommentInput';
 
 export function CommentSection({
   postId,
@@ -49,17 +47,12 @@ export function CommentSection({
       if (!isOpen || !postId) return;
 
       setIsLoadingPost(true);
-      try {
-        const response = await fetch(`/api/posts/${postId}`);
-        if (response.ok) {
-          const result = await response.json();
-          setPost(result.data);
-        }
-      } catch (error) {
-        logger.error('Failed to load post:', error, 'CommentSection');
-      } finally {
-        setIsLoadingPost(false);
+      const response = await fetch(`/api/posts/${postId}`);
+      if (response.ok) {
+        const result = await response.json();
+        setPost(result.data);
       }
+      setIsLoadingPost(false);
     };
 
     loadPostData();
@@ -74,36 +67,21 @@ export function CommentSection({
 
   const loadCommentsData = async () => {
     setIsLoading(true);
-    try {
-      const loadedComments = await loadComments(postId);
-      setComments(loadedComments);
-    } catch (error) {
-      logger.error('Failed to load comments:', error, 'CommentSection');
-    } finally {
-      setIsLoading(false);
-    }
+    const loadedComments = await loadComments(postId);
+    setComments(loadedComments);
+    setIsLoading(false);
   };
 
   const handleEdit = async (commentId: string, content: string) => {
-    try {
-      await editComment(commentId, content);
-      // Reload comments to get updated data
-      await loadCommentsData();
-    } catch (error) {
-      logger.error('Failed to edit comment:', error, 'CommentSection');
-    }
+    await editComment(commentId, content);
+    // Reload comments to get updated data
+    await loadCommentsData();
   };
 
   const handleDelete = async (commentId: string) => {
-    try {
-      await deleteComment(commentId, postId);
-      // Remove comment from UI optimistically
-      setComments((prev) => removeCommentById(prev, commentId));
-    } catch (error) {
-      logger.error('Failed to delete comment:', error, 'CommentSection');
-      // Reload on error to ensure consistency
-      await loadCommentsData();
-    }
+    await deleteComment(commentId, postId);
+    // Remove comment from UI optimistically
+    setComments((prev) => removeCommentById(prev, commentId));
   };
 
   // Helper to add a reply to the nested comment structure

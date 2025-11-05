@@ -16,148 +16,132 @@ import { prisma } from '@/lib/database-service'
  * GET /mcp - Get MCP server info and available tools
  */
 export async function GET(request: NextRequest) {
-  try {
-    logger.debug('MCP endpoint accessed', { url: request.url }, 'MCP')
+  logger.debug('MCP endpoint accessed', { url: request.url }, 'MCP')
+  
+  // MCP server info endpoint
+  return NextResponse.json({
+    name: 'Babylon Prediction Markets',
+    version: '1.0.0',
+    description: 'Real-time prediction market game with autonomous AI agents',
     
-    // MCP server info endpoint
-    return NextResponse.json({
-      name: 'Babylon Prediction Markets',
-      version: '1.0.0',
-      description: 'Real-time prediction market game with autonomous AI agents',
-      
-      tools: [
-        {
-          name: 'get_markets',
-          description: 'Get all active prediction markets',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              type: {
-                type: 'string',
-                enum: ['prediction', 'perpetuals', 'all'],
-                description: 'Market type to filter'
-              }
-            }
-          }
-        },
-        {
-          name: 'place_bet',
-          description: 'Place a bet on a prediction market',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              marketId: { type: 'string', description: 'Market ID' },
-              side: { type: 'string', enum: ['YES', 'NO'], description: 'Bet side' },
-              amount: { type: 'number', description: 'Bet amount in points' }
-            },
-            required: ['marketId', 'side', 'amount']
-          }
-        },
-        {
-          name: 'get_balance',
-          description: "Get your current balance and P&L",
-          inputSchema: {
-            type: 'object',
-            properties: {}
-          }
-        },
-        {
-          name: 'get_positions',
-          description: 'Get all open positions',
-          inputSchema: {
-            type: 'object',
-            properties: {}
-          }
-        },
-        {
-          name: 'close_position',
-          description: 'Close an open position',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              positionId: { type: 'string', description: 'Position ID to close' }
-            },
-            required: ['positionId']
-          }
-        },
-        {
-          name: 'get_market_data',
-          description: 'Get detailed data for a specific market',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              marketId: { type: 'string', description: 'Market ID' }
-            },
-            required: ['marketId']
-          }
-        },
-        {
-          name: 'query_feed',
-          description: 'Query the social feed for posts',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              limit: { type: 'number', description: 'Number of posts to return', default: 20 },
-              questionId: { type: 'string', description: 'Filter by question ID' }
+    tools: [
+      {
+        name: 'get_markets',
+        description: 'Get all active prediction markets',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            type: {
+              type: 'string',
+              enum: ['prediction', 'perpetuals', 'all'],
+              description: 'Market type to filter'
             }
           }
         }
-      ]
-    })
-  } catch (error) {
-    logger.error('MCP GET endpoint error:', error, 'MCP')
-    return NextResponse.json(
-      { error: 'Failed to get MCP server info' },
-      { status: 500 }
-    )
-  }
+      },
+      {
+        name: 'place_bet',
+        description: 'Place a bet on a prediction market',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            marketId: { type: 'string', description: 'Market ID' },
+            side: { type: 'string', enum: ['YES', 'NO'], description: 'Bet side' },
+            amount: { type: 'number', description: 'Bet amount in points' }
+          },
+          required: ['marketId', 'side', 'amount']
+        }
+      },
+      {
+        name: 'get_balance',
+        description: "Get your current balance and P&L",
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        }
+      },
+      {
+        name: 'get_positions',
+        description: 'Get all open positions',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        }
+      },
+      {
+        name: 'close_position',
+        description: 'Close an open position',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            positionId: { type: 'string', description: 'Position ID to close' }
+          },
+          required: ['positionId']
+        }
+      },
+      {
+        name: 'get_market_data',
+        description: 'Get detailed data for a specific market',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            marketId: { type: 'string', description: 'Market ID' }
+          },
+          required: ['marketId']
+        }
+      },
+      {
+        name: 'query_feed',
+        description: 'Query the social feed for posts',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            limit: { type: 'number', description: 'Number of posts to return', default: 20 },
+            questionId: { type: 'string', description: 'Filter by question ID' }
+          }
+        }
+      }
+    ]
+  })
 }
 
 /**
  * POST /mcp - Execute MCP tool
  */
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const { tool, arguments: args, auth } = body
-    
-    // Authenticate agent
-    const agent = await authenticateAgent(auth)
-    if (!agent) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-    
-    // Execute tool
-    switch (tool) {
-      case 'get_markets':
-        return await executeGetMarkets(args, agent)
-      case 'place_bet':
-        return await executePlaceBet(agent, args)
-      case 'get_balance':
-        return await executeGetBalance(agent)
-      case 'get_positions':
-        return await executeGetPositions(agent)
-      case 'close_position':
-        return await executeClosePosition(agent, args)
-      case 'get_market_data':
-        return await executeGetMarketData(agent, args)
-      case 'query_feed':
-        return await executeQueryFeed(agent, args)
-      default:
-        return NextResponse.json(
-          { error: `Unknown tool: ${tool}` },
-          { status: 400 }
-        )
-    }
-  } catch (error) {
-    logger.error('MCP POST endpoint error:', error, 'MCP')
+  const body = await request.json()
+  const { tool, arguments: args, auth } = body
+  
+  // Authenticate agent
+  const agent = await authenticateAgent(auth)
+  if (!agent) {
     return NextResponse.json(
-      { error: 'Failed to execute tool' },
-      { status: 500 }
+      { error: 'Unauthorized' },
+      { status: 401 }
     )
+  }
+  
+  // Execute tool
+  switch (tool) {
+    case 'get_markets':
+      return await executeGetMarkets(args, agent)
+    case 'place_bet':
+      return await executePlaceBet(agent, args)
+    case 'get_balance':
+      return await executeGetBalance(agent)
+    case 'get_positions':
+      return await executeGetPositions(agent)
+    case 'close_position':
+      return await executeClosePosition(agent, args)
+    case 'get_market_data':
+      return await executeGetMarketData(agent, args)
+    case 'query_feed':
+      return await executeQueryFeed(agent, args)
+    default:
+      return NextResponse.json(
+        { error: `Unknown tool: ${tool}` },
+        { status: 400 }
+      )
   }
 }
 
@@ -192,41 +176,36 @@ async function authenticateAgent(auth: {
   
   // Method 2: Wallet Signature (similar to A2A authentication)
   if (auth.agentId && auth.address && auth.signature && auth.timestamp) {
-    try {
-      // Validate timestamp (must be within 5 minutes)
-      const now = Date.now()
-      const timeDiff = Math.abs(now - auth.timestamp)
-      if (timeDiff > 5 * 60 * 1000) {
-        logger.warn('Authentication timestamp expired', undefined, 'MCP Auth')
-        return null
-      }
-      
-      // Verify signature
-      const message = `MCP Authentication\n\nAgent ID: ${auth.agentId}\nAddress: ${auth.address}\nTimestamp: ${auth.timestamp}`
-      const recoveredAddress = verifyMessage(message, auth.signature)
-      
-      if (recoveredAddress.toLowerCase() !== auth.address.toLowerCase()) {
-        logger.warn('Invalid signature for MCP authentication', undefined, 'MCP Auth')
-        return null
-      }
-      
-      // Find user for this agent
-      const user = await prisma.user.findFirst({
-        where: {
-          OR: [
-            { username: auth.agentId },
-            { walletAddress: auth.address.toLowerCase() }
-          ]
-        }
-      })
-      
-      return {
-        agentId: auth.agentId,
-        userId: user?.id || auth.agentId
-      }
-    } catch (error) {
-      logger.error('Signature verification failed:', error, 'MCP Auth')
+    // Validate timestamp (must be within 5 minutes)
+    const now = Date.now()
+    const timeDiff = Math.abs(now - auth.timestamp)
+    if (timeDiff > 5 * 60 * 1000) {
+      logger.warn('Authentication timestamp expired', undefined, 'MCP Auth')
       return null
+    }
+    
+    // Verify signature
+    const message = `MCP Authentication\n\nAgent ID: ${auth.agentId}\nAddress: ${auth.address}\nTimestamp: ${auth.timestamp}`
+    const recoveredAddress = verifyMessage(message, auth.signature)
+    
+    if (recoveredAddress.toLowerCase() !== auth.address.toLowerCase()) {
+      logger.warn('Invalid signature for MCP authentication', undefined, 'MCP Auth')
+      return null
+    }
+    
+    // Find user for this agent
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: auth.agentId },
+          { walletAddress: auth.address.toLowerCase() }
+        ]
+      }
+    })
+    
+    return {
+      agentId: auth.agentId,
+      userId: user?.id || auth.agentId
     }
   }
   
@@ -282,28 +261,20 @@ async function executePlaceBet(
   logger.info(`Agent ${agent.agentId} placing bet:`, args, 'MCP')
   
   // Call the existing market API logic
-  try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'}/api/markets/${args.marketId}/bet`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        userId: agent.userId,
-        side: args.side,
-        amount: args.amount
-      })
+  const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'}/api/markets/${args.marketId}/bet`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      userId: agent.userId,
+      side: args.side,
+      amount: args.amount
     })
-    
-    const result = await response.json()
-    return NextResponse.json(result)
-  } catch (error) {
-    logger.error('Failed to place bet via MCP:', error, 'MCP')
-    return NextResponse.json({
-      success: false,
-      error: 'Failed to place bet'
-    }, { status: 500 })
-  }
+  })
+  
+  const result = await response.json()
+  return NextResponse.json(result)
 }
 
 /**
@@ -359,26 +330,18 @@ async function executeClosePosition(
   logger.info(`Agent ${agent.agentId} closing position:`, args, 'MCP')
   
   // Call the existing close position API logic
-  try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'}/api/positions/${args.positionId}/close`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        userId: agent.userId
-      })
+  const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'}/api/positions/${args.positionId}/close`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      userId: agent.userId
     })
-    
-    const result = await response.json()
-    return NextResponse.json(result)
-  } catch (error) {
-    logger.error('Failed to close position via MCP:', error, 'MCP')
-    return NextResponse.json({
-      success: false,
-      error: 'Failed to close position'
-    }, { status: 500 })
-  }
+  })
+  
+  const result = await response.json()
+  return NextResponse.json(result)
 }
 
 /**

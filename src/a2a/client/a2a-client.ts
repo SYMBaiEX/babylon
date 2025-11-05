@@ -3,26 +3,25 @@
  * Client library for agents to connect to A2A servers
  */
 
-import WebSocket from 'ws'
-import { ethers } from 'ethers'
-import { EventEmitter } from 'events'
-import { logger } from '@/lib/logger'
+import { logger } from '@/lib/logger';
+import type { JsonValue } from '@/types/common';
+import type { JsonRpcParams, JsonRpcResult } from '@/types/json-rpc';
+import { ethers } from 'ethers';
+import { EventEmitter } from 'events';
+import WebSocket from 'ws';
 import type {
-  JsonRpcRequest,
-  JsonRpcResponse,
   A2AClientConfig,
-  AgentCapabilities,
-  MarketData,
   AgentProfile,
   Coalition,
-  MarketAnalysis
+  JsonRpcRequest,
+  JsonRpcResponse,
+  MarketAnalysis,
+  MarketData
 } from '../types';
-import type { JsonRpcResult, JsonRpcParams } from '@/types/json-rpc';
-import type { JsonValue } from '@/types/common';
 import {
-  A2AMethod,
-  A2AEventType
-} from '../types'
+  A2AEventType,
+  A2AMethod
+} from '../types';
 
 export class A2AClient extends EventEmitter {
   private ws: WebSocket | null = null
@@ -55,17 +54,10 @@ export class A2AClient extends EventEmitter {
     return new Promise((resolve, reject) => {
       this.ws = new WebSocket(this.config.endpoint)
 
-      let connectionEstablished = false
-
       this.ws.on('open', async () => {
-        connectionEstablished = true
-        try {
-          await this.performHandshake()
-          this.setupHeartbeat()
-          resolve()
-        } catch (error) {
-          reject(error)
-        }
+        await this.performHandshake()
+        this.setupHeartbeat()
+        resolve()
       })
 
       this.ws.on('message', (data: Buffer) => {
@@ -77,13 +69,7 @@ export class A2AClient extends EventEmitter {
       })
 
       this.ws.on('error', (error) => {
-        // If connection was never established, reject the connect() promise
-        if (!connectionEstablished) {
-          reject(error)
-        } else {
-          // Only emit error event if connection was already established
-          this.emit('error', error)
-        }
+        reject(error)
       })
     })
   }
@@ -92,12 +78,6 @@ export class A2AClient extends EventEmitter {
    * Perform handshake and authentication
    */
   private async performHandshake(): Promise<void> {
-    // Validate capabilities before handshake
-    if (!this.validateCapabilities(this.config.capabilities)) {
-      throw new Error('Invalid agent capabilities configuration')
-    }
-
-    // Create authentication signature
     const timestamp = Date.now()
     const message = this.createAuthMessage(
       this.config.credentials.address,
@@ -108,7 +88,6 @@ export class A2AClient extends EventEmitter {
     const wallet = new ethers.Wallet(this.config.credentials.privateKey)
     const signature = await wallet.signMessage(message)
 
-    // Send handshake request
     const response = await this.sendRequest<{
       agentId: string
       sessionToken: string
@@ -141,45 +120,28 @@ export class A2AClient extends EventEmitter {
     return `A2A Authentication\n\nAddress: ${address}\nToken ID: ${tokenId}\nTimestamp: ${timestamp}`
   }
 
-  /**
-   * Validate agent capabilities
-   */
-  private validateCapabilities(capabilities: AgentCapabilities): boolean {
-    return (
-      Array.isArray(capabilities.strategies) &&
-      Array.isArray(capabilities.markets) &&
-      Array.isArray(capabilities.actions) &&
-      typeof capabilities.version === 'string'
-    )
-  }
 
   /**
    * Handle incoming message
    */
   private handleMessage(data: Buffer): void {
-    try {
-      const message = JSON.parse(data.toString()) as JsonRpcResponse
+    const message = JSON.parse(data.toString()) as JsonRpcResponse
 
-      // Handle response to pending request
-      if (message.id !== undefined && message.id !== null) {
-        const pending = this.pendingRequests.get(message.id)
-        if (pending) {
-          this.pendingRequests.delete(message.id)
+    if (message.id !== undefined && message.id !== null) {
+      const pending = this.pendingRequests.get(message.id)
+      if (pending) {
+        this.pendingRequests.delete(message.id)
 
-          if (message.error) {
-            pending.reject(new Error(message.error.message))
-          } else {
-            pending.resolve(message.result ?? null as JsonRpcResult)
-          }
+        if (message.error) {
+          pending.reject(new Error(message.error.message))
+        } else {
+          pending.resolve(message.result ?? null as JsonRpcResult)
         }
       }
+    }
 
-      // Handle notifications (no id)
-      if (message.id === null && 'method' in message && 'jsonrpc' in message && message.jsonrpc === '2.0') {
-        this.handleNotification(message as JsonRpcRequest)
-      }
-    } catch (error) {
-      this.emit('error', error)
+    if (message.id === null && 'method' in message && 'jsonrpc' in message && message.jsonrpc === '2.0') {
+      this.handleNotification(message as JsonRpcRequest)
     }
   }
 
@@ -234,10 +196,8 @@ export class A2AClient extends EventEmitter {
     this.emit(A2AEventType.AGENT_DISCONNECTED, {})
 
     if (this.config.autoReconnect) {
-      this.reconnectTimer = setTimeout(() => {
-        this.connect().catch(error => {
-          this.emit('error', error)
-        })
+      this.reconnectTimer = setTimeout(async () => {
+        await this.connect()
       }, this.config.reconnectInterval)
     }
   }
@@ -260,11 +220,6 @@ export class A2AClient extends EventEmitter {
    */
   private sendRequest<T = JsonRpcResult>(method: string, params?: JsonRpcParams): Promise<T> {
     return new Promise((resolve, reject) => {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-        reject(new Error('Not connected'))
-        return
-      }
-
       const id = this.messageId++
       const request: JsonRpcRequest = {
         jsonrpc: '2.0',
@@ -275,9 +230,8 @@ export class A2AClient extends EventEmitter {
 
       this.pendingRequests.set(id, { resolve: resolve as (value: JsonRpcResult) => void, reject })
 
-      this.ws.send(JSON.stringify(request))
+      this.ws!.send(JSON.stringify(request))
 
-      // Timeout after 30 seconds
       setTimeout(() => {
         if (this.pendingRequests.has(id)) {
           this.pendingRequests.delete(id)
