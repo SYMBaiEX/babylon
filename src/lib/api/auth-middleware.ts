@@ -64,7 +64,9 @@ export async function authenticate(request: NextRequest): Promise<AuthenticatedU
   const authHeader = request.headers.get('authorization');
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw new Error('Authentication failed');
+    const error = new Error('Missing or invalid authorization header') as AuthenticationError;
+    error.code = 'AUTH_FAILED';
+    throw error;
   }
 
   const token = authHeader.substring(7);
@@ -79,15 +81,32 @@ export async function authenticate(request: NextRequest): Promise<AuthenticatedU
   }
 
   // Fall back to Privy user authentication
-  const privy = getPrivyClient();
-  const claims = await privy.verifyAuthToken(token);
+  try {
+    const privy = getPrivyClient();
+    const claims = await privy.verifyAuthToken(token);
 
-  return {
-    userId: claims.userId,
-    walletAddress: undefined, // Would need to fetch from Privy user
-    email: undefined,
-    isAgent: false,
-  };
+    return {
+      userId: claims.userId,
+      walletAddress: undefined, // Would need to fetch from Privy user
+      email: undefined,
+      isAgent: false,
+    };
+  } catch (error) {
+    // Handle specific authentication errors
+    const errorMessage = extractErrorMessage(error);
+    
+    // Check if it's a token expiration error
+    if (errorMessage.includes('exp') || errorMessage.includes('expired') || errorMessage.includes('timestamp')) {
+      const authError = new Error('Authentication token has expired. Please refresh your session.') as AuthenticationError;
+      authError.code = 'AUTH_FAILED';
+      throw authError;
+    }
+    
+    // Generic authentication failure
+    const authError = new Error('Authentication failed: ' + errorMessage) as AuthenticationError;
+    authError.code = 'AUTH_FAILED';
+    throw authError;
+  }
 }
 
 /**

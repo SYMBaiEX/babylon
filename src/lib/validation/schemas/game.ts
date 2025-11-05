@@ -118,20 +118,10 @@ export const UsernameParamSchema = z.object({
 
 /**
  * User ID param schema (accepts both UUID and Privy DID)
+ * Uses UserIdSchema from common for consistency
  */
 export const UserIdParamSchema = z.object({
-  userId: z.string().refine(
-    (val) => {
-      // Check if it's a UUID
-      const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
-      // Check if it's a Privy DID
-      const privyDidRegex = /^did:privy:[a-z0-9]+$/;
-      return uuidRegex.test(val) || privyDidRegex.test(val);
-    },
-    {
-      message: 'Invalid user ID format. Must be a UUID or Privy DID (did:privy:...)'
-    }
-  )
+  userId: UserIdSchema
 });
 
 /**

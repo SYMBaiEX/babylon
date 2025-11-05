@@ -107,11 +107,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   });
 });
 
-// GET endpoint for Vercel Cron (Vercel Cron uses GET requests by default)
+// GET endpoint for Vercel Cron (some cron services use GET)
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  // Allow Vercel Cron requests (identified by user-agent header)
-  const userAgent = request.headers.get('user-agent');
-  const isVercelCron = userAgent?.includes('vercel-cron');
+  // Allow Vercel Cron requests (identified by user-agent or special headers)
+  const userAgent = request.headers.get('user-agent')?.toLowerCase() || '';
+  const isVercelCron = userAgent.includes('vercel-cron');
+  const hasVercelHeader = request.headers.has('x-vercel-id');
   
   // Also allow in development or with admin token for manual testing
   const isDev = process.env.NODE_ENV === 'development';
@@ -119,10 +120,19 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const hasAdminSecret = !!process.env.ADMIN_TOKEN;
   const isAdmin = hasAdminSecret && adminToken === process.env.ADMIN_TOKEN;
 
-  if (!isVercelCron && !isDev && !isAdmin) {
+  // Allow if it's Vercel Cron, has Vercel headers, dev mode, or admin
+  if (!isVercelCron && !hasVercelHeader && !isDev && !isAdmin) {
+    logger.warn('Unauthorized GET request to cron endpoint', {
+      userAgent,
+      hasVercelHeader,
+      isDev,
+      hasAdminSecret
+    }, 'Cron');
     throw new AuthorizationError('Use POST for cron execution. This endpoint is triggered by Vercel Cron', 'cron', 'execute');
   }
 
+  logger.info('GET request forwarded to POST handler', { userAgent, isVercelCron, hasVercelHeader }, 'Cron');
+  
   // Forward to POST handler
   return POST(request);
 });

@@ -15,6 +15,10 @@
     "src/app/api/cron/game-tick/route.ts": {
       "memory": 1024,
       "maxDuration": 60
+    },
+    "src/app/api/sse/events/route.ts": {
+      "memory": 512,
+      "maxDuration": 300
     }
   },
   "headers": [
