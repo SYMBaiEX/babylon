@@ -352,6 +352,7 @@ export async function POST(request: NextRequest) {
       dbUser = await prisma.user.create({
         data: {
           id: authUser.userId,
+          privyId: authUser.userId,
           isActor: false,
         },
         select: {

@@ -1,11 +1,12 @@
 /**
  * Onboarding Service
  * Handles user signup flow: on-chain registration + points award
- * 
+ *
  * NOTE: This service is used client-side, so it MUST NOT import or use PrismaClient
  * All database operations must go through API endpoints
  */
 
+import { apiFetch } from '@/lib/api/fetch'
 
 interface OnboardingResult {
   success: boolean
@@ -42,10 +43,9 @@ export class OnboardingService {
       };
     }
 
-    const response = await fetch('/api/auth/onboard', {
+    const response = await apiFetch('/api/auth/onboard', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -62,20 +62,13 @@ export class OnboardingService {
     const data = await response.json()
 
     if (!response.ok) {
-      if (data.tokenId) {
-        return {
-          success: true,
-          tokenId: data.tokenId,
-          points: 1000,
-        }
-      }
-      return { success: false, error: data.error }
+      return { success: false, error: data.error ?? 'Onboarding failed' }
     }
 
     return {
       success: true,
       tokenId: data.tokenId,
-      points: 1000,
+      points: data.points ?? 1000,
       transactionHash: data.txHash,
     }
   }
@@ -94,11 +87,7 @@ export class OnboardingService {
       return { isOnboarded: false };
     }
 
-    const response = await fetch('/api/auth/onboard', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-      },
-    })
+    const response = await apiFetch('/api/auth/onboard')
 
     const data = await response.json()
 
@@ -127,10 +116,9 @@ export class OnboardingService {
       return false;
     }
 
-    const response = await fetch('/api/users/points/award', {
+    const response = await apiFetch('/api/users/points/award', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

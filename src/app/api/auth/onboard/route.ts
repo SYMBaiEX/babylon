@@ -182,6 +182,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         // Create agent user
         dbUser = await prisma.user.create({
           data: {
+            privyId: user.userId,
             username: user.userId,
             displayName: displayName || username || user.userId,
             bio: bio || `Autonomous AI agent: ${user.userId}`,
@@ -218,6 +219,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         dbUser = await prisma.user.create({
           data: {
             id: user.userId,
+            privyId: user.userId,
             walletAddress: walletAddress!.toLowerCase(),
             username: finalUsername,
             displayName: displayName || finalUsername,

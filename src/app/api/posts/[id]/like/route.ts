@@ -34,6 +34,7 @@ export const POST = withErrorHandling(async (
       },
       create: {
         id: user.userId,
+        privyId: user.userId,
         walletAddress: user.walletAddress,
         displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
         isActor: false,
@@ -131,18 +132,19 @@ export const DELETE = withErrorHandling(async (
   }
 
     // Ensure user exists in database (upsert pattern)
-    await prisma.user.upsert({
-      where: { id: user.userId },
-      update: {
-        walletAddress: user.walletAddress,
-      },
-      create: {
-        id: user.userId,
-        walletAddress: user.walletAddress,
-        displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-        isActor: false,
-      },
-    });
+  await prisma.user.upsert({
+    where: { id: user.userId },
+    update: {
+      walletAddress: user.walletAddress,
+    },
+    create: {
+      id: user.userId,
+      privyId: user.userId,
+      walletAddress: user.walletAddress,
+      displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
+      isActor: false,
+    },
+  });
 
     // Find existing like
     const reaction = await prisma.reaction.findUnique({

@@ -63,18 +63,19 @@ export const POST = withErrorHandling(async (
     }
 
     // 6. Ensure user exists in database
-    await prisma.user.upsert({
-      where: { id: user.userId },
-      update: {
-        walletAddress: user.walletAddress,
-      },
-      create: {
-        id: user.userId,
-        walletAddress: user.walletAddress,
-        displayName: user.walletAddress
-          ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
-          : 'Anonymous',
-        isActor: false,
+  await prisma.user.upsert({
+    where: { id: user.userId },
+    update: {
+      walletAddress: user.walletAddress,
+    },
+    create: {
+      id: user.userId,
+      privyId: user.userId,
+      walletAddress: user.walletAddress,
+      displayName: user.walletAddress
+        ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+        : 'Anonymous',
+      isActor: false,
       },
     });
 
@@ -203,5 +204,4 @@ export const POST = withErrorHandling(async (
     201
   );
 });
-
 

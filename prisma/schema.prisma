@@ -13,6 +13,7 @@ datasource db {
 // User model - represents both game-generated actors and real users
 model User {
   id              String   @id @default(uuid())
+  privyId         String   @unique
   walletAddress   String?  @unique  // For real users with Web3 auth
   username        String?  @unique
   displayName     String?

@@ -31,6 +31,7 @@ export const POST = withErrorHandling(async (
     },
     create: {
       id: user.userId,
+      privyId: user.userId,
       walletAddress: user.walletAddress,
       displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
       isActor: false,
@@ -113,6 +114,7 @@ export const DELETE = withErrorHandling(async (
     },
     create: {
       id: user.userId,
+      privyId: user.userId,
       walletAddress: user.walletAddress,
       displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
       isActor: false,

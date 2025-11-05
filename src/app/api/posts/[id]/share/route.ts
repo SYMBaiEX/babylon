@@ -33,18 +33,19 @@ export const POST = withErrorHandling(async (
   }
 
     // Ensure user exists in database (upsert pattern)
-    await prisma.user.upsert({
-      where: { id: user.userId },
-      update: {
-        walletAddress: user.walletAddress,
-      },
-      create: {
-        id: user.userId,
-        walletAddress: user.walletAddress,
-        displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-        isActor: false,
-      },
-    });
+  await prisma.user.upsert({
+    where: { id: user.userId },
+    update: {
+      walletAddress: user.walletAddress,
+    },
+    create: {
+      id: user.userId,
+      privyId: user.userId,
+      walletAddress: user.walletAddress,
+      displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
+      isActor: false,
+    },
+  });
 
     // Check if post exists first
     const post = await prisma.post.findUnique({
@@ -190,18 +191,19 @@ export const DELETE = withErrorHandling(async (
   const { id: postId } = IdParamSchema.parse(params);
 
     // Ensure user exists in database (upsert pattern)
-    await prisma.user.upsert({
-      where: { id: user.userId },
-      update: {
-        walletAddress: user.walletAddress,
-      },
-      create: {
-        id: user.userId,
-        walletAddress: user.walletAddress,
-        displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-        isActor: false,
-      },
-    });
+  await prisma.user.upsert({
+    where: { id: user.userId },
+    update: {
+      walletAddress: user.walletAddress,
+    },
+    create: {
+      id: user.userId,
+      privyId: user.userId,
+      walletAddress: user.walletAddress,
+      displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
+      isActor: false,
+    },
+  });
 
     // Find existing share
     const share = await prisma.share.findUnique({

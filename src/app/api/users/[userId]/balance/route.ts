@@ -40,6 +40,7 @@ export const GET = withErrorHandling(async (
     dbUser = await prisma.user.create({
       data: {
         id: userId,
+        privyId: userId,
         isActor: false,
       },
     });

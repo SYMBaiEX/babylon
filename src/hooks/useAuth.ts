@@ -3,6 +3,7 @@ import { useEffect, useMemo } from 'react'
 import { useAuthStore, type User } from '@/stores/authStore'
 import { OnboardingService } from '@/lib/services/onboarding-service'
 import { logger } from '@/lib/logger'
+import { apiFetch } from '@/lib/api/fetch'
 
 interface UseAuthReturn {
   ready: boolean
@@ -75,7 +76,7 @@ export function useAuth(): UseAuthReturn {
       setIsLoadingProfile(true)
       setLoadedUserId(privyUser.id)
       
-      const response = await fetch(`/api/users/${encodeURIComponent(privyUser.id)}/profile`)
+      const response = await apiFetch(`/api/users/${encodeURIComponent(privyUser.id)}/profile`)
       const data = await response.json()
 
       if (!response.ok) {
@@ -123,11 +124,7 @@ export function useAuth(): UseAuthReturn {
       const token = await getAccessToken()
       if (!token) return
 
-      const response = await fetch(`/api/users/${encodeURIComponent(privyUser.id)}/is-new`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
+      const response = await apiFetch(`/api/users/${encodeURIComponent(privyUser.id)}/is-new`)
 
       if (!response.ok) return
 
@@ -198,10 +195,9 @@ export function useAuth(): UseAuthReturn {
       const userWithFarcaster = privyUser as PrivyUser & { farcaster?: { username?: string; displayName?: string } }
       if (userWithFarcaster.farcaster) {
         const farcaster = userWithFarcaster.farcaster
-        await fetch(`/api/users/${encodeURIComponent(privyUser.id)}/link-social`, {
+        await apiFetch(`/api/users/${encodeURIComponent(privyUser.id)}/link-social`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -216,10 +212,9 @@ export function useAuth(): UseAuthReturn {
       const userWithTwitter = privyUser as PrivyUser & { twitter?: { username?: string } }
       if (userWithTwitter.twitter) {
         const twitter = userWithTwitter.twitter
-        await fetch(`/api/users/${encodeURIComponent(privyUser.id)}/link-social`, {
+        await apiFetch(`/api/users/${encodeURIComponent(privyUser.id)}/link-social`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -232,10 +227,9 @@ export function useAuth(): UseAuthReturn {
 
       // Check for wallet connection
       if (wallet?.address) {
-        await fetch(`/api/users/${encodeURIComponent(privyUser.id)}/link-social`, {
+        await apiFetch(`/api/users/${encodeURIComponent(privyUser.id)}/link-social`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({

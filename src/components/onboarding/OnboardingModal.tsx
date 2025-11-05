@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, Sparkles, RefreshCw, Upload, Check, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Image from 'next/image'
+import { apiFetch } from '@/lib/api/fetch'
 
 interface OnboardingModalProps {
   isOpen: boolean
@@ -71,8 +72,8 @@ export function OnboardingModal({ isOpen, onComplete, onSkip: _onSkip }: Onboard
     setIsLoading(true)
     // Generate profile data and random asset indices in parallel
     const [profileRes, assetsRes] = await Promise.all([
-      fetch('/api/onboarding/generate-profile'),
-      fetch('/api/onboarding/random-assets')
+      apiFetch('/api/onboarding/generate-profile', { auth: false }),
+      apiFetch('/api/onboarding/random-assets', { auth: false })
     ])
 
     if (profileRes.ok && assetsRes.ok) {
@@ -90,7 +91,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip: _onSkip }: Onboard
 
   async function regenerateProfile() {
     setIsGenerating(true)
-    const response = await fetch('/api/onboarding/generate-profile')
+    const response = await apiFetch('/api/onboarding/generate-profile', { auth: false })
     if (response.ok) {
       const profileData: ProfileData = (await response.json()).data
       setDisplayName(profileData.name)
@@ -103,7 +104,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip: _onSkip }: Onboard
   async function checkUsernameAvailability(username: string) {
     setIsCheckingUsername(true)
     setUsernameSuggestion(null)
-    const response = await fetch(`/api/onboarding/check-username?username=${encodeURIComponent(username)}`)
+    const response = await apiFetch(`/api/onboarding/check-username?username=${encodeURIComponent(username)}`, { auth: false })
     if (response.ok) {
       const result = (await response.json()).data
       setUsernameStatus(result.available ? 'available' : 'taken')
