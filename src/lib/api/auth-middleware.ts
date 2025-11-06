@@ -18,6 +18,15 @@ export type AuthenticationError = Error & {
   code: 'AUTH_FAILED';
 };
 
+export function isAuthenticationError(error: unknown): error is AuthenticationError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === 'AUTH_FAILED'
+  );
+}
+
 export function extractErrorMessage(error: Error | ErrorLike | string | unknown): string {
   if (error instanceof Error) {
     return error.message;

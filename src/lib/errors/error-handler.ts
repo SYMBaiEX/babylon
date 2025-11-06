@@ -8,6 +8,7 @@ import { ZodError } from 'zod';
 import { BabylonError } from './base.errors';
 import { logger } from '@/lib/logger';
 import { Prisma } from '@prisma/client';
+import { isAuthenticationError } from '@/lib/api/auth-middleware';
 
 /**
  * Main error handler that processes all errors and returns appropriate responses
@@ -46,6 +47,19 @@ export function errorHandler(error: Error | unknown, request: NextRequest): Next
     name: error.name,
     ...errorContext
   });
+
+  // Handle authentication errors consistently
+  if (isAuthenticationError(error)) {
+    return NextResponse.json(
+      {
+        error: {
+          message: error.message || 'Authentication required',
+          code: 'AUTH_FAILED'
+        }
+      },
+      { status: 401 }
+    );
+  }
 
   // Handle Babylon errors (our custom errors)
   if (error instanceof BabylonError) {

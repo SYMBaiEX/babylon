@@ -13,37 +13,39 @@
  */
 
 import { NextRequest } from 'next/server';
-import { authenticate } from '@/lib/api/auth-middleware';
+import { authenticate, isAuthenticationError } from '@/lib/api/auth-middleware';
 import { getEventBroadcaster, type SSEClient, type Channel } from '@/lib/sse/event-broadcaster';
 import { SSEChannelsQuerySchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { v4 as uuidv4 } from 'uuid';
+import { ZodError } from 'zod';
 
 // Disable buffering for SSE
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const queryParams = {
-    token: searchParams.get('token'),
-    channels: searchParams.get('channels')
-  };
-  
-  const validatedQuery = SSEChannelsQuerySchema.parse(queryParams);
-  const token = validatedQuery.token!;
+  try {
+    const { searchParams } = new URL(request.url);
+    const queryParams = {
+      token: searchParams.get('token'),
+      channels: searchParams.get('channels')
+    };
+    
+    const validatedQuery = SSEChannelsQuerySchema.parse(queryParams);
+    const token = validatedQuery.token!;
 
-  const modifiedRequest = new NextRequest(request.url, {
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  });
-  const user = await authenticate(modifiedRequest);
-  
-  const channelsParam = validatedQuery.channels;
-  const channels = channelsParam ? channelsParam.split(',') as Channel[] : ['feed'];
+    const modifiedRequest = new NextRequest(request.url, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    const user = await authenticate(modifiedRequest);
+    
+    const channelsParam = validatedQuery.channels;
+    const channels = channelsParam ? channelsParam.split(',') as Channel[] : ['feed'];
 
-  logger.info(`SSE connection request from user ${user.userId} for channels: ${channels.join(', ')}`, { userId: user.userId, channels }, 'SSE');
+    logger.info(`SSE connection request from user ${user.userId} for channels: ${channels.join(', ')}`, { userId: user.userId, channels }, 'SSE');
 
     // Create SSE stream
     const encoder = new TextEncoder();
@@ -132,5 +134,28 @@ export async function GET(request: NextRequest) {
         'X-Accel-Buffering': 'no',
       },
     });
-}
+  } catch (error) {
+    if (isAuthenticationError(error)) {
+      return new Response(JSON.stringify({ error: error.message || 'Authentication required' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
+    if (error instanceof ZodError) {
+      return new Response(JSON.stringify({
+        error: 'Invalid SSE parameters',
+        details: error.issues,
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    logger.error('Failed to establish SSE connection', { error }, 'SSE');
+    return new Response(JSON.stringify({ error: 'Failed to establish SSE connection' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}

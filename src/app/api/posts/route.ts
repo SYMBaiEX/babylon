@@ -8,7 +8,7 @@
 import { gameService } from '@/lib/game-service';
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
-import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-middleware';
+import { authenticate, errorResponse, successResponse, isAuthenticationError } from '@/lib/api/auth-middleware';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '@/lib/logger';
 import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
@@ -400,8 +400,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error('Error creating post:', error, 'POST /api/posts');
     
-    if (error instanceof Error && error.message === 'Authentication failed') {
-      return errorResponse('Authentication required', 401);
+    if (isAuthenticationError(error)) {
+      const message =
+        (error instanceof Error && error.message) || 'Authentication required';
+      return errorResponse(message, 401);
     }
     
     return errorResponse('Failed to create post', 500);
