@@ -34,7 +34,8 @@ export async function GET(_request: NextRequest) {
     const result = await prisma.$queryRaw<Array<{ version: string | null }>>`SELECT version()`;
     const rawVersion = result?.[0]?.version ?? null;
     if (rawVersion) {
-      checks.prismaVersion = rawVersion.split(' ')[0] ?? checks.prismaVersion;
+      const extracted = rawVersion.split(' ')[0];
+      checks.prismaVersion = extracted || checks.prismaVersion;
     }
   } catch (error) {
     checks.databaseConnection = '❌ Failed';

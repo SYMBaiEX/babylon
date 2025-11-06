@@ -9,6 +9,7 @@ import { ShareButton } from '@/components/shared/ShareButton'
 import { useAuth } from '@/hooks/useAuth'
 import { getProfileUrl } from '@/lib/profile-utils'
 import { useAuthStore } from '@/stores/authStore'
+import { usePrivy } from '@privy-io/react-auth'
 import {
   Check,
   Copy,
@@ -56,11 +57,46 @@ interface ReferralData {
 export default function ReferralsPage() {
   const { ready, authenticated } = useAuth()
   const { user } = useAuthStore()
+  const { getAccessToken } = usePrivy()
   const [referralData, setReferralData] = useState<ReferralData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copiedCode, setCopiedCode] = useState(false)
   const [copiedUrl, setCopiedUrl] = useState(false)
+
+  const fetchReferralData = async () => {
+    if (!user?.id) return
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const token = await getAccessToken()
+      if (!token) {
+        setError('Authentication required')
+        setLoading(false)
+        return
+      }
+
+      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/referrals`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch referral data')
+      }
+
+      const data = await response.json()
+      setReferralData(data)
+    } catch (err) {
+      console.error('Error fetching referral data:', err)
+      setError(err instanceof Error ? err.message : 'Failed to fetch referral data')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (user?.id) {
@@ -69,34 +105,6 @@ export default function ReferralsPage() {
       setLoading(false)
     }
   }, [user, ready])
-
-  const fetchReferralData = async () => {
-    if (!user?.id) return
-
-    setLoading(true)
-    setError(null)
-
-    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-    if (!token) {
-      setError('Authentication required')
-      setLoading(false)
-      return
-    }
-
-    const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/referrals`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch referral data')
-    }
-
-    const data = await response.json()
-    setReferralData(data)
-    setLoading(false)
-  }
 
   const handleCopyCode = async () => {
     if (!referralData?.user.referralCode) return

@@ -33,6 +33,8 @@ export class BabylonLLMClient {
   private provider: LLMProvider;
   private groqKey: string | undefined;
   private openaiKey: string | undefined;
+  private readonly maxAttempts = 3;
+  private readonly maxBackoffMs = 5000;
   
   constructor(apiKey?: string) {
     // Priority: Groq > OpenAI
@@ -72,76 +74,99 @@ export class BabylonLLMClient {
       maxTokens?: number;
     } = {}
   ): Promise<T> {
-    // Select model based on provider
-    const defaultModel = this.provider === 'groq' 
-      ? 'llama-3.3-70b-versatile'  // Groq's current model (Nov 2024+)
-      : 'gpt-4o-mini';                 // OpenAI default
+    let attempt = 0;
+    let lastError: unknown;
 
-    const {
-      model = defaultModel,
-      temperature = 0.7,
-      maxTokens = 16000, // High default - never truncate
-    } = options;
+    while (attempt < this.maxAttempts) {
+      attempt++;
+      try {
+        const defaultModel = this.provider === 'groq'
+          ? 'llama-3.3-70b-versatile'
+          : 'gpt-4o-mini';
 
-    const useJsonFormat = this.provider === 'openai' ? { type: 'json_object' as const } : undefined;
-    
-    const messages = [
-      {
-        role: 'system' as const,
-        content: 'You are a JSON-only assistant. You must respond ONLY with valid JSON. No explanations, no markdown, no other text.',
-      },
-      {
-        role: 'user' as const,
-        content: prompt,
-      },
-    ];
-    
-    const response = await this.client.chat.completions.create({
-      model,
-      messages,
-      ...(useJsonFormat ? { response_format: useJsonFormat } : {}),
-      temperature,
-      max_tokens: maxTokens,
-    });
+        const {
+          model = defaultModel,
+          temperature = 0.7,
+          maxTokens = 16000,
+        } = options;
 
-    const content = response.choices[0]?.message.content;
-    const finishReason = response.choices[0]?.finish_reason;
-    
-    // Error if response was truncated
-    if (finishReason === 'length') {
-      throw new Error(`Response truncated at ${maxTokens} tokens.`);
-    }
+        const useJsonFormat = this.provider === 'openai' ? { type: 'json_object' as const } : undefined;
 
-    if (!content) {
-      throw new Error('Empty response from LLM');
-    }
+        const messages = [
+          {
+            role: 'system' as const,
+            content: 'You are a JSON-only assistant. You must respond ONLY with valid JSON. No explanations, no markdown, no other text.',
+          },
+          {
+            role: 'user' as const,
+            content: prompt,
+          },
+        ];
 
-    // Extract JSON from response
-    let jsonContent = content.trim();
-    if (jsonContent.startsWith('```')) {
-      const lines = jsonContent.split('\n');
-      const jsonStartIndex = lines.findIndex(line => line.trim().startsWith('{') || line.trim().startsWith('['));
-      if (jsonStartIndex !== -1) {
-        jsonContent = lines.slice(jsonStartIndex).join('\n');
+        const response = await this.client.chat.completions.create({
+          model,
+          messages,
+          ...(useJsonFormat ? { response_format: useJsonFormat } : {}),
+          temperature,
+          max_tokens: maxTokens,
+        });
+
+        const content = response.choices[0]?.message.content;
+        const finishReason = response.choices[0]?.finish_reason;
+
+        if (finishReason === 'length') {
+          throw new Error(`Response truncated at ${maxTokens} tokens.`);
+        }
+
+        if (!content) {
+          throw new Error('Empty response from LLM');
+        }
+
+        let jsonContent = content.trim();
+        if (jsonContent.startsWith('```')) {
+          const lines = jsonContent.split('\n');
+          const jsonStartIndex = lines.findIndex(line => line.trim().startsWith('{') || line.trim().startsWith('['));
+          if (jsonStartIndex !== -1) {
+            jsonContent = lines.slice(jsonStartIndex).join('\n');
+          }
+          jsonContent = jsonContent.replace(/```\s*$/, '').trim();
+        }
+
+        if (!jsonContent.startsWith('{') && !jsonContent.startsWith('[')) {
+          const jsonMatch = jsonContent.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+          if (jsonMatch && jsonMatch[1]) {
+            jsonContent = jsonMatch[1];
+          }
+        }
+
+        const parsed: Record<string, JsonValue> = JSON.parse(jsonContent);
+
+        if (schema && !this.validateSchema(parsed, schema)) {
+          throw new Error(`Response does not match schema. Missing required fields: ${schema.required?.join(', ')}`);
+        }
+
+        return parsed as T;
+      } catch (error) {
+        lastError = error;
+
+        if (this.switchToFallbackProvider()) {
+          logger.warn('LLM request failed on Groq, switching to OpenAI fallback', { attempt }, 'BabylonLLMClient');
+          attempt--;
+          continue;
+        }
+
+        if (attempt >= this.maxAttempts) {
+          break;
+        }
+
+        const delay = Math.min(2 ** (attempt - 1) * 500, this.maxBackoffMs);
+        logger.warn('LLM request failed, retrying with backoff', { attempt, delay }, 'BabylonLLMClient');
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
-      jsonContent = jsonContent.replace(/```\s*$/, '').trim();
-    }
-    
-    if (!jsonContent.startsWith('{') && !jsonContent.startsWith('[')) {
-      const jsonMatch = jsonContent.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
-      if (jsonMatch && jsonMatch[1]) {
-        jsonContent = jsonMatch[1];
-      }
-    }
-    
-    const parsed: Record<string, JsonValue> = JSON.parse(jsonContent);
-    
-    // Validate against schema if provided
-    if (schema && !this.validateSchema(parsed, schema)) {
-      throw new Error(`Response does not match schema. Missing required fields: ${schema.required?.join(', ')}`);
     }
 
-    return parsed as T;
+    const errorMessage = lastError instanceof Error ? lastError.message : String(lastError);
+    throw new Error(`LLM request failed after ${this.maxAttempts} attempts: ${errorMessage}`);
   }
 
   /**
@@ -158,6 +183,18 @@ export class BabylonLLMClient {
       }
     }
     return true;
+  }
+
+  /**
+   * Attempt to switch to the fallback provider (OpenAI) when Groq fails.
+   */
+  private switchToFallbackProvider(): boolean {
+    if (this.provider === 'groq' && this.openaiKey) {
+      this.client = new OpenAI({ apiKey: this.openaiKey });
+      this.provider = 'openai';
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -178,5 +215,3 @@ export class BabylonLLMClient {
     };
   }
 }
-
-
