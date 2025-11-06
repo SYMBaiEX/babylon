@@ -27,6 +27,18 @@ interface GeneratedProfile {
 
 const TOTAL_PROFILE_PICTURES = 100
 const TOTAL_BANNERS = 100
+const ABSOLUTE_URL_PATTERN = /^(https?:|data:|blob:)/i
+
+function resolveAssetUrl(value?: string | null): string | undefined {
+  if (!value) return undefined
+  if (ABSOLUTE_URL_PATTERN.test(value)) {
+    return value
+  }
+  if (typeof window !== 'undefined' && value.startsWith('/')) {
+    return new URL(value, window.location.origin).toString()
+  }
+  return value
+}
 
 export function OnboardingModal({
   isOpen,
@@ -200,12 +212,21 @@ export function OnboardingModal({
       return
     }
 
+    const profileImageSource =
+      uploadedProfileImage ??
+      profileDefaults?.profileImageUrl ??
+      `/assets/user-profiles/profile-${profilePictureIndex}.jpg`
+    const coverImageSource =
+      uploadedBanner ??
+      profileDefaults?.coverImageUrl ??
+      `/assets/user-banners/banner-${bannerIndex}.jpg`
+
     const payload: OnboardingProfilePayload = {
       username: username.trim().toLowerCase(),
       displayName: displayName.trim(),
       bio: bio.trim() || undefined,
-      profileImageUrl: uploadedProfileImage ?? (profileDefaults?.profileImageUrl ?? `/assets/user-profiles/profile-${profilePictureIndex}.jpg`),
-      coverImageUrl: uploadedBanner ?? (profileDefaults?.coverImageUrl ?? `/assets/user-banners/banner-${bannerIndex}.jpg`),
+      profileImageUrl: resolveAssetUrl(profileImageSource),
+      coverImageUrl: resolveAssetUrl(coverImageSource),
     }
 
     await onSubmitProfile(payload)
@@ -213,12 +234,16 @@ export function OnboardingModal({
 
   function handleSkip() {
     if (status !== 'PENDING_PROFILE' || isSubmitting) return
+    const profileImageSource =
+      uploadedProfileImage ?? `/assets/user-profiles/profile-${profilePictureIndex}.jpg`
+    const coverImageSource = uploadedBanner ?? `/assets/user-banners/banner-${bannerIndex}.jpg`
+
     const payload: OnboardingProfilePayload = {
       username: username || `user_${Math.random().toString(36).substring(2, 10)}`,
       displayName: displayName || 'New User',
       bio: bio || 'Just joined Babylon!',
-      profileImageUrl: uploadedProfileImage ?? `/assets/user-profiles/profile-${profilePictureIndex}.jpg`,
-      coverImageUrl: uploadedBanner ?? `/assets/user-banners/banner-${bannerIndex}.jpg`,
+      profileImageUrl: resolveAssetUrl(profileImageSource),
+      coverImageUrl: resolveAssetUrl(coverImageSource),
     }
     void onSubmitProfile(payload)
   }
