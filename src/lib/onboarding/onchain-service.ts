@@ -515,3 +515,91 @@ export async function processOnchainRegistration({
     userId: dbUser.id,
   }
 }
+
+export interface OnchainRegistrationStatus {
+  isRegistered: boolean
+  tokenId: number | null
+  walletAddress: string | null
+  txHash: string | null
+  dbRegistered: boolean
+}
+
+export async function getOnchainRegistrationStatus(user: AuthenticatedUser): Promise<OnchainRegistrationStatus> {
+  const userRecord = user.isAgent
+    ? await prisma.user.findUnique({
+        where: { username: user.userId },
+        select: {
+          walletAddress: true,
+          onChainRegistered: true,
+          nftTokenId: true,
+          registrationTxHash: true,
+        },
+      })
+    : await prisma.user.findUnique({
+        where: { id: user.userId },
+        select: {
+          walletAddress: true,
+          onChainRegistered: true,
+          nftTokenId: true,
+          registrationTxHash: true,
+        },
+      })
+
+  if (!userRecord) {
+    logger.info('Registration status checked (no user record)', { userId: user.userId }, 'OnboardingOnchain')
+    return {
+      isRegistered: false,
+      tokenId: null,
+      walletAddress: null,
+      txHash: null,
+      dbRegistered: false,
+    }
+  }
+
+  let tokenId = userRecord.nftTokenId
+  let isRegistered = Boolean(userRecord.onChainRegistered && tokenId !== null)
+
+  if (!user.isAgent && userRecord.walletAddress) {
+    try {
+      const publicClient = createPublicClient({
+        chain: baseSepolia,
+        transport: http(process.env.NEXT_PUBLIC_RPC_URL),
+      })
+
+      const onchainRegistered = await publicClient.readContract({
+        address: IDENTITY_REGISTRY,
+        abi: IDENTITY_REGISTRY_ABI,
+        functionName: 'isRegistered',
+        args: [userRecord.walletAddress as Address],
+      })
+
+      if (onchainRegistered && !tokenId) {
+        const queriedTokenId = await publicClient.readContract({
+          address: IDENTITY_REGISTRY,
+          abi: IDENTITY_REGISTRY_ABI,
+          functionName: 'getTokenId',
+          args: [userRecord.walletAddress as Address],
+        })
+        tokenId = Number(queriedTokenId)
+      }
+
+      isRegistered = onchainRegistered
+    } catch (error) {
+      logger.warn('Failed to query on-chain registration status', { userId: user.userId, error }, 'OnboardingOnchain')
+    }
+  }
+
+  logger.info(
+    'Registration status checked',
+    { userId: user.userId, isRegistered, tokenId, dbRegistered: userRecord.onChainRegistered },
+    'OnboardingOnchain'
+  )
+
+  return {
+    isRegistered,
+    tokenId: tokenId ?? null,
+    walletAddress: userRecord.walletAddress ?? null,
+    txHash: userRecord.registrationTxHash ?? null,
+    dbRegistered: userRecord.onChainRegistered,
+  }
+}

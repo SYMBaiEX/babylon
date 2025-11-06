@@ -9,8 +9,14 @@ import type { NextRequest } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { OnChainRegistrationSchema } from '@/lib/validation/schemas/user'
-import { processOnchainRegistration } from '@/lib/onboarding/onchain-service'
+import { processOnchainRegistration, getOnchainRegistrationStatus } from '@/lib/onboarding/onchain-service'
 import { logger } from '@/lib/logger'
+
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  const user = await authenticate(request)
+  const status = await getOnchainRegistrationStatus(user)
+  return successResponse(status)
+})
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request)
