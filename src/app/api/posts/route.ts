@@ -9,12 +9,10 @@ import { gameService } from '@/lib/game-service';
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
 import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-middleware';
-import { PrismaClient } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '@/lib/logger';
 import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 /**
  * Safely convert a date value to ISO string

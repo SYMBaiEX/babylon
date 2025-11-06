@@ -107,22 +107,31 @@ class DatabaseService {
       skipDuplicates: true,
     });
 
-    void (async () => {
-      const { generateTagsForPosts } = await import('./services/tag-generation-service');
-      const { storeTagsForPost } = await import('./services/tag-storage-service');
-      
-      const postsForTagging = posts.map(p => ({
-        id: p.id,
-        content: p.content,
-      }));
-      const tagMap = await generateTagsForPosts(postsForTagging);
-      
-      for (const [postId, tags] of tagMap.entries()) {
-        if (tags.length > 0) {
-          await storeTagsForPost(postId, tags);
-        }
+    if (posts.length > 0) {
+      try {
+        const [{ generateTagsForPosts }, { storeTagsForPost }] = await Promise.all([
+          import('./services/tag-generation-service'),
+          import('./services/tag-storage-service'),
+        ]);
+
+        const postsForTagging = posts.map(p => ({
+          id: p.id,
+          content: p.content,
+        }));
+
+        const tagMap = await generateTagsForPosts(postsForTagging);
+
+        await Promise.all(
+          Array.from(tagMap.entries()).map(async ([postId, tags]) => {
+            if (tags.length > 0) {
+              await storeTagsForPost(postId, tags);
+            }
+          })
+        );
+      } catch (error) {
+        logger.error('Failed to generate/store tags for posts', { error }, 'DatabaseService');
       }
-    })();
+    }
 
     return result;
   }
@@ -627,4 +636,3 @@ export const db = new DatabaseService();
 
 // Export prisma for direct access (for API routes that need it)
 export { prisma } from './prisma';
-

@@ -10,10 +10,8 @@
  *   bun run scripts/game-control-db.ts status  - Check game status
  */
 
-import { PrismaClient } from '@prisma/client';
 import { logger } from '@/lib/logger';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 async function controlGame(action: 'start' | 'pause') {
   try {
@@ -156,4 +154,3 @@ main().catch((error) => {
   logger.error('Script failed:', error, 'Game Control');
   process.exit(1);
 });
-

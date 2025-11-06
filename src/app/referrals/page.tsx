@@ -104,7 +104,6 @@ export default function ReferralsPage() {
     } else if (ready) {
       setLoading(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, ready])
 
   const handleCopyCode = async () => {

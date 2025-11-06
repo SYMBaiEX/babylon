@@ -32,6 +32,9 @@ export interface GameTickResult {
  */
 export async function executeGameTick(): Promise<GameTickResult> {
   const timestamp = new Date();
+  const startedAt = Date.now();
+  const budgetMs = Number(process.env.GAME_TICK_BUDGET_MS || 45000);
+  const deadline = startedAt + budgetMs;
 
   logger.info('Executing game tick', { timestamp: timestamp.toISOString() }, 'GameTick');
 
@@ -47,6 +50,16 @@ export async function executeGameTick(): Promise<GameTickResult> {
   };
 
   try {
+    // Initialize LLM client with error handling
+    const llmClient = (() => {
+      try {
+        return new BabylonLLMClient();
+      } catch (error) {
+        logger.error('Failed to initialize LLM client', { error }, 'GameTick');
+        return null;
+      }
+    })();
+
     // Get active questions from database
     const activeQuestions = await prisma.question.findMany({
       where: {
@@ -87,11 +100,19 @@ export async function executeGameTick(): Promise<GameTickResult> {
     }
 
     // Each generation function is isolated with its own error handling
-    try {
-      const postsGenerated = await generatePosts(activeQuestions.slice(0, 3), timestamp);
-      result.postsCreated = postsGenerated;
-    } catch (error) {
-      logger.error('Failed to generate posts', { error }, 'GameTick');
+    if (llmClient) {
+      if (Date.now() < deadline) {
+        try {
+          const postsGenerated = await generatePosts(activeQuestions.slice(0, 3), timestamp, llmClient, deadline);
+          result.postsCreated = postsGenerated;
+        } catch (error) {
+          logger.error('Failed to generate posts', { error }, 'GameTick');
+        }
+      } else {
+        logger.warn('Skipping post generation – tick budget exceeded', { budgetMs }, 'GameTick');
+      }
+    } else {
+      logger.warn('Skipping post generation – LLM unavailable', undefined, 'GameTick');
     }
 
     try {
@@ -101,11 +122,19 @@ export async function executeGameTick(): Promise<GameTickResult> {
       logger.error('Failed to generate events', { error }, 'GameTick');
     }
 
-    try {
-      const articlesGenerated = await generateArticles(timestamp);
-      result.articlesCreated = articlesGenerated;
-    } catch (error) {
-      logger.error('Failed to generate articles', { error }, 'GameTick');
+    if (llmClient) {
+      if (Date.now() < deadline) {
+        try {
+          const articlesGenerated = await generateArticles(timestamp, llmClient, deadline);
+          result.articlesCreated = articlesGenerated;
+        } catch (error) {
+          logger.error('Failed to generate articles', { error }, 'GameTick');
+        }
+      } else {
+        logger.warn('Skipping article generation – tick budget exceeded', { budgetMs }, 'GameTick');
+      }
+    } else {
+      logger.warn('Skipping article generation – LLM unavailable', undefined, 'GameTick');
     }
 
     try {
@@ -118,8 +147,14 @@ export async function executeGameTick(): Promise<GameTickResult> {
     try {
       const currentActiveCount = activeQuestions.length - result.questionsResolved;
       if (currentActiveCount < 10) {
-        const questionsGenerated = await generateNewQuestions(Math.min(3, 15 - currentActiveCount));
-        result.questionsCreated = questionsGenerated;
+        if (llmClient && Date.now() < deadline) {
+          const questionsGenerated = await generateNewQuestions(Math.min(3, 15 - currentActiveCount), llmClient, deadline);
+          result.questionsCreated = questionsGenerated;
+        } else if (!llmClient) {
+          logger.warn('Skipping question generation – LLM unavailable', undefined, 'GameTick');
+        } else {
+          logger.warn('Skipping question generation – tick budget exceeded', { budgetMs }, 'GameTick');
+        }
       }
     } catch (error) {
       logger.error('Failed to generate new questions', { error }, 'GameTick');
@@ -144,7 +179,8 @@ export async function executeGameTick(): Promise<GameTickResult> {
       logger.error('Failed to update widget caches', { error }, 'GameTick');
     }
 
-    logger.info('Game tick completed', result, 'GameTick');
+    const durationMs = Date.now() - startedAt;
+    logger.info('Game tick completed', { ...result, durationMs }, 'GameTick');
 
   } catch (error) {
     logger.error('Critical error in game tick', { error }, 'GameTick');
@@ -157,10 +193,14 @@ export async function executeGameTick(): Promise<GameTickResult> {
 /**
  * Generate posts using LLM
  */
-async function generatePosts(questions: Array<{ id: string; text: string; questionNumber: number }>, timestamp: Date): Promise<number> {
+async function generatePosts(
+  questions: Array<{ id: string; text: string; questionNumber: number }>,
+  timestamp: Date,
+  llm: BabylonLLMClient,
+  deadlineMs: number
+): Promise<number> {
   if (questions.length === 0) return 0;
 
-  const llm = new BabylonLLMClient();
   const postsToGenerate = 5;
   let postsCreated = 0;
 
@@ -175,17 +215,24 @@ async function generatePosts(questions: Array<{ id: string; text: string; questi
   }
 
   for (let i = 0; i < postsToGenerate && i < questions.length; i++) {
-    try {
-      const question = questions[i];
-      const actor = actors[i % actors.length];
-      
-      if (!question || !actor || !actor.name) {
-        logger.warn('Missing question or actor data', { questionIndex: i }, 'GameTick');
-        continue;
-      }
+    // Check deadline before each post generation
+    if (Date.now() > deadlineMs) {
+      logger.warn('Post generation aborted due to tick budget limit', { generated: postsCreated }, 'GameTick');
+      break;
+    }
 
-      const prompt = `You are ${actor.name}. Write a brief social media post (max 200 chars) about this prediction market question: "${question.text}". Be opinionated and entertaining.`;
-      
+    const question = questions[i];
+    const actor = actors[i % actors.length];
+    
+    // Defensive checks for question and actor validity
+    if (!question || !actor || !actor.name) {
+      logger.warn('Missing question or actor data', { questionIndex: i }, 'GameTick');
+      continue;
+    }
+
+    const prompt = `You are ${actor.name}. Write a brief social media post (max 200 chars) about this prediction market question: "${question.text}". Be opinionated and entertaining.`;
+
+    try {
       const response = await llm.generateJSON<{ post: string }>(
         prompt,
         { required: ['post'] },
@@ -208,7 +255,7 @@ async function generatePosts(questions: Array<{ id: string; text: string; questi
       });
       postsCreated++;
     } catch (error) {
-      logger.error('Failed to generate post', { error, questionIndex: i }, 'GameTick');
+      logger.error('Failed to generate post', { error, questionIndex: i, actorId: actor.id, questionId: question.id }, 'GameTick');
       // Continue with next post instead of failing entire batch
     }
   }
@@ -259,7 +306,11 @@ async function generateEvents(questions: Array<{ id: string; text: string; quest
 /**
  * Generate articles from recent events
  */
-async function generateArticles(timestamp: Date): Promise<number> {
+async function generateArticles(
+  timestamp: Date,
+  llm: BabylonLLMClient,
+  deadlineMs: number
+): Promise<number> {
   // Get recent events (from last 2 hours)
   const twoHoursAgo = new Date(timestamp.getTime() - 2 * 60 * 60 * 1000);
   const recentEvents = await prisma.worldEvent.findMany({
@@ -283,7 +334,7 @@ async function generateArticles(timestamp: Date): Promise<number> {
   // Get actors for journalist bylines and relationship context
   const actors = await prisma.actor.findMany({
     take: 50,
-    orderBy: { tier: 'asc' }, // Higher tier actors first
+      orderBy: { tier: 'asc' }, // Higher tier actors first
   });
 
   if (actors.length === 0) {
@@ -292,7 +343,6 @@ async function generateArticles(timestamp: Date): Promise<number> {
   }
 
   // Initialize article generator
-  const llm = new BabylonLLMClient();
   const articleGen = new ArticleGenerator(llm);
 
   let articlesCreated = 0;
@@ -302,6 +352,12 @@ async function generateArticles(timestamp: Date): Promise<number> {
   const eventsTocover = recentEvents.slice(0, articlesToGenerate);
 
   for (const event of eventsTocover) {
+    // Check deadline before each article generation
+    if (Date.now() > deadlineMs) {
+      logger.warn('Article generation aborted due to tick budget limit', { articlesCreated }, 'GameTick');
+      break;
+    }
+
     try {
       const worldEvent: WorldEvent = {
         id: event.id,
@@ -378,8 +434,7 @@ async function generateArticles(timestamp: Date): Promise<number> {
         articlesCreated++;
       }
     } catch (error) {
-      logger.error('Failed to generate article for event', { error, eventId: event.id }, 'GameTick');
-      // Continue with next event
+      logger.error('Failed to generate article from event', { error, eventId: event.id }, 'GameTick');
     }
   }
 
@@ -443,55 +498,80 @@ async function updateMarketPrices(timestamp: Date): Promise<number> {
 /**
  * Generate new questions
  */
-async function generateNewQuestions(count: number): Promise<number> {
-  const llm = new BabylonLLMClient();
+async function generateNewQuestions(
+  count: number,
+  llm: BabylonLLMClient,
+  deadlineMs: number
+): Promise<number> {
   let questionsCreated = 0;
 
   for (let i = 0; i < count; i++) {
-    const prompt = `Generate a single yes/no prediction market question about current events in tech, crypto, or politics. Make it specific and resolvable within 7 days. Return JSON: {"question": "Will X happen?", "resolutionCriteria": "Clear criteria"}`;
-    
-    const response = await llm.generateJSON<{ question: string; resolutionCriteria: string }>(
-      prompt,
-      { required: ['question', 'resolutionCriteria'] },
-      { temperature: 0.8, maxTokens: 300 }
-    );
+    if (Date.now() > deadlineMs) {
+      logger.warn('Question generation aborted due to tick budget limit', { questionsCreated }, 'GameTick');
+      break;
+    }
 
-    if (response.question) {
-      const resolutionDate = new Date();
-      resolutionDate.setDate(resolutionDate.getDate() + 3); // 3 days from now
-      
-      // Get next question number
+    const prompt = `Generate a single yes/no prediction market question about current events in tech, crypto, or politics. Make it specific and resolvable within 7 days. Return JSON: {"question": "Will X happen?", "resolutionCriteria": "Clear criteria"}`;
+
+    let response: { question: string; resolutionCriteria: string } | null = null;
+    try {
+      response = await llm.generateJSON<{ question: string; resolutionCriteria: string }>(
+        prompt,
+        { required: ['question', 'resolutionCriteria'] },
+        { temperature: 0.8, maxTokens: 300 }
+      );
+    } catch (error) {
+      logger.error('Failed to generate new question via LLM', { error }, 'GameTick');
+      continue;
+    }
+
+    if (!response?.question) {
+      continue;
+    }
+
+    const resolutionDate = new Date();
+    resolutionDate.setDate(resolutionDate.getDate() + 3);
+
+    let nextQuestionNumber = 1;
+    try {
       const lastQuestion = await prisma.question.findFirst({
         orderBy: { questionNumber: 'desc' },
       });
-      const nextQuestionNumber = (lastQuestion?.questionNumber || 0) + 1;
+      nextQuestionNumber = (lastQuestion?.questionNumber || 0) + 1;
+    } catch (error) {
+      logger.error('Failed to calculate next question number', { error }, 'GameTick');
+      continue;
+    }
 
-      // Create Question metadata
+    const scenarioId = 1; // TODO: replace with dynamic scenario selection when schema supports it
+
+    try {
       const question = await prisma.question.create({
         data: {
           questionNumber: nextQuestionNumber,
           text: response.question,
-          scenarioId: 1, // Default scenario
-          outcome: Math.random() > 0.5, // Predetermined outcome
+          scenarioId,
+          outcome: Math.random() > 0.5,
           rank: 1,
           resolutionDate,
           status: 'active',
         },
       });
-      
-      // Create Market for trading with matching ID
+
       await prisma.market.create({
         data: {
-          id: question.id, // Use same ID as question
+          id: question.id,
           question: response.question,
           description: response.resolutionCriteria,
-          liquidity: 1000, // Initial liquidity
+          liquidity: 1000,
           endDate: resolutionDate,
           gameId: 'continuous',
         },
       });
 
       questionsCreated++;
+    } catch (error) {
+      logger.error('Failed to persist generated question', { error }, 'GameTick');
     }
   }
 
@@ -732,4 +812,3 @@ async function updateWidgetCaches(): Promise<number> {
     return 0;
   }
 }
-
