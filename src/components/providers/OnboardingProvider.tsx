@@ -1,114 +1,240 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { OnboardingStatus } from '@prisma/client'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
+import { useOnboardingStore } from '@/stores/onboardingStore'
 import { OnboardingModal } from '@/components/onboarding/OnboardingModal'
-import { OnboardingService } from '@/lib/services/onboarding-service'
+import { OnboardingService, type OnboardingProfilePayload } from '@/lib/services/onboarding-service'
+import { apiFetch } from '@/lib/api/fetch'
 import { logger } from '@/lib/logger'
 
 export function OnboardingProvider({ children }: { children: React.ReactNode }) {
   const { authenticated, user, wallet } = useAuth()
-  const { user: storeUser } = useAuthStore()
-  const [showOnboardingModal, setShowOnboardingModal] = useState(false)
-  const [hasCheckedOnboarding, setHasCheckedOnboarding] = useState(false)
+  const { setUser } = useAuthStore()
+  const { intent, setIntent, clearIntent } = useOnboardingStore()
 
+  const [hasBootstrap, setHasBootstrap] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [isPolling, setIsPolling] = useState(false)
+
+  const shouldShowModal = Boolean(intent && intent.status !== 'COMPLETED')
+
+  // Bootstrap or refresh onboarding intent when user changes
   useEffect(() => {
-    if (!authenticated || !user || hasCheckedOnboarding) return
+    let cancelled = false
 
-    const checkUsernameAndOnboarding = async () => {
-      // Check if user exists in database and has username
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      if (!token) return
-
-      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/is-new`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-
-      if (!response.ok) {
-        setHasCheckedOnboarding(true)
+    const bootstrapIntent = async () => {
+      if (!authenticated || !user) {
+        clearIntent()
+        setHasBootstrap(false)
         return
       }
 
-      const data = await response.json()
-
-      // If user doesn't have a username, show onboarding modal
-      if (data.needsSetup && !data.hasUsername && !storeUser?.username) {
-        // Wait for wallet if needed
-        if (!wallet?.address) {
-          // Retry after wallet is available
-          setTimeout(() => {
-            if (wallet?.address) {
-              setShowOnboardingModal(true)
-              setHasCheckedOnboarding(true)
-            }
-          }, 2000)
-          return
+      try {
+        const referralCode = sessionStorage.getItem('referralCode') || undefined
+        const initialIntent = await OnboardingService.createIntent(referralCode)
+        if (!cancelled) {
+          setIntent(initialIntent)
+          setHasBootstrap(true)
         }
-        setShowOnboardingModal(true)
-        setHasCheckedOnboarding(true)
-      } else {
-        setHasCheckedOnboarding(true)
+      } catch (error) {
+        logger.error('Failed to bootstrap onboarding intent', error, 'OnboardingProvider')
       }
     }
 
-    checkUsernameAndOnboarding()
-  }, [authenticated, user, wallet, storeUser, hasCheckedOnboarding])
+    if (!hasBootstrap && authenticated && user) {
+      void bootstrapIntent()
+    }
 
-  const handleOnboardingComplete = async (data: {
-    username: string
-    displayName: string
-    bio: string
-    profileImageUrl?: string
-    coverImageUrl?: string
-  }) => {
-    setShowOnboardingModal(false)
+    return () => {
+      cancelled = true
+    }
+  }, [authenticated, user, hasBootstrap, setIntent, clearIntent])
 
-    const referralCode = sessionStorage.getItem('referralCode')
+  // Poll in-progress intents to reflect backend status (placeholder for async on-chain)
+  useEffect(() => {
+    if (!intent) return
+    if (intent.status !== 'ONCHAIN_IN_PROGRESS') {
+      setIsPolling(false)
+      return
+    }
+    if (isPolling) return
 
-    const result = await OnboardingService.completeOnboarding(
-      user!.id,
-      wallet!.address,
-      data.username,
-      data.bio,
-      referralCode || undefined,
-      data.displayName,
-      data.profileImageUrl,
-      data.coverImageUrl
-    )
+    setIsPolling(true)
+    let cancelled = false
 
-    if (result.success) {
-      logger.info('Onboarding complete:', { username: data.username, displayName: data.displayName }, 'OnboardingProvider')
-      if (typeof window !== 'undefined') {
-        window.location.reload()
+    const poll = async () => {
+      while (!cancelled) {
+        try {
+          const latest = await OnboardingService.getIntent(intent.intentId)
+          if (cancelled) return
+          setIntent(latest)
+
+          if (latest.status !== 'ONCHAIN_IN_PROGRESS') {
+            setIsPolling(false)
+            break
+          }
+        } catch (error) {
+          logger.error('Polling onboarding intent failed', error, 'OnboardingProvider')
+          setIsPolling(false)
+          break
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 2000))
       }
     }
-  }
 
-  const handleOnboardingSkip = () => {
-    // Skip will still call handleOnboardingComplete with generated username
-    // This is handled in the modal itself
-  }
+    void poll()
+
+    return () => {
+      cancelled = true
+    }
+  }, [intent, setIntent, isPolling])
+
+  const refreshUserProfile = useCallback(async () => {
+    if (!user) return
+    try {
+      const response = await apiFetch(`/api/users/${encodeURIComponent(user.id)}/profile`)
+      const data = await response.json()
+      if (response.ok && data.user) {
+        setUser({
+          id: data.user.id,
+          walletAddress: data.user.walletAddress ?? undefined,
+          displayName: data.user.displayName ?? user.id,
+          email: undefined,
+          username: data.user.username ?? undefined,
+          bio: data.user.bio ?? undefined,
+          profileImageUrl: data.user.profileImageUrl ?? undefined,
+          coverImageUrl: data.user.coverImageUrl ?? undefined,
+          profileComplete: data.user.profileComplete ?? false,
+          nftTokenId: data.user.nftTokenId ?? null,
+          reputationPoints: data.user.reputationPoints ?? undefined,
+          referralCount: data.user.referralCount ?? undefined,
+          referralCode: data.user.referralCode ?? undefined,
+          hasFarcaster: data.user.hasFarcaster ?? undefined,
+          hasTwitter: data.user.hasTwitter ?? undefined,
+          farcasterUsername: data.user.farcasterUsername ?? undefined,
+          twitterUsername: data.user.twitterUsername ?? undefined,
+          showTwitterPublic: data.user.showTwitterPublic ?? undefined,
+          showFarcasterPublic: data.user.showFarcasterPublic ?? undefined,
+          showWalletPublic: data.user.showWalletPublic ?? undefined,
+          usernameChangedAt: data.user.usernameChangedAt ?? undefined,
+          stats: data.user.stats,
+          createdAt: data.user.createdAt,
+        })
+      }
+    } catch (error) {
+      logger.error('Failed to refresh user profile after onboarding', error, 'OnboardingProvider')
+    }
+  }, [user, setUser])
+
+  const handleProfileSubmit = useCallback(async (payload: OnboardingProfilePayload) => {
+    if (!intent || !user) return
+    if (!wallet?.address) {
+      setSubmitError('Wallet connection required to complete onboarding.')
+      return
+    }
+
+    setIsSubmitting(true)
+    setSubmitError(null)
+
+    const intentId = intent.intentId
+
+    try {
+      const updatedIntent = await OnboardingService.submitProfile(intentId, payload)
+      setIntent(updatedIntent)
+
+      const finalIntent = await OnboardingService.startOnchain(updatedIntent.intentId, {
+        walletAddress: wallet.address,
+      })
+
+      setIntent(finalIntent)
+
+      if (finalIntent.status === OnboardingStatus.COMPLETED) {
+        sessionStorage.removeItem('referralCode')
+        sessionStorage.removeItem('referralCodeTimestamp')
+        await refreshUserProfile()
+      }
+
+      logger.info('Onboarding profile submitted', { userId: user.id }, 'OnboardingProvider')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to submit onboarding profile'
+      setSubmitError(message)
+      logger.error(message, error, 'OnboardingProvider')
+      try {
+        const latestIntent = await OnboardingService.getIntent(intentId)
+        setIntent(latestIntent)
+      } catch (refreshError) {
+        logger.error(
+          'Failed to refresh onboarding intent after profile submission error',
+          refreshError,
+          'OnboardingProvider'
+        )
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [intent, user, wallet, setIntent, refreshUserProfile])
+
+  const handleRetryOnchain = useCallback(async () => {
+    if (!intent) return
+    if (!wallet?.address && !user?.isActor) {
+      setSubmitError('Wallet connection required to restart on-chain onboarding.')
+      return
+    }
+    setIsSubmitting(true)
+    setSubmitError(null)
+    const intentId = intent.intentId
+    try {
+      const latest = await OnboardingService.startOnchain(intentId, {
+        walletAddress: wallet?.address,
+      })
+      setIntent(latest)
+      await refreshUserProfile()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to restart on-chain onboarding'
+      setSubmitError(message)
+      logger.error(message, error, 'OnboardingProvider')
+      try {
+        const latestIntent = await OnboardingService.getIntent(intentId)
+        setIntent(latestIntent)
+      } catch (refreshError) {
+        logger.error(
+          'Failed to refresh onboarding intent after retry error',
+          refreshError,
+          'OnboardingProvider'
+        )
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [intent, wallet, user, setIntent, refreshUserProfile])
+
+  const handleClose = useCallback(() => {
+    if (!intent) return
+    if (intent.status === 'COMPLETED') {
+      clearIntent()
+    }
+  }, [intent, clearIntent])
 
   return (
     <>
       {children}
-      {showOnboardingModal && (
+      {shouldShowModal && intent && (
         <OnboardingModal
-          isOpen={showOnboardingModal}
-          onComplete={handleOnboardingComplete}
-          onSkip={handleOnboardingSkip}
+          isOpen
+          status={intent.status as OnboardingStatus}
+          intent={intent}
+          isSubmitting={isSubmitting}
+          error={submitError}
+          onSubmitProfile={handleProfileSubmit}
+          onStartOnchain={handleRetryOnchain}
+          onClose={handleClose}
         />
       )}
     </>
   )
 }
-
-
-
-
-
-
-

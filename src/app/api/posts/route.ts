@@ -9,12 +9,12 @@ import { gameService } from '@/lib/game-service';
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
 import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-middleware';
-import { PrismaClient } from '@prisma/client';
+import { BusinessLogicError } from '@/lib/errors';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '@/lib/logger';
 import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
+import { ensureUserForAuth } from '@/lib/users/ensure-user';
 
 /**
  * Safely convert a date value to ISO string
@@ -336,9 +336,16 @@ export async function POST(request: NextRequest) {
       return errorResponse('Post content must be 280 characters or less', 400);
     }
 
-    // Ensure user exists in database and fetch with username/displayName
-    let dbUser = await prisma.user.findUnique({
-      where: { id: authUser.userId },
+    const fallbackDisplayName = authUser.walletAddress
+      ? `${authUser.walletAddress.slice(0, 6)}...${authUser.walletAddress.slice(-4)}`
+      : 'Anonymous';
+
+    await ensureUserForAuth(authUser, {
+      displayName: fallbackDisplayName,
+    });
+
+    const dbUser = await prisma.user.findUnique({
+      where: { privyId: authUser.privyId ?? authUser.userId },
       select: {
         id: true,
         username: true,
@@ -348,20 +355,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!dbUser) {
-      // Create user if they don't exist yet
-      dbUser = await prisma.user.create({
-        data: {
-          id: authUser.userId,
-          privyId: authUser.userId,
-          isActor: false,
-        },
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-          profileImageUrl: true,
-        },
-      });
+      throw new BusinessLogicError('Unable to resolve user profile for posting', 'USER_NOT_FOUND');
     }
 
     // Create post
@@ -369,7 +363,7 @@ export async function POST(request: NextRequest) {
       data: {
         id: uuidv4(),
         content: content.trim(),
-        authorId: authUser.userId,
+        authorId: dbUser.id,
         timestamp: new Date(),
       },
       include: {

@@ -12,6 +12,7 @@ import { IdParamSchema, SharePostSchema } from '@/lib/validation/schemas';
 import { notifyShare } from '@/lib/services/notification-service';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
+import { ensureUserForAuth } from '@/lib/users/ensure-user';
 
 /**
  * POST /api/posts/[id]/share
@@ -32,20 +33,11 @@ export const POST = withErrorHandling(async (
     SharePostSchema.parse(body);
   }
 
-    // Ensure user exists in database (upsert pattern)
-  await prisma.user.upsert({
-    where: { id: user.userId },
-    update: {
-      walletAddress: user.walletAddress,
-    },
-    create: {
-      id: user.userId,
-      privyId: user.userId,
-      walletAddress: user.walletAddress,
-      displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-      isActor: false,
-    },
-  });
+  const fallbackDisplayName = user.walletAddress
+    ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+    : 'Anonymous';
+
+  await ensureUserForAuth(user, { displayName: fallbackDisplayName });
 
     // Check if post exists first
     const post = await prisma.post.findUnique({
@@ -190,20 +182,11 @@ export const DELETE = withErrorHandling(async (
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { id: postId } = IdParamSchema.parse(params);
 
-    // Ensure user exists in database (upsert pattern)
-  await prisma.user.upsert({
-    where: { id: user.userId },
-    update: {
-      walletAddress: user.walletAddress,
-    },
-    create: {
-      id: user.userId,
-      privyId: user.userId,
-      walletAddress: user.walletAddress,
-      displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-      isActor: false,
-    },
-  });
+  const fallbackDisplayName = user.walletAddress
+    ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+    : 'Anonymous';
+
+  await ensureUserForAuth(user, { displayName: fallbackDisplayName });
 
     // Find existing share
     const share = await prisma.share.findUnique({

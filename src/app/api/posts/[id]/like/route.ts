@@ -12,6 +12,7 @@ import { IdParamSchema } from '@/lib/validation/schemas';
 import { notifyReactionOnPost } from '@/lib/services/notification-service';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
+import { ensureUserForAuth } from '@/lib/users/ensure-user';
 
 /**
  * POST /api/posts/[id]/like
@@ -26,20 +27,11 @@ export const POST = withErrorHandling(async (
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { id: postId } = IdParamSchema.parse(params);
 
-    // Ensure user exists in database (upsert pattern)
-    await prisma.user.upsert({
-      where: { id: user.userId },
-      update: {
-        walletAddress: user.walletAddress,
-      },
-      create: {
-        id: user.userId,
-        privyId: user.userId,
-        walletAddress: user.walletAddress,
-        displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-        isActor: false,
-      },
-    });
+    const displayName = user.walletAddress
+      ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+      : 'Anonymous';
+
+    await ensureUserForAuth(user, { displayName });
 
     // Check if post exists first
     let post = await prisma.post.findUnique({
@@ -132,19 +124,11 @@ export const DELETE = withErrorHandling(async (
   }
 
     // Ensure user exists in database (upsert pattern)
-  await prisma.user.upsert({
-    where: { id: user.userId },
-    update: {
-      walletAddress: user.walletAddress,
-    },
-    create: {
-      id: user.userId,
-      privyId: user.userId,
-      walletAddress: user.walletAddress,
-      displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-      isActor: false,
-    },
-  });
+  const displayName = user.walletAddress
+    ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+    : 'Anonymous';
+
+  await ensureUserForAuth(user, { displayName });
 
     // Find existing like
     const reaction = await prisma.reaction.findUnique({

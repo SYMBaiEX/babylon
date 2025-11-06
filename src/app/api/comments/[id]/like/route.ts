@@ -5,6 +5,7 @@
 
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/database-service';
+import { ensureUserForAuth } from '@/lib/users/ensure-user';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
@@ -24,19 +25,11 @@ export const POST = withErrorHandling(async (
   const { id: commentId } = IdParamSchema.parse(params);
 
   // Ensure user exists in database (upsert pattern)
-  await prisma.user.upsert({
-    where: { id: user.userId },
-    update: {
-      walletAddress: user.walletAddress,
-    },
-    create: {
-      id: user.userId,
-      privyId: user.userId,
-      walletAddress: user.walletAddress,
-      displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-      isActor: false,
-    },
-  });
+    const displayName = user.walletAddress
+      ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+      : 'Anonymous';
+
+    await ensureUserForAuth(user, { displayName });
 
   // Check if comment exists
   const comment = await prisma.comment.findUnique({
@@ -107,19 +100,11 @@ export const DELETE = withErrorHandling(async (
   const { id: commentId } = IdParamSchema.parse(params);
 
   // Ensure user exists in database (upsert pattern)
-  await prisma.user.upsert({
-    where: { id: user.userId },
-    update: {
-      walletAddress: user.walletAddress,
-    },
-    create: {
-      id: user.userId,
-      privyId: user.userId,
-      walletAddress: user.walletAddress,
-      displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-      isActor: false,
-    },
-  });
+  const displayName = user.walletAddress
+    ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+    : 'Anonymous';
+
+  await ensureUserForAuth(user, { displayName });
 
   // Find existing like
   const reaction = await prisma.reaction.findUnique({

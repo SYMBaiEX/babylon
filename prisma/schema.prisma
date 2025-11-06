@@ -5,6 +5,14 @@ generator client {
   provider = "prisma-client-js"
 }
 
+enum OnboardingStatus {
+  PENDING_PROFILE
+  PENDING_ONCHAIN
+  ONCHAIN_IN_PROGRESS
+  ONCHAIN_FAILED
+  COMPLETED
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -93,12 +101,34 @@ model User {
   shareActions    ShareAction[]
   referrals       Referral[] @relation("Referrer")
   referredUsers   Referral[] @relation("Referred")
+  onboardingIntent OnboardingIntent?
 
   @@index([walletAddress])
   @@index([username])
   @@index([isActor])
   @@index([reputationPoints(sort: Desc)])
   @@index([referralCode])
+}
+
+model OnboardingIntent {
+  id                 String            @id @default(uuid())
+  userId             String
+  status             OnboardingStatus  @default(PENDING_PROFILE)
+  referralCode       String?
+  payload            Json?
+  profileApplied     Boolean           @default(false)
+  profileCompletedAt DateTime?
+  onchainStartedAt   DateTime?
+  onchainCompletedAt DateTime?
+  lastError          Json?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 // Post model - social media posts (includes both regular posts and articles)

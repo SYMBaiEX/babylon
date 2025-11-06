@@ -8,97 +8,83 @@
 
 import { apiFetch } from '@/lib/api/fetch'
 
-interface OnboardingResult {
-  success: boolean
-  tokenId?: number
-  points?: number
-  transactionHash?: string
-  error?: string
+export interface OnboardingIntentResponse {
+  intentId: string
+  status: string
+  referralCode?: string | null
+  profileApplied: boolean
+  timestamps: {
+    createdAt: string
+    updatedAt: string
+    profileCompletedAt?: string | null
+    onchainStartedAt?: string | null
+    onchainCompletedAt?: string | null
+  }
+  profile?: OnboardingProfilePayload | null
+  lastError?: unknown
+}
+
+export interface OnboardingProfilePayload {
+  username: string
+  displayName: string
+  bio?: string
+  profileImageUrl?: string | null
+  coverImageUrl?: string | null
 }
 
 export class OnboardingService {
-  /**
-   * Complete onboarding for a new user
-   * - Register on-chain via ERC-8004
-   * - Award 1,000 initial points
-   * - Update user profile
-   * - Process referral code if provided
-   */
-  static async completeOnboarding(
-    _userId: string,
-    walletAddress: string,
-    username?: string,
-    bio?: string,
-    referralCode?: string,
-    displayName?: string,
-    profileImageUrl?: string,
-    coverImageUrl?: string
-  ): Promise<OnboardingResult> {
-    const accessToken = typeof window !== 'undefined' ? window.__privyAccessToken : null;
-
-    if (!accessToken) {
-      return { 
-        success: false, 
-        error: 'Not authenticated. Please sign in first.' 
-      };
-    }
-
-    const response = await apiFetch('/api/auth/onboard', {
+  static async createIntent(referralCode?: string): Promise<OnboardingIntentResponse> {
+    const response = await apiFetch('/api/onboarding/intents', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        walletAddress,
-        username: username,
-        bio: bio || '',
-        displayName: displayName || username,
-        profileImageUrl: profileImageUrl,
-        coverImageUrl: coverImageUrl,
-        referralCode: referralCode || undefined,
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ referralCode }),
     })
 
     const data = await response.json()
-
     if (!response.ok) {
-      return { success: false, error: data.error ?? 'Onboarding failed' }
+      throw new Error(data?.error || 'Failed to initialise onboarding')
     }
 
-    return {
-      success: true,
-      tokenId: data.tokenId,
-      points: data.points ?? 1000,
-      transactionHash: data.txHash,
-    }
+    return data as OnboardingIntentResponse
   }
 
-  /**
-   * Check if user is already onboarded
-   * MUST be called from client-side only - uses API endpoint
-   */
-  static async checkOnboardingStatus(_userId: string): Promise<{
-    isOnboarded: boolean
-    tokenId?: number
-  }> {
-    const accessToken = typeof window !== 'undefined' ? window.__privyAccessToken : null;
-
-    if (!accessToken) {
-      return { isOnboarded: false };
+  static async getIntent(intentId: string): Promise<OnboardingIntentResponse> {
+    const response = await apiFetch(`/api/onboarding/intents/${encodeURIComponent(intentId)}`)
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data?.error || 'Failed to fetch onboarding intent')
     }
+    return data as OnboardingIntentResponse
+  }
 
-    const response = await apiFetch('/api/auth/onboard')
+  static async submitProfile(intentId: string, payload: OnboardingProfilePayload): Promise<OnboardingIntentResponse> {
+    const response = await apiFetch(`/api/onboarding/intents/${encodeURIComponent(intentId)}/profile`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
 
     const data = await response.json()
-
-    if (response.ok && data.isRegistered) {
-      return {
-        isOnboarded: true,
-        tokenId: data.tokenId,
-      }
+    if (!response.ok) {
+      throw new Error(data?.error || 'Failed to apply profile')
     }
 
-    return { isOnboarded: false }
+    return data as OnboardingIntentResponse
+  }
+
+  static async startOnchain(intentId: string, options?: { walletAddress?: string | null }): Promise<OnboardingIntentResponse> {
+    const response = await apiFetch(`/api/onboarding/intents/${encodeURIComponent(intentId)}/onchain`, {
+      method: 'POST',
+      headers: options ? { 'Content-Type': 'application/json' } : undefined,
+      body: options ? JSON.stringify(options) : undefined,
+    })
+
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data?.error || 'Failed to start on-chain registration')
+    }
+
+    return data as OnboardingIntentResponse
   }
 
   /**

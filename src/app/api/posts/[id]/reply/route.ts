@@ -15,6 +15,7 @@ import { FollowingMechanics } from '@/lib/services/following-mechanics';
 import { GroupChatInvite } from '@/lib/services/group-chat-invite';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
+import { ensureUserForAuth } from '@/lib/users/ensure-user';
 
 /**
  * POST /api/posts/[id]/reply
@@ -63,21 +64,11 @@ export const POST = withErrorHandling(async (
     }
 
     // 6. Ensure user exists in database
-  await prisma.user.upsert({
-    where: { id: user.userId },
-    update: {
-      walletAddress: user.walletAddress,
-    },
-    create: {
-      id: user.userId,
-      privyId: user.userId,
-      walletAddress: user.walletAddress,
-      displayName: user.walletAddress
-        ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
-        : 'Anonymous',
-      isActor: false,
-      },
-    });
+    const displayName = user.walletAddress
+      ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+      : 'Anonymous';
+
+    await ensureUserForAuth(user, { displayName });
 
     // 7. Ensure post exists (upsert pattern)
     await prisma.post.upsert({
@@ -204,4 +195,3 @@ export const POST = withErrorHandling(async (
     201
   );
 });
-

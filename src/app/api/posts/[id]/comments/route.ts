@@ -10,6 +10,7 @@ import { CreateCommentSchema, IdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { notifyCommentOnPost, notifyReplyToComment } from '@/lib/services/notification-service';
 import { prisma } from '@/lib/database-service';
+import { ensureUserForAuth } from '@/lib/users/ensure-user';
 import type { NextRequest } from 'next/server';
 
 /**
@@ -187,20 +188,11 @@ export const POST = withErrorHandling(async (
     throw new BusinessLogicError('Comment is too long (max 5000 characters)', 'COMMENT_TOO_LONG');
   }
 
-    // Ensure user exists in database (upsert pattern)
-    await prisma.user.upsert({
-      where: { id: user.userId },
-      update: {
-        walletAddress: user.walletAddress,
-      },
-      create: {
-        id: user.userId,
-        privyId: user.userId,
-        walletAddress: user.walletAddress,
-        displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-        isActor: false,
-      },
-    });
+    const displayName = user.walletAddress
+      ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+      : 'Anonymous';
+
+    await ensureUserForAuth(user, { displayName });
 
     // Check if post exists first
     const post = await prisma.post.findUnique({

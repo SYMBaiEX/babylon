@@ -1,7 +1,6 @@
 import { usePrivy, useWallets, type User as PrivyUser, type ConnectedWallet } from '@privy-io/react-auth'
 import { useEffect, useMemo } from 'react'
 import { useAuthStore, type User } from '@/stores/authStore'
-import { OnboardingService } from '@/lib/services/onboarding-service'
 import { logger } from '@/lib/logger'
 import { apiFetch } from '@/lib/api/fetch'
 
@@ -16,7 +15,6 @@ interface UseAuthReturn {
 
 const loadedProfileUsers = new Set<string>()
 const checkedNewUserUsers = new Set<string>()
-const checkedOnboardingUsers = new Set<string>()
 const checkedSocialLinks = new Set<string>()
 let lastSyncedWalletAddress: string | null = null
 
@@ -57,7 +55,6 @@ export function useAuth(): UseAuthReturn {
     if (!authenticated || !privyUser) {
       loadedProfileUsers.clear()
       checkedNewUserUsers.clear()
-      checkedOnboardingUsers.clear()
       checkedSocialLinks.clear()
       lastSyncedWalletAddress = null
       clearAuth()
@@ -134,59 +131,6 @@ export function useAuth(): UseAuthReturn {
       }
     }
 
-    const checkOnboarding = async () => {
-      // Check if user is already onboarded on-chain (doesn't require wallet)
-      const status = await OnboardingService.checkOnboardingStatus(privyUser.id)
-
-      if (status.isOnboarded) {
-        logger.info('User already onboarded on-chain with NFT #', status.tokenId, 'useAuth')
-        return
-      }
-
-      // For onboarding, we need a wallet address
-      // Privy creates embedded wallets for email-only users, so wait for wallet
-      if (!wallet?.address) {
-        // If user authenticated but no wallet yet, wait a bit for embedded wallet creation
-        // Privy creates embedded wallets automatically for users-without-wallets
-        logger.debug('Waiting for wallet connection for onboarding...', undefined, 'useAuth')
-        
-        // Retry after a short delay (embedded wallet creation can take a moment)
-        setTimeout(() => {
-          if (wallets.length > 0 && wallets[0]?.address && !checkedOnboardingUsers.has(privyUser.id)) {
-            checkedOnboardingUsers.add(privyUser.id)
-            void checkOnboarding()
-          }
-        }, 2000)
-        return
-      }
-
-      logger.info('User not onboarded, triggering on-chain registration...', undefined, 'useAuth')
-
-      const referralCode = sessionStorage.getItem('referralCode')
-      if (referralCode) {
-        logger.info(`Using referral code for onboarding: ${referralCode}`, undefined, 'useAuth')
-      }
-
-      const result = await OnboardingService.completeOnboarding(
-        privyUser.id,
-        wallet.address,
-        undefined,
-        undefined,
-        referralCode || undefined
-      )
-
-      if (result.success) {
-        sessionStorage.removeItem('referralCode')
-        sessionStorage.removeItem('referralCodeTimestamp')
-        
-        logger.info('Onboarding complete!', {
-          tokenId: result.tokenId,
-          points: result.points,
-          txHash: result.transactionHash,
-        }, 'useAuth')
-      }
-    }
-
     const checkAndLinkSocialAccounts = async () => {
       const token = await getAccessToken()
       if (!token) return
@@ -249,14 +193,6 @@ export function useAuth(): UseAuthReturn {
     if (!checkedNewUserUsers.has(privyUser.id)) {
       checkedNewUserUsers.add(privyUser.id)
       void checkNewUser()
-    }
-
-    // Check and trigger onboarding if needed
-    // For email-only users, Privy creates embedded wallets automatically
-    // So we check onboarding status regardless, and wait for wallet if needed
-    if (!checkedOnboardingUsers.has(privyUser.id)) {
-      checkedOnboardingUsers.add(privyUser.id)
-      void checkOnboarding()
     }
 
     // Check and link social accounts for points
