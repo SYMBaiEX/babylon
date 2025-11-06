@@ -37,7 +37,7 @@ export function extractErrorMessage(error: Error | ErrorLike | string | unknown)
 // Lazy initialization of Privy client to prevent build-time errors
 let privyClient: PrivyClient | null = null;
 
-function getPrivyClient(): PrivyClient {
+export function getPrivyClient(): PrivyClient {
   if (!privyClient) {
     const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
     const privyAppSecret = process.env.PRIVY_APP_SECRET;

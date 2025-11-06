@@ -15,6 +15,7 @@ import { PointsService } from '@/lib/services/points-service'
 import { UserIdParamSchema, UUIDSchema } from '@/lib/validation/schemas'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 
 const ShareRequestSchema = z.object({
   platform: z.enum(['twitter', 'farcaster', 'link', 'telegram', 'discord']),
@@ -35,9 +36,11 @@ export const POST = withErrorHandling(async (
   const authUser = await authenticate(request);
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { userId } = UserIdParamSchema.parse(params);
+  const targetUser = await requireUserByIdentifier(userId, { id: true });
+  const canonicalUserId = targetUser.id;
 
   // Verify user is sharing their own content
-  if (authUser.userId !== userId) {
+  if (authUser.userId !== canonicalUserId) {
     throw new AuthorizationError('You can only track your own shares', 'share-action', 'create');
   }
 
@@ -48,7 +51,7 @@ export const POST = withErrorHandling(async (
   // Create share action record
   const shareAction = await prisma.shareAction.create({
     data: {
-      userId,
+      userId: canonicalUserId,
       platform,
       contentType,
       contentId,
@@ -59,7 +62,7 @@ export const POST = withErrorHandling(async (
 
   // Award points for the share
   const pointsResult = await PointsService.awardShareAction(
-    userId,
+    canonicalUserId,
     platform,
     contentType,
     contentId
@@ -74,8 +77,8 @@ export const POST = withErrorHandling(async (
   }
 
   logger.info(
-    `User ${userId} shared ${contentType} on ${platform}`,
-    { userId, platform, contentType, contentId, pointsAwarded: pointsResult.pointsAwarded },
+    `User ${canonicalUserId} shared ${contentType} on ${platform}`,
+    { userId: canonicalUserId, platform, contentType, contentId, pointsAwarded: pointsResult.pointsAwarded },
     'POST /api/users/[userId]/share'
   );
 
@@ -88,4 +91,3 @@ export const POST = withErrorHandling(async (
     },
   });
 });
-

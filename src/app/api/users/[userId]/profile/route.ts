@@ -4,12 +4,12 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { NotFoundError, BusinessLogicError } from '@/lib/errors';
+import { BusinessLogicError } from '@/lib/errors';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { logger } from '@/lib/logger';
+import { requireUserByIdentifier } from '@/lib/users/user-lookup';
 
 /**
  * GET /api/users/[userId]/profile
@@ -26,49 +26,42 @@ export const GET = withErrorHandling(async (
   await optionalAuth(request);
 
   // Get user profile
-  const dbUser = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      walletAddress: true,
-      username: true,
-      displayName: true,
-      bio: true,
-      profileImageUrl: true,
-      coverImageUrl: true,
-      isActor: true,
-      profileComplete: true,
-      hasUsername: true,
-      hasBio: true,
-      hasProfileImage: true,
-      onChainRegistered: true,
-      nftTokenId: true,
-      virtualBalance: true,
-      lifetimePnL: true,
-      reputationPoints: true,
-      referralCount: true,
-      referralCode: true,
-      hasFarcaster: true,
-      hasTwitter: true,
-      farcasterUsername: true,
-      twitterUsername: true,
-      usernameChangedAt: true,
-      createdAt: true,
-      _count: {
-        select: {
-          positions: true,
-          comments: true,
-          reactions: true,
-          followedBy: true,
-          following: true,
-        },
+  const dbUser = await requireUserByIdentifier(userId, {
+    id: true,
+    walletAddress: true,
+    username: true,
+    displayName: true,
+    bio: true,
+    profileImageUrl: true,
+    coverImageUrl: true,
+    isActor: true,
+    profileComplete: true,
+    hasUsername: true,
+    hasBio: true,
+    hasProfileImage: true,
+    onChainRegistered: true,
+    nftTokenId: true,
+    virtualBalance: true,
+    lifetimePnL: true,
+    reputationPoints: true,
+    referralCount: true,
+    referralCode: true,
+    hasFarcaster: true,
+    hasTwitter: true,
+    farcasterUsername: true,
+    twitterUsername: true,
+    usernameChangedAt: true,
+    createdAt: true,
+    _count: {
+      select: {
+        positions: true,
+        comments: true,
+        reactions: true,
+        followedBy: true,
+        following: true,
       },
     },
-  });
-
-  if (!dbUser) {
-    throw new NotFoundError('User', userId);
-  }
+  }) as any;
 
   logger.info('User profile fetched successfully', { userId }, 'GET /api/users/[userId]/profile');
 
@@ -109,4 +102,3 @@ export const GET = withErrorHandling(async (
     },
   });
 });
-

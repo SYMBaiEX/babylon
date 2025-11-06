@@ -13,6 +13,7 @@ import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
+import { requireUserByIdentifier } from '@/lib/users/user-lookup';
 
 /**
  * Generate a unique referral code
@@ -36,15 +37,17 @@ export const GET = withErrorHandling(async (
   const authUser = await authenticate(request);
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { userId } = UserIdParamSchema.parse(params);
+  const targetUser = await requireUserByIdentifier(userId, { id: true });
+  const canonicalUserId = targetUser.id;
 
   // Verify user is accessing their own referral code
-  if (authUser.userId !== userId) {
+  if (authUser.userId !== canonicalUserId) {
     throw new AuthorizationError('You can only access your own referral code', 'referral-code', 'read');
   }
 
   // Get or create referral code
   let user = await prisma.user.findUnique({
-    where: { id: userId },
+    where: { id: canonicalUserId },
     select: {
       id: true,
       referralCode: true,
@@ -53,12 +56,12 @@ export const GET = withErrorHandling(async (
   });
 
   if (!user) {
-    throw new NotFoundError('User', userId);
+    throw new NotFoundError('User', canonicalUserId);
   }
 
   // Generate referral code if doesn't exist
   if (!user.referralCode) {
-    let code = generateReferralCode(userId);
+    let code = generateReferralCode(canonicalUserId);
     let attempts = 0;
     const maxAttempts = 10;
 
@@ -72,7 +75,7 @@ export const GET = withErrorHandling(async (
         break;
       }
 
-      code = generateReferralCode(userId);
+      code = generateReferralCode(canonicalUserId);
       attempts++;
     }
 
@@ -82,7 +85,7 @@ export const GET = withErrorHandling(async (
 
     // Update user with new referral code
     user = await prisma.user.update({
-      where: { id: userId },
+      where: { id: canonicalUserId },
       data: { referralCode: code },
       select: {
         id: true,
@@ -92,8 +95,8 @@ export const GET = withErrorHandling(async (
     });
 
     logger.info(
-      `Generated referral code for user ${userId}: ${code}`,
-      { userId, code },
+      `Generated referral code for user ${canonicalUserId}: ${code}`,
+      { userId: canonicalUserId, code },
       'GET /api/users/[userId]/referral-code'
     );
   }
@@ -106,14 +109,14 @@ export const GET = withErrorHandling(async (
   if (!existingReferral) {
     await prisma.referral.create({
       data: {
-        referrerId: userId,
+        referrerId: canonicalUserId,
         referralCode: user.referralCode!,
         status: 'pending',
       },
     });
   }
 
-  logger.info('Referral code fetched successfully', { userId, referralCode: user.referralCode }, 'GET /api/users/[userId]/referral-code');
+  logger.info('Referral code fetched successfully', { userId: canonicalUserId, referralCode: user.referralCode }, 'GET /api/users/[userId]/referral-code');
 
   return successResponse({
     referralCode: user.referralCode,
@@ -121,4 +124,3 @@ export const GET = withErrorHandling(async (
     referralUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://babylon.game'}?ref=${user.referralCode}`,
   });
 });
-

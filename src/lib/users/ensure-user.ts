@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/database-service'
 import type { AuthenticatedUser } from '@/lib/api/auth-middleware'
-import type { Prisma, User } from '@prisma/client'
+import { Prisma } from '@prisma/client'
+import { logger } from '@/lib/logger'
 
 interface EnsureUserOptions {
   displayName?: string
@@ -8,7 +9,29 @@ interface EnsureUserOptions {
   isActor?: boolean
 }
 
-type CanonicalUser = Pick<User, 'id' | 'privyId' | 'username' | 'displayName' | 'walletAddress' | 'isActor' | 'profileImageUrl'>
+const selectWithPrivyId = {
+  id: true,
+  privyId: true,
+  username: true,
+  displayName: true,
+  walletAddress: true,
+  isActor: true,
+  profileImageUrl: true,
+} as const
+
+const selectWithoutPrivyId = {
+  id: true,
+  username: true,
+  displayName: true,
+  walletAddress: true,
+  isActor: true,
+  profileImageUrl: true,
+} as const
+
+type CanonicalUserWithPrivy = Prisma.UserGetPayload<{ select: typeof selectWithPrivyId }>
+type CanonicalUserWithoutPrivy = Prisma.UserGetPayload<{ select: typeof selectWithoutPrivyId }>
+
+type CanonicalUser = CanonicalUserWithPrivy | CanonicalUserWithoutPrivy
 
 export async function ensureUserForAuth(
   user: AuthenticatedUser,
@@ -54,20 +77,40 @@ export async function ensureUserForAuth(
     }
   }
 
-  const canonicalUser = await prisma.user.upsert({
-    where: { privyId },
-    update: updateData,
-    create: createData,
-    select: {
-      id: true,
-      privyId: true,
-      username: true,
-      displayName: true,
-      walletAddress: true,
-      isActor: true,
-      profileImageUrl: true,
-    },
-  })
+  let canonicalUser: CanonicalUser
+
+  try {
+    canonicalUser = await prisma.user.upsert({
+      where: { privyId },
+      update: updateData,
+      create: createData,
+      select: selectWithPrivyId,
+    })
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2022' &&
+      error.meta?.column === 'User.privyId'
+    ) {
+      logger.warn(
+        'privyId column missing - falling back to legacy user upsert',
+        { userId: user.userId },
+        'ensureUserForAuth'
+      )
+
+      const fallbackCreateData = { ...createData }
+      delete (fallbackCreateData as any).privyId
+
+      canonicalUser = await prisma.user.upsert({
+        where: { id: fallbackCreateData.id },
+        update: updateData,
+        create: fallbackCreateData,
+        select: selectWithoutPrivyId,
+      })
+    } else {
+      throw error
+    }
+  }
 
   user.dbUserId = canonicalUser.id
 

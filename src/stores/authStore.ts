@@ -17,6 +17,7 @@ export interface User {
   reputationPoints?: number
   referralCount?: number
   referralCode?: string
+  onChainRegistered?: boolean
   hasFarcaster?: boolean
   hasTwitter?: boolean
   farcasterUsername?: string
@@ -46,10 +47,14 @@ interface AuthState {
   wallet: Wallet | null
   loadedUserId: string | null
   isLoadingProfile: boolean
+  needsOnboarding: boolean
+  needsOnchain: boolean
   setUser: (user: User) => void
   setWallet: (wallet: Wallet) => void
   setLoadedUserId: (userId: string) => void
   setIsLoadingProfile: (loading: boolean) => void
+  setNeedsOnboarding: (needsOnboarding: boolean) => void
+  setNeedsOnchain: (needsOnchain: boolean) => void
   clearAuth: () => void
 }
 
@@ -60,11 +65,22 @@ export const useAuthStore = create<AuthState>()(
       wallet: null,
       loadedUserId: null,
       isLoadingProfile: false,
+      needsOnboarding: false,
+      needsOnchain: false,
       setUser: (user) => set({ user }),
       setWallet: (wallet) => set({ wallet }),
       setLoadedUserId: (userId) => set({ loadedUserId: userId }),
       setIsLoadingProfile: (loading) => set({ isLoadingProfile: loading }),
-      clearAuth: () => set({ user: null, wallet: null, loadedUserId: null, isLoadingProfile: false }),
+      setNeedsOnboarding: (needsOnboarding) => set({ needsOnboarding }),
+      setNeedsOnchain: (needsOnchain) => set({ needsOnchain }),
+      clearAuth: () => set({
+        user: null,
+        wallet: null,
+        loadedUserId: null,
+        isLoadingProfile: false,
+        needsOnboarding: false,
+        needsOnchain: false,
+      }),
     }),
     {
       name: 'babylon-auth',

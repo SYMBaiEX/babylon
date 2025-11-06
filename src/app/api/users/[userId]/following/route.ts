@@ -8,11 +8,12 @@ import {
   successResponse
 } from '@/lib/api/auth-middleware';
 import { prisma } from '@/lib/database-service';
-import { BusinessLogicError, NotFoundError } from '@/lib/errors';
+import { BusinessLogicError } from '@/lib/errors';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { UserFollowersQuerySchema, UserIdParamSchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
+import { requireUserByIdentifier } from '@/lib/users/user-lookup';
 
 /**
  * GET /api/users/[userId]/following
@@ -25,7 +26,9 @@ export const GET = withErrorHandling(async (
   // Optional authentication - if authenticated, can provide personalized data
   const authUser = await optionalAuth(request);
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
-  const { userId: targetId } = UserIdParamSchema.parse(params);
+  const { userId: targetIdentifier } = UserIdParamSchema.parse(params);
+  const targetUser = await requireUserByIdentifier(targetIdentifier, { id: true });
+  const targetId = targetUser.id;
   
   // Validate query parameters
   const { searchParams } = new URL(request.url);
@@ -35,16 +38,6 @@ export const GET = withErrorHandling(async (
     includeMutual: searchParams.get('includeMutual')
   };
   UserFollowersQuerySchema.parse(queryParams);
-
-  // Check if target is a user
-  const targetUser = await prisma.user.findUnique({
-    where: { id: targetId },
-    select: { id: true },
-  });
-
-  if (!targetUser) {
-    throw new NotFoundError('User', targetId);
-  }
 
   // Get users being followed (Follow model)
   const userFollows = await prisma.follow.findMany({
@@ -150,4 +143,3 @@ export const GET = withErrorHandling(async (
     count: following.length,
   });
 });
-

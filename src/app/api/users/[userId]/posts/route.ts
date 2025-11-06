@@ -10,6 +10,7 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError } from '@/lib/errors';
 import { UserIdParamSchema, UserPostsQuerySchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
+import { requireUserByIdentifier } from '@/lib/users/user-lookup';
 
 /**
  * GET /api/users/[userId]/posts
@@ -21,13 +22,15 @@ export const GET = withErrorHandling(async (
 ) => {
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { userId } = UserIdParamSchema.parse(params);
+  const targetUser = await requireUserByIdentifier(userId, { id: true });
+  const canonicalUserId = targetUser.id;
   
   // Validate query parameters
   const { searchParams } = new URL(request.url);
   const queryParams = {
     type: searchParams.get('type') || 'posts',
-    page: searchParams.get('page'),
-    limit: searchParams.get('limit')
+    page: searchParams.get('page') ?? undefined,
+    limit: searchParams.get('limit') ?? undefined,
   };
   const { type } = UserPostsQuerySchema.parse(queryParams);
 
@@ -35,25 +38,10 @@ export const GET = withErrorHandling(async (
   const user = await optionalAuth(request);
 
     if (type === 'replies') {
-      // Get user's comments (replies)
-      // Verify user exists first
-      const dbUser = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true },
-      });
-      
-      if (!dbUser) {
-        return successResponse({
-          type: 'replies',
-          items: [],
-          total: 0,
-        });
-      }
-      
       // Get user's comments (replies) - query by authorId
       const comments = await prisma.comment.findMany({
         where: {
-          authorId: dbUser.id,
+          authorId: canonicalUserId,
         },
         include: {
           post: {
@@ -154,7 +142,7 @@ export const GET = withErrorHandling(async (
         };
       });
 
-      logger.info('User replies fetched successfully', { userId, total: replies.length }, 'GET /api/users/[userId]/posts');
+      logger.info('User replies fetched successfully', { userId: canonicalUserId, total: replies.length }, 'GET /api/users/[userId]/posts');
 
       return successResponse({
         type: 'replies',
@@ -165,7 +153,7 @@ export const GET = withErrorHandling(async (
       // Get user's posts
       const posts = await prisma.post.findMany({
         where: {
-          authorId: userId,
+          authorId: canonicalUserId,
           // Exclude reposts (posts with replyTo field will be handled separately)
         },
         include: {
@@ -205,7 +193,7 @@ export const GET = withErrorHandling(async (
       // Also get user's shares (reposts)
       const shares = await prisma.share.findMany({
         where: {
-          userId: userId,
+          userId: canonicalUserId,
         },
         include: {
           post: {
@@ -234,7 +222,7 @@ export const GET = withErrorHandling(async (
 
       // Fetch author info for the user (posts are all from userId)
       const postAuthor = await prisma.user.findUnique({
-        where: { id: userId },
+        where: { id: canonicalUserId },
         select: {
           id: true,
           displayName: true,
@@ -334,7 +322,7 @@ export const GET = withErrorHandling(async (
         (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
 
-      logger.info('User posts fetched successfully', { userId, total: allItems.length }, 'GET /api/users/[userId]/posts');
+      logger.info('User posts fetched successfully', { userId: canonicalUserId, total: allItems.length }, 'GET /api/users/[userId]/posts');
 
       return successResponse({
         type: 'posts',
@@ -343,4 +331,3 @@ export const GET = withErrorHandling(async (
       });
     }
 });
-

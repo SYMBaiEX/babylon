@@ -88,6 +88,8 @@ export default function ActorProfilePage() {
   }>>([])
   const [loadingPosts, setLoadingPosts] = useState(false)
   
+  const currentUserId = user?.id
+
   useEffect(() => {
     const loadActorInfo = async () => {
       setLoading(true)
@@ -139,7 +141,7 @@ export default function ActorProfilePage() {
       const isUserId = actorId.startsWith('did:privy:') || 
                       actorId.includes('privy') || 
                       actorId.length > 42 ||
-                      (authenticated && user && (user.id === actorId || user.id === decodeURIComponent(identifier)))
+                      (authenticated && currentUserId && (currentUserId === actorId || currentUserId === decodeURIComponent(identifier)))
       
       if (isUserId) {
         // Load user profile from API by ID
@@ -248,7 +250,7 @@ export default function ActorProfilePage() {
     }
     
     loadActorInfo()
-  }, [actorId, allGames, authenticated, identifier, isOwnProfile, isUsernameParam, router, user])
+  }, [actorId, allGames, authenticated, currentUserId, identifier, isOwnProfile, isUsernameParam, router])
 
   useEffect(() => {
     const loadPosts = async () => {
@@ -322,6 +324,7 @@ export default function ActorProfilePage() {
           author: apiPost.authorId,
           authorName: apiPost.authorName || actorInfo?.name || apiPost.authorId,
           authorUsername: actorInfo?.username || null,
+          authorProfileImageUrl: apiPost.authorProfileImageUrl || actorInfo?.profileImageUrl || null,
           timestamp: apiPost.timestamp,
           type: POST_TYPES.POST, // User-generated posts
           sentiment: 0, // Neutral sentiment for user posts
@@ -338,7 +341,13 @@ export default function ActorProfilePage() {
     const apiPostIds = new Set(apiPosts.map(p => p.id))
     gameStorePosts.forEach(gamePost => {
       if (!apiPostIds.has(gamePost.post.id)) {
-        combined.push(gamePost)
+        combined.push({
+          ...gamePost,
+          post: {
+            ...gamePost.post,
+            authorProfileImageUrl: gamePost.post.authorProfileImageUrl || actorInfo?.profileImageUrl || null,
+          },
+        })
       }
     })
 
@@ -473,7 +482,14 @@ export default function ActorProfilePage() {
                   <Avatar
                     id={actorInfo.id}
                     name={(actorInfo.name ?? actorInfo.username ?? '') as string}
-                    type={actorInfo.type === 'organization' ? 'business' : actorInfo.type === 'user' ? undefined : (actorInfo.type as 'actor' | undefined)}
+                    type={
+                      actorInfo.type === 'organization'
+                        ? 'business'
+                        : actorInfo.isUser || actorInfo.type === 'user'
+                          ? 'user'
+                          : (actorInfo.type as 'actor' | undefined)
+                    }
+                    src={actorInfo.profileImageUrl || undefined}
                     size="lg"
                     className="w-full h-full"
                   />
@@ -648,9 +664,10 @@ export default function ActorProfilePage() {
                       <Avatar
                         id={item.post.author}
                         name={item.post.authorName}
-                        type={actorInfo.type === 'organization' ? 'business' : actorInfo.type === 'user' ? undefined : (actorInfo.type as 'actor' | undefined)}
+                        type="user"
                         size="md"
                         scaleFactor={fontSize * (isMobile ? 0.9 : 1)}
+                        src={item.post.authorProfileImageUrl || actorInfo?.profileImageUrl || undefined}
                       />
                     </div>
 
@@ -775,7 +792,14 @@ export default function ActorProfilePage() {
                     <Avatar
                       id={actorInfo.id}
                       name={(actorInfo.name ?? actorInfo.username ?? '') as string}
-                      type={actorInfo.type === 'organization' ? 'business' : actorInfo.type === 'user' ? undefined : (actorInfo.type as 'actor' | undefined)}
+                      type={
+                        actorInfo.type === 'organization'
+                          ? 'business'
+                          : actorInfo.isUser || actorInfo.type === 'user'
+                            ? 'user'
+                            : (actorInfo.type as 'actor' | undefined)
+                      }
+                      src={actorInfo.profileImageUrl || undefined}
                       size="lg"
                       className="w-full h-full"
                     />
@@ -947,14 +971,15 @@ export default function ActorProfilePage() {
                     <div className="flex gap-3">
                       {/* Avatar - Round */}
                       <div className="flex-shrink-0">
-                        <Avatar
-                          id={item.post.author}
-                          name={item.post.authorName}
-                          type={actorInfo.type === 'organization' ? 'business' : actorInfo.type === 'user' ? undefined : (actorInfo.type as 'actor' | undefined)}
-                          size="md"
-                          scaleFactor={fontSize * (isMobile ? 0.9 : 1)}
-                        />
-                      </div>
+                      <Avatar
+                        id={item.post.author}
+                        name={item.post.authorName}
+                        type="user"
+                        size="md"
+                        scaleFactor={fontSize * (isMobile ? 0.9 : 1)}
+                        src={item.post.authorProfileImageUrl || actorInfo?.profileImageUrl || undefined}
+                      />
+                    </div>
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">

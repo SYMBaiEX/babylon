@@ -13,6 +13,7 @@ import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { ReferralQuerySchema, UserIdParamSchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
+import { requireUserByIdentifier } from '@/lib/users/user-lookup';
 
 /**
  * GET /api/users/[userId]/referrals
@@ -26,6 +27,8 @@ export const GET = withErrorHandling(async (
   const authUser = await authenticate(request);
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { userId } = UserIdParamSchema.parse(params);
+  const targetUser = await requireUserByIdentifier(userId, { id: true });
+  const canonicalUserId = targetUser.id;
   
   // Validate query parameters
   const { searchParams } = new URL(request.url);
@@ -36,13 +39,13 @@ export const GET = withErrorHandling(async (
   ReferralQuerySchema.parse(queryParams);
 
   // Verify user is accessing their own referrals
-  if (authUser.userId !== userId) {
+  if (authUser.userId !== canonicalUserId) {
     throw new AuthorizationError('You can only access your own referrals', 'referrals', 'read');
   }
 
   // Get user's referral data
   const user = await prisma.user.findUnique({
-    where: { id: userId },
+    where: { id: canonicalUserId },
     select: {
       id: true,
       username: true,
@@ -63,13 +66,13 @@ export const GET = withErrorHandling(async (
   });
 
   if (!user) {
-    throw new NotFoundError('User', userId);
+    throw new NotFoundError('User', canonicalUserId);
   }
 
   // Get all completed referrals
   const referrals = await prisma.referral.findMany({
     where: {
-      referrerId: userId,
+      referrerId: canonicalUserId,
       status: 'completed',
     },
     include: {
@@ -99,7 +102,7 @@ export const GET = withErrorHandling(async (
 
   const followStatuses = await prisma.follow.findMany({
     where: {
-      followerId: userId,
+      followerId: canonicalUserId,
       followingId: { in: referredUserIds },
     },
     select: {
@@ -129,7 +132,7 @@ export const GET = withErrorHandling(async (
     ? `${process.env.NEXT_PUBLIC_APP_URL || 'https://babylon.game'}?ref=${referralCode}`
     : null;
 
-  logger.info('Referrals fetched successfully', { userId, totalReferrals: referrals.length }, 'GET /api/users/[userId]/referrals');
+  logger.info('Referrals fetched successfully', { userId: canonicalUserId, totalReferrals: referrals.length }, 'GET /api/users/[userId]/referrals');
 
   return successResponse({
     user: {
@@ -158,4 +161,3 @@ export const GET = withErrorHandling(async (
     referralUrl,
   });
 });
-

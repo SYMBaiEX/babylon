@@ -1,0 +1,257 @@
+/**
+ * API Route: /api/users/signup
+ * Methods: POST (complete off-chain onboarding profile)
+ */
+
+import type { NextRequest } from 'next/server'
+import { authenticate } from '@/lib/api/auth-middleware'
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
+import { ConflictError } from '@/lib/errors'
+import { OnboardingProfileSchema } from '@/lib/validation/schemas'
+import { prisma } from '@/lib/database-service'
+import { PointsService } from '@/lib/services/points-service'
+import { logger } from '@/lib/logger'
+import { z } from 'zod'
+import { getPrivyClient } from '@/lib/api/auth-middleware'
+import type { User as PrivyUser } from '@privy-io/server-auth'
+import type { OnboardingProfilePayload } from '@/lib/onboarding/types'
+
+interface SignupRequestBody {
+  username: string
+  displayName: string
+  bio?: string | null
+  profileImageUrl?: string | null
+  coverImageUrl?: string | null
+  referralCode?: string | null
+  identityToken?: string | null
+}
+
+const selectUserSummary = {
+  id: true,
+  privyId: true,
+  username: true,
+  displayName: true,
+  bio: true,
+  profileImageUrl: true,
+  coverImageUrl: true,
+  walletAddress: true,
+  profileComplete: true,
+  hasUsername: true,
+  hasBio: true,
+  hasProfileImage: true,
+  onChainRegistered: true,
+  nftTokenId: true,
+  referralCode: true,
+  referredBy: true,
+  reputationPoints: true,
+  pointsAwardedForProfile: true,
+  hasFarcaster: true,
+  hasTwitter: true,
+  farcasterUsername: true,
+  twitterUsername: true,
+  createdAt: true,
+  updatedAt: true,
+} as const
+
+const SignupSchema = OnboardingProfileSchema.extend({
+  identityToken: z.string().min(1).optional().or(z.literal('').transform(() => undefined)),
+})
+
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  const authUser = await authenticate(request)
+  const body = await request.json().catch(() => ({})) as SignupRequestBody | Record<string, unknown>
+
+  const parsedBody = SignupSchema.parse(body)
+  const { identityToken, referralCode: rawReferralCode, ...profileData } = parsedBody
+  const parsedProfile = profileData as OnboardingProfilePayload
+  const referralCode = rawReferralCode?.trim() || null
+
+  const canonicalUserId = authUser.dbUserId ?? authUser.userId
+  const privyId = authUser.privyId ?? authUser.userId
+  const walletAddress = authUser.walletAddress?.toLowerCase() ?? null
+
+  const privyClient = getPrivyClient()
+  let identityUser: PrivyUser | null = null
+  if (identityToken) {
+    try {
+      identityUser = await privyClient.getUserFromIdToken(identityToken)
+    } catch (identityError) {
+      logger.warn(
+        'Failed to decode identity token during signup',
+        { error: identityError },
+        'POST /api/users/signup'
+      )
+    }
+  } else {
+    logger.info('Signup received no identity token; proceeding with provided payload only', undefined, 'POST /api/users/signup')
+  }
+
+  const identityFarcasterUsername =
+    identityUser?.farcaster?.username ?? identityUser?.farcaster?.displayName ?? null
+  const identityTwitterUsername = identityUser?.twitter?.username ?? null
+
+  const result = await prisma.$transaction(async (tx) => {
+    // Guard username uniqueness
+    const existingUsername = await tx.user.findUnique({
+      where: { username: parsedProfile.username },
+      select: { id: true },
+    })
+
+    if (existingUsername && existingUsername.id !== canonicalUserId) {
+      throw new ConflictError('Username already taken', 'User.username')
+    }
+
+    // Resolve referral (if provided)
+    let resolvedReferrerId: string | null = null
+    let resolvedReferralRecordId: string | null = null
+
+    if (referralCode) {
+      const normalizedCode = referralCode.trim()
+
+      const referrerByUsername = await tx.user.findUnique({
+        where: { username: normalizedCode },
+        select: { id: true },
+      })
+
+      if (referrerByUsername && referrerByUsername.id !== canonicalUserId) {
+        resolvedReferrerId = referrerByUsername.id
+
+        const referralRecord = await tx.referral.upsert({
+          where: { referralCode: normalizedCode },
+          update: {
+            referredUserId: canonicalUserId,
+            status: 'pending',
+          },
+          create: {
+            referrerId: referrerByUsername.id,
+            referralCode: normalizedCode,
+            referredUserId: canonicalUserId,
+            status: 'pending',
+          },
+          select: { id: true },
+        })
+
+        resolvedReferralRecordId = referralRecord.id
+      } else {
+        const referralRecord = await tx.referral.findUnique({
+          where: { referralCode: normalizedCode },
+          select: { id: true, referrerId: true, referredUserId: true },
+        })
+
+        if (
+          referralRecord &&
+          referralRecord.referrerId !== canonicalUserId &&
+          (!referralRecord.referredUserId || referralRecord.referredUserId === canonicalUserId)
+        ) {
+          resolvedReferrerId = referralRecord.referrerId
+          resolvedReferralRecordId = referralRecord.id
+        }
+      }
+    }
+
+    const baseUserData = {
+      username: parsedProfile.username,
+      displayName: parsedProfile.displayName,
+      bio: parsedProfile.bio ?? '',
+      profileImageUrl: parsedProfile.profileImageUrl ?? null,
+      coverImageUrl: parsedProfile.coverImageUrl ?? null,
+      walletAddress,
+      profileComplete: true,
+      hasUsername: true,
+      hasBio: Boolean(parsedProfile.bio && parsedProfile.bio.trim().length > 0),
+      hasProfileImage: Boolean(parsedProfile.profileImageUrl),
+    }
+
+    const user = await tx.user.upsert({
+      where: { id: canonicalUserId },
+      update: {
+        ...baseUserData,
+        referredBy: resolvedReferrerId ?? undefined,
+        ...(identityFarcasterUsername
+          ? {
+              hasFarcaster: true,
+              farcasterUsername: identityFarcasterUsername,
+            }
+          : {}),
+        ...(identityTwitterUsername
+          ? {
+              hasTwitter: true,
+              twitterUsername: identityTwitterUsername,
+            }
+          : {}),
+      },
+      create: {
+        id: canonicalUserId,
+        privyId,
+        ...baseUserData,
+        referredBy: resolvedReferrerId,
+        ...(identityFarcasterUsername
+          ? {
+              hasFarcaster: true,
+              farcasterUsername: identityFarcasterUsername,
+            }
+          : {}),
+        ...(identityTwitterUsername
+          ? {
+              hasTwitter: true,
+              twitterUsername: identityTwitterUsername,
+            }
+          : {}),
+      },
+      select: selectUserSummary,
+    })
+
+    if (resolvedReferralRecordId) {
+      await tx.referral.update({
+        where: { id: resolvedReferralRecordId },
+        data: {
+          referredUserId: user.id,
+          status: 'pending',
+        },
+      })
+    }
+
+    return {
+      user,
+      referrerId: resolvedReferrerId,
+      referralRecordId: resolvedReferralRecordId,
+    }
+  })
+
+  if (identityFarcasterUsername) {
+    await PointsService.awardFarcasterLink(result.user.id, identityFarcasterUsername)
+  }
+  if (identityTwitterUsername) {
+    await PointsService.awardTwitterLink(result.user.id, identityTwitterUsername)
+  }
+  if (walletAddress) {
+    await PointsService.awardWalletConnect(result.user.id, walletAddress)
+  }
+
+  if (!result.user.pointsAwardedForProfile) {
+    await PointsService.awardProfileCompletion(result.user.id)
+  }
+
+  logger.info(
+    'User completed off-chain onboarding',
+    {
+      userId: result.user.id,
+      hasReferrer: Boolean(result.referrerId),
+    },
+    'POST /api/users/signup'
+  )
+
+  return successResponse({
+    user: {
+      ...result.user,
+      createdAt: result.user.createdAt.toISOString(),
+      updatedAt: result.user.updatedAt.toISOString(),
+    },
+    referral: result.referrerId
+      ? {
+          referrerId: result.referrerId,
+          referralRecordId: result.referralRecordId,
+        }
+      : null,
+  })
+})

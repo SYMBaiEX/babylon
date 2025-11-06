@@ -71,7 +71,14 @@ export function UserMenu() {
 
   const trigger = (
     <div className="flex items-center gap-3 p-3 hover:bg-sidebar-accent cursor-pointer transition-colors">
-      <Avatar id={user.id} name={displayName} size="sm" />
+      <Avatar
+        id={user.id}
+        name={displayName}
+        type="user"
+        size="sm"
+        src={user.profileImageUrl || undefined}
+        imageUrl={user.profileImageUrl || undefined}
+      />
       <div className="flex-1 min-w-0">
         <p className="font-bold text-foreground truncate text-sm">
           {displayName}

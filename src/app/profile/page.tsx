@@ -6,6 +6,7 @@ import { TaggedText } from '@/components/shared/TaggedText'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal'
+import { PostCard } from '@/components/posts/PostCard'
 import { 
   AlertCircle, 
   Calendar, 
@@ -79,6 +80,16 @@ export default function ProfilePage() {
     likeCount: number
     commentCount: number
     shareCount: number
+    authorId?: string
+    author?: {
+      id?: string
+      displayName?: string | null
+      username?: string | null
+      profileImageUrl?: string | null
+    } | null
+    authorProfileImageUrl?: string | null
+    isLiked?: boolean
+    isShared?: boolean
     isRepost?: boolean
   }>>([])
   const [replies, setReplies] = useState<Array<{
@@ -178,12 +189,11 @@ export default function ProfilePage() {
       const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/posts?type=${tab}`, { headers })
       if (response.ok) {
         const data = await response.json()
-        if (data.success) {
-          if (tab === 'posts') {
-            setPosts(data.data.items || [])
-          } else {
-            setReplies(data.data.items || [])
-          }
+        const items = data?.data?.items ?? data?.items ?? []
+        if (tab === 'posts') {
+          setPosts(items)
+        } else {
+          setReplies(items)
         }
       }
       setLoadingPosts(false)
@@ -868,31 +878,48 @@ export default function ProfilePage() {
                     <p className="text-sm">Your posts will appear here</p>
                   </div>
                 ) : (
-                  <div className="divide-y divide-border">
-                    {posts.map((item) => (
-                      <div key={item.id} className="py-4 px-4">
-                        {item.isRepost && (
-                          <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
-                            <span>🔄</span>
-                            <span>Reposted</span>
-                          </div>
-                        )}
-                        <div className="text-foreground whitespace-pre-wrap break-words">
-                          <TaggedText
-                            text={item.content}
-                            onTagClick={(tag) => {
-                              router.push(`/feed?search=${encodeURIComponent(tag)}`)
-                            }}
-                          />
-                        </div>
-                        <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
-                          <span>{new Date(item.timestamp).toLocaleDateString()}</span>
-                          <span>❤️ {item.likeCount || 0}</span>
-                          <span>💬 {item.commentCount || 0}</span>
-                          <span>🔄 {item.shareCount || 0}</span>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="space-y-2">
+                    {posts.map((item) => {
+                      const authorId = item.authorId || item.author?.id || user?.id || ''
+                      const authorName =
+                        item.author?.displayName ||
+                        item.author?.username ||
+                        user?.displayName ||
+                        user?.username ||
+                        'You'
+                      const authorUsername =
+                        item.author?.username ||
+                        user?.username ||
+                        undefined
+                      const authorImage =
+                        item.authorProfileImageUrl ||
+                        item.author?.profileImageUrl ||
+                        user?.profileImageUrl ||
+                        undefined
+
+                      return (
+                        <PostCard
+                          key={item.id}
+                          post={{
+                            id: item.id,
+                            type: 'post',
+                            content: item.content,
+                            authorId,
+                            authorName,
+                            authorUsername,
+                            authorProfileImageUrl: authorImage,
+                            timestamp: item.timestamp,
+                            likeCount: item.likeCount,
+                            commentCount: item.commentCount,
+                            shareCount: item.shareCount,
+                            isLiked: item.isLiked,
+                            isShared: item.isShared,
+                          }}
+                          onClick={() => router.push(`/post/${item.id}`)}
+                          showInteractions
+                        />
+                      )
+                    })}
                   </div>
                 )
               ) : replies.length === 0 ? (

@@ -1,237 +1,400 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { OnboardingStatus } from '@prisma/client'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
-import { useAuthStore } from '@/stores/authStore'
-import { useOnboardingStore } from '@/stores/onboardingStore'
+import { useAuthStore, type User as StoreUser } from '@/stores/authStore'
 import { OnboardingModal } from '@/components/onboarding/OnboardingModal'
-import { OnboardingService, type OnboardingProfilePayload } from '@/lib/services/onboarding-service'
 import { apiFetch } from '@/lib/api/fetch'
 import { logger } from '@/lib/logger'
+import { clearReferralCode, getReferralCode } from './ReferralCaptureProvider'
+import {
+  encodeFunctionData,
+  parseAbi,
+  type Address,
+  type EIP1193Provider,
+  type ExactPartial,
+  type RpcTransactionRequest,
+} from 'viem'
+import { baseSepolia } from 'viem/chains'
+import { IDENTITY_REGISTRY_ABI } from '@/lib/web3/abis'
+import type { OnboardingProfilePayload } from '@/lib/onboarding/types'
+import { useIdentityToken } from '@privy-io/react-auth'
+
+type OnboardingStage = 'PROFILE' | 'ONCHAIN' | 'COMPLETED'
+
+const CAPABILITIES_HASH =
+  '0x0000000000000000000000000000000000000000000000000000000000000001' as const
+const identityRegistryAbi = parseAbi(IDENTITY_REGISTRY_ABI)
+const BASE_SEPOLIA_CHAIN_ID = baseSepolia.id
+
+function extractErrorMessage(error: unknown): string {
+  if (!error) return 'Unknown error'
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  if (typeof error === 'object' && error && 'message' in error) {
+    const maybe = error as { message?: unknown }
+    if (typeof maybe.message === 'string') {
+      return maybe.message
+    }
+  }
+  return 'Unknown error'
+}
+
+async function requestClientRegistrationTx(
+  walletProvider: EIP1193Provider,
+  walletAddress: string,
+  profile: OnboardingProfilePayload
+): Promise<string> {
+  const registryAddress = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA
+  if (!registryAddress) {
+    throw new Error('Identity registry contract address is not configured.')
+  }
+
+  const agentEndpoint = `https://babylon.game/agent/${walletAddress.toLowerCase()}`
+  const metadataUri = JSON.stringify({
+    name: profile.displayName ?? profile.username,
+    bio: profile.bio ?? '',
+    type: 'user',
+    registered: new Date().toISOString(),
+  })
+
+  const data = encodeFunctionData({
+    abi: identityRegistryAbi,
+    functionName: 'registerAgent',
+    args: [profile.username, agentEndpoint, CAPABILITIES_HASH, metadataUri],
+  })
+
+  const txRequest: ExactPartial<RpcTransactionRequest> = {
+    from: walletAddress as Address,
+    to: registryAddress as Address,
+    data,
+    value: '0x0',
+  }
+
+  const txHash = await walletProvider.request({
+    method: 'eth_sendTransaction',
+    params: [txRequest] as any,
+  })
+
+  if (typeof txHash !== 'string') {
+    throw new Error('Unexpected response from wallet while sending transaction.')
+  }
+
+  return txHash
+}
 
 export function OnboardingProvider({ children }: { children: React.ReactNode }) {
-  const { authenticated, user, wallet } = useAuth()
-  const { setUser } = useAuthStore()
-  const { intent, setIntent, clearIntent } = useOnboardingStore()
+  const { authenticated, user, wallet, needsOnboarding, needsOnchain, loadingProfile, refresh } = useAuth()
+  const { setUser, setNeedsOnboarding, setNeedsOnchain } = useAuthStore()
+  const { identityToken } = useIdentityToken()
 
-  const [hasBootstrap, setHasBootstrap] = useState(false)
+  const [stage, setStage] = useState<OnboardingStage>('PROFILE')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [isPolling, setIsPolling] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [submittedProfile, setSubmittedProfile] = useState<OnboardingProfilePayload | null>(null)
 
-  const shouldShowModal = Boolean(intent && intent.status !== 'COMPLETED')
+  const shouldShowModal = useMemo(() => {
+    if (!authenticated || loadingProfile) {
+      return false
+    }
 
-  // Bootstrap or refresh onboarding intent when user changes
+    return Boolean(needsOnboarding || needsOnchain || stage === 'ONCHAIN' || stage === 'COMPLETED')
+  }, [authenticated, loadingProfile, needsOnboarding, needsOnchain, stage])
+
   useEffect(() => {
-    let cancelled = false
-
-    const bootstrapIntent = async () => {
-      if (!authenticated || !user) {
-        clearIntent()
-        setHasBootstrap(false)
-        return
-      }
-
-      try {
-        const referralCode = sessionStorage.getItem('referralCode') || undefined
-        const initialIntent = await OnboardingService.createIntent(referralCode)
-        if (!cancelled) {
-          setIntent(initialIntent)
-          setHasBootstrap(true)
-        }
-      } catch (error) {
-        logger.error('Failed to bootstrap onboarding intent', error, 'OnboardingProvider')
-      }
-    }
-
-    if (!hasBootstrap && authenticated && user) {
-      void bootstrapIntent()
-    }
-
-    return () => {
-      cancelled = true
-    }
-  }, [authenticated, user, hasBootstrap, setIntent, clearIntent])
-
-  // Poll in-progress intents to reflect backend status (placeholder for async on-chain)
-  useEffect(() => {
-    if (!intent) return
-    if (intent.status !== 'ONCHAIN_IN_PROGRESS') {
-      setIsPolling(false)
+    if (!authenticated) {
+      setStage('PROFILE')
+      setSubmittedProfile(null)
+      setError(null)
       return
     }
-    if (isPolling) return
 
-    setIsPolling(true)
-    let cancelled = false
-
-    const poll = async () => {
-      while (!cancelled) {
-        try {
-          const latest = await OnboardingService.getIntent(intent.intentId)
-          if (cancelled) return
-          setIntent(latest)
-
-          if (latest.status !== 'ONCHAIN_IN_PROGRESS') {
-            setIsPolling(false)
-            break
-          }
-        } catch (error) {
-          logger.error('Polling onboarding intent failed', error, 'OnboardingProvider')
-          setIsPolling(false)
-          break
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 2000))
-      }
+    if (loadingProfile) {
+      return
     }
 
-    void poll()
-
-    return () => {
-      cancelled = true
+    if (needsOnboarding) {
+      setStage('PROFILE')
+      return
     }
-  }, [intent, setIntent, isPolling])
 
-  const refreshUserProfile = useCallback(async () => {
-    if (!user) return
-    try {
-      const response = await apiFetch(`/api/users/${encodeURIComponent(user.id)}/profile`)
-      const data = await response.json()
-      if (response.ok && data.user) {
-        setUser({
-          id: data.user.id,
-          walletAddress: data.user.walletAddress ?? undefined,
-          displayName: data.user.displayName ?? user.id,
-          email: undefined,
-          username: data.user.username ?? undefined,
-          bio: data.user.bio ?? undefined,
-          profileImageUrl: data.user.profileImageUrl ?? undefined,
-          coverImageUrl: data.user.coverImageUrl ?? undefined,
-          profileComplete: data.user.profileComplete ?? false,
-          nftTokenId: data.user.nftTokenId ?? null,
-          reputationPoints: data.user.reputationPoints ?? undefined,
-          referralCount: data.user.referralCount ?? undefined,
-          referralCode: data.user.referralCode ?? undefined,
-          hasFarcaster: data.user.hasFarcaster ?? undefined,
-          hasTwitter: data.user.hasTwitter ?? undefined,
-          farcasterUsername: data.user.farcasterUsername ?? undefined,
-          twitterUsername: data.user.twitterUsername ?? undefined,
-          showTwitterPublic: data.user.showTwitterPublic ?? undefined,
-          showFarcasterPublic: data.user.showFarcasterPublic ?? undefined,
-          showWalletPublic: data.user.showWalletPublic ?? undefined,
-          usernameChangedAt: data.user.usernameChangedAt ?? undefined,
-          stats: data.user.stats,
-          createdAt: data.user.createdAt,
+    if (needsOnchain) {
+      if (!submittedProfile && user) {
+        setSubmittedProfile({
+          username: user.username ?? `user_${user.id.slice(0, 8)}`,
+          displayName: user.displayName ?? user.username ?? 'New User',
+          bio: user.bio ?? undefined,
+          profileImageUrl: user.profileImageUrl ?? undefined,
+          coverImageUrl: user.coverImageUrl ?? undefined,
         })
       }
-    } catch (error) {
-      logger.error('Failed to refresh user profile after onboarding', error, 'OnboardingProvider')
-    }
-  }, [user, setUser])
-
-  const handleProfileSubmit = useCallback(async (payload: OnboardingProfilePayload) => {
-    if (!intent || !user) return
-    if (!wallet?.address) {
-      setSubmitError('Wallet connection required to complete onboarding.')
+      setStage((prev) => (prev === 'COMPLETED' ? prev : 'ONCHAIN'))
       return
     }
 
-    setIsSubmitting(true)
-    setSubmitError(null)
+    if (stage !== 'COMPLETED') {
+      setStage('PROFILE')
+      setSubmittedProfile(null)
+      setError(null)
+    }
+  }, [authenticated, loadingProfile, needsOnboarding, needsOnchain, user, submittedProfile, stage])
 
-    const intentId = intent.intentId
-
-    try {
-      const updatedIntent = await OnboardingService.submitProfile(intentId, payload)
-      setIntent(updatedIntent)
-
-      const finalIntent = await OnboardingService.startOnchain(updatedIntent.intentId, {
-        walletAddress: wallet.address,
-      })
-
-      setIntent(finalIntent)
-
-      if (finalIntent.status === OnboardingStatus.COMPLETED) {
-        sessionStorage.removeItem('referralCode')
-        sessionStorage.removeItem('referralCodeTimestamp')
-        await refreshUserProfile()
+  const submitOnchain = useCallback(
+    async (profile: OnboardingProfilePayload, referralCode: string | null) => {
+      const body = {
+        walletAddress: wallet?.address ?? null,
+        referralCode: referralCode ?? undefined,
       }
 
-      logger.info('Onboarding profile submitted', { userId: user.id }, 'OnboardingProvider')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to submit onboarding profile'
-      setSubmitError(message)
-      logger.error(message, error, 'OnboardingProvider')
-      try {
-        const latestIntent = await OnboardingService.getIntent(intentId)
-        setIntent(latestIntent)
-      } catch (refreshError) {
-        logger.error(
-          'Failed to refresh onboarding intent after profile submission error',
-          refreshError,
+      const callEndpoint = async (payload: Record<string, unknown>) => {
+        const response = await apiFetch('/api/users/onboarding/onchain', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          const rawError = data?.error
+          const message =
+            (typeof rawError === 'string'
+              ? rawError
+              : typeof rawError?.message === 'string'
+              ? rawError.message
+              : null) ?? `Failed to complete on-chain onboarding (status ${response.status})`
+          const error = new Error(message)
+          throw error
+        }
+        return data as { onchain: unknown; user: StoreUser | null }
+      }
+
+      const applyResponse = (data: { onchain: unknown; user: StoreUser | null }) => {
+        if (data.user) {
+          setUser({
+            id: data.user.id,
+            walletAddress: data.user.walletAddress ?? undefined,
+            displayName: data.user.displayName ?? user?.displayName,
+            email: user?.email,
+            username: data.user.username ?? undefined,
+            bio: data.user.bio ?? undefined,
+            profileImageUrl: data.user.profileImageUrl ?? undefined,
+            coverImageUrl: data.user.coverImageUrl ?? undefined,
+            profileComplete: data.user.profileComplete ?? true,
+            reputationPoints: data.user.reputationPoints ?? user?.reputationPoints,
+            hasFarcaster: data.user.hasFarcaster ?? user?.hasFarcaster,
+            hasTwitter: data.user.hasTwitter ?? user?.hasTwitter,
+            farcasterUsername: data.user.farcasterUsername ?? user?.farcasterUsername,
+            twitterUsername: data.user.twitterUsername ?? user?.twitterUsername,
+            nftTokenId: data.user.nftTokenId ?? undefined,
+            createdAt: data.user.createdAt ?? user?.createdAt,
+            onChainRegistered: data.user.onChainRegistered ?? user?.onChainRegistered,
+          })
+        }
+        setNeedsOnboarding(false)
+        setNeedsOnchain(false)
+        setStage('COMPLETED')
+        void refresh().catch(() => undefined)
+      }
+
+      const completeWithClient = async () => {
+        if (!wallet?.address) {
+          throw new Error('Wallet connection required to complete on-chain registration.')
+        }
+
+        logger.info(
+          'Attempting client-signed on-chain registration',
+          { address: wallet.address },
           'OnboardingProvider'
         )
+
+        const provider = (await wallet.getEthereumProvider()) as EIP1193Provider
+        if (wallet.chainId !== `eip155:${BASE_SEPOLIA_CHAIN_ID}`) {
+          await wallet.switchChain(BASE_SEPOLIA_CHAIN_ID)
+        }
+
+        await provider.request({ method: 'eth_requestAccounts' })
+        const txHash = await requestClientRegistrationTx(provider, wallet.address, profile)
+
+        logger.info(
+          'Client-submitted on-chain registration transaction',
+          { txHash },
+          'OnboardingProvider'
+        )
+
+        const data = await callEndpoint({
+          ...body,
+          txHash,
+        })
+        return data
       }
-    } finally {
-      setIsSubmitting(false)
-    }
-  }, [intent, user, wallet, setIntent, refreshUserProfile])
+
+      const completeWithServer = async () => {
+        logger.info('Attempting server-signed on-chain registration', undefined, 'OnboardingProvider')
+        return callEndpoint(body)
+      }
+
+      try {
+        let response: { onchain: unknown; user: StoreUser | null }
+
+        if (wallet?.address && !user?.isActor) {
+          try {
+            response = await completeWithClient()
+          } catch (clientError) {
+            const message = extractErrorMessage(clientError).toLowerCase()
+            if (message.includes('user rejected')) {
+              throw new Error('Transaction cancelled in wallet. Please approve to continue.')
+            }
+            if (message.includes('insufficient funds')) {
+              throw new Error('Insufficient funds to pay gas on Base Sepolia.')
+            }
+            logger.warn(
+              'Client-signed registration attempt failed; falling back to server signer',
+              { error: clientError },
+              'OnboardingProvider'
+            )
+            response = await completeWithServer()
+          }
+        } else {
+          response = await completeWithServer()
+        }
+
+        applyResponse(response)
+      } catch (rawError) {
+        const message = extractErrorMessage(rawError)
+
+        if (
+          (message.includes('SERVER_SIGNER_UNSUPPORTED') ||
+            message.includes('Server wallet not configured')) &&
+          wallet?.address &&
+          !user?.isActor
+        ) {
+          try {
+            const clientResponse = await completeWithClient()
+            applyResponse(clientResponse)
+            return
+          } catch (clientFallbackError) {
+            const fallbackMessage = extractErrorMessage(clientFallbackError)
+            setError(fallbackMessage)
+            logger.error(
+              'Client fallback failed after server signer unsupported',
+              { error: clientFallbackError },
+              'OnboardingProvider'
+            )
+            return
+          }
+        }
+
+        setError(message)
+        logger.error('Failed to complete on-chain onboarding', { error: rawError }, 'OnboardingProvider')
+      }
+    },
+    [wallet, refresh, setNeedsOnboarding, setNeedsOnchain, setUser, user]
+  )
+
+  const handleProfileSubmit = useCallback(
+    async (payload: OnboardingProfilePayload) => {
+      setIsSubmitting(true)
+      setError(null)
+
+      try {
+        const referralCode = getReferralCode()
+
+        logger.info(
+          'Identity token state during signup',
+          { present: Boolean(identityToken), tokenPreview: identityToken ? `${identityToken.slice(0, 12)}...` : null },
+          'OnboardingProvider'
+        )
+
+        const response = await apiFetch('/api/users/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...payload,
+            referralCode: referralCode ?? undefined,
+            identityToken: identityToken ?? undefined,
+          }),
+        })
+
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          const message = data?.error || `Failed to complete signup (status ${response.status})`
+          throw new Error(message)
+        }
+
+        if (data.user) {
+          setUser({
+            id: data.user.id,
+            walletAddress: data.user.walletAddress ?? wallet?.address,
+            displayName: data.user.displayName ?? payload.displayName,
+            email: user?.email,
+            username: data.user.username ?? payload.username,
+            bio: data.user.bio ?? payload.bio,
+            profileImageUrl: data.user.profileImageUrl ?? payload.profileImageUrl ?? undefined,
+            coverImageUrl: data.user.coverImageUrl ?? payload.coverImageUrl ?? undefined,
+            profileComplete: data.user.profileComplete ?? true,
+            reputationPoints: data.user.reputationPoints ?? user?.reputationPoints,
+            hasFarcaster: data.user.hasFarcaster ?? user?.hasFarcaster,
+            hasTwitter: data.user.hasTwitter ?? user?.hasTwitter,
+            farcasterUsername: data.user.farcasterUsername ?? user?.farcasterUsername,
+            twitterUsername: data.user.twitterUsername ?? user?.twitterUsername,
+            nftTokenId: data.user.nftTokenId ?? undefined,
+            createdAt: data.user.createdAt ?? user?.createdAt,
+            onChainRegistered: data.user.onChainRegistered ?? user?.onChainRegistered,
+          })
+        }
+        setNeedsOnboarding(false)
+        setNeedsOnchain(true)
+
+        clearReferralCode()
+        setSubmittedProfile(payload)
+        setStage('ONCHAIN')
+
+        await submitOnchain(payload, referralCode)
+      } catch (rawError) {
+        const message = extractErrorMessage(rawError)
+        setError(message)
+        logger.error('Failed to complete profile onboarding', { error: rawError }, 'OnboardingProvider')
+      } finally {
+        setIsSubmitting(false)
+      }
+    },
+    [submitOnchain, user, wallet, setUser, setNeedsOnboarding, setNeedsOnchain, identityToken]
+  )
 
   const handleRetryOnchain = useCallback(async () => {
-    if (!intent) return
-    if (!wallet?.address && !user?.isActor) {
-      setSubmitError('Wallet connection required to restart on-chain onboarding.')
-      return
-    }
+    if (!submittedProfile) return
     setIsSubmitting(true)
-    setSubmitError(null)
-    const intentId = intent.intentId
+    setError(null)
+
     try {
-      const latest = await OnboardingService.startOnchain(intentId, {
-        walletAddress: wallet?.address,
-      })
-      setIntent(latest)
-      await refreshUserProfile()
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to restart on-chain onboarding'
-      setSubmitError(message)
-      logger.error(message, error, 'OnboardingProvider')
-      try {
-        const latestIntent = await OnboardingService.getIntent(intentId)
-        setIntent(latestIntent)
-      } catch (refreshError) {
-        logger.error(
-          'Failed to refresh onboarding intent after retry error',
-          refreshError,
-          'OnboardingProvider'
-        )
-      }
+      await submitOnchain(submittedProfile, getReferralCode())
+    } catch (rawError) {
+      const message = extractErrorMessage(rawError)
+      setError(message)
+      logger.error('Failed to retry on-chain onboarding', { error: rawError }, 'OnboardingProvider')
     } finally {
       setIsSubmitting(false)
     }
-  }, [intent, wallet, user, setIntent, refreshUserProfile])
+  }, [submittedProfile, submitOnchain])
 
   const handleClose = useCallback(() => {
-    if (!intent) return
-    if (intent.status === 'COMPLETED') {
-      clearIntent()
-    }
-  }, [intent, clearIntent])
+    if (needsOnboarding || needsOnchain) return
+    setStage('PROFILE')
+    setSubmittedProfile(null)
+    setError(null)
+  }, [needsOnboarding, needsOnchain])
 
   return (
     <>
       {children}
-      {shouldShowModal && intent && (
+      {shouldShowModal && (
         <OnboardingModal
           isOpen
-          status={intent.status as OnboardingStatus}
-          intent={intent}
+          stage={stage}
           isSubmitting={isSubmitting}
-          error={submitError}
+          error={error}
           onSubmitProfile={handleProfileSubmit}
-          onStartOnchain={handleRetryOnchain}
+          onRetryOnchain={handleRetryOnchain}
           onClose={handleClose}
         />
       )}

@@ -22,8 +22,11 @@ export const OnboardingProfileSchema = z.object({
     .optional()
     .or(z.literal('').transform(() => undefined))
     .nullable(),
-})
-
-export const OnboardingIntentIdSchema = z.object({
-  intentId: z.string().uuid('Invalid onboarding intent id'),
+  referralCode: z
+    .string()
+    .trim()
+    .min(1, 'Referral code cannot be empty')
+    .max(64, 'Referral code must be at most 64 characters')
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
 })
