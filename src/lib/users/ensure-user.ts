@@ -24,9 +24,6 @@ export async function ensureUserForAuth(
   if (options.username !== undefined) {
     updateData.username = options.username
   }
-  if (options.displayName !== undefined) {
-    updateData.displayName = options.displayName
-  }
   if (options.isActor !== undefined) {
     updateData.isActor = options.isActor
   }
@@ -40,11 +37,21 @@ export async function ensureUserForAuth(
   if (user.walletAddress) {
     createData.walletAddress = user.walletAddress
   }
-  if (options.displayName) {
-    createData.displayName = options.displayName
-  }
   if (options.username !== undefined) {
     createData.username = options.username ?? null
+  }
+
+  if (options.displayName !== undefined) {
+    createData.displayName = options.displayName
+    if (user.dbUserId) {
+      const existing = await prisma.user.findUnique({
+        where: { id: user.dbUserId },
+        select: { displayName: true },
+      })
+      if (!existing?.displayName) {
+        updateData.displayName = options.displayName
+      }
+    }
   }
 
   const canonicalUser = await prisma.user.upsert({

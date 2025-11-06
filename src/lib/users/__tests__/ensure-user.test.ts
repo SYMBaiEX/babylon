@@ -133,4 +133,30 @@ describe('ensureUserForAuth', () => {
     expect(authUser.dbUserId).toBe('new-user')
     expect(getCanonicalUserId(authUser)).toBe('new-user')
   })
+
+  it('does not overwrite existing display name when fallback provided', async () => {
+    state.users.set('uuid-456', {
+      id: 'uuid-456',
+      privyId: 'existing-privy',
+      username: 'existing',
+      displayName: 'Custom Name',
+      walletAddress: null,
+      isActor: false,
+      profileImageUrl: null,
+    })
+
+    const authUser: AuthenticatedUser = {
+      userId: 'existing-privy',
+      privyId: 'existing-privy',
+      dbUserId: 'uuid-456',
+      isAgent: false,
+    }
+
+    const { user: canonical } = await ensureUserForAuth(authUser, {
+      displayName: 'Wallet Fallback',
+    })
+
+    expect(canonical.displayName).toBe('Custom Name')
+    expect(state.users.get('uuid-456')?.displayName).toBe('Custom Name')
+  })
 })
