@@ -46,67 +46,110 @@ export async function executeGameTick(): Promise<GameTickResult> {
     widgetCachesUpdated: 0,
   };
 
-  // Get active questions from database
-  const activeQuestions = await prisma.question.findMany({
-    where: {
-      status: 'active',
-    },
-  });
-
-  logger.info(`Found ${activeQuestions.length} active questions`, { count: activeQuestions.length }, 'GameTick');
-
-  const questionsToResolve = activeQuestions.filter(q => {
-    if (!q.resolutionDate) return false;
-    const resolutionDate = new Date(q.resolutionDate);
-    return resolutionDate <= timestamp;
-  });
-
-  if (questionsToResolve.length > 0) {
-    logger.info(`Resolving ${questionsToResolve.length} questions`, { count: questionsToResolve.length }, 'GameTick');
-    
-    await prisma.question.updateMany({
+  try {
+    // Get active questions from database
+    const activeQuestions = await prisma.question.findMany({
       where: {
-        id: { in: questionsToResolve.map(q => q.id) },
+        status: 'active',
       },
-      data: { status: 'resolved' },
     });
-    
-    for (const question of questionsToResolve) {
-      await resolveQuestionPayouts(question.questionNumber);
-      result.questionsResolved++;
+
+    logger.info(`Found ${activeQuestions.length} active questions`, { count: activeQuestions.length }, 'GameTick');
+
+    const questionsToResolve = activeQuestions.filter(q => {
+      if (!q.resolutionDate) return false;
+      const resolutionDate = new Date(q.resolutionDate);
+      return resolutionDate <= timestamp;
+    });
+
+    if (questionsToResolve.length > 0) {
+      try {
+        logger.info(`Resolving ${questionsToResolve.length} questions`, { count: questionsToResolve.length }, 'GameTick');
+        
+        await prisma.question.updateMany({
+          where: {
+            id: { in: questionsToResolve.map(q => q.id) },
+          },
+          data: { status: 'resolved' },
+        });
+        
+        for (const question of questionsToResolve) {
+          try {
+            await resolveQuestionPayouts(question.questionNumber);
+            result.questionsResolved++;
+          } catch (error) {
+            logger.error('Failed to resolve question payout', { error, questionNumber: question.questionNumber }, 'GameTick');
+          }
+        }
+      } catch (error) {
+        logger.error('Failed to resolve questions', { error }, 'GameTick');
+      }
     }
+
+    // Each generation function is isolated with its own error handling
+    try {
+      const postsGenerated = await generatePosts(activeQuestions.slice(0, 3), timestamp);
+      result.postsCreated = postsGenerated;
+    } catch (error) {
+      logger.error('Failed to generate posts', { error }, 'GameTick');
+    }
+
+    try {
+      const eventsGenerated = await generateEvents(activeQuestions.slice(0, 3), timestamp);
+      result.eventsCreated = eventsGenerated;
+    } catch (error) {
+      logger.error('Failed to generate events', { error }, 'GameTick');
+    }
+
+    try {
+      const articlesGenerated = await generateArticles(timestamp);
+      result.articlesCreated = articlesGenerated;
+    } catch (error) {
+      logger.error('Failed to generate articles', { error }, 'GameTick');
+    }
+
+    try {
+      const marketsUpdated = await updateMarketPrices(timestamp);
+      result.marketsUpdated = marketsUpdated;
+    } catch (error) {
+      logger.error('Failed to update market prices', { error }, 'GameTick');
+    }
+
+    try {
+      const currentActiveCount = activeQuestions.length - result.questionsResolved;
+      if (currentActiveCount < 10) {
+        const questionsGenerated = await generateNewQuestions(Math.min(3, 15 - currentActiveCount));
+        result.questionsCreated = questionsGenerated;
+      }
+    } catch (error) {
+      logger.error('Failed to generate new questions', { error }, 'GameTick');
+    }
+
+    try {
+      await prisma.game.updateMany({
+        where: { isContinuous: true },
+        data: {
+          lastTickAt: timestamp,
+          updatedAt: timestamp,
+        },
+      });
+    } catch (error) {
+      logger.error('Failed to update game state', { error }, 'GameTick');
+    }
+
+    try {
+      const cachesUpdated = await updateWidgetCaches();
+      result.widgetCachesUpdated = cachesUpdated;
+    } catch (error) {
+      logger.error('Failed to update widget caches', { error }, 'GameTick');
+    }
+
+    logger.info('Game tick completed', result, 'GameTick');
+
+  } catch (error) {
+    logger.error('Critical error in game tick', { error }, 'GameTick');
+    throw error;
   }
-
-  const postsGenerated = await generatePosts(activeQuestions.slice(0, 3), timestamp);
-  result.postsCreated = postsGenerated;
-
-  const eventsGenerated = await generateEvents(activeQuestions.slice(0, 3), timestamp);
-  result.eventsCreated = eventsGenerated;
-
-  const articlesGenerated = await generateArticles(timestamp);
-  result.articlesCreated = articlesGenerated;
-
-  const marketsUpdated = await updateMarketPrices(timestamp);
-  result.marketsUpdated = marketsUpdated;
-
-  const currentActiveCount = activeQuestions.length - result.questionsResolved;
-  if (currentActiveCount < 10) {
-    const questionsGenerated = await generateNewQuestions(Math.min(3, 15 - currentActiveCount));
-    result.questionsCreated = questionsGenerated;
-  }
-
-  await prisma.game.updateMany({
-    where: { isContinuous: true },
-    data: {
-      lastTickAt: timestamp,
-      updatedAt: timestamp,
-    },
-  });
-
-  const cachesUpdated = await updateWidgetCaches();
-  result.widgetCachesUpdated = cachesUpdated;
-
-  logger.info('Game tick completed', result, 'GameTick');
 
   return result;
 }
@@ -126,28 +169,48 @@ async function generatePosts(questions: Array<{ id: string; text: string; questi
     orderBy: { reputationPoints: 'desc' },
   });
 
+  if (actors.length === 0) {
+    logger.warn('No actors found for post generation', {}, 'GameTick');
+    return 0;
+  }
+
   for (let i = 0; i < postsToGenerate && i < questions.length; i++) {
-    const question = questions[i]!;
-    const actor = actors[i % actors.length]!;
+    try {
+      const question = questions[i];
+      const actor = actors[i % actors.length];
+      
+      if (!question || !actor || !actor.name) {
+        logger.warn('Missing question or actor data', { questionIndex: i }, 'GameTick');
+        continue;
+      }
 
-    const prompt = `You are ${actor.name}. Write a brief social media post (max 200 chars) about this prediction market question: "${question.text}". Be opinionated and entertaining.`;
-    
-    const response = await llm.generateJSON<{ post: string }>(
-      prompt,
-      { required: ['post'] },
-      { temperature: 0.9, maxTokens: 200 }
-    );
+      const prompt = `You are ${actor.name}. Write a brief social media post (max 200 chars) about this prediction market question: "${question.text}". Be opinionated and entertaining.`;
+      
+      const response = await llm.generateJSON<{ post: string }>(
+        prompt,
+        { required: ['post'] },
+        { temperature: 0.9, maxTokens: 200 }
+      );
 
-    await prisma.post.create({
-      data: {
-        content: response.post,
-        authorId: actor.id,
-        gameId: 'continuous',
-        dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
-        timestamp: timestamp,
-      },
-    });
-    postsCreated++;
+      if (!response.post) {
+        logger.warn('Empty post generated', { questionIndex: i }, 'GameTick');
+        continue;
+      }
+
+      await prisma.post.create({
+        data: {
+          content: response.post,
+          authorId: actor.id,
+          gameId: 'continuous',
+          dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+          timestamp: timestamp,
+        },
+      });
+      postsCreated++;
+    } catch (error) {
+      logger.error('Failed to generate post', { error, questionIndex: i }, 'GameTick');
+      // Continue with next post instead of failing entire batch
+    }
   }
 
   return postsCreated;
@@ -163,21 +226,31 @@ async function generateEvents(questions: Array<{ id: string; text: string; quest
   const eventsToGenerate = Math.min(2, questions.length);
 
   for (let i = 0; i < eventsToGenerate; i++) {
-    const question = questions[i]!;
+    try {
+      const question = questions[i];
+      
+      if (!question || !question.text) {
+        logger.warn('Missing question data for event', { questionIndex: i }, 'GameTick');
+        continue;
+      }
 
-    await prisma.worldEvent.create({
-      data: {
-        eventType: 'announcement',
-        description: `Development regarding: ${question.text}`,
-        actors: [],
-        relatedQuestion: question.questionNumber,
-        visibility: 'public',
-        gameId: 'continuous',
-        dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
-        timestamp: timestamp,
-      },
-    });
-    eventsCreated++;
+      await prisma.worldEvent.create({
+        data: {
+          eventType: 'announcement',
+          description: `Development regarding: ${question.text}`,
+          actors: [],
+          relatedQuestion: question.questionNumber,
+          visibility: 'public',
+          gameId: 'continuous',
+          dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+          timestamp: timestamp,
+        },
+      });
+      eventsCreated++;
+    } catch (error) {
+      logger.error('Failed to generate event', { error, questionIndex: i }, 'GameTick');
+      // Continue with next event
+    }
   }
 
   return eventsCreated;
@@ -213,6 +286,11 @@ async function generateArticles(timestamp: Date): Promise<number> {
     orderBy: { tier: 'asc' }, // Higher tier actors first
   });
 
+  if (actors.length === 0) {
+    logger.warn('No actors found for article generation', {}, 'GameTick');
+    return 0;
+  }
+
   // Initialize article generator
   const llm = new BabylonLLMClient();
   const articleGen = new ArticleGenerator(llm);
@@ -224,67 +302,84 @@ async function generateArticles(timestamp: Date): Promise<number> {
   const eventsTocover = recentEvents.slice(0, articlesToGenerate);
 
   for (const event of eventsTocover) {
-    const worldEvent: WorldEvent = {
-      id: event.id,
-      type: event.eventType as WorldEvent['type'],
-      description: event.description,
-      actors: event.actors,
-      relatedQuestion: event.relatedQuestion || undefined,
-      visibility: event.visibility as WorldEvent['visibility'],
-      day: event.dayNumber || 0,
-    };
+    try {
+      const worldEvent: WorldEvent = {
+        id: event.id,
+        type: event.eventType as WorldEvent['type'],
+        description: event.description,
+        actors: event.actors || [],
+        relatedQuestion: event.relatedQuestion || undefined,
+        visibility: event.visibility as WorldEvent['visibility'],
+        day: event.dayNumber || 0,
+      };
 
-    const organizations = newsOrgs.map(org => ({
-      id: org.id,
-      name: org.name,
-      description: org.description,
-      type: org.type as 'company' | 'media' | 'government',
-      canBeInvolved: org.canBeInvolved,
-      initialPrice: org.initialPrice || undefined,
-      currentPrice: org.currentPrice || undefined,
-    }));
+      const organizations = newsOrgs.map(org => ({
+        id: org.id,
+        name: org.name || 'Unknown Organization',
+        description: org.description || '',
+        type: (org.type as 'company' | 'media' | 'government') || 'media',
+        canBeInvolved: org.canBeInvolved,
+        initialPrice: org.initialPrice || undefined,
+        currentPrice: org.currentPrice || undefined,
+      }));
 
-    const actorList = actors.map(a => ({
-      id: a.id,
-      name: a.name,
-      description: a.description || '',
-      domain: a.domain,
-      personality: a.personality || undefined,
-      tier: (a.tier as ActorTier) || undefined,
-      affiliations: a.affiliations,
-      postStyle: a.postStyle || undefined,
-      postExample: a.postExample,
-      role: (a.role as 'main' | 'supporting' | 'extra') || undefined,
-      initialLuck: a.initialLuck as 'low' | 'medium' | 'high',
-      initialMood: a.initialMood,
-    }));
+      const actorList = actors
+        .filter(a => a && a.id && a.name) // Filter out invalid actors
+        .map(a => ({
+          id: a.id,
+          name: a.name,
+          description: a.description || '',
+          domain: a.domain || '',
+          personality: a.personality || undefined,
+          tier: (a.tier as ActorTier) || undefined,
+          affiliations: a.affiliations || [],
+          postStyle: a.postStyle || undefined,
+          postExample: a.postExample || '',
+          role: (a.role as 'main' | 'supporting' | 'extra') || undefined,
+          initialLuck: (a.initialLuck as 'low' | 'medium' | 'high') || 'medium',
+          initialMood: a.initialMood || 0,
+        }));
 
-    const articles = await articleGen.generateArticlesForEvent(
-      worldEvent,
-      organizations,
-      actorList,
-      []
-    );
+      if (actorList.length === 0) {
+        logger.warn('No valid actors for article generation', { eventId: event.id }, 'GameTick');
+        continue;
+      }
 
-    for (const article of articles) {
-      await prisma.post.create({
-        data: {
-          type: 'article',
-          content: article.summary,
-          fullContent: article.content,
-          articleTitle: article.title,
-          byline: article.byline || null,
-          biasScore: article.biasScore || null,
-          sentiment: article.sentiment || null,
-          slant: article.slant || null,
-          category: article.category || null,
-          authorId: article.authorOrgId,
-          gameId: 'continuous',
-          dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
-          timestamp: article.publishedAt,
-        },
-      });
-      articlesCreated++;
+      const articles = await articleGen.generateArticlesForEvent(
+        worldEvent,
+        organizations,
+        actorList,
+        []
+      );
+
+      for (const article of articles) {
+        if (!article || !article.authorOrgId) {
+          logger.warn('Invalid article generated', { eventId: event.id }, 'GameTick');
+          continue;
+        }
+
+        await prisma.post.create({
+          data: {
+            type: 'article',
+            content: article.summary || '',
+            fullContent: article.content || '',
+            articleTitle: article.title || 'Untitled',
+            byline: article.byline || null,
+            biasScore: article.biasScore || null,
+            sentiment: article.sentiment || null,
+            slant: article.slant || null,
+            category: article.category || null,
+            authorId: article.authorOrgId,
+            gameId: 'continuous',
+            dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+            timestamp: article.publishedAt || new Date(),
+          },
+        });
+        articlesCreated++;
+      }
+    } catch (error) {
+      logger.error('Failed to generate article for event', { error, eventId: event.id }, 'GameTick');
+      // Continue with next event
     }
   }
 
@@ -463,35 +558,56 @@ async function resolveQuestionPayouts(questionNumber: number): Promise<void> {
 async function updateWidgetCaches(): Promise<number> {
   let cachesUpdated = 0;
 
-  const { db } = await import('@/lib/database-service');
-  
-  const companies = await db.getCompanies();
+  try {
+    const { db } = await import('@/lib/database-service');
+    
+    const companies = await db.getCompanies();
+    
+    if (!companies || companies.length === 0) {
+      logger.warn('No companies found for widget cache update', {}, 'GameTick');
+      return 0;
+    }
     
     const perpMarketsWithStats = await Promise.all(
-      companies.map(async (company) => {
-        const currentPrice = company.currentPrice || company.initialPrice || 100;
-        
-        const priceHistory = await db.getPriceHistory(company.id, 1440);
-        
-        let changePercent24h = 0;
-        
-        if (priceHistory.length > 0) {
-          const price24hAgo = priceHistory[priceHistory.length - 1];
-          if (price24hAgo) {
-            const change24h = currentPrice - price24hAgo.price;
-            changePercent24h = (change24h / price24hAgo.price) * 100;
+      companies
+        .filter(company => company && company.id && company.name) // Filter out invalid companies
+        .map(async (company) => {
+          try {
+            const currentPrice = company.currentPrice || company.initialPrice || 100;
+            
+            const priceHistory = await db.getPriceHistory(company.id, 1440);
+            
+            let changePercent24h = 0;
+            
+            if (priceHistory && priceHistory.length > 0) {
+              const price24hAgo = priceHistory[priceHistory.length - 1];
+              if (price24hAgo && price24hAgo.price) {
+                const change24h = currentPrice - price24hAgo.price;
+                changePercent24h = (change24h / price24hAgo.price) * 100;
+              }
+            }
+            
+            return {
+              ticker: company.id.toUpperCase().replace(/-/g, ''),
+              organizationId: company.id,
+              name: company.name || 'Unknown Company',
+              currentPrice,
+              changePercent24h,
+              volume24h: 0,
+            };
+          } catch (error) {
+            logger.warn('Failed to get price stats for company', { companyId: company.id, error }, 'GameTick');
+            // Return a safe default
+            return {
+              ticker: company.id.toUpperCase().replace(/-/g, ''),
+              organizationId: company.id,
+              name: company.name || 'Unknown Company',
+              currentPrice: company.currentPrice || company.initialPrice || 100,
+              changePercent24h: 0,
+              volume24h: 0,
+            };
           }
-        }
-        
-        return {
-          ticker: company.id.toUpperCase().replace(/-/g, ''),
-          organizationId: company.id,
-          name: company.name,
-          currentPrice,
-          changePercent24h,
-          volume24h: 0,
-        };
-      })
+        })
     );
 
     const topPerpGainers = perpMarketsWithStats
@@ -516,10 +632,20 @@ async function updateWidgetCaches(): Promise<number> {
         ? ((totalValue - totalDeposits) / totalDeposits) * 100 
         : 0;
 
+      // Safely extract npcActor name with multiple fallbacks
+      let npcActorName = 'Unknown';
+      try {
+        if (pool.npcActor && typeof pool.npcActor === 'object' && 'name' in pool.npcActor) {
+          npcActorName = pool.npcActor.name || 'Unknown';
+        }
+      } catch (e) {
+        logger.warn('Failed to extract npcActor name', { poolId: pool.id, error: e }, 'GameTick');
+      }
+
       return {
         id: pool.id,
         name: pool.name,
-        npcActorName: pool.npcActor?.name || 'Unknown',
+        npcActorName,
         totalReturn,
         totalValue,
       };
@@ -597,9 +723,13 @@ async function updateWidgetCaches(): Promise<number> {
       },
     });
 
-  cachesUpdated++;
-  logger.info('Updated markets widget cache', {}, 'GameTick');
+    cachesUpdated++;
+    logger.info('Updated markets widget cache', {}, 'GameTick');
 
-  return cachesUpdated;
+    return cachesUpdated;
+  } catch (error) {
+    logger.error('Failed to update widget caches', { error }, 'GameTick');
+    return 0;
+  }
 }
 

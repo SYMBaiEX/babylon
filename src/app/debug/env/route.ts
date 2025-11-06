@@ -33,7 +33,7 @@ export async function GET(_request: NextRequest) {
     // Get database info
     const result = await prisma.$queryRaw<Array<{ version: string }>>`SELECT version()`;
     if (result && result[0]) {
-      checks.prismaVersion = result[0].version.split(' ')[0];
+      checks.prismaVersion = result[0].version.split(' ')[0] || 'unknown';
     }
   } catch (error) {
     checks.databaseConnection = '❌ Failed';
