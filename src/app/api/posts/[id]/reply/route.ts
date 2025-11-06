@@ -44,8 +44,15 @@ export const POST = withErrorHandling(async (
 
     const { gameId, authorId: npcId, timestamp } = parseResult.metadata;
 
+    const displayName = user.walletAddress
+      ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+      : 'Anonymous';
+
+    const { user: dbUser } = await ensureUserForAuth(user, { displayName });
+    const canonicalUserId = dbUser.id;
+
     // 4. Check rate limiting
-    const rateLimitResult = await ReplyRateLimiter.canReply(user.userId, npcId);
+    const rateLimitResult = await ReplyRateLimiter.canReply(canonicalUserId, npcId);
 
     if (!rateLimitResult.allowed) {
       throw new BusinessLogicError(rateLimitResult.reason || 'Rate limit exceeded', 'RATE_LIMIT_EXCEEDED');
@@ -54,7 +61,7 @@ export const POST = withErrorHandling(async (
     // 5. Check message quality
     const qualityResult = await MessageQualityChecker.checkQuality(
       content,
-      user.userId,
+      canonicalUserId,
       'reply',
       postId
     );
@@ -64,12 +71,6 @@ export const POST = withErrorHandling(async (
     }
 
     // 6. Ensure user exists in database
-    const displayName = user.walletAddress
-      ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
-      : 'Anonymous';
-
-    await ensureUserForAuth(user, { displayName });
-
     // 7. Ensure post exists (upsert pattern)
     await prisma.post.upsert({
       where: { id: postId },
@@ -88,7 +89,7 @@ export const POST = withErrorHandling(async (
       data: {
         content: content.trim(),
         postId,
-        authorId: user.userId,
+        authorId: canonicalUserId,
       },
       include: {
         author: {
@@ -104,7 +105,7 @@ export const POST = withErrorHandling(async (
 
     // 9. Record the interaction
     await ReplyRateLimiter.recordReply(
-      user.userId,
+      canonicalUserId,
       npcId,
       postId,
       comment.id,
@@ -113,7 +114,7 @@ export const POST = withErrorHandling(async (
 
     // 10. Check for following chance
     const followingChance = await FollowingMechanics.calculateFollowingChance(
-      user.userId,
+      canonicalUserId,
       npcId,
       rateLimitResult.replyStreak || 0,
       qualityResult.score
@@ -122,7 +123,7 @@ export const POST = withErrorHandling(async (
     let followed = false;
     if (followingChance.willFollow) {
       await FollowingMechanics.recordFollow(
-        user.userId,
+        canonicalUserId,
         npcId,
         `Streak: ${rateLimitResult.replyStreak}, Quality: ${qualityResult.score.toFixed(2)}`
       );
@@ -133,12 +134,12 @@ export const POST = withErrorHandling(async (
     let invitedToChat = false;
     let chatInfo = null;
 
-    if (followed || (await FollowingMechanics.isFollowing(user.userId, npcId))) {
-      const inviteChance = await GroupChatInvite.calculateInviteChance(user.userId, npcId);
+    if (followed || (await FollowingMechanics.isFollowing(canonicalUserId, npcId))) {
+      const inviteChance = await GroupChatInvite.calculateInviteChance(canonicalUserId, npcId);
 
       if (inviteChance.willInvite && inviteChance.chatId && inviteChance.chatName) {
         await GroupChatInvite.recordInvite(
-          user.userId,
+          canonicalUserId,
           npcId,
           inviteChance.chatId,
           inviteChance.chatName
@@ -155,7 +156,7 @@ export const POST = withErrorHandling(async (
   // 12. Return success with all the feedback
   logger.info('Reply created successfully', {
     postId,
-    userId: user.userId,
+    userId: canonicalUserId,
     commentId: comment.id,
     followed,
     invitedToChat,

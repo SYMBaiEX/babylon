@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/database-service'
 import type { AuthenticatedUser } from '@/lib/api/auth-middleware'
-import type { Prisma } from '@prisma/client'
+import type { Prisma, User } from '@prisma/client'
 
 interface EnsureUserOptions {
   displayName?: string
@@ -8,7 +8,12 @@ interface EnsureUserOptions {
   isActor?: boolean
 }
 
-export async function ensureUserForAuth(user: AuthenticatedUser, options: EnsureUserOptions = {}): Promise<void> {
+type CanonicalUser = Pick<User, 'id' | 'privyId' | 'username' | 'displayName' | 'walletAddress' | 'isActor' | 'profileImageUrl'>
+
+export async function ensureUserForAuth(
+  user: AuthenticatedUser,
+  options: EnsureUserOptions = {}
+): Promise<{ user: CanonicalUser }> {
   const privyId = user.privyId ?? user.userId
 
   const updateData: Prisma.UserUpdateInput = {}
@@ -18,6 +23,12 @@ export async function ensureUserForAuth(user: AuthenticatedUser, options: Ensure
   }
   if (options.username !== undefined) {
     updateData.username = options.username
+  }
+  if (options.displayName !== undefined) {
+    updateData.displayName = options.displayName
+  }
+  if (options.isActor !== undefined) {
+    updateData.isActor = options.isActor
   }
 
   const createData: Prisma.UserCreateInput = {
@@ -36,9 +47,26 @@ export async function ensureUserForAuth(user: AuthenticatedUser, options: Ensure
     createData.username = options.username ?? null
   }
 
-  await prisma.user.upsert({
+  const canonicalUser = await prisma.user.upsert({
     where: { privyId },
     update: updateData,
     create: createData,
+    select: {
+      id: true,
+      privyId: true,
+      username: true,
+      displayName: true,
+      walletAddress: true,
+      isActor: true,
+      profileImageUrl: true,
+    },
   })
+
+  user.dbUserId = canonicalUser.id
+
+  return { user: canonicalUser }
+}
+
+export function getCanonicalUserId(user: Pick<AuthenticatedUser, 'userId' | 'dbUserId'>): string {
+  return user.dbUserId ?? user.userId
 }

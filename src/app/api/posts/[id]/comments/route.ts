@@ -10,7 +10,7 @@ import { CreateCommentSchema, IdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { notifyCommentOnPost, notifyReplyToComment } from '@/lib/services/notification-service';
 import { prisma } from '@/lib/database-service';
-import { ensureUserForAuth } from '@/lib/users/ensure-user';
+import { ensureUserForAuth, getCanonicalUserId } from '@/lib/users/ensure-user';
 import type { NextRequest } from 'next/server';
 
 /**
@@ -100,6 +100,8 @@ export const GET = withErrorHandling(async (
     throw new BusinessLogicError('Post ID is required', 'POST_ID_REQUIRED');
   }
 
+  const canonicalUserId = user ? getCanonicalUserId(user) : undefined;
+
   // Check if post exists
   const post = await prisma.post.findUnique({
     where: { id: postId },
@@ -133,10 +135,10 @@ export const GET = withErrorHandling(async (
             replies: true,
           },
         },
-        reactions: user
+        reactions: canonicalUserId
           ? {
               where: {
-                userId: user.userId,
+                userId: canonicalUserId,
                 type: 'like',
               },
               select: {
@@ -192,7 +194,8 @@ export const POST = withErrorHandling(async (
       ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
       : 'Anonymous';
 
-    await ensureUserForAuth(user, { displayName });
+    const { user: dbUser } = await ensureUserForAuth(user, { displayName });
+    const canonicalUserId = dbUser.id;
 
     // Check if post exists first
     const post = await prisma.post.findUnique({
@@ -302,7 +305,7 @@ export const POST = withErrorHandling(async (
       data: {
         content: content.trim(),
         postId,
-        authorId: user.userId,
+        authorId: canonicalUserId,
         parentCommentId: parentCommentId || null,
       },
       include: {
@@ -331,10 +334,10 @@ export const POST = withErrorHandling(async (
         where: { id: parentCommentId },
         select: { authorId: true },
       });
-      if (parentComment && parentComment.authorId !== user.userId) {
+      if (parentComment && parentComment.authorId !== canonicalUserId) {
         await notifyReplyToComment(
           parentComment.authorId,
-          user.userId,
+          canonicalUserId,
           postId,
           parentCommentId,
           comment.id
@@ -346,7 +349,7 @@ export const POST = withErrorHandling(async (
       if (
         postRecord && 
         postRecord.authorId && 
-        postRecord.authorId !== user.userId
+        postRecord.authorId !== canonicalUserId
       ) {
         // Check if the authorId references a User (not an Actor)
         const postAuthorUser = await prisma.user.findUnique({
@@ -357,7 +360,7 @@ export const POST = withErrorHandling(async (
         if (postAuthorUser) {
           await notifyCommentOnPost(
             postRecord.authorId,
-            user.userId,
+            canonicalUserId,
             postId,
             comment.id
           );
@@ -365,7 +368,7 @@ export const POST = withErrorHandling(async (
       }
     }
 
-  logger.info('Comment created successfully', { postId, userId: user.userId, commentId: comment.id, parentCommentId }, 'POST /api/posts/[id]/comments');
+  logger.info('Comment created successfully', { postId, userId: canonicalUserId, commentId: comment.id, parentCommentId }, 'POST /api/posts/[id]/comments');
 
   return successResponse(
     {

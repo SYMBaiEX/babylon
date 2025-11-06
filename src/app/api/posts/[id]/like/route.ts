@@ -31,7 +31,8 @@ export const POST = withErrorHandling(async (
       ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
       : 'Anonymous';
 
-    await ensureUserForAuth(user, { displayName });
+    const { user: dbUser } = await ensureUserForAuth(user, { displayName });
+    const canonicalUserId = dbUser.id;
 
     // Check if post exists first
     let post = await prisma.post.findUnique({
@@ -59,7 +60,7 @@ export const POST = withErrorHandling(async (
       where: {
         postId_userId_type: {
           postId,
-          userId: user.userId,
+          userId: canonicalUserId,
           type: 'like',
         },
       },
@@ -73,16 +74,16 @@ export const POST = withErrorHandling(async (
     await prisma.reaction.create({
       data: {
         postId,
-        userId: user.userId,
+        userId: canonicalUserId,
         type: 'like',
       },
     });
 
     // Create notification for post author (if not self-like)
-    if (post.authorId && post.authorId !== user.userId && post.authorId !== 'unknown') {
+    if (post.authorId && post.authorId !== canonicalUserId && post.authorId !== 'unknown') {
       await notifyReactionOnPost(
         post.authorId,
-        user.userId,
+        canonicalUserId,
         postId,
         'like'
       );
@@ -96,7 +97,7 @@ export const POST = withErrorHandling(async (
       },
     });
 
-  logger.info('Post liked successfully', { postId, userId: user.userId, likeCount }, 'POST /api/posts/[id]/like');
+  logger.info('Post liked successfully', { postId, userId: canonicalUserId, likeCount }, 'POST /api/posts/[id]/like');
 
   return successResponse({
     data: {
@@ -128,21 +129,22 @@ export const DELETE = withErrorHandling(async (
     ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
     : 'Anonymous';
 
-  await ensureUserForAuth(user, { displayName });
+  const { user: dbUser } = await ensureUserForAuth(user, { displayName });
+  const canonicalUserId = dbUser.id;
 
     // Find existing like
     const reaction = await prisma.reaction.findUnique({
       where: {
         postId_userId_type: {
           postId,
-          userId: user.userId,
+          userId: canonicalUserId,
           type: 'like',
         },
       },
     });
 
     if (!reaction) {
-      throw new NotFoundError('Like', `${postId}-${user.userId}`);
+      throw new NotFoundError('Like', `${postId}-${canonicalUserId}`);
     }
 
     // Delete like
@@ -160,7 +162,7 @@ export const DELETE = withErrorHandling(async (
       },
     });
 
-  logger.info('Post unliked successfully', { postId, userId: user.userId, likeCount }, 'DELETE /api/posts/[id]/like');
+  logger.info('Post unliked successfully', { postId, userId: canonicalUserId, likeCount }, 'DELETE /api/posts/[id]/like');
 
   return successResponse({
     data: {

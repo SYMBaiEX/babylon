@@ -9,7 +9,6 @@ import { gameService } from '@/lib/game-service';
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
 import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-middleware';
-import { BusinessLogicError } from '@/lib/errors';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '@/lib/logger';
 import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
@@ -340,30 +339,17 @@ export async function POST(request: NextRequest) {
       ? `${authUser.walletAddress.slice(0, 6)}...${authUser.walletAddress.slice(-4)}`
       : 'Anonymous';
 
-    await ensureUserForAuth(authUser, {
+    const { user: canonicalUser } = await ensureUserForAuth(authUser, {
       displayName: fallbackDisplayName,
     });
-
-    const dbUser = await prisma.user.findUnique({
-      where: { privyId: authUser.privyId ?? authUser.userId },
-      select: {
-        id: true,
-        username: true,
-        displayName: true,
-        profileImageUrl: true,
-      },
-    });
-
-    if (!dbUser) {
-      throw new BusinessLogicError('Unable to resolve user profile for posting', 'USER_NOT_FOUND');
-    }
+    const canonicalUserId = canonicalUser.id;
 
     // Create post
     const post = await prisma.post.create({
       data: {
         id: uuidv4(),
         content: content.trim(),
-        authorId: dbUser.id,
+        authorId: canonicalUserId,
         timestamp: new Date(),
       },
       include: {
@@ -374,7 +360,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Determine author name for display (prefer username or displayName, fallback to generated name)
-    const authorName = dbUser.username || dbUser.displayName || `user_${authUser.userId.slice(0, 8)}`;
+    const authorName = canonicalUser.username || canonicalUser.displayName || `user_${authUser.userId.slice(0, 8)}`;
 
     // Broadcast new post to SSE feed channel for real-time updates
     try {
@@ -385,9 +371,9 @@ export async function POST(request: NextRequest) {
           content: post.content,
           authorId: post.authorId,
           authorName: authorName,
-          authorUsername: dbUser.username,
-          authorDisplayName: dbUser.displayName,
-          authorProfileImageUrl: dbUser.profileImageUrl,
+          authorUsername: canonicalUser.username,
+          authorDisplayName: canonicalUser.displayName,
+          authorProfileImageUrl: canonicalUser.profileImageUrl,
           timestamp: post.timestamp.toISOString(),
         },
       });
@@ -404,9 +390,9 @@ export async function POST(request: NextRequest) {
         content: post.content,
         authorId: post.authorId,
         authorName: authorName,
-        authorUsername: dbUser.username,
-        authorDisplayName: dbUser.displayName,
-        authorProfileImageUrl: dbUser.profileImageUrl,
+          authorUsername: canonicalUser.username,
+          authorDisplayName: canonicalUser.displayName,
+          authorProfileImageUrl: canonicalUser.profileImageUrl,
         timestamp: post.timestamp.toISOString(),
         createdAt: post.createdAt.toISOString(),
       },
