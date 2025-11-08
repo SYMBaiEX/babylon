@@ -4,14 +4,15 @@
  */
 
 import type { NextRequest } from 'next/server';
+import { prisma } from '@/lib/database-service';
 import { authenticate } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { IdParamSchema } from '@/lib/validation/schemas';
 import { notifyReactionOnPost } from '@/lib/services/notification-service';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
+import { ensureUserForAuth } from '@/lib/users/ensure-user';
 
 /**
  * POST /api/posts/[id]/like
@@ -26,24 +27,15 @@ export const POST = withErrorHandling(async (
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { id: postId } = IdParamSchema.parse(params);
 
-  // Like post with RLS
-  const likeCount = await asUser(user, async (db) => {
-    // Ensure user exists in database (upsert pattern)
-    await db.user.upsert({
-      where: { id: user.userId },
-      update: {
-        walletAddress: user.walletAddress,
-      },
-      create: {
-        id: user.userId,
-        walletAddress: user.walletAddress,
-        displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-        isActor: false,
-      },
-    });
+    const displayName = user.walletAddress
+      ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+      : 'Anonymous';
+
+    const { user: dbUser } = await ensureUserForAuth(user, { displayName });
+    const canonicalUserId = dbUser.id;
 
     // Check if post exists first
-    let post = await db.post.findUnique({
+    let post = await prisma.post.findUnique({
       where: { id: postId },
       select: { id: true, authorId: true },
     });
@@ -52,7 +44,7 @@ export const POST = withErrorHandling(async (
       const parseResult = parsePostId(postId);
       const { gameId, authorId, timestamp } = parseResult.metadata;
 
-      post = await db.post.create({
+      post = await prisma.post.create({
         data: {
           id: postId,
           content: '[Game-generated post]',
@@ -64,11 +56,11 @@ export const POST = withErrorHandling(async (
     }
 
     // Check if already liked
-    const existingReaction = await db.reaction.findUnique({
+    const existingReaction = await prisma.reaction.findUnique({
       where: {
         postId_userId_type: {
           postId,
-          userId: user.userId,
+          userId: canonicalUserId,
           type: 'like',
         },
       },
@@ -79,36 +71,33 @@ export const POST = withErrorHandling(async (
     }
 
     // Create like reaction
-    await db.reaction.create({
+    await prisma.reaction.create({
       data: {
         postId,
-        userId: user.userId,
+        userId: canonicalUserId,
         type: 'like',
       },
     });
 
     // Create notification for post author (if not self-like)
-    if (post.authorId && post.authorId !== user.userId && post.authorId !== 'unknown') {
+    if (post.authorId && post.authorId !== canonicalUserId && post.authorId !== 'unknown') {
       await notifyReactionOnPost(
         post.authorId,
-        user.userId,
+        canonicalUserId,
         postId,
         'like'
       );
     }
 
     // Get updated like count
-    const count = await db.reaction.count({
+    const likeCount = await prisma.reaction.count({
       where: {
         postId,
         type: 'like',
       },
     });
 
-    return count;
-  });
-
-  logger.info('Post liked successfully', { postId, userId: user.userId, likeCount }, 'POST /api/posts/[id]/like');
+  logger.info('Post liked successfully', { postId, userId: canonicalUserId, likeCount }, 'POST /api/posts/[id]/like');
 
   return successResponse({
     data: {
@@ -135,56 +124,45 @@ export const DELETE = withErrorHandling(async (
     throw new BusinessLogicError('Post ID is required', 'POST_ID_REQUIRED');
   }
 
-  // Unlike post with RLS
-  const likeCount = await asUser(user, async (db) => {
     // Ensure user exists in database (upsert pattern)
-    await db.user.upsert({
-      where: { id: user.userId },
-      update: {
-        walletAddress: user.walletAddress,
-      },
-      create: {
-        id: user.userId,
-        walletAddress: user.walletAddress,
-        displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-        isActor: false,
-      },
-    });
+  const displayName = user.walletAddress
+    ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+    : 'Anonymous';
+
+  const { user: dbUser } = await ensureUserForAuth(user, { displayName });
+  const canonicalUserId = dbUser.id;
 
     // Find existing like
-    const reaction = await db.reaction.findUnique({
+    const reaction = await prisma.reaction.findUnique({
       where: {
         postId_userId_type: {
           postId,
-          userId: user.userId,
+          userId: canonicalUserId,
           type: 'like',
         },
       },
     });
 
     if (!reaction) {
-      throw new NotFoundError('Like', `${postId}-${user.userId}`);
+      throw new NotFoundError('Like', `${postId}-${canonicalUserId}`);
     }
 
     // Delete like
-    await db.reaction.delete({
+    await prisma.reaction.delete({
       where: {
         id: reaction.id,
       },
     });
 
     // Get updated like count
-    const count = await db.reaction.count({
+    const likeCount = await prisma.reaction.count({
       where: {
         postId,
         type: 'like',
       },
     });
 
-    return count;
-  });
-
-  logger.info('Post unliked successfully', { postId, userId: user.userId, likeCount }, 'DELETE /api/posts/[id]/like');
+  logger.info('Post unliked successfully', { postId, userId: canonicalUserId, likeCount }, 'DELETE /api/posts/[id]/like');
 
   return successResponse({
     data: {

@@ -4,12 +4,13 @@
  */
 
 import type { NextRequest } from 'next/server';
+import { prisma } from '@/lib/database-service';
 import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError } from '@/lib/errors';
 import { UserIdParamSchema, UserPostsQuerySchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
+import { requireUserByIdentifier } from '@/lib/users/user-lookup';
 
 /**
  * GET /api/users/[userId]/posts
@@ -21,36 +22,26 @@ export const GET = withErrorHandling(async (
 ) => {
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { userId } = UserIdParamSchema.parse(params);
+  const targetUser = await requireUserByIdentifier(userId, { id: true });
+  const canonicalUserId = targetUser.id;
   
   // Validate query parameters
   const { searchParams } = new URL(request.url);
   const queryParams = {
     type: searchParams.get('type') || 'posts',
-    page: searchParams.get('page') || '1',
-    limit: searchParams.get('limit') || '100'
+    page: searchParams.get('page') ?? undefined,
+    limit: searchParams.get('limit') ?? undefined,
   };
   const { type } = UserPostsQuerySchema.parse(queryParams);
 
   // Optional authentication
   const user = await optionalAuth(request);
 
-  // Get posts/replies with RLS
-  if (type === 'replies') {
-    const result = await asUser(user, async (db) => {
-      // Verify user exists first
-      const dbUser = await db.user.findUnique({
-        where: { id: userId },
-        select: { id: true },
-      });
-      
-      if (!dbUser) {
-        return { items: [], total: 0 };
-      }
-      
+    if (type === 'replies') {
       // Get user's comments (replies) - query by authorId
-      const comments = await db.comment.findMany({
+      const comments = await prisma.comment.findMany({
         where: {
-          authorId: dbUser.id,
+          authorId: canonicalUserId,
         },
         include: {
           post: {
@@ -90,7 +81,7 @@ export const GET = withErrorHandling(async (
       
       // Fetch User and Actor info for post authors
       const [postAuthorsUsers, postAuthorsActors] = await Promise.all([
-        db.user.findMany({
+        prisma.user.findMany({
           where: { id: { in: postAuthorIds } },
           select: {
             id: true,
@@ -99,7 +90,7 @@ export const GET = withErrorHandling(async (
             profileImageUrl: true,
           },
         }),
-        db.actor.findMany({
+        prisma.actor.findMany({
           where: { id: { in: postAuthorIds } },
           select: {
             id: true,
@@ -151,22 +142,19 @@ export const GET = withErrorHandling(async (
         };
       });
 
-      return { items: replies, total: replies.length };
-    });
+      logger.info('User replies fetched successfully', { userId: canonicalUserId, total: replies.length }, 'GET /api/users/[userId]/posts');
 
-    logger.info('User replies fetched successfully', { userId, total: result.total }, 'GET /api/users/[userId]/posts');
-
-    return successResponse({
-      type: 'replies',
-      items: result.items,
-      total: result.total,
-    });
-  } else {
-    // Get user's posts
-    const result = await asUser(user, async (db) => {
-      const posts = await db.post.findMany({
+      return successResponse({
+        type: 'replies',
+        items: replies,
+        total: replies.length,
+      });
+    } else {
+      // Get user's posts
+      const posts = await prisma.post.findMany({
         where: {
-          authorId: userId,
+          authorId: canonicalUserId,
+          // Exclude reposts (posts with replyTo field will be handled separately)
         },
         include: {
           _count: {
@@ -203,9 +191,9 @@ export const GET = withErrorHandling(async (
       });
 
       // Also get user's shares (reposts)
-      const shares = await db.share.findMany({
+      const shares = await prisma.share.findMany({
         where: {
-          userId: userId,
+          userId: canonicalUserId,
         },
         include: {
           post: {
@@ -233,8 +221,8 @@ export const GET = withErrorHandling(async (
       });
 
       // Fetch author info for the user (posts are all from userId)
-      const postAuthor = await db.user.findUnique({
-        where: { id: userId },
+      const postAuthor = await prisma.user.findUnique({
+        where: { id: canonicalUserId },
         select: {
           id: true,
           displayName: true,
@@ -248,7 +236,7 @@ export const GET = withErrorHandling(async (
       
       // Fetch User and Actor info for shared post authors
       const [sharedAuthorsUsers, sharedAuthorsActors] = await Promise.all([
-        db.user.findMany({
+        prisma.user.findMany({
           where: { id: { in: sharedPostAuthorIds } },
           select: {
             id: true,
@@ -257,7 +245,7 @@ export const GET = withErrorHandling(async (
             profileImageUrl: true,
           },
         }),
-        db.actor.findMany({
+        prisma.actor.findMany({
           where: { id: { in: sharedPostAuthorIds } },
           select: {
             id: true,
@@ -307,7 +295,7 @@ export const GET = withErrorHandling(async (
           likeCount: share.post._count.reactions,
           commentCount: share.post._count.comments,
           shareCount: share.post._count.shares,
-          isLiked: false,
+          isLiked: false, // Could check if user liked original post
           isShared: true,
           isRepost: true,
           originalPostId: share.post.id,
@@ -334,16 +322,12 @@ export const GET = withErrorHandling(async (
         (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
 
-      return { items: allItems, total: allItems.length };
-    });
+      logger.info('User posts fetched successfully', { userId: canonicalUserId, total: allItems.length }, 'GET /api/users/[userId]/posts');
 
-    logger.info('User posts fetched successfully', { userId, total: result.total }, 'GET /api/users/[userId]/posts');
-
-    return successResponse({
-      type: 'posts',
-      items: result.items,
-      total: result.total,
-    });
-  }
+      return successResponse({
+        type: 'posts',
+        items: allItems,
+        total: allItems.length,
+      });
+    }
 });
-

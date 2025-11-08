@@ -31,3 +31,6 @@ export * from './market';
 
 // Export all game/utility schemas
 export * from './game';
+
+// Export onboarding schemas
+export * from './onboarding';

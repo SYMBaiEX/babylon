@@ -4,13 +4,14 @@
  */
 
 import type { NextRequest } from 'next/server';
+import { prisma } from '@/lib/database-service';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asUser, asPublic } from '@/lib/db/context';
 import { BusinessLogicError, AuthorizationError } from '@/lib/errors';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
 import { WalletService } from '@/lib/services/wallet-service';
 import { logger } from '@/lib/logger';
+import { findUserByIdentifier } from '@/lib/users/user-lookup';
 /**
  * GET /api/users/[userId]/balance
  * Get user's virtual balance and stats
@@ -25,45 +26,30 @@ export const GET = withErrorHandling(async (
   // Optional authentication - check if user is requesting their own balance
   const authUser = await optionalAuth(request);
 
+  // Ensure user exists in database
+  let dbUser = await findUserByIdentifier(userId);
+
+  if (!dbUser) {
+    dbUser = await prisma.user.create({
+      data: {
+        id: userId,
+        privyId: userId,
+        isActor: false,
+      },
+    });
+  }
+
+  const canonicalUserId = dbUser.id;
+
   // If authenticated, ensure they're requesting their own balance
-  if (authUser && authUser.userId !== userId) {
+  if (authUser && authUser.userId !== canonicalUserId) {
     throw new AuthorizationError('Can only view your own balance', 'balance', 'read');
   }
 
-  // Ensure user exists in database with RLS
-  if (authUser) {
-    await asUser(authUser, async (db) => {
-      let dbUser = await db.user.findUnique({
-        where: { id: userId },
-      });
+  // Get balance info
+  const balanceInfo = await WalletService.getBalance(canonicalUserId);
 
-      if (!dbUser) {
-        // Create user if they don't exist yet
-        dbUser = await db.user.create({
-          data: {
-            id: userId,
-            isActor: false,
-          },
-        });
-      }
-    });
-  } else {
-    // Public access - just check if user exists
-    await asPublic(async (db) => {
-      const dbUser = await db.user.findUnique({
-        where: { id: userId },
-      });
-
-      if (!dbUser) {
-        throw new BusinessLogicError('User not found', 'USER_NOT_FOUND');
-      }
-    });
-  }
-
-  // Get balance info (WalletService handles its own queries)
-  const balanceInfo = await WalletService.getBalance(userId);
-
-  logger.info('Balance fetched successfully', { userId, balance: balanceInfo.balance }, 'GET /api/users/[userId]/balance');
+  logger.info('Balance fetched successfully', { userId: canonicalUserId, balance: balanceInfo.balance }, 'GET /api/users/[userId]/balance');
 
   return successResponse({
     balance: balanceInfo.balance,

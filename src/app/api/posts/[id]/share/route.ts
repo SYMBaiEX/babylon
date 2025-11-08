@@ -4,14 +4,15 @@
  */
 
 import type { NextRequest } from 'next/server';
+import { prisma } from '@/lib/database-service';
 import { authenticate } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { IdParamSchema, SharePostSchema } from '@/lib/validation/schemas';
 import { notifyShare } from '@/lib/services/notification-service';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
+import { ensureUserForAuth, getCanonicalUserId } from '@/lib/users/ensure-user';
 
 /**
  * POST /api/posts/[id]/share
@@ -32,24 +33,15 @@ export const POST = withErrorHandling(async (
     SharePostSchema.parse(body);
   }
 
-  // Share post with RLS
-  const { shareCount } = await asUser(user, async (db) => {
-    // Ensure user exists in database (upsert pattern)
-    await db.user.upsert({
-      where: { id: user.userId },
-      update: {
-        walletAddress: user.walletAddress,
-      },
-      create: {
-        id: user.userId,
-        walletAddress: user.walletAddress,
-        displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-        isActor: false,
-      },
-    });
+  const fallbackDisplayName = user.walletAddress
+    ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+    : 'Anonymous';
+
+  await ensureUserForAuth(user, { displayName: fallbackDisplayName });
+  const canonicalUserId = getCanonicalUserId(user);
 
     // Check if post exists first
-    let post = await db.post.findUnique({
+    const post = await prisma.post.findUnique({
       where: { id: postId },
     });
 
@@ -66,12 +58,12 @@ export const POST = withErrorHandling(async (
       const { gameId, authorId, timestamp } = parseResult.metadata;
 
       // Ensure post exists (upsert pattern)
-      post = await db.post.upsert({
+      await prisma.post.upsert({
         where: { id: postId },
-        update: {},
+        update: {},  // Don't update if exists
         create: {
           id: postId,
-          content: '[Game-generated post]',
+          content: '[Game-generated post]',  // Placeholder content
           authorId,
           gameId,
           timestamp,
@@ -80,10 +72,10 @@ export const POST = withErrorHandling(async (
     }
 
     // Check if already shared
-    const existingShare = await db.share.findUnique({
+    const existingShare = await prisma.share.findUnique({
       where: {
         userId_postId: {
-          userId: user.userId,
+        userId: canonicalUserId,
           postId,
         },
       },
@@ -94,19 +86,19 @@ export const POST = withErrorHandling(async (
     }
 
     // Create share record
-    await db.share.create({
+    await prisma.share.create({
       data: {
-        userId: user.userId,
+        userId: canonicalUserId,
         postId,
       },
     });
 
     // Create a repost post (like a retweet) that shows on user's profile and feed
     // Format: repost-{originalPostId}-{userId}-{timestamp}
-    const repostId = `repost-${postId}-${user.userId}-${Date.now()}`;
+    const repostId = `repost-${postId}-${canonicalUserId}-${Date.now()}`;
     
     // Get original post content for repost
-    const originalPost = await db.post.findUnique({
+    const originalPost = await prisma.post.findUnique({
       where: { id: postId },
       select: {
         content: true,
@@ -117,19 +109,21 @@ export const POST = withErrorHandling(async (
 
     if (originalPost) {
       // Create repost post with reference to original
-      await db.post.create({
+      // The content will be the original post content, displayed as a repost
+      await prisma.post.create({
         data: {
           id: repostId,
           content: originalPost.content,
-          authorId: user.userId,
+          authorId: canonicalUserId, // Repost author is the user who shared
           timestamp: new Date(),
+          // originalPostId: postId, // Store reference to original post - temporarily removed
         },
       });
     }
 
     // Create notification for post author (if not self-share)
     // Check if author is a User (not an Actor) before notifying
-    const postAuthor = await db.post.findUnique({
+    const postAuthor = await prisma.post.findUnique({
       where: { id: postId },
       select: {
         authorId: true,
@@ -139,10 +133,10 @@ export const POST = withErrorHandling(async (
     if (
       postAuthor &&
       postAuthor.authorId &&
-      postAuthor.authorId !== user.userId
+      postAuthor.authorId !== canonicalUserId
     ) {
       // Check if the authorId references a User (not an Actor)
-      const postAuthorUser = await db.user.findUnique({
+      const postAuthorUser = await prisma.user.findUnique({
         where: { id: postAuthor.authorId },
         select: { id: true },
       });
@@ -150,23 +144,20 @@ export const POST = withErrorHandling(async (
       if (postAuthorUser) {
         await notifyShare(
           postAuthor.authorId,
-          user.userId,
+          canonicalUserId,
           postId
         );
       }
     }
 
     // Get updated share count
-    const count = await db.share.count({
+    const shareCount = await prisma.share.count({
       where: {
         postId,
       },
     });
 
-    return { shareCount: count };
-  });
-
-  logger.info('Post shared successfully', { postId, userId: user.userId, shareCount }, 'POST /api/posts/[id]/share');
+  logger.info('Post shared successfully', { postId, userId: canonicalUserId, shareCount }, 'POST /api/posts/[id]/share');
 
   return successResponse(
     {
@@ -192,43 +183,35 @@ export const DELETE = withErrorHandling(async (
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { id: postId } = IdParamSchema.parse(params);
 
-  // Unshare post with RLS
-  const shareCount = await asUser(user, async (db) => {
-    // Ensure user exists in database (upsert pattern)
-    await db.user.upsert({
-      where: { id: user.userId },
-      update: {
-        walletAddress: user.walletAddress,
-      },
-      create: {
-        id: user.userId,
-        walletAddress: user.walletAddress,
-        displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-        isActor: false,
-      },
-    });
+  const fallbackDisplayName = user.walletAddress
+    ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+    : 'Anonymous';
+
+  await ensureUserForAuth(user, { displayName: fallbackDisplayName });
+  const canonicalUserId = getCanonicalUserId(user);
 
     // Find existing share
-    const share = await db.share.findUnique({
+    const share = await prisma.share.findUnique({
       where: {
         userId_postId: {
-          userId: user.userId,
+          userId: canonicalUserId,
           postId,
         },
       },
     });
 
     if (!share) {
-      throw new NotFoundError('Share', `${postId}-${user.userId}`);
+      throw new NotFoundError('Share', `${postId}-${canonicalUserId}`);
     }
 
     // Delete repost post if it exists
     // Repost posts have IDs like: repost-{originalPostId}-{userId}-{timestamp}
-    const repostIdPattern = `repost-${postId}-${user.userId}-`;
+    // Note: originalPostId field temporarily removed, using ID pattern matching instead
+    const repostIdPattern = `repost-${postId}-${canonicalUserId}-`;
     // Fetch all repost posts by this user and filter by pattern
-    const allReposts = await db.post.findMany({
+    const allReposts = await prisma.post.findMany({
       where: {
-        authorId: user.userId,
+        authorId: canonicalUserId,
         id: { contains: repostIdPattern },
       },
     });
@@ -236,7 +219,7 @@ export const DELETE = withErrorHandling(async (
 
     // Delete all repost posts for this share
     if (repostPosts.length > 0) {
-      await db.post.deleteMany({
+      await prisma.post.deleteMany({
         where: {
           id: {
             in: repostPosts.map((p) => p.id),
@@ -246,23 +229,20 @@ export const DELETE = withErrorHandling(async (
     }
 
     // Delete share
-    await db.share.delete({
+    await prisma.share.delete({
       where: {
         id: share.id,
       },
     });
 
     // Get updated share count
-    const count = await db.share.count({
+    const shareCount = await prisma.share.count({
       where: {
         postId,
       },
     });
 
-    return count;
-  });
-
-  logger.info('Post unshared successfully', { postId, userId: user.userId, shareCount }, 'DELETE /api/posts/[id]/share');
+  logger.info('Post unshared successfully', { postId, userId: canonicalUserId, shareCount }, 'DELETE /api/posts/[id]/share');
 
   return successResponse({
     data: {

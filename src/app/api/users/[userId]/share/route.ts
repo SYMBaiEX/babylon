@@ -7,7 +7,7 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware'
-import { asUser } from '@/lib/db/context'
+import { prisma } from '@/lib/database-service'
 import { AuthorizationError, BusinessLogicError } from '@/lib/errors'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger'
@@ -15,6 +15,7 @@ import { PointsService } from '@/lib/services/points-service'
 import { UserIdParamSchema, UUIDSchema } from '@/lib/validation/schemas'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 
 const ShareRequestSchema = z.object({
   platform: z.enum(['twitter', 'farcaster', 'link', 'telegram', 'discord']),
@@ -35,9 +36,11 @@ export const POST = withErrorHandling(async (
   const authUser = await authenticate(request);
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { userId } = UserIdParamSchema.parse(params);
+  const targetUser = await requireUserByIdentifier(userId, { id: true });
+  const canonicalUserId = targetUser.id;
 
   // Verify user is sharing their own content
-  if (authUser.userId !== userId) {
+  if (authUser.userId !== canonicalUserId) {
     throw new AuthorizationError('You can only track your own shares', 'share-action', 'create');
   }
 
@@ -45,42 +48,37 @@ export const POST = withErrorHandling(async (
   const body = await request.json();
   const { platform, contentType, contentId, url } = ShareRequestSchema.parse(body);
 
-  // Create share action with RLS
-  const { shareAction, pointsResult } = await asUser(authUser, async (db) => {
-    // Create share action record
-    const action = await db.shareAction.create({
-      data: {
-        userId,
-        platform,
-        contentType,
-        contentId,
-        url,
-        pointsAwarded: false,
-      },
-    });
-
-    // Award points for the share
-    const points = await PointsService.awardShareAction(
-      userId,
+  // Create share action record
+  const shareAction = await prisma.shareAction.create({
+    data: {
+      userId: canonicalUserId,
       platform,
       contentType,
-      contentId
-    );
-
-    // Update share action to mark points as awarded
-    if (points.success && points.pointsAwarded > 0) {
-      await db.shareAction.update({
-        where: { id: action.id },
-        data: { pointsAwarded: true },
-      });
-    }
-
-    return { shareAction: action, pointsResult: points };
+      contentId,
+      url,
+      pointsAwarded: false,
+    },
   });
 
+  // Award points for the share
+  const pointsResult = await PointsService.awardShareAction(
+    canonicalUserId,
+    platform,
+    contentType,
+    contentId
+  );
+
+  // Update share action to mark points as awarded
+  if (pointsResult.success && pointsResult.pointsAwarded > 0) {
+    await prisma.shareAction.update({
+      where: { id: shareAction.id },
+      data: { pointsAwarded: true },
+    });
+  }
+
   logger.info(
-    `User ${userId} shared ${contentType} on ${platform}`,
-    { userId, platform, contentType, contentId, pointsAwarded: pointsResult.pointsAwarded },
+    `User ${canonicalUserId} shared ${contentType} on ${platform}`,
+    { userId: canonicalUserId, platform, contentType, contentId, pointsAwarded: pointsResult.pointsAwarded },
     'POST /api/users/[userId]/share'
   );
 
@@ -93,4 +91,3 @@ export const POST = withErrorHandling(async (
     },
   });
 });
-

@@ -4,8 +4,9 @@
  */
 
 import type { NextRequest } from 'next/server';
+import { prisma } from '@/lib/database-service';
+import { ensureUserForAuth } from '@/lib/users/ensure-user';
 import { authenticate } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { IdParamSchema } from '@/lib/validation/schemas';
@@ -23,67 +24,56 @@ export const POST = withErrorHandling(async (
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { id: commentId } = IdParamSchema.parse(params);
 
-  // Like comment with RLS
-  const { reaction, likeCount } = await asUser(user, async (db) => {
-    // Ensure user exists in database (upsert pattern)
-    await db.user.upsert({
-      where: { id: user.userId },
-      update: {
-        walletAddress: user.walletAddress,
-      },
-      create: {
-        id: user.userId,
-        walletAddress: user.walletAddress,
-        displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-        isActor: false,
-      },
-    });
+  // Ensure user exists in database (upsert pattern)
+    const displayName = user.walletAddress
+      ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+      : 'Anonymous';
 
-    // Check if comment exists
-    const comment = await db.comment.findUnique({
-      where: { id: commentId },
-    });
+    const { user: dbUser } = await ensureUserForAuth(user, { displayName });
+    const canonicalUserId = dbUser.id;
 
-    if (!comment) {
-      throw new NotFoundError('Comment', commentId);
-    }
-
-    // Check if already liked
-    const existingReaction = await db.reaction.findUnique({
-      where: {
-        commentId_userId_type: {
-          commentId,
-          userId: user.userId,
-          type: 'like',
-        },
-      },
-    });
-
-    if (existingReaction) {
-      throw new BusinessLogicError('Comment already liked', 'ALREADY_LIKED');
-    }
-
-    // Create like reaction
-    const newReaction = await db.reaction.create({
-      data: {
-        commentId,
-        userId: user.userId,
-        type: 'like',
-      },
-    });
-
-    // Get updated like count
-    const count = await db.reaction.count({
-      where: {
-        commentId,
-        type: 'like',
-      },
-    });
-
-    return { reaction: newReaction, likeCount: count };
+  // Check if comment exists
+  const comment = await prisma.comment.findUnique({
+    where: { id: commentId },
   });
 
-  logger.info('Comment liked successfully', { commentId, userId: user.userId, likeCount }, 'POST /api/comments/[id]/like');
+  if (!comment) {
+    throw new NotFoundError('Comment', commentId);
+  }
+
+  // Check if already liked
+  const existingReaction = await prisma.reaction.findUnique({
+    where: {
+      commentId_userId_type: {
+        commentId,
+        userId: canonicalUserId,
+        type: 'like',
+      },
+    },
+  });
+
+  if (existingReaction) {
+    throw new BusinessLogicError('Comment already liked', 'ALREADY_LIKED');
+  }
+
+  // Create like reaction
+  const reaction = await prisma.reaction.create({
+    data: {
+      commentId,
+      userId: canonicalUserId,
+      type: 'like',
+    },
+  });
+
+  // Get updated like count
+  const likeCount = await prisma.reaction.count({
+    where: {
+      commentId,
+      type: 'like',
+    },
+  });
+
+  logger.info('Comment liked successfully', { commentId, userId: canonicalUserId, likeCount }, 'POST /api/comments/[id]/like');
 
   return successResponse(
     {
@@ -110,56 +100,45 @@ export const DELETE = withErrorHandling(async (
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { id: commentId } = IdParamSchema.parse(params);
 
-  // Unlike comment with RLS
-  const likeCount = await asUser(user, async (db) => {
-    // Ensure user exists in database (upsert pattern)
-    await db.user.upsert({
-      where: { id: user.userId },
-      update: {
-        walletAddress: user.walletAddress,
-      },
-      create: {
-        id: user.userId,
-        walletAddress: user.walletAddress,
-        displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-        isActor: false,
-      },
-    });
+  // Ensure user exists in database (upsert pattern)
+  const displayName = user.walletAddress
+    ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+    : 'Anonymous';
 
-    // Find existing like
-    const reaction = await db.reaction.findUnique({
-      where: {
-        commentId_userId_type: {
-          commentId,
-          userId: user.userId,
-          type: 'like',
-        },
-      },
-    });
+  const { user: dbUser } = await ensureUserForAuth(user, { displayName });
+  const canonicalUserId = dbUser.id;
 
-    if (!reaction) {
-      throw new NotFoundError('Like', `${commentId}-${user.userId}`);
-    }
-
-    // Delete like
-    await db.reaction.delete({
-      where: {
-        id: reaction.id,
-      },
-    });
-
-    // Get updated like count
-    const count = await db.reaction.count({
-      where: {
+  // Find existing like
+  const reaction = await prisma.reaction.findUnique({
+    where: {
+      commentId_userId_type: {
         commentId,
+        userId: canonicalUserId,
         type: 'like',
       },
-    });
-
-    return count;
+    },
   });
 
-  logger.info('Comment unliked successfully', { commentId, userId: user.userId, likeCount }, 'DELETE /api/comments/[id]/like');
+  if (!reaction) {
+    throw new NotFoundError('Like', `${commentId}-${canonicalUserId}`);
+  }
+
+  // Delete like
+  await prisma.reaction.delete({
+    where: {
+      id: reaction.id,
+    },
+  });
+
+  // Get updated like count
+  const likeCount = await prisma.reaction.count({
+    where: {
+      commentId,
+      type: 'like',
+    },
+  });
+
+  logger.info('Comment unliked successfully', { commentId, userId: canonicalUserId, likeCount }, 'DELETE /api/comments/[id]/like');
 
   return successResponse({
     commentId,

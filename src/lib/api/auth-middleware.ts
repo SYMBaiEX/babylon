@@ -5,6 +5,8 @@
  */
 
 import { verifyAgentSession } from '@/lib/auth/agent-auth';
+import { prisma } from '@/lib/database-service';
+import { logger } from '@/lib/logger';
 import { PrivyClient } from '@privy-io/server-auth';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -15,6 +17,15 @@ import type { ErrorLike, JsonValue } from '@/types/common';
 export type AuthenticationError = Error & {
   code: 'AUTH_FAILED';
 };
+
+export function isAuthenticationError(error: unknown): error is AuthenticationError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === 'AUTH_FAILED'
+  );
+}
 
 export function extractErrorMessage(error: Error | ErrorLike | string | unknown): string {
   if (error instanceof Error) {
@@ -35,7 +46,7 @@ export function extractErrorMessage(error: Error | ErrorLike | string | unknown)
 // Lazy initialization of Privy client to prevent build-time errors
 let privyClient: PrivyClient | null = null;
 
-function getPrivyClient(): PrivyClient {
+export function getPrivyClient(): PrivyClient {
   if (!privyClient) {
     const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
     const privyAppSecret = process.env.PRIVY_APP_SECRET;
@@ -51,6 +62,8 @@ function getPrivyClient(): PrivyClient {
 
 export interface AuthenticatedUser {
   userId: string;
+  dbUserId?: string;
+  privyId?: string;
   walletAddress?: string;
   email?: string;
   isAgent?: boolean;
@@ -76,6 +89,7 @@ export async function authenticate(request: NextRequest): Promise<AuthenticatedU
   if (agentSession) {
     return {
       userId: agentSession.agentId,
+      privyId: agentSession.agentId,
       isAgent: true,
     };
   }
@@ -85,9 +99,28 @@ export async function authenticate(request: NextRequest): Promise<AuthenticatedU
     const privy = getPrivyClient();
     const claims = await privy.verifyAuthToken(token);
 
+    let dbUserId: string | undefined;
+    let walletAddress: string | undefined;
+
+    try {
+      const dbUser = await prisma.user.findUnique({
+        where: { privyId: claims.userId },
+        select: { id: true, walletAddress: true },
+      });
+
+      if (dbUser) {
+        dbUserId = dbUser.id;
+        walletAddress = dbUser.walletAddress ?? undefined;
+      }
+    } catch (lookupError) {
+      logger.warn('Failed to resolve database user after Privy auth', { privyId: claims.userId, error: lookupError }, 'authenticate');
+    }
+
     return {
-      userId: claims.userId,
-      walletAddress: undefined, // Would need to fetch from Privy user
+      userId: dbUserId ?? claims.userId,
+      dbUserId,
+      privyId: claims.userId,
+      walletAddress,
       email: undefined,
       isAgent: false,
     };

@@ -8,12 +8,12 @@
 import { gameService } from '@/lib/game-service';
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
-import { authenticate, errorResponse, successResponse, optionalAuth } from '@/lib/api/auth-middleware';
-import { asUser, asPublic } from '@/lib/db/context';
+import { authenticate, errorResponse, successResponse, isAuthenticationError } from '@/lib/api/auth-middleware';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '@/lib/logger';
 import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
-import type { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
+import { ensureUserForAuth } from '@/lib/users/ensure-user';
 
 /**
  * Safely convert a date value to ISO string
@@ -52,85 +52,33 @@ export async function GET(request: Request) {
 
     // If following feed is requested, filter by followed users/actors
     if (following && userId) {
-      const authUser = await optionalAuth(request as NextRequest).catch(() => null);
-      
-      const dbOperation = async (db: PrismaClient) => {
-        // Get list of followed users
-        const userFollows = await db.follow.findMany({
-          where: {
-            followerId: userId,
-          },
-          select: {
-            followingId: true,
-          },
-        });
+      // Get list of followed users
+      const userFollows = await prisma.follow.findMany({
+        where: {
+          followerId: userId,
+        },
+        select: {
+          followingId: true,
+        },
+      });
 
-        // Get list of followed actors
-        const actorFollows = await db.followStatus.findMany({
-          where: {
-            userId: userId,
-            isActive: true,
-          },
-          select: {
-            npcId: true,
-          },
-        });
+      // Get list of followed actors
+      const actorFollows = await prisma.followStatus.findMany({
+        where: {
+          userId: userId,
+          isActive: true,
+        },
+        select: {
+          npcId: true,
+        },
+      });
 
-        const followedUserIds = userFollows.map((f) => f.followingId);
-        const followedActorIds = actorFollows.map((f) => f.npcId);
-        const allFollowedIds = [...followedUserIds, ...followedActorIds];
+      const followedUserIds = userFollows.map((f) => f.followingId);
+      const followedActorIds = actorFollows.map((f) => f.npcId);
+      const allFollowedIds = [...followedUserIds, ...followedActorIds];
 
-        if (allFollowedIds.length === 0) {
-          return { posts: [], users: [], reactions: [], comments: [], shares: [] };
-        }
-
-        // Get posts from followed users/actors
-        const posts = await db.post.findMany({
-          where: {
-            authorId: { in: allFollowedIds },
-          },
-          orderBy: {
-            timestamp: 'desc',
-          },
-          take: limit,
-          skip: offset,
-        });
-
-        // Get user data for posts
-        const authorIds = [...new Set(posts.map(p => p.authorId))];
-        const users = await db.user.findMany({
-          where: { id: { in: authorIds } },
-          select: { id: true, username: true, displayName: true },
-        });
-        
-        // Get interaction counts for all posts in parallel
-        const postIds = posts.map(p => p.id);
-        const [allReactions, allComments, allShares] = await Promise.all([
-          db.reaction.groupBy({
-            by: ['postId'],
-            where: { postId: { in: postIds }, type: 'like' },
-            _count: { postId: true },
-          }),
-          db.comment.groupBy({
-            by: ['postId'],
-            where: { postId: { in: postIds } },
-            _count: { postId: true },
-          }),
-          db.share.groupBy({
-            by: ['postId'],
-            where: { postId: { in: postIds } },
-            _count: { postId: true },
-          }),
-        ]);
-
-        return { posts, users, reactions: allReactions, comments: allComments, shares: allShares };
-      }
-
-      const result = authUser 
-        ? await asUser(authUser, dbOperation)
-        : await asPublic(dbOperation)
-
-      if (result.posts.length === 0) {
+      if (allFollowedIds.length === 0) {
+        // User is not following anyone
         return NextResponse.json({
           success: true,
           posts: [],
@@ -141,14 +89,54 @@ export async function GET(request: Request) {
         });
       }
 
-      const userMap = new Map(result.users.map(u => [u.id, u]));
-      const reactionMap = new Map(result.reactions.map(r => [r.postId, r._count.postId]));
-      const commentMap = new Map(result.comments.map(c => [c.postId, c._count.postId]));
-      const shareMap = new Map(result.shares.map(s => [s.postId, s._count.postId]));
+      // Get posts from followed users/actors
+      const posts = await prisma.post.findMany({
+        where: {
+          authorId: { in: allFollowedIds },
+        },
+        orderBy: {
+          timestamp: 'desc',
+        },
+        take: limit,
+        skip: offset,
+      });
+
+      // Get user data for posts
+      const authorIds = [...new Set(posts.map(p => p.authorId))];
+      const users = await prisma.user.findMany({
+        where: { id: { in: authorIds } },
+        select: { id: true, username: true, displayName: true },
+      });
+      const userMap = new Map(users.map(u => [u.id, u]));
+      
+      // Get interaction counts for all posts in parallel
+      const postIds = posts.map(p => p.id);
+      const [allReactions, allComments, allShares] = await Promise.all([
+        prisma.reaction.groupBy({
+          by: ['postId'],
+          where: { postId: { in: postIds }, type: 'like' },
+          _count: { postId: true },
+        }),
+        prisma.comment.groupBy({
+          by: ['postId'],
+          where: { postId: { in: postIds } },
+          _count: { postId: true },
+        }),
+        prisma.share.groupBy({
+          by: ['postId'],
+          where: { postId: { in: postIds } },
+          _count: { postId: true },
+        }),
+      ]);
+      
+      // Create maps for quick lookup
+      const reactionMap = new Map(allReactions.map(r => [r.postId, r._count.postId]));
+      const commentMap = new Map(allComments.map(c => [c.postId, c._count.postId]));
+      const shareMap = new Map(allShares.map(s => [s.postId, s._count.postId]));
       
       return NextResponse.json({
         success: true,
-        posts: result.posts.map((post) => {
+        posts: posts.map((post) => {
           const user = userMap.get(post.authorId);
           return {
             id: post.id,
@@ -166,7 +154,7 @@ export async function GET(request: Request) {
             isShared: false,
           };
         }),
-        total: result.posts.length,
+        total: posts.length,
         limit,
         offset,
         source: 'following',
@@ -205,47 +193,36 @@ export async function GET(request: Request) {
     
     // Get unique author IDs to fetch user data
     const authorIds = [...new Set(posts.map(p => p.authorId))];
-    const authUser = await optionalAuth(request as NextRequest).catch(() => null);
-    
-    const dbOperation2 = async (db: PrismaClient) => {
-      const usrs = await db.user.findMany({
-        where: { id: { in: authorIds } },
-        select: { id: true, username: true, displayName: true, profileImageUrl: true },
-      });
-      
-      // Get interaction counts for all posts in parallel
-      const postIds = posts.map(p => p.id);
-      const [allReactions, allComments, allShares] = await Promise.all([
-        db.reaction.groupBy({
-          by: ['postId'],
-          where: { postId: { in: postIds }, type: 'like' },
-          _count: { postId: true },
-        }),
-        db.comment.groupBy({
-          by: ['postId'],
-          where: { postId: { in: postIds } },
-          _count: { postId: true },
-        }),
-        db.share.groupBy({
-          by: ['postId'],
-          where: { postId: { in: postIds } },
-          _count: { postId: true },
-        }),
-      ]);
-      
-      return { users: usrs, reactions: allReactions, comments: allComments, shares: allShares };
-    }
-
-    const { users, reactions, comments, shares } = authUser 
-      ? await asUser(authUser, dbOperation2)
-      : await asPublic(dbOperation2)
-    
+    const users = await prisma.user.findMany({
+      where: { id: { in: authorIds } },
+      select: { id: true, username: true, displayName: true, profileImageUrl: true },
+    });
     const userMap = new Map(users.map(u => [u.id, u]));
     
+    // Get interaction counts for all posts in parallel
+    const postIds = posts.map(p => p.id);
+    const [allReactions, allComments, allShares] = await Promise.all([
+      prisma.reaction.groupBy({
+        by: ['postId'],
+        where: { postId: { in: postIds }, type: 'like' },
+        _count: { postId: true },
+      }),
+      prisma.comment.groupBy({
+        by: ['postId'],
+        where: { postId: { in: postIds } },
+        _count: { postId: true },
+      }),
+      prisma.share.groupBy({
+        by: ['postId'],
+        where: { postId: { in: postIds } },
+        _count: { postId: true },
+      }),
+    ]);
+    
     // Create maps for quick lookup
-    const reactionMap = new Map(reactions.map(r => [r.postId, r._count.postId]));
-    const commentMap = new Map(comments.map(c => [c.postId, c._count.postId]));
-    const shareMap = new Map(shares.map(s => [s.postId, s._count.postId]));
+    const reactionMap = new Map(allReactions.map(r => [r.postId, r._count.postId]));
+    const commentMap = new Map(allComments.map(c => [c.postId, c._count.postId]));
+    const shareMap = new Map(allShares.map(s => [s.postId, s._count.postId]));
     
     // Format posts to match FeedPost interface
     const formattedPosts = posts.map((post) => {
@@ -358,54 +335,32 @@ export async function POST(request: NextRequest) {
       return errorResponse('Post content must be 280 characters or less', 400);
     }
 
-    // Ensure user exists in database and fetch with username/displayName
-    const { dbUser, post } = await asUser(authUser, async (db) => {
-      let usr = await db.user.findUnique({
-        where: { id: authUser.userId },
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-          profileImageUrl: true,
-        },
-      });
+    const fallbackDisplayName = authUser.walletAddress
+      ? `${authUser.walletAddress.slice(0, 6)}...${authUser.walletAddress.slice(-4)}`
+      : 'Anonymous';
 
-      if (!usr) {
-        // Create user if they don't exist yet
-        usr = await db.user.create({
-          data: {
-            id: authUser.userId,
-            isActor: false,
-          },
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            profileImageUrl: true,
-          },
-        });
-      }
+    const { user: canonicalUser } = await ensureUserForAuth(authUser, {
+      displayName: fallbackDisplayName,
+    });
+    const canonicalUserId = canonicalUser.id;
 
-      // Create post
-      const newPost = await db.post.create({
-        data: {
-          id: uuidv4(),
-          content: content.trim(),
-          authorId: authUser.userId,
-          timestamp: new Date(),
-        },
-        include: {
-          comments: false,
-          reactions: false,
-          shares: false,
-        },
-      });
-
-      return { dbUser: usr, post: newPost };
+    // Create post
+    const post = await prisma.post.create({
+      data: {
+        id: uuidv4(),
+        content: content.trim(),
+        authorId: canonicalUserId,
+        timestamp: new Date(),
+      },
+      include: {
+        comments: false,
+        reactions: false,
+        shares: false,
+      },
     });
 
     // Determine author name for display (prefer username or displayName, fallback to generated name)
-    const authorName = dbUser.username || dbUser.displayName || `user_${authUser.userId.slice(0, 8)}`;
+    const authorName = canonicalUser.username || canonicalUser.displayName || `user_${authUser.userId.slice(0, 8)}`;
 
     // Broadcast new post to SSE feed channel for real-time updates
     try {
@@ -416,9 +371,9 @@ export async function POST(request: NextRequest) {
           content: post.content,
           authorId: post.authorId,
           authorName: authorName,
-          authorUsername: dbUser.username,
-          authorDisplayName: dbUser.displayName,
-          authorProfileImageUrl: dbUser.profileImageUrl,
+          authorUsername: canonicalUser.username,
+          authorDisplayName: canonicalUser.displayName,
+          authorProfileImageUrl: canonicalUser.profileImageUrl,
           timestamp: post.timestamp.toISOString(),
         },
       });
@@ -435,9 +390,9 @@ export async function POST(request: NextRequest) {
         content: post.content,
         authorId: post.authorId,
         authorName: authorName,
-        authorUsername: dbUser.username,
-        authorDisplayName: dbUser.displayName,
-        authorProfileImageUrl: dbUser.profileImageUrl,
+          authorUsername: canonicalUser.username,
+          authorDisplayName: canonicalUser.displayName,
+          authorProfileImageUrl: canonicalUser.profileImageUrl,
         timestamp: post.timestamp.toISOString(),
         createdAt: post.createdAt.toISOString(),
       },
@@ -445,8 +400,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error('Error creating post:', error, 'POST /api/posts');
     
-    if (error instanceof Error && error.message === 'Authentication failed') {
-      return errorResponse('Authentication required', 401);
+    if (isAuthenticationError(error)) {
+      const message =
+        (error instanceof Error && error.message) || 'Authentication required';
+      return errorResponse(message, 401);
     }
     
     return errorResponse('Failed to create post', 500);

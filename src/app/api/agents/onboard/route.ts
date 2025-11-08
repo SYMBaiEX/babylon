@@ -120,6 +120,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         bio: `Autonomous AI agent: ${agentId}`,
       },
       create: {
+        privyId: agentId,
         username: agentId,
         displayName: agentName || agentId,
         virtualBalance: 10000, // Start with 10k points
@@ -421,4 +422,3 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     agentId,
   })
 });
-

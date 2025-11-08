@@ -2,7 +2,7 @@
 
 import { logger } from '@/lib/logger'
 import { usePrivy } from '@privy-io/react-auth'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 interface LoginModalProps {
   isOpen: boolean
@@ -13,6 +13,7 @@ interface LoginModalProps {
 
 export function LoginModal({ isOpen, onClose, title, message }: LoginModalProps) {
   const { login, authenticated, ready } = usePrivy()
+  const attemptedLoginRef = useRef(false)
 
   // Close modal when user logs in
   useEffect(() => {
@@ -23,7 +24,13 @@ export function LoginModal({ isOpen, onClose, title, message }: LoginModalProps)
 
   // Trigger Privy's built-in login modal when this component opens
   useEffect(() => {
-    if (isOpen && ready && !authenticated) {
+    if (!isOpen || !ready || authenticated) {
+      attemptedLoginRef.current = false
+      return
+    }
+
+    if (!attemptedLoginRef.current) {
+      attemptedLoginRef.current = true
       login()
     }
   }, [isOpen, ready, authenticated, login])
@@ -41,4 +48,3 @@ export function LoginModal({ isOpen, onClose, title, message }: LoginModalProps)
   // This component just triggers Privy's native modal, no custom UI needed
   return null
 }
-

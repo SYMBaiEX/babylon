@@ -7,12 +7,13 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
+import { prisma } from '@/lib/database-service';
 import { AuthorizationError, BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { ReferralQuerySchema, UserIdParamSchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
+import { requireUserByIdentifier } from '@/lib/users/user-lookup';
 
 /**
  * GET /api/users/[userId]/referrals
@@ -26,6 +27,8 @@ export const GET = withErrorHandling(async (
   const authUser = await authenticate(request);
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { userId } = UserIdParamSchema.parse(params);
+  const targetUser = await requireUserByIdentifier(userId, { id: true });
+  const canonicalUserId = targetUser.id;
   
   // Validate query parameters
   const { searchParams } = new URL(request.url);
@@ -36,81 +39,76 @@ export const GET = withErrorHandling(async (
   ReferralQuerySchema.parse(queryParams);
 
   // Verify user is accessing their own referrals
-  if (authUser.userId !== userId) {
+  if (authUser.userId !== canonicalUserId) {
     throw new AuthorizationError('You can only access your own referrals', 'referrals', 'read');
   }
 
-  // Get referrals with RLS
-  const { user, referrals, followStatuses } = await asUser(authUser, async (db) => {
-    // Get user's referral data
-    const usr = await db.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        username: true,
-        displayName: true,
-        bio: true,
-        profileImageUrl: true,
-        referralCode: true,
-        referralCount: true,
-        reputationPoints: true,
-        pointsAwardedForProfile: true,
-        pointsAwardedForFarcaster: true,
-        pointsAwardedForTwitter: true,
-        pointsAwardedForWallet: true,
-        farcasterUsername: true,
-        twitterUsername: true,
-        walletAddress: true,
-      },
-    });
+  // Get user's referral data
+  const user = await prisma.user.findUnique({
+    where: { id: canonicalUserId },
+    select: {
+      id: true,
+      username: true,
+      displayName: true,
+      bio: true,
+      profileImageUrl: true,
+      referralCode: true,
+      referralCount: true,
+      reputationPoints: true,
+      pointsAwardedForProfile: true,
+      pointsAwardedForFarcaster: true,
+      pointsAwardedForTwitter: true,
+      pointsAwardedForWallet: true,
+      farcasterUsername: true,
+      twitterUsername: true,
+      walletAddress: true,
+    },
+  });
 
-    if (!usr) {
-      throw new NotFoundError('User', userId);
-    }
+  if (!user) {
+    throw new NotFoundError('User', canonicalUserId);
+  }
 
-    // Get all completed referrals
-    const refs = await db.referral.findMany({
-      where: {
-        referrerId: userId,
-        status: 'completed',
-      },
-      include: {
-        referredUser: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            profileImageUrl: true,
-            createdAt: true,
-            reputationPoints: true,
-          },
+  // Get all completed referrals
+  const referrals = await prisma.referral.findMany({
+    where: {
+      referrerId: canonicalUserId,
+      status: 'completed',
+    },
+    include: {
+      referredUser: {
+        select: {
+          id: true,
+          username: true,
+          displayName: true,
+          profileImageUrl: true,
+          createdAt: true,
+          reputationPoints: true,
         },
       },
-      orderBy: {
-        completedAt: 'desc',
-      },
-    });
-
-    // Check if referrer (current user) is following the referred users
-    const referredUserIds = refs
-      .map(r => r.referredUserId)
-      .filter((id): id is string => id !== null);
-
-    const follows = await db.follow.findMany({
-      where: {
-        followerId: userId,
-        followingId: { in: referredUserIds },
-      },
-      select: {
-        followingId: true,
-      },
-    });
-
-    return { user: usr, referrals: refs, followStatuses: follows };
+    },
+    orderBy: {
+      completedAt: 'desc',
+    },
   });
 
   // Calculate total points earned from referrals
   const totalPointsEarned = referrals.length * 250;
+
+  // Check if referrer (current user) is following the referred users
+  const referredUserIds = referrals
+    .map(r => r.referredUserId)
+    .filter((id): id is string => id !== null);
+
+  const followStatuses = await prisma.follow.findMany({
+    where: {
+      followerId: canonicalUserId,
+      followingId: { in: referredUserIds },
+    },
+    select: {
+      followingId: true,
+    },
+  });
 
   const followingUserIds = new Set(followStatuses.map(f => f.followingId));
 
@@ -134,7 +132,7 @@ export const GET = withErrorHandling(async (
     ? `${process.env.NEXT_PUBLIC_APP_URL || 'https://babylon.game'}?ref=${referralCode}`
     : null;
 
-  logger.info('Referrals fetched successfully', { userId, totalReferrals: referrals.length }, 'GET /api/users/[userId]/referrals');
+  logger.info('Referrals fetched successfully', { userId: canonicalUserId, totalReferrals: referrals.length }, 'GET /api/users/[userId]/referrals');
 
   return successResponse({
     user: {
@@ -163,4 +161,3 @@ export const GET = withErrorHandling(async (
     referralUrl,
   });
 });
-

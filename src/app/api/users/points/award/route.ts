@@ -5,14 +5,15 @@
  * Tracks transactions for transparency
  */
 
-import { successResponse, optionalAuth } from '@/lib/api/auth-middleware'
-import { asSystem, asUser } from '@/lib/db/context'
-import { BusinessLogicError, NotFoundError } from '@/lib/errors'
+import { successResponse } from '@/lib/api/auth-middleware'
+import { prisma } from '@/lib/database-service'
+import { BusinessLogicError } from '@/lib/errors'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger'
 import { AwardPointsSchema, UserIdParamSchema } from '@/lib/validation/schemas'
 import { Prisma } from '@prisma/client'
 import type { NextRequest } from 'next/server'
+import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 
 /**
  * POST /api/users/points/award
@@ -23,61 +24,49 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const body = await request.json();
   const { userId, points: amount, reason, description } = AwardPointsSchema.parse(body);
 
-  // Award points with RLS (system operation - admin awarding points)
-  const { transaction, updatedUser } = await asSystem(async (db) => {
-    // Verify user exists and get current balance
-    const user = await db.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        virtualBalance: true,
-        totalDeposited: true,
-      },
-    });
-
-    if (!user) {
-      throw new NotFoundError('User', userId);
-    }
-
-    // Calculate balance changes
-    const balanceBefore = new Prisma.Decimal(user.virtualBalance.toString());
-    const amountDecimal = new Prisma.Decimal(amount);
-    const balanceAfter = balanceBefore.plus(amountDecimal);
-
-    // Award points by creating a deposit transaction
-    const tx = await db.balanceTransaction.create({
-      data: {
-        userId: user.id,
-        type: 'deposit',
-        amount: amountDecimal,
-        balanceBefore,
-        balanceAfter,
-        description: description || reason, // Use custom description if provided, otherwise use reason enum
-      },
-    });
-
-    // Update user's virtual balance
-    const updated = await db.user.update({
-      where: { id: user.id },
-      data: {
-        virtualBalance: {
-          increment: amount,
-        },
-        totalDeposited: {
-          increment: amount,
-        },
-      },
-      select: {
-        id: true,
-        virtualBalance: true,
-        totalDeposited: true,
-      },
-    });
-
-    return { transaction: tx, updatedUser: updated };
+  // Verify user exists and get current balance
+  const user = await requireUserByIdentifier(userId, {
+    id: true,
+    virtualBalance: true,
+    totalDeposited: true,
   });
 
-  logger.info(`Successfully awarded ${amount} points`, { userId, amount, reason }, 'POST /api/users/points/award');
+  // Calculate balance changes
+  const balanceBefore = new Prisma.Decimal(user.virtualBalance.toString());
+  const amountDecimal = new Prisma.Decimal(amount);
+  const balanceAfter = balanceBefore.plus(amountDecimal);
+
+  // Award points by creating a deposit transaction
+  const transaction = await prisma.balanceTransaction.create({
+    data: {
+      userId: user.id,
+      type: 'deposit',
+      amount: amountDecimal,
+      balanceBefore,
+      balanceAfter,
+      description: description || reason, // Use custom description if provided, otherwise use reason enum
+    },
+  });
+
+  // Update user's virtual balance
+  const updatedUser = await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      virtualBalance: {
+        increment: amount,
+      },
+      totalDeposited: {
+        increment: amount,
+      },
+    },
+    select: {
+      id: true,
+      virtualBalance: true,
+      totalDeposited: true,
+    },
+  });
+
+  logger.info(`Successfully awarded ${amount} points`, { userId: user.id, amount, reason }, 'POST /api/users/points/award');
 
   return successResponse({
     message: `Successfully awarded ${amount} points`,
@@ -111,32 +100,29 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   
   // Validate userId format
   const { userId } = UserIdParamSchema.parse({ userId: userIdParam });
+  const targetUser = await requireUserByIdentifier(userId, { id: true });
+  const canonicalUserId = targetUser.id;
 
-  // Optional auth - user can view their own history, admin can view any
-  const authUser = await optionalAuth(request).catch(() => null);
-
-  // Fetch deposit transactions (points awards) with RLS
-  const transactions = await asUser(authUser, async (db) => {
-    return await db.balanceTransaction.findMany({
-      where: {
-        userId,
-        type: 'deposit',
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      select: {
-        id: true,
-        amount: true,
-        description: true,
-        createdAt: true,
-        balanceBefore: true,
-        balanceAfter: true,
-      },
-    });
+  // Fetch deposit transactions (points awards)
+  const transactions = await prisma.balanceTransaction.findMany({
+    where: {
+      userId: canonicalUserId,
+      type: 'deposit',
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+    select: {
+      id: true,
+      amount: true,
+      description: true,
+      createdAt: true,
+      balanceBefore: true,
+      balanceAfter: true,
+    },
   });
 
-  logger.info('Points award history fetched', { userId, transactionCount: transactions.length }, 'GET /api/users/points/award');
+  logger.info('Points award history fetched', { userId: canonicalUserId, transactionCount: transactions.length }, 'GET /api/users/points/award');
 
   return successResponse({
     transactions: transactions.map(tx => ({
