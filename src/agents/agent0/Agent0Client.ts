@@ -16,9 +16,9 @@ import type {
   Agent0AgentProfile
 } from './types'
 
-// Import types from agent0-sdk (these are type-only imports, safe for static import)
+// Import SDK and types from agent0-sdk
+import { SDK } from 'agent0-sdk'
 import type { 
-  SDK, 
   SDKConfig, 
   AgentSummary, 
   SearchParams,
@@ -56,7 +56,7 @@ export class Agent0Client implements IAgent0Client {
   }
   
   /**
-   * Initialize SDK lazily with dynamic import to handle CommonJS/ESM interop
+   * Initialize SDK lazily
    */
   private async ensureSDK(): Promise<void> {
     if (this.sdk) return
@@ -69,18 +69,6 @@ export class Agent0Client implements IAgent0Client {
     
     this.initPromise = (async () => {
       try {
-        // Dynamic import to handle CommonJS/ESM mismatch
-        const agent0Module = await import('agent0-sdk')
-        
-        // Extract SDK constructor - handle both named and default exports
-        const SDKConstructor = agent0Module.SDK || 
-          (agent0Module as unknown as { default?: { SDK?: typeof SDK } }).default?.SDK || 
-          (agent0Module as unknown as { default?: typeof SDK }).default
-        
-        if (!SDKConstructor) {
-          throw new Error('Could not find SDK export in agent0-sdk module')
-        }
-        
         const sdkConfig: SDKConfig = {
           chainId: this.chainId,
           rpcUrl: this.config.rpcUrl,
@@ -92,7 +80,7 @@ export class Agent0Client implements IAgent0Client {
           subgraphUrl: this.config.subgraphUrl
         }
         
-        this.sdk = new SDKConstructor(sdkConfig)
+        this.sdk = new SDK(sdkConfig)
         logger.info('Agent0Client initialized successfully', { 
           chainId: this.chainId, 
           rpcUrl: this.config.rpcUrl 

@@ -7,7 +7,7 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware';
-import { prisma } from '@/lib/database-service';
+import { asUser } from '@/lib/db/context';
 import { AuthorizationError, BusinessLogicError, InternalServerError, NotFoundError } from '@/lib/errors';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
@@ -42,48 +42,11 @@ export const GET = withErrorHandling(async (
     throw new AuthorizationError('You can only access your own referral code', 'referral-code', 'read');
   }
 
-  // Get or create referral code
-  let user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      referralCode: true,
-      referralCount: true,
-    },
-  });
-
-  if (!user) {
-    throw new NotFoundError('User', userId);
-  }
-
-  // Generate referral code if doesn't exist
-  if (!user.referralCode) {
-    let code = generateReferralCode(userId);
-    let attempts = 0;
-    const maxAttempts = 10;
-
-    // Ensure code is unique
-    while (attempts < maxAttempts) {
-      const existing = await prisma.user.findUnique({
-        where: { referralCode: code },
-      });
-
-      if (!existing) {
-        break;
-      }
-
-      code = generateReferralCode(userId);
-      attempts++;
-    }
-
-    if (attempts >= maxAttempts) {
-      throw new InternalServerError('Failed to generate unique referral code');
-    }
-
-    // Update user with new referral code
-    user = await prisma.user.update({
+  // Get or create referral code with RLS
+  const { user } = await asUser(authUser, async (db) => {
+    // Get or create referral code
+    let usr = await db.user.findUnique({
       where: { id: userId },
-      data: { referralCode: code },
       select: {
         id: true,
         referralCode: true,
@@ -91,27 +54,70 @@ export const GET = withErrorHandling(async (
       },
     });
 
-    logger.info(
-      `Generated referral code for user ${userId}: ${code}`,
-      { userId, code },
-      'GET /api/users/[userId]/referral-code'
-    );
-  }
+    if (!usr) {
+      throw new NotFoundError('User', userId);
+    }
 
-  // Create referral entry if doesn't exist
-  const existingReferral = await prisma.referral.findUnique({
-    where: { referralCode: user.referralCode! },
-  });
+    // Generate referral code if doesn't exist
+    if (!usr.referralCode) {
+      let code = generateReferralCode(userId);
+      let attempts = 0;
+      const maxAttempts = 10;
 
-  if (!existingReferral) {
-    await prisma.referral.create({
-      data: {
-        referrerId: userId,
-        referralCode: user.referralCode!,
-        status: 'pending',
-      },
+      // Ensure code is unique
+      while (attempts < maxAttempts) {
+        const existing = await db.user.findUnique({
+          where: { referralCode: code },
+        });
+
+        if (!existing) {
+          break;
+        }
+
+        code = generateReferralCode(userId);
+        attempts++;
+      }
+
+      if (attempts >= maxAttempts) {
+        throw new InternalServerError('Failed to generate unique referral code');
+      }
+
+      // Update user with new referral code
+      usr = await db.user.update({
+        where: { id: userId },
+        data: { referralCode: code },
+        select: {
+          id: true,
+          referralCode: true,
+          referralCount: true,
+        },
+      });
+
+      logger.info(
+        `Generated referral code for user ${userId}: ${code}`,
+        { userId, code },
+        'GET /api/users/[userId]/referral-code'
+      );
+    }
+
+    // Create referral entry if doesn't exist
+    const existingReferral = await db.referral.findUnique({
+      where: { referralCode: usr.referralCode! },
     });
-  }
+
+    let ref = existingReferral;
+    if (!existingReferral) {
+      ref = await db.referral.create({
+        data: {
+          referrerId: userId,
+          referralCode: usr.referralCode!,
+          status: 'pending',
+        },
+      });
+    }
+
+    return { user: usr, referral: ref };
+  });
 
   logger.info('Referral code fetched successfully', { userId, referralCode: user.referralCode }, 'GET /api/users/[userId]/referral-code');
 

@@ -7,7 +7,7 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware';
-import { prisma } from '@/lib/database-service';
+import { asUser } from '@/lib/db/context';
 import { AuthorizationError, BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
@@ -40,72 +40,77 @@ export const GET = withErrorHandling(async (
     throw new AuthorizationError('You can only access your own referrals', 'referrals', 'read');
   }
 
-  // Get user's referral data
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      bio: true,
-      profileImageUrl: true,
-      referralCode: true,
-      referralCount: true,
-      reputationPoints: true,
-      pointsAwardedForProfile: true,
-      pointsAwardedForFarcaster: true,
-      pointsAwardedForTwitter: true,
-      pointsAwardedForWallet: true,
-      farcasterUsername: true,
-      twitterUsername: true,
-      walletAddress: true,
-    },
-  });
+  // Get referrals with RLS
+  const { user, referrals, followStatuses } = await asUser(authUser, async (db) => {
+    // Get user's referral data
+    const usr = await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        bio: true,
+        profileImageUrl: true,
+        referralCode: true,
+        referralCount: true,
+        reputationPoints: true,
+        pointsAwardedForProfile: true,
+        pointsAwardedForFarcaster: true,
+        pointsAwardedForTwitter: true,
+        pointsAwardedForWallet: true,
+        farcasterUsername: true,
+        twitterUsername: true,
+        walletAddress: true,
+      },
+    });
 
-  if (!user) {
-    throw new NotFoundError('User', userId);
-  }
+    if (!usr) {
+      throw new NotFoundError('User', userId);
+    }
 
-  // Get all completed referrals
-  const referrals = await prisma.referral.findMany({
-    where: {
-      referrerId: userId,
-      status: 'completed',
-    },
-    include: {
-      referredUser: {
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-          profileImageUrl: true,
-          createdAt: true,
-          reputationPoints: true,
+    // Get all completed referrals
+    const refs = await db.referral.findMany({
+      where: {
+        referrerId: userId,
+        status: 'completed',
+      },
+      include: {
+        referredUser: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            profileImageUrl: true,
+            createdAt: true,
+            reputationPoints: true,
+          },
         },
       },
-    },
-    orderBy: {
-      completedAt: 'desc',
-    },
+      orderBy: {
+        completedAt: 'desc',
+      },
+    });
+
+    // Check if referrer (current user) is following the referred users
+    const referredUserIds = refs
+      .map(r => r.referredUserId)
+      .filter((id): id is string => id !== null);
+
+    const follows = await db.follow.findMany({
+      where: {
+        followerId: userId,
+        followingId: { in: referredUserIds },
+      },
+      select: {
+        followingId: true,
+      },
+    });
+
+    return { user: usr, referrals: refs, followStatuses: follows };
   });
 
   // Calculate total points earned from referrals
   const totalPointsEarned = referrals.length * 250;
-
-  // Check if referrer (current user) is following the referred users
-  const referredUserIds = referrals
-    .map(r => r.referredUserId)
-    .filter((id): id is string => id !== null);
-
-  const followStatuses = await prisma.follow.findMany({
-    where: {
-      followerId: userId,
-      followingId: { in: referredUserIds },
-    },
-    select: {
-      followingId: true,
-    },
-  });
 
   const followingUserIds = new Set(followStatuses.map(f => f.followingId));
 

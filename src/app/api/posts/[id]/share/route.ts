@@ -4,8 +4,8 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
 import { authenticate } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { IdParamSchema, SharePostSchema } from '@/lib/validation/schemas';
@@ -32,8 +32,10 @@ export const POST = withErrorHandling(async (
     SharePostSchema.parse(body);
   }
 
+  // Share post with RLS
+  const { shareCount } = await asUser(user, async (db) => {
     // Ensure user exists in database (upsert pattern)
-    await prisma.user.upsert({
+    await db.user.upsert({
       where: { id: user.userId },
       update: {
         walletAddress: user.walletAddress,
@@ -47,7 +49,7 @@ export const POST = withErrorHandling(async (
     });
 
     // Check if post exists first
-    const post = await prisma.post.findUnique({
+    let post = await db.post.findUnique({
       where: { id: postId },
     });
 
@@ -64,12 +66,12 @@ export const POST = withErrorHandling(async (
       const { gameId, authorId, timestamp } = parseResult.metadata;
 
       // Ensure post exists (upsert pattern)
-      await prisma.post.upsert({
+      post = await db.post.upsert({
         where: { id: postId },
-        update: {},  // Don't update if exists
+        update: {},
         create: {
           id: postId,
-          content: '[Game-generated post]',  // Placeholder content
+          content: '[Game-generated post]',
           authorId,
           gameId,
           timestamp,
@@ -78,7 +80,7 @@ export const POST = withErrorHandling(async (
     }
 
     // Check if already shared
-    const existingShare = await prisma.share.findUnique({
+    const existingShare = await db.share.findUnique({
       where: {
         userId_postId: {
           userId: user.userId,
@@ -92,7 +94,7 @@ export const POST = withErrorHandling(async (
     }
 
     // Create share record
-    await prisma.share.create({
+    await db.share.create({
       data: {
         userId: user.userId,
         postId,
@@ -104,7 +106,7 @@ export const POST = withErrorHandling(async (
     const repostId = `repost-${postId}-${user.userId}-${Date.now()}`;
     
     // Get original post content for repost
-    const originalPost = await prisma.post.findUnique({
+    const originalPost = await db.post.findUnique({
       where: { id: postId },
       select: {
         content: true,
@@ -115,21 +117,19 @@ export const POST = withErrorHandling(async (
 
     if (originalPost) {
       // Create repost post with reference to original
-      // The content will be the original post content, displayed as a repost
-      await prisma.post.create({
+      await db.post.create({
         data: {
           id: repostId,
           content: originalPost.content,
-          authorId: user.userId, // Repost author is the user who shared
+          authorId: user.userId,
           timestamp: new Date(),
-          // originalPostId: postId, // Store reference to original post - temporarily removed
         },
       });
     }
 
     // Create notification for post author (if not self-share)
     // Check if author is a User (not an Actor) before notifying
-    const postAuthor = await prisma.post.findUnique({
+    const postAuthor = await db.post.findUnique({
       where: { id: postId },
       select: {
         authorId: true,
@@ -142,7 +142,7 @@ export const POST = withErrorHandling(async (
       postAuthor.authorId !== user.userId
     ) {
       // Check if the authorId references a User (not an Actor)
-      const postAuthorUser = await prisma.user.findUnique({
+      const postAuthorUser = await db.user.findUnique({
         where: { id: postAuthor.authorId },
         select: { id: true },
       });
@@ -157,11 +157,14 @@ export const POST = withErrorHandling(async (
     }
 
     // Get updated share count
-    const shareCount = await prisma.share.count({
+    const count = await db.share.count({
       where: {
         postId,
       },
     });
+
+    return { shareCount: count };
+  });
 
   logger.info('Post shared successfully', { postId, userId: user.userId, shareCount }, 'POST /api/posts/[id]/share');
 
@@ -189,8 +192,10 @@ export const DELETE = withErrorHandling(async (
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { id: postId } = IdParamSchema.parse(params);
 
+  // Unshare post with RLS
+  const shareCount = await asUser(user, async (db) => {
     // Ensure user exists in database (upsert pattern)
-    await prisma.user.upsert({
+    await db.user.upsert({
       where: { id: user.userId },
       update: {
         walletAddress: user.walletAddress,
@@ -204,7 +209,7 @@ export const DELETE = withErrorHandling(async (
     });
 
     // Find existing share
-    const share = await prisma.share.findUnique({
+    const share = await db.share.findUnique({
       where: {
         userId_postId: {
           userId: user.userId,
@@ -219,10 +224,9 @@ export const DELETE = withErrorHandling(async (
 
     // Delete repost post if it exists
     // Repost posts have IDs like: repost-{originalPostId}-{userId}-{timestamp}
-    // Note: originalPostId field temporarily removed, using ID pattern matching instead
     const repostIdPattern = `repost-${postId}-${user.userId}-`;
     // Fetch all repost posts by this user and filter by pattern
-    const allReposts = await prisma.post.findMany({
+    const allReposts = await db.post.findMany({
       where: {
         authorId: user.userId,
         id: { contains: repostIdPattern },
@@ -232,7 +236,7 @@ export const DELETE = withErrorHandling(async (
 
     // Delete all repost posts for this share
     if (repostPosts.length > 0) {
-      await prisma.post.deleteMany({
+      await db.post.deleteMany({
         where: {
           id: {
             in: repostPosts.map((p) => p.id),
@@ -242,18 +246,21 @@ export const DELETE = withErrorHandling(async (
     }
 
     // Delete share
-    await prisma.share.delete({
+    await db.share.delete({
       where: {
         id: share.id,
       },
     });
 
     // Get updated share count
-    const shareCount = await prisma.share.count({
+    const count = await db.share.count({
       where: {
         postId,
       },
     });
+
+    return count;
+  });
 
   logger.info('Post unshared successfully', { postId, userId: user.userId, shareCount }, 'DELETE /api/posts/[id]/share');
 

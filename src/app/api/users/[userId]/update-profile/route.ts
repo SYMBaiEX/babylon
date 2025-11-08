@@ -7,7 +7,7 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware';
-import { prisma } from '@/lib/database-service';
+import { asUser } from '@/lib/db/context';
 import { AuthorizationError, BusinessLogicError } from '@/lib/errors';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
@@ -38,22 +38,24 @@ export const POST = withErrorHandling(async (
   const body = await request.json();
   const { username, displayName, bio, profileImageUrl, coverImageUrl } = UpdateUserSchema.parse(body);
 
-  // Check if username is already taken (if provided and different)
-  if (username !== undefined && username !== null && username.trim().length > 0) {
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        username: username.trim(),
-        id: { not: userId },
-      },
-    });
+  // Update profile with RLS
+  const { updatedUser, currentUser } = await asUser(authUser, async (db) => {
+    // Check if username is already taken (if provided and different)
+    if (username !== undefined && username !== null && username.trim().length > 0) {
+      const existingUser = await db.user.findFirst({
+        where: {
+          username: username.trim(),
+          id: { not: userId },
+        },
+      });
 
-    if (existingUser) {
-      throw new BusinessLogicError('Username is already taken', 'USERNAME_TAKEN');
+      if (existingUser) {
+        throw new BusinessLogicError('Username is already taken', 'USERNAME_TAKEN');
+      }
     }
-  }
 
     // Get current user state to check what changed
-    const currentUser = await prisma.user.findUnique({
+    const current = await db.user.findUnique({
       where: { id: userId },
       select: {
         username: true,
@@ -71,10 +73,10 @@ export const POST = withErrorHandling(async (
     // Check 24-hour rate limit for username changes
     const isUsernameChanging = username !== undefined &&
                                username !== null &&
-                               username.trim() !== currentUser?.username;
+                               username.trim() !== current?.username;
 
-    if (isUsernameChanging && currentUser?.usernameChangedAt) {
-      const lastChangeTime = new Date(currentUser.usernameChangedAt).getTime();
+    if (isUsernameChanging && current?.usernameChangedAt) {
+      const lastChangeTime = new Date(current.usernameChangedAt).getTime();
       const now = Date.now();
       const hoursSinceChange = (now - lastChangeTime) / (1000 * 60 * 60);
       const hoursRemaining = 24 - hoursSinceChange;
@@ -90,7 +92,7 @@ export const POST = withErrorHandling(async (
     }
 
     // Update user profile
-    const updatedUser = await prisma.user.update({
+    const updated = await db.user.update({
       where: { id: userId },
       data: {
         ...(username !== undefined && { username: username.trim() || null }),
@@ -126,6 +128,9 @@ export const POST = withErrorHandling(async (
         usernameChangedAt: true,
       },
     });
+
+    return { updatedUser: updated, currentUser: current };
+  });
 
     // Award points for profile milestones
     const pointsAwarded: { reason: string; amount: number }[] = []

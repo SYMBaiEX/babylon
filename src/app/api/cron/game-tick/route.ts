@@ -13,10 +13,11 @@
  */
 
 import type { NextRequest } from 'next/server'
+import { asSystem } from '@/lib/db/context'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { AuthorizationError } from '@/lib/errors'
-import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
+import { executeGameTick } from '@/lib/serverless-game-tick'
 
 // Verify this is a legitimate Vercel Cron request
 function verifyVercelCronRequest(request: NextRequest): boolean {
@@ -72,9 +73,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const startTime = Date.now();
   logger.info('🎮 Game tick started', undefined, 'Cron');
 
-  // 2. Check if we should skip (maintenance mode, etc.)
-  const gameState = await prisma.game.findFirst({
-    where: { isContinuous: true },
+  // 2. Check if we should skip (maintenance mode, etc.) - system operation
+  const gameState = await asSystem(async (db) => {
+    return await db.game.findFirst({
+      where: { isContinuous: true },
+    });
   });
 
   if (!gameState || !gameState.isRunning) {
@@ -86,10 +89,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     });
   }
 
-  // 3. Import game tick logic dynamically (avoid bundling heavy dependencies)
-  const { executeGameTick } = await import('@/lib/serverless-game-tick');
-
-  // 4. Execute the tick (generates posts, events, updates markets)
+  // 3. Execute the tick (generates posts, events, updates markets)
   const result = await executeGameTick();
 
   const duration = Date.now() - startTime;

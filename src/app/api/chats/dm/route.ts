@@ -4,8 +4,8 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
 import { authenticate } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { logger } from '@/lib/logger';
@@ -27,30 +27,32 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     throw new BusinessLogicError('Cannot DM yourself', 'SELF_DM_NOT_ALLOWED');
   }
 
+  // Create or get DM chat with RLS
+  const chat = await asUser(user, async (db) => {
     // Check if target user exists
-    const targetUser = await prisma.user.findUnique({
+    const targetUser = await db.user.findUnique({
       where: { id: targetUserId },
       select: { id: true, isActor: true },
     });
 
-  // If not a user, check if it's an actor
-  if (!targetUser) {
-    const targetActor = await prisma.actor.findUnique({
-      where: { id: targetUserId },
-      select: { id: true },
-    });
+    // If not a user, check if it's an actor
+    if (!targetUser) {
+      const targetActor = await db.actor.findUnique({
+        where: { id: targetUserId },
+        select: { id: true },
+      });
 
-    if (!targetActor) {
-      throw new NotFoundError('User or profile', targetUserId);
+      if (!targetActor) {
+        throw new NotFoundError('User or profile', targetUserId);
+      }
     }
-  }
 
     // Create DM chat ID (consistent format - sort IDs for consistency)
     const sortedIds = [user.userId, targetUserId].sort();
     const chatId = `dm-${sortedIds.join('-')}`;
 
     // Try to find existing DM chat
-    let chat = await prisma.chat.findUnique({
+    let existingChat = await db.chat.findUnique({
       where: { id: chatId },
       include: {
         participants: {
@@ -61,9 +63,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       },
     });
 
-    if (!chat) {
+    if (!existingChat) {
       // Create new DM chat
-      chat = await prisma.chat.create({
+      existingChat = await db.chat.create({
         data: {
           id: chatId,
           name: null, // DMs don't have names
@@ -80,13 +82,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
       // Add both participants
       await Promise.all([
-        prisma.chatParticipant.create({
+        db.chatParticipant.create({
           data: {
             chatId,
             userId: user.userId,
           },
         }),
-        prisma.chatParticipant.create({
+        db.chatParticipant.create({
           data: {
             chatId,
             userId: targetUserId,
@@ -95,10 +97,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       ]);
     } else {
       // Chat exists, ensure both participants are added
-      const participantIds = chat.participants.map(p => p.userId);
+      const participantIds = existingChat.participants.map(p => p.userId);
       
       if (!participantIds.includes(user.userId)) {
-        await prisma.chatParticipant.create({
+        await db.chatParticipant.create({
           data: {
             chatId,
             userId: user.userId,
@@ -107,7 +109,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       }
 
       if (!participantIds.includes(targetUserId)) {
-        await prisma.chatParticipant.create({
+        await db.chatParticipant.create({
           data: {
             chatId,
             userId: targetUserId,
@@ -115,6 +117,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         });
       }
     }
+
+    return existingChat;
+  });
 
   logger.info('DM chat created or retrieved successfully', { chatId: chat.id, userId: user.userId, targetUserId }, 'POST /api/chats/dm');
 

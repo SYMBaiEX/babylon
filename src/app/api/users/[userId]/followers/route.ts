@@ -7,7 +7,7 @@ import {
   optionalAuth,
   successResponse
 } from '@/lib/api/auth-middleware';
-import { prisma } from '@/lib/database-service';
+import { asUser } from '@/lib/db/context';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
@@ -36,54 +36,51 @@ export const GET = withErrorHandling(async (
   };
   UserFollowersQuerySchema.parse(queryParams);
 
-  // Check if target is a user
-  const targetUser = await prisma.user.findUnique({
-    where: { id: targetId },
-    select: { id: true },
-  });
+  // Get followers with RLS
+  const { followers } = await asUser(authUser, async (db) => {
+    // Check if target is a user
+    const targetUser = await db.user.findUnique({
+      where: { id: targetId },
+      select: { id: true },
+    });
 
-  if (!targetUser) {
-    throw new NotFoundError('User', targetId);
-  }
-
-  // Get followers (users who follow this user)
-  const follows = await prisma.follow.findMany({
-    where: {
-      followingId: targetId,
-    },
-    include: {
-      follower: {
-        select: {
-          id: true,
-          displayName: true,
-          username: true,
-          profileImageUrl: true,
-          bio: true,
-        },
-      },
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-  });
-
-  const followers = follows.map((f) => {
-    const followerData = {
-      id: f.follower.id,
-      displayName: f.follower.displayName,
-      username: f.follower.username,
-      profileImageUrl: f.follower.profileImageUrl,
-      bio: f.follower.bio,
-      followedAt: f.createdAt.toISOString(),
-    };
-
-    // If authenticated, check if current user follows this follower
-    if (authUser) {
-      // This could be extended to show mutual follows, etc.
-      return followerData;
+    if (!targetUser) {
+      throw new NotFoundError('User', targetId);
     }
 
-    return followerData;
+    // Get followers (users who follow this user)
+    const follows = await db.follow.findMany({
+      where: {
+        followingId: targetId,
+      },
+      include: {
+        follower: {
+          select: {
+            id: true,
+            displayName: true,
+            username: true,
+            profileImageUrl: true,
+            bio: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    const followers = follows.map((f) => {
+      return {
+        id: f.follower.id,
+        displayName: f.follower.displayName,
+        username: f.follower.username,
+        profileImageUrl: f.follower.profileImageUrl,
+        bio: f.follower.bio,
+        followedAt: f.createdAt.toISOString(),
+      };
+    });
+
+    return { followers };
   });
 
   logger.info('Followers fetched successfully', { targetId, count: followers.length }, 'GET /api/users/[userId]/followers');

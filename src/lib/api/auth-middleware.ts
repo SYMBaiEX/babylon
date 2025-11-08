@@ -121,6 +121,44 @@ export async function optionalAuth(request: NextRequest): Promise<AuthenticatedU
 }
 
 /**
+ * Optional authentication from headers - for use when NextRequest is not available
+ * Returns user if authenticated, null otherwise
+ */
+export async function optionalAuthFromHeaders(headers: Headers): Promise<AuthenticatedUser | null> {
+  try {
+    const authHeader = headers.get('authorization');
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null;
+    }
+
+    const token = authHeader.substring(7);
+
+    // Try agent session authentication first (faster)
+    const agentSession = verifyAgentSession(token);
+    if (agentSession) {
+      return {
+        userId: agentSession.agentId,
+        isAgent: true,
+      };
+    }
+
+    // Fall back to Privy user authentication
+    const privy = getPrivyClient();
+    const claims = await privy.verifyAuthToken(token);
+
+    return {
+      userId: claims.userId,
+      walletAddress: undefined,
+      email: undefined,
+      isAgent: false,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Standard error responses
  */
 export function authErrorResponse(message: string = 'Unauthorized') {

@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 /**
  * Smart Contract Deployment Script
- * Deploys ERC-8004 registries and prediction market contracts to Base
+ * Deploys ERC-8004 registries and prediction market contracts to Ethereum
+ * Unified with Agent0 registry on the same chain
  */
 
 import { execSync } from 'child_process'
@@ -10,7 +11,7 @@ import { join } from 'path'
 import { logger } from '../src/lib/logger'
 
 interface DeploymentConfig {
-  network: 'base-sepolia' | 'base'
+  network: 'sepolia' | 'mainnet'
   rpcUrl: string
   privateKey?: string
   etherscanApiKey?: string
@@ -41,10 +42,10 @@ class ContractDeployer {
   }
 
   /**
-   * Deploy all contracts
+   * Deploy all contracts to Ethereum (Sepolia or Mainnet)
    */
   async deploy(): Promise<DeploymentResult> {
-    logger.info(`Starting contract deployment to ${this.config.network}`, undefined, 'Script');
+    logger.info(`Starting contract deployment to Ethereum ${this.config.network}`, undefined, 'Script');
     logger.info('='.repeat(60), undefined, 'Script');
 
     // 1. Compile contracts
@@ -103,7 +104,7 @@ class ContractDeployer {
     // 7. Save deployment info
     const result: DeploymentResult = {
       network: this.config.network,
-      chainId: this.config.network === 'base-sepolia' ? 84532 : 8453,
+      chainId: this.config.network === 'sepolia' ? 11155111 : 1,
       contracts: {
         identityRegistry,
         reputationSystem,
@@ -230,7 +231,7 @@ class ContractDeployer {
         execSync(
           `forge verify-contract ${address} \
           ${contractPath} \
-          --chain-id ${this.config.network === 'base-sepolia' ? '84532' : '8453'} \
+          --chain-id ${this.config.network === 'sepolia' ? '11155111' : '1'} \
           --etherscan-api-key ${this.config.etherscanApiKey} \
           --watch`,
           { stdio: 'inherit' }
@@ -287,24 +288,22 @@ class ContractDeployer {
  * Main deployment function
  */
 async function main() {
-  const network = (process.env.NETWORK || 'base-sepolia') as 'base-sepolia' | 'base'
+  const network = (process.env.NETWORK || 'sepolia') as 'sepolia' | 'mainnet'
 
   const config: DeploymentConfig = {
     network,
-    rpcUrl: network === 'base-sepolia'
-      ? (process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org')
-      : (process.env.BASE_RPC_URL || 'https://mainnet.base.org'),
+    rpcUrl: network === 'sepolia'
+      ? (process.env.SEPOLIA_RPC_URL || process.env.NEXT_PUBLIC_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com')
+      : (process.env.MAINNET_RPC_URL || 'https://eth.llamarpc.com'),
     privateKey: process.env.DEPLOYER_PRIVATE_KEY,
-    etherscanApiKey: network === 'base-sepolia'
-      ? process.env.BASE_SEPOLIA_ETHERSCAN_API_KEY
-      : process.env.BASE_ETHERSCAN_API_KEY
+    etherscanApiKey: process.env.ETHERSCAN_API_KEY
   }
 
   if (!config.privateKey) {
     logger.error('Error: DEPLOYER_PRIVATE_KEY environment variable required', undefined, 'Script');
     logger.info('Usage:', {
       example1: 'DEPLOYER_PRIVATE_KEY=0x... bun run scripts/deploy-contracts.ts',
-      example2: 'NETWORK=base-sepolia DEPLOYER_PRIVATE_KEY=0x... bun run scripts/deploy-contracts.ts'
+      example2: 'NETWORK=sepolia DEPLOYER_PRIVATE_KEY=0x... bun run scripts/deploy-contracts.ts'
     }, 'Script');
     process.exit(1)
   }

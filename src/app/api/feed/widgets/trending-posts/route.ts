@@ -4,7 +4,8 @@
  */
 
 import type { NextRequest } from 'next/server'
-import { prisma } from '@/lib/database-service'
+import { optionalAuth } from '@/lib/api/auth-middleware'
+import { asUser } from '@/lib/db/context'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { TrendingPostsQuerySchema } from '@/lib/validation/schemas'
 import { logger } from '@/lib/logger'
@@ -57,7 +58,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Get recent posts from last 24 hours
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
-    const posts = await prisma.post.findMany({
+  // Optional auth - trending posts are public but RLS still applies
+  const authUser = await optionalAuth(request).catch(() => null)
+
+  // Get posts, interactions, and users with RLS
+  const { posts, allReactions, allComments, allShares, users } = await asUser(authUser, async (db) => {
+    const postsList = await db.post.findMany({
       where: {
         timestamp: {
           gte: oneDayAgo,
@@ -69,47 +75,54 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       take: 100, // Get more posts to calculate trending from
     })
 
-    if (posts.length === 0) {
-      return successResponse({
-        posts: [],
-      })
+    if (postsList.length === 0) {
+      return { posts: [], allReactions: [], allComments: [], allShares: [], users: [] }
     }
 
     // Get interaction counts for all posts
-    const postIds = posts.map((p) => p.id)
-    const [allReactions, allComments, allShares] = await Promise.all([
-      prisma.reaction.groupBy({
+    const postIds = postsList.map((p) => p.id)
+    const [reactions, comments, shares] = await Promise.all([
+      db.reaction.groupBy({
         by: ['postId'],
         where: { postId: { in: postIds }, type: 'like' },
         _count: { postId: true },
       }),
-      prisma.comment.groupBy({
+      db.comment.groupBy({
         by: ['postId'],
         where: { postId: { in: postIds } },
         _count: { postId: true },
       }),
-      prisma.share.groupBy({
+      db.share.groupBy({
         by: ['postId'],
         where: { postId: { in: postIds } },
         _count: { postId: true },
       }),
     ])
 
-    // Create maps for quick lookup
-    const reactionMap = new Map(allReactions.map((r) => [r.postId, r._count.postId]))
-    const commentMap = new Map(allComments.map((c) => [c.postId, c._count.postId]))
-    const shareMap = new Map(allShares.map((s) => [s.postId, s._count.postId]))
-
     // Get user data for posts
-    const authorIds = [...new Set(posts.map((p) => p.authorId))]
-    const users = await prisma.user.findMany({
+    const authorIds = [...new Set(postsList.map((p) => p.authorId))]
+    const usersList = await db.user.findMany({
       where: { id: { in: authorIds } },
       select: { id: true, username: true, displayName: true },
     })
-    const userMap = new Map(users.map((u) => [u.id, u]))
 
-    // Calculate trending scores and format posts
-    const trendingPosts: TrendingPost[] = posts
+    return { posts: postsList, allReactions: reactions, allComments: comments, allShares: shares, users: usersList }
+  })
+
+  if (posts.length === 0) {
+    return successResponse({
+      posts: [],
+    })
+  }
+
+  // Create maps for quick lookup
+  const reactionMap = new Map(allReactions.map((r) => [r.postId, r._count.postId]))
+  const commentMap = new Map(allComments.map((c) => [c.postId, c._count.postId]))
+  const shareMap = new Map(allShares.map((s) => [s.postId, s._count.postId]))
+  const userMap = new Map(users.map((u) => [u.id, u]))
+
+  // Calculate trending scores and format posts
+  const trendingPosts: TrendingPost[] = posts
       .map((post) => {
         const likeCount = reactionMap.get(post.id) ?? 0
         const commentCount = commentMap.get(post.id) ?? 0

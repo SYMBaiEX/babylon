@@ -19,10 +19,11 @@
  */
 
 import { GameEngine } from '../engine/GameEngine';
-import { spawn, execSync, type ChildProcess } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
 import { join } from 'path';
 import { logger } from '@/lib/logger';
 import { setEngineInstance, clearEngineInstance } from '@/lib/engine';
+import { registerBabylonGame } from '../lib/babylon-registry-init';
 
 interface CLIOptions {
   verbose?: boolean;
@@ -41,53 +42,8 @@ function parseArgs(): CLIOptions {
   return options;
 }
 
-/**
- * Check if a daemon is already running by checking for the process
- * Returns PID if found, null otherwise
- */
-function checkExistingDaemon(): number | null {
-  try {
-    const result = execSync('pgrep -f "realtime-daemon"', { encoding: 'utf-8' }).trim();
-    if (result) {
-      const pids = result.split('\n').map(line => parseInt(line.trim(), 10)).filter(Boolean);
-
-      // Filter out this process and its parent (tsx/bun wrapper)
-      const otherPids = pids.filter(pid => {
-        if (pid === process.pid) return false;
-        if (pid === process.ppid) return false;
-
-        // Also check if this PID is a parent of current process (tsx wrapper)
-        try {
-          const ppidResult = execSync(`ps -o ppid= -p ${process.pid}`, { encoding: 'utf-8' }).trim();
-          const parentPid = parseInt(ppidResult, 10);
-          if (pid === parentPid) return false;
-        } catch {
-          // Ignore errors checking parent
-        }
-
-        return true;
-      });
-
-      // Return the first other PID if any exist
-      if (otherPids.length > 0) {
-        return otherPids[0] ?? null;
-      }
-    }
-  } catch {
-    // Ignore errors from pgrep (e.g., no processes found)
-  }
-  return null;
-}
-
 async function main() {
   const options = parseArgs();
-
-  // Check if daemon is already running
-  const existingDaemon = checkExistingDaemon();
-  if (existingDaemon) {
-    logger.error(`Daemon is already running (PID: ${existingDaemon}). Please stop it first with: kill ${existingDaemon}`, undefined, 'CLI');
-    process.exit(1);
-  }
 
   logger.info('BABYLON GAME DAEMON', undefined, 'CLI');
   logger.info('===================', undefined, 'CLI');
@@ -176,7 +132,6 @@ async function main() {
   if (process.env.AGENT0_ENABLED === 'true') {
     logger.info('Registering Babylon with Agent0...', undefined, 'CLI');
     try {
-      const { registerBabylonGame } = await import('../lib/babylon-registry-init');
       const result = await registerBabylonGame();
       if (result) {
         logger.info(`✅ Babylon registered with Agent0 (Token ID: ${result.tokenId})`, undefined, 'CLI');

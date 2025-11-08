@@ -4,11 +4,11 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { NotFoundError, BusinessLogicError } from '@/lib/errors';
+import { BusinessLogicError } from '@/lib/errors';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
 import { optionalAuth } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
 import { logger } from '@/lib/logger';
 
 /**
@@ -23,10 +23,11 @@ export const GET = withErrorHandling(async (
   const { userId } = UserIdParamSchema.parse(params);
 
   // Optional authentication
-  await optionalAuth(request);
+  const authUser = await optionalAuth(request);
 
-  // Get user profile
-  const dbUser = await prisma.user.findUnique({
+  // Get user profile with RLS - create minimal record if doesn't exist (for new Privy users)
+  const dbUser = await asUser(authUser, async (db) => {
+    let user = await db.user.findUnique({
     where: { id: userId },
     select: {
       id: true,
@@ -66,9 +67,70 @@ export const GET = withErrorHandling(async (
     },
   });
 
-  if (!dbUser) {
-    throw new NotFoundError('User', userId);
-  }
+    // If user doesn't exist, create a minimal record (will be completed during onboarding)
+    if (!user) {
+      logger.info('Creating minimal user record for new user', { userId }, 'GET /api/users/[userId]/profile');
+      
+      user = await db.user.create({
+        data: {
+          id: userId, // id is the Privy DID
+          walletAddress: null,
+          username: null,
+          displayName: null,
+          bio: null,
+          isActor: false,
+          virtualBalance: 0,
+          totalDeposited: 0,
+          lifetimePnL: 0,
+          reputationPoints: 0,
+          referralCount: 0,
+          profileComplete: false,
+          hasUsername: false,
+          hasBio: false,
+          hasProfileImage: false,
+          onChainRegistered: false,
+        },
+        select: {
+          id: true,
+          walletAddress: true,
+          username: true,
+          displayName: true,
+          bio: true,
+          profileImageUrl: true,
+          coverImageUrl: true,
+          isActor: true,
+          profileComplete: true,
+          hasUsername: true,
+          hasBio: true,
+          hasProfileImage: true,
+          onChainRegistered: true,
+          nftTokenId: true,
+          virtualBalance: true,
+          lifetimePnL: true,
+          reputationPoints: true,
+          referralCount: true,
+          referralCode: true,
+          hasFarcaster: true,
+          hasTwitter: true,
+          farcasterUsername: true,
+          twitterUsername: true,
+          usernameChangedAt: true,
+          createdAt: true,
+          _count: {
+            select: {
+              positions: true,
+              comments: true,
+              reactions: true,
+              followedBy: true,
+              following: true,
+            },
+          },
+        },
+      });
+    }
+
+    return user;
+  });
 
   logger.info('User profile fetched successfully', { userId }, 'GET /api/users/[userId]/profile');
 

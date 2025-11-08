@@ -7,15 +7,11 @@
  * This wrapper is for querying engine state and accessing the database.
  * 
  * To start the engine, run: `bun run daemon`
- * 
- * Vercel-compatible: GameEngine is imported dynamically to avoid bundling filesystem dependencies.
  */
 
 import { PredictionPricing } from './prediction-pricing';
 import { logger } from './logger';
-
-// Type-only import to avoid bundling GameEngine (which has fs dependencies)
-import type { GameEngine } from '@/engine/GameEngine';
+import { GameEngine } from '@/engine/GameEngine';
 
 // Re-export pricing for convenience (safe for client-side)
 export { PredictionPricing as pricing };
@@ -73,9 +69,6 @@ export async function initializeEngine(): Promise<void> {
 
   logger.info('STARTING BABYLON ENGINE (via initializeEngine)', undefined, 'Engine');
 
-  // Dynamic import to avoid bundling GameEngine on Vercel
-  const { GameEngine } = await import('@/engine/GameEngine');
-  
   const engine = new GameEngine({
     tickIntervalMs: 60000, // 1 minute ticks
     postsPerTick: 12,      // 12 LLM-generated posts per minute

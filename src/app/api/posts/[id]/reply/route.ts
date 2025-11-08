@@ -4,8 +4,8 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
 import { authenticate } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError } from '@/lib/errors';
 import { IdParamSchema, ReplyToPostSchema } from '@/lib/validation/schemas';
@@ -62,52 +62,57 @@ export const POST = withErrorHandling(async (
       throw new BusinessLogicError(qualityResult.errors.join('; '), 'QUALITY_CHECK_FAILED');
     }
 
-    // 6. Ensure user exists in database
-    await prisma.user.upsert({
-      where: { id: user.userId },
-      update: {
-        walletAddress: user.walletAddress,
-      },
-      create: {
-        id: user.userId,
-        walletAddress: user.walletAddress,
-        displayName: user.walletAddress
-          ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
-          : 'Anonymous',
-        isActor: false,
-      },
-    });
+    // 6-8. Create comment with RLS
+    const comment = await asUser(user, async (db) => {
+      // Ensure user exists in database
+      await db.user.upsert({
+        where: { id: user.userId },
+        update: {
+          walletAddress: user.walletAddress,
+        },
+        create: {
+          id: user.userId,
+          walletAddress: user.walletAddress,
+          displayName: user.walletAddress
+            ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+            : 'Anonymous',
+          isActor: false,
+        },
+      });
 
-    // 7. Ensure post exists (upsert pattern)
-    await prisma.post.upsert({
-      where: { id: postId },
-      update: {},
-      create: {
-        id: postId,
-        content: '[Game-generated post]',
-        authorId: npcId,
-        gameId,
-        timestamp,
-      },
-    });
+      // Ensure post exists (upsert pattern)
+      await db.post.upsert({
+        where: { id: postId },
+        update: {},
+        create: {
+          id: postId,
+          content: '[Game-generated post]',
+          authorId: npcId,
+          gameId,
+          timestamp,
+        },
+      });
 
-    // 8. Create comment
-    const comment = await prisma.comment.create({
-      data: {
-        content: content.trim(),
-        postId,
-        authorId: user.userId,
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            displayName: true,
-            username: true,
-            profileImageUrl: true,
+      // Create comment
+      const newComment = await db.comment.create({
+        data: {
+          content: content.trim(),
+          postId,
+          authorId: user.userId,
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              displayName: true,
+              username: true,
+              profileImageUrl: true,
+            },
           },
         },
-      },
+      });
+
+      return newComment;
     });
 
     // 9. Record the interaction

@@ -4,7 +4,9 @@
  * GET /api/feed/widgets/markets - Get trending prediction markets for sidebar widget
  */
 
-import { db, prisma } from '@/lib/database-service'
+import { db } from '@/lib/database-service'
+import type { AuthenticatedUser } from '@/lib/api/auth-middleware'
+import { asUser } from '@/lib/db/context'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
@@ -17,15 +19,21 @@ export async function GET() {
     })
   }
 
+  // Optional auth - markets are public but RLS still applies
+  // No request available in this route, so auth is not possible
+  const authUser: AuthenticatedUser | null = null
+
   const marketIds = questions.map(q => String(q.id))
-  const markets = await prisma.market.findMany({
-    where: {
-      id: { in: marketIds },
-      resolved: false,
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
+  const markets = await asUser(authUser, async (dbPrisma) => {
+    return await dbPrisma.market.findMany({
+      where: {
+        id: { in: marketIds },
+        resolved: false,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    })
   })
 
   const marketMap = new Map(markets.map(m => [m.id, m]))

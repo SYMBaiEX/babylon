@@ -4,8 +4,8 @@
  */
 
 import type { NextRequest } from 'next/server'
-import { prisma } from '@/lib/database-service'
 import { authenticate } from '@/lib/api/auth-middleware'
+import { asUser } from '@/lib/db/context'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { BusinessLogicError, AuthorizationError } from '@/lib/errors'
 import { MessageQualityChecker } from '@/lib/services/message-quality-checker'
@@ -90,26 +90,33 @@ export const POST = withErrorHandling(async (
     let membership = null;
     
     if (!isGameChat) {
-      message = await prisma.message.create({
-        data: {
-          content: content.trim(),
-          chatId,
-          senderId: user.userId,
-        },
-      });
-
-      // 7. Update user's quality score in chat
-      await GroupChatSweep.updateQualityScore(user.userId, chatId, qualityResult.score);
-
-      // 8. Get updated membership stats
-      membership = await prisma.groupChatMembership.findUnique({
-        where: {
-          userId_chatId: {
-            userId: user.userId,
+      const result = await asUser(user, async (db) => {
+        const msg = await db.message.create({
+          data: {
+            content: content.trim(),
             chatId,
+            senderId: user.userId,
           },
-        },
+        });
+
+        // 7. Update user's quality score in chat
+        await GroupChatSweep.updateQualityScore(user.userId, chatId, qualityResult.score);
+
+        // 8. Get updated membership stats
+        const mem = await db.groupChatMembership.findUnique({
+          where: {
+            userId_chatId: {
+              userId: user.userId,
+              chatId,
+            },
+          },
+        });
+
+        return { message: msg, membership: mem };
       });
+
+      message = result.message;
+      membership = result.membership;
     } else {
       // For game chats, create a mock message object
       message = {

@@ -27,7 +27,7 @@ import { shuffleArray, toQuestionIdNumber, toQuestionIdNumberOrNull } from '@/sh
 import { db } from '../lib/database-service';
 import { ReputationService } from '../lib/services/reputation-service';
 import { logger } from '@/lib/logger';
-import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
+import { broadcastToChannel, broadcastChatMessage } from '@/lib/sse/event-broadcaster';
 import { ActorSocialActions } from '@/lib/services/ActorSocialActions';
 import type {
   SelectedActor,
@@ -417,7 +417,6 @@ export class GameEngine extends EventEmitter {
       // Broadcast group chat messages to their respective chats
       if (Object.keys(groupChatMessages).length > 0) {
         try {
-          const { broadcastChatMessage } = await import('@/lib/sse/event-broadcaster');
           for (const [chatId, messages] of Object.entries(groupChatMessages)) {
             for (const msg of messages) {
               broadcastChatMessage(chatId, {

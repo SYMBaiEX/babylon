@@ -143,8 +143,15 @@ export const OnChainRegistrationSchema = z.object({
   username: z.string().min(1).max(50).optional(),
   displayName: z.string().min(1).max(100).optional(),
   bio: createTrimmedStringSchema(undefined, 500).optional(),
-  profileImageUrl: z.union([z.string().url(), z.literal('')]).optional(),
-  coverImageUrl: z.union([z.string().url(), z.literal('')]).optional(),
+  // Accept valid URLs or local asset paths (for preset images)
+  profileImageUrl: z.string().refine(
+    (val) => !val || val.startsWith('/assets/') || val.startsWith('http://') || val.startsWith('https://') || val.startsWith('/uploads/'),
+    { message: 'Must be a valid URL or asset path' }
+  ).optional(),
+  coverImageUrl: z.string().refine(
+    (val) => !val || val.startsWith('/assets/') || val.startsWith('http://') || val.startsWith('https://') || val.startsWith('/uploads/'),
+    { message: 'Must be a valid URL or asset path' }
+  ).optional(),
   endpoint: URLSchema.optional(),
   referralCode: z.string().optional()
 });

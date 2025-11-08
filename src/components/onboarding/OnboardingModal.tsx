@@ -69,33 +69,53 @@ export function OnboardingModal({ isOpen, onComplete, onSkip: _onSkip }: Onboard
 
   async function initializeProfile() {
     setIsLoading(true)
-    // Generate profile data and random asset indices in parallel
-    const [profileRes, assetsRes] = await Promise.all([
-      fetch('/api/onboarding/generate-profile'),
-      fetch('/api/onboarding/random-assets')
-    ])
+    try {
+      // Generate profile data and random asset indices in parallel
+      const [profileRes, assetsRes] = await Promise.all([
+        fetch('/api/onboarding/generate-profile'),
+        fetch('/api/onboarding/random-assets')
+      ])
 
-    if (profileRes.ok && assetsRes.ok) {
-      const profileData: ProfileData = (await profileRes.json()).data
-      const assetsData = (await assetsRes.json()).data
+      if (profileRes.ok && assetsRes.ok) {
+        const profileJson = await profileRes.json()
+        const assetsJson = await assetsRes.json()
+        
+        const profileData: ProfileData = profileJson.data || profileJson
+        const assetsData = assetsJson.data || assetsJson
 
-      setDisplayName(profileData.name)
-      setUsername(profileData.username)
-      setBio(profileData.bio)
-      setProfilePictureIndex(assetsData.profilePictureIndex)
-      setBannerIndex(assetsData.bannerIndex)
+        if (profileData && profileData.name) {
+          setDisplayName(profileData.name)
+          setUsername(profileData.username)
+          setBio(profileData.bio)
+        }
+        
+        if (assetsData) {
+          setProfilePictureIndex(assetsData.profilePictureIndex)
+          setBannerIndex(assetsData.bannerIndex)
+        }
+      }
+    } catch (error) {
+      console.error('Error initializing profile:', error)
     }
     setIsLoading(false)
   }
 
   async function regenerateProfile() {
     setIsGenerating(true)
-    const response = await fetch('/api/onboarding/generate-profile')
-    if (response.ok) {
-      const profileData: ProfileData = (await response.json()).data
-      setDisplayName(profileData.name)
-      setUsername(profileData.username)
-      setBio(profileData.bio)
+    try {
+      const response = await fetch('/api/onboarding/generate-profile')
+      if (response.ok) {
+        const profileJson = await response.json()
+        const profileData: ProfileData = profileJson.data || profileJson
+        
+        if (profileData && profileData.name) {
+          setDisplayName(profileData.name)
+          setUsername(profileData.username)
+          setBio(profileData.bio)
+        }
+      }
+    } catch (error) {
+      console.error('Error regenerating profile:', error)
     }
     setIsGenerating(false)
   }
@@ -103,13 +123,21 @@ export function OnboardingModal({ isOpen, onComplete, onSkip: _onSkip }: Onboard
   async function checkUsernameAvailability(username: string) {
     setIsCheckingUsername(true)
     setUsernameSuggestion(null)
-    const response = await fetch(`/api/onboarding/check-username?username=${encodeURIComponent(username)}`)
-    if (response.ok) {
-      const result = (await response.json()).data
-      setUsernameStatus(result.available ? 'available' : 'taken')
-      if (!result.available && result.suggestion) {
-        setUsernameSuggestion(result.suggestion)
+    try {
+      const response = await fetch(`/api/onboarding/check-username?username=${encodeURIComponent(username)}`)
+      if (response.ok) {
+        const resultJson = await response.json()
+        const result = resultJson.data || resultJson
+        
+        if (result && typeof result.available !== 'undefined') {
+          setUsernameStatus(result.available ? 'available' : 'taken')
+          if (!result.available && result.suggestion) {
+            setUsernameSuggestion(result.suggestion)
+          }
+        }
       }
+    } catch (error) {
+      console.error('Error checking username:', error)
     }
     setIsCheckingUsername(false)
   }
@@ -136,9 +164,13 @@ export function OnboardingModal({ isOpen, onComplete, onSkip: _onSkip }: Onboard
     })
   }
 
+  const [uploadedProfileFile, setUploadedProfileFile] = useState<File | null>(null)
+  const [uploadedBannerFile, setUploadedBannerFile] = useState<File | null>(null)
+
   function handleProfileImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (file) {
+      setUploadedProfileFile(file)
       const reader = new FileReader()
       reader.onloadend = () => {
         setUploadedProfileImage(reader.result as string)
@@ -150,6 +182,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip: _onSkip }: Onboard
   function handleBannerUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (file) {
+      setUploadedBannerFile(file)
       const reader = new FileReader()
       reader.onloadend = () => {
         setUploadedBanner(reader.result as string)
@@ -158,7 +191,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip: _onSkip }: Onboard
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
 
@@ -193,29 +226,69 @@ export function OnboardingModal({ isOpen, onComplete, onSkip: _onSkip }: Onboard
       return
     }
 
-    // Build profile image URL
-    let profileImageUrl = undefined
-    if (uploadedProfileImage) {
-      profileImageUrl = uploadedProfileImage
-    } else {
-      profileImageUrl = `/assets/user-profiles/profile-${profilePictureIndex}.jpg`
-    }
+    setIsLoading(true)
 
-    // Build banner URL
-    let coverImageUrl = undefined
-    if (uploadedBanner) {
-      coverImageUrl = uploadedBanner
-    } else {
-      coverImageUrl = `/assets/user-banners/banner-${bannerIndex}.jpg`
-    }
+    try {
+      // Upload profile image if user uploaded a custom one
+      let profileImageUrl = `/assets/user-profiles/profile-${profilePictureIndex}.jpg`
+      if (uploadedProfileFile) {
+        const formData = new FormData()
+        formData.append('file', uploadedProfileFile)
+        formData.append('type', 'profile')
 
-    onComplete({
-      username: username.trim(),
-      displayName: displayName.trim(),
-      bio: bio.trim(),
-      profileImageUrl,
-      coverImageUrl,
-    })
+        const accessToken = window.__privyAccessToken
+        const response = await fetch('/api/upload/image', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: formData,
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to upload profile image')
+        }
+
+        const data = await response.json()
+        profileImageUrl = data.url
+      }
+
+      // Upload cover image if user uploaded a custom one
+      let coverImageUrl = `/assets/user-banners/banner-${bannerIndex}.jpg`
+      if (uploadedBannerFile) {
+        const formData = new FormData()
+        formData.append('file', uploadedBannerFile)
+        formData.append('type', 'cover')
+
+        const accessToken = window.__privyAccessToken
+        const response = await fetch('/api/upload/image', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: formData,
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to upload cover image')
+        }
+
+        const data = await response.json()
+        coverImageUrl = data.url
+      }
+
+      // Complete onboarding with uploaded image URLs
+      onComplete({
+        username: username.trim(),
+        displayName: displayName.trim(),
+        bio: bio.trim(),
+        profileImageUrl,
+        coverImageUrl,
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to upload images')
+      setIsLoading(false)
+    }
   }
 
   function handleSkip() {

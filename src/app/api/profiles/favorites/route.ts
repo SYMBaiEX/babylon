@@ -7,7 +7,7 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware';
-import { prisma } from '@/lib/database-service';
+import { asUser } from '@/lib/db/context';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { PaginationSchema } from '@/lib/validation/schemas';
@@ -29,56 +29,61 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   };
   PaginationSchema.partial().parse(queryParams);
 
-  // Get favorited profiles
-  const favorites = await prisma.favorite.findMany({
-    where: {
-      userId: user.userId,
-    },
-    include: {
-      targetUser: {
-        select: {
-          id: true,
-          displayName: true,
-          username: true,
-          profileImageUrl: true,
-          bio: true,
-          isActor: true,
-          _count: {
-            select: {
-              favoritedBy: true,
+  // Get favorited profiles with RLS
+  const favoritedProfiles = await asUser(user, async (db) => {
+    // Get favorited profiles
+    const favorites = await db.favorite.findMany({
+      where: {
+        userId: user.userId,
+      },
+      include: {
+        targetUser: {
+          select: {
+            id: true,
+            displayName: true,
+            username: true,
+            profileImageUrl: true,
+            bio: true,
+            isActor: true,
+            _count: {
+              select: {
+                favoritedBy: true,
+              },
             },
           },
         },
       },
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    // Get post counts for each profile (posts are authored by actor IDs)
+    const profiles = await Promise.all(
+      favorites.map(async (favorite) => {
+        const postCount = await db.post.count({
+          where: {
+            authorId: favorite.targetUser.id,
+          },
+        });
+
+        return {
+          id: favorite.targetUser.id,
+          displayName: favorite.targetUser.displayName,
+          username: favorite.targetUser.username,
+          profileImageUrl: favorite.targetUser.profileImageUrl,
+          bio: favorite.targetUser.bio,
+          isActor: favorite.targetUser.isActor,
+          postCount,
+          favoriteCount: favorite.targetUser._count.favoritedBy,
+          favoritedAt: favorite.createdAt,
+          isFavorited: true,
+        };
+      })
+    );
+
+    return profiles;
   });
-
-  // Get post counts for each profile (posts are authored by actor IDs)
-  const favoritedProfiles = await Promise.all(
-    favorites.map(async (favorite) => {
-      const postCount = await prisma.post.count({
-        where: {
-          authorId: favorite.targetUser.id,
-        },
-      });
-
-      return {
-        id: favorite.targetUser.id,
-        displayName: favorite.targetUser.displayName,
-        username: favorite.targetUser.username,
-        profileImageUrl: favorite.targetUser.profileImageUrl,
-        bio: favorite.targetUser.bio,
-        isActor: favorite.targetUser.isActor,
-        postCount,
-        favoriteCount: favorite.targetUser._count.favoritedBy,
-        favoritedAt: favorite.createdAt,
-        isFavorited: true,
-      };
-    })
-  );
 
   logger.info('Favorited profiles fetched successfully', { userId: user.userId, count: favoritedProfiles.length }, 'GET /api/profiles/favorites');
 

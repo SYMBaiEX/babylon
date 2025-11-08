@@ -7,7 +7,7 @@
 import { Service } from '@elizaos/core'
 import type { IAgentRuntime } from '@elizaos/core'
 import { logger } from '@elizaos/core'
-import { UnifiedDiscoveryService } from '../../src/agents/agent0/UnifiedDiscovery'
+import { UnifiedDiscoveryService, getUnifiedDiscoveryService } from '../../src/agents/agent0/UnifiedDiscovery'
 import { GameDiscoveryService } from '../../src/agents/agent0/GameDiscovery'
 import { Agent0Client } from '../../src/agents/agent0/Agent0Client'
 
@@ -137,9 +137,6 @@ export class Agent0Service extends Service {
 }
 
 // Helper to get singleton UnifiedDiscoveryService
-function getUnifiedDiscoveryService(): UnifiedDiscoveryService {
-  // Import dynamically to avoid circular dependencies
-  const { getUnifiedDiscoveryService } = require('../../src/agents/agent0/UnifiedDiscovery')
-  return getUnifiedDiscoveryService()
-}
+// Note: This function is imported statically at the top of the file
+// to avoid circular dependencies and follow best practices
 

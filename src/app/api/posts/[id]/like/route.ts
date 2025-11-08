@@ -4,8 +4,8 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
 import { authenticate } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { IdParamSchema } from '@/lib/validation/schemas';
@@ -26,8 +26,10 @@ export const POST = withErrorHandling(async (
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { id: postId } = IdParamSchema.parse(params);
 
+  // Like post with RLS
+  const likeCount = await asUser(user, async (db) => {
     // Ensure user exists in database (upsert pattern)
-    await prisma.user.upsert({
+    await db.user.upsert({
       where: { id: user.userId },
       update: {
         walletAddress: user.walletAddress,
@@ -41,7 +43,7 @@ export const POST = withErrorHandling(async (
     });
 
     // Check if post exists first
-    let post = await prisma.post.findUnique({
+    let post = await db.post.findUnique({
       where: { id: postId },
       select: { id: true, authorId: true },
     });
@@ -50,7 +52,7 @@ export const POST = withErrorHandling(async (
       const parseResult = parsePostId(postId);
       const { gameId, authorId, timestamp } = parseResult.metadata;
 
-      post = await prisma.post.create({
+      post = await db.post.create({
         data: {
           id: postId,
           content: '[Game-generated post]',
@@ -62,7 +64,7 @@ export const POST = withErrorHandling(async (
     }
 
     // Check if already liked
-    const existingReaction = await prisma.reaction.findUnique({
+    const existingReaction = await db.reaction.findUnique({
       where: {
         postId_userId_type: {
           postId,
@@ -77,7 +79,7 @@ export const POST = withErrorHandling(async (
     }
 
     // Create like reaction
-    await prisma.reaction.create({
+    await db.reaction.create({
       data: {
         postId,
         userId: user.userId,
@@ -96,12 +98,15 @@ export const POST = withErrorHandling(async (
     }
 
     // Get updated like count
-    const likeCount = await prisma.reaction.count({
+    const count = await db.reaction.count({
       where: {
         postId,
         type: 'like',
       },
     });
+
+    return count;
+  });
 
   logger.info('Post liked successfully', { postId, userId: user.userId, likeCount }, 'POST /api/posts/[id]/like');
 
@@ -130,8 +135,10 @@ export const DELETE = withErrorHandling(async (
     throw new BusinessLogicError('Post ID is required', 'POST_ID_REQUIRED');
   }
 
+  // Unlike post with RLS
+  const likeCount = await asUser(user, async (db) => {
     // Ensure user exists in database (upsert pattern)
-    await prisma.user.upsert({
+    await db.user.upsert({
       where: { id: user.userId },
       update: {
         walletAddress: user.walletAddress,
@@ -145,7 +152,7 @@ export const DELETE = withErrorHandling(async (
     });
 
     // Find existing like
-    const reaction = await prisma.reaction.findUnique({
+    const reaction = await db.reaction.findUnique({
       where: {
         postId_userId_type: {
           postId,
@@ -160,19 +167,22 @@ export const DELETE = withErrorHandling(async (
     }
 
     // Delete like
-    await prisma.reaction.delete({
+    await db.reaction.delete({
       where: {
         id: reaction.id,
       },
     });
 
     // Get updated like count
-    const likeCount = await prisma.reaction.count({
+    const count = await db.reaction.count({
       where: {
         postId,
         type: 'like',
       },
     });
+
+    return count;
+  });
 
   logger.info('Post unliked successfully', { postId, userId: user.userId, likeCount }, 'DELETE /api/posts/[id]/like');
 

@@ -6,13 +6,18 @@
  */
 
 import type { NextRequest } from 'next/server'
-import { prisma } from '@/lib/database-service';
+import { optionalAuth } from '@/lib/api/auth-middleware'
+import { asUser } from '@/lib/db/context'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger';
 
 export const GET = withErrorHandling(async (_request: NextRequest) => {
-  // Get group chats from database instead of file system
-  const groupChats = await prisma.chat.findMany({
+  // Optional auth - game assets are public but RLS still applies
+  const authUser = await optionalAuth(_request).catch(() => null)
+
+  // Get group chats from database with RLS
+  const groupChats = await asUser(authUser, async (db) => {
+    return await db.chat.findMany({
     where: {
       isGroup: true,
       gameId: 'continuous',
@@ -22,7 +27,8 @@ export const GET = withErrorHandling(async (_request: NextRequest) => {
       name: true,
       // Map to expected format
     },
-  });
+  })
+  })
 
   // If you need additional game assets, store them in database or
   // have the client fetch from /data/actors.json directly (public folder)

@@ -4,9 +4,9 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { optionalAuth } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
 import { BusinessLogicError, AuthorizationError } from '@/lib/errors';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
 import { WalletService } from '@/lib/services/wallet-service';
@@ -30,22 +30,24 @@ export const GET = withErrorHandling(async (
     throw new AuthorizationError('Can only view your own balance', 'balance', 'read');
   }
 
-  // Ensure user exists in database
-  let dbUser = await prisma.user.findUnique({
-    where: { id: userId },
+  // Ensure user exists in database with RLS
+  await asUser(authUser, async (db) => {
+    let dbUser = await db.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!dbUser) {
+      // Create user if they don't exist yet
+      dbUser = await db.user.create({
+        data: {
+          id: userId,
+          isActor: false,
+        },
+      });
+    }
   });
 
-  if (!dbUser) {
-    // Create user if they don't exist yet
-    dbUser = await prisma.user.create({
-      data: {
-        id: userId,
-        isActor: false,
-      },
-    });
-  }
-
-  // Get balance info
+  // Get balance info (WalletService handles its own queries)
   const balanceInfo = await WalletService.getBalance(userId);
 
   logger.info('Balance fetched successfully', { userId, balance: balanceInfo.balance }, 'GET /api/users/[userId]/balance');

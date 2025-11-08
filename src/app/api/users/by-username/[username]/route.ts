@@ -4,8 +4,8 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
 import { optionalAuth } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { UsernameParamSchema } from '@/lib/validation/schemas';
@@ -23,47 +23,49 @@ export const GET = withErrorHandling(async (
   const { username } = UsernameParamSchema.parse(params);
 
   // Optional authentication
-  await optionalAuth(request);
+  const authUser = await optionalAuth(request);
 
-  // Get user profile by username
-  const dbUser = await prisma.user.findUnique({
-    where: { username },
-    select: {
-      id: true,
-      walletAddress: true,
-      username: true,
-      displayName: true,
-      bio: true,
-      profileImageUrl: true,
-      coverImageUrl: true,
-      isActor: true,
-      profileComplete: true,
-      hasUsername: true,
-      hasBio: true,
-      hasProfileImage: true,
-      onChainRegistered: true,
-      nftTokenId: true,
-      virtualBalance: true,
-      lifetimePnL: true,
-      reputationPoints: true,
-      referralCount: true,
-      referralCode: true,
-      hasFarcaster: true,
-      hasTwitter: true,
-      farcasterUsername: true,
-      twitterUsername: true,
-      usernameChangedAt: true,
-      createdAt: true,
-      _count: {
-        select: {
-          positions: true,
-          comments: true,
-          reactions: true,
-          followedBy: true,
-          following: true,
+  // Get user profile by username with RLS
+  const dbUser = await asUser(authUser, async (db) => {
+    return await db.user.findUnique({
+      where: { username },
+      select: {
+        id: true,
+        walletAddress: true,
+        username: true,
+        displayName: true,
+        bio: true,
+        profileImageUrl: true,
+        coverImageUrl: true,
+        isActor: true,
+        profileComplete: true,
+        hasUsername: true,
+        hasBio: true,
+        hasProfileImage: true,
+        onChainRegistered: true,
+        nftTokenId: true,
+        virtualBalance: true,
+        lifetimePnL: true,
+        reputationPoints: true,
+        referralCount: true,
+        referralCode: true,
+        hasFarcaster: true,
+        hasTwitter: true,
+        farcasterUsername: true,
+        twitterUsername: true,
+        usernameChangedAt: true,
+        createdAt: true,
+        _count: {
+          select: {
+            positions: true,
+            comments: true,
+            reactions: true,
+            followedBy: true,
+            following: true,
+          },
         },
       },
-    },
+    });
   });
 
   if (!dbUser) {

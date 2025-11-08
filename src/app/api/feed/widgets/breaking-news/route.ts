@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server'
-import { prisma } from '@/lib/database-service'
+import { optionalAuth } from '@/lib/api/auth-middleware'
+import { asUser } from '@/lib/db/context'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { BreakingNewsQuerySchema } from '@/lib/validation/schemas'
 import { logger } from '@/lib/logger'
@@ -28,11 +29,17 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     category: searchParams.get('category')
   }
   BreakingNewsQuerySchema.parse(queryParams)
-  const newsItems: BreakingNewsItem[] = []
+  
+  // Optional auth - breaking news is public but RLS still applies
+  const authUser = await optionalAuth(request).catch(() => null)
+
+  // Get all breaking news data with RLS
+  const newsItems: BreakingNewsItem[] = await asUser(authUser, async (db) => {
+    const items: BreakingNewsItem[] = []
 
     // 1. Get recent significant world events - dynamically determine event types from database
     // First, get all unique event types that exist in the database
-    const uniqueEventTypes = await prisma.worldEvent.findMany({
+    const uniqueEventTypes = await db.worldEvent.findMany({
       select: { eventType: true },
       distinct: ['eventType'],
       take: 50,
@@ -41,7 +48,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const availableEventTypes = uniqueEventTypes.map(e => e.eventType.toLowerCase())
     
     // Get recent events, filtering for news-worthy types dynamically
-    const recentEvents = await prisma.worldEvent.findMany({
+    const recentEvents = await db.worldEvent.findMany({
       take: FEED_WIDGET_CONFIG.MAX_WORLD_EVENTS_QUERY,
       orderBy: { timestamp: 'desc' },
       where: {
@@ -88,13 +95,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
       let imageUrl: string | undefined
       if (event.actors && event.actors.length > 0) {
-        const actor = await prisma.actor.findUnique({
+        const actor = await db.actor.findUnique({
           where: { id: event.actors[0] },
         })
         imageUrl = actor?.profileImageUrl || undefined
       }
 
-      newsItems.push({
+      items.push({
         id: event.id,
         title: description.length > 50 ? description.substring(0, 47) + '...' : description,
         description: `${getTimeAgo(eventDate)}${isTrending ? ' • Trending' : ''}`,
@@ -112,7 +119,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }
 
     // 2. Get organization price updates (any significant changes, not just ATHs)
-    const priceUpdates = await prisma.stockPrice.findMany({
+    const priceUpdates = await db.stockPrice.findMany({
       take: FEED_WIDGET_CONFIG.MAX_PRICE_UPDATES_QUERY,
       orderBy: { timestamp: 'desc' },
       include: {
@@ -150,7 +157,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       const isTrending = new Date(update.timestamp).getTime() > Date.now() - priceTrendingThreshold
       const fullDesc = `Stock price update for ${org.name || org.id}. Current price: $${price.toFixed(2)}. ${changePercent > 0 ? 'Up' : 'Down'} ${Math.abs(changePercent).toFixed(2)}% from previous price.${isATH ? ' This represents a new all-time high for the organization.' : ''}`
       
-      newsItems.push({
+      items.push({
         id: `price-${update.id}`,
         title: isATH 
           ? `${org.name || org.id} reaches new ATH`
@@ -167,13 +174,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
     // 3. Get recent posts from actors (broader criteria for news-worthy content)
     // First get all actor IDs
-    const allActors = await prisma.actor.findMany({
+    const allActors = await db.actor.findMany({
       select: { id: true },
     })
     const actorIds = new Set(allActors.map(a => a.id))
 
     // Get recent posts and filter for actor posts
-    const recentPosts = await prisma.post.findMany({
+    const recentPosts = await db.post.findMany({
       take: FEED_WIDGET_CONFIG.MAX_POSTS_QUERY,
       orderBy: { timestamp: 'desc' },
     })
@@ -183,7 +190,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .filter(post => actorIds.has(post.authorId))
       .map(post => post.authorId)
     
-    const actorsData = await prisma.actor.findMany({
+    const actorsData = await db.actor.findMany({
       where: { id: { in: Array.from(new Set(actorPostIds)) } },
     })
     const actorsMap = new Map(
@@ -237,7 +244,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       const postTrendingThreshold = FEED_WIDGET_CONFIG.TRENDING_HOURS * 60 * 60 * 1000
       const isTrending = eventDate.getTime() > Date.now() - postTrendingThreshold
 
-      newsItems.push({
+      items.push({
         id: post.id,
         title,
         description: `${getTimeAgo(eventDate)}${isTrending ? ' • Trending' : ''}`,
@@ -252,14 +259,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }
 
     // 4. Fallback: If we don't have enough items, get ANY recent posts from actors
-    if (newsItems.length < FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) {
-      const fallbackPosts = await prisma.post.findMany({
+    if (items.length < FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) {
+      const fallbackPosts = await db.post.findMany({
         take: 20,
         orderBy: { timestamp: 'desc' },
         where: {
           // Exclude posts already included
           id: {
-            notIn: newsItems.map(item => item.id),
+            notIn: items.map(item => item.id),
           },
           // Only actor posts
           authorId: { in: Array.from(actorIds) },
@@ -267,7 +274,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       })
 
       for (const post of fallbackPosts) {
-        if (newsItems.length >= FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) break
+        if (items.length >= FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) break
         const actor = actorsMap.get(post.authorId)
         if (!actor) continue
         
@@ -278,7 +285,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         const fallbackTrendingThreshold = FEED_WIDGET_CONFIG.TRENDING_HOURS * 60 * 60 * 1000
         const isTrending = eventDate.getTime() > Date.now() - fallbackTrendingThreshold
 
-        newsItems.push({
+        items.push({
           id: post.id,
           title,
           description: `${getTimeAgo(eventDate)}${isTrending ? ' • Trending' : ''}`,
@@ -294,17 +301,17 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }
 
     // 5. Final fallback: Get ANY recent world events if still not enough
-    if (newsItems.length < FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) {
-      const allRecentEvents = await prisma.worldEvent.findMany({
+    if (items.length < FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) {
+      const allRecentEvents = await db.worldEvent.findMany({
         take: 10,
         orderBy: { timestamp: 'desc' },
       })
 
       for (const event of allRecentEvents) {
-        if (newsItems.length >= FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) break
+        if (items.length >= FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS) break
         
         // Skip if already included
-        if (newsItems.some(item => item.id === event.id)) continue
+        if (items.some(item => item.id === event.id)) continue
         
         const description = event.description || 'Game event occurred'
         
@@ -312,7 +319,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         const finalFallbackTrendingThreshold = FEED_WIDGET_CONFIG.TRENDING_HOURS * 60 * 60 * 1000
         const isTrending = eventDate.getTime() > Date.now() - finalFallbackTrendingThreshold
 
-        newsItems.push({
+        items.push({
           id: event.id,
           title: description.length > 50 ? description.substring(0, 47) + '...' : description,
           description: `${getTimeAgo(eventDate)}${isTrending ? ' • Trending' : ''}`,
@@ -325,17 +332,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       }
     }
 
-  // Sort by timestamp (most recent first) and take top N
-  const sortedNews = newsItems
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    .slice(0, FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS)
+    // Sort by timestamp (most recent first) and take top N
+    const sortedNews = items
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, FEED_WIDGET_CONFIG.MAX_BREAKING_NEWS_ITEMS)
 
-  logger.info('Breaking news fetched successfully', { count: sortedNews.length }, 'GET /api/feed/widgets/breaking-news')
+    return sortedNews
+  })
+
+  logger.info('Breaking news fetched successfully', { count: newsItems.length }, 'GET /api/feed/widgets/breaking-news')
 
   // Return sorted news (should always have content if game is running)
   return successResponse({
     success: true,
-    news: sortedNews,
+    news: newsItems,
   })
 })
 

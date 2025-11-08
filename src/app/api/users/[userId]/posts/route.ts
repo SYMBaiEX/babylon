@@ -4,8 +4,8 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
 import { optionalAuth } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError } from '@/lib/errors';
 import { UserIdParamSchema, UserPostsQuerySchema } from '@/lib/validation/schemas';
@@ -26,32 +26,29 @@ export const GET = withErrorHandling(async (
   const { searchParams } = new URL(request.url);
   const queryParams = {
     type: searchParams.get('type') || 'posts',
-    page: searchParams.get('page'),
-    limit: searchParams.get('limit')
+    page: searchParams.get('page') || '1',
+    limit: searchParams.get('limit') || '100'
   };
   const { type } = UserPostsQuerySchema.parse(queryParams);
 
   // Optional authentication
   const user = await optionalAuth(request);
 
-    if (type === 'replies') {
-      // Get user's comments (replies)
+  // Get posts/replies with RLS
+  if (type === 'replies') {
+    const result = await asUser(user, async (db) => {
       // Verify user exists first
-      const dbUser = await prisma.user.findUnique({
+      const dbUser = await db.user.findUnique({
         where: { id: userId },
         select: { id: true },
       });
       
       if (!dbUser) {
-        return successResponse({
-          type: 'replies',
-          items: [],
-          total: 0,
-        });
+        return { items: [], total: 0 };
       }
       
       // Get user's comments (replies) - query by authorId
-      const comments = await prisma.comment.findMany({
+      const comments = await db.comment.findMany({
         where: {
           authorId: dbUser.id,
         },
@@ -93,7 +90,7 @@ export const GET = withErrorHandling(async (
       
       // Fetch User and Actor info for post authors
       const [postAuthorsUsers, postAuthorsActors] = await Promise.all([
-        prisma.user.findMany({
+        db.user.findMany({
           where: { id: { in: postAuthorIds } },
           select: {
             id: true,
@@ -102,7 +99,7 @@ export const GET = withErrorHandling(async (
             profileImageUrl: true,
           },
         }),
-        prisma.actor.findMany({
+        db.actor.findMany({
           where: { id: { in: postAuthorIds } },
           select: {
             id: true,
@@ -154,19 +151,22 @@ export const GET = withErrorHandling(async (
         };
       });
 
-      logger.info('User replies fetched successfully', { userId, total: replies.length }, 'GET /api/users/[userId]/posts');
+      return { items: replies, total: replies.length };
+    });
 
-      return successResponse({
-        type: 'replies',
-        items: replies,
-        total: replies.length,
-      });
-    } else {
-      // Get user's posts
-      const posts = await prisma.post.findMany({
+    logger.info('User replies fetched successfully', { userId, total: result.total }, 'GET /api/users/[userId]/posts');
+
+    return successResponse({
+      type: 'replies',
+      items: result.items,
+      total: result.total,
+    });
+  } else {
+    // Get user's posts
+    const result = await asUser(user, async (db) => {
+      const posts = await db.post.findMany({
         where: {
           authorId: userId,
-          // Exclude reposts (posts with replyTo field will be handled separately)
         },
         include: {
           _count: {
@@ -203,7 +203,7 @@ export const GET = withErrorHandling(async (
       });
 
       // Also get user's shares (reposts)
-      const shares = await prisma.share.findMany({
+      const shares = await db.share.findMany({
         where: {
           userId: userId,
         },
@@ -233,7 +233,7 @@ export const GET = withErrorHandling(async (
       });
 
       // Fetch author info for the user (posts are all from userId)
-      const postAuthor = await prisma.user.findUnique({
+      const postAuthor = await db.user.findUnique({
         where: { id: userId },
         select: {
           id: true,
@@ -248,7 +248,7 @@ export const GET = withErrorHandling(async (
       
       // Fetch User and Actor info for shared post authors
       const [sharedAuthorsUsers, sharedAuthorsActors] = await Promise.all([
-        prisma.user.findMany({
+        db.user.findMany({
           where: { id: { in: sharedPostAuthorIds } },
           select: {
             id: true,
@@ -257,7 +257,7 @@ export const GET = withErrorHandling(async (
             profileImageUrl: true,
           },
         }),
-        prisma.actor.findMany({
+        db.actor.findMany({
           where: { id: { in: sharedPostAuthorIds } },
           select: {
             id: true,
@@ -307,7 +307,7 @@ export const GET = withErrorHandling(async (
           likeCount: share.post._count.reactions,
           commentCount: share.post._count.comments,
           shareCount: share.post._count.shares,
-          isLiked: false, // Could check if user liked original post
+          isLiked: false,
           isShared: true,
           isRepost: true,
           originalPostId: share.post.id,
@@ -334,13 +334,16 @@ export const GET = withErrorHandling(async (
         (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
 
-      logger.info('User posts fetched successfully', { userId, total: allItems.length }, 'GET /api/users/[userId]/posts');
+      return { items: allItems, total: allItems.length };
+    });
 
-      return successResponse({
-        type: 'posts',
-        items: allItems,
-        total: allItems.length,
-      });
-    }
+    logger.info('User posts fetched successfully', { userId, total: result.total }, 'GET /api/users/[userId]/posts');
+
+    return successResponse({
+      type: 'posts',
+      items: result.items,
+      total: result.total,
+    });
+  }
 });
 

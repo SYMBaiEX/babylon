@@ -287,11 +287,12 @@ export const IdParamSchema = z.object({
 
 /**
  * Generic success response schema
+ * Uses z.unknown() for data to allow any JSON-serializable value while maintaining type safety
  */
 export const SuccessResponseSchema = z.object({
   success: z.literal(true),
   message: z.string().optional(),
-  data: z.any().optional()
+  data: z.unknown().optional()
 });
 
 /**

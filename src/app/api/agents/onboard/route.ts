@@ -14,7 +14,7 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { AuthorizationError, InternalServerError } from '@/lib/errors'
 import { AgentOnboardSchema } from '@/lib/validation/schemas/agent'
 import { authenticate } from '@/lib/api/auth-middleware'
-import { prisma } from '@/lib/database-service'
+import { asUser } from '@/lib/db/context'
 import { logger } from '@/lib/logger'
 import { Agent0Client } from '@/agents/agent0/Agent0Client'
 import type { AgentCapabilities } from '@/a2a/types'
@@ -107,9 +107,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const body = await request.json()
   const { agentName, endpoint } = AgentOnboardSchema.parse(body)
 
-    // Check if agent exists in database (use upsert to avoid race conditions)
+    // Check if agent exists in database (use upsert to avoid race conditions) with RLS
     // Note: Agents don't have wallet addresses - they're registered via server wallet
-    const dbUser = await prisma.user.upsert({
+    const dbUser = await asUser(user, async (db) => {
+      return await db.user.upsert({
       where: {
         username: agentId, // Use username as unique identifier for agents
       },
@@ -134,6 +135,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         nftTokenId: true,
         registrationTxHash: true,
       },
+    })
     })
 
     // Create clients
@@ -242,8 +244,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     logger.info('All win transactions confirmed', { count: 7 }, 'AgentOnboard')
     logger.info('Initial reputation set to 70 for agent (7 wins out of 10 bets)', { tokenId }, 'AgentOnboard')
 
-    // Update database with ERC-8004 registration
-    await prisma.user.update({
+    // Update database with ERC-8004 registration with RLS
+    await asUser(user, async (db) => {
+      return await db.user.update({
       where: { id: dbUser.id },
       data: {
         onChainRegistered: true,
@@ -252,6 +255,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         username: agentId,
         displayName: name,
       },
+    })
     })
 
     // Register with Agent0 SDK and publish to IPFS (if enabled)
@@ -346,7 +350,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         walletAddress: agentWalletAddress,
         mcpEndpoint: undefined, // Agents don't expose MCP by default
         a2aEndpoint: endpoint || `wss://babylon.game/ws/a2a`,
-        capabilities: agentMetadata.capabilities
+        capabilities: {
+          ...agentMetadata.capabilities,
+          platform: 'babylon', // Identify as Babylon agent
+          userType: 'agent' // Agent type
+        }
       })
 
       // Extract metadata CID from Agent0 result
@@ -391,13 +399,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const agentId = user.userId
 
-  const dbUser = await prisma.user.findUniqueOrThrow({
-    where: { username: agentId },
-    select: {
-      onChainRegistered: true,
-      nftTokenId: true,
-      registrationTxHash: true,
-    },
+  const dbUser = await asUser(user, async (db) => {
+    return await db.user.findUniqueOrThrow({
+      where: { username: agentId },
+      select: {
+        onChainRegistered: true,
+        nftTokenId: true,
+        registrationTxHash: true,
+      },
+    })
   })
 
   const isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null

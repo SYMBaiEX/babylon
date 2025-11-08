@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { prisma } from '@/lib/database-service';
 import { authenticate } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, AuthorizationError } from '@/lib/errors';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
@@ -48,16 +48,18 @@ export const POST = withErrorHandling(async (
       break;
   }
 
-  // Update user visibility preference
-  const updatedUser = await prisma.user.update({
-    where: { id: userId },
-    data: updateData,
-    select: {
-      id: true,
-      showTwitterPublic: true,
-      showFarcasterPublic: true,
-      showWalletPublic: true,
-    },
+  // Update user visibility preference with RLS
+  const updatedUser = await asUser(authUser, async (db) => {
+    return await db.user.update({
+      where: { id: userId },
+      data: updateData,
+      select: {
+        id: true,
+        showTwitterPublic: true,
+        showFarcasterPublic: true,
+        showWalletPublic: true,
+      },
+    });
   });
 
   logger.info(

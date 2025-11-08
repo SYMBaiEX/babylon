@@ -7,7 +7,7 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware'
-import { prisma } from '@/lib/database-service'
+import { asUser } from '@/lib/db/context'
 import { AuthorizationError, BusinessLogicError, NotFoundError } from '@/lib/errors'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger'
@@ -45,70 +45,75 @@ export const POST = withErrorHandling(async (
   const body = await request.json();
   const { platform, username, address } = LinkSocialRequestSchema.parse(body);
 
-  // Get current user state
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      hasFarcaster: true,
-      hasTwitter: true,
-      walletAddress: true,
-    },
-  });
+  // Link social account with RLS
+  const { alreadyLinked, pointsResult } = await asUser(authUser, async (db) => {
+    // Get current user state
+    const usr = await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        hasFarcaster: true,
+        hasTwitter: true,
+        walletAddress: true,
+      },
+    });
 
-  if (!user) {
-    throw new NotFoundError('User', userId);
-  }
+    if (!usr) {
+      throw new NotFoundError('User', userId);
+    }
 
-  // Check if already linked
-  let alreadyLinked = false;
-  switch (platform) {
-    case 'farcaster':
-      alreadyLinked = user.hasFarcaster;
-      break;
-    case 'twitter':
-      alreadyLinked = user.hasTwitter;
-      break;
-    case 'wallet':
-      alreadyLinked = !!user.walletAddress;
-      break;
-  }
-
-  // Update user with social connection
-  const updateData: Record<string, string | boolean> = {};
-  switch (platform) {
-    case 'farcaster':
-      updateData.hasFarcaster = true;
-      if (username) updateData.farcasterUsername = username;
-      break;
-    case 'twitter':
-      updateData.hasTwitter = true;
-      if (username) updateData.twitterUsername = username;
-      break;
-    case 'wallet':
-      if (address) updateData.walletAddress = address;
-      break;
-  }
-
-  await prisma.user.update({
-    where: { id: userId },
-    data: updateData,
-  });
-
-  // Award points if not already linked
-  let pointsResult;
-  if (!alreadyLinked) {
+    // Check if already linked
+    let linked = false;
     switch (platform) {
       case 'farcaster':
-        pointsResult = await PointsService.awardFarcasterLink(userId, username);
+        linked = usr.hasFarcaster;
         break;
       case 'twitter':
-        pointsResult = await PointsService.awardTwitterLink(userId, username);
+        linked = usr.hasTwitter;
         break;
       case 'wallet':
-        pointsResult = await PointsService.awardWalletConnect(userId, address);
+        linked = !!usr.walletAddress;
         break;
     }
-  }
+
+    // Update user with social connection
+    const updateData: Record<string, string | boolean> = {};
+    switch (platform) {
+      case 'farcaster':
+        updateData.hasFarcaster = true;
+        if (username) updateData.farcasterUsername = username;
+        break;
+      case 'twitter':
+        updateData.hasTwitter = true;
+        if (username) updateData.twitterUsername = username;
+        break;
+      case 'wallet':
+        if (address) updateData.walletAddress = address;
+        break;
+    }
+
+    await db.user.update({
+      where: { id: userId },
+      data: updateData,
+    });
+
+    // Award points if not already linked
+    let points = null;
+    if (!linked) {
+      switch (platform) {
+        case 'farcaster':
+          points = await PointsService.awardFarcasterLink(userId, username);
+          break;
+        case 'twitter':
+          points = await PointsService.awardTwitterLink(userId, username);
+          break;
+        case 'wallet':
+          points = await PointsService.awardWalletConnect(userId, address);
+          break;
+      }
+    }
+
+    return { alreadyLinked: linked, pointsResult: points };
+  });
 
   logger.info(
     `User ${userId} linked ${platform} account`,

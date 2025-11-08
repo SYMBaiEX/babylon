@@ -18,10 +18,11 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import type { WebSocket as WSWebSocket } from 'ws';
+import { WebSocketServer } from 'ws';
 import type { IncomingMessage } from 'http'
 import { parse } from 'url'
-import { prisma } from '@/lib/prisma'
 import { authenticate } from '@/lib/api/auth-middleware'
+import { asUser } from '@/lib/db/context'
 import { logger } from '@/lib/logger'
 import type { JsonValue } from '@/types/common'
 import type { 
@@ -46,9 +47,17 @@ interface AuthenticatedWebSocket extends WSWebSocket {
   isAlive?: boolean
 }
 
-// Type for WebSocketServer to avoid static import
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type WebSocketServerType = any
+/**
+ * WebSocketServer type from 'ws' package
+ * Using interface to avoid static import issues on Vercel
+ */
+interface WebSocketServerType {
+  clients: Set<AuthenticatedWebSocket>
+  on(event: 'connection', listener: (ws: AuthenticatedWebSocket, req: IncomingMessage) => void): void
+  on(event: 'error', listener: (error: Error & { code?: string }) => void): void
+  on(event: 'close', listener: () => void): void
+  close(callback?: () => void): void
+}
 
 // Use global to survive hot module reloading in development
 declare global {
@@ -95,11 +104,7 @@ function initializeWebSocketServer() {
       return wss
     }
     
-    // Dynamic import to avoid bundling ws on Vercel
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { WebSocketServer: WSS } = require('ws')
-    
-    wss = new WSS({
+    wss = new WebSocketServer({
       port: 3001,
       path: '/ws/chat'
     })
@@ -218,7 +223,7 @@ function initializeWebSocketServer() {
 
     // Set up ping interval to keep connections alive
     const pingInterval = setInterval(() => {
-      wss?.clients.forEach((client: unknown) => {
+      wss?.clients.forEach((client) => {
         const ws = client as AuthenticatedWebSocket;
         if (!ws.isAlive) {
           ws.terminate()
@@ -331,15 +336,20 @@ async function joinChat(ws: AuthenticatedWebSocket, chatId: string) {
   const isGameChat = chatId.includes('-')
   let hasAccess = true
 
-  if (!isGameChat) {
-    // For database chats, check membership
-    const membership = await prisma.groupChatMembership.findUnique({
-      where: {
-        userId_chatId: {
-          userId: ws.userId,
-          chatId
+  if (!isGameChat && ws.userId) {
+    // For database chats, check membership with RLS
+    // Create a mock auth user from ws.userId (user is already authenticated)
+    const userId = ws.userId // Store in const for type narrowing
+    const mockAuthUser = { userId, isAgent: false }
+    const membership = await asUser(mockAuthUser, async (db) => {
+      return await db.groupChatMembership.findUnique({
+        where: {
+          userId_chatId: {
+            userId,
+            chatId
+          }
         }
-      }
+      })
     })
     hasAccess = !!membership
   }

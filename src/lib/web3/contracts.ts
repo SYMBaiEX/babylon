@@ -1,6 +1,7 @@
 /**
  * Smart Contract Configuration
- * ERC-8004 Identity, Reputation, and Prediction Market contracts on Base L2
+ * ERC-8004 Identity, Reputation, and Prediction Market contracts on Ethereum
+ * Unified with Agent0 registry on the same chain
  */
 
 import type { Address } from 'viem'
@@ -13,22 +14,22 @@ export interface ContractAddresses {
   oracleFacet: Address
 }
 
-// Base Sepolia (Testnet) - Chain ID: 84532
-export const BASE_SEPOLIA_CONTRACTS: ContractAddresses = {
-  identityRegistry: (process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA || '0x0000000000000000000000000000000000000000') as Address,
-  reputationSystem: (process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA || '0x0000000000000000000000000000000000000000') as Address,
-  diamond: (process.env.NEXT_PUBLIC_DIAMOND_BASE_SEPOLIA || '0x0000000000000000000000000000000000000000') as Address,
-  predictionMarketFacet: (process.env.NEXT_PUBLIC_DIAMOND_BASE_SEPOLIA || '0x0000000000000000000000000000000000000000') as Address, // Diamond handles all facets
-  oracleFacet: (process.env.NEXT_PUBLIC_DIAMOND_BASE_SEPOLIA || '0x0000000000000000000000000000000000000000') as Address, // Diamond handles all facets
+// Ethereum Sepolia (Testnet) - Chain ID: 11155111
+export const SEPOLIA_CONTRACTS: ContractAddresses = {
+  identityRegistry: (process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_SEPOLIA || '0x0000000000000000000000000000000000000000') as Address,
+  reputationSystem: (process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_SEPOLIA || '0x0000000000000000000000000000000000000000') as Address,
+  diamond: (process.env.NEXT_PUBLIC_DIAMOND_SEPOLIA || '0x0000000000000000000000000000000000000000') as Address,
+  predictionMarketFacet: (process.env.NEXT_PUBLIC_DIAMOND_SEPOLIA || '0x0000000000000000000000000000000000000000') as Address, // Diamond handles all facets
+  oracleFacet: (process.env.NEXT_PUBLIC_DIAMOND_SEPOLIA || '0x0000000000000000000000000000000000000000') as Address, // Diamond handles all facets
 }
 
-// Base Mainnet - Chain ID: 8453
-export const BASE_MAINNET_CONTRACTS: ContractAddresses = {
-  identityRegistry: (process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE || '0x0000000000000000000000000000000000000000') as Address,
-  reputationSystem: (process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_BASE || '0x0000000000000000000000000000000000000000') as Address,
-  diamond: (process.env.NEXT_PUBLIC_DIAMOND_BASE || '0x0000000000000000000000000000000000000000') as Address,
-  predictionMarketFacet: (process.env.NEXT_PUBLIC_DIAMOND_BASE || '0x0000000000000000000000000000000000000000') as Address, // Diamond handles all facets
-  oracleFacet: (process.env.NEXT_PUBLIC_DIAMOND_BASE || '0x0000000000000000000000000000000000000000') as Address, // Diamond handles all facets
+// Ethereum Mainnet - Chain ID: 1
+export const MAINNET_CONTRACTS: ContractAddresses = {
+  identityRegistry: (process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_MAINNET || '0x0000000000000000000000000000000000000000') as Address,
+  reputationSystem: (process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_MAINNET || '0x0000000000000000000000000000000000000000') as Address,
+  diamond: (process.env.NEXT_PUBLIC_DIAMOND_MAINNET || '0x0000000000000000000000000000000000000000') as Address,
+  predictionMarketFacet: (process.env.NEXT_PUBLIC_DIAMOND_MAINNET || '0x0000000000000000000000000000000000000000') as Address, // Diamond handles all facets
+  oracleFacet: (process.env.NEXT_PUBLIC_DIAMOND_MAINNET || '0x0000000000000000000000000000000000000000') as Address, // Diamond handles all facets
 }
 
 /**
@@ -36,12 +37,12 @@ export const BASE_MAINNET_CONTRACTS: ContractAddresses = {
  */
 export function getContractAddresses(chainId: number): ContractAddresses {
   switch (chainId) {
-    case 84532: // Base Sepolia
-      return BASE_SEPOLIA_CONTRACTS
-    case 8453: // Base Mainnet
-      return BASE_MAINNET_CONTRACTS
+    case 11155111: // Ethereum Sepolia
+      return SEPOLIA_CONTRACTS
+    case 1: // Ethereum Mainnet
+      return MAINNET_CONTRACTS
     default:
-      return BASE_SEPOLIA_CONTRACTS // Default to testnet
+      return SEPOLIA_CONTRACTS // Default to testnet
   }
 }
 

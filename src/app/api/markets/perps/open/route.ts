@@ -4,12 +4,12 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
+import { authenticate } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { NotFoundError, BusinessLogicError, InsufficientFundsError, InternalServerError } from '@/lib/errors';
 import { PerpOpenPositionSchema } from '@/lib/validation/schemas/trade';
 import { getPerpsEngine } from '@/lib/perps-service';
-import { authenticate } from '@/lib/api/auth-middleware';
 import { WalletService } from '@/lib/services/wallet-service';
 import { logger } from '@/lib/logger';
 
@@ -72,70 +72,72 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     orderType: 'market',
   });
 
-  // Execute debit and database operations in a transaction
+  // Execute debit and database operations with RLS
   try {
-    await prisma.$transaction(async (tx) => {
-      const dbUser = await tx.user.findUnique({
-        where: { id: user.userId },
-        select: {
-          id: true,
-          virtualBalance: true,
-        },
-      });
+    await asUser(user, async (db) => {
+      return await db.$transaction(async (tx) => {
+        const dbUser = await tx.user.findUnique({
+          where: { id: user.userId },
+          select: {
+            id: true,
+            virtualBalance: true,
+          },
+        });
 
-      if (!dbUser) {
-        throw new NotFoundError('User', user.userId);
-      }
+        if (!dbUser) {
+          throw new NotFoundError('User', user.userId);
+        }
 
-      if (dbUser.virtualBalance === null) {
-        throw new InternalServerError('User balance not initialized', { userId: user.userId });
-      }
+        if (dbUser.virtualBalance === null) {
+          throw new InternalServerError('User balance not initialized', { userId: user.userId });
+        }
 
-      const currentBalance = Number(dbUser.virtualBalance);
-      if (currentBalance < marginRequired) {
-        throw new InsufficientFundsError(marginRequired, currentBalance, 'USD');
-      }
+        const currentBalance = Number(dbUser.virtualBalance);
+        if (currentBalance < marginRequired) {
+          throw new InsufficientFundsError(marginRequired, currentBalance, 'USD');
+        }
 
-      const newBalance = currentBalance - marginRequired;
+        const newBalance = currentBalance - marginRequired;
 
-      // Update balance
-      await tx.user.update({
-        where: { id: user.userId },
-        data: {
-          virtualBalance: newBalance,
-        },
-      });
+        // Update balance
+        await tx.user.update({
+          where: { id: user.userId },
+          data: {
+            virtualBalance: newBalance,
+          },
+        });
 
-      // Create balance transaction with position ID
-      await tx.balanceTransaction.create({
-        data: {
-          userId: user.userId,
-          type: 'perp_open',
-          amount: -marginRequired,
-          balanceBefore: currentBalance,
-          balanceAfter: newBalance,
-          relatedId: position.id,
-          description: `Opened ${leverage}x ${side} position on ${ticker}`,
-        },
-      });
+        // Create balance transaction with position ID
+        await tx.balanceTransaction.create({
+          data: {
+            userId: user.userId,
+            type: 'perp_open',
+            amount: -marginRequired,
+            balanceBefore: currentBalance,
+            balanceAfter: newBalance,
+            relatedId: position.id,
+            description: `Opened ${leverage}x ${side} position on ${ticker}`,
+          },
+        });
 
-      // Save position to database
-      await tx.perpPosition.create({
-        data: {
-          id: position.id,
-          userId: user.userId,
-          ticker: position.ticker,
-          organizationId: position.organizationId,
-          side: position.side,
-          entryPrice: position.entryPrice,
-          currentPrice: position.currentPrice,
-          size: position.size,
-          leverage: position.leverage,
-          liquidationPrice: position.liquidationPrice,
-          unrealizedPnL: position.unrealizedPnL,
-          unrealizedPnLPercent: position.unrealizedPnLPercent,
-          fundingPaid: position.fundingPaid,
-        },
+        // Save position to database
+        await tx.perpPosition.create({
+          data: {
+            id: position.id,
+            userId: user.userId,
+            ticker: position.ticker,
+            organizationId: position.organizationId,
+            side: position.side,
+            entryPrice: position.entryPrice,
+            currentPrice: position.currentPrice,
+            size: position.size,
+            leverage: position.leverage,
+            liquidationPrice: position.liquidationPrice,
+            unrealizedPnL: position.unrealizedPnL,
+            unrealizedPnLPercent: position.unrealizedPnLPercent,
+            fundingPaid: position.fundingPaid,
+          },
+        });
       });
     });
   } catch (error) {

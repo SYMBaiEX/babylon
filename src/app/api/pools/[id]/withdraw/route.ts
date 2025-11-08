@@ -5,7 +5,8 @@
 
 import type { NextRequest } from 'next/server';
 import { Prisma } from '@prisma/client';
-import { prisma } from '@/lib/database-service';
+import { authenticate } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { NotFoundError, BusinessLogicError, AuthorizationError, InsufficientFundsError } from '@/lib/errors';
 import { PoolWithdrawBodySchema } from '@/lib/validation/schemas/pool';
@@ -24,8 +25,16 @@ export const POST = withErrorHandling(async (
   const body = await request.json();
   const { userId, depositId } = PoolWithdrawBodySchema.parse(body);
 
-  // Use transaction to ensure atomicity
-  const result = await prisma.$transaction(async (tx) => {
+  // Authenticate user
+  const authUser = await authenticate(request);
+  if (authUser.userId !== userId) {
+    throw new BusinessLogicError('User ID mismatch', 'USER_ID_MISMATCH');
+  }
+
+  // Withdraw with RLS (transaction is handled inside asUser)
+  const result = await asUser(authUser, async (db) => {
+    // Use transaction to ensure atomicity
+    return await db.$transaction(async (tx) => {
     // 1. Get deposit
     const deposit = await tx.poolDeposit.findUnique({
       where: { id: depositId },
@@ -157,15 +166,16 @@ export const POST = withErrorHandling(async (
       });
     }
 
-    return {
-      withdrawalAmount,
-      performanceFee,
-      pnl: netPnL,
-      originalAmount,
-      newBalance: newUserBalance,
-      reputationChange,
-      newReputation,
-    };
+      return {
+        withdrawalAmount,
+        performanceFee,
+        pnl: netPnL,
+        originalAmount,
+        newBalance: newUserBalance,
+        reputationChange,
+        newReputation,
+      };
+    });
   });
 
   logger.info('Pool withdrawal successful', {

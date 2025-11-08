@@ -7,7 +7,7 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware';
-import { prisma } from '@/lib/database-service';
+import { asUser } from '@/lib/db/context';
 import { AuthorizationError, BusinessLogicError } from '@/lib/errors';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
@@ -37,38 +37,48 @@ export const GET = withErrorHandling(async (
     throw new AuthorizationError('You can only check your own setup status', 'user-setup', 'read');
   }
 
-  // Check if user exists and needs setup
-  const dbUser = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      bio: true,
-      profileImageUrl: true,
-      profileComplete: true,
-      hasUsername: true,
-      hasBio: true,
-      hasProfileImage: true,
-    },
+  // Check if user exists and needs setup with RLS
+  const dbUser = await asUser(authUser, async (db) => {
+    return await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        bio: true,
+        profileImageUrl: true,
+        profileComplete: true,
+        hasUsername: true,
+        hasBio: true,
+        hasProfileImage: true,
+        onChainRegistered: true,
+        nftTokenId: true,
+      },
+    });
   });
 
   if (!dbUser) {
     // User doesn't exist yet - needs setup
     logger.info('User not found, needs setup', { userId }, 'GET /api/users/[userId]/is-new');
-    return successResponse({ needsSetup: true });
+    return successResponse({ needsSetup: true, hasUsername: false, isRegistered: false });
   }
 
   // Check if profile is complete
-  // User needs setup if they don't have username, displayName, or bio
+  // User needs setup if they don't have username, displayName, bio, or Agent0 registration
   const needsSetup = !dbUser.profileComplete && (
     !dbUser.username ||
     !dbUser.displayName ||
     !dbUser.hasUsername ||
-    !dbUser.hasBio
+    !dbUser.hasBio ||
+    !dbUser.onChainRegistered  // Must be registered to Agent0
   );
 
-  logger.info('User setup status checked', { userId, needsSetup }, 'GET /api/users/[userId]/is-new');
+  logger.info('User setup status checked', { 
+    userId, 
+    needsSetup, 
+    hasUsername: dbUser.hasUsername,
+    onChainRegistered: dbUser.onChainRegistered 
+  }, 'GET /api/users/[userId]/is-new');
 
   return successResponse({
     needsSetup,
@@ -76,6 +86,8 @@ export const GET = withErrorHandling(async (
     hasUsername: dbUser.hasUsername || false,
     hasBio: dbUser.hasBio || false,
     hasProfileImage: dbUser.hasProfileImage || false,
+    isRegistered: dbUser.onChainRegistered || false,
+    tokenId: dbUser.nftTokenId,
   });
 });
 

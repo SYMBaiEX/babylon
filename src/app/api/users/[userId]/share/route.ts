@@ -7,7 +7,7 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware'
-import { prisma } from '@/lib/database-service'
+import { asUser } from '@/lib/db/context'
 import { AuthorizationError, BusinessLogicError } from '@/lib/errors'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger'
@@ -45,33 +45,38 @@ export const POST = withErrorHandling(async (
   const body = await request.json();
   const { platform, contentType, contentId, url } = ShareRequestSchema.parse(body);
 
-  // Create share action record
-  const shareAction = await prisma.shareAction.create({
-    data: {
+  // Create share action with RLS
+  const { shareAction, pointsResult } = await asUser(authUser, async (db) => {
+    // Create share action record
+    const action = await db.shareAction.create({
+      data: {
+        userId,
+        platform,
+        contentType,
+        contentId,
+        url,
+        pointsAwarded: false,
+      },
+    });
+
+    // Award points for the share
+    const points = await PointsService.awardShareAction(
       userId,
       platform,
       contentType,
-      contentId,
-      url,
-      pointsAwarded: false,
-    },
+      contentId
+    );
+
+    // Update share action to mark points as awarded
+    if (points.success && points.pointsAwarded > 0) {
+      await db.shareAction.update({
+        where: { id: action.id },
+        data: { pointsAwarded: true },
+      });
+    }
+
+    return { shareAction: action, pointsResult: points };
   });
-
-  // Award points for the share
-  const pointsResult = await PointsService.awardShareAction(
-    userId,
-    platform,
-    contentType,
-    contentId
-  );
-
-  // Update share action to mark points as awarded
-  if (pointsResult.success && pointsResult.pointsAwarded > 0) {
-    await prisma.shareAction.update({
-      where: { id: shareAction.id },
-      data: { pointsAwarded: true },
-    });
-  }
 
   logger.info(
     `User ${userId} shared ${contentType} on ${platform}`,

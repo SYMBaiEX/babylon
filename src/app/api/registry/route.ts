@@ -6,7 +6,8 @@
  */
 
 import type { NextRequest } from 'next/server'
-import { prisma } from '@/lib/database-service'
+import { optionalAuth } from '@/lib/api/auth-middleware'
+import { asUser } from '@/lib/db/context'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { RegistryQuerySchema } from '@/lib/validation/schemas'
 import { ReputationService } from '@/lib/services/reputation-service'
@@ -28,6 +29,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
   const filters = RegistryQuerySchema.parse(queryParams)
 
+  // Optional auth - registry is public but RLS still applies
+  const authUser = await optionalAuth(request).catch(() => null)
+
   // Build where clause
   const where = filters.onChainOnly ? { onChainRegistered: true } : {}
 
@@ -36,39 +40,43 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     [filters.sortBy]: filters.sortOrder,
   } : { createdAt: 'desc' as const }
 
-  // Fetch users from database
-  const users = await prisma.user.findMany({
-    where,
-    orderBy,
-    take: filters.limit,
-    skip: filters.offset,
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      bio: true,
-      profileImageUrl: true,
-      walletAddress: true,
-      isActor: true,
-      onChainRegistered: true,
-      nftTokenId: true,
-      registrationTxHash: true,
-      createdAt: true,
-      virtualBalance: true,
-      lifetimePnL: true,
-      // Include relationship counts
-      _count: {
-        select: {
-          positions: true,
-          comments: true,
-          reactions: true,
+  // Fetch users from database with RLS
+  const { users, totalCount } = await asUser(authUser, async (db) => {
+    const usersList = await db.user.findMany({
+      where,
+      orderBy,
+      take: filters.limit,
+      skip: filters.offset,
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        bio: true,
+        profileImageUrl: true,
+        walletAddress: true,
+        isActor: true,
+        onChainRegistered: true,
+        nftTokenId: true,
+        registrationTxHash: true,
+        createdAt: true,
+        virtualBalance: true,
+        lifetimePnL: true,
+        // Include relationship counts
+        _count: {
+          select: {
+            positions: true,
+            comments: true,
+            reactions: true,
+          },
         },
       },
-    },
-  })
+    })
 
-  // Get total count for pagination
-  const totalCount = await prisma.user.count({ where })
+    // Get total count for pagination
+    const count = await db.user.count({ where })
+
+    return { users: usersList, totalCount: count }
+  })
 
   const usersWithReputation = await Promise.all(
     users.map(async (user) => {

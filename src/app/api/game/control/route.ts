@@ -5,9 +5,9 @@
  */
 
 import type { NextRequest } from 'next/server';
+import { asSystem } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BadRequestError, AuthorizationError } from '@/lib/errors';
-import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 
 interface ControlRequest {
@@ -32,51 +32,55 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     throw new BadRequestError('Action must be "start" or "pause"');
   }
 
-  // Get or create the continuous game
-  let game = await prisma.game.findFirst({
-    where: { isContinuous: true },
-  });
-
-  if (!game) {
-    // Create the game if it doesn't exist
-    game = await prisma.game.create({
-      data: {
-        isContinuous: true,
-        isRunning: action === 'start',
-        currentDay: 1,
-        startedAt: action === 'start' ? new Date() : null,
-      },
+  // Get or create the continuous game - system operation (admin)
+  const game = await asSystem(async (db) => {
+    let gameState = await db.game.findFirst({
+      where: { isContinuous: true },
     });
-    logger.info(`Game created and ${action === 'start' ? 'started' : 'paused'}`, { gameId: game.id }, 'Game Control');
-  } else {
-    // Update the existing game
-    const isRunning = action === 'start';
-    const updateData: {
-      isRunning: boolean;
-      startedAt?: Date;
-      pausedAt?: Date;
-    } = {
-      isRunning,
-    };
 
-    if (action === 'start') {
-      updateData.startedAt = game.startedAt || new Date();
-      updateData.pausedAt = undefined;
+    if (!gameState) {
+      // Create the game if it doesn't exist
+      gameState = await db.game.create({
+        data: {
+          isContinuous: true,
+          isRunning: action === 'start',
+          currentDay: 1,
+          startedAt: action === 'start' ? new Date() : null,
+        },
+      });
+      logger.info(`Game created and ${action === 'start' ? 'started' : 'paused'}`, { gameId: gameState.id }, 'Game Control');
     } else {
-      updateData.pausedAt = new Date();
+      // Update the existing game
+      const isRunning = action === 'start';
+      const updateData: {
+        isRunning: boolean;
+        startedAt?: Date;
+        pausedAt?: Date;
+      } = {
+        isRunning,
+      };
+
+      if (action === 'start') {
+        updateData.startedAt = gameState.startedAt || new Date();
+        updateData.pausedAt = undefined;
+      } else {
+        updateData.pausedAt = new Date();
+      }
+
+      gameState = await db.game.update({
+        where: { id: gameState.id },
+        data: updateData,
+      });
+
+      logger.info(`Game ${action === 'start' ? 'started' : 'paused'}`, { 
+        gameId: gameState.id,
+        isRunning: gameState.isRunning,
+        currentDay: gameState.currentDay 
+      }, 'Game Control');
     }
 
-    game = await prisma.game.update({
-      where: { id: game.id },
-      data: updateData,
-    });
-
-    logger.info(`Game ${action === 'start' ? 'started' : 'paused'}`, { 
-      gameId: game.id,
-      isRunning: game.isRunning,
-      currentDay: game.currentDay 
-    }, 'Game Control');
-  }
+    return gameState;
+  });
 
   return successResponse({
     success: true,
@@ -95,8 +99,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
  * GET /api/game/control - Get current game state
  */
 export const GET = withErrorHandling(async (_request: NextRequest) => {
-  const game = await prisma.game.findFirst({
-    where: { isContinuous: true },
+  const game = await asSystem(async (db) => {
+    return await db.game.findFirst({
+      where: { isContinuous: true },
+    });
   });
 
   if (!game) {

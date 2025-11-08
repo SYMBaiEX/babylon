@@ -258,5 +258,6 @@ if (actorCount === 0) {
 }
 
 await prisma.$disconnect();
+
 logger.info('All checks passed! Starting Next.js...', undefined, 'Script');
 

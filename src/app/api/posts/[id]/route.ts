@@ -4,7 +4,7 @@
  */
 
 import { optionalAuth } from '@/lib/api/auth-middleware';
-import { prisma } from '@/lib/database-service';
+import { asUser } from '@/lib/db/context';
 import { BusinessLogicError } from '@/lib/errors';
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { gameService } from '@/lib/game-service';
@@ -26,8 +26,10 @@ export const GET = withErrorHandling(async (
   // Optional authentication (to show liked status for logged-in users)
   const user = await optionalAuth(request);
 
+  // Get post with RLS
+  let post = await asUser(user, async (db) => {
     // Try to get post from database first
-    let post = await prisma.post.findUnique({
+    return await db.post.findUnique({
       where: { id: postId },
       include: {
         _count: {
@@ -79,6 +81,7 @@ export const GET = withErrorHandling(async (
             },
       },
     });
+  });
 
     // If not in database, try to find it in game store/realtime feed first
     if (!post) {
@@ -104,43 +107,49 @@ export const GET = withErrorHandling(async (
 
       // If found in game store, return it directly
       if (gamePost) {
-        const [likeCount, commentCount, shareCount] = await Promise.all([
-          prisma.reaction.count({ where: { postId, type: 'like' } }),
-          prisma.comment.count({ where: { postId } }),
-          prisma.share.count({ where: { postId } }),
-        ]);
+        const [likeCount, commentCount, shareCount, actor, userRecord] = await asUser(user, async (db) => {
+          const [likes, comments, shares] = await Promise.all([
+            db.reaction.count({ where: { postId, type: 'like' } }),
+            db.comment.count({ where: { postId } }),
+            db.share.count({ where: { postId } }),
+          ]);
 
-        const actor = await prisma.actor.findUnique({
-          where: { id: gamePost.authorId },
-          select: { name: true },
+          const act = await db.actor.findUnique({
+            where: { id: gamePost.authorId },
+            select: { name: true },
+          });
+
+          const usr = await db.user.findUnique({
+            where: { id: gamePost.authorId },
+            select: { displayName: true, username: true },
+          });
+
+          return [likes, comments, shares, act, usr];
         });
-        
+
         let authorName = gamePost.authorId;
         let authorUsername: string | null = null;
         
         if (actor) {
           authorName = actor.name;
-        } else {
-          const userRecord = await prisma.user.findUnique({
-            where: { id: gamePost.authorId },
-            select: { displayName: true, username: true },
-          });
-          if (userRecord) {
-            authorName = userRecord.displayName || userRecord.username || gamePost.authorId;
-            authorUsername = userRecord.username;
-          }
+        } else if (userRecord) {
+          authorName = userRecord.displayName || userRecord.username || gamePost.authorId;
+          authorUsername = userRecord.username;
         }
 
-        const isLiked = user
-          ? (await prisma.reaction.findFirst({
-              where: { postId, userId: user.userId, type: 'like' },
-            })) !== null
-          : false;
-        const isShared = user
-          ? (await prisma.share.findFirst({
-              where: { postId, userId: user.userId },
-            })) !== null
-          : false;
+        const [isLiked, isShared] = await asUser(user, async (db) => {
+          const liked = user
+            ? (await db.reaction.findFirst({
+                where: { postId, userId: user.userId, type: 'like' },
+              })) !== null
+            : false;
+          const shared = user
+            ? (await db.share.findFirst({
+                where: { postId, userId: user.userId },
+              })) !== null
+            : false;
+          return [liked, shared];
+        });
 
         const timestampStr = gamePost.timestamp as string;
         const createdAtStr = (gamePost.createdAt || timestampStr) as string;
@@ -201,9 +210,11 @@ export const GET = withErrorHandling(async (
             timestamp = new Date(timestampNum);
             if (parts.length >= 4 && parts[2] && !parts[2].includes('.')) {
               const potentialActorId = parts[2];
-              const actor = await prisma.actor.findUnique({
-                where: { id: potentialActorId },
-                select: { id: true },
+              const actor = await asUser(user, async (db) => {
+                return await db.actor.findUnique({
+                  where: { id: potentialActorId },
+                  select: { id: true },
+                });
               });
               if (actor) {
                 authorId = potentialActorId;
@@ -213,90 +224,99 @@ export const GET = withErrorHandling(async (
         }
       }
 
-      post = await prisma.post.upsert({
-        where: { id: postId },
-        update: {},
-        create: {
-          id: postId,
-          content: '[Game-generated post]',
-          authorId,
-          gameId,
-          timestamp,
-        },
-        include: {
-          _count: {
-            select: {
-              reactions: {
-                where: {
-                  type: 'like',
-                },
-              },
-              comments: true,
-              shares: true,
-            },
+      post = await asUser(user, async (db) => {
+        return await db.post.upsert({
+          where: { id: postId },
+          update: {},
+          create: {
+            id: postId,
+            content: '[Game-generated post]',
+            authorId,
+            gameId,
+            timestamp,
           },
-          reactions: user
-            ? {
-                where: {
-                  userId: user.userId,
-                  type: 'like',
+          include: {
+            _count: {
+              select: {
+                reactions: {
+                  where: {
+                    type: 'like',
+                  },
                 },
-                select: {
-                  id: true,
-                },
-              }
-            : {
-                where: {
-                  userId: 'never-match',
-                  type: 'like',
-                },
-                select: {
-                  id: true,
-                },
+                comments: true,
+                shares: true,
               },
-          shares: user
-            ? {
-                where: {
-                  userId: user.userId,
+            },
+            reactions: user
+              ? {
+                  where: {
+                    userId: user.userId,
+                    type: 'like',
+                  },
+                  select: {
+                    id: true,
+                  },
+                }
+              : {
+                  where: {
+                    userId: 'never-match',
+                    type: 'like',
+                  },
+                  select: {
+                    id: true,
+                  },
                 },
-                select: {
-                  id: true,
+            shares: user
+              ? {
+                  where: {
+                    userId: user.userId,
+                  },
+                  select: {
+                    id: true,
+                  },
+                }
+              : {
+                  where: {
+                    userId: 'never-match',
+                  },
+                  select: {
+                    id: true,
+                  },
                 },
-              }
-            : {
-                where: {
-                  userId: 'never-match',
-                },
-                select: {
-                  id: true,
-                },
-              },
-        },
+          },
+        });
       });
     }
 
-    let authorName = post.authorId;
-    let authorUsername: string | null = null;
-    let authorProfileImageUrl: string | null = null;
-    
-    const actor = await prisma.actor.findUnique({
-      where: { id: post.authorId },
-      select: { name: true, profileImageUrl: true },
-    });
-    if (actor) {
-      authorName = actor.name;
-      authorProfileImageUrl = actor.profileImageUrl || null;
-    } else {
-      const user = await prisma.user.findUnique({
-        where: { id: post.authorId },
-        select: { displayName: true, username: true, profileImageUrl: true },
-      });
-      if (user) {
-        authorName = user.displayName || user.username || post.authorId;
-        authorUsername = user.username || null;
-        authorProfileImageUrl = user.profileImageUrl || null;
-      }
+    if (!post) {
+      throw new BusinessLogicError('Post not found', 'POST_NOT_FOUND');
     }
+
+    const { authorName, authorUsername, authorProfileImageUrl } = await asUser(user, async (db) => {
+      let name = post.authorId;
+      let username: string | null = null;
+      let profileImageUrl: string | null = null;
+      
+      const actor = await db.actor.findUnique({
+        where: { id: post.authorId },
+        select: { name: true, profileImageUrl: true },
+      });
+      if (actor) {
+        name = actor.name;
+        profileImageUrl = actor.profileImageUrl || null;
+      } else {
+        const usr = await db.user.findUnique({
+          where: { id: post.authorId },
+          select: { displayName: true, username: true, profileImageUrl: true },
+        });
+        if (usr) {
+          name = usr.displayName || usr.username || post.authorId;
+          username = usr.username || null;
+          profileImageUrl = usr.profileImageUrl || null;
+        }
+      }
+      return { authorName: name, authorUsername: username, authorProfileImageUrl: profileImageUrl };
+    });
 
     // Return database post
     // Safely check reactions and shares - Prisma may return undefined even when included

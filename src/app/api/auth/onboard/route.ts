@@ -1,7 +1,7 @@
 /**
  * On-Chain Registration API Route
  *
- * Registers users to the ERC-8004 Identity Registry on Base Sepolia
+ * Registers users to the ERC-8004 Identity Registry on Ethereum Sepolia
  * Awards 1,000 initial reputation points
  * Stores NFT token ID in user profile
  */
@@ -9,12 +9,12 @@
 import type { NextRequest } from 'next/server'
 import { createWalletClient, createPublicClient, http, parseEther, decodeEventLog, type Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { baseSepolia } from 'viem/chains'
+import { sepolia } from 'viem/chains'
 import { authenticate } from '@/lib/api/auth-middleware'
+import { asUser } from '@/lib/db/context'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { BusinessLogicError, ValidationError, InternalServerError } from '@/lib/errors'
 import { OnChainRegistrationSchema } from '@/lib/validation/schemas/user'
-import { prisma } from '@/lib/database-service'
 import { Prisma } from '@prisma/client'
 import { PointsService } from '@/lib/services/points-service'
 import { logger } from '@/lib/logger'
@@ -22,12 +22,14 @@ import { notifyNewAccount } from '@/lib/services/notification-service'
 import { Agent0Client } from '@/agents/agent0/Agent0Client'
 import type { AgentCapabilities } from '@/a2a/types'
 
-// Contract addresses
-const IDENTITY_REGISTRY = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA as Address
-const REPUTATION_SYSTEM = process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA as Address
+// Contract addresses (Ethereum Sepolia)
+const IDENTITY_REGISTRY = (process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_ADDRESS || process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_SEPOLIA) as Address
+const REPUTATION_SYSTEM = (process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_ADDRESS || process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_SEPOLIA) as Address
 
 // Server wallet for paying gas (testnet only!)
-const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`
+const DEPLOYER_PRIVATE_KEY = (process.env.DEPLOYER_PRIVATE_KEY?.startsWith('0x') 
+  ? process.env.DEPLOYER_PRIVATE_KEY 
+  : `0x${process.env.DEPLOYER_PRIVATE_KEY}`) as `0x${string}`
 
 // Identity Registry ABI (minimal for registration)
 const IDENTITY_REGISTRY_ABI = [
@@ -126,14 +128,16 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     throw new ValidationError('Invalid wallet address format', ['walletAddress'], [{ field: 'walletAddress', message: 'Must be a valid Ethereum address (0x...)' }]);
   }
 
-  // Check if referral code is valid (if provided)
+  // Check if referral code is valid (if provided) with RLS
   // Referral code is now the username (without @)
   let referrerId: string | null = null
     if (referralCode) {
       // First, try to find user by username (new system - username is referral code)
-      const referrer = await prisma.user.findUnique({
-        where: { username: referralCode },
-        select: { id: true },
+      const referrer = await asUser(user, async (db) => {
+        return await db.user.findUnique({
+          where: { username: referralCode },
+          select: { id: true },
+        })
       })
 
       if (referrer) {
@@ -145,9 +149,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         )
       } else {
         // Fallback: Try old referral code system for backward compatibility
-        const referral = await prisma.referral.findUnique({
-          where: { referralCode },
-          include: { referrer: true },
+        const referral = await asUser(user, async (db) => {
+          return await db.referral.findUnique({
+            where: { referralCode },
+            include: { referrer: true },
+          })
         })
 
         if (referral && referral.status === 'pending') {
@@ -161,36 +167,15 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       }
     }
 
-    // Check if user exists in database, create if not exists
+    // Check if user exists in database, create if not exists with RLS
     // For agents, use username as unique identifier; for users, use ID
     let dbUser: { id: string; username: string | null; walletAddress: string | null; onChainRegistered: boolean; nftTokenId: number | null } | null = null
     
     if (user.isAgent) {
       // Agents are identified by username (agentId)
-      dbUser = await prisma.user.findUnique({
-        where: { username: user.userId },
-        select: {
-          id: true,
-          username: true,
-          walletAddress: true,
-          onChainRegistered: true,
-          nftTokenId: true,
-        },
-      })
-
-      if (!dbUser) {
-        // Create agent user
-        dbUser = await prisma.user.create({
-          data: {
-            username: user.userId,
-            displayName: displayName || username || user.userId,
-            bio: bio || `Autonomous AI agent: ${user.userId}`,
-            profileImageUrl: profileImageUrl,
-            coverImageUrl: coverImageUrl,
-            isActor: false,
-            virtualBalance: 10000, // Agents start with 10k
-            totalDeposited: 10000,
-          },
+      dbUser = await asUser(user, async (db) => {
+        const existing = await db.user.findUnique({
+          where: { username: user.userId },
           select: {
             id: true,
             username: true,
@@ -199,76 +184,102 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
             nftTokenId: true,
           },
         })
-      }
+
+        if (!existing) {
+          // Create agent user
+          return await db.user.create({
+            data: {
+              username: user.userId,
+              displayName: displayName || username || user.userId,
+              bio: bio || `Autonomous AI agent: ${user.userId}`,
+              profileImageUrl: profileImageUrl,
+              coverImageUrl: coverImageUrl,
+              isActor: false,
+              virtualBalance: 10000, // Agents start with 10k
+              totalDeposited: 10000,
+            },
+            select: {
+              id: true,
+              username: true,
+              walletAddress: true,
+              onChainRegistered: true,
+              nftTokenId: true,
+            },
+          })
+        }
+        return existing
+      })
     } else {
       // Regular users identified by ID (Privy user ID)
-      dbUser = await prisma.user.findUnique({
-        where: { id: user.userId },
-        select: {
-          id: true,
-          username: true,
-          walletAddress: true,
-          onChainRegistered: true,
-          nftTokenId: true,
-        },
-      })
+      dbUser = await asUser(user, async (db) => {
+        const existing = await db.user.findUnique({
+          where: { id: user.userId },
+          select: {
+            id: true,
+            username: true,
+            walletAddress: true,
+            onChainRegistered: true,
+            nftTokenId: true,
+          },
+        })
 
-      if (!dbUser) {
-        // User doesn't exist yet - create them
-        dbUser = await prisma.user.create({
-          data: {
-            id: user.userId,
-            walletAddress: walletAddress!.toLowerCase(),
-            username: finalUsername,
-            displayName: displayName || finalUsername,
-            bio: bio || '',
-            profileImageUrl: profileImageUrl,
-            coverImageUrl: coverImageUrl,
-            isActor: false,
-            virtualBalance: 0, // Will be set to 1000 after registration
-            totalDeposited: 0,
-            referredBy: referrerId,
-          },
-          select: {
-            id: true,
-            username: true,
-            walletAddress: true,
-            onChainRegistered: true,
-            nftTokenId: true,
-          },
-        })
-      } else {
-        // Update existing user with latest info if needed
-        // Need to fetch full user to get displayName and bio
-        const fullUser = await prisma.user.findUnique({
-          where: { id: dbUser.id },
-        })
-        
-        dbUser = await prisma.user.update({
-          where: { id: dbUser.id },
-          data: {
-            walletAddress: walletAddress!.toLowerCase(),
-            username: finalUsername || dbUser.username,
-            displayName: displayName || finalUsername || fullUser?.displayName,
-            bio: bio || fullUser?.bio,
-            profileImageUrl: profileImageUrl || fullUser?.profileImageUrl,
-            coverImageUrl: coverImageUrl || fullUser?.coverImageUrl,
-          },
-          select: {
-            id: true,
-            username: true,
-            walletAddress: true,
-            onChainRegistered: true,
-            nftTokenId: true,
-          },
-        })
-      }
+        if (!existing) {
+          // User doesn't exist yet - create them
+          return await db.user.create({
+            data: {
+              id: user.userId,
+              walletAddress: walletAddress!.toLowerCase(),
+              username: finalUsername,
+              displayName: displayName || finalUsername,
+              bio: bio || '',
+              profileImageUrl: profileImageUrl,
+              coverImageUrl: coverImageUrl,
+              isActor: false,
+              virtualBalance: 0, // Will be set to 1000 after registration
+              totalDeposited: 0,
+              referredBy: referrerId,
+            },
+            select: {
+              id: true,
+              username: true,
+              walletAddress: true,
+              onChainRegistered: true,
+              nftTokenId: true,
+            },
+          })
+        } else {
+          // Update existing user with latest info if needed
+          // Need to fetch full user to get displayName and bio
+          const fullUser = await db.user.findUnique({
+            where: { id: existing.id },
+          })
+          
+          return await db.user.update({
+            where: { id: existing.id },
+            data: {
+              walletAddress: walletAddress!.toLowerCase(),
+              username: finalUsername || existing.username,
+              displayName: displayName || finalUsername || fullUser?.displayName,
+              bio: bio || fullUser?.bio,
+              profileImageUrl: profileImageUrl || fullUser?.profileImageUrl,
+              coverImageUrl: coverImageUrl || fullUser?.coverImageUrl,
+            },
+            select: {
+              id: true,
+              username: true,
+              walletAddress: true,
+              onChainRegistered: true,
+              nftTokenId: true,
+            },
+          })
+        }
+      })
     }
 
     // Create clients
     const publicClient = createPublicClient({
-      chain: baseSepolia,
-      transport: http(process.env.NEXT_PUBLIC_RPC_URL),
+      chain: sepolia,
+      transport: http(process.env.NEXT_PUBLIC_RPC_URL || process.env.SEPOLIA_RPC_URL),
     })
 
     // For agents, we check registration by tokenId in database
@@ -281,42 +292,52 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null
     } else {
       // Regular users: check on-chain registration
-      isRegistered = await publicClient.readContract({
-        address: IDENTITY_REGISTRY,
-        abi: IDENTITY_REGISTRY_ABI,
-        functionName: 'isRegistered',
-        args: [walletAddress! as Address],
-      })
-      
-      if (isRegistered && !tokenId) {
-        // Get existing token ID
-        tokenId = Number(await publicClient.readContract({
+      try {
+        isRegistered = await publicClient.readContract({
           address: IDENTITY_REGISTRY,
           abi: IDENTITY_REGISTRY_ABI,
-          functionName: 'getTokenId',
+          functionName: 'isRegistered',
           args: [walletAddress! as Address],
-        }))
+        })
+        
+        if (isRegistered && !tokenId) {
+          // Get existing token ID
+          tokenId = Number(await publicClient.readContract({
+            address: IDENTITY_REGISTRY,
+            abi: IDENTITY_REGISTRY_ABI,
+            functionName: 'getTokenId',
+            args: [walletAddress! as Address],
+          }))
+        }
+      } catch (error) {
+        // Contract not deployed or RPC issue - check database instead
+        logger.warn('Failed to check on-chain registration, using database fallback', { error, walletAddress }, 'POST /api/auth/onboard')
+        isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null
       }
     }
 
     if (isRegistered && tokenId) {
-      // Already registered - update database if needed
+      // Already registered - update database if needed with RLS
       if (!dbUser.onChainRegistered) {
-        await prisma.user.update({
-          where: { id: dbUser.id },
-          data: {
-            onChainRegistered: true,
-            nftTokenId: tokenId,
-          },
+        await asUser(user, async (db) => {
+          return await db.user.update({
+            where: { id: dbUser.id },
+            data: {
+              onChainRegistered: true,
+              nftTokenId: tokenId,
+            },
+          })
         })
       }
 
-      // Check if points were already awarded
-      const hasWelcomeBonus = await prisma.balanceTransaction.findFirst({
-        where: {
-          userId: dbUser.id,
-          description: 'Welcome bonus - initial signup',
-        },
+      // Check if points were already awarded with RLS
+      const hasWelcomeBonus = await asUser(user, async (db) => {
+        return await db.balanceTransaction.findFirst({
+          where: {
+            userId: dbUser.id,
+            description: 'Welcome bonus - initial signup',
+          },
+        })
       })
 
       return successResponse({
@@ -336,8 +357,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     const account = privateKeyToAccount(DEPLOYER_PRIVATE_KEY)
     const walletClient = createWalletClient({
       account,
-      chain: baseSepolia,
-      transport: http(process.env.NEXT_PUBLIC_RPC_URL),
+      chain: sepolia,
+      transport: http(process.env.NEXT_PUBLIC_RPC_URL || process.env.SEPOLIA_RPC_URL),
     })
 
     // Prepare registration parameters
@@ -435,17 +456,23 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
     logger.info('Initial reputation set to 70 (7 wins out of 10 bets)', undefined, 'POST /api/auth/onboard')
 
-    // Update database with ERC-8004 registration
-    await prisma.user.update({
-      where: { id: dbUser.id },
-      data: {
-        onChainRegistered: true,
-        nftTokenId: tokenId,
-        registrationTxHash: txHash,
-        username: user.isAgent ? user.userId : (username || dbUser.username),
-        displayName: username || dbUser.username || user.userId,
-        bio: bio || (user.isAgent ? `Autonomous AI agent: ${user.userId}` : undefined),
-      },
+    // Update database with ERC-8004 registration with RLS
+    await asUser(user, async (db) => {
+      return await db.user.update({
+        where: { id: dbUser.id },
+        data: {
+          onChainRegistered: true,
+          nftTokenId: tokenId,
+          registrationTxHash: txHash,
+          username: user.isAgent ? user.userId : (username || dbUser.username),
+          displayName: username || dbUser.username || user.userId,
+          bio: bio || (user.isAgent ? `Autonomous AI agent: ${user.userId}` : undefined),
+          profileComplete: true, // Mark profile as complete after onboarding
+          hasUsername: true,
+          hasBio: bio ? true : false,
+          hasProfileImage: profileImageUrl ? true : false,
+        },
+      })
     })
 
     // Register with Agent0 SDK if enabled
@@ -507,7 +534,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
             'get_referral_code',
             'get_referrals'
           ],
-          version: '1.0.0'
+          version: '1.0.0',
+          platform: 'babylon', // Identify as Babylon user
+          userType: 'player' // User type
         } as AgentCapabilities
       })
 
@@ -522,32 +551,35 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       logger.info('Agent0 integration disabled, skipping user registration', { userId: dbUser.id }, 'UserOnboard')
     }
 
-    const userWithBalance = await prisma.user.findUniqueOrThrow({
-      where: { id: dbUser.id },
-      select: { virtualBalance: true },
-    })
-    
-    const balanceBefore = userWithBalance.virtualBalance
-    const amountDecimal = new Prisma.Decimal(1000)
-    const balanceAfter = balanceBefore.plus(amountDecimal)
+    // Award welcome bonus with RLS
+    await asUser(user, async (db) => {
+      const userWithBalance = await db.user.findUniqueOrThrow({
+        where: { id: dbUser.id },
+        select: { virtualBalance: true },
+      })
+      
+      const balanceBefore = userWithBalance.virtualBalance
+      const amountDecimal = new Prisma.Decimal(1000)
+      const balanceAfter = balanceBefore.plus(amountDecimal)
 
-    await prisma.balanceTransaction.create({
-      data: {
-        userId: dbUser.id,
-        type: 'deposit',
-        amount: amountDecimal,
-        balanceBefore,
-        balanceAfter,
-        description: 'Welcome bonus - initial signup',
-      },
-    })
+      await db.balanceTransaction.create({
+        data: {
+          userId: dbUser.id,
+          type: 'deposit',
+          amount: amountDecimal,
+          balanceBefore,
+          balanceAfter,
+          description: 'Welcome bonus - initial signup',
+        },
+      })
 
-    await prisma.user.update({
-      where: { id: dbUser.id },
-      data: {
-        virtualBalance: { increment: 1000 },
-        totalDeposited: { increment: 1000 },
-      },
+      await db.user.update({
+        where: { id: dbUser.id },
+        data: {
+          virtualBalance: { increment: 1000 },
+          totalDeposited: { increment: 1000 },
+        },
+      })
     })
 
     logger.info('Successfully awarded 1,000 points to user', undefined, 'POST /api/auth/onboard')
@@ -558,36 +590,39 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     if (referrerId && referralCode) {
       const referralResult = await PointsService.awardReferralSignup(referrerId, dbUser.id)
 
-      await prisma.referral.upsert({
-        where: { referralCode },
-        update: {
-          status: 'completed',
-          referredUserId: dbUser.id,
-          completedAt: new Date(),
-          pointsAwarded: true,
-        },
-        create: {
-          referrerId,
-          referralCode,
-          referredUserId: dbUser.id,
-          status: 'completed',
-          completedAt: new Date(),
-          pointsAwarded: true,
-        },
-      })
+      // Update referral and follow with RLS
+      await asUser(user, async (db) => {
+        await db.referral.upsert({
+          where: { referralCode },
+          update: {
+            status: 'completed',
+            referredUserId: dbUser.id,
+            completedAt: new Date(),
+            pointsAwarded: true,
+          },
+          create: {
+            referrerId,
+            referralCode,
+            referredUserId: dbUser.id,
+            status: 'completed',
+            completedAt: new Date(),
+            pointsAwarded: true,
+          },
+        })
 
-      await prisma.follow.upsert({
-        where: {
-          followerId_followingId: {
+        await db.follow.upsert({
+          where: {
+            followerId_followingId: {
+              followerId: referrerId,
+              followingId: dbUser.id,
+            },
+          },
+          update: {},
+          create: {
             followerId: referrerId,
             followingId: dbUser.id,
           },
-        },
-        update: {},
-        create: {
-          followerId: referrerId,
-          followingId: dbUser.id,
-        },
+        })
       })
 
       logger.info(
@@ -629,30 +664,34 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request)
 
-  // Check database
+  // Check database with RLS
   let dbUser: { walletAddress: string | null; onChainRegistered: boolean; nftTokenId: number | null; registrationTxHash: string | null } | null = null
 
   if (user.isAgent) {
       // Agents: find by username
-      dbUser = await prisma.user.findFirst({
-        where: { username: user.userId },
-        select: {
-          walletAddress: true,
-          onChainRegistered: true,
-          nftTokenId: true,
-          registrationTxHash: true,
-        },
+      dbUser = await asUser(user, async (db) => {
+        return await db.user.findFirst({
+          where: { username: user.userId },
+          select: {
+            walletAddress: true,
+            onChainRegistered: true,
+            nftTokenId: true,
+            registrationTxHash: true,
+          },
+        })
       })
     } else {
       // Regular users: find by ID
-      dbUser = await prisma.user.findFirst({
-        where: { id: user.userId },
-        select: {
-          walletAddress: true,
-          onChainRegistered: true,
-          nftTokenId: true,
-          registrationTxHash: true,
-        },
+      dbUser = await asUser(user, async (db) => {
+        return await db.user.findFirst({
+          where: { id: user.userId },
+          select: {
+            walletAddress: true,
+            onChainRegistered: true,
+            nftTokenId: true,
+            registrationTxHash: true,
+          },
+        })
       })
     }
 
@@ -674,8 +713,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     if (!user.isAgent && dbUser.walletAddress) {
       // Check on-chain status for regular users
       const publicClient = createPublicClient({
-        chain: baseSepolia,
-        transport: http(process.env.NEXT_PUBLIC_RPC_URL),
+        chain: sepolia,
+        transport: http(process.env.NEXT_PUBLIC_RPC_URL || process.env.SEPOLIA_RPC_URL),
       })
 
       const onChainRegistered = await publicClient.readContract({
