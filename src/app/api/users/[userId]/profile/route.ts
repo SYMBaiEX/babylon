@@ -8,8 +8,9 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError } from '@/lib/errors';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
 import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
+import { asUser, asPublic } from '@/lib/db/context';
 import { logger } from '@/lib/logger';
+import type { PrismaClient } from '@prisma/client';
 
 /**
  * GET /api/users/[userId]/profile
@@ -26,7 +27,8 @@ export const GET = withErrorHandling(async (
   const authUser = await optionalAuth(request);
 
   // Get user profile with RLS - create minimal record if doesn't exist (for new Privy users)
-  const dbUser = await asUser(authUser, async (db) => {
+  // Use asUser if authenticated, asPublic if not (for viewing public profiles)
+  const dbOperation = async (db: PrismaClient) => {
     let user = await db.user.findUnique({
     where: { id: userId },
     select: {
@@ -130,7 +132,12 @@ export const GET = withErrorHandling(async (
     }
 
     return user;
-  });
+  };
+
+  // Execute with appropriate context based on authentication
+  const dbUser = authUser 
+    ? await asUser(authUser, dbOperation)
+    : await asPublic(dbOperation);
 
   logger.info('User profile fetched successfully', { userId }, 'GET /api/users/[userId]/profile');
 
@@ -150,6 +157,9 @@ export const GET = withErrorHandling(async (
       hasProfileImage: dbUser.hasProfileImage,
       onChainRegistered: dbUser.onChainRegistered,
       nftTokenId: dbUser.nftTokenId,
+      // Include registration status for quick frontend checks
+      isRegistered: dbUser.onChainRegistered && dbUser.nftTokenId !== null,
+      needsOnboarding: !dbUser.onChainRegistered || !dbUser.profileComplete,
       virtualBalance: Number(dbUser.virtualBalance),
       lifetimePnL: Number(dbUser.lifetimePnL),
       reputationPoints: dbUser.reputationPoints,

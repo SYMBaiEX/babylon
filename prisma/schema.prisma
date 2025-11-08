@@ -35,9 +35,17 @@ model User {
   lifetimePnL          Decimal  @default(0) @db.Decimal(18, 2)
   
   // On-chain identity (ERC-8004)
-  onChainRegistered    Boolean  @default(false)
-  nftTokenId           Int?     @unique  // ERC-8004 NFT token ID
-  registrationTxHash   String?  // Transaction hash of on-chain registration
+  onChainRegistered         Boolean  @default(false)
+  nftTokenId                Int?     @unique  // ERC-8004 NFT token ID
+  registrationTxHash        String?  // Transaction hash of on-chain registration
+  registrationBlockNumber   BigInt?  // Block number of registration
+  registrationGasUsed       BigInt?  // Gas used for registration
+  registrationTimestamp     DateTime? // Timestamp of registration
+  
+  // Agent0 SDK registration (for internal knowledge)
+  agent0TokenId        Int?      // Agent0 registry token ID
+  agent0MetadataCID    String?   // IPFS CID of Agent0 metadata
+  agent0RegisteredAt   DateTime? // When registered with Agent0
 
   // Reputation/Points System
   reputationPoints     Int      @default(1000) // Start with 1000 points
@@ -564,6 +572,7 @@ model Notification {
   actorId     String?  // Who performed the action (user ID or actor ID)
   postId      String?  // Related post (if applicable)
   commentId   String?  // Related comment (if applicable)
+  title       String   // Notification title/summary
   message     String   // Notification message
   read        Boolean  @default(false)
   createdAt   DateTime @default(now())

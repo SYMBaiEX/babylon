@@ -96,7 +96,7 @@
     "@types/ws": "^8.18.1",
     "@upstash/redis": "^1.35.6",
     "@vercel/blob": "^2.0.0",
-    "agent0-sdk": "^0.2.1",
+    "agent0-sdk": "^0.2.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "concurrently": "^9.2.1",

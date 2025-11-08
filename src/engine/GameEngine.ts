@@ -168,7 +168,7 @@ export class GameEngine extends EventEmitter {
     logger.info('ENGINE READY', {
       activeQuestions,
       a2aEnabled: a2aStatus.enabled,
-      a2aPort: this.config.a2a?.port || 8080
+      a2aPort: this.config.a2a?.port || 8081
     }, 'GameEngine');
   }
 

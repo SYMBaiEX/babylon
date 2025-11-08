@@ -23,10 +23,14 @@ export const GET = withErrorHandling(async (
 
   // Validate query parameters
   const { searchParams } = new URL(request.url)
-  const query = {
-    all: searchParams.get('all'),
-    debug: searchParams.get('debug')
-  }
+  const query: Record<string, string> = {}
+  
+  const all = searchParams.get('all')
+  const debug = searchParams.get('debug')
+  
+  if (all) query.all = all
+  if (debug) query.debug = debug
+  
   const validatedQuery = ChatQuerySchema.parse(query)
 
   // Check for debug mode (localhost access to game chats)

@@ -4,8 +4,9 @@
  */
 
 import type { NextRequest } from 'next/server';
+import type { PrismaClient } from '@prisma/client';
 import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
+import { asUser, asPublic } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { UsernameParamSchema } from '@/lib/validation/schemas';
@@ -25,8 +26,8 @@ export const GET = withErrorHandling(async (
   // Optional authentication
   const authUser = await optionalAuth(request);
 
-  // Get user profile by username with RLS
-  const dbUser = await asUser(authUser, async (db) => {
+  // Get user profile by username with RLS (public profile lookup)
+  const dbOperation = async (db: PrismaClient) => {
     return await db.user.findUnique({
       where: { username },
       select: {
@@ -66,7 +67,11 @@ export const GET = withErrorHandling(async (
         },
       },
     });
-  });
+  }
+
+  const dbUser = authUser 
+    ? await asUser(authUser, dbOperation)
+    : await asPublic(dbOperation)
 
   if (!dbUser) {
     throw new NotFoundError('User', username);

@@ -31,20 +31,29 @@ export async function storeTagsForPost(
   const tagsToCreate = tags.filter(t => !existingTagMap.has(t.name))
   
   if (tagsToCreate.length > 0) {
-    const createdTags = await prisma.$transaction(
-      tagsToCreate.map(tag =>
-        prisma.tag.create({
-          data: {
-            name: tag.name,
-            displayName: tag.displayName,
-            category: tag.category || null,
-          },
-        })
-      )
+    // Use upsert to handle race conditions when multiple posts create the same tag simultaneously
+    const createdTags = await Promise.all(
+      tagsToCreate.map(async tag => {
+        try {
+          return await prisma.tag.upsert({
+            where: { name: tag.name },
+            update: {}, // Don't update if exists
+            create: {
+              name: tag.name,
+              displayName: tag.displayName,
+              category: tag.category || null,
+            },
+          })
+        } catch (error) {
+          // If upsert fails (shouldn't happen with proper unique constraints), fetch existing
+          logger.warn('Tag upsert failed, fetching existing', { tagName: tag.name, error }, 'TagStorageService')
+          return await prisma.tag.findUniqueOrThrow({ where: { name: tag.name } })
+        }
+      })
     )
     
     createdTags.forEach(t => existingTagMap.set(t.name, t))
-    logger.debug('Created new tags', { count: createdTags.length }, 'TagStorageService')
+    logger.debug('Created/fetched new tags', { count: createdTags.length }, 'TagStorageService')
   }
   
   const postTagData = tags.map(tag => {

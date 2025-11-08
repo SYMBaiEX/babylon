@@ -16,6 +16,7 @@ interface CreateNotificationParams {
   actorId?: string; // Who performed the action
   postId?: string;
   commentId?: string;
+  title: string;
   message: string;
 }
 
@@ -46,6 +47,7 @@ export async function createNotification(params: CreateNotificationParams): Prom
       actorId: params.actorId,
       postId: params.postId,
       commentId: params.commentId,
+      title: params.title,
       message: params.message,
     },
   });
@@ -80,6 +82,7 @@ export async function notifyCommentOnPost(
     actorId: commentAuthorId,
     postId,
     commentId,
+    title: 'New Comment',
     message,
   });
 }
@@ -112,6 +115,7 @@ export async function notifyReactionOnPost(
     type: 'reaction',
     actorId: reactionUserId,
     postId,
+    title: 'New Reaction',
     message,
   });
 }
@@ -140,6 +144,7 @@ export async function notifyFollow(
     userId: followedUserId,
     type: 'follow',
     actorId: followerId,
+    title: 'New Follower',
     message,
   });
 }
@@ -181,6 +186,7 @@ export async function notifyReplyToComment(
     actorId: replyAuthorId,
     postId: notificationContext.postId,
     commentId: notificationContext.commentId,
+    title: 'New Reply',
     message,
   });
 }
@@ -211,6 +217,7 @@ export async function notifyShare(
     type: 'share',
     actorId: sharerId,
     postId,
+    title: 'Post Shared',
     message,
   });
 }
@@ -224,6 +231,7 @@ export async function notifyNewAccount(userId: string): Promise<void> {
   await createNotification({
     userId,
     type: 'system',
+    title: 'Welcome to Babylon',
     message,
   });
 }
@@ -237,6 +245,7 @@ export async function notifyProfileComplete(userId: string, pointsAwarded: numbe
   await createNotification({
     userId,
     type: 'system',
+    title: 'Profile Complete',
     message,
   });
 }

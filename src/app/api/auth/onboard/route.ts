@@ -276,43 +276,52 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       })
     }
 
-    // Create clients
-    const publicClient = createPublicClient({
-      chain: sepolia,
-      transport: http(process.env.NEXT_PUBLIC_RPC_URL || process.env.SEPOLIA_RPC_URL),
-    })
-
-    // For agents, we check registration by tokenId in database
-    // For regular users, we check by wallet address on-chain
-    let isRegistered = false
+    // Check database registration status FIRST (most reliable and fastest)
+    let isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null
     let tokenId: number | null = dbUser.nftTokenId
 
-    if (user.isAgent) {
-      // Agents: check database registration status
-      isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null
-    } else {
-      // Regular users: check on-chain registration
+    if (isRegistered) {
+      logger.info('User already registered (database check)', { 
+        userId: dbUser.id, 
+        tokenId,
+        onChainRegistered: dbUser.onChainRegistered 
+      }, 'POST /api/auth/onboard')
+    } else if (!user.isAgent && walletAddress) {
+      // For regular users only: verify on-chain if database says not registered
+      // This catches cases where registration happened outside our app
+      const publicClient = createPublicClient({
+        chain: sepolia,
+        transport: http(process.env.NEXT_PUBLIC_RPC_URL || process.env.SEPOLIA_RPC_URL),
+      })
+      
       try {
-        isRegistered = await publicClient.readContract({
+        const onChainRegistered = await publicClient.readContract({
           address: IDENTITY_REGISTRY,
           abi: IDENTITY_REGISTRY_ABI,
           functionName: 'isRegistered',
           args: [walletAddress! as Address],
         })
         
-        if (isRegistered && !tokenId) {
-          // Get existing token ID
+        if (onChainRegistered) {
+          // Registered on-chain but not in database - sync it
           tokenId = Number(await publicClient.readContract({
             address: IDENTITY_REGISTRY,
             abi: IDENTITY_REGISTRY_ABI,
             functionName: 'getTokenId',
             args: [walletAddress! as Address],
           }))
+          isRegistered = true
+          logger.info('Found existing on-chain registration, syncing to database', { 
+            walletAddress, 
+            tokenId 
+          }, 'POST /api/auth/onboard')
         }
       } catch (error) {
-        // Contract not deployed or RPC issue - check database instead
-        logger.warn('Failed to check on-chain registration, using database fallback', { error, walletAddress }, 'POST /api/auth/onboard')
-        isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null
+        // RPC error - rely on database
+        logger.warn('Failed to check on-chain registration, using database', { 
+          error, 
+          walletAddress 
+        }, 'POST /api/auth/onboard')
       }
     }
 
@@ -361,6 +370,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       transport: http(process.env.NEXT_PUBLIC_RPC_URL || process.env.SEPOLIA_RPC_URL),
     })
 
+    // Create public client for reading contract state
+    const publicClient = createPublicClient({
+      chain: sepolia,
+      transport: http(process.env.NEXT_PUBLIC_RPC_URL || process.env.SEPOLIA_RPC_URL),
+    })
+
     // Prepare registration parameters
     const name = username || (user.isAgent ? user.userId : finalUsername)
     let registrationAddress: Address
@@ -394,14 +409,62 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     }, 'POST /api/auth/onboard')
 
     // Call registerAgent on Identity Registry
-    const txHash = await walletClient.writeContract({
-      address: IDENTITY_REGISTRY,
-      abi: IDENTITY_REGISTRY_ABI,
-      functionName: 'registerAgent',
-      args: [name, agentEndpoint, capabilitiesHash, metadataURI],
-    })
-
-    logger.info('Registration transaction sent:', txHash, 'POST /api/auth/onboard')
+    let txHash: `0x${string}`
+    try {
+      txHash = await walletClient.writeContract({
+        address: IDENTITY_REGISTRY,
+        abi: IDENTITY_REGISTRY_ABI,
+        functionName: 'registerAgent',
+        args: [name, agentEndpoint, capabilitiesHash, metadataURI],
+      })
+      logger.info('Registration transaction sent:', txHash, 'POST /api/auth/onboard')
+    } catch (error: unknown) {
+      // Handle "Already registered" error gracefully
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      if (errorMessage.includes('Already registered')) {
+        logger.info('User already registered on-chain, fetching existing token ID', { address: registrationAddress }, 'POST /api/auth/onboard')
+        
+        // Get existing token ID
+        const existingTokenId = await publicClient.readContract({
+          address: IDENTITY_REGISTRY,
+          abi: IDENTITY_REGISTRY_ABI,
+          functionName: 'getTokenId',
+          args: [registrationAddress],
+        })
+        tokenId = Number(existingTokenId)
+        
+        // Update database with existing registration
+        await asUser(user, async (db) => {
+          await db.user.update({
+            where: { id: dbUser.id },
+            data: {
+              onChainRegistered: true,
+              nftTokenId: tokenId,
+            },
+          })
+        })
+        
+        // Check if welcome bonus was already awarded
+        const hasWelcomeBonus = await asUser(user, async (db) => {
+          return await db.balanceTransaction.findFirst({
+            where: {
+              userId: dbUser.id,
+              description: 'Welcome bonus - initial signup',
+            },
+          })
+        })
+        
+        return successResponse({
+          message: 'Already registered on-chain',
+          tokenId: Number(tokenId),
+          walletAddress: !user.isAgent ? walletAddress : undefined,
+          txHash: null,
+          pointsAwarded: hasWelcomeBonus ? 1000 : 0,
+        })
+      }
+      // Re-throw if it's a different error
+      throw error
+    }
 
     // Wait for transaction confirmation (wait for more confirmations to ensure state is synced)
     const receipt = await publicClient.waitForTransactionReceipt({
@@ -413,19 +476,30 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     throw new BusinessLogicError('Blockchain registration transaction failed', 'REGISTRATION_TX_FAILED', { txHash, receipt: receipt.status });
   }
 
-    const agentRegisteredLog = receipt.logs.find(log => {
-      const decodedLog = decodeEventLog({
-        abi: IDENTITY_REGISTRY_ABI,
-        data: log.data,
-        topics: log.topics,
-      })
-      return decodedLog.eventName === 'AgentRegistered'
+    // Filter logs by contract address first to avoid decoding Transfer events
+    const contractLogs = receipt.logs.filter(log => log.address.toLowerCase() === IDENTITY_REGISTRY.toLowerCase())
+    
+    const agentRegisteredLog = contractLogs.find(log => {
+      try {
+        const decodedLog = decodeEventLog({
+          abi: IDENTITY_REGISTRY_ABI,
+          data: log.data,
+          topics: log.topics,
+        })
+        return decodedLog.eventName === 'AgentRegistered'
+      } catch {
+        return false
+      }
     })
+
+    if (!agentRegisteredLog) {
+      throw new BusinessLogicError('AgentRegistered event not found in transaction receipt', 'EVENT_NOT_FOUND', { txHash, logs: receipt.logs.length });
+    }
 
     const decodedLog = decodeEventLog({
       abi: IDENTITY_REGISTRY_ABI,
-      data: agentRegisteredLog!.data,
-      topics: agentRegisteredLog!.topics,
+      data: agentRegisteredLog.data,
+      topics: agentRegisteredLog.topics,
     })
     tokenId = Number(decodedLog.args.tokenId)
 
@@ -464,6 +538,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           onChainRegistered: true,
           nftTokenId: tokenId,
           registrationTxHash: txHash,
+          registrationBlockNumber: Number(receipt.blockNumber),
+          registrationGasUsed: Number(receipt.gasUsed),
+          registrationTimestamp: new Date(),
           username: user.isAgent ? user.userId : (username || dbUser.username),
           displayName: username || dbUser.username || user.userId,
           bio: bio || (user.isAgent ? `Autonomous AI agent: ${user.userId}` : undefined),
@@ -541,6 +618,18 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       })
 
       const agent0MetadataCID = agent0Result.metadataCID
+
+      // Store Agent0 registration info in database
+      await asUser(user, async (db) => {
+        await db.user.update({
+          where: { id: dbUser.id },
+          data: {
+            agent0TokenId: agent0Result.tokenId,
+            agent0MetadataCID: agent0MetadataCID,
+            agent0RegisteredAt: new Date(),
+          },
+        })
+      })
 
       logger.info(`✅ User registered with Agent0 SDK`, {
         userId: dbUser.id,

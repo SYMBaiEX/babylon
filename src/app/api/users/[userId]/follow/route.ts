@@ -4,6 +4,7 @@
  */
 
 import type { NextRequest } from 'next/server';
+import type { PrismaClient } from '@prisma/client';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
@@ -11,6 +12,80 @@ import { NotFoundError, BusinessLogicError } from '@/lib/errors';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
 import { notifyFollow } from '@/lib/services/notification-service';
 import { logger } from '@/lib/logger';
+
+/**
+ * Helper function to resolve username or user ID to actual user ID
+ * Accepts both usernames and user IDs (UUID or Privy DID)
+ * Also checks for actors (NPCs) if user lookup fails
+ * Returns the identifier as-is if it's an actor ID (actors don't need resolution)
+ */
+async function resolveUserId(
+  identifier: string,
+  authUser: Awaited<ReturnType<typeof authenticate>>,
+  db: PrismaClient
+): Promise<string> {
+  // Check if it's a UUID or Privy DID format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89abAB][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const privyDidRegex = /^did:privy:[a-z0-9]+$/i;
+  
+  if (uuidRegex.test(identifier) || privyDidRegex.test(identifier)) {
+    // It's already a user ID format, validate and return
+    UserIdParamSchema.parse({ userId: identifier });
+    logger.debug('Resolved identifier as user ID', { identifier, userId: authUser.userId }, 'resolveUserId');
+    return identifier;
+  }
+  
+  // Check if it's an actor ID first (actors are identified by their ID directly)
+  // Actor IDs are typically lowercase with hyphens (e.g., "sucker-carlton")
+  const actorExists = await db.actor.findUnique({
+    where: { id: identifier },
+    select: { id: true },
+  });
+  
+  if (actorExists) {
+    // Actor IDs are used directly, no resolution needed
+    logger.debug('Resolved identifier as actor ID', { identifier, userId: authUser.userId }, 'resolveUserId');
+    return identifier;
+  }
+  
+  // Looks like a username, try to resolve it to user ID
+  const resolvedUser = await db.user.findUnique({
+    where: { username: identifier },
+    select: { id: true },
+  });
+  
+  if (resolvedUser) {
+    logger.debug('Resolved username to user ID', { 
+      username: identifier, 
+      userId: resolvedUser.id,
+      requesterId: authUser.userId 
+    }, 'resolveUserId');
+    return resolvedUser.id;
+  }
+  
+  // Try checking actor by name as fallback
+  const actorByName = await db.actor.findFirst({
+    where: { name: identifier },
+    select: { id: true },
+  });
+  
+  if (actorByName) {
+    logger.debug('Resolved identifier as actor name', { 
+      name: identifier, 
+      actorId: actorByName.id,
+      userId: authUser.userId 
+    }, 'resolveUserId');
+    return actorByName.id;
+  }
+  
+  // Neither user nor actor found
+  logger.warn('Failed to resolve identifier', { 
+    identifier, 
+    userId: authUser.userId 
+  }, 'resolveUserId');
+  throw new NotFoundError('User or actor', identifier);
+}
+
 /**
  * POST /api/users/[userId]/follow
  * Follow a user or actor
@@ -22,7 +97,12 @@ export const POST = withErrorHandling(async (
   // Authenticate user
   const user = await authenticate(request);
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
-  const { userId: targetId } = UserIdParamSchema.parse(params);
+  const identifier = params.userId;
+  
+  // Resolve username to user ID if needed
+  const targetId = await asUser(user, async (db) => {
+    return await resolveUserId(identifier, user, db);
+  });
 
   // Prevent self-following
   if (user.userId === targetId) {
@@ -162,7 +242,12 @@ export const DELETE = withErrorHandling(async (
   // Authenticate user
   const user = await authenticate(request);
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
-  const { userId: targetId } = UserIdParamSchema.parse(params);
+  const identifier = params.userId;
+  
+  // Resolve username to user ID if needed
+  const targetId = await asUser(user, async (db) => {
+    return await resolveUserId(identifier, user, db);
+  });
 
   // Unfollow with RLS
   await asUser(user, async (db) => {
@@ -241,14 +326,16 @@ export const GET = withErrorHandling(async (
   // Optional authentication - if not authenticated, return false
   const authUser = await authenticate(request).catch(() => null);
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
-  const { userId: targetId } = UserIdParamSchema.parse(params);
+  const identifier = params.userId;
 
   if (!authUser) {
     return successResponse({ isFollowing: false });
   }
 
-  // Check follow status with RLS
+  // Resolve username to user ID if needed and check follow status with RLS
   const isFollowing = await asUser(authUser, async (db) => {
+    const targetId = await resolveUserId(identifier, authUser, db);
+    
     // Check if target is a user
     const targetUser = await db.user.findUnique({
       where: { id: targetId },

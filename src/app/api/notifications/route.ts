@@ -21,13 +21,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Parse and validate query parameters
   const { searchParams } = new URL(request.url);
-  const queryParams = {
-    limit: searchParams.get('limit'),
-    page: searchParams.get('page'),
-    unreadOnly: searchParams.get('unreadOnly'),
-    type: searchParams.get('type')
-  };
-  const { limit, unreadOnly, type } = NotificationsQuerySchema.parse(queryParams);
+  const queryParams: Record<string, string> = {};
+  
+  const limit = searchParams.get('limit');
+  const page = searchParams.get('page');
+  const unreadOnly = searchParams.get('unreadOnly');
+  const type = searchParams.get('type');
+  
+  if (limit) queryParams.limit = limit;
+  if (page) queryParams.page = page;
+  if (unreadOnly) queryParams.unreadOnly = unreadOnly;
+  if (type) queryParams.type = type;
+  
+  const validated = NotificationsQuerySchema.parse(queryParams);
+  const { limit: validatedLimit, unreadOnly: validatedUnreadOnly, type: validatedType } = validated;
 
   const where: {
     userId: string
@@ -37,12 +44,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     userId: authUser.userId,
   };
 
-  if (unreadOnly) {
+  if (validatedUnreadOnly) {
     where.read = false;
   }
 
-  if (type) {
-    where.type = type;
+  if (validatedType) {
+    where.type = validatedType;
   }
 
   const { notifications, unreadCount } = await asUser(authUser, async (db) => {
@@ -51,7 +58,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       orderBy: {
         createdAt: 'desc',
       },
-      take: limit,
+      take: validatedLimit,
       include: {
         actor: {
           select: {

@@ -9,10 +9,11 @@ import { gameService } from '@/lib/game-service';
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
 import { authenticate, errorResponse, successResponse, optionalAuth } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
+import { asUser, asPublic } from '@/lib/db/context';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '@/lib/logger';
 import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
+import type { PrismaClient } from '@prisma/client';
 
 /**
  * Safely convert a date value to ISO string
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
     if (following && userId) {
       const authUser = await optionalAuth(request as NextRequest).catch(() => null);
       
-      const result = await asUser(authUser, async (db) => {
+      const dbOperation = async (db: PrismaClient) => {
         // Get list of followed users
         const userFollows = await db.follow.findMany({
           where: {
@@ -123,7 +124,11 @@ export async function GET(request: Request) {
         ]);
 
         return { posts, users, reactions: allReactions, comments: allComments, shares: allShares };
-      });
+      }
+
+      const result = authUser 
+        ? await asUser(authUser, dbOperation)
+        : await asPublic(dbOperation)
 
       if (result.posts.length === 0) {
         return NextResponse.json({
@@ -202,7 +207,7 @@ export async function GET(request: Request) {
     const authorIds = [...new Set(posts.map(p => p.authorId))];
     const authUser = await optionalAuth(request as NextRequest).catch(() => null);
     
-    const { users, reactions, comments, shares } = await asUser(authUser, async (db) => {
+    const dbOperation2 = async (db: PrismaClient) => {
       const usrs = await db.user.findMany({
         where: { id: { in: authorIds } },
         select: { id: true, username: true, displayName: true, profileImageUrl: true },
@@ -229,7 +234,11 @@ export async function GET(request: Request) {
       ]);
       
       return { users: usrs, reactions: allReactions, comments: allComments, shares: allShares };
-    });
+    }
+
+    const { users, reactions, comments, shares } = authUser 
+      ? await asUser(authUser, dbOperation2)
+      : await asPublic(dbOperation2)
     
     const userMap = new Map(users.map(u => [u.id, u]));
     

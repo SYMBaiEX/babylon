@@ -6,7 +6,7 @@
 import type { NextRequest } from 'next/server';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
+import { asUser, asPublic } from '@/lib/db/context';
 import { BusinessLogicError, AuthorizationError } from '@/lib/errors';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
 import { WalletService } from '@/lib/services/wallet-service';
@@ -31,21 +31,34 @@ export const GET = withErrorHandling(async (
   }
 
   // Ensure user exists in database with RLS
-  await asUser(authUser, async (db) => {
-    let dbUser = await db.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!dbUser) {
-      // Create user if they don't exist yet
-      dbUser = await db.user.create({
-        data: {
-          id: userId,
-          isActor: false,
-        },
+  if (authUser) {
+    await asUser(authUser, async (db) => {
+      let dbUser = await db.user.findUnique({
+        where: { id: userId },
       });
-    }
-  });
+
+      if (!dbUser) {
+        // Create user if they don't exist yet
+        dbUser = await db.user.create({
+          data: {
+            id: userId,
+            isActor: false,
+          },
+        });
+      }
+    });
+  } else {
+    // Public access - just check if user exists
+    await asPublic(async (db) => {
+      const dbUser = await db.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (!dbUser) {
+        throw new BusinessLogicError('User not found', 'USER_NOT_FOUND');
+      }
+    });
+  }
 
   // Get balance info (WalletService handles its own queries)
   const balanceInfo = await WalletService.getBalance(userId);

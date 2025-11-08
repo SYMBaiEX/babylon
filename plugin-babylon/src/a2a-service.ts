@@ -20,7 +20,7 @@ import type { JsonValue } from "../../src/types/common";
 import { logger } from "@elizaos/core";
 
 interface A2AServiceConfig {
-  endpoint?: string; // A2A WebSocket server URL (e.g., ws://localhost:8080)
+  endpoint?: string; // A2A WebSocket server URL (e.g., ws://localhost:8081)
   enabled?: boolean; // Enable A2A integration (default: true if endpoint provided)
   autoReconnect?: boolean;
   reconnectInterval?: number;

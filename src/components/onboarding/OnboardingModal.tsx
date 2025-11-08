@@ -49,6 +49,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip: _onSkip }: Onboard
   const [usernameSuggestion, setUsernameSuggestion] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [registrationStatus, setRegistrationStatus] = useState<'idle' | 'uploading' | 'registering' | 'complete'>('idle')
 
   // Initialize with AI-generated data
   useEffect(() => {
@@ -227,6 +228,7 @@ export function OnboardingModal({ isOpen, onComplete, onSkip: _onSkip }: Onboard
     }
 
     setIsLoading(true)
+    setRegistrationStatus('uploading')
 
     try {
       // Upload profile image if user uploaded a custom one
@@ -277,6 +279,9 @@ export function OnboardingModal({ isOpen, onComplete, onSkip: _onSkip }: Onboard
         coverImageUrl = data.url
       }
 
+      // Update status to registering
+      setRegistrationStatus('registering')
+
       // Complete onboarding with uploaded image URLs
       onComplete({
         username: username.trim(),
@@ -285,9 +290,12 @@ export function OnboardingModal({ isOpen, onComplete, onSkip: _onSkip }: Onboard
         profileImageUrl,
         coverImageUrl,
       })
+      
+      setRegistrationStatus('complete')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to upload images')
+      setError(err instanceof Error ? err.message : 'Failed to complete onboarding')
       setIsLoading(false)
+      setRegistrationStatus('idle')
     }
   }
 
@@ -344,7 +352,20 @@ export function OnboardingModal({ isOpen, onComplete, onSkip: _onSkip }: Onboard
           {isLoading ? (
             <div className="p-12 flex flex-col items-center justify-center gap-4">
               <RefreshCw className="w-8 h-8 text-[#1c9cf0] animate-spin" />
-              <p className="text-muted-foreground">Generating your profile...</p>
+              {registrationStatus === 'uploading' && (
+                <p className="text-muted-foreground">Uploading images...</p>
+              )}
+              {registrationStatus === 'registering' && (
+                <div className="text-center space-y-2">
+                  <p className="text-foreground font-medium">Registering on-chain...</p>
+                  <p className="text-sm text-muted-foreground">
+                    Creating your ERC-8004 identity and setting up reputation
+                  </p>
+                </div>
+              )}
+              {registrationStatus === 'idle' && (
+                <p className="text-muted-foreground">Generating your profile...</p>
+              )}
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="p-6 space-y-6">

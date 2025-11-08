@@ -27,7 +27,7 @@ function parseArgs(): CLIOptions {
   const args = process.argv.slice(2);
   const options: CLIOptions = {
     count: 3,
-    endpoint: 'ws://localhost:8080'
+    endpoint: 'ws://localhost:8081'
   };
 
   for (let i = 0; i < args.length; i++) {

@@ -79,7 +79,7 @@ export class A2AGameIntegration extends EventEmitter {
 
     this.config = {
       enabled: config?.enabled ?? false,
-      port: config?.port ?? 8080,
+      port: config?.port ?? 8081,
       host: config?.host ?? '0.0.0.0',
       maxConnections: config?.maxConnections ?? 1000,
       enableBlockchain: config?.enableBlockchain ?? false,

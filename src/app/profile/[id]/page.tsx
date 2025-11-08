@@ -1,6 +1,7 @@
 'use client'
 
 import { InteractionBar } from '@/components/interactions'
+import { FollowButton } from '@/components/interactions/FollowButton'
 import { ProfileWidget } from '@/components/profile/ProfileWidget'
 import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
@@ -220,6 +221,7 @@ export default function ActorProfilePage() {
           role: actor.role || actor.tier || 'Actor',
           type: 'actor' as const,
           game: gameId ? { id: gameId } : undefined,
+          username: ('username' in actor ? actor.username as string : actor.id) as string | undefined, // Use username if available, fallback to ID
         })
         setLoading(false)
         return
@@ -789,9 +791,11 @@ export default function ActorProfilePage() {
                       <button className="p-2 rounded-full border border-border hover:bg-muted/50 transition-colors">
                         <Mail className="w-5 h-5" />
                       </button>
-                      <button className="px-4 py-2 rounded-full font-bold bg-foreground text-background hover:bg-foreground/90 transition-colors">
-                        Follow
-                      </button>
+                      <FollowButton
+                        userId={actorInfo.username || actorInfo.id}
+                        size="md"
+                        variant="button"
+                      />
                     </>
                   )}
                   {isOwnProfile && (

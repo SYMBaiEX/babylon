@@ -31,7 +31,14 @@ export function FollowButton({
 
   // Check follow status on mount
   useEffect(() => {
-    if (!authenticated || !user || user.id === userId) {
+    // Check if viewing own profile (userId could be username or user ID)
+    const isOwnProfile = user && (
+      user.id === userId || 
+      user.username === userId ||
+      (user.username && user.username.startsWith('@') && user.username.slice(1) === userId)
+    )
+    
+    if (!authenticated || !user || isOwnProfile) {
       setIsChecking(false)
       return
     }
@@ -48,9 +55,9 @@ export function FollowButton({
         return
       }
 
-      // Encode userId to handle special characters
-      const encodedUserId = encodeURIComponent(userId)
-      const response = await fetch(`/api/users/${encodedUserId}/follow`, {
+      // Encode userId/username to handle special characters
+      const encodedIdentifier = encodeURIComponent(userId)
+      const response = await fetch(`/api/users/${encodedIdentifier}/follow`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -75,13 +82,18 @@ export function FollowButton({
       return
     }
 
-    if (user.id === userId) {
+    // Check if viewing own profile (userId could be username or user ID)
+    const isOwnProfile = user.id === userId || 
+      user.username === userId ||
+      (user.username && user.username.startsWith('@') && user.username.slice(1) === userId)
+    
+    if (isOwnProfile) {
       // Don't show error, just return silently (button shouldn't be visible anyway)
       return
     }
 
     if (!userId) {
-      logger.error('No userId provided to FollowButton', {}, 'FollowButton')
+      logger.error('No userId/username provided to FollowButton', {}, 'FollowButton')
       return
     }
 
@@ -93,10 +105,10 @@ export function FollowButton({
       return
     }
 
-    // Encode userId to handle special characters
-    const encodedUserId = encodeURIComponent(userId)
+    // Encode userId/username to handle special characters
+    const encodedIdentifier = encodeURIComponent(userId)
     const method = isFollowing ? 'DELETE' : 'POST'
-    const response = await fetch(`/api/users/${encodedUserId}/follow`, {
+    const response = await fetch(`/api/users/${encodedIdentifier}/follow`, {
       method,
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -116,14 +128,24 @@ export function FollowButton({
         logger.warn('Profile not found for follow:', { userId }, 'FollowButton')
         toast.error('Unable to follow this profile')
       } else {
-        toast.error(errorData.error || 'Failed to update follow status')
+        // Extract error message properly (handle both string and object formats)
+        const errorMessage = typeof errorData?.error === 'string' 
+          ? errorData.error 
+          : errorData?.error?.message || 'Failed to update follow status'
+        toast.error(errorMessage)
       }
     }
     setIsLoading(false)
   }
 
   // Don't show button if checking or if user is viewing their own profile
-  if (isChecking || (user && user.id === userId)) {
+  const isOwnProfile = user && (
+    user.id === userId || 
+    user.username === userId ||
+    (user.username && user.username.startsWith('@') && user.username.slice(1) === userId)
+  )
+  
+  if (isChecking || isOwnProfile) {
     return null
   }
 

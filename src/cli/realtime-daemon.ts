@@ -71,7 +71,7 @@ async function main() {
     historyDays: 30,
     a2a: {
       enabled: true, // Enable A2A protocol
-      port: 8080,
+      port: 8081,
       host: '0.0.0.0',
       maxConnections: 1000,
       enableBlockchain: process.env.A2A_ENABLE_BLOCKCHAIN === 'true', // Enable blockchain integration for agent discovery

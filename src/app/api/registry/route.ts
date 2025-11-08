@@ -7,11 +7,12 @@
 
 import type { NextRequest } from 'next/server'
 import { optionalAuth } from '@/lib/api/auth-middleware'
-import { asUser } from '@/lib/db/context'
+import { asUser, asPublic } from '@/lib/db/context'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { RegistryQuerySchema } from '@/lib/validation/schemas'
 import { ReputationService } from '@/lib/services/reputation-service'
 import { logger } from '@/lib/logger'
+import type { PrismaClient } from '@prisma/client'
 /**
  * GET /api/registry
  * Fetch all registered users with optional filtering
@@ -40,8 +41,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     [filters.sortBy]: filters.sortOrder,
   } : { createdAt: 'desc' as const }
 
-  // Fetch users from database with RLS
-  const { users, totalCount } = await asUser(authUser, async (db) => {
+  // Fetch users from database with RLS (public registry, no auth required)
+  const dbOperation = async (db: PrismaClient) => {
     const usersList = await db.user.findMany({
       where,
       orderBy,
@@ -76,7 +77,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const count = await db.user.count({ where })
 
     return { users: usersList, totalCount: count }
-  })
+  }
+
+  const { users, totalCount } = authUser 
+    ? await asUser(authUser, dbOperation)
+    : await asPublic(dbOperation)
 
   const usersWithReputation = await Promise.all(
     users.map(async (user) => {

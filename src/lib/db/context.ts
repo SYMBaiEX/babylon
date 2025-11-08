@@ -23,6 +23,7 @@
 import { prisma } from '@/lib/prisma'
 import type { AuthenticatedUser } from '@/lib/api/auth-middleware'
 import type { PrismaClient } from '@prisma/client'
+import { logger } from '@/lib/logger'
 
 /**
  * Internal: Execute a Prisma operation with RLS context
@@ -33,11 +34,25 @@ async function executeWithRLS<T>(
   userId: string,
   operation: (tx: PrismaClient) => Promise<T>
 ): Promise<T> {
+  // Validate userId format to prevent injection
+  // Accept either UUID or Privy DID format (did:privy:xxxxx)
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const privyDidRegex = /^did:privy:[a-z0-9]+$/i
+  
+  if (!uuidRegex.test(userId) && !privyDidRegex.test(userId)) {
+    throw new Error(`Invalid userId format: ${userId}. Must be a valid UUID or Privy DID.`)
+  }
+
   // Execute within a transaction to ensure session variable is scoped
   return await client.$transaction(async (tx) => {
-    // Set the current user ID in the PostgreSQL session
+    // Force RLS even for table owners (Neon uses owner role for connections)
+    await tx.$executeRawUnsafe(`SET LOCAL row_security = on`)
+    
+    // Set the current user ID in the PostgreSQL session using parameterized query
+    // Note: Prisma's $executeRaw with template literals doesn't support SET LOCAL directly,
+    // so we use validated UUID with $executeRawUnsafe (safe after validation)
     await tx.$executeRawUnsafe(
-      `SET LOCAL app.current_user_id = '${userId.replace(/'/g, "''")}'`
+      `SET LOCAL app.current_user_id = '${userId}'`
     )
 
     // Execute the operation
@@ -47,14 +62,66 @@ async function executeWithRLS<T>(
 
 /**
  * Internal: Execute a Prisma operation as system (bypass RLS)
+ * Sets the context to 'system' which system policies should recognize
  */
 async function executeAsSystem<T>(
+  client: PrismaClient,
+  operation: (tx: PrismaClient) => Promise<T>,
+  operationName?: string
+): Promise<T> {
+  // Log system operation for security audit
+  const startTime = Date.now()
+  const stack = new Error().stack?.split('\n')[3]?.trim() // Get caller
+  
+  logger.warn('System operation initiated', {
+    operation: operationName || 'unknown',
+    caller: stack,
+    timestamp: new Date().toISOString(),
+  }, 'RLS Security')
+
+  try {
+    // Execute within a transaction with system context
+    const result = await client.$transaction(async (tx) => {
+      // Force RLS even for table owners (but system policies will allow access)
+      await tx.$executeRawUnsafe(`SET LOCAL row_security = on`)
+      
+      // Set system context marker (policies should check for 'system')
+      await tx.$executeRawUnsafe(`SET LOCAL app.current_user_id = 'system'`)
+
+      // Execute the operation
+      return await operation(tx as PrismaClient)
+    })
+
+    const duration = Date.now() - startTime
+    logger.info('System operation completed', {
+      operation: operationName || 'unknown',
+      duration: `${duration}ms`,
+    }, 'RLS Security')
+
+    return result
+  } catch (error) {
+    logger.error('System operation failed', {
+      operation: operationName || 'unknown',
+      error: error instanceof Error ? error.message : String(error),
+    }, 'RLS Security')
+    throw error
+  }
+}
+
+/**
+ * Internal: Execute a Prisma operation as public (unauthenticated)
+ * Uses empty string to indicate no user context
+ */
+async function executeAsPublic<T>(
   client: PrismaClient,
   operation: (tx: PrismaClient) => Promise<T>
 ): Promise<T> {
   // Execute within a transaction with no user context
   return await client.$transaction(async (tx) => {
-    // Explicitly unset the user ID (system access)
+    // Force RLS even for table owners
+    await tx.$executeRawUnsafe(`SET LOCAL row_security = on`)
+    
+    // Empty string indicates public/unauthenticated access
     await tx.$executeRawUnsafe(`SET LOCAL app.current_user_id = ''`)
 
     // Execute the operation
@@ -68,11 +135,14 @@ async function executeAsSystem<T>(
  * Sets the PostgreSQL session variable `app.current_user_id` to the authenticated
  * user's ID, which RLS policies use to filter queries automatically.
  * 
- * If authUser is null/undefined, the operation runs as system (no RLS filtering).
- * This allows the same function to handle both authenticated and unauthenticated requests.
+ * SECURITY: This function requires a valid authenticated user. If authUser is null/undefined,
+ * it will throw an error. Use asPublic() for unauthenticated access or asSystem() for
+ * admin/system operations.
  * 
- * @param authUser - The authenticated user (from authenticate() or optionalAuth())
+ * @param authUser - The authenticated user (from authenticate())
  * @param operation - The database operation to execute with RLS context
+ * 
+ * @throws {Error} If authUser is null or undefined
  * 
  * @example
  * // Authenticated route
@@ -80,23 +150,43 @@ async function executeAsSystem<T>(
  * const positions = await asUser(authUser, async (db) => {
  *   return await db.position.findMany() // Only returns user's positions
  * })
- * 
- * @example
- * // Optional auth route
- * const authUser = await optionalAuth(request)
- * const posts = await asUser(authUser, async (db) => {
- *   return await db.post.findMany() // RLS applies if authenticated
- * })
  */
 export async function asUser<T>(
   authUser: AuthenticatedUser | null | undefined,
   operation: (db: typeof prisma) => Promise<T>
 ): Promise<T> {
   if (!authUser) {
-    // No user context - run as system (no RLS filtering)
-    return await executeAsSystem(prisma, operation)
+    throw new Error(
+      'asUser() requires an authenticated user. ' +
+      'Use asPublic() for unauthenticated access or asSystem() for admin operations.'
+    )
   }
   return await executeWithRLS(prisma, authUser.userId, operation)
+}
+
+/**
+ * Execute a database operation as public (unauthenticated user)
+ * 
+ * Use this for operations that should work without authentication but still
+ * respect RLS policies for public data access.
+ * 
+ * Common use cases:
+ * - Reading public posts/profiles
+ * - Browsing public markets
+ * - Viewing leaderboards
+ * 
+ * @param operation - The database operation to execute without user context
+ * 
+ * @example
+ * // Public route
+ * const posts = await asPublic(async (db) => {
+ *   return await db.post.findMany() // Returns only public posts per RLS
+ * })
+ */
+export async function asPublic<T>(
+  operation: (db: typeof prisma) => Promise<T>
+): Promise<T> {
+  return await executeAsPublic(prisma, operation)
 }
 
 /**
@@ -109,18 +199,21 @@ export async function asUser<T>(
  * - System-level operations
  * 
  * WARNING: This bypasses all RLS policies. Only use when necessary.
+ * All system operations are logged for security auditing.
  * 
  * @param operation - The database operation to execute without RLS
+ * @param operationName - Optional name for logging/auditing purposes
  * 
  * @example
  * // Admin route
  * const allUsers = await asSystem(async (db) => {
  *   return await db.user.findMany() // Returns ALL users
- * })
+ * }, 'admin-list-all-users')
  */
 export async function asSystem<T>(
-  operation: (db: typeof prisma) => Promise<T>
+  operation: (db: typeof prisma) => Promise<T>,
+  operationName?: string
 ): Promise<T> {
-  return await executeAsSystem(prisma, operation)
+  return await executeAsSystem(prisma, operation, operationName)
 }
 

@@ -4,18 +4,18 @@
  * GET /api/feed/widgets/trending - Get current trending tags
  */
 
-import type { AuthenticatedUser } from '@/lib/api/auth-middleware'
+import type { NextRequest } from 'next/server'
+import { optionalAuth, type AuthenticatedUser } from '@/lib/api/auth-middleware'
 import { asUser } from '@/lib/db/context'
 import { getCurrentTrendingTags } from '@/lib/services/tag-storage-service'
 import { generateTrendingSummary } from '@/lib/services/trending-summary-service'
 import { NextResponse } from 'next/server'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const trending = await getCurrentTrendingTags(5)
 
   // Optional auth - trending tags are public but RLS still applies
-  // No request available in this route, so auth is not possible
-  const authUser: AuthenticatedUser | null = null
+  const authUser: AuthenticatedUser | null = await optionalAuth(request).catch(() => null)
 
   const trendingItems = await Promise.all(
     trending.map(async (item) => {

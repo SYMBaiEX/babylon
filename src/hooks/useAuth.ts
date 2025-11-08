@@ -75,11 +75,19 @@ export function useAuth(): UseAuthReturn {
       setIsLoadingProfile(true)
       setLoadedUserId(privyUser.id)
       
-      const response = await fetch(`/api/users/${encodeURIComponent(privyUser.id)}/profile`)
+      const token = await getAccessToken()
+      const response = await fetch(`/api/users/${encodeURIComponent(privyUser.id)}/profile`, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      })
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data?.error || 'Failed to load user profile')
+        const errorMessage = typeof data?.error === 'string' 
+          ? data.error 
+          : data?.error?.message || 'Failed to load user profile'
+        throw new Error(errorMessage)
       }
 
       if (data.user) {

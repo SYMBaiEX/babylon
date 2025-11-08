@@ -4,19 +4,19 @@
  * GET /api/markets/perps - Get all tradeable companies
  */
 
+import type { NextRequest } from 'next/server'
 import { db } from '@/lib/database-service';
-import type { AuthenticatedUser } from '@/lib/api/auth-middleware';
+import { optionalAuth, type AuthenticatedUser } from '@/lib/api/auth-middleware';
 import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 
-export const GET = withErrorHandling(async () => {
+export const GET = withErrorHandling(async (request: NextRequest) => {
   // Get ONLY companies (not media, government, think tanks)
   const companies = await db.getCompanies();
 
   // Optional auth - markets are public but RLS still applies
-  // No request available in this route, so auth is not possible
-  const authUser: AuthenticatedUser | null = null;
+  const authUser: AuthenticatedUser | null = await optionalAuth(request).catch(() => null);
 
   // Build markets with REAL 24h stats
   const markets = await Promise.all(
