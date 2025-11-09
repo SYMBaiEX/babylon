@@ -49,8 +49,8 @@ export async function GET(
     // Enrich posts with author information and engagement stats with RLS
     const enrichedPosts = await Promise.all(
       result.posts.map(async (post) => {
-        // Get author info (could be User or Actor)
-        const [user, actor, likeCount, commentCount, shareCount] = (authUser && authUser.userId)
+        // Get author info (could be User, Actor, or Organization)
+        const [user, actor, org, likeCount, commentCount, shareCount] = (authUser && authUser.userId)
           ? await asUser(authUser, async (db) => {
               return await Promise.all([
                 db.user.findUnique({
@@ -69,6 +69,14 @@ export async function GET(
                     id: true,
                     name: true,
                     profileImageUrl: true,
+                  },
+                }),
+                db.organization.findUnique({
+                  where: { id: post.authorId },
+                  select: {
+                    id: true,
+                    name: true,
+                    imageUrl: true,
                   },
                 }),
                 db.reaction.count({
@@ -102,6 +110,14 @@ export async function GET(
                     profileImageUrl: true,
                   },
                 }),
+                db.organization.findUnique({
+                  where: { id: post.authorId },
+                  select: {
+                    id: true,
+                    name: true,
+                    imageUrl: true,
+                  },
+                }),
                 db.reaction.count({
                   where: { postId: post.id, type: 'like' },
                 }),
@@ -115,9 +131,9 @@ export async function GET(
             })
 
         // Determine author info
-        const authorName = user?.displayName || user?.username || actor?.name || 'Unknown'
+        const authorName = user?.displayName || user?.username || actor?.name || org?.name || 'Unknown'
         const authorUsername = user?.username || null
-        const authorProfileImageUrl = user?.profileImageUrl || actor?.profileImageUrl || null
+        const authorProfileImageUrl = user?.profileImageUrl || actor?.profileImageUrl || org?.imageUrl || null
 
         return {
           id: post.id,

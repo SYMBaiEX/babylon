@@ -191,13 +191,25 @@ export async function GET(request: Request) {
       }
     }
     
-    // Get unique author IDs to fetch user data
+    // Get unique author IDs to fetch author data (users, actors, or organizations)
     const authorIds = [...new Set(posts.map(p => p.authorId))];
-    const users = await prisma.user.findMany({
-      where: { id: { in: authorIds } },
-      select: { id: true, username: true, displayName: true, profileImageUrl: true },
-    });
+    const [users, actors, organizations] = await Promise.all([
+      prisma.user.findMany({
+        where: { id: { in: authorIds } },
+        select: { id: true, username: true, displayName: true, profileImageUrl: true },
+      }),
+      prisma.actor.findMany({
+        where: { id: { in: authorIds } },
+        select: { id: true, name: true, profileImageUrl: true },
+      }),
+      prisma.organization.findMany({
+        where: { id: { in: authorIds } },
+        select: { id: true, name: true, imageUrl: true },
+      }),
+    ]);
     const userMap = new Map(users.map(u => [u.id, u]));
+    const actorMap = new Map(actors.map(a => [a.id, a]));
+    const orgMap = new Map(organizations.map(o => [o.id, o]));
     
     // Get interaction counts for all posts in parallel
     const postIds = posts.map(p => p.id);
@@ -233,7 +245,27 @@ export async function GET(request: Request) {
           return null;
         }
         
+        // Look up author from user, actor, or organization
         const user = userMap.get(post.authorId);
+        const actor = actorMap.get(post.authorId);
+        const org = orgMap.get(post.authorId);
+        
+        // Determine author info based on what was found
+        let authorName = post.authorId || 'Unknown';
+        let authorUsername: string | null = null;
+        let authorProfileImageUrl: string | null = null;
+        
+        if (actor) {
+          authorName = actor.name;
+          authorProfileImageUrl = actor.profileImageUrl || null;
+        } else if (org) {
+          authorName = org.name;
+          authorProfileImageUrl = org.imageUrl || null;
+        } else if (user) {
+          authorName = user.displayName || user.username || post.authorId || 'Unknown';
+          authorUsername = user.username || null;
+          authorProfileImageUrl = user.profileImageUrl || null;
+        }
         
         // Safely convert dates with null checks
         const timestamp = toISOStringSafe(post.timestamp);
@@ -241,12 +273,20 @@ export async function GET(request: Request) {
         
         return {
           id: post.id,
+          type: post.type || undefined,
           content: post.content || '',
+          fullContent: post.fullContent || undefined,
+          articleTitle: post.articleTitle || undefined,
+          byline: post.byline || undefined,
+          biasScore: post.biasScore !== undefined ? post.biasScore : undefined,
+          sentiment: post.sentiment || undefined,
+          slant: post.slant || undefined,
+          category: post.category || undefined,
           author: post.authorId, // Use authorId as author
           authorId: post.authorId,
-          authorName: user?.displayName || user?.username || post.authorId || 'Unknown',
-          authorUsername: user?.username || null,
-          authorProfileImageUrl: user?.profileImageUrl || null,
+          authorName,
+          authorUsername,
+          authorProfileImageUrl,
           timestamp,
           createdAt,
           gameId: post.gameId || undefined,

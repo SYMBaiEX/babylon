@@ -343,14 +343,24 @@ export const GET = withErrorHandling(async (
         name = actor.name;
         profileImageUrl = actor.profileImageUrl || null;
       } else {
-        const usr = await db.user.findUnique({
+        // Check if it's an organization (for articles)
+        const org = await db.organization.findUnique({
           where: { id: post.authorId },
-          select: { displayName: true, username: true, profileImageUrl: true },
+          select: { name: true, imageUrl: true },
         });
-        if (usr) {
-          name = usr.displayName || usr.username || post.authorId;
-          username = usr.username || null;
-          profileImageUrl = usr.profileImageUrl || null;
+        if (org) {
+          name = org.name;
+          profileImageUrl = org.imageUrl || null;
+        } else {
+          const usr = await db.user.findUnique({
+            where: { id: post.authorId },
+            select: { displayName: true, username: true, profileImageUrl: true },
+          });
+          if (usr) {
+            name = usr.displayName || usr.username || post.authorId;
+            username = usr.username || null;
+            profileImageUrl = usr.profileImageUrl || null;
+          }
         }
       }
       return { authorName: name, authorUsername: username, authorProfileImageUrl: profileImageUrl };

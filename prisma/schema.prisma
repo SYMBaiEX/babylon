@@ -514,6 +514,7 @@ model Organization {
   canBeInvolved   Boolean  @default(true)
   initialPrice    Float?   // For companies
   currentPrice    Float?   // Current stock price
+  imageUrl        String?  // Organization logo/image
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

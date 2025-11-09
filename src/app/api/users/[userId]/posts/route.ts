@@ -234,8 +234,8 @@ export const GET = withErrorHandling(async (
       // Get unique author IDs from shared posts
       const sharedPostAuthorIds = [...new Set(shares.map(s => s.post.authorId))];
       
-      // Fetch User and Actor info for shared post authors
-      const [sharedAuthorsUsers, sharedAuthorsActors] = await Promise.all([
+      // Fetch User, Actor, and Organization info for shared post authors
+      const [sharedAuthorsUsers, sharedAuthorsActors, sharedAuthorsOrgs] = await Promise.all([
         prisma.user.findMany({
           where: { id: { in: sharedPostAuthorIds } },
           select: {
@@ -253,11 +253,20 @@ export const GET = withErrorHandling(async (
             profileImageUrl: true,
           },
         }),
+        prisma.organization.findMany({
+          where: { id: { in: sharedPostAuthorIds } },
+          select: {
+            id: true,
+            name: true,
+            imageUrl: true,
+          },
+        }),
       ]);
       
       // Create author lookup maps
       const userAuthorsMap = new Map(sharedAuthorsUsers.map(u => [u.id, u]));
       const actorAuthorsMap = new Map(sharedAuthorsActors.map(a => [a.id, a]));
+      const orgAuthorsMap = new Map(sharedAuthorsOrgs.map(o => [o.id, o]));
       
       // Format posts
       const formattedPosts = posts.map((post) => ({
@@ -285,6 +294,7 @@ export const GET = withErrorHandling(async (
       const reposts = shares.map((share) => {
         const authorUser = userAuthorsMap.get(share.post.authorId);
         const authorActor = actorAuthorsMap.get(share.post.authorId);
+        const authorOrg = orgAuthorsMap.get(share.post.authorId);
         
         return {
           id: `share-${share.id}`,
@@ -312,6 +322,13 @@ export const GET = withErrorHandling(async (
                   displayName: authorActor.name,
                   username: null,
                   profileImageUrl: authorActor.profileImageUrl,
+                }
+              : authorOrg
+              ? {
+                  id: authorOrg.id,
+                  displayName: authorOrg.name,
+                  username: null,
+                  profileImageUrl: authorOrg.imageUrl,
                 }
               : null,
         };

@@ -92,6 +92,10 @@ async function main() {
       continue;
     }
     
+    // Check if organization image exists
+    const orgImagePath = join(process.cwd(), 'public', 'images', 'organizations', `${org.id}.jpg`);
+    const imageUrl = existsSync(orgImagePath) ? `/images/organizations/${org.id}.jpg` : null;
+    
     try {
       await prisma.organization.create({
         data: {
@@ -102,6 +106,7 @@ async function main() {
           canBeInvolved: org.canBeInvolved !== false,
           initialPrice: org.initialPrice || null,
           currentPrice: org.initialPrice || null,
+          imageUrl: imageUrl,
         },
       });
       orgCount++;

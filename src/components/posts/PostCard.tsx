@@ -117,7 +117,7 @@ export const PostCard = memo(function PostCard({
           <Avatar
             id={post.authorId}
             name={post.authorName}
-            type="actor"
+            type={post.type === 'article' ? 'business' : 'actor'}
             size="md"
             src={post.authorProfileImageUrl || undefined}
             scaleFactor={isDetail ? fontSize : fontSize * (isDesktop ? 1.4 : isMobile ? 0.8 : 1)}
