@@ -28,7 +28,7 @@
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "S_TIER",
-      "hasPool": true,
+      "hasPool": false,
       "affiliations": [
         "xitter",
         "huskla",
@@ -73,7 +73,7 @@
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "S_TIER",
-      "hasPool": true,
+      "hasPool": false,
       "affiliations": [
         "openlie"
       ],
@@ -115,7 +115,7 @@
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "S_TIER",
-      "hasPool": true,
+      "hasPool": false,
       "affiliations": [
         "facehook"
       ],
@@ -157,7 +157,7 @@
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "S_TIER",
-      "hasPool": true,
+      "hasPool": false,
       "affiliations": [
         "ethereal-foundation"
       ],
@@ -339,7 +339,7 @@
         "As Jung would say, roughly speaking...",
         "Chaos is feminine. Order is masculine. Buy my book on archetypes."
       ],
-      "hasPool": true,
+      "hasPool": false,
       "physicalDescription": "Early 60s slender male with a lined, gaunt face. Light skin and graying light-brown hair swept back from a high forehead. Small, watery blue eyes often looking earnest or teary. Wears a tweed jacket or a somber three-piece suit. Carries himself with an academic hunch, one hand clutching a worn book. Usually has a furrowed brow and a slightly pained, introspective expression.",
       "profileBanner": "A cluttered study with dim lamp light. Stacks of philosophy books and a lone lobster perched on a pile of papers. A Canadian flag drapes over a mirror. On the wall, a mural of a Soviet art piece next to a crying Pepe the Frog. Shadowy figures labeled \"chaos\" and \"order\" battle in the background. A single rose lies atop a Bible on the desk."
     },
@@ -368,7 +368,7 @@
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
-      "hasPool": true,
+      "hasPool": false,
       "affiliations": [
         "angelgrift"
       ],
@@ -410,7 +410,7 @@
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "A_TIER",
-      "hasPool": true,
+      "hasPool": false,
       "affiliations": [
         "ai16z"
       ],
@@ -451,7 +451,7 @@
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "S_TIER",
-      "hasPool": true,
+      "hasPool": false,
       "affiliations": [
         "palantyrant",
         "founders-fraud"
@@ -493,7 +493,7 @@
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "B_TIER",
-      "hasPool": true,
+      "hasPool": false,
       "affiliations": [
         "ark-ingest"
       ],
@@ -973,7 +973,7 @@
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "C_TIER",
-      "hasPool": true,
+      "hasPool": false,
       "affiliations": [
         "cnbs"
       ],
@@ -1449,7 +1449,7 @@
       "canPostFeed": true,
       "canPostGroups": false,
       "tier": "B_TIER",
-      "hasPool": true,
+      "hasPool": false,
       "affiliations": [
         "microtreasury"
       ],
@@ -1682,7 +1682,7 @@
       "canPostFeed": true,
       "canPostGroups": true,
       "tier": "A_TIER",
-      "hasPool": true,
+      "hasPool": false,
       "affiliations": [],
       "postStyle": "Twitter activist rants. Short-selling announcements. DEI crusades. Wife defense force. Billionaire complaints.",
       "postExample": [

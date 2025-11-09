@@ -141,19 +141,34 @@ export interface Organization {
  */
 export interface FeedPost {
   id: string;
-  day: number;
+  day?: number;
   timestamp: string;
-  type: PostType;
+  createdAt?: string;
+  type?: PostType;
   content: string;
+  fullContent?: string | null;
+  articleTitle?: string | null;
+  byline?: string | null;
+  biasScore?: number | null;
+  sentiment?: number | null; // -1 to 1
+  slant?: string | null;
+  category?: string | null;
   author: string;
+  authorId?: string;
   authorName: string;
   authorUsername?: string | null;
   authorProfileImageUrl?: string | null;
   replyTo?: string;
   relatedEvent?: string;
-  sentiment: number; // -1 to 1
-  clueStrength: number; // 0-1 (how much this reveals)
-  pointsToward: boolean | null; // Does this hint at YES or NO?
+  gameId?: string | null;
+  dayNumber?: number | null;
+  clueStrength?: number; // 0-1 (how much this reveals)
+  pointsToward?: boolean | null; // Does this hint at YES or NO?
+  likeCount?: number;
+  commentCount?: number;
+  shareCount?: number;
+  isLiked?: boolean;
+  isShared?: boolean;
 }
 
 /**

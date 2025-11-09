@@ -5,15 +5,16 @@
  * POST /api/posts - Create a new post
  */
 
-import { gameService } from '@/lib/game-service';
-import type { NextRequest} from 'next/server';
-import { NextResponse } from 'next/server';
-import { authenticate, errorResponse, successResponse, isAuthenticationError } from '@/lib/api/auth-middleware';
-import { v4 as uuidv4 } from 'uuid';
+import { authenticate, errorResponse, isAuthenticationError, successResponse } from '@/lib/api/auth-middleware';
+import { getCacheOrFetch } from '@/lib/cache-service';
+import { cachedDb } from '@/lib/cached-database-service';
 import { logger } from '@/lib/logger';
-import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
 import { prisma } from '@/lib/prisma';
+import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
 import { ensureUserForAuth } from '@/lib/users/ensure-user';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Safely convert a date value to ISO string
@@ -52,30 +53,33 @@ export async function GET(request: Request) {
 
     // If following feed is requested, filter by followed users/actors
     if (following && userId) {
-      // Get list of followed users
-      const userFollows = await prisma.follow.findMany({
-        where: {
-          followerId: userId,
-        },
-        select: {
-          followingId: true,
-        },
-      });
+      // Cache key for user's follows
+      const followsCacheKey = `follows:${userId}`;
+      
+      // Get list of followed users/actors with caching
+      const allFollowedIds = await getCacheOrFetch(
+        followsCacheKey,
+        async () => {
+          const [userFollows, actorFollows] = await Promise.all([
+            prisma.follow.findMany({
+              where: { followerId: userId },
+              select: { followingId: true },
+            }),
+            prisma.followStatus.findMany({
+              where: { userId: userId, isActive: true },
+              select: { npcId: true },
+            }),
+          ]);
 
-      // Get list of followed actors
-      const actorFollows = await prisma.followStatus.findMany({
-        where: {
-          userId: userId,
-          isActive: true,
+          const followedUserIds = userFollows.map((f) => f.followingId);
+          const followedActorIds = actorFollows.map((f) => f.npcId);
+          return [...followedUserIds, ...followedActorIds];
         },
-        select: {
-          npcId: true,
-        },
-      });
-
-      const followedUserIds = userFollows.map((f) => f.followingId);
-      const followedActorIds = actorFollows.map((f) => f.npcId);
-      const allFollowedIds = [...followedUserIds, ...followedActorIds];
+        {
+          namespace: 'user:follows',
+          ttl: 120, // Cache follows for 2 minutes
+        }
+      );
 
       if (allFollowedIds.length === 0) {
         // User is not following anyone
@@ -89,20 +93,16 @@ export async function GET(request: Request) {
         });
       }
 
-      // Get posts from followed users/actors
-      const posts = await prisma.post.findMany({
-        where: {
-          authorId: { in: allFollowedIds },
-        },
-        orderBy: {
-          timestamp: 'desc',
-        },
-        take: limit,
-        skip: offset,
-      });
+      // Get posts from followed users/actors with caching
+      const posts = await cachedDb.getPostsForFollowing(
+        userId,
+        allFollowedIds,
+        limit,
+        offset
+      );
 
       // Get user data for posts
-      const authorIds = [...new Set(posts.map(p => p.authorId))];
+      const authorIds = [...new Set(posts.map(p => p.authorId).filter((id): id is string => id !== undefined))];
       const users = await prisma.user.findMany({
         where: { id: { in: authorIds } },
         select: { id: true, username: true, displayName: true },
@@ -137,13 +137,13 @@ export async function GET(request: Request) {
       return NextResponse.json({
         success: true,
         posts: posts.map((post) => {
-          const user = userMap.get(post.authorId);
+          const user = post.authorId ? userMap.get(post.authorId) : undefined;
           return {
             id: post.id,
             content: post.content,
             author: post.authorId,
             authorId: post.authorId,
-            authorName: user?.displayName || user?.username || post.authorId,
+            authorName: user?.displayName || user?.username || post.authorId || 'Unknown',
             authorUsername: user?.username || null,
             timestamp: toISOStringSafe(post.timestamp),
             createdAt: toISOStringSafe(post.createdAt),
@@ -160,19 +160,19 @@ export async function GET(request: Request) {
         source: 'following',
       });
     }
-    // Get posts from database (GameEngine persists posts here)
+    // Get posts from database with caching
     let posts;
     
-    logger.info('Fetching posts from database', { limit, offset, actorId, hasActorId: !!actorId }, 'GET /api/posts');
+    logger.info('Fetching posts from database (with cache)', { limit, offset, actorId, hasActorId: !!actorId }, 'GET /api/posts');
     
     if (actorId) {
-      // Get posts by specific actor
-      posts = await gameService.getPostsByActor(actorId, limit);
-      logger.info('Fetched posts by actor', { actorId, count: posts.length }, 'GET /api/posts');
+      // Get posts by specific actor (cached)
+      posts = await cachedDb.getPostsByActor(actorId, limit);
+      logger.info('Fetched posts by actor (cached)', { actorId, count: posts.length }, 'GET /api/posts');
     } else {
-      // Get recent posts from database
-      posts = await gameService.getRecentPosts(limit, offset);
-      logger.info('Fetched recent posts', { count: posts.length, limit, offset }, 'GET /api/posts');
+      // Get recent posts from database (cached)
+      posts = await cachedDb.getRecentPosts(limit, offset);
+      logger.info('Fetched recent posts (cached)', { count: posts.length, limit, offset }, 'GET /api/posts');
     }
     
     // Log post structure for debugging
@@ -192,7 +192,7 @@ export async function GET(request: Request) {
     }
     
     // Get unique author IDs to fetch author data (users, actors, or organizations)
-    const authorIds = [...new Set(posts.map(p => p.authorId))];
+    const authorIds = [...new Set(posts.map(p => p.authorId).filter((id): id is string => id !== undefined))];
     const [users, actors, organizations] = await Promise.all([
       prisma.user.findMany({
         where: { id: { in: authorIds } },
@@ -246,9 +246,9 @@ export async function GET(request: Request) {
         }
         
         // Look up author from user, actor, or organization
-        const user = userMap.get(post.authorId);
-        const actor = actorMap.get(post.authorId);
-        const org = orgMap.get(post.authorId);
+        const user = post.authorId ? userMap.get(post.authorId) : undefined;
+        const actor = post.authorId ? actorMap.get(post.authorId) : undefined;
+        const org = post.authorId ? orgMap.get(post.authorId) : undefined;
         
         // Determine author info based on what was found
         let authorName = post.authorId || 'Unknown';
@@ -401,6 +401,16 @@ export async function POST(request: NextRequest) {
 
     // Determine author name for display (prefer username or displayName, fallback to generated name)
     const authorName = canonicalUser.username || canonicalUser.displayName || `user_${authUser.userId.slice(0, 8)}`;
+
+    // Invalidate post caches
+    try {
+      await cachedDb.invalidatePostsCache();
+      await cachedDb.invalidateActorPostsCache(canonicalUserId);
+      logger.info('Invalidated post caches', { postId: post.id }, 'POST /api/posts');
+    } catch (error) {
+      logger.error('Failed to invalidate post caches:', error, 'POST /api/posts');
+      // Don't fail the request if cache invalidation fails
+    }
 
     // Broadcast new post to SSE feed channel for real-time updates
     try {

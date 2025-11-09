@@ -1335,8 +1335,8 @@ No other text.`;
           authorName: actor.name,
           replyTo: originalPost.id,
           relatedEvent: originalPost.relatedEvent,
-          sentiment: originalPost.sentiment * (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.5),
-          clueStrength: originalPost.clueStrength * 0.5,
+          sentiment: (originalPost.sentiment ?? 0) * (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.5),
+          clueStrength: (originalPost.clueStrength ?? 0) * 0.5,
           pointsToward: originalPost.pointsToward,
         });
       }

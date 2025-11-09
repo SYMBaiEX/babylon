@@ -589,7 +589,7 @@ export class GameWorld extends EventEmitter {
   private calculateFeedSentiment(feedPosts: FeedEvent[]): number {
     if (feedPosts.length === 0) return 0;
     
-    const totalSentiment = feedPosts.reduce((sum, post) => sum + post.sentiment, 0);
+    const totalSentiment = feedPosts.reduce((sum, post) => sum + (post.sentiment ?? 0), 0);
     return totalSentiment / feedPosts.length;
   }
 

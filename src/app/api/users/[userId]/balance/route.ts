@@ -9,9 +9,9 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { BusinessLogicError, AuthorizationError } from '@/lib/errors';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
-import { WalletService } from '@/lib/services/wallet-service';
 import { logger } from '@/lib/logger';
 import { findUserByIdentifier } from '@/lib/users/user-lookup';
+import { cachedDb } from '@/lib/cached-database-service';
 /**
  * GET /api/users/[userId]/balance
  * Get user's virtual balance and stats
@@ -46,10 +46,21 @@ export const GET = withErrorHandling(async (
     throw new AuthorizationError('Can only view your own balance', 'balance', 'read');
   }
 
-  // Get balance info
-  const balanceInfo = await WalletService.getBalance(canonicalUserId);
+  // Get balance info with caching
+  const balanceData = await cachedDb.getUserBalance(canonicalUserId);
 
-  logger.info('Balance fetched successfully', { userId: canonicalUserId, balance: balanceInfo.balance }, 'GET /api/users/[userId]/balance');
+  if (!balanceData) {
+    throw new BusinessLogicError('User balance not found', 'BALANCE_NOT_FOUND');
+  }
+
+  const balanceInfo = {
+    balance: balanceData.virtualBalance.toString(),
+    totalDeposited: balanceData.totalDeposited.toString(),
+    totalWithdrawn: balanceData.totalWithdrawn.toString(),
+    lifetimePnL: balanceData.lifetimePnL.toString(),
+  };
+
+  logger.info('Balance fetched successfully (cached)', { userId: canonicalUserId, balance: balanceInfo.balance }, 'GET /api/users/[userId]/balance');
 
   return successResponse({
     balance: balanceInfo.balance,

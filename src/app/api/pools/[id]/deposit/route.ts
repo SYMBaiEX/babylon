@@ -6,6 +6,7 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { NotFoundError, BusinessLogicError, InsufficientFundsError } from '@/lib/errors';
 import { PoolDepositBodySchema } from '@/lib/validation/schemas/pool';
 import { logger } from '@/lib/logger';
+import { cachedDb } from '@/lib/cached-database-service';
 
 /**
  * POST /api/pools/[id]/deposit
@@ -179,6 +180,17 @@ export const POST = withErrorHandling(async (
     amount,
     shares: result.deposit.shares
   }, 'POST /api/pools/[id]/deposit');
+
+  // Invalidate caches after deposit
+  try {
+    await Promise.all([
+      cachedDb.invalidateUserCache(authUser.userId),
+      cachedDb.invalidatePoolsCache(),
+    ]);
+    logger.info('Invalidated caches after pool deposit', { userId: authUser.userId, poolId }, 'POST /api/pools/[id]/deposit');
+  } catch (error) {
+    logger.error('Failed to invalidate caches after pool deposit', { error }, 'POST /api/pools/[id]/deposit');
+  }
 
   return successResponse(
     {

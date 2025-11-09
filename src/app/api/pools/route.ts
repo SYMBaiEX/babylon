@@ -9,6 +9,7 @@ import { asUser, asPublic } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { PoolQuerySchema, PaginationSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
+import { cachedDb } from '@/lib/cached-database-service';
 
 /**
  * GET /api/pools
@@ -33,9 +34,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Optional auth - pools are public but RLS still applies
   const authUser = await optionalAuth(request).catch(() => null);
   
-  // Get pools with RLS
+  // Get pools with caching (for unauthenticated) or RLS (for authenticated)
   const pools = (authUser && authUser.userId)
     ? await asUser(authUser, async (db) => {
+    // Authenticated users: use RLS, no caching (user-specific)
     return await db.pool.findMany({
       where: {
         isActive: true,
@@ -89,7 +91,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     })
   })
     : await asPublic(async (db) => {
-      return await db.pool.findMany({
+      // Unauthenticated: use cached data
+      logger.info('Fetching pools (cached)', undefined, 'GET /api/pools');
+      return await cachedDb.getActivePools().catch(() =>
+        // Fallback to direct query if cache fails
+        db.pool.findMany({
       where: {
         isActive: true,
       },
@@ -139,7 +145,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       orderBy: [
         { totalValue: 'desc' },
       ],
-    })
+    }))
   });
 
   // Calculate metrics for each pool

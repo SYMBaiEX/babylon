@@ -10,6 +10,8 @@
 
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { logger } from '@/lib/logger';
+import { cachedDb } from '@/lib/cached-database-service';
 
 
 export interface BalanceInfo {
@@ -124,6 +126,11 @@ export class WalletService {
         },
       }),
     ]);
+
+    // Invalidate user cache after balance change
+    await cachedDb.invalidateUserCache(userId).catch((err) => {
+      logger.error('Failed to invalidate user cache after debit', { userId, error: err }, 'WalletService');
+    });
   }
 
   /**
@@ -167,6 +174,11 @@ export class WalletService {
         },
       }),
     ]);
+
+    // Invalidate user cache after balance change
+    await cachedDb.invalidateUserCache(userId).catch((err) => {
+      logger.error('Failed to invalidate user cache after credit', { userId, error: err }, 'WalletService');
+    });
   }
 
   /**

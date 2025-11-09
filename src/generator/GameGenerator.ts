@@ -601,7 +601,7 @@ export class GameGenerator {
     
     const topMoments = game.timeline
       .flatMap(day => day.feedPosts)
-      .sort((a, b) => Math.abs(b.sentiment) - Math.abs(a.sentiment))
+      .sort((a, b) => Math.abs(b.sentiment ?? 0) - Math.abs(a.sentiment ?? 0))
       .slice(0, 5)
       .map(p => `${p.authorName}: "${p.content}"`);
     
