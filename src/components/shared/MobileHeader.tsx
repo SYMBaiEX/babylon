@@ -27,11 +27,14 @@ export function MobileHeader() {
       }
 
       const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      if (!token) {
+        // No token available yet, skip fetching protected data
+        return
+      }
+
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
-      }
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
+        'Authorization': `Bearer ${token}`
       }
 
       const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/balance`, { headers })

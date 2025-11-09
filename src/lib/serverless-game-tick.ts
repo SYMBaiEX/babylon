@@ -705,31 +705,33 @@ async function updateWidgetCaches(): Promise<number> {
       orderBy: { totalValue: 'desc' },
     });
 
-    const poolsWithReturn = pools.map((pool) => {
-      const totalDeposits = parseFloat(pool.totalDeposits.toString());
-      const totalValue = parseFloat(pool.totalValue.toString());
-      const totalReturn = totalDeposits > 0 
-        ? ((totalValue - totalDeposits) / totalDeposits) * 100 
-        : 0;
+    const poolsWithReturn = pools
+      .filter(pool => pool && pool.id && pool.name) // Filter out invalid pools
+      .map((pool) => {
+        const totalDeposits = parseFloat(pool.totalDeposits.toString());
+        const totalValue = parseFloat(pool.totalValue.toString());
+        const totalReturn = totalDeposits > 0 
+          ? ((totalValue - totalDeposits) / totalDeposits) * 100 
+          : 0;
 
-      // Safely extract npcActor name with multiple fallbacks
-      let npcActorName = 'Unknown';
-      try {
-        if (pool.npcActor && typeof pool.npcActor === 'object' && 'name' in pool.npcActor) {
-          npcActorName = pool.npcActor.name || 'Unknown';
+        // Safely extract npcActor name with multiple fallbacks
+        let npcActorName = 'Unknown';
+        try {
+          if (pool.npcActor && typeof pool.npcActor === 'object' && 'name' in pool.npcActor) {
+            npcActorName = pool.npcActor.name || 'Unknown';
+          }
+        } catch (e) {
+          logger.warn('Failed to extract npcActor name', { poolId: pool.id, error: e }, 'GameTick');
         }
-      } catch (e) {
-        logger.warn('Failed to extract npcActor name', { poolId: pool.id, error: e }, 'GameTick');
-      }
 
-      return {
-        id: pool.id,
-        name: pool.name,
-        npcActorName,
-        totalReturn,
-        totalValue,
-      };
-    });
+        return {
+          id: pool.id,
+          name: pool.name,
+          npcActorName,
+          totalReturn,
+          totalValue,
+        };
+      });
 
     const topPoolGainers = poolsWithReturn
       .sort((a, b) => b.totalReturn - a.totalReturn)

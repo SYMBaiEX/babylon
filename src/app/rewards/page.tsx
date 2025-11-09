@@ -75,21 +75,22 @@ export default function RewardsPage() {
   const [copiedUrl, setCopiedUrl] = useState(false)
 
   useEffect(() => {
-    if (user?.id) {
+    if (ready && authenticated && user?.id) {
       fetchReferralData()
-    } else if (ready) {
+    } else if (ready && !authenticated) {
       setLoading(false)
     }
-  }, [user, ready])
+  }, [user, ready, authenticated])
 
   const fetchReferralData = async () => {
-    if (!user?.id) return
+    if (!user?.id || !authenticated) return
 
     setLoading(true)
     setError(null)
 
     const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
     if (!token) {
+      console.error('Failed to get access token from window.__privyAccessToken')
       setError('Authentication required')
       setLoading(false)
       return

@@ -74,7 +74,7 @@ function getOriginalCompanyName(satiricalName: string, orgId: string): string {
     'macrohard': 'Microsoft',
     'goolag': 'Google',
     'smamazon': 'Amazon',
-    'trapple': 'Apple',
+    'crapple': 'Apple',
     'foxnoise': 'Fox News',
     'msdnc': 'MSNBC',
     'cnn-clickbait': 'CNN',

@@ -65,7 +65,7 @@ export default function ReferralsPage() {
   const [copiedUrl, setCopiedUrl] = useState(false)
 
   const fetchReferralData = async () => {
-    if (!user?.id) return
+    if (!user?.id || !authenticated) return
 
     setLoading(true)
     setError(null)
@@ -73,6 +73,7 @@ export default function ReferralsPage() {
     try {
       const token = await getAccessToken()
       if (!token) {
+        console.error('Failed to get access token')
         setError('Authentication required')
         setLoading(false)
         return
@@ -99,12 +100,12 @@ export default function ReferralsPage() {
   }
 
   useEffect(() => {
-    if (user?.id) {
+    if (ready && authenticated && user?.id) {
       fetchReferralData()
-    } else if (ready) {
+    } else if (ready && !authenticated) {
       setLoading(false)
     }
-  }, [user, ready])
+  }, [user, ready, authenticated])
 
   const handleCopyCode = async () => {
     if (!referralData?.user.referralCode) return

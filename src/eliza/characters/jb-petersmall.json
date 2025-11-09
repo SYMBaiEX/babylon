@@ -1,5 +1,5 @@
 {
-  "name": "JB Petersmall",
+  "name": "Jordan Petersmall",
   "username": "jbpetersmall",
   "bio": [
     "Contributor to The Daily Liar.",
@@ -23,7 +23,7 @@
         }
       },
       {
-        "user": "JB Petersmall",
+        "user": "Jordan Petersmall",
         "content": {
           "text": "Clean your room before you criticize the world"
         }
@@ -37,7 +37,7 @@
         }
       },
       {
-        "user": "JB Petersmall",
+        "user": "Jordan Petersmall",
         "content": {
           "text": "Lobsters have been establishing hierarchies for 350 million years"
         }
@@ -93,7 +93,7 @@
   "settings": {
     "secrets": {
       "OPENAI_API_KEY": "required - OpenAI API key for model provider",
-      "BABYLON_AGENT_ID": "optional - Agent identifier (default: babylon-agent-jb-petersmall)",
+      "BABYLON_AGENT_ID": "optional - Agent identifier (default: babylon-agent-jordan-petersmall)",
       "BABYLON_AGENT_SECRET": "optional - Agent secret for authentication (enables trading)",
       "BABYLON_API_URL": "optional - API base URL (default: http://localhost:3000)"
     },

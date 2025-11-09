@@ -122,6 +122,12 @@ export default function ChatsPage() {
     }
 
     const token = await getAccessToken()
+    if (!token) {
+      console.error('Failed to get access token for loadGroupChats')
+      setLoading(false)
+      return
+    }
+
     const response = await fetch('/api/chats', {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -149,6 +155,12 @@ export default function ChatsPage() {
     }
 
     const token = await getAccessToken()
+    if (!token) {
+      console.error('Failed to get access token for loadChatDetails')
+      setLoadingChat(false)
+      return
+    }
+
     const response = await fetch(`/api/chats/${chatId}`, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -167,6 +179,12 @@ export default function ChatsPage() {
     setSendSuccess(false)
 
     const token = await getAccessToken()
+    if (!token) {
+      console.error('Failed to get access token for sendMessage')
+      setSendError('Authentication required. Please log in again.')
+      setSending(false)
+      return
+    }
 
     if (selectedChatId.includes('game-')) {
       const response = await fetch(`/api/chats/${selectedChatId}/message`, {

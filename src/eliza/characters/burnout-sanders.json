@@ -1,5 +1,5 @@
 {
-  "name": "Burnout Sanders",
+  "name": "Burnout Slanders",
   "username": "burnoutsanders",
   "bio": [
     "U.",
@@ -23,7 +23,7 @@
         }
       },
       {
-        "user": "Burnout Sanders",
+        "user": "Burnout Slanders",
         "content": {
           "text": "I am once again asking for your financial support"
         }
@@ -37,7 +37,7 @@
         }
       },
       {
-        "user": "Burnout Sanders",
+        "user": "Burnout Slanders",
         "content": {
           "text": "THE BILLIONAIRES ARE DESTROYING AMERICA"
         }
@@ -92,7 +92,7 @@
   "settings": {
     "secrets": {
       "OPENAI_API_KEY": "required - OpenAI API key for model provider",
-      "BABYLON_AGENT_ID": "optional - Agent identifier (default: babylon-agent-burnout-sanders)",
+      "BABYLON_AGENT_ID": "optional - Agent identifier (default: babylon-agent-burnout-slanders)",
       "BABYLON_AGENT_SECRET": "optional - Agent secret for authentication (enables trading)",
       "BABYLON_API_URL": "optional - API base URL (default: http://localhost:3000)"
     },
