@@ -34,7 +34,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser = await optionalAuth(request).catch(() => null)
 
   // Get all breaking news data with RLS
-  const newsItems: BreakingNewsItem[] = authUser
+  const newsItems: BreakingNewsItem[] = (authUser && authUser.userId)
     ? await asUser(authUser, async (db) => {
     const items: BreakingNewsItem[] = []
 

@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   const authUser: AuthenticatedUser | null = await optionalAuth(request).catch(() => null)
 
   const marketIds = questions.map(q => String(q.id))
-  const markets = authUser
+  const markets = (authUser && authUser.userId)
     ? await asUser(authUser, async (dbPrisma) => {
       return await dbPrisma.market.findMany({
         where: {

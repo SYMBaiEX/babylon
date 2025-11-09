@@ -16,7 +16,7 @@ export const GET = withErrorHandling(async (_request: NextRequest) => {
   const authUser = await optionalAuth(_request).catch(() => null)
 
   // Get group chats from database with RLS
-  const groupChats = authUser 
+  const groupChats = (authUser && authUser.userId)
     ? await asUser(authUser, async (db) => {
         return await db.chat.findMany({
         where: {

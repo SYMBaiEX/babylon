@@ -29,7 +29,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Get all stats in parallel for better performance with RLS
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
   
-  const [activePlayers, aiAgents, totalHoots, userPointsResult, actorPointsResult] = authUser
+  const [activePlayers, aiAgents, totalHoots, userPointsResult, actorPointsResult] = (authUser && authUser.userId)
     ? await asUser(authUser, async (db) => {
       return await Promise.all([
       // Get active users (logged in within last 7 days) - exclude actors

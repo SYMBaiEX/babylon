@@ -62,7 +62,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser = await optionalAuth(request).catch(() => null)
 
   // Get posts, interactions, and users with RLS
-  const { posts, allReactions, allComments, allShares, users } = authUser
+  const { posts, allReactions, allComments, allShares, users } = (authUser && authUser.userId)
     ? await asUser(authUser, async (db) => {
     const postsList = await db.post.findMany({
       where: {

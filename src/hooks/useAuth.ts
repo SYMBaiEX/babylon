@@ -1,10 +1,10 @@
 'use client'
 
-import { usePrivy, useWallets, type ConnectedWallet, type User as PrivyUser } from '@privy-io/react-auth'
-import { useEffect, useMemo, useRef } from 'react'
-import { useAuthStore, type User } from '@/stores/authStore'
 import { apiFetch } from '@/lib/api/fetch'
 import { logger } from '@/lib/logger'
+import { useAuthStore, type User } from '@/stores/authStore'
+import { usePrivy, useWallets, type ConnectedWallet, type User as PrivyUser } from '@privy-io/react-auth'
+import { useEffect, useMemo } from 'react'
 
 interface UseAuthReturn {
   ready: boolean

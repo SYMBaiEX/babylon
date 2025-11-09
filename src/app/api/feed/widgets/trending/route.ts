@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   const trendingItems = await Promise.all(
     trending.map(async (item) => {
-      const recentPosts = authUser
+      const recentPosts = (authUser && authUser.userId)
         ? await asUser(authUser, async (db) => {
           return await db.postTag.findMany({
             where: { tagId: item.tag.id },

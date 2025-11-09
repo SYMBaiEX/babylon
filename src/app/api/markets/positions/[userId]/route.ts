@@ -41,7 +41,7 @@ export const GET = withErrorHandling(async (
   const perpPositions = perpsEngine.getUserPositions(userId);
 
   // Get prediction market positions with RLS
-  const predictionPositions = authUser
+  const predictionPositions = (authUser && authUser.userId)
     ? await asUser(authUser, async (db) => {
         return await db.position.findMany({
           where: {

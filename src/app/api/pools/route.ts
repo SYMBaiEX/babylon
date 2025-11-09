@@ -34,7 +34,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser = await optionalAuth(request).catch(() => null);
   
   // Get pools with RLS
-  const pools = authUser
+  const pools = (authUser && authUser.userId)
     ? await asUser(authUser, async (db) => {
     return await db.pool.findMany({
       where: {

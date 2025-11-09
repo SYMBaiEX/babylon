@@ -69,7 +69,7 @@ export const GET = withErrorHandling(async (
     });
   }
 
-  const dbUser = authUser 
+  const dbUser = (authUser && authUser.userId)
     ? await asUser(authUser, dbOperation)
     : await asPublic(dbOperation)
 

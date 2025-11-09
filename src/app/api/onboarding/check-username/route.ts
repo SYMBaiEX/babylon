@@ -99,7 +99,8 @@ export async function GET(request: NextRequest) {
   const authUser = await optionalAuth(request).catch(() => null);
 
   // Check username availability with RLS (public or user context)
-  const result = authUser 
+  // Verify authUser has userId before using asUser()
+  const result = (authUser && authUser.userId)
     ? await asUser(authUser, async (db) => {
         return await checkUsernameAvailability(username, db);
       })

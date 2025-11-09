@@ -51,7 +51,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser = await optionalAuth(request).catch(() => null);
 
   // Get markets and user positions with RLS
-  const { markets, userPositionsMap } = authUser 
+  const { markets, userPositionsMap } = (authUser && authUser.userId)
     ? await asUser(authUser, async (dbPrisma) => {
     // Get all markets to check if they exist and get share counts
     const marketIds = questions.map(q => String(q.id));

@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   // Optional auth - organizations are public but RLS still applies
   const authUser = await optionalAuth(request as NextRequest).catch(() => null)
   
-  const organizations = authUser
+  const organizations = (authUser && authUser.userId)
     ? await asUser(authUser, async (db) => {
         if (!idsParam) {
           return await db.organization.findMany({

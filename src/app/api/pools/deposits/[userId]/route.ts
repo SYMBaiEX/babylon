@@ -21,7 +21,7 @@ export const GET = withErrorHandling(async (
   const authUser = await optionalAuth(_request).catch(() => null);
 
   // Get deposits with RLS - use asPublic for unauthenticated requests
-  const deposits = authUser
+  const deposits = (authUser && authUser.userId)
     ? await asUser(authUser, async (db) => {
       return await db.poolDeposit.findMany({
       where: {

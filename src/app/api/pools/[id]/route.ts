@@ -21,7 +21,7 @@ export const GET = withErrorHandling(async (
   const authUser = await optionalAuth(_request).catch(() => null);
 
   // Get pool details with RLS
-  const pool = authUser
+  const pool = (authUser && authUser.userId)
     ? await asUser(authUser, async (db) => {
     return await db.pool.findUnique({
       where: { id },

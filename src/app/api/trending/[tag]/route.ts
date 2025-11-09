@@ -50,7 +50,7 @@ export async function GET(
     const enrichedPosts = await Promise.all(
       result.posts.map(async (post) => {
         // Get author info (could be User or Actor)
-        const [user, actor, likeCount, commentCount, shareCount] = authUser
+        const [user, actor, likeCount, commentCount, shareCount] = (authUser && authUser.userId)
           ? await asUser(authUser, async (db) => {
               return await Promise.all([
                 db.user.findUnique({

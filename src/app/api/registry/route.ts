@@ -79,7 +79,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     return { users: usersList, totalCount: count }
   }
 
-  const { users, totalCount } = authUser 
+  const { users, totalCount } = (authUser && authUser.userId)
     ? await asUser(authUser, dbOperation)
     : await asPublic(dbOperation)
 

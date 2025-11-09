@@ -45,7 +45,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       }
 
       // Get positions with RLS (only if authenticated)
-      const dbPositions = authUser 
+      const dbPositions = (authUser && authUser.userId)
         ? await asUser(authUser, async (dbPrisma) => {
             return await dbPrisma.perpPosition.findMany({
               where: {

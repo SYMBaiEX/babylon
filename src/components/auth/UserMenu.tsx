@@ -5,7 +5,7 @@ import { Dropdown, DropdownItem } from '@/components/shared/Dropdown'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { Check, Copy, LogOut } from 'lucide-react'
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 // Global fetch tracking to prevent duplicate calls across all UserMenu instances
 let userMenuFetchInFlight = false

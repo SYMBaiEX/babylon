@@ -544,7 +544,7 @@ Return your response as JSON in this exact format:
         { temperature: 0.8, maxTokens: 300 }
       );
     } catch (error) {
-      logger.error('Failed to generate new question via LLM', { error }, 'GameTick');
+      logger.warn('Failed to generate new question via LLM', { error }, 'GameTick');
       continue;
     }
 
