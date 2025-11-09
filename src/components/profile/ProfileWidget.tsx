@@ -26,7 +26,7 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
   const [pools, setPools] = useState<ProfileWidgetPoolDeposit[]>([])
   const [stats, setStats] = useState<UserProfileStats | null>(null)
   const [loading, setLoading] = useState(true)
-  const { getProfileWidget, setProfileWidget } = useWidgetCacheStore()
+  const widgetCache = useWidgetCacheStore()
   
   // Modal state
   const [modalOpen, setModalOpen] = useState(false)
@@ -39,7 +39,7 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
     const fetchData = async (skipCache = false) => {
       // Check cache first (unless explicitly skipping)
       if (!skipCache) {
-        const cached = getProfileWidget(userId) as {
+        const cached = widgetCache.getProfileWidget(userId) as {
           balance: UserBalanceData | null
           predictions: PredictionPosition[]
           perps: PerpPositionFromAPI[]
@@ -114,7 +114,7 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
       }
 
       // Cache all the data
-      setProfileWidget(userId, {
+      widgetCache.setProfileWidget(userId, {
         balance: balanceData,
         predictions: predictionsData,
         perps: perpsData,
@@ -129,7 +129,7 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
     // Refresh every 30 seconds (skip cache to get fresh data)
     const interval = setInterval(() => fetchData(true), 30000)
     return () => clearInterval(interval)
-  }, [userId, getProfileWidget, setProfileWidget])
+  }, [userId])
 
   const formatPoints = (points: number) => {
     return points.toLocaleString('en-US', {

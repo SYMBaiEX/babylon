@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Award, Users, TrendingUp, UserPlus, ArrowRight } from 'lucide-react'
 import { Avatar } from '@/components/shared/Avatar'
 import Link from 'next/link'
@@ -42,43 +42,78 @@ interface RewardsWidgetProps {
   userId: string
 }
 
+// Global fetch tracking to prevent duplicate calls
+let rewardsWidgetFetchInFlight = false
+let rewardsWidgetIntervalId: ReturnType<typeof setInterval> | null = null
+
 export function RewardsWidget({ userId }: RewardsWidgetProps) {
   const [data, setData] = useState<ReferralWidgetData | null>(null)
   const [loading, setLoading] = useState(true)
+  const lastFetchedUserIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!userId) return
 
+    // Don't refetch if userId hasn't changed
+    if (lastFetchedUserIdRef.current === userId) {
+      return
+    }
+
     const fetchData = async () => {
-      setLoading(true)
+      if (!userId) return
 
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      if (!token) {
+      // Prevent duplicate fetches globally
+      if (rewardsWidgetFetchInFlight) return
+      rewardsWidgetFetchInFlight = true
+
+      try {
+        setLoading(true)
+
+        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+        if (!token) {
+          setLoading(false)
+          rewardsWidgetFetchInFlight = false
+          return
+        }
+
+        const response = await fetch(`/api/users/${encodeURIComponent(userId)}/referrals`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        })
+
+        if (!response.ok) {
+          setLoading(false)
+          rewardsWidgetFetchInFlight = false
+          throw new Error('Failed to fetch referral data')
+        }
+
+        const result = await response.json()
+        setData(result)
         setLoading(false)
-        return
+        lastFetchedUserIdRef.current = userId
+      } finally {
+        rewardsWidgetFetchInFlight = false
       }
+    }
 
-      const response = await fetch(`/api/users/${encodeURIComponent(userId)}/referrals`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-
-      if (!response.ok) {
-        setLoading(false)
-        throw new Error('Failed to fetch referral data')
-      }
-
-      const result = await response.json()
-      setData(result)
-      setLoading(false)
+    // Clear any existing interval
+    if (rewardsWidgetIntervalId) {
+      clearInterval(rewardsWidgetIntervalId)
+      rewardsWidgetIntervalId = null
     }
 
     fetchData()
 
     // Refresh every 30 seconds
-    const interval = setInterval(fetchData, 30000)
-    return () => clearInterval(interval)
+    rewardsWidgetIntervalId = setInterval(fetchData, 30000)
+    
+    return () => {
+      if (rewardsWidgetIntervalId) {
+        clearInterval(rewardsWidgetIntervalId)
+        rewardsWidgetIntervalId = null
+      }
+    }
   }, [userId])
 
   if (loading) {

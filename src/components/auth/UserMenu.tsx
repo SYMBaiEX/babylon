@@ -5,7 +5,11 @@ import { Dropdown, DropdownItem } from '@/components/shared/Dropdown'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { Check, Copy, LogOut } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
+
+// Global fetch tracking to prevent duplicate calls across all UserMenu instances
+let userMenuFetchInFlight = false
+let userMenuIntervalId: ReturnType<typeof setInterval> | null = null
 
 export function UserMenu() {
   const { logout } = useAuth()
@@ -13,47 +17,79 @@ export function UserMenu() {
   const [pointsData, setPointsData] = useState<{ available: number; total: number } | null>(null)
   const [referralCode, setReferralCode] = useState<string | null>(null)
   const [copiedCode, setCopiedCode] = useState(false)
+  const lastFetchedUserIdRef = useRef<string | null>(null)
 
   useEffect(() => {
+    // Don't refetch if user ID hasn't changed
+    if (lastFetchedUserIdRef.current === user?.id && user?.id) {
+      return
+    }
+
     const fetchData = async () => {
       if (!user?.id) {
         setPointsData(null)
         setReferralCode(null)
+        lastFetchedUserIdRef.current = null
         return
       }
 
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      if (!token) {
-        // No token available yet, skip fetching protected data
-        return
-      }
+      // Prevent duplicate fetches globally
+      if (userMenuFetchInFlight) return
+      userMenuFetchInFlight = true
 
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      }
+      try {
+        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+        if (!token) {
+          userMenuFetchInFlight = false
+          return
+        }
 
-      // Fetch points
-      const balanceResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/balance`, { headers })
-      if (balanceResponse.ok) {
-        const data = await balanceResponse.json()
-        setPointsData({
-          available: Number(data.balance || 0),
-          total: Number(data.totalDeposited || 0),
-        })
-      }
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
 
-      // Fetch referral code
-      const referralResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/referrals`, { headers })
-      if (referralResponse.ok) {
-        const data = await referralResponse.json()
-        setReferralCode(data.user?.referralCode || null)
+        // Fetch points
+        const balanceResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/balance`, { headers })
+        if (balanceResponse.ok) {
+          const data = await balanceResponse.json()
+          setPointsData({
+            available: Number(data.balance || 0),
+            total: Number(data.totalDeposited || 0),
+          })
+        }
+
+        // Fetch referral code
+        const referralResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/referrals`, { headers })
+        if (referralResponse.ok) {
+          const data = await referralResponse.json()
+          setReferralCode(data.user?.referralCode || null)
+        }
+
+        lastFetchedUserIdRef.current = user.id
+      } finally {
+        userMenuFetchInFlight = false
       }
     }
 
+    // Clear any existing interval
+    if (userMenuIntervalId) {
+      clearInterval(userMenuIntervalId)
+      userMenuIntervalId = null
+    }
+
+    // Fetch immediately
     fetchData()
-    const interval = setInterval(fetchData, 30000)
-    return () => clearInterval(interval)
+    
+    // Set up interval for refresh
+    userMenuIntervalId = setInterval(fetchData, 30000)
+
+    return () => {
+      if (userMenuIntervalId) {
+        clearInterval(userMenuIntervalId)
+        userMenuIntervalId = null
+      }
+    }
   }, [user?.id])
 
   const handleCopyReferralCode = async () => {

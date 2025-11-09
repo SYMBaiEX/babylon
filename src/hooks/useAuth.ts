@@ -143,15 +143,32 @@ export function useAuth(): UseAuthReturn {
             onChainRegistered: me.user.onChainRegistered ?? undefined,
           }
 
-          setUser(hydratedUser)
+          // Only update if data has actually changed (prevent infinite re-render loop)
+          const hasChanged = !user || 
+            user.id !== hydratedUser.id ||
+            user.username !== hydratedUser.username ||
+            user.displayName !== hydratedUser.displayName ||
+            user.profileComplete !== hydratedUser.profileComplete ||
+            user.onChainRegistered !== hydratedUser.onChainRegistered ||
+            user.profileImageUrl !== hydratedUser.profileImageUrl ||
+            user.coverImageUrl !== hydratedUser.coverImageUrl ||
+            user.bio !== hydratedUser.bio ||
+            user.walletAddress !== hydratedUser.walletAddress
+
+          if (hasChanged) {
+            setUser(hydratedUser)
+          }
         } else {
-          setUser({
-            id: privyUser.id,
-            walletAddress: wallet?.address,
-            displayName: privyUser.email?.address || wallet?.address || 'Anonymous',
-            email: privyUser.email?.address,
-            onChainRegistered: false,
-          })
+          // Only set user if not already set to prevent re-render loops
+          if (!user || user.id !== privyUser.id) {
+            setUser({
+              id: privyUser.id,
+              walletAddress: wallet?.address,
+              displayName: privyUser.email?.address || wallet?.address || 'Anonymous',
+              email: privyUser.email?.address,
+              onChainRegistered: false,
+            })
+          }
         }
       } catch (error) {
         logger.error(
@@ -161,15 +178,19 @@ export function useAuth(): UseAuthReturn {
         )
         setNeedsOnboarding(true)
         setNeedsOnchain(false)
-        setUser({
-          id: privyUser.id,
-          walletAddress: wallet?.address,
-          displayName: privyUser.email?.address || wallet?.address || 'Anonymous',
-          email: privyUser.email?.address,
-          profileImageUrl: user?.profileImageUrl ?? undefined,
-          coverImageUrl: user?.coverImageUrl ?? undefined,
-          onChainRegistered: false,
-        })
+        
+        // Only set user if not already set to prevent re-render loops
+        if (!user || user.id !== privyUser.id) {
+          setUser({
+            id: privyUser.id,
+            walletAddress: wallet?.address,
+            displayName: privyUser.email?.address || wallet?.address || 'Anonymous',
+            email: privyUser.email?.address,
+            profileImageUrl: user?.profileImageUrl ?? undefined,
+            coverImageUrl: user?.coverImageUrl ?? undefined,
+            onChainRegistered: false,
+          })
+        }
       } finally {
         setIsLoadingProfile(false)
       }
