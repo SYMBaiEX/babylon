@@ -4,25 +4,25 @@
  * Converts Babylon actor data to Eliza character format
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from 'fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { logger } from '../src/lib/logger'
-import type { Actor, ActorData, ElizaCharacter, ElizaMessageExample } from '../src/shared/types'
+import type { Actor, ActorData, ElizaCharacter } from '../src/shared/types'
 
 function convertActorToCharacter(actor: ActorData): ElizaCharacter {
   // Extract bio from description
   const bio = [
-    actor.description.split('.')[0] + '.',
+    actor.description?.split('.')[0] + '.',
     `Known as ${actor.nickname} or ${actor.aliases[0] || actor.name}`,
     `Personality: ${actor.personality}`,
-    `Active in: ${actor.domain.join(', ')}`
+    `Active in: ${actor.domain?.join(', ')}`
   ]
 
   // Generate lore from quirks and affiliations
   const lore = [
-    ...actor.quirks.map(q => `Known for: ${q}`),
-    actor.affiliations.length > 0
-      ? `Affiliated with: ${actor.affiliations.join(', ')}`
+    ...actor.quirks?.map(q => `Known for: ${q}`) || [],
+    actor.affiliations?.length && actor.affiliations.length > 0
+      ? `Affiliated with: ${actor.affiliations?.join(', ')}`
       : 'Independent operator',
     `${actor.tier} tier influencer`,
     actor.canPostFeed ? 'Active poster' : 'Mostly observes'
@@ -37,7 +37,7 @@ function convertActorToCharacter(actor: ActorData): ElizaCharacter {
       },
       {
         user: actor.name,
-        content: { text: actor.postExample[0] || "Interesting question..." }
+        content: { text: actor.postExample?.[0] || "Interesting question..." }
       }
     ],
     [
@@ -47,21 +47,21 @@ function convertActorToCharacter(actor: ActorData): ElizaCharacter {
       },
       {
         user: actor.name,
-        content: { text: actor.postExample[1] || actor.postExample[0] || "Hard to say..." }
+        content: { text: actor.postExample?.[1] || actor.postExample?.[0] || "Hard to say..." }
       }
     ]
   ]
 
   // Extract adjectives from personality
-  const personalityWords = actor.personality.split(' ')
+  const personalityWords = actor.personality?.split(' ') || []
   const adjectives = [
     ...personalityWords,
-    ...actor.quirks.slice(0, 3).map(q => q.split(' ')[0].toLowerCase()),
+    ...actor.quirks?.slice(0, 3).map(q => q.split(' ')[0].toLowerCase()) || [],
     actor.canPostFeed ? 'vocal' : 'reserved'
   ]
 
   // Parse post style
-  const styleLines = actor.postStyle.split('. ').filter(s => s.length > 0)
+  const styleLines = actor.postStyle?.split('. ').filter(s => s.length > 0) || []
 
   return {
     name: actor.name,
@@ -69,8 +69,8 @@ function convertActorToCharacter(actor: ActorData): ElizaCharacter {
     bio,
     lore,
     messageExamples,
-    postExamples: actor.postExample.slice(0, 5),
-    topics: actor.domain,
+    postExamples: actor.postExample?.slice(0, 5) || [],
+    topics: actor.domain || [],
     adjectives: adjectives.filter((v, i, a) => a.indexOf(v) === i), // unique
     style: {
       all: styleLines.slice(0, 5),
@@ -98,7 +98,7 @@ function convertActorToCharacter(actor: ActorData): ElizaCharacter {
       voice: {
         model: "en_US-hfc_male-medium"
       },
-      strategies: actor.domain.includes('crypto') || actor.domain.includes('tech')
+      strategies: actor.domain?.includes('crypto') || actor.domain?.includes('tech')
         ? ["technical-analysis", "trend-following"]
         : ["fundamental-analysis", "sentiment-trading"],
       riskTolerance: actor.tier === 'S_TIER' ? 0.7 : actor.tier === 'A_TIER' ? 0.6 : 0.5,
@@ -130,7 +130,7 @@ async function main() {
 
   for (const actor of actorsToConvert) {
     try {
-      const character = convertActorToCharacter(actor)
+      const character = convertActorToCharacter(actor as ActorData)
       const filename = `${actor.id}.json`
       const filepath = join(outputDir, filename)
 
