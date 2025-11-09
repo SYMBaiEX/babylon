@@ -18,6 +18,7 @@ import { asUser } from '@/lib/db/context'
 import { logger } from '@/lib/logger'
 import { Agent0Client } from '@/agents/agent0/Agent0Client'
 import type { AgentCapabilities } from '@/a2a/types'
+import { syncAfterAgent0Registration } from '@/lib/reputation/agent0-reputation-sync'
 
 // Contract addresses
 const IDENTITY_REGISTRY = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA as Address
@@ -366,6 +367,22 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         tokenId: agent0Result.tokenId,
         metadataCID: agent0MetadataCID
       }, 'AgentOnboard')
+
+      // Sync on-chain reputation to local database
+      try {
+        await syncAfterAgent0Registration(dbUser.id, agent0Result.tokenId)
+        logger.info('Agent0 reputation synced successfully', {
+          userId: dbUser.id,
+          agent0TokenId: agent0Result.tokenId
+        }, 'AgentOnboard')
+      } catch (syncError) {
+        // Log error but don't fail registration
+        logger.error('Failed to sync Agent0 reputation after registration', {
+          userId: dbUser.id,
+          agent0TokenId: agent0Result.tokenId,
+          error: syncError
+        }, 'AgentOnboard')
+      }
     } else {
       logger.info('Agent0 integration disabled, skipping agent registration', { agentId }, 'AgentOnboard')
     }

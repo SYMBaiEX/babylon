@@ -99,6 +99,7 @@ export interface Agent0FeedbackParams {
   targetAgentId: number
   rating: number  // -5 to +5
   comment: string
+  transactionId?: string  // Optional local transaction/feedback ID for tracking
 }
 
 /**

@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
+import { asUser, asPublic } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError } from '@/lib/errors';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
@@ -18,11 +18,12 @@ export const GET = withErrorHandling(async (
   const { userId } = UserIdParamSchema.parse(params);
 
   // Optional auth - deposits are public for stats but RLS still applies
-  const authUser = await optionalAuth(_request);
+  const authUser = await optionalAuth(_request).catch(() => null);
 
-  // Get deposits with RLS
-  const deposits = await asUser(authUser, async (db) => {
-    return await db.poolDeposit.findMany({
+  // Get deposits with RLS - use asPublic for unauthenticated requests
+  const deposits = authUser
+    ? await asUser(authUser, async (db) => {
+      return await db.poolDeposit.findMany({
       where: {
         userId,
       },
@@ -43,8 +44,32 @@ export const GET = withErrorHandling(async (
       orderBy: {
         depositedAt: 'desc',
       },
+    })
+  })
+    : await asPublic(async (db) => {
+      return await db.poolDeposit.findMany({
+        where: {
+          userId,
+        },
+        include: {
+          pool: {
+            include: {
+              npcActor: {
+                select: {
+                  id: true,
+                  name: true,
+                  tier: true,
+                  personality: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          depositedAt: 'desc',
+        },
+      })
     });
-  });
 
   // Format deposits with calculated metrics
   const formattedDeposits = deposits.map(d => {

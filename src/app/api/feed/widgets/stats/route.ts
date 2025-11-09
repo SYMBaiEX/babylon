@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 import { optionalAuth } from '@/lib/api/auth-middleware'
-import { asUser } from '@/lib/db/context'
+import { asUser, asPublic } from '@/lib/db/context'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { StatsQuerySchema } from '@/lib/validation/schemas'
 import { logger } from '@/lib/logger'
@@ -29,8 +29,45 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Get all stats in parallel for better performance with RLS
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
   
-  const [activePlayers, aiAgents, totalHoots, userPointsResult, actorPointsResult] = await asUser(authUser, async (db) => {
-    return await Promise.all([
+  const [activePlayers, aiAgents, totalHoots, userPointsResult, actorPointsResult] = authUser
+    ? await asUser(authUser, async (db) => {
+      return await Promise.all([
+      // Get active users (logged in within last 7 days) - exclude actors
+      db.user.count({
+        where: {
+          isActor: false, // Only real users, not NPCs
+          updatedAt: {
+            gte: sevenDaysAgo,
+          },
+        },
+      }),
+      
+      // Get AI agents from Actor table (all actors, not just those with pools)
+      db.actor.count(),
+      
+      // Get total posts (hoots) - all posts from both users and actors
+      db.post.count(),
+      
+      // Calculate points in circulation (sum of all user virtual balances)
+      db.user.aggregate({
+        _sum: {
+          virtualBalance: true,
+        },
+        where: {
+          isActor: false, // Only count real users' virtual balances
+        },
+      }),
+      
+      // Sum actor trading balances
+      db.actor.aggregate({
+        _sum: {
+          tradingBalance: true,
+        },
+      })
+    ])
+  })
+    : await asPublic(async (db) => {
+      return await Promise.all([
       // Get active users (logged in within last 7 days) - exclude actors
       db.user.count({
         where: {

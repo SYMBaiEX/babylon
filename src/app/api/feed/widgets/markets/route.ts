@@ -7,7 +7,7 @@
 import type { NextRequest } from 'next/server'
 import { db } from '@/lib/database-service'
 import { optionalAuth, type AuthenticatedUser } from '@/lib/api/auth-middleware'
-import { asUser } from '@/lib/db/context'
+import { asUser, asPublic } from '@/lib/db/context'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
@@ -24,17 +24,29 @@ export async function GET(request: NextRequest) {
   const authUser: AuthenticatedUser | null = await optionalAuth(request).catch(() => null)
 
   const marketIds = questions.map(q => String(q.id))
-  const markets = await asUser(authUser, async (dbPrisma) => {
-    return await dbPrisma.market.findMany({
-      where: {
-        id: { in: marketIds },
-        resolved: false,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
+  const markets = authUser
+    ? await asUser(authUser, async (dbPrisma) => {
+      return await dbPrisma.market.findMany({
+        where: {
+          id: { in: marketIds },
+          resolved: false,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      })
     })
-  })
+    : await asPublic(async (dbPrisma) => {
+      return await dbPrisma.market.findMany({
+        where: {
+          id: { in: marketIds },
+          resolved: false,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      })
+    })
 
   const marketMap = new Map(markets.map(m => [m.id, m]))
 

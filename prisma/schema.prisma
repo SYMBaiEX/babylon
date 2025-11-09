@@ -115,6 +115,9 @@ model User {
   referrals       Referral[] @relation("Referrer")
   referredUsers   Referral[] @relation("Referred")
   onboardingIntent OnboardingIntent?
+  feedbackGiven   Feedback[] @relation("FeedbackGiven")
+  feedbackReceived Feedback[] @relation("FeedbackReceived")
+  performanceMetrics AgentPerformanceMetrics?
 
   @@index([walletAddress])
   @@index([username])
@@ -856,9 +859,110 @@ model GameConfig {
   id        String   @id @default(uuid())
   key       String   @unique
   value     Json
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@index([key])
+}
+
+// Feedback model - stores ratings and feedback between users, agents, and the game
+model Feedback {
+  id              String   @id @default(uuid())
+
+  // Who gave the feedback
+  fromUserId      String?
+  fromUser        User?    @relation("FeedbackGiven", fields: [fromUserId], references: [id], onDelete: Cascade)
+  fromAgentId     String?  // For AI agents giving feedback (non-user agents)
+
+  // Who received the feedback
+  toUserId        String?
+  toUser          User?    @relation("FeedbackReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+  toAgentId       String?  // For non-user agents receiving feedback
+
+  // Feedback content
+  score           Int      // 0-100 scale (game performance score)
+  rating          Int?     // Optional 1-5 star rating (user experience)
+  comment         String?  @db.Text
+  category        String?  // e.g., "game_performance", "interaction", "trade", "behavior"
+
+  // Context
+  gameId          String?
+  tradeId         String?
+  positionId      String?
+  interactionType String   // "user_to_agent", "agent_to_user", "game_to_agent", "agent_to_game"
+
+  // Blockchain linkage
+  onChainTxHash   String?  // If submitted to ERC-8004 Reputation contract
+  agent0TokenId   Int?     // Agent0 NFT token ID for on-chain sync
+
+  // Metadata
+  metadata        Json?    // Additional context (performance metrics, etc.)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([toAgentId])
+  @@index([gameId])
+  @@index([interactionType])
+  @@index([score(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@index([toUserId, interactionType])
+}
+
+// AgentPerformanceMetrics model - aggregated performance and reputation metrics
+model AgentPerformanceMetrics {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Game performance metrics
+  gamesPlayed           Int      @default(0)
+  gamesWon              Int      @default(0)
+  averageGameScore      Float    @default(0) // 0-100 average score from game feedback
+  lastGameScore         Float?   // Most recent game score
+  lastGamePlayedAt      DateTime?
+
+  // Trading performance (normalized 0-1)
+  normalizedPnL         Float    @default(0.5) // PNL converted to 0-1 scale via sigmoid
+  totalTrades           Int      @default(0)
+  profitableTrades      Int      @default(0)
+  winRate               Float    @default(0) // Percentage of profitable trades
+  averageROI            Float    @default(0) // Average return on investment
+  sharpeRatio           Float?   // Risk-adjusted returns
+
+  // Feedback aggregates
+  totalFeedbackCount    Int      @default(0)
+  averageFeedbackScore  Float    @default(50) // 0-100 average
+  averageRating         Float?   // 1-5 star average (if ratings given)
+  positiveCount         Int      @default(0) // Feedback score >= 70
+  neutralCount          Int      @default(0) // Feedback score 40-69
+  negativeCount         Int      @default(0) // Feedback score < 40
+
+  // Reputation calculation (composite score)
+  reputationScore       Float    @default(50) // Composite 0-100 score
+  trustLevel            String   @default("UNRATED") // UNRATED, LOW, MEDIUM, HIGH, EXCELLENT
+  confidenceScore       Float    @default(0) // Confidence in reputation (based on sample size)
+
+  // Blockchain sync
+  onChainReputationSync Boolean  @default(false)
+  lastSyncedAt          DateTime?
+  onChainTrustScore     Float?   // Trust score from ERC-8004 contract
+  onChainAccuracyScore  Float?   // Accuracy score from contract
+
+  // Activity tracking
+  firstActivityAt       DateTime?
+  lastActivityAt        DateTime?
+  totalInteractions     Int      @default(0)
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([reputationScore(sort: Desc)])
+  @@index([normalizedPnL(sort: Desc)])
+  @@index([trustLevel])
+  @@index([gamesPlayed(sort: Desc)])
+  @@index([updatedAt(sort: Desc)])
 }

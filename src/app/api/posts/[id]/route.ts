@@ -4,7 +4,7 @@
  */
 
 import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
+import { asUser, asPublic } from '@/lib/db/context';
 import { BusinessLogicError } from '@/lib/errors';
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { gameService } from '@/lib/game-service';
@@ -24,10 +24,11 @@ export const GET = withErrorHandling(async (
   const { id: postId } = IdParamSchema.parse(params);
 
   // Optional authentication (to show liked status for logged-in users)
-  const user = await optionalAuth(request);
+  const user = await optionalAuth(request).catch(() => null);
 
-  // Get post with RLS
-  let post = await asUser(user, async (db) => {
+  // Get post with RLS - use asPublic for unauthenticated requests
+  let post = user
+    ? await asUser(user, async (db) => {
     // Try to get post from database first
     return await db.post.findUnique({
       where: { id: postId },
@@ -80,7 +81,44 @@ export const GET = withErrorHandling(async (
               },
             },
       },
-    });
+    })
+  })
+    : await asPublic(async (db) => {
+    // Try to get post from database first (public access)
+    return await db.post.findUnique({
+      where: { id: postId },
+      include: {
+        _count: {
+          select: {
+            reactions: {
+              where: {
+                type: 'like',
+              },
+            },
+            comments: true,
+            shares: true,
+          },
+        },
+        // Empty arrays for unauthenticated users
+        reactions: {
+          where: {
+            userId: 'never-match', // Won't match any user
+            type: 'like',
+          },
+          select: {
+            id: true,
+          },
+        },
+        shares: {
+          where: {
+            userId: 'never-match', // Won't match any user
+          },
+          select: {
+            id: true,
+          },
+        },
+      },
+    })
   });
 
     // If not in database, try to find it in game store/realtime feed first

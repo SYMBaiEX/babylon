@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { createWalletClient, createPublicClient, http, parseEther, decodeEventLog, type Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { baseSepolia } from 'viem/chains'
+import { sepolia } from 'viem/chains'
 import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
 import { BusinessLogicError, ValidationError, InternalServerError } from '@/lib/errors'
@@ -11,9 +11,10 @@ import { Agent0Client } from '@/agents/agent0/Agent0Client'
 import type { AgentCapabilities } from '@/a2a/types'
 import type { AuthenticatedUser } from '@/lib/api/auth-middleware'
 import { extractErrorMessage } from '@/lib/api/auth-middleware'
+import { syncAfterAgent0Registration } from '@/lib/reputation/agent0-reputation-sync'
 
-export const IDENTITY_REGISTRY = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA as Address
-export const REPUTATION_SYSTEM = process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA as Address
+export const IDENTITY_REGISTRY = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_SEPOLIA as Address
+export const REPUTATION_SYSTEM = process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_SEPOLIA as Address
 export const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`
 
 const IDENTITY_REGISTRY_ABI = [
@@ -302,7 +303,7 @@ export async function processOnchainRegistration({
   }
 
   const publicClient = createPublicClient({
-    chain: baseSepolia,
+    chain: sepolia,
     transport: http(process.env.NEXT_PUBLIC_RPC_URL),
   })
 
@@ -362,7 +363,7 @@ export async function processOnchainRegistration({
   const walletClient = deployerAccount
     ? createWalletClient({
         account: deployerAccount,
-        chain: baseSepolia,
+        chain: sepolia,
         transport: http(process.env.NEXT_PUBLIC_RPC_URL),
       })
     : null
@@ -630,6 +631,22 @@ export async function processOnchainRegistration({
       agent0TokenId: agent0Result.tokenId,
       metadataCID: agent0Result.metadataCID
     }, 'OnboardingOnchain')
+
+    // Sync on-chain reputation to local database
+    try {
+      await syncAfterAgent0Registration(dbUser.id, agent0Result.tokenId)
+      logger.info('Agent0 reputation synced successfully', {
+        userId: dbUser.id,
+        agent0TokenId: agent0Result.tokenId
+      }, 'OnboardingOnchain')
+    } catch (syncError) {
+      // Log error but don't fail registration
+      logger.error('Failed to sync Agent0 reputation after registration', {
+        userId: dbUser.id,
+        agent0TokenId: agent0Result.tokenId,
+        error: syncError
+      }, 'OnboardingOnchain')
+    }
   }
 
   const userWithBalance = await prisma.user.findUnique({
@@ -748,7 +765,7 @@ export async function confirmOnchainProfileUpdate({
 
   const lowerWallet = walletAddress.toLowerCase()
   const publicClient = createPublicClient({
-    chain: baseSepolia,
+    chain: sepolia,
     transport: http(process.env.NEXT_PUBLIC_RPC_URL),
   })
 
@@ -883,7 +900,7 @@ export async function getOnchainRegistrationStatus(user: AuthenticatedUser): Pro
   if (!user.isAgent && userRecord.walletAddress) {
     try {
       const publicClient = createPublicClient({
-        chain: baseSepolia,
+        chain: sepolia,
         transport: http(process.env.NEXT_PUBLIC_RPC_URL),
       })
 
