@@ -293,6 +293,10 @@ export async function processOnchainRegistration({
     }
   }
 
+  if (!dbUser) {
+    throw new InternalServerError('Failed to create or retrieve user record')
+  }
+
   if (!referrerId && dbUser.referredBy) {
     referrerId = dbUser.referredBy
   }

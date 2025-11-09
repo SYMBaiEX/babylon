@@ -1,0 +1,209 @@
+Arguments: 
+  /home/cid/.nvm/versions/node/v24.10.0/bin/node /mnt/c/Program Files (x86)/Yarn/bin/yarn.js add @prisma/client@6.18.0 --silent
+
+PATH: 
+  /home/cid/babylon/node_modules/.bin:/home/cid/babylon/node_modules/.bin:/home/cid/node_modules/.bin:/home/node_modules/.bin:/node_modules/.bin:/home/cid/.nvm/versions/node/v24.10.0/lib/node_modules/npm/node_modules/@npmcli/run-script/lib/node-gyp-bin:/home/cid/.local/share/solana/install/active_release/bin:/home/cid/.local/bin:/home/cid/.local/share/solana/install/active_release/bin:/home/cid/.foundry/bin:/run/user/1000/fnm_multishells/90980_1762608100487/bin:/home/cid/.local/share/fnm:/home/cid/.npm-global/bin:/home/cid/.bun/bin:/home/cid/.cursor-server/bin/ff124d1f223e9497e4c790a15fe4a7b2a582ca10/bin/remote-cli:/home/cid/.local/share/solana/install/active_release/bin:/home/cid/.local/bin:/home/cid/.local/share/solana/install/active_release/bin:/home/cid/.nvm/versions/node/v24.10.0/bin:/home/cid/.local/share/pnpm:/home/cid/.foundry/bin:/run/user/1000/fnm_multishells/89447_1762608098707/bin:/home/cid/.local/share/fnm:/home/cid/.cargo/bin:/home/cid/.npm-global/bin:/home/cid/miniconda3/bin:/home/cid/miniconda3/condabin:/home/cid/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/usr/lib/wsl/lib:/mnt/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/bin:/mnt/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/libnvvp:/mnt/c/Program Files/Common Files/Oracle/Java/javapath:/mnt/c/Program Files (x86)/Common Files/Oracle/Java/java8path:/mnt/c/Program Files (x86)/Common Files/Oracle/Java/javapath:/mnt/c/Program Files/NVIDIA/CUDNN/v9.5/bin:/mnt/c/Python312/Scripts:/mnt/c/Python312:/mnt/c/Users/austi/AppData/Local/Programs/cursor/resources/app/bin:/mnt/c/Program Files (x86)/Razer Chroma SDK/bin:/mnt/c/Program Files/Razer Chroma SDK/bin:/mnt/c/Program Files (x86)/Razer/ChromaBroadcast/bin:/mnt/c/Program Files/Razer/ChromaBroadcast/bin:/mnt/c/Windows/system32:/mnt/c/Windows:/mnt/c/Windows/System32/Wbem:/mnt/c/Windows/System32/WindowsPowerShell/v1.0:/mnt/c/Windows/System32/OpenSSH:/mnt/c/Program Files (x86)/NVIDIA Corporation/PhysX/Common:/mnt/c/Users/austi/AppData/Local/Microsoft/WindowsApps:/mnt/c/ProgramData/chocolatey/bin:/mnt/c/Program Files/Git/cmd:/mnt/c/Windows/system32/config/systemprofile/AppData/Local/Microsoft/WindowsApps:/mnt/c/Program Files (x86)/Yarn/bin:/mnt/c/Program Files (x86)/Windows Kits/10/Wind:/mnt/c/Program Files (x86)/Common Files/Intuit/QBPOSSDKRuntime:/mnt/c/Users/austi/AppData/Local/Yarn/bin:/mnt/c/Program Files/dotnet:/mnt/c/Program Files/Java/jdk-11/bin:/mnt/c/Users/austi/AppData/Roaming/npm:/mnt/c/Users/austi/AppData/Roaming/nvm:/mnt/c/Program Files/nodejs:/mnt/c/Program Files/GTK3-Runtime Win64/bin:/mnt/c/Users/austi/scoop/shims/supabase.exe:/mnt/c/Program Files/NVIDIA Corporation/Nsight Compute 2022.3.0:/mnt/c/Program Files/NVIDIA Corporation/NVIDIA app/NvDLISR:/mnt/c/Users/austi/AppData/Roaming/nvm/v23.3.0:/mnt/c/WINDOWS/system32:/mnt/c/WINDOWS:/mnt/c/WINDOWS/System32/Wbem:/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0:/mnt/c/WINDOWS/System32/OpenSSH:/mnt/c/Program Files/Void/bin:/mnt/c/Program Files/cursor/resources/app/bin:/Docker/host/bin:/snap/bin:/home/cid/android-sdk/cmdline-tools/latest/bin:/home/cid/android-sdk/platform-tools:/home/cid/.foundry/bin:/home/cid/.foundry/bin:/home/cid/android-sdk/cmdline-tools/latest/bin:/home/cid/android-sdk/platform-tools:/home/cid/.foundry/bin:/home/cid/.foundry/bin
+
+Yarn version: 
+  1.22.4
+
+Node version: 
+  24.10.0
+
+Platform: 
+  linux x64
+
+Trace: 
+  Error: ENOENT: no such file or directory, scandir '/home/cid/babylon/node_modules/@helia'
+
+npm manifest: 
+  {
+    "name": "babylon",
+    "version": "1.0.0",
+    "description": "Babylon prediction market game",
+    "type": "module",
+    "private": true,
+    "scripts": {
+      "dev": "bun run scripts/pre-dev.ts && concurrently --kill-others --kill-signal SIGTERM --names \"WEB,GAME\" --prefix-colors \"cyan,magenta\" \"next dev\" \"tsx src/cli/realtime-daemon.ts\"",
+      "dev:web-only": "bun run scripts/pre-dev.ts && next dev",
+      "dev:cron-mode": "concurrently --names \"WEB,CRON\" --prefix-colors \"cyan,yellow\" \"bun run dev:web-only\" \"bun run cron:local\"",
+      "dev:skip-check": "next dev",
+      "postinstall": "prisma generate",
+      "build": "next build",
+      "start": "next start",
+      "lint": "eslint \"src/**/*.{ts,tsx}\"",
+      "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix",
+      "type-check": "tsc --noEmit",
+      "test": "bun test",
+      "test:e2e": "playwright test",
+      "test:e2e:ui": "playwright test --ui",
+      "test:e2e:headed": "playwright test --headed",
+      "test:integration": "bun test tests/integration",
+      "test:referrals": "playwright test tests/e2e/referrals",
+      "db:start": "bun run scripts/db.ts start",
+      "db:stop": "bun run scripts/db.ts stop",
+      "db:restart": "bun run scripts/db.ts restart",
+      "db:status": "bun run scripts/db.ts status",
+      "db:migrate": "bun run scripts/db.ts migrate",
+      "db:seed": "bun run scripts/db.ts seed",
+      "db:reset": "bun run scripts/db.ts reset",
+      "storage:init": "bun run scripts/init-storage.ts",
+      "daemon": "tsx src/cli/realtime-daemon.ts",
+      "daemon:verbose": "tsx src/cli/realtime-daemon.ts --verbose",
+      "daemon:stop": "bun run scripts/stop-daemon.ts",
+      "daemon:stop:force": "bun run scripts/stop-daemon.ts --force",
+      "cron:local": "bun run scripts/local-cron-simulator.ts",
+      "cron:test": "curl -X POST http://localhost:3000/api/cron/game-tick -H \"Authorization: Bearer ${CRON_SECRET:-development}\"",
+      "cron:trigger": "curl -X POST ${VERCEL_URL}/api/cron/game-tick -H \"Authorization: Bearer $CRON_SECRET\"",
+      "status": "bun run scripts/check-game-status.ts",
+      "game:start": "bun run scripts/game-control-db.ts start",
+      "game:pause": "bun run scripts/game-control-db.ts pause",
+      "game:status": "bun run scripts/game-control-db.ts status",
+      "test:feed": "bun run scripts/test-feed.ts",
+      "test:redis": "bun run scripts/test-redis.ts",
+      "backfill:tags": "bun run scripts/backfill-tags-real.ts",
+      "backfill:recent": "bun run scripts/backfill-recent-posts.ts",
+      "trending:populate": "bun run scripts/populate-trending-manual.ts",
+      "api:verify": "bun run scripts/verify-api-keys.ts",
+      "game:init": "bun run scripts/init-game-content.ts",
+      "agents": "bun run src/cli/autonomous-agents-demo.ts",
+      "agents:many": "bun run src/cli/autonomous-agents-demo.ts --count 5",
+      "eliza": "tsx src/eliza/agents/run-eliza-agent.ts",
+      "eliza:alice": "tsx src/eliza/agents/run-eliza-agent.ts",
+      "agent0:register": "tsx scripts/register-babylon.ts",
+      "agent0:check": "tsx scripts/check-registration.ts",
+      "agent0:query": "tsx scripts/query-babylon-users-agents.ts",
+      "agent0:update": "tsx scripts/update-babylon-registration.ts",
+      "agent0:wallet": "tsx scripts/check-wallet-status.ts",
+      "agent0:speedup": "tsx scripts/speed-up-transaction.ts",
+      "eliza:auto": "tsx src/eliza/agents/run-eliza-agent.ts --auto-trade",
+      "eliza:all": "bun run scripts/run-all-agents.ts",
+      "eliza:all:auto": "bun run scripts/run-all-agents.ts --auto-trade",
+      "generate:month": "bun run src/cli/generate-game.ts",
+      "generate:verbose": "bun run src/cli/generate-game.ts --verbose",
+      "generate:images": "bun run src/cli/generate-actor-images.ts",
+      "generate:user-assets": "tsx scripts/generate-user-assets.ts",
+      "validate": "bun run src/cli/validate-actors.ts",
+      "pools:init": "tsx scripts/init-pools.ts",
+      "pools:test": "tsx scripts/test-pools-system.ts",
+      "prisma:generate": "prisma generate",
+      "prisma:migrate": "prisma migrate dev",
+      "prisma:studio": "prisma studio",
+      "prisma:seed": "bun run prisma/seed.ts",
+      "init:all": "bun run prisma/seed.ts && echo '✅ Database initialized with actors, pools, and leaderboard'",
+      "contracts:compile": "forge build",
+      "contracts:test": "forge test",
+      "contracts:deploy:testnet": "bun run scripts/deploy-contracts.ts",
+      "contracts:deploy:mainnet": "NETWORK=base bun run scripts/deploy-contracts.ts",
+      "contracts:verify": "bash scripts/verify-contracts.sh",
+      "contracts:test-reads": "bun run scripts/test-contract-reads.ts"
+    },
+    "dependencies": {
+      "@aws-sdk/client-s3": "^3.922.0",
+      "@aws-sdk/lib-storage": "^3.922.0",
+      "@elizaos/core": "^1.6.3",
+      "@elizaos/plugin-bootstrap": "^1.6.3",
+      "@elizaos/plugin-sql": "^1.6.3",
+      "@fal-ai/client": "^1.7.0",
+      "@hookform/resolvers": "^5.2.2",
+      "@prisma/client": "^6.18.0",
+      "@privy-io/react-auth": "3.0.1",
+      "@privy-io/server-auth": "^1.32.5",
+      "@privy-io/wagmi": "^2.0.2",
+      "@tanstack/react-query": "5.90.5",
+      "@tanstack/react-virtual": "^3.13.12",
+      "@types/ws": "^8.18.1",
+      "@upstash/redis": "^1.35.6",
+      "@vercel/blob": "^2.0.0",
+      "agent0-sdk": "^0.2.3",
+      "class-variance-authority": "^0.7.1",
+      "clsx": "^2.1.1",
+      "concurrently": "^9.2.1",
+      "date-fns": "^4.1.0",
+      "dotenv": "^17.2.3",
+      "ethers": "^6.15.0",
+      "framer-motion": "12.23.24",
+      "geist": "^1.5.1",
+      "graphql": "^16.12.0",
+      "graphql-request": "^7.3.1",
+      "ioredis": "^5.8.2",
+      "lucide-react": "^0.548.0",
+      "multiformats": "^13.4.1",
+      "next": "^16.0.0",
+      "next-themes": "^0.4.6",
+      "openai": "^6.6.0",
+      "prisma": "6.18.0",
+      "react": "^19.2.0",
+      "react-dom": "^19.2.0",
+      "react-hook-form": "^7.65.0",
+      "react-router-dom": "^7.9.4",
+      "recharts": "^3.3.0",
+      "sharp": "^0.34.4",
+      "sonner": "^2.0.7",
+      "sticky-sidebar-v2": "^1.1.1",
+      "tailwind-merge": "^3.3.1",
+      "uuid": "^11.0.5",
+      "viem": "2.38.4",
+      "wagmi": "2.19.0",
+      "ws": "^8.18.3",
+      "zod": "^4.1.12",
+      "zustand": "5.0.8"
+    },
+    "devDependencies": {
+      "@chainlink/contracts": "^1.5.0",
+      "@openzeppelin/contracts": "^5.4.0",
+      "@playwright/test": "^1.56.1",
+      "@tailwindcss/postcss": "^4.1.16",
+      "@types/bun": "latest",
+      "@types/ioredis": "^5.0.0",
+      "@types/node": "^24.9.1",
+      "@types/react": "19.0.0",
+      "@types/react-dom": "19.0.0",
+      "@types/react-router-dom": "^5.3.3",
+      "@types/uuid": "^10.0.0",
+      "@typescript-eslint/eslint-plugin": "^8.46.2",
+      "@typescript-eslint/parser": "^8.46.2",
+      "@vitejs/plugin-react": "^4.3.4",
+      "autoprefixer": "^10.4.21",
+      "eslint": "^9.38.0",
+      "eslint-config-next": "^16.0.1",
+      "postcss": "^8.5.6",
+      "tailwindcss": "4.0.0",
+      "tailwindcss-animate": "^1.0.7",
+      "tsx": "^4.20.6",
+      "typescript": "^5.9.3",
+      "vite": "^5.4.1"
+    },
+    "keywords": [
+      "prediction-market",
+      "game-engine",
+      "autonomous",
+      "simulation",
+      "vibevm",
+      "eliza",
+      "eliza-plugin",
+      "ai-agent",
+      "trading-bot"
+    ],
+    "resolutions": {
+      "@eth-optimism/contracts": "npm:@eth-optimism/contracts@0.6.0",
+      "ethers": "6.15.0",
+      "zod": "4.1.12",
+      "lucide-react": "0.548.0",
+      "react": "19.2.0",
+      "react-dom": "19.2.0"
+    },
+    "prisma": {
+      "seed": "bun run prisma/seed.ts"
+    },
+    "trustedDependencies": [
+      "@arbitrum/nitro-contracts",
+      "unrs-resolver"
+    ]
+  }
+
+yarn manifest: 
+  No manifest
+
+Lockfile: 
+  No lockfile
