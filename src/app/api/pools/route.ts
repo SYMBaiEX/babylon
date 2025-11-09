@@ -5,7 +5,7 @@
 
 import type { NextRequest } from 'next/server';
 import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
+import { asUser, asPublic } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { PoolQuerySchema, PaginationSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
@@ -34,7 +34,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser = await optionalAuth(request).catch(() => null);
   
   // Get pools with RLS
-  const pools = await asUser(authUser, async (db) => {
+  const pools = authUser
+    ? await asUser(authUser, async (db) => {
     return await db.pool.findMany({
       where: {
         isActive: true,
@@ -85,7 +86,60 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       orderBy: [
         { totalValue: 'desc' },
       ],
-    });
+    })
+  })
+    : await asPublic(async (db) => {
+      return await db.pool.findMany({
+      where: {
+        isActive: true,
+      },
+      include: {
+        npcActor: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            tier: true,
+            personality: true,
+          },
+        },
+        deposits: {
+          where: {
+            withdrawnAt: null,
+          },
+          select: {
+            amount: true,
+            currentValue: true,
+          },
+        },
+        positions: {
+          where: {
+            closedAt: null,
+          },
+          select: {
+            marketType: true,
+            ticker: true,
+            marketId: true,
+            side: true,
+            size: true,
+            unrealizedPnL: true,
+          },
+        },
+        _count: {
+          select: {
+            deposits: {
+              where: {
+                withdrawnAt: null,
+              },
+            },
+            trades: true,
+          },
+        },
+      },
+      orderBy: [
+        { totalValue: 'desc' },
+      ],
+    })
   });
 
   // Calculate metrics for each pool

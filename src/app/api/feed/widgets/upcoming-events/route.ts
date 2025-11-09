@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 import { optionalAuth } from '@/lib/api/auth-middleware'
-import { asUser } from '@/lib/db/context'
+import { asUser, asPublic } from '@/lib/db/context'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { UpcomingEventsQuerySchema } from '@/lib/validation/schemas'
 import { logger } from '@/lib/logger'
@@ -34,7 +34,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser = await optionalAuth(request).catch(() => null)
 
   // Get upcoming events with RLS
-  const events: UpcomingEvent[] = await asUser(authUser, async (db) => {
+  const events: UpcomingEvent[] = authUser
+    ? await asUser(authUser, async (db) => {
     const eventsList: UpcomingEvent[] = []
 
     // 1. Get active questions that will resolve soon (within configured days)

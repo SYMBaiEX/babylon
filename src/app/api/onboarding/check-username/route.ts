@@ -6,7 +6,7 @@
 import type { NextRequest } from 'next/server';
 import { successResponse, errorResponse } from '@/lib/api/auth-middleware';
 import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
+import { asUser, asPublic } from '@/lib/db/context';
 import { logger } from '@/lib/logger';
 import type { PrismaClient } from '@prisma/client';
 
@@ -98,10 +98,14 @@ export async function GET(request: NextRequest) {
   // Optional auth - username checks are public but RLS still applies
   const authUser = await optionalAuth(request).catch(() => null);
 
-  // Check username availability with RLS
-  const result = await asUser(authUser, async (db) => {
-    return await checkUsernameAvailability(username, db);
-  });
+  // Check username availability with RLS (public or user context)
+  const result = authUser 
+    ? await asUser(authUser, async (db) => {
+        return await checkUsernameAvailability(username, db);
+      })
+    : await asPublic(async (db) => {
+        return await checkUsernameAvailability(username, db);
+      });
 
   logger.info('Username check result', result, 'GET /api/onboarding/check-username');
 

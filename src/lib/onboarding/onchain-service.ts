@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { createWalletClient, createPublicClient, http, parseEther, decodeEventLog, type Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { sepolia } from 'viem/chains'
+import { baseSepolia } from 'viem/chains'
 import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
 import { BusinessLogicError, ValidationError, InternalServerError } from '@/lib/errors'
@@ -13,8 +13,9 @@ import type { AuthenticatedUser } from '@/lib/api/auth-middleware'
 import { extractErrorMessage } from '@/lib/api/auth-middleware'
 import { syncAfterAgent0Registration } from '@/lib/reputation/agent0-reputation-sync'
 
-export const IDENTITY_REGISTRY = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_SEPOLIA as Address
-export const REPUTATION_SYSTEM = process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_SEPOLIA as Address
+// Use Base Sepolia for contract deployments (chain ID: 84532)
+export const IDENTITY_REGISTRY = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA as Address
+export const REPUTATION_SYSTEM = process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA as Address
 export const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`
 
 const IDENTITY_REGISTRY_ABI = [
@@ -303,7 +304,7 @@ export async function processOnchainRegistration({
   }
 
   const publicClient = createPublicClient({
-    chain: sepolia,
+    chain: baseSepolia,
     transport: http(process.env.NEXT_PUBLIC_RPC_URL),
   })
 
@@ -363,7 +364,7 @@ export async function processOnchainRegistration({
   const walletClient = deployerAccount
     ? createWalletClient({
         account: deployerAccount,
-        chain: sepolia,
+        chain: baseSepolia,
         transport: http(process.env.NEXT_PUBLIC_RPC_URL),
       })
     : null
@@ -765,7 +766,7 @@ export async function confirmOnchainProfileUpdate({
 
   const lowerWallet = walletAddress.toLowerCase()
   const publicClient = createPublicClient({
-    chain: sepolia,
+    chain: baseSepolia,
     transport: http(process.env.NEXT_PUBLIC_RPC_URL),
   })
 
@@ -900,7 +901,7 @@ export async function getOnchainRegistrationStatus(user: AuthenticatedUser): Pro
   if (!user.isAgent && userRecord.walletAddress) {
     try {
       const publicClient = createPublicClient({
-        chain: sepolia,
+        chain: baseSepolia,
         transport: http(process.env.NEXT_PUBLIC_RPC_URL),
       })
 

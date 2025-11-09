@@ -1,7 +1,7 @@
 /**
  * Smart Contract Configuration
- * ERC-8004 Identity, Reputation, and Prediction Market contracts on Ethereum
- * Unified with Agent0 registry on the same chain
+ * ERC-8004 Identity, Reputation, and Prediction Market contracts
+ * Supports Base Sepolia (primary) and Ethereum Sepolia (legacy)
  */
 
 import type { Address } from 'viem'
@@ -14,7 +14,16 @@ export interface ContractAddresses {
   oracleFacet: Address
 }
 
-// Ethereum Sepolia (Testnet) - Chain ID: 11155111
+// Base Sepolia (Primary Testnet) - Chain ID: 84532
+export const BASE_SEPOLIA_CONTRACTS: ContractAddresses = {
+  identityRegistry: (process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA || '0x0000000000000000000000000000000000000000') as Address,
+  reputationSystem: (process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA || '0x0000000000000000000000000000000000000000') as Address,
+  diamond: (process.env.NEXT_PUBLIC_DIAMOND_BASE_SEPOLIA || '0x0000000000000000000000000000000000000000') as Address,
+  predictionMarketFacet: (process.env.NEXT_PUBLIC_DIAMOND_BASE_SEPOLIA || '0x0000000000000000000000000000000000000000') as Address, // Diamond handles all facets
+  oracleFacet: (process.env.NEXT_PUBLIC_DIAMOND_BASE_SEPOLIA || '0x0000000000000000000000000000000000000000') as Address, // Diamond handles all facets
+}
+
+// Ethereum Sepolia (Legacy Testnet) - Chain ID: 11155111
 export const SEPOLIA_CONTRACTS: ContractAddresses = {
   identityRegistry: (process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_SEPOLIA || '0x0000000000000000000000000000000000000000') as Address,
   reputationSystem: (process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_SEPOLIA || '0x0000000000000000000000000000000000000000') as Address,
@@ -37,12 +46,14 @@ export const MAINNET_CONTRACTS: ContractAddresses = {
  */
 export function getContractAddresses(chainId: number): ContractAddresses {
   switch (chainId) {
-    case 11155111: // Ethereum Sepolia
+    case 84532: // Base Sepolia (primary)
+      return BASE_SEPOLIA_CONTRACTS
+    case 11155111: // Ethereum Sepolia (legacy)
       return SEPOLIA_CONTRACTS
     case 1: // Ethereum Mainnet
       return MAINNET_CONTRACTS
     default:
-      return SEPOLIA_CONTRACTS // Default to testnet
+      return BASE_SEPOLIA_CONTRACTS // Default to Base Sepolia testnet
   }
 }
 

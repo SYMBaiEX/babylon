@@ -6,7 +6,7 @@
  */
 
 import { createPublicClient, http, type Address, type WalletClient } from 'viem'
-import { sepolia } from 'viem/chains'
+import { baseSepolia } from 'viem/chains'
 import { REPUTATION_SYSTEM_ABI } from '@/lib/web3/abis'
 import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
@@ -16,7 +16,7 @@ const REPUTATION_SYSTEM_ADDRESS = (process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_ADD
   '0x0000000000000000000000000000000000000000') as Address
 
 const publicClient = createPublicClient({
-  chain: sepolia,
+  chain: baseSepolia,
   transport: http(process.env.NEXT_PUBLIC_RPC_URL),
 })
 
@@ -85,7 +85,7 @@ export async function submitOnChainFeedback(
     const int8Rating = Math.floor((rating / 100) * 255 - 128)
 
     const hash = await walletClient.writeContract({
-      chain: sepolia,
+      chain: baseSepolia,
       address: REPUTATION_SYSTEM_ADDRESS,
       abi: REPUTATION_SYSTEM_ABI,
       functionName: 'submitFeedback',
@@ -121,7 +121,7 @@ export async function recordBet(
     }
 
     const hash = await walletClient.writeContract({
-      chain: sepolia,
+      chain: baseSepolia,
       address: REPUTATION_SYSTEM_ADDRESS,
       abi: REPUTATION_SYSTEM_ABI,
       functionName: 'recordBet',
@@ -157,7 +157,7 @@ export async function recordWin(
     }
 
     const hash = await walletClient.writeContract({
-      chain: sepolia,
+      chain: baseSepolia,
       address: REPUTATION_SYSTEM_ADDRESS,
       abi: REPUTATION_SYSTEM_ABI,
       functionName: 'recordWin',
@@ -193,7 +193,7 @@ export async function recordLoss(
     }
 
     const hash = await walletClient.writeContract({
-      chain: sepolia,
+      chain: baseSepolia,
       address: REPUTATION_SYSTEM_ADDRESS,
       abi: REPUTATION_SYSTEM_ABI,
       functionName: 'recordLoss',

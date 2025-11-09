@@ -5,7 +5,7 @@
 
 import type { NextRequest } from 'next/server'
 import { optionalAuth } from '@/lib/api/auth-middleware'
-import { asUser } from '@/lib/db/context'
+import { asUser, asPublic } from '@/lib/db/context'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { TrendingPostsQuerySchema } from '@/lib/validation/schemas'
 import { logger } from '@/lib/logger'
@@ -62,7 +62,54 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser = await optionalAuth(request).catch(() => null)
 
   // Get posts, interactions, and users with RLS
-  const { posts, allReactions, allComments, allShares, users } = await asUser(authUser, async (db) => {
+  const { posts, allReactions, allComments, allShares, users } = authUser
+    ? await asUser(authUser, async (db) => {
+    const postsList = await db.post.findMany({
+      where: {
+        timestamp: {
+          gte: oneDayAgo,
+        },
+      },
+      orderBy: {
+        timestamp: 'desc',
+      },
+      take: 100, // Get more posts to calculate trending from
+    })
+
+    if (postsList.length === 0) {
+      return { posts: [], allReactions: [], allComments: [], allShares: [], users: [] }
+    }
+
+    // Get interaction counts for all posts
+    const postIds = postsList.map((p) => p.id)
+    const [reactions, comments, shares] = await Promise.all([
+      db.reaction.groupBy({
+        by: ['postId'],
+        where: { postId: { in: postIds }, type: 'like' },
+        _count: { postId: true },
+      }),
+      db.comment.groupBy({
+        by: ['postId'],
+        where: { postId: { in: postIds } },
+        _count: { postId: true },
+      }),
+      db.share.groupBy({
+        by: ['postId'],
+        where: { postId: { in: postIds } },
+        _count: { postId: true },
+      }),
+    ])
+
+    // Get user data for posts
+    const authorIds = [...new Set(postsList.map((p) => p.authorId))]
+    const usersList = await db.user.findMany({
+      where: { id: { in: authorIds } },
+      select: { id: true, username: true, displayName: true },
+    })
+
+    return { posts: postsList, allReactions: reactions, allComments: comments, allShares: shares, users: usersList }
+  })
+    : await asPublic(async (db) => {
     const postsList = await db.post.findMany({
       where: {
         timestamp: {

@@ -8,7 +8,7 @@
 import type { NextRequest } from 'next/server';
 import { db } from '@/lib/database-service';
 import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
+import { asUser, asPublic } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { MarketQuerySchema, UserIdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
@@ -51,7 +51,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser = await optionalAuth(request).catch(() => null);
 
   // Get markets and user positions with RLS
-  const { markets, userPositionsMap } = await asUser(authUser, async (dbPrisma) => {
+  const { markets, userPositionsMap } = authUser 
+    ? await asUser(authUser, async (dbPrisma) => {
     // Get all markets to check if they exist and get share counts
     const marketIds = questions.map(q => String(q.id));
     const marketsList = await dbPrisma.market.findMany({
@@ -95,7 +96,52 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     }
 
     return { markets: marketMap, userPositionsMap: positionsMap };
-  });
+  })
+    : await asPublic(async (dbPrisma) => {
+      // Get all markets to check if they exist and get share counts
+      const marketIds = questions.map(q => String(q.id));
+      const marketsList = await dbPrisma.market.findMany({
+        where: {
+          id: { in: marketIds },
+        },
+      });
+      const marketMap = new Map(marketsList.map(m => [m.id, m]));
+
+      // Get user positions if userId provided
+      const positionsMap = new Map();
+      if (userId) {
+        const positions = await dbPrisma.position.findMany({
+          where: {
+            userId: userId,
+            marketId: { in: marketIds },
+          },
+          include: {
+            market: true,
+          },
+        });
+
+        // Create map of marketId -> position data
+        positions.forEach(p => {
+          const market = p.market;
+          const totalShares = Number(market.yesShares) + Number(market.noShares);
+          const currentYesPrice = totalShares > 0 ? Number(market.yesShares) / totalShares : 0.5;
+          const currentNoPrice = totalShares > 0 ? Number(market.noShares) / totalShares : 0.5;
+
+          positionsMap.set(p.marketId, {
+            id: p.id,
+            side: p.side ? 'YES' : 'NO',
+            shares: Number(p.shares),
+            avgPrice: Number(p.avgPrice),
+            currentPrice: p.side ? currentYesPrice : currentNoPrice,
+            currentValue: Number(p.shares) * (p.side ? currentYesPrice : currentNoPrice),
+            costBasis: Number(p.shares) * Number(p.avgPrice),
+            unrealizedPnL: (Number(p.shares) * (p.side ? currentYesPrice : currentNoPrice)) - (Number(p.shares) * Number(p.avgPrice)),
+          });
+        });
+      }
+
+      return { markets: marketMap, userPositionsMap: positionsMap };
+    });
 
   const questionsData = questions.map(q => {
     const marketId = String(q.id);

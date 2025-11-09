@@ -22,11 +22,13 @@ interface UseAuthReturn {
 const linkedSocialUsers = new Set<string>()
 let lastSyncedWalletAddress: string | null = null
 
+// Global fetch management - shared across ALL useAuth instances
+let globalFetchInFlight: Promise<void> | null = null
+let globalTokenRetryTimeout: number | null = null
+
 export function useAuth(): UseAuthReturn {
   const { ready, authenticated, user: privyUser, login, logout, getAccessToken } = usePrivy()
   const { wallets } = useWallets()
-  const fetchInFlightRef = useRef<Promise<void> | null>(null)
-  const tokenRetryTimeoutRef = useRef<number | null>(null)
   const {
     user,
     isLoadingProfile,
@@ -65,8 +67,10 @@ export function useAuth(): UseAuthReturn {
 
   const fetchCurrentUser = async () => {
     if (!authenticated || !privyUser) return
-    if (fetchInFlightRef.current) {
-      await fetchInFlightRef.current
+    
+    // Use global ref to prevent ANY duplicate calls across all components
+    if (globalFetchInFlight) {
+      await globalFetchInFlight
       return
     }
 
@@ -84,10 +88,10 @@ export function useAuth(): UseAuthReturn {
         )
         setIsLoadingProfile(false)
         if (typeof window !== 'undefined') {
-          if (tokenRetryTimeoutRef.current) {
-            window.clearTimeout(tokenRetryTimeoutRef.current)
+          if (globalTokenRetryTimeout) {
+            window.clearTimeout(globalTokenRetryTimeout)
           }
-          tokenRetryTimeoutRef.current = window.setTimeout(() => {
+          globalTokenRetryTimeout = window.setTimeout(() => {
             void fetchCurrentUser()
           }, 200)
         }
@@ -172,14 +176,14 @@ export function useAuth(): UseAuthReturn {
     }
 
     const promise = run().finally(() => {
-      fetchInFlightRef.current = null
-      if (typeof window !== 'undefined' && tokenRetryTimeoutRef.current) {
-        window.clearTimeout(tokenRetryTimeoutRef.current)
-        tokenRetryTimeoutRef.current = null
+      globalFetchInFlight = null
+      if (typeof window !== 'undefined' && globalTokenRetryTimeout) {
+        window.clearTimeout(globalTokenRetryTimeout)
+        globalTokenRetryTimeout = null
       }
     })
 
-    fetchInFlightRef.current = promise
+    globalFetchInFlight = promise
     await promise
   }
 
@@ -262,13 +266,21 @@ export function useAuth(): UseAuthReturn {
 
   useEffect(() => {
     return () => {
-      if (typeof window !== 'undefined' && tokenRetryTimeoutRef.current) {
-        window.clearTimeout(tokenRetryTimeoutRef.current)
-        tokenRetryTimeoutRef.current = null
+      if (typeof window !== 'undefined' && globalTokenRetryTimeout) {
+        window.clearTimeout(globalTokenRetryTimeout)
+        globalTokenRetryTimeout = null
       }
     }
   }, [])
 
+  // Sync wallet separately from fetching user
+  useEffect(() => {
+    if (authenticated && privyUser) {
+      synchronizeWallet()
+    }
+  }, [authenticated, privyUser, wallet?.address, wallet?.chainId])
+
+  // Fetch user only when authentication status or user ID changes
   useEffect(() => {
     if (!authenticated || !privyUser) {
       linkedSocialUsers.delete(privyUser?.id ?? '')
@@ -277,9 +289,8 @@ export function useAuth(): UseAuthReturn {
       return
     }
 
-    synchronizeWallet()
     void fetchCurrentUser()
-  }, [authenticated, privyUser?.id, wallet?.address, wallet?.chainId])
+  }, [authenticated, privyUser?.id])
 
   useEffect(() => {
     void linkSocialAccounts()

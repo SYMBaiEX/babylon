@@ -8,7 +8,7 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError } from '@/lib/errors';
 import { UserIdParamSchema, UserPositionsQuerySchema } from '@/lib/validation/schemas';
 import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
+import { asUser, asPublic } from '@/lib/db/context';
 import { getPerpsEngine } from '@/lib/perps-service';
 import { logger } from '@/lib/logger';
 /**
@@ -34,33 +34,54 @@ export const GET = withErrorHandling(async (
   UserPositionsQuerySchema.parse(queryParams);
 
   // Optional auth - positions are public for leaderboard but RLS still applies
-  const authUser = await optionalAuth(request);
+  const authUser = await optionalAuth(request).catch(() => null);
 
   // Get perpetual positions (from engine - no RLS needed)
   const perpsEngine = getPerpsEngine();
   const perpPositions = perpsEngine.getUserPositions(userId);
 
   // Get prediction market positions with RLS
-  const predictionPositions = await asUser(authUser, async (db) => {
-    return await db.position.findMany({
-      where: {
-        userId,
-      },
-      include: {
-        market: {
-          select: {
-            id: true,
-            question: true,
-            endDate: true,
-            resolved: true,
-            resolution: true,
-            yesShares: true,
-            noShares: true,
+  const predictionPositions = authUser
+    ? await asUser(authUser, async (db) => {
+        return await db.position.findMany({
+          where: {
+            userId,
           },
-        },
-      },
-    });
-  });
+          include: {
+            market: {
+              select: {
+                id: true,
+                question: true,
+                endDate: true,
+                resolved: true,
+                resolution: true,
+                yesShares: true,
+                noShares: true,
+              },
+            },
+          },
+        });
+      })
+    : await asPublic(async (db) => {
+        return await db.position.findMany({
+          where: {
+            userId,
+          },
+          include: {
+            market: {
+              select: {
+                id: true,
+                question: true,
+                endDate: true,
+                resolved: true,
+                resolution: true,
+                yesShares: true,
+                noShares: true,
+              },
+            },
+          },
+        });
+      });
 
   // Calculate stats
   const perpStats = {

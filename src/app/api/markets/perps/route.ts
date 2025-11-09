@@ -7,7 +7,7 @@
 import type { NextRequest } from 'next/server'
 import { db } from '@/lib/database-service';
 import { optionalAuth, type AuthenticatedUser } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
+import { asUser, asPublic } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 
@@ -44,24 +44,42 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         low24h = Math.min(...priceHistory.map(p => p.price), currentPrice);
       }
 
-      // Get positions with RLS
-      const dbPositions = await asUser(authUser, async (dbPrisma) => {
-        return await dbPrisma.perpPosition.findMany({
-          where: {
-            organizationId: company.id,
-            closedAt: null,
-          },
-          select: {
-            id: true,
-            userId: true,
-            side: true,
-            size: true,
-            leverage: true,
-            entryPrice: true,
-            currentPrice: true,
-          },
-        });
-      });
+      // Get positions with RLS (only if authenticated)
+      const dbPositions = authUser 
+        ? await asUser(authUser, async (dbPrisma) => {
+            return await dbPrisma.perpPosition.findMany({
+              where: {
+                organizationId: company.id,
+                closedAt: null,
+              },
+              select: {
+                id: true,
+                userId: true,
+                side: true,
+                size: true,
+                leverage: true,
+                entryPrice: true,
+                currentPrice: true,
+              },
+            });
+          })
+        : await asPublic(async (dbPrisma) => {
+            return await dbPrisma.perpPosition.findMany({
+              where: {
+                organizationId: company.id,
+                closedAt: null,
+              },
+              select: {
+                id: true,
+                userId: true,
+                side: true,
+                size: true,
+                leverage: true,
+                entryPrice: true,
+                currentPrice: true,
+              },
+            });
+          });
       
       const positions = dbPositions.map(p => ({
         id: p.id,

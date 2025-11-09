@@ -22,7 +22,7 @@ import { logger } from '../src/lib/logger';
 const POSTGRES_CONTAINER_NAME = 'babylon-postgres';
 const REDIS_CONTAINER_NAME = 'babylon-redis';
 const COMPOSE_FILE = 'docker-compose.yml';
-const DATABASE_URL = 'postgresql://babylon:babylon_dev_password@localhost:5432/babylon';
+const LOCAL_DATABASE_URL = 'postgresql://babylon:babylon_dev_password@localhost:5432/babylon';
 const REDIS_URL = 'redis://localhost:6380';
 
 logger.info('Pre-development checks...', undefined, 'Script');
@@ -31,16 +31,33 @@ logger.info('Pre-development checks...', undefined, 'Script');
 const envPath = join(process.cwd(), '.env');
 if (!existsSync(envPath)) {
   logger.info('Creating .env file...', undefined, 'Script');
-  writeFileSync(envPath, `DATABASE_URL="${DATABASE_URL}"\nREDIS_URL="${REDIS_URL}"\n`);
+  writeFileSync(envPath, `DATABASE_URL="${LOCAL_DATABASE_URL}"\nREDIS_URL="${REDIS_URL}"\n`);
   logger.info('.env created', undefined, 'Script');
 } else {
-  // Check if DATABASE_URL and REDIS_URL exist in .env
+  // Read existing .env to check for Prisma Accelerate URL
   let envContent = readFileSync(envPath, 'utf-8');
   let needsUpdate = false;
   
-  if (!envContent.includes('DATABASE_URL=')) {
+  // Check if using Prisma Accelerate (prisma:// protocol)
+  const hasPrismaAccelerate = envContent.includes('DATABASE_URL="prisma://') || envContent.includes("DATABASE_URL='prisma://");
+  
+  if (hasPrismaAccelerate) {
+    logger.info('Detected Prisma Accelerate URL in .env', undefined, 'Script');
+    logger.info('For local development, we need to use direct database connection', undefined, 'Script');
+    
+    // Replace Prisma Accelerate URL with local connection for development
+    envContent = envContent.replace(
+      /DATABASE_URL="prisma:\/\/[^"]+"/g,
+      `DATABASE_URL="${LOCAL_DATABASE_URL}"`
+    );
+    envContent = envContent.replace(
+      /DATABASE_URL='prisma:\/\/[^']+'/g,
+      `DATABASE_URL='${LOCAL_DATABASE_URL}'`
+    );
+    needsUpdate = true;
+  } else if (!envContent.includes('DATABASE_URL=')) {
     logger.info('Adding DATABASE_URL to .env...', undefined, 'Script');
-    envContent += `\nDATABASE_URL="${DATABASE_URL}"\n`;
+    envContent += `\nDATABASE_URL="${LOCAL_DATABASE_URL}"\n`;
     needsUpdate = true;
   }
   
@@ -52,12 +69,12 @@ if (!existsSync(envPath)) {
   
   if (needsUpdate) {
     writeFileSync(envPath, envContent);
-    logger.info('.env updated', undefined, 'Script');
+    logger.info('.env updated with local database connection', undefined, 'Script');
   }
 }
 
-// Load environment variables
-process.env.DATABASE_URL = DATABASE_URL;
+// Load environment variables for local development
+process.env.DATABASE_URL = LOCAL_DATABASE_URL;
 process.env.REDIS_URL = REDIS_URL;
 
 // Check Docker is installed

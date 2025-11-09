@@ -148,7 +148,18 @@ export class ArticleGenerator {
       tags: string[];
     }>(
       prompt,
-      { required: ['title', 'summary', 'content', 'slant', 'sentiment'] },
+      { 
+        properties: {
+          title: { type: 'string' },
+          summary: { type: 'string' },
+          content: { type: 'string' },
+          slant: { type: 'string' },
+          sentiment: { type: 'string' },
+          category: { type: 'string' },
+          tags: { type: 'array' }
+        },
+        required: ['title', 'summary', 'content', 'slant', 'sentiment'] 
+      },
       { 
         temperature: 0.85,
         maxTokens: 2500,

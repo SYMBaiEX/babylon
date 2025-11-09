@@ -7,7 +7,7 @@
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server'
 import { optionalAuth } from '@/lib/api/auth-middleware'
-import { asUser } from '@/lib/db/context'
+import { asUser, asPublic } from '@/lib/db/context'
 import { getPostsByTag } from '@/lib/services/tag-storage-service'
 
 export async function GET(
@@ -50,37 +50,69 @@ export async function GET(
     const enrichedPosts = await Promise.all(
       result.posts.map(async (post) => {
         // Get author info (could be User or Actor)
-        const [user, actor, likeCount, commentCount, shareCount] = await asUser(authUser, async (db) => {
-          return await Promise.all([
-            db.user.findUnique({
-              where: { id: post.authorId },
-              select: {
-                id: true,
-                username: true,
-                displayName: true,
-                profileImageUrl: true,
-                isActor: true,
-              },
-            }),
-            db.actor.findUnique({
-              where: { id: post.authorId },
-              select: {
-                id: true,
-                name: true,
-                profileImageUrl: true,
-              },
-            }),
-            db.reaction.count({
-              where: { postId: post.id, type: 'like' },
-            }),
-            db.comment.count({
-              where: { postId: post.id },
-            }),
-            db.share.count({
-              where: { postId: post.id },
-            }),
-          ])
-        })
+        const [user, actor, likeCount, commentCount, shareCount] = authUser
+          ? await asUser(authUser, async (db) => {
+              return await Promise.all([
+                db.user.findUnique({
+                  where: { id: post.authorId },
+                  select: {
+                    id: true,
+                    username: true,
+                    displayName: true,
+                    profileImageUrl: true,
+                    isActor: true,
+                  },
+                }),
+                db.actor.findUnique({
+                  where: { id: post.authorId },
+                  select: {
+                    id: true,
+                    name: true,
+                    profileImageUrl: true,
+                  },
+                }),
+                db.reaction.count({
+                  where: { postId: post.id, type: 'like' },
+                }),
+                db.comment.count({
+                  where: { postId: post.id },
+                }),
+                db.share.count({
+                  where: { postId: post.id },
+                }),
+              ])
+            })
+          : await asPublic(async (db) => {
+              return await Promise.all([
+                db.user.findUnique({
+                  where: { id: post.authorId },
+                  select: {
+                    id: true,
+                    username: true,
+                    displayName: true,
+                    profileImageUrl: true,
+                    isActor: true,
+                  },
+                }),
+                db.actor.findUnique({
+                  where: { id: post.authorId },
+                  select: {
+                    id: true,
+                    name: true,
+                    profileImageUrl: true,
+                  },
+                }),
+                db.reaction.count({
+                  where: { postId: post.id, type: 'like' },
+                }),
+                db.comment.count({
+                  where: { postId: post.id },
+                }),
+                db.share.count({
+                  where: { postId: post.id },
+                }),
+              ])
+            })
 
         // Determine author info
         const authorName = user?.displayName || user?.username || actor?.name || 'Unknown'

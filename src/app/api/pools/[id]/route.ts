@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
+import { asUser, asPublic } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { NotFoundError, BusinessLogicError } from '@/lib/errors';
 import { IdParamSchema } from '@/lib/validation/schemas';
@@ -21,7 +21,8 @@ export const GET = withErrorHandling(async (
   const authUser = await optionalAuth(_request).catch(() => null);
 
   // Get pool details with RLS
-  const pool = await asUser(authUser, async (db) => {
+  const pool = authUser
+    ? await asUser(authUser, async (db) => {
     return await db.pool.findUnique({
       where: { id },
       include: {
@@ -59,7 +60,47 @@ export const GET = withErrorHandling(async (
           take: 50, // Last 50 trades
         },
       },
-    });
+    })
+  })
+    : await asPublic(async (db) => {
+      return await db.pool.findUnique({
+      where: { id },
+      include: {
+        npcActor: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            tier: true,
+            personality: true,
+            domain: true,
+            postStyle: true,
+          },
+        },
+        deposits: {
+          where: {
+            withdrawnAt: null,
+          },
+          orderBy: {
+            depositedAt: 'desc',
+          },
+        },
+        positions: {
+          where: {
+            closedAt: null,
+          },
+          orderBy: {
+            openedAt: 'desc',
+          },
+        },
+        trades: {
+          orderBy: {
+            executedAt: 'desc',
+          },
+          take: 50, // Last 50 trades
+        },
+      },
+    })
   });
 
   if (!pool) {

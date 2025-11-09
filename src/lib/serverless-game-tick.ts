@@ -231,12 +231,22 @@ async function generatePosts(
       continue;
     }
 
-    const prompt = `You are ${actor.name}. Write a brief social media post (max 200 chars) about this prediction market question: "${question.text}". Be opinionated and entertaining.`;
+    const prompt = `You are ${actor.name}. Write a brief social media post (max 200 chars) about this prediction market question: "${question.text}". Be opinionated and entertaining.
+
+Return your response as JSON in this exact format:
+{
+  "post": "your post content here"
+}`;
 
     try {
       const response = await llm.generateJSON<{ post: string }>(
         prompt,
-        { required: ['post'] },
+        { 
+          properties: {
+            post: { type: 'string' }
+          },
+          required: ['post'] 
+        },
         { temperature: 0.9, maxTokens: 200 }
       );
 
@@ -512,13 +522,25 @@ async function generateNewQuestions(
       break;
     }
 
-    const prompt = `Generate a single yes/no prediction market question about current events in tech, crypto, or politics. Make it specific and resolvable within 7 days. Return JSON: {"question": "Will X happen?", "resolutionCriteria": "Clear criteria"}`;
+    const prompt = `Generate a single yes/no prediction market question about current events in tech, crypto, or politics. Make it specific and resolvable within 7 days. 
+
+Return your response as JSON in this exact format:
+{
+  "question": "Will X happen?",
+  "resolutionCriteria": "Clear criteria for resolution"
+}`;
 
     let response: { question: string; resolutionCriteria: string } | null = null;
     try {
       response = await llm.generateJSON<{ question: string; resolutionCriteria: string }>(
         prompt,
-        { required: ['question', 'resolutionCriteria'] },
+        { 
+          properties: {
+            question: { type: 'string' },
+            resolutionCriteria: { type: 'string' }
+          },
+          required: ['question', 'resolutionCriteria'] 
+        },
         { temperature: 0.8, maxTokens: 300 }
       );
     } catch (error) {
