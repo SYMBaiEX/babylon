@@ -14,7 +14,7 @@ import {
   AgentRuntime,
   stringToUuid,
 } from '@elizaos/core';
-import { plugin as sqlPlugin } from '@elizaos/plugin-sql';
+import sqlPlugin from '@elizaos/plugin-sql/node';
 import { predictionMarketsPlugin } from '../../../plugin-babylon/src';
 import * as fs from 'fs';
 import * as path from 'path';

@@ -4,8 +4,8 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
 import { optionalAuth } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { PostFeedQuerySchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
@@ -41,8 +41,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const limit = Math.min(validatedQuery.limit || 20, 100);
   const offset = validatedQuery.page ? (validatedQuery.page - 1) * limit : 0;
 
+  // Get favorites feed with RLS
+  const result = await asUser(user, async (db) => {
     // Get favorited profile IDs
-    const favorites = await prisma.favorite.findMany({
+    const favorites = await db.favorite.findMany({
       where: {
         userId: user.userId,
       },
@@ -55,15 +57,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
     // If no favorites, return empty array
     if (favoritedUserIds.length === 0) {
-      return successResponse({
-        posts: [],
-        total: 0,
-        hasMore: false,
-      });
+      return { posts: [], totalCount: 0, hasMore: false };
     }
 
     // Get posts from favorited profiles
-    const posts = await prisma.post.findMany({
+    const posts = await db.post.findMany({
       where: {
         authorId: {
           in: favoritedUserIds,
@@ -81,7 +79,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
 
     // Get total count
-    const totalCount = await prisma.post.count({
+    const totalCount = await db.post.count({
       where: {
         authorId: {
           in: favoritedUserIds,
@@ -94,16 +92,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       postsToReturn.map(async (post) => {
         const [likeCount, commentCount, shareCount, userLike, userShare] =
           await Promise.all([
-            prisma.reaction.count({
+            db.reaction.count({
               where: { postId: post.id, type: 'like' },
             }),
-            prisma.comment.count({
+            db.comment.count({
               where: { postId: post.id },
             }),
-            prisma.share.count({
+            db.share.count({
               where: { postId: post.id },
             }),
-            prisma.reaction.findUnique({
+            db.reaction.findUnique({
               where: {
                 postId_userId_type: {
                   postId: post.id,
@@ -112,7 +110,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
                 },
               },
             }),
-            prisma.share.findUnique({
+            db.share.findUnique({
               where: {
                 userId_postId: {
                   userId: user.userId,
@@ -127,7 +125,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           content: post.content,
           createdAt: post.createdAt,
           timestamp: post.timestamp,
-          authorId: post.authorId, // Game actor ID
+          authorId: post.authorId,
           gameId: post.gameId,
           dayNumber: post.dayNumber,
           interactions: {
@@ -141,12 +139,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       })
     );
 
-  logger.info('Favorites feed fetched successfully', { userId: user.userId, count: transformedPosts.length, total: totalCount }, 'GET /api/posts/feed/favorites');
+    return { posts: transformedPosts, totalCount, hasMore };
+  });
+
+  logger.info('Favorites feed fetched successfully', { userId: user.userId, count: result.posts.length, total: result.totalCount }, 'GET /api/posts/feed/favorites');
 
   return successResponse({
-    posts: transformedPosts,
-    total: totalCount,
-    hasMore,
+    posts: result.posts,
+    total: result.totalCount,
+    hasMore: result.hasMore,
     limit,
     offset,
   });

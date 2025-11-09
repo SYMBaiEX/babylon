@@ -730,7 +730,7 @@ describe('BabylonA2AService', () => {
     const config = {
       BABYLON_API_URL: 'http://localhost:3000',
       BABYLON_A2A_ENABLED: 'true',
-      BABYLON_A2A_ENDPOINT: 'ws://localhost:8080',
+      BABYLON_A2A_ENDPOINT: 'ws://localhost:8081',
     };
 
     if (predictionMarketsPlugin.init) {

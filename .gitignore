@@ -19,6 +19,7 @@ docs/
 bun.lock
 plugin-babylon/.eliza/
 cache/
+claudedocs/
 
 # Uploaded user files - keep directory structure but ignore actual files
 /public/uploads/**/*

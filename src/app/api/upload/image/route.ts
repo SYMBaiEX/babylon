@@ -15,6 +15,8 @@ import { ImageUploadSchema } from '@/lib/validation/schemas'
 import { getStorageClient } from '@/lib/storage/s3-client'
 import { logger } from '@/lib/logger'
 import sharp from 'sharp'
+import { writeFile, mkdir } from 'fs/promises'
+import { join } from 'path'
 
 // Configuration - only allow local storage in development
 const USE_LOCAL_STORAGE = process.env.USE_LOCAL_STORAGE === 'true' && process.env.NODE_ENV === 'development'
@@ -62,9 +64,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const buffer = Buffer.from(bytes)
 
   if (USE_LOCAL_STORAGE) {
-    const { writeFile, mkdir } = await import('fs/promises')
-    const { join } = await import('path')
-    
     const optimized = await sharp(buffer)
       .webp({ quality: 85 })
       .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })

@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
+import { optionalAuth } from '@/lib/api/auth-middleware';
+import { asUser, asPublic } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError } from '@/lib/errors';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
@@ -16,28 +17,59 @@ export const GET = withErrorHandling(async (
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { userId } = UserIdParamSchema.parse(params);
 
-  const deposits = await prisma.poolDeposit.findMany({
-    where: {
-      userId,
-    },
-    include: {
-      pool: {
-        include: {
-          npcActor: {
-            select: {
-              id: true,
-              name: true,
-              tier: true,
-              personality: true,
+  // Optional auth - deposits are public for stats but RLS still applies
+  const authUser = await optionalAuth(_request).catch(() => null);
+
+  // Get deposits with RLS - use asPublic for unauthenticated requests
+  const deposits = authUser
+    ? await asUser(authUser, async (db) => {
+      return await db.poolDeposit.findMany({
+      where: {
+        userId,
+      },
+      include: {
+        pool: {
+          include: {
+            npcActor: {
+              select: {
+                id: true,
+                name: true,
+                tier: true,
+                personality: true,
+              },
             },
           },
         },
       },
-    },
-    orderBy: {
-      depositedAt: 'desc',
-    },
-  });
+      orderBy: {
+        depositedAt: 'desc',
+      },
+    })
+  })
+    : await asPublic(async (db) => {
+      return await db.poolDeposit.findMany({
+        where: {
+          userId,
+        },
+        include: {
+          pool: {
+            include: {
+              npcActor: {
+                select: {
+                  id: true,
+                  name: true,
+                  tier: true,
+                  personality: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          depositedAt: 'desc',
+        },
+      })
+    });
 
   // Format deposits with calculated metrics
   const formattedDeposits = deposits.map(d => {

@@ -15,6 +15,7 @@ import { PointsService } from '@/lib/services/points-service'
 import { UserIdParamSchema } from '@/lib/validation/schemas'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 
 // Link social schema (extending the one in schemas/game.ts)
 const LinkSocialRequestSchema = z.object({
@@ -35,9 +36,11 @@ export const POST = withErrorHandling(async (
   const authUser = await authenticate(request);
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { userId } = UserIdParamSchema.parse(params);
+  const targetUser = await requireUserByIdentifier(userId, { id: true });
+  const canonicalUserId = targetUser.id;
 
   // Verify user is linking their own account
-  if (authUser.userId !== userId) {
+  if (authUser.userId !== canonicalUserId) {
     throw new AuthorizationError('You can only link your own social accounts', 'social-account', 'link');
   }
 
@@ -47,7 +50,7 @@ export const POST = withErrorHandling(async (
 
   // Get current user state
   const user = await prisma.user.findUnique({
-    where: { id: userId },
+    where: { id: canonicalUserId },
     select: {
       hasFarcaster: true,
       hasTwitter: true,
@@ -56,7 +59,7 @@ export const POST = withErrorHandling(async (
   });
 
   if (!user) {
-    throw new NotFoundError('User', userId);
+    throw new NotFoundError('User', canonicalUserId);
   }
 
   // Check if already linked
@@ -90,7 +93,7 @@ export const POST = withErrorHandling(async (
   }
 
   await prisma.user.update({
-    where: { id: userId },
+    where: { id: canonicalUserId },
     data: updateData,
   });
 
@@ -99,20 +102,20 @@ export const POST = withErrorHandling(async (
   if (!alreadyLinked) {
     switch (platform) {
       case 'farcaster':
-        pointsResult = await PointsService.awardFarcasterLink(userId, username);
+        pointsResult = await PointsService.awardFarcasterLink(canonicalUserId, username);
         break;
       case 'twitter':
-        pointsResult = await PointsService.awardTwitterLink(userId, username);
+        pointsResult = await PointsService.awardTwitterLink(canonicalUserId, username);
         break;
       case 'wallet':
-        pointsResult = await PointsService.awardWalletConnect(userId, address);
+        pointsResult = await PointsService.awardWalletConnect(canonicalUserId, address);
         break;
     }
   }
 
   logger.info(
-    `User ${userId} linked ${platform} account`,
-    { userId, platform, username, address, alreadyLinked },
+    `User ${canonicalUserId} linked ${platform} account`,
+    { userId: canonicalUserId, platform, username, address, alreadyLinked },
     'POST /api/users/[userId]/link-social'
   );
 
@@ -126,4 +129,3 @@ export const POST = withErrorHandling(async (
     } : null,
   });
 });
-

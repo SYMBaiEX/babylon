@@ -5,6 +5,7 @@
 
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/database-service';
+import { ensureUserForAuth } from '@/lib/users/ensure-user';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
@@ -24,18 +25,12 @@ export const POST = withErrorHandling(async (
   const { id: commentId } = IdParamSchema.parse(params);
 
   // Ensure user exists in database (upsert pattern)
-  await prisma.user.upsert({
-    where: { id: user.userId },
-    update: {
-      walletAddress: user.walletAddress,
-    },
-    create: {
-      id: user.userId,
-      walletAddress: user.walletAddress,
-      displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-      isActor: false,
-    },
-  });
+    const displayName = user.walletAddress
+      ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+      : 'Anonymous';
+
+    const { user: dbUser } = await ensureUserForAuth(user, { displayName });
+    const canonicalUserId = dbUser.id;
 
   // Check if comment exists
   const comment = await prisma.comment.findUnique({
@@ -51,7 +46,7 @@ export const POST = withErrorHandling(async (
     where: {
       commentId_userId_type: {
         commentId,
-        userId: user.userId,
+        userId: canonicalUserId,
         type: 'like',
       },
     },
@@ -65,7 +60,7 @@ export const POST = withErrorHandling(async (
   const reaction = await prisma.reaction.create({
     data: {
       commentId,
-      userId: user.userId,
+      userId: canonicalUserId,
       type: 'like',
     },
   });
@@ -78,7 +73,7 @@ export const POST = withErrorHandling(async (
     },
   });
 
-  logger.info('Comment liked successfully', { commentId, userId: user.userId, likeCount }, 'POST /api/comments/[id]/like');
+  logger.info('Comment liked successfully', { commentId, userId: canonicalUserId, likeCount }, 'POST /api/comments/[id]/like');
 
   return successResponse(
     {
@@ -106,32 +101,26 @@ export const DELETE = withErrorHandling(async (
   const { id: commentId } = IdParamSchema.parse(params);
 
   // Ensure user exists in database (upsert pattern)
-  await prisma.user.upsert({
-    where: { id: user.userId },
-    update: {
-      walletAddress: user.walletAddress,
-    },
-    create: {
-      id: user.userId,
-      walletAddress: user.walletAddress,
-      displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-      isActor: false,
-    },
-  });
+  const displayName = user.walletAddress
+    ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+    : 'Anonymous';
+
+  const { user: dbUser } = await ensureUserForAuth(user, { displayName });
+  const canonicalUserId = dbUser.id;
 
   // Find existing like
   const reaction = await prisma.reaction.findUnique({
     where: {
       commentId_userId_type: {
         commentId,
-        userId: user.userId,
+        userId: canonicalUserId,
         type: 'like',
       },
     },
   });
 
   if (!reaction) {
-    throw new NotFoundError('Like', `${commentId}-${user.userId}`);
+    throw new NotFoundError('Like', `${commentId}-${canonicalUserId}`);
   }
 
   // Delete like
@@ -149,7 +138,7 @@ export const DELETE = withErrorHandling(async (
     },
   });
 
-  logger.info('Comment unliked successfully', { commentId, userId: user.userId, likeCount }, 'DELETE /api/comments/[id]/like');
+  logger.info('Comment unliked successfully', { commentId, userId: canonicalUserId, likeCount }, 'DELETE /api/comments/[id]/like');
 
   return successResponse({
     commentId,

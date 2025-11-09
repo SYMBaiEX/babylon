@@ -149,7 +149,13 @@ export default function ChatsPage() {
     if (isDebugMode) {
       const response = await fetch(`/api/chats/${chatId}?debug=true`)
       const data = await response.json()
-      setChatDetails(data)
+      // Ensure all required properties exist
+      setChatDetails({
+        ...data,
+        chat: data.chat || null,
+        messages: data.messages || [],
+        participants: data.participants || [],
+      })
       setLoadingChat(false)
       return
     }
@@ -167,7 +173,13 @@ export default function ChatsPage() {
       },
     })
     const data = await response.json()
-    setChatDetails(data)
+    // Ensure all required properties exist
+    setChatDetails({
+      ...data,
+      chat: data.chat || null,
+      messages: data.messages || [],
+      participants: data.participants || [],
+    })
     setLoadingChat(false)
   }
 
@@ -233,7 +245,7 @@ export default function ChatsPage() {
       if (chatDetails && data.message) {
         setChatDetails({
           ...chatDetails,
-          messages: [...chatDetails.messages, data.message],
+          messages: [...(chatDetails.messages || []), data.message],
         })
       }
 
@@ -502,8 +514,8 @@ export default function ChatsPage() {
 
                       {searchQuery && (
                         <div className="text-sm text-muted-foreground mt-1">
-                          {chatDetails?.messages.length} message
-                          {chatDetails?.messages.length !== 1 ? 's' : ''} matching "
+                          {(chatDetails?.messages || []).length} message
+                          {(chatDetails?.messages || []).length !== 1 ? 's' : ''} matching "
                           {searchQuery}"
                         </div>
                       )}
@@ -516,9 +528,9 @@ export default function ChatsPage() {
                           <Loader2 className="w-8 h-8 animate-spin text-primary" />
                         </div>
                       ) : (
-                        chatDetails?.messages.map((msg, i) => {
+                        (chatDetails?.messages || []).map((msg, i) => {
                           const msgDate = new Date(msg.createdAt)
-                          const sender = chatDetails.participants.find(
+                          const sender = chatDetails?.participants?.find(
                             (p) => p.id === msg.senderId,
                           )
                           const senderName = sender?.displayName || 'Unknown'
@@ -594,7 +606,7 @@ export default function ChatsPage() {
                         })
                       )}
 
-                      {chatDetails?.messages.length === 0 && (
+                      {(chatDetails?.messages || []).length === 0 && (
                         <div className="flex items-center justify-center h-full">
                           <div className="text-center text-muted-foreground max-w-md p-8">
                             {searchQuery ? (
@@ -863,19 +875,19 @@ export default function ChatsPage() {
                             Back
                           </button>
                           <h3 className="text-lg font-bold text-foreground">
-                            {chatDetails?.chat.name || 'Chat'}
+                            {chatDetails?.chat?.name || 'Chat'}
                           </h3>
                         </div>
 
                         {/* Desktop header - chat name only */}
                         <h3 className="hidden md:block text-lg font-bold text-foreground mb-2">
-                          {chatDetails?.chat.name || 'Chat'}
+                          {chatDetails?.chat?.name || 'Chat'}
                         </h3>
 
                         {searchQuery && (
                           <div className="text-sm text-muted-foreground mt-1">
-                            {chatDetails?.messages.length} message
-                            {chatDetails?.messages.length !== 1 ? 's' : ''} matching "
+                            {(chatDetails?.messages || []).length} message
+                            {(chatDetails?.messages || []).length !== 1 ? 's' : ''} matching "
                             {searchQuery}"
                           </div>
                         )}
@@ -888,9 +900,9 @@ export default function ChatsPage() {
                             <Loader2 className="w-8 h-8 animate-spin text-primary" />
                           </div>
                         ) : (
-                          chatDetails?.messages.map((msg, i) => {
+                          (chatDetails?.messages || []).map((msg, i) => {
                             const msgDate = new Date(msg.createdAt)
-                            const sender = chatDetails.participants.find(
+                            const sender = chatDetails?.participants?.find(
                               (p) => p.id === msg.senderId,
                             )
                             const senderName = sender?.displayName || 'Unknown'
@@ -966,7 +978,7 @@ export default function ChatsPage() {
                           })
                         )}
 
-                        {chatDetails?.messages.length === 0 && (
+                        {(chatDetails?.messages || []).length === 0 && (
                           <div className="flex items-center justify-center h-full">
                             <div className="text-center text-muted-foreground max-w-md p-8">
                               {searchQuery ? (

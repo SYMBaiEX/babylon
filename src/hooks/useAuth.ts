@@ -1,207 +1,218 @@
-import { usePrivy, useWallets, type User as PrivyUser, type ConnectedWallet } from '@privy-io/react-auth'
-import { useEffect, useMemo } from 'react'
+'use client'
+
+import { usePrivy, useWallets, type ConnectedWallet, type User as PrivyUser } from '@privy-io/react-auth'
+import { useEffect, useMemo, useRef } from 'react'
 import { useAuthStore, type User } from '@/stores/authStore'
-import { OnboardingService } from '@/lib/services/onboarding-service'
+import { apiFetch } from '@/lib/api/fetch'
 import { logger } from '@/lib/logger'
 
 interface UseAuthReturn {
   ready: boolean
   authenticated: boolean
+  loadingProfile: boolean
   user: User | null
   wallet: ConnectedWallet | undefined
+  needsOnboarding: boolean
+  needsOnchain: boolean
   login: () => void
   logout: () => Promise<void>
+  refresh: () => Promise<void>
 }
 
-const loadedProfileUsers = new Set<string>()
-const checkedNewUserUsers = new Set<string>()
-const checkedOnboardingUsers = new Set<string>()
-const checkedSocialLinks = new Set<string>()
+const linkedSocialUsers = new Set<string>()
 let lastSyncedWalletAddress: string | null = null
 
 export function useAuth(): UseAuthReturn {
   const { ready, authenticated, user: privyUser, login, logout, getAccessToken } = usePrivy()
   const { wallets } = useWallets()
+  const fetchInFlightRef = useRef<Promise<void> | null>(null)
+  const tokenRetryTimeoutRef = useRef<number | null>(null)
   const {
     user,
+    isLoadingProfile,
+    needsOnboarding,
+    needsOnchain,
     setUser,
     setWallet,
-    clearAuth,
+    setNeedsOnboarding,
+    setNeedsOnchain,
     setLoadedUserId,
-    setIsLoadingProfile
+    setIsLoadingProfile,
+    clearAuth,
   } = useAuthStore()
 
-  const wallet = useMemo(() => wallets[0], [wallets]) // Get first connected wallet
+  const wallet = useMemo(() => wallets[0], [wallets])
 
-  // Store access token globally for API calls
-  useEffect(() => {
-    const updateAccessToken = async () => {
-      if (authenticated) {
-        const token = await getAccessToken()
-        if (typeof window !== 'undefined') {
-          window.__privyAccessToken = token
-        }
-      } else {
-        if (typeof window !== 'undefined') {
-          window.__privyAccessToken = null
-        }
+  const persistAccessToken = async (): Promise<string | null> => {
+    if (!authenticated) {
+      if (typeof window !== 'undefined') {
+        window.__privyAccessToken = null
       }
+      return null
     }
 
-    updateAccessToken()
-  }, [authenticated, getAccessToken])
+    try {
+      const token = await getAccessToken()
+      if (typeof window !== 'undefined') {
+        window.__privyAccessToken = token
+      }
+      return token ?? null
+    } catch (error) {
+      logger.warn('Failed to obtain Privy access token', { error }, 'useAuth')
+      return null
+    }
+  }
 
-  // Sync Privy state with Zustand store and check for new users
-  useEffect(() => {
-    if (!authenticated || !privyUser) {
-      loadedProfileUsers.clear()
-      checkedNewUserUsers.clear()
-      checkedOnboardingUsers.clear()
-      checkedSocialLinks.clear()
-      lastSyncedWalletAddress = null
-      clearAuth()
+  const fetchCurrentUser = async () => {
+    if (!authenticated || !privyUser) return
+    if (fetchInFlightRef.current) {
+      await fetchInFlightRef.current
       return
     }
 
-    if (wallet && lastSyncedWalletAddress !== wallet.address) {
-      lastSyncedWalletAddress = wallet.address
-      setWallet({
-        address: wallet.address,
-        chainId: wallet.chainId,
-      })
-    }
-
-    const loadUserProfile = async () => {
+    const run = async () => {
       setIsLoadingProfile(true)
       setLoadedUserId(privyUser.id)
-      
-      const response = await fetch(`/api/users/${encodeURIComponent(privyUser.id)}/profile`)
-      const data = await response.json()
 
-      if (!response.ok) {
-        throw new Error(data?.error || 'Failed to load user profile')
+      try {
+        const token = await persistAccessToken()
+        if (!token) {
+        logger.warn(
+          'Privy access token unavailable; delaying /api/users/me fetch',
+          { userId: privyUser.id },
+          'useAuth'
+        )
+        setIsLoadingProfile(false)
+        if (typeof window !== 'undefined') {
+          if (tokenRetryTimeoutRef.current) {
+            window.clearTimeout(tokenRetryTimeoutRef.current)
+          }
+          tokenRetryTimeoutRef.current = window.setTimeout(() => {
+            void fetchCurrentUser()
+          }, 200)
+        }
+        return
       }
 
-      if (data.user) {
+        const response = await apiFetch('/api/users/me')
+        const data = await response.json().catch(() => ({}))
+
+        if (!response.ok) {
+          const message = data?.error || `Failed to load authenticated user (status ${response.status})`
+          throw new Error(message)
+        }
+
+        const me = data as {
+          authenticated: boolean
+          needsOnboarding: boolean
+          needsOnchain: boolean
+          user: (User & { createdAt?: string; updatedAt?: string }) | null
+        }
+
+        setNeedsOnboarding(me.needsOnboarding)
+        setNeedsOnchain(me.needsOnchain)
+
+        const fallbackProfileImageUrl = user?.profileImageUrl
+        const fallbackCoverImageUrl = user?.coverImageUrl
+
+        if (me.user) {
+          const hydratedUser: User = {
+            id: me.user.id,
+            walletAddress: me.user.walletAddress ?? wallet?.address,
+            displayName: me.user.displayName || privyUser.email?.address || wallet?.address || 'Anonymous',
+            email: privyUser.email?.address,
+            username: me.user.username ?? undefined,
+            bio: me.user.bio ?? undefined,
+            profileImageUrl: me.user.profileImageUrl ?? fallbackProfileImageUrl ?? undefined,
+            coverImageUrl: me.user.coverImageUrl ?? fallbackCoverImageUrl ?? undefined,
+            profileComplete: me.user.profileComplete ?? false,
+            reputationPoints: me.user.reputationPoints ?? undefined,
+            referralCount: undefined,
+            referralCode: me.user.referralCode ?? undefined,
+            hasFarcaster: me.user.hasFarcaster ?? undefined,
+            hasTwitter: me.user.hasTwitter ?? undefined,
+            farcasterUsername: me.user.farcasterUsername ?? undefined,
+            twitterUsername: me.user.twitterUsername ?? undefined,
+            stats: undefined,
+            nftTokenId: me.user.nftTokenId ?? undefined,
+            createdAt: me.user.createdAt,
+            onChainRegistered: me.user.onChainRegistered ?? undefined,
+          }
+
+          setUser(hydratedUser)
+        } else {
+          setUser({
+            id: privyUser.id,
+            walletAddress: wallet?.address,
+            displayName: privyUser.email?.address || wallet?.address || 'Anonymous',
+            email: privyUser.email?.address,
+            onChainRegistered: false,
+          })
+        }
+      } catch (error) {
+        logger.error(
+          'Failed to resolve authenticated user via /api/users/me',
+          { error },
+          'useAuth'
+        )
+        setNeedsOnboarding(true)
+        setNeedsOnchain(false)
         setUser({
           id: privyUser.id,
           walletAddress: wallet?.address,
-          displayName: data.user.displayName || privyUser.email?.address || wallet?.address || 'Anonymous',
+          displayName: privyUser.email?.address || wallet?.address || 'Anonymous',
           email: privyUser.email?.address,
-          username: data.user.username,
-          bio: data.user.bio,
-          profileImageUrl: data.user.profileImageUrl,
-          coverImageUrl: data.user.coverImageUrl,
-          profileComplete: data.user.profileComplete,
-          reputationPoints: data.user.reputationPoints,
-          referralCount: data.user.referralCount,
-          referralCode: data.user.referralCode,
-          hasFarcaster: data.user.hasFarcaster,
-          hasTwitter: data.user.hasTwitter,
-          farcasterUsername: data.user.farcasterUsername,
-          twitterUsername: data.user.twitterUsername,
-          usernameChangedAt: data.user.usernameChangedAt,
-          nftTokenId: data.user.nftTokenId,
-          createdAt: data.user.createdAt,
-          stats: data.user.stats,
+          profileImageUrl: user?.profileImageUrl ?? undefined,
+          coverImageUrl: user?.coverImageUrl ?? undefined,
+          onChainRegistered: false,
         })
+      } finally {
         setIsLoadingProfile(false)
-        return
-      }
-
-      // Fallback if profile fetch fails
-      setUser({
-        id: privyUser.id,
-        walletAddress: wallet?.address,
-        displayName: privyUser.email?.address || wallet?.address || 'Anonymous',
-        email: privyUser.email?.address,
-      })
-      setIsLoadingProfile(false)
-    }
-
-    const checkNewUser = async () => {
-      const token = await getAccessToken()
-      if (!token) return
-
-      const response = await fetch(`/api/users/${encodeURIComponent(privyUser.id)}/is-new`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-
-      if (!response.ok) return
-
-      const data = await response.json()
-      if (data.needsSetup) {
-        logger.info('User needs profile setup - onboarding modal will be shown', undefined, 'useAuth')
       }
     }
 
-    const checkOnboarding = async () => {
-      // Check if user is already onboarded on-chain (doesn't require wallet)
-      const status = await OnboardingService.checkOnboardingStatus(privyUser.id)
-
-      if (status.isOnboarded) {
-        logger.info('User already onboarded on-chain with NFT #', status.tokenId, 'useAuth')
-        return
+    const promise = run().finally(() => {
+      fetchInFlightRef.current = null
+      if (typeof window !== 'undefined' && tokenRetryTimeoutRef.current) {
+        window.clearTimeout(tokenRetryTimeoutRef.current)
+        tokenRetryTimeoutRef.current = null
       }
+    })
 
-      // For onboarding, we need a wallet address
-      // Privy creates embedded wallets for email-only users, so wait for wallet
-      if (!wallet?.address) {
-        // If user authenticated but no wallet yet, wait a bit for embedded wallet creation
-        // Privy creates embedded wallets automatically for users-without-wallets
-        logger.debug('Waiting for wallet connection for onboarding...', undefined, 'useAuth')
-        
-        // Retry after a short delay (embedded wallet creation can take a moment)
-        setTimeout(() => {
-          if (wallets.length > 0 && wallets[0]?.address && !checkedOnboardingUsers.has(privyUser.id)) {
-            checkedOnboardingUsers.add(privyUser.id)
-            void checkOnboarding()
-          }
-        }, 2000)
-        return
-      }
+    fetchInFlightRef.current = promise
+    await promise
+  }
 
-      logger.info('User not onboarded, triggering on-chain registration...', undefined, 'useAuth')
+  const synchronizeWallet = () => {
+    if (!wallet) return
+    if (wallet.address === lastSyncedWalletAddress) return
 
-      const referralCode = sessionStorage.getItem('referralCode')
-      if (referralCode) {
-        logger.info(`Using referral code for onboarding: ${referralCode}`, undefined, 'useAuth')
-      }
+    lastSyncedWalletAddress = wallet.address
+    setWallet({
+      address: wallet.address,
+      chainId: wallet.chainId,
+    })
+  }
 
-      const result = await OnboardingService.completeOnboarding(
-        privyUser.id,
-        wallet.address,
-        undefined,
-        undefined,
-        referralCode || undefined
-      )
+  const linkSocialAccounts = async () => {
+    if (!authenticated || !privyUser) return
+    if (needsOnboarding || needsOnchain) return
+    if (linkedSocialUsers.has(privyUser.id)) return
 
-      if (result.success) {
-        sessionStorage.removeItem('referralCode')
-        sessionStorage.removeItem('referralCodeTimestamp')
-        
-        logger.info('Onboarding complete!', {
-          tokenId: result.tokenId,
-          points: result.points,
-          txHash: result.transactionHash,
-        }, 'useAuth')
-      }
-    }
+    const token = await getAccessToken()
+    if (!token) return
 
-    const checkAndLinkSocialAccounts = async () => {
-      const token = await getAccessToken()
-      if (!token) return
+    linkedSocialUsers.add(privyUser.id)
 
-      // Check for Farcaster connection
-      const userWithFarcaster = privyUser as PrivyUser & { farcaster?: { username?: string; displayName?: string } }
+    const userWithFarcaster = privyUser as PrivyUser & { farcaster?: { username?: string; displayName?: string } }
+    const userWithTwitter = privyUser as PrivyUser & { twitter?: { username?: string } }
+
+    try {
       if (userWithFarcaster.farcaster) {
         const farcaster = userWithFarcaster.farcaster
-        await fetch(`/api/users/${encodeURIComponent(privyUser.id)}/link-social`, {
+        await apiFetch(`/api/users/${encodeURIComponent(privyUser.id)}/link-social`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -209,17 +220,14 @@ export function useAuth(): UseAuthReturn {
             username: farcaster.username || farcaster.displayName,
           }),
         })
-        logger.info('Detected and linked Farcaster account', { username: farcaster.username }, 'useAuth')
+        logger.info('Linked Farcaster account during auth sync', { username: farcaster.username }, 'useAuth')
       }
 
-      // Check for Twitter/X connection
-      const userWithTwitter = privyUser as PrivyUser & { twitter?: { username?: string } }
       if (userWithTwitter.twitter) {
         const twitter = userWithTwitter.twitter
-        await fetch(`/api/users/${encodeURIComponent(privyUser.id)}/link-social`, {
+        await apiFetch(`/api/users/${encodeURIComponent(privyUser.id)}/link-social`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -227,15 +235,13 @@ export function useAuth(): UseAuthReturn {
             username: twitter.username,
           }),
         })
-        logger.info('Detected and linked Twitter account', { username: twitter.username }, 'useAuth')
+        logger.info('Linked Twitter account during auth sync', { username: twitter.username }, 'useAuth')
       }
 
-      // Check for wallet connection
       if (wallet?.address) {
-        await fetch(`/api/users/${encodeURIComponent(privyUser.id)}/link-social`, {
+        await apiFetch(`/api/users/${encodeURIComponent(privyUser.id)}/link-social`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -243,44 +249,50 @@ export function useAuth(): UseAuthReturn {
             address: wallet.address,
           }),
         })
-        logger.info('Detected and linked wallet', { address: wallet.address }, 'useAuth')
+        logger.info('Linked wallet during auth sync', { address: wallet.address }, 'useAuth')
+      }
+    } catch (error) {
+      logger.warn('Failed to auto-link social accounts', { error }, 'useAuth')
+    }
+  }
+
+  useEffect(() => {
+    void persistAccessToken()
+  }, [authenticated, getAccessToken])
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && tokenRetryTimeoutRef.current) {
+        window.clearTimeout(tokenRetryTimeoutRef.current)
+        tokenRetryTimeoutRef.current = null
       }
     }
+  }, [])
 
-    if (!loadedProfileUsers.has(privyUser.id)) {
-      loadedProfileUsers.add(privyUser.id)
-      void loadUserProfile()
+  useEffect(() => {
+    if (!authenticated || !privyUser) {
+      linkedSocialUsers.delete(privyUser?.id ?? '')
+      lastSyncedWalletAddress = null
+      clearAuth()
+      return
     }
 
-    if (!checkedNewUserUsers.has(privyUser.id)) {
-      checkedNewUserUsers.add(privyUser.id)
-      void checkNewUser()
-    }
+    synchronizeWallet()
+    void fetchCurrentUser()
+  }, [authenticated, privyUser?.id, wallet?.address, wallet?.chainId])
 
-    // Check and trigger onboarding if needed
-    // For email-only users, Privy creates embedded wallets automatically
-    // So we check onboarding status regardless, and wait for wallet if needed
-    if (!checkedOnboardingUsers.has(privyUser.id)) {
-      checkedOnboardingUsers.add(privyUser.id)
-      void checkOnboarding()
-    }
+  useEffect(() => {
+    void linkSocialAccounts()
+  }, [authenticated, privyUser?.id, wallet?.address, needsOnboarding])
 
-    // Check and link social accounts for points
-    if (!checkedSocialLinks.has(privyUser.id)) {
-      checkedSocialLinks.add(privyUser.id)
-      // Delay slightly to ensure profile is loaded first
-      setTimeout(() => {
-        void checkAndLinkSocialAccounts()
-      }, 1000)
-    }
-  }, [authenticated, privyUser, wallet, wallets, setUser, setWallet, clearAuth, getAccessToken, setIsLoadingProfile, setLoadedUserId])
+  const refresh = async () => {
+    if (!authenticated || !privyUser) return
+    await fetchCurrentUser()
+  }
 
-  // Wrap logout to ensure all state is cleared
   const handleLogout = async () => {
     await logout()
     clearAuth()
-    
-    // Clear access token
     if (typeof window !== 'undefined') {
       window.__privyAccessToken = null
     }
@@ -289,9 +301,13 @@ export function useAuth(): UseAuthReturn {
   return {
     ready,
     authenticated,
+    loadingProfile: isLoadingProfile,
     user,
     wallet,
+    needsOnboarding,
+    needsOnchain,
     login,
     logout: handleLogout,
+    refresh,
   }
 }

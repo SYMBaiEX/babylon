@@ -13,6 +13,8 @@
 import type { FeedPost, Question as GameQuestion, Question, Organization, Actor } from '@/shared/types';
 import { logger } from './logger';
 import { prisma } from './prisma';
+import { generateTagsForPosts } from './services/tag-generation-service';
+import { storeTagsForPost } from './services/tag-storage-service';
 
 class DatabaseService {
   // Expose prisma for direct queries
@@ -109,11 +111,6 @@ class DatabaseService {
 
     if (posts.length > 0) {
       try {
-        const [{ generateTagsForPosts }, { storeTagsForPost }] = await Promise.all([
-          import('./services/tag-generation-service'),
-          import('./services/tag-storage-service'),
-        ]);
-
         const postsForTagging = posts.map(p => ({
           id: p.id,
           content: p.content,

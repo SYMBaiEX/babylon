@@ -5,8 +5,10 @@
 
 import type { NextRequest } from 'next/server';
 import { successResponse, errorResponse } from '@/lib/api/auth-middleware';
+import { optionalAuth } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/database-service';
+import type { PrismaClient } from '@prisma/client';
 
 interface UsernameCheckResult {
   available: boolean;
@@ -17,7 +19,7 @@ interface UsernameCheckResult {
 /**
  * Check if a username is available and suggest an alternative if not
  */
-async function checkUsernameAvailability(baseUsername: string): Promise<UsernameCheckResult> {
+async function checkUsernameAvailability(baseUsername: string, db: PrismaClient): Promise<UsernameCheckResult> {
   // Sanitize username
   const cleanUsername = baseUsername
     .replace(/^@/, '')
@@ -26,7 +28,7 @@ async function checkUsernameAvailability(baseUsername: string): Promise<Username
     .slice(0, 20);
 
   // Check if base username is available
-  const existingUser = await prisma.user.findUnique({
+  const existingUser = await db.user.findUnique({
     where: { username: cleanUsername },
     select: { id: true },
   });
@@ -44,7 +46,7 @@ async function checkUsernameAvailability(baseUsername: string): Promise<Username
   
   // Keep incrementing until we find an available username
   while (attempt < 9999) {
-    const exists = await prisma.user.findUnique({
+    const exists = await db.user.findUnique({
       where: { username: suggestedUsername },
       select: { id: true },
     });
@@ -93,7 +95,13 @@ export async function GET(request: NextRequest) {
     return errorResponse('Username must be 20 characters or less', 400);
   }
 
-  const result = await checkUsernameAvailability(username);
+  // Optional auth - username checks are public but RLS still applies
+  const authUser = await optionalAuth(request).catch(() => null);
+
+  // Check username availability with RLS
+  const result = await asUser(authUser, async (db) => {
+    return await checkUsernameAvailability(username, db);
+  });
 
   logger.info('Username check result', result, 'GET /api/onboarding/check-username');
 

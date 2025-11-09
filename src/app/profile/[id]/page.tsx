@@ -1,6 +1,7 @@
 'use client'
 
 import { InteractionBar } from '@/components/interactions'
+import { FollowButton } from '@/components/interactions/FollowButton'
 import { ProfileWidget } from '@/components/profile/ProfileWidget'
 import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
@@ -85,9 +86,12 @@ export default function ActorProfilePage() {
     timestamp: string
     authorName?: string
     authorUsername?: string | null
+    authorProfileImageUrl?: string | null
   }>>([])
   const [loadingPosts, setLoadingPosts] = useState(false)
   
+  const currentUserId = user?.id
+
   useEffect(() => {
     const loadActorInfo = async () => {
       setLoading(true)
@@ -139,7 +143,7 @@ export default function ActorProfilePage() {
       const isUserId = actorId.startsWith('did:privy:') || 
                       actorId.includes('privy') || 
                       actorId.length > 42 ||
-                      (authenticated && user && (user.id === actorId || user.id === decodeURIComponent(identifier)))
+                      (authenticated && currentUserId && (currentUserId === actorId || currentUserId === decodeURIComponent(identifier)))
       
       if (isUserId) {
         // Load user profile from API by ID
@@ -220,6 +224,7 @@ export default function ActorProfilePage() {
           role: actor.role || actor.tier || 'Actor',
           type: 'actor' as const,
           game: gameId ? { id: gameId } : undefined,
+          username: ('username' in actor ? actor.username as string : actor.id) as string | undefined, // Use username if available, fallback to ID
         })
         setLoading(false)
         return
@@ -248,7 +253,7 @@ export default function ActorProfilePage() {
     }
     
     loadActorInfo()
-  }, [actorId, allGames, authenticated, identifier, isOwnProfile, isUsernameParam, router, user])
+  }, [actorId, allGames, authenticated, currentUserId, identifier, isOwnProfile, isUsernameParam, router])
 
   useEffect(() => {
     const loadPosts = async () => {
@@ -322,6 +327,7 @@ export default function ActorProfilePage() {
           author: apiPost.authorId,
           authorName: apiPost.authorName || actorInfo?.name || apiPost.authorId,
           authorUsername: actorInfo?.username || null,
+          authorProfileImageUrl: actorInfo?.profileImageUrl || null,
           timestamp: apiPost.timestamp,
           type: POST_TYPES.POST, // User-generated posts
           sentiment: 0, // Neutral sentiment for user posts
@@ -338,7 +344,13 @@ export default function ActorProfilePage() {
     const apiPostIds = new Set(apiPosts.map(p => p.id))
     gameStorePosts.forEach(gamePost => {
       if (!apiPostIds.has(gamePost.post.id)) {
-        combined.push(gamePost)
+        combined.push({
+          ...gamePost,
+          post: {
+            ...gamePost.post,
+            authorProfileImageUrl: gamePost.post.authorProfileImageUrl || actorInfo?.profileImageUrl || null,
+          },
+        })
       }
     })
 
@@ -473,7 +485,14 @@ export default function ActorProfilePage() {
                   <Avatar
                     id={actorInfo.id}
                     name={(actorInfo.name ?? actorInfo.username ?? '') as string}
-                    type={actorInfo.type === 'organization' ? 'business' : actorInfo.type === 'user' ? undefined : (actorInfo.type as 'actor' | undefined)}
+                    type={
+                      actorInfo.type === 'organization'
+                        ? 'business'
+                        : actorInfo.isUser || actorInfo.type === 'user'
+                          ? 'user'
+                          : (actorInfo.type as 'actor' | undefined)
+                    }
+                    src={actorInfo.profileImageUrl || undefined}
                     size="lg"
                     className="w-full h-full"
                   />
@@ -648,9 +667,10 @@ export default function ActorProfilePage() {
                       <Avatar
                         id={item.post.author}
                         name={item.post.authorName}
-                        type={actorInfo.type === 'organization' ? 'business' : actorInfo.type === 'user' ? undefined : (actorInfo.type as 'actor' | undefined)}
+                        type="user"
                         size="md"
                         scaleFactor={fontSize * (isMobile ? 0.9 : 1)}
+                        src={item.post.authorProfileImageUrl || actorInfo?.profileImageUrl || undefined}
                       />
                     </div>
 
@@ -775,7 +795,14 @@ export default function ActorProfilePage() {
                     <Avatar
                       id={actorInfo.id}
                       name={(actorInfo.name ?? actorInfo.username ?? '') as string}
-                      type={actorInfo.type === 'organization' ? 'business' : actorInfo.type === 'user' ? undefined : (actorInfo.type as 'actor' | undefined)}
+                      type={
+                        actorInfo.type === 'organization'
+                          ? 'business'
+                          : actorInfo.isUser || actorInfo.type === 'user'
+                            ? 'user'
+                            : (actorInfo.type as 'actor' | undefined)
+                      }
+                      src={actorInfo.profileImageUrl || undefined}
                       size="lg"
                       className="w-full h-full"
                     />
@@ -789,9 +816,11 @@ export default function ActorProfilePage() {
                       <button className="p-2 rounded-full border border-border hover:bg-muted/50 transition-colors">
                         <Mail className="w-5 h-5" />
                       </button>
-                      <button className="px-4 py-2 rounded-full font-bold bg-foreground text-background hover:bg-foreground/90 transition-colors">
-                        Follow
-                      </button>
+                      <FollowButton
+                        userId={actorInfo.username || actorInfo.id}
+                        size="md"
+                        variant="button"
+                      />
                     </>
                   )}
                   {isOwnProfile && (
@@ -947,14 +976,15 @@ export default function ActorProfilePage() {
                     <div className="flex gap-3">
                       {/* Avatar - Round */}
                       <div className="flex-shrink-0">
-                        <Avatar
-                          id={item.post.author}
-                          name={item.post.authorName}
-                          type={actorInfo.type === 'organization' ? 'business' : actorInfo.type === 'user' ? undefined : (actorInfo.type as 'actor' | undefined)}
-                          size="md"
-                          scaleFactor={fontSize * (isMobile ? 0.9 : 1)}
-                        />
-                      </div>
+                      <Avatar
+                        id={item.post.author}
+                        name={item.post.authorName}
+                        type="user"
+                        size="md"
+                        scaleFactor={fontSize * (isMobile ? 0.9 : 1)}
+                        src={item.post.authorProfileImageUrl || actorInfo?.profileImageUrl || undefined}
+                      />
+                    </div>
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">

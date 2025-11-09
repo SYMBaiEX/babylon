@@ -11,6 +11,7 @@ import { UserIdParamSchema } from '@/lib/validation/schemas';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { notifyFollow } from '@/lib/services/notification-service';
 import { logger } from '@/lib/logger';
+import { findUserByIdentifier } from '@/lib/users/user-lookup';
 /**
  * POST /api/users/[userId]/follow
  * Follow a user or actor
@@ -22,22 +23,16 @@ export const POST = withErrorHandling(async (
   // Authenticate user
   const user = await authenticate(request);
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
-  const { userId: targetId } = UserIdParamSchema.parse(params);
+  const { userId: targetIdentifier } = UserIdParamSchema.parse(params);
+  const targetUser = await findUserByIdentifier(targetIdentifier, { id: true, isActor: true });
+  const targetId = targetUser?.id ?? targetIdentifier;
 
   // Prevent self-following
-  if (user.userId === targetId) {
+  if (targetUser && user.userId === targetId) {
     throw new BusinessLogicError('Cannot follow yourself', 'SELF_FOLLOW');
   }
 
   // Check if target exists (could be a user or actor)
-  // First check if it's a user
-  const targetUser = await prisma.user.findUnique({
-    where: { id: targetId },
-    select: { id: true, isActor: true },
-  });
-
-  // If not a user, check if it's an actor (from actors.json)
-  // Try to find in Actor table
   const targetActor = targetUser ? null : await prisma.actor.findUnique({
     where: { id: targetId },
     select: { id: true },
@@ -156,13 +151,9 @@ export const DELETE = withErrorHandling(async (
   // Authenticate user
   const user = await authenticate(request);
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
-  const { userId: targetId } = UserIdParamSchema.parse(params);
-
-  // Check if target is a user
-  const targetUser = await prisma.user.findUnique({
-    where: { id: targetId },
-    select: { id: true },
-  });
+  const { userId: targetIdentifier } = UserIdParamSchema.parse(params);
+  const targetUser = await findUserByIdentifier(targetIdentifier, { id: true });
+  const targetId = targetUser?.id ?? targetIdentifier;
 
   if (targetUser) {
     // Target is a user - use Follow model
@@ -298,4 +289,3 @@ export const GET = withErrorHandling(async (
     }
   }
 });
-

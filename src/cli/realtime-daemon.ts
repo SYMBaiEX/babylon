@@ -19,10 +19,11 @@
  */
 
 import { GameEngine } from '../engine/GameEngine';
-import { spawn, execSync, type ChildProcess } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
 import { join } from 'path';
 import { logger } from '@/lib/logger';
 import { setEngineInstance, clearEngineInstance } from '@/lib/engine';
+import { registerBabylonGame } from '../lib/babylon-registry-init';
 
 interface CLIOptions {
   verbose?: boolean;
@@ -41,33 +42,8 @@ function parseArgs(): CLIOptions {
   return options;
 }
 
-/**
- * Check if a daemon is already running by checking for the process
- * Returns PID if found, null otherwise
- */
-function checkExistingDaemon(): number | null {
-  const result = execSync('pgrep -f "realtime-daemon"', { encoding: 'utf-8' }).trim();
-  if (result) {
-    const firstLine = result.split('\n')[0];
-    if (!firstLine) return null;
-    const pid = parseInt(firstLine, 10);
-    // Make sure it's not this process
-    if (pid && pid !== process.pid) {
-      return pid;
-    }
-  }
-  return null;
-}
-
 async function main() {
   const options = parseArgs();
-
-  // Check if daemon is already running
-  const existingDaemon = checkExistingDaemon();
-  if (existingDaemon) {
-    logger.error(`Daemon is already running (PID: ${existingDaemon}). Please stop it first with: kill ${existingDaemon}`, undefined, 'CLI');
-    process.exit(1);
-  }
 
   logger.info('BABYLON GAME DAEMON', undefined, 'CLI');
   logger.info('===================', undefined, 'CLI');
@@ -95,7 +71,7 @@ async function main() {
     historyDays: 30,
     a2a: {
       enabled: true, // Enable A2A protocol
-      port: 8080,
+      port: 8081,
       host: '0.0.0.0',
       maxConnections: 1000,
       enableBlockchain: process.env.A2A_ENABLE_BLOCKCHAIN === 'true', // Enable blockchain integration for agent discovery
@@ -151,6 +127,22 @@ async function main() {
   // Register engine instance so API routes can query status
   setEngineInstance(engine);
   logger.info('Engine instance registered for API access', undefined, 'CLI');
+
+  // Auto-register game with Agent0 if enabled
+  if (process.env.AGENT0_ENABLED === 'true') {
+    logger.info('Registering Babylon with Agent0...', undefined, 'CLI');
+    try {
+      const result = await registerBabylonGame();
+      if (result) {
+        logger.info(`✅ Babylon registered with Agent0 (Token ID: ${result.tokenId})`, undefined, 'CLI');
+      } else {
+        logger.info('Babylon already registered with Agent0', undefined, 'CLI');
+      }
+    } catch (error) {
+      logger.warn('Failed to register with Agent0 (non-fatal):', error, 'CLI');
+      logger.warn('Game will continue without Agent0 registration', undefined, 'CLI');
+    }
+  }
 
   // Auto-start agents only if explicitly enabled
   const autoStartAgents = process.env.AUTO_START_AGENTS === 'true'; // Default to false

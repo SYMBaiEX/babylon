@@ -13,11 +13,44 @@ import { Avatar } from '@/components/shared/Avatar'
 
 export function MobileHeader() {
   const { authenticated, logout } = useAuth()
-  const { user } = useAuthStore()
+  const { user, setUser } = useAuthStore()
   const { showLoginModal } = useLoginModal()
   const [showSideMenu, setShowSideMenu] = useState(false)
   const [pointsData, setPointsData] = useState<{ available: number; total: number } | null>(null)
   const pathname = usePathname()
+
+  useEffect(() => {
+    if (!authenticated || !user?.id || user.profileImageUrl) {
+      return
+    }
+
+    const controller = new AbortController()
+
+    const hydrateProfileImage = async () => {
+      try {
+        const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/profile`, {
+          signal: controller.signal,
+        })
+        if (!response.ok) return
+        const data = await response.json().catch(() => ({}))
+        const profileUrl = data?.user?.profileImageUrl as string | undefined
+        const coverUrl = data?.user?.coverImageUrl as string | undefined
+        if (profileUrl || coverUrl) {
+          setUser({
+            ...user,
+            profileImageUrl: profileUrl ?? user.profileImageUrl,
+            coverImageUrl: coverUrl ?? user.coverImageUrl,
+          })
+        }
+      } catch (error) {
+        if ((error as DOMException).name === 'AbortError') return
+      }
+    }
+
+    void hydrateProfileImage()
+
+    return () => controller.abort()
+  }, [authenticated, setUser, user?.id, user?.profileImageUrl, user?.coverImageUrl])
 
   useEffect(() => {
     const fetchPoints = async () => {
@@ -112,8 +145,10 @@ export function MobileHeader() {
                 <Avatar 
                   id={user.id} 
                   name={user.displayName || user.email || 'User'} 
+                  type="user"
                   size="sm"
-                  src={user.profileImageUrl}
+                  src={user.profileImageUrl || undefined}
+                  imageUrl={user.profileImageUrl || undefined}
                 />
               </button>
             ) : !authenticated ? (
@@ -167,8 +202,10 @@ export function MobileHeader() {
                 <Avatar 
                   id={user?.id} 
                   name={user?.displayName || user?.email || 'User'} 
+                  type="user"
                   size="md"
-                  src={user?.profileImageUrl}
+                  src={user?.profileImageUrl || undefined}
+                  imageUrl={user?.profileImageUrl || undefined}
                   className="flex-shrink-0"
                 />
                 <div className="flex-1 min-w-0">
@@ -253,4 +290,3 @@ export function MobileHeader() {
     </>
   )
 }
-

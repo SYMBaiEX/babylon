@@ -5,9 +5,9 @@
 
 import type { NextRequest } from 'next/server';
 import { Prisma } from '@prisma/client';
-import { prisma } from '@/lib/database-service';
-import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { authenticate } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { PredictionMarketTradeSchema } from '@/lib/validation/schemas/trade';
 import { NotFoundError, BusinessLogicError, InsufficientFundsError } from '@/lib/errors';
 import { WalletService } from '@/lib/services/wallet-service';
@@ -44,23 +44,29 @@ export const POST = withErrorHandling(async (
     userId: user.userId
   }, 'POST /api/markets/predictions/[id]/buy');
 
-    // 4. Get or create market from question
+  // Check balance first (before RLS transaction)
+  const hasFunds = await WalletService.hasSufficientBalance(user.userId, amount);
+  if (!hasFunds) {
+    const balance = await WalletService.getBalance(user.userId);
+    throw new InsufficientFundsError(amount, Number(balance.balance), 'USD');
+  }
+
+  // Execute trade with RLS
+  const { position, calculation } = await asUser(user, async (db) => {
+    // Get or create market from question
     logger.info('Step 4: Looking up market/question', { marketId }, 'POST /api/markets/predictions/[id]/buy');
     
     // First try to find Market by ID
-    let market = await prisma.market.findUnique({
+    let market = await db.market.findUnique({
       where: { id: marketId },
     });
     logger.info('Step 4a: Market lookup result', { found: !!market }, 'POST /api/markets/predictions/[id]/buy');
 
     // If market doesn't exist, try to find Question and create Market
-    // API now returns question.id, but also support questionNumber for backwards compatibility
     if (!market) {
       logger.info('Step 4b: Market not found, looking for question', { marketId }, 'POST /api/markets/predictions/[id]/buy');
       
-      // Try to find by ID first (most common case after API update)
-      // Note: Question model may not be in Prisma Client types, but exists in schema
-      const questionModel = prisma as typeof prisma & {
+      const questionModel = db as typeof db & {
         question: {
           findUnique: (args: { where: { id: string } }) => Promise<{
             id: string
@@ -84,7 +90,6 @@ export const POST = withErrorHandling(async (
       });
       logger.info('Step 4c: Question by ID lookup', { found: !!question }, 'POST /api/markets/predictions/[id]/buy');
       
-      // If not found by ID and marketId looks like a number, try questionNumber
       if (!question && !isNaN(Number(marketId))) {
         logger.info('Step 4d: Trying question by number', { questionNumber: parseInt(marketId, 10) }, 'POST /api/markets/predictions/[id]/buy');
         const questions = await questionModel.question.findMany({
@@ -101,12 +106,10 @@ export const POST = withErrorHandling(async (
         throw new NotFoundError('Market or Question', marketId);
       }
 
-      // Check if question is active
       if (question.status !== 'active') {
         throw new BusinessLogicError(`Question is ${question.status}, cannot trade`, 'QUESTION_INACTIVE', { status: question.status, marketId });
       }
 
-      // Check if question has expired
       if (new Date(question.resolutionDate) < new Date()) {
         throw new BusinessLogicError('Question has expired', 'QUESTION_EXPIRED', { marketId, resolutionDate: question.resolutionDate });
       }
@@ -116,15 +119,13 @@ export const POST = withErrorHandling(async (
         questionNumber: question.questionNumber 
       }, 'POST /api/markets/predictions/[id]/buy');
       
-      // Create or get existing market from question
-      // Use upsert to avoid unique constraint errors from race conditions
       const endDate = new Date(question.resolutionDate);
-      const initialLiquidity = 1000; // Default liquidity
+      const initialLiquidity = 1000;
       
-      market = await prisma.market.upsert({
+      market = await db.market.upsert({
         where: { id: question.id },
         create: {
-          id: question.id, // Use question.id (string UUID), not questionNumber
+          id: question.id,
           question: question.text,
           description: null,
           gameId: 'continuous',
@@ -136,9 +137,7 @@ export const POST = withErrorHandling(async (
           resolution: null,
           endDate: endDate,
         },
-        update: {
-          // If market exists, just return it without updating
-        },
+        update: {},
       });
 
       logger.info(`Auto-created market from question`, { 
@@ -150,32 +149,24 @@ export const POST = withErrorHandling(async (
     
     logger.info('Step 5: Market ready', { marketId: market.id }, 'POST /api/markets/predictions/[id]/buy');
 
-  // 5. Check if market is still active
-  if (market.resolved) {
-    throw new BusinessLogicError('Market has already resolved', 'MARKET_RESOLVED', { marketId });
-  }
+    // Check if market is still active
+    if (market.resolved) {
+      throw new BusinessLogicError('Market has already resolved', 'MARKET_RESOLVED', { marketId });
+    }
 
-  if (new Date() > market.endDate) {
-    throw new BusinessLogicError('Market has expired', 'MARKET_EXPIRED', { marketId, endDate: market.endDate });
-  }
+    if (new Date() > market.endDate) {
+      throw new BusinessLogicError('Market has expired', 'MARKET_EXPIRED', { marketId, endDate: market.endDate });
+    }
 
-  // 6. Check balance
-  const hasFunds = await WalletService.hasSufficientBalance(user.userId, amount);
-
-  if (!hasFunds) {
-    const balance = await WalletService.getBalance(user.userId);
-    throw new InsufficientFundsError(amount, Number(balance.balance), 'USD');
-  }
-
-    // 7. Calculate shares using AMM
-    const calculation = PredictionPricing.calculateBuy(
+    // Calculate shares using AMM
+    const calc = PredictionPricing.calculateBuy(
       Number(market.yesShares),
       Number(market.noShares),
       side,
       amount
     );
 
-    // 8. Debit cost from balance
+    // Debit cost from balance
     await WalletService.debit(
       user.userId,
       amount,
@@ -184,36 +175,35 @@ export const POST = withErrorHandling(async (
       marketId
     );
 
-    // 9. Update market shares
-    await prisma.market.update({
+    // Update market shares
+    const updated = await db.market.update({
       where: { id: marketId },
       data: {
-        yesShares: new Prisma.Decimal(calculation.newYesPrice * (Number(market.yesShares) + Number(market.noShares))),
-        noShares: new Prisma.Decimal(calculation.newNoPrice * (Number(market.yesShares) + Number(market.noShares))),
+        yesShares: new Prisma.Decimal(calc.newYesPrice * (Number(market.yesShares) + Number(market.noShares))),
+        noShares: new Prisma.Decimal(calc.newNoPrice * (Number(market.yesShares) + Number(market.noShares))),
         liquidity: {
           increment: new Prisma.Decimal(amount),
         },
       },
     });
 
-    // 10. Create or update position
-    const existingPosition = await prisma.position.findFirst({
+    // Create or update position
+    const existingPosition = await db.position.findFirst({
       where: {
         userId: user.userId,
         marketId,
       },
     });
 
-    let position;
+    let pos;
     if (existingPosition) {
-      // Update existing position (average in new shares)
-      const newTotalShares = Number(existingPosition.shares) + calculation.sharesBought;
+      const newTotalShares = Number(existingPosition.shares) + calc.sharesBought;
       const newAvgPrice =
         (Number(existingPosition.avgPrice) * Number(existingPosition.shares) +
-          calculation.avgPrice * calculation.sharesBought) /
+          calc.avgPrice * calc.sharesBought) /
         newTotalShares;
 
-      position = await prisma.position.update({
+      pos = await db.position.update({
         where: { id: existingPosition.id },
         data: {
           shares: new Prisma.Decimal(newTotalShares),
@@ -221,23 +211,24 @@ export const POST = withErrorHandling(async (
         },
       });
     } else {
-      // Create new position
-      position = await prisma.position.create({
+      pos = await db.position.create({
         data: {
           userId: user.userId,
           marketId,
           side: side === 'yes',
-          shares: new Prisma.Decimal(calculation.sharesBought),
-          avgPrice: new Prisma.Decimal(calculation.avgPrice),
+          shares: new Prisma.Decimal(calc.sharesBought),
+          avgPrice: new Prisma.Decimal(calc.avgPrice),
         },
       });
     }
 
-    // 11. Log agent activity (if agent)
-    if (user.isAgent) {
-      logger.info(`Agent ${user.userId} placed trade: ${side.toUpperCase()} $${amount} on market ${marketId}`, undefined, 'POST /api/markets/predictions/[id]/buy')
-      // Could also store in agent_activity table if we create one
-    }
+    return { position: pos, market: updated, calculation: calc };
+  });
+
+  // Log agent activity (if agent)
+  if (user.isAgent) {
+    logger.info(`Agent ${user.userId} placed trade: ${side.toUpperCase()} $${amount} on market ${marketId}`, undefined, 'POST /api/markets/predictions/[id]/buy')
+  }
 
   const newBalance = await WalletService.getBalance(user.userId);
 

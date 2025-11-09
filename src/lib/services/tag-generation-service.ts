@@ -14,10 +14,20 @@ const baseURL = process.env.GROQ_API_KEY
   ? 'https://api.groq.com/openai/v1'
   : 'https://api.openai.com/v1'
 
-const openai = new OpenAI({
-  apiKey,
-  baseURL,
-})
+// Lazy initialization - only create client when needed and API key is available
+let openaiClient: OpenAI | null = null
+function getOpenAIClient(): OpenAI | null {
+  if (!apiKey) {
+    return null // No API key configured
+  }
+  if (!openaiClient) {
+    openaiClient = new OpenAI({
+      apiKey,
+      baseURL,
+    })
+  }
+  return openaiClient
+}
 
 export interface GeneratedTag {
   name: string        // lowercase, normalized (e.g., "nfc-north")
@@ -29,6 +39,14 @@ export interface GeneratedTag {
  * Generate 1-3 organic tags from post content
  */
 export async function generateTagsFromPost(content: string): Promise<GeneratedTag[]> {
+  const openai = getOpenAIClient()
+  
+  // If no API key configured, return empty tags (graceful degradation)
+  if (!openai) {
+    logger.warn('Tag generation skipped - no GROQ_API_KEY or OPENAI_API_KEY configured', undefined, 'TagGenerationService')
+    return []
+  }
+  
   const prompt = `Analyze this social media post and extract 1-3 organic, trending-worthy tags.
 
 Post: "${content}"

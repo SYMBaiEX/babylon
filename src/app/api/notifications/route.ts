@@ -7,7 +7,7 @@
 
 import type { NextRequest } from 'next/server';
 import { authenticate } from '@/lib/api/auth-middleware';
-import { prisma } from '@/lib/database-service';
+import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { InternalServerError } from '@/lib/errors';
 import { NotificationsQuerySchema, MarkNotificationsReadSchema } from '@/lib/validation/schemas';
@@ -19,21 +19,22 @@ import { logger } from '@/lib/logger';
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
 
-  // Verify prisma is initialized
-  if (!prisma || !prisma.notification) {
-    logger.error('Prisma client not initialized', { prisma: !!prisma }, 'GET /api/notifications');
-    throw new InternalServerError('Database connection error');
-  }
-
   // Parse and validate query parameters
   const { searchParams } = new URL(request.url);
-  const queryParams = {
-    limit: searchParams.get('limit'),
-    page: searchParams.get('page'),
-    unreadOnly: searchParams.get('unreadOnly'),
-    type: searchParams.get('type')
-  };
-  const { limit, unreadOnly, type } = NotificationsQuerySchema.parse(queryParams);
+  const queryParams: Record<string, string> = {};
+  
+  const limit = searchParams.get('limit');
+  const page = searchParams.get('page');
+  const unreadOnly = searchParams.get('unreadOnly');
+  const type = searchParams.get('type');
+  
+  if (limit) queryParams.limit = limit;
+  if (page) queryParams.page = page;
+  if (unreadOnly) queryParams.unreadOnly = unreadOnly;
+  if (type) queryParams.type = type;
+  
+  const validated = NotificationsQuerySchema.parse(queryParams);
+  const { limit: validatedLimit, unreadOnly: validatedUnreadOnly, type: validatedType } = validated;
 
   const where: {
     userId: string
@@ -43,37 +44,41 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     userId: authUser.userId,
   };
 
-  if (unreadOnly) {
+  if (validatedUnreadOnly) {
     where.read = false;
   }
 
-  if (type) {
-    where.type = type;
+  if (validatedType) {
+    where.type = validatedType;
   }
 
-  const notifications = await prisma.notification.findMany({
-    where,
-    orderBy: {
-      createdAt: 'desc',
-    },
-    take: limit,
-    include: {
-      actor: {
-        select: {
-          id: true,
-          displayName: true,
-          username: true,
-          profileImageUrl: true,
+  const { notifications, unreadCount } = await asUser(authUser, async (db) => {
+    const notifications = await db.notification.findMany({
+      where,
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: validatedLimit,
+      include: {
+        actor: {
+          select: {
+            id: true,
+            displayName: true,
+            username: true,
+            profileImageUrl: true,
+          },
         },
       },
-    },
-  });
+    });
 
-  const unreadCount = await prisma.notification.count({
-    where: {
-      userId: authUser.userId,
-      read: false,
-    },
+    const unreadCount = await db.notification.count({
+      where: {
+        userId: authUser.userId,
+        read: false,
+      },
+    });
+
+    return { notifications, unreadCount };
   });
 
   logger.info('Notifications fetched successfully', { userId: authUser.userId, count: notifications.length, unreadCount }, 'GET /api/notifications');
@@ -105,47 +110,49 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 export const PATCH = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request);
 
-  // Verify prisma is initialized
-  if (!prisma || !prisma.notification) {
-    logger.error('Prisma client not initialized', { prisma: !!prisma }, 'PATCH /api/notifications');
-    throw new InternalServerError('Database connection error');
-  }
-
   // Parse and validate request body
   const body = await request.json();
   const { notificationIds, markAllAsRead } = MarkNotificationsReadSchema.parse(body);
 
+  await asUser(authUser, async (db) => {
+    if (markAllAsRead) {
+      // Mark all notifications as read
+      await db.notification.updateMany({
+        where: {
+          userId: authUser.userId,
+          read: false,
+        },
+        data: {
+          read: true,
+        },
+      });
+
+      logger.info('All notifications marked as read', { userId: authUser.userId }, 'PATCH /api/notifications');
+      return;
+    }
+
+    if (notificationIds && notificationIds.length > 0) {
+      // Mark specific notifications as read
+      await db.notification.updateMany({
+        where: {
+          id: { in: notificationIds },
+          userId: authUser.userId, // Ensure user owns these notifications
+        },
+        data: {
+          read: true,
+        },
+      });
+
+      logger.info('Notifications marked as read', { userId: authUser.userId, count: notificationIds.length }, 'PATCH /api/notifications');
+      return;
+    }
+  });
+
   if (markAllAsRead) {
-    // Mark all notifications as read
-    await prisma.notification.updateMany({
-      where: {
-        userId: authUser.userId,
-        read: false,
-      },
-      data: {
-        read: true,
-      },
-    });
-
-    logger.info('All notifications marked as read', { userId: authUser.userId }, 'PATCH /api/notifications');
-
     return successResponse({ success: true, message: 'All notifications marked as read' });
   }
 
   if (notificationIds && notificationIds.length > 0) {
-    // Mark specific notifications as read
-    await prisma.notification.updateMany({
-      where: {
-        id: { in: notificationIds },
-        userId: authUser.userId, // Ensure user owns these notifications
-      },
-      data: {
-        read: true,
-      },
-    });
-
-    logger.info('Notifications marked as read', { userId: authUser.userId, count: notificationIds.length }, 'PATCH /api/notifications');
-
     return successResponse({ success: true, message: 'Notifications marked as read' });
   }
 

@@ -15,6 +15,8 @@ import { notifyProfileComplete } from '@/lib/services/notification-service';
 import { PointsService } from '@/lib/services/points-service';
 import { UpdateUserSchema, UserIdParamSchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
+import { requireUserByIdentifier } from '@/lib/users/user-lookup';
+import { confirmOnchainProfileUpdate } from '@/lib/onboarding/onchain-service';
 
 /**
  * POST /api/users/[userId]/update-profile
@@ -28,22 +30,35 @@ export const POST = withErrorHandling(async (
   const authUser = await authenticate(request);
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { userId } = UserIdParamSchema.parse(params);
+  const targetUser = await requireUserByIdentifier(userId, { id: true });
+  const canonicalUserId = targetUser.id;
 
   // Ensure user can only update their own profile
-  if (authUser.userId !== userId) {
+  if (authUser.userId !== canonicalUserId) {
     throw new AuthorizationError('You can only update your own profile', 'profile', 'update');
   }
 
   // Parse and validate request body
   const body = await request.json();
-  const { username, displayName, bio, profileImageUrl, coverImageUrl } = UpdateUserSchema.parse(body);
+  const parsedBody = UpdateUserSchema.parse(body);
+  const {
+    username,
+    displayName,
+    bio,
+    profileImageUrl,
+    coverImageUrl,
+    showTwitterPublic,
+    showFarcasterPublic,
+    showWalletPublic,
+    onchainTxHash,
+  } = parsedBody;
 
   // Check if username is already taken (if provided and different)
   if (username !== undefined && username !== null && username.trim().length > 0) {
     const existingUser = await prisma.user.findFirst({
       where: {
         username: username.trim(),
-        id: { not: userId },
+        id: { not: canonicalUserId },
       },
     });
 
@@ -52,121 +67,194 @@ export const POST = withErrorHandling(async (
     }
   }
 
-    // Get current user state to check what changed
-    const currentUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        username: true,
-        bio: true,
-        profileImageUrl: true,
-        coverImageUrl: true,
-        hasUsername: true,
-        hasBio: true,
-        hasProfileImage: true,
-        usernameChangedAt: true,
-        pointsAwardedForProfile: true,
-      },
-    });
+  const currentUser = await prisma.user.findUnique({
+    where: { id: canonicalUserId },
+    select: {
+      username: true,
+      displayName: true,
+      bio: true,
+      profileImageUrl: true,
+      coverImageUrl: true,
+      hasUsername: true,
+      hasBio: true,
+      hasProfileImage: true,
+      usernameChangedAt: true,
+      pointsAwardedForProfile: true,
+      walletAddress: true,
+      onChainRegistered: true,
+      nftTokenId: true,
+    },
+  });
 
-    // Check 24-hour rate limit for username changes
-    const isUsernameChanging = username !== undefined &&
-                               username !== null &&
-                               username.trim() !== currentUser?.username;
+  if (!currentUser) {
+    throw new BusinessLogicError('User record not found for update', 'USER_NOT_FOUND');
+  }
 
-    if (isUsernameChanging && currentUser?.usernameChangedAt) {
-      const lastChangeTime = new Date(currentUser.usernameChangedAt).getTime();
-      const now = Date.now();
-      const hoursSinceChange = (now - lastChangeTime) / (1000 * 60 * 60);
-      const hoursRemaining = 24 - hoursSinceChange;
+  const normalizedUsername = username !== undefined ? username.trim() : undefined;
+  const normalizedDisplayName = displayName !== undefined ? displayName.trim() : undefined;
+  const normalizedBio = bio !== undefined ? bio.trim() : undefined;
+  const normalizedProfileImageUrl = profileImageUrl !== undefined ? profileImageUrl.trim() : undefined;
+  const normalizedCoverImageUrl = coverImageUrl !== undefined ? coverImageUrl.trim() : undefined;
 
-      if (hoursSinceChange < 24) {
-        const hours = Math.floor(hoursRemaining);
-        const minutes = Math.floor((hoursRemaining - hours) * 60);
-        throw new BusinessLogicError(
-          `You can only change your username once every 24 hours. Please wait ${hours}h ${minutes}m before changing again.`,
-          'RATE_LIMIT_USERNAME_CHANGE'
-        );
-      }
+  const isUsernameChanging =
+    normalizedUsername !== undefined &&
+    normalizedUsername !== (currentUser.username ?? '');
+
+  if (isUsernameChanging && currentUser.usernameChangedAt) {
+    const lastChangeTime = new Date(currentUser.usernameChangedAt).getTime();
+    const now = Date.now();
+    const hoursSinceChange = (now - lastChangeTime) / (1000 * 60 * 60);
+    const hoursRemaining = 24 - hoursSinceChange;
+
+    if (hoursSinceChange < 24) {
+      const hours = Math.floor(hoursRemaining);
+      const minutes = Math.floor((hoursRemaining - hours) * 60);
+      throw new BusinessLogicError(
+        `You can only change your username once every 24 hours. Please wait ${hours}h ${minutes}m before changing again.`,
+        'RATE_LIMIT_USERNAME_CHANGE'
+      );
+    }
+  }
+
+  const requiresOnchainUpdate = [
+    normalizedUsername !== undefined && normalizedUsername !== (currentUser.username ?? ''),
+    normalizedDisplayName !== undefined && normalizedDisplayName !== (currentUser.displayName ?? ''),
+    normalizedBio !== undefined && normalizedBio !== (currentUser.bio ?? ''),
+    normalizedProfileImageUrl !== undefined && normalizedProfileImageUrl !== (currentUser.profileImageUrl ?? ''),
+    normalizedCoverImageUrl !== undefined && normalizedCoverImageUrl !== (currentUser.coverImageUrl ?? ''),
+  ].some(Boolean);
+
+  let onchainMetadata: Record<string, unknown> | null = null;
+  if (requiresOnchainUpdate) {
+    if (!currentUser.walletAddress) {
+      throw new BusinessLogicError(
+        'Wallet address required to update on-chain profile',
+        'WALLET_REQUIRED'
+      );
     }
 
-    // Update user profile
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        ...(username !== undefined && { username: username.trim() || null }),
-        ...(displayName !== undefined && { displayName: displayName.trim() || null }),
-        ...(bio !== undefined && { bio: bio.trim() || null }),
-        ...(profileImageUrl !== undefined && { profileImageUrl: profileImageUrl.trim() || null }),
-        ...(coverImageUrl !== undefined && { coverImageUrl: coverImageUrl.trim() || null }),
-        // Update username changed timestamp if username is changing
-        ...(isUsernameChanging && { usernameChangedAt: new Date() }),
-        // Update profile completion flags
-        hasUsername: username !== undefined ? (username.trim().length > 0) : undefined,
-        hasBio: bio !== undefined ? (bio.trim().length > 0) : undefined,
-        hasProfileImage: profileImageUrl !== undefined ? (profileImageUrl.trim().length > 0) : undefined,
-        // Mark profile as complete if all fields are present
-        profileComplete: username !== undefined && displayName !== undefined && bio !== undefined && profileImageUrl !== undefined
-          ? (username.trim().length > 0 && displayName.trim().length > 0 && bio.trim().length > 0 && profileImageUrl.trim().length > 0)
+    if (!currentUser.onChainRegistered || !currentUser.nftTokenId) {
+      throw new BusinessLogicError(
+        'Complete on-chain registration before updating your profile',
+        'ONCHAIN_UPDATE_UNAVAILABLE'
+      );
+    }
+
+    if (!onchainTxHash) {
+      throw new BusinessLogicError(
+        'onchainTxHash is required when updating profile information',
+        'ONCHAIN_TX_REQUIRED'
+      );
+    }
+
+    const onchainResult = await confirmOnchainProfileUpdate({
+      userId: canonicalUserId,
+      walletAddress: currentUser.walletAddress,
+      txHash: onchainTxHash as `0x${string}`,
+    });
+
+    onchainMetadata = onchainResult.metadata;
+
+    logger.info(
+      'Confirmed on-chain profile update transaction',
+      { userId: canonicalUserId, txHash: onchainTxHash, tokenId: onchainResult.tokenId },
+      'POST /api/users/[userId]/update-profile'
+    );
+  }
+
+  const updatedUser = await prisma.user.update({
+    where: { id: canonicalUserId },
+    data: {
+      ...(normalizedUsername !== undefined && { username: normalizedUsername || null }),
+      ...(normalizedDisplayName !== undefined && { displayName: normalizedDisplayName || null }),
+      ...(normalizedBio !== undefined && { bio: normalizedBio || null }),
+      ...(normalizedProfileImageUrl !== undefined && { profileImageUrl: normalizedProfileImageUrl || null }),
+      ...(normalizedCoverImageUrl !== undefined && { coverImageUrl: normalizedCoverImageUrl || null }),
+      ...(showTwitterPublic !== undefined && { showTwitterPublic }),
+      ...(showFarcasterPublic !== undefined && { showFarcasterPublic }),
+      ...(showWalletPublic !== undefined && { showWalletPublic }),
+      ...(isUsernameChanging && { usernameChangedAt: new Date() }),
+      hasUsername: normalizedUsername !== undefined ? normalizedUsername.length > 0 : undefined,
+      hasBio: normalizedBio !== undefined ? normalizedBio.length > 0 : undefined,
+      hasProfileImage: normalizedProfileImageUrl !== undefined ? normalizedProfileImageUrl.length > 0 : undefined,
+      profileComplete:
+        normalizedUsername !== undefined &&
+        normalizedDisplayName !== undefined &&
+        normalizedBio !== undefined &&
+        normalizedProfileImageUrl !== undefined
+          ? normalizedUsername.length > 0 &&
+            normalizedDisplayName.length > 0 &&
+            normalizedBio.length > 0 &&
+            normalizedProfileImageUrl.length > 0
           : undefined,
-      },
-      select: {
-        id: true,
-        username: true,
-        displayName: true,
-        bio: true,
-        profileImageUrl: true,
-        coverImageUrl: true,
-        profileComplete: true,
-        hasUsername: true,
-        hasBio: true,
-        hasProfileImage: true,
-        reputationPoints: true,
-        referralCount: true,
-        referralCode: true,
-        usernameChangedAt: true,
-      },
-    });
+    },
+    select: {
+      id: true,
+      username: true,
+      displayName: true,
+      bio: true,
+      profileImageUrl: true,
+      coverImageUrl: true,
+      profileComplete: true,
+      hasUsername: true,
+      hasBio: true,
+      hasProfileImage: true,
+      reputationPoints: true,
+      referralCount: true,
+      referralCode: true,
+      usernameChangedAt: true,
+      onChainRegistered: true,
+      nftTokenId: true,
+    },
+  });
 
-    // Award points for profile milestones
-    const pointsAwarded: { reason: string; amount: number }[] = []
+  // Award points for profile milestones
+  const pointsAwarded: { reason: string; amount: number }[] = [];
 
-    // Award points for profile completion (username + image + bio)
-    // Only award if not already awarded AND all three fields are now complete
-    if (!currentUser?.pointsAwardedForProfile) {
-      const hasUsername = updatedUser.username && updatedUser.username.trim().length > 0
-      const hasImage = updatedUser.profileImageUrl && updatedUser.profileImageUrl.trim().length > 0
-      const hasBio = updatedUser.bio && updatedUser.bio.trim().length >= 50
-      
-      if (hasUsername && hasImage && hasBio) {
-        const result = await PointsService.awardProfileCompletion(userId)
-        if (result.success && result.pointsAwarded > 0) {
-          pointsAwarded.push({ reason: 'profile_completion', amount: result.pointsAwarded })
-          logger.info(
-            `Awarded ${result.pointsAwarded} points to user ${userId} for completing profile (username + image + bio)`,
-            { userId, points: result.pointsAwarded },
-            'POST /api/users/[userId]/update-profile'
-          )
-          
-          await notifyProfileComplete(userId, result.pointsAwarded)
-          logger.info('Profile completion notification sent', { userId }, 'POST /api/users/[userId]/update-profile')
-        }
+  if (!currentUser.pointsAwardedForProfile) {
+    const hasUsername = updatedUser.username && updatedUser.username.trim().length > 0;
+    const hasImage = updatedUser.profileImageUrl && updatedUser.profileImageUrl.trim().length > 0;
+    const hasBio = updatedUser.bio && updatedUser.bio.trim().length >= 50;
+
+    if (hasUsername && hasImage && hasBio) {
+      const result = await PointsService.awardProfileCompletion(canonicalUserId);
+      if (result.success && result.pointsAwarded > 0) {
+        pointsAwarded.push({ reason: 'profile_completion', amount: result.pointsAwarded });
+        logger.info(
+          `Awarded ${result.pointsAwarded} points to user ${canonicalUserId} for completing profile (username + image + bio)`,
+          { userId: canonicalUserId, points: result.pointsAwarded },
+          'POST /api/users/[userId]/update-profile'
+        );
+
+        await notifyProfileComplete(canonicalUserId, result.pointsAwarded);
+        logger.info('Profile completion notification sent', { userId: canonicalUserId }, 'POST /api/users/[userId]/update-profile');
       }
     }
+  }
 
-    // Log points awarded
-    if (pointsAwarded.length > 0) {
-      logger.info(
-        `Awarded points for profile updates: ${pointsAwarded.map(p => `${p.reason}(+${p.amount})`).join(', ')}`,
-        { userId, pointsAwarded },
-        'POST /api/users/[userId]/update-profile'
-      )
-    }
+  if (pointsAwarded.length > 0) {
+    logger.info(
+      `Awarded points for profile updates: ${pointsAwarded.map((p) => `${p.reason}(+${p.amount})`).join(', ')}`,
+      { userId: canonicalUserId, pointsAwarded },
+      'POST /api/users/[userId]/update-profile'
+    );
+  }
 
-    logger.info('Profile updated successfully', { userId, pointsAwarded: pointsAwarded.length }, 'POST /api/users/[userId]/update-profile');
+  logger.info(
+    'Profile updated successfully',
+    { userId: canonicalUserId, pointsAwarded: pointsAwarded.length, onchainConfirmed: requiresOnchainUpdate },
+    'POST /api/users/[userId]/update-profile'
+  );
 
-    return successResponse({
-      user: updatedUser,
-      message: 'Profile updated successfully',
-      pointsAwarded,
-    });
+  return successResponse({
+    user: updatedUser,
+    message: 'Profile updated successfully',
+    pointsAwarded,
+    onchain: requiresOnchainUpdate
+      ? {
+          txHash: onchainTxHash,
+          metadata: onchainMetadata,
+        }
+      : null,
+  });
 });

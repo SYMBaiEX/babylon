@@ -9,19 +9,30 @@ import { ArrowLeft, Bell, Palette, Save, Shield, User } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { encodeFunctionData, parseAbi, type EIP1193Provider } from 'viem'
+import { baseSepolia } from 'viem/chains'
+import { IDENTITY_REGISTRY_ABI } from '@/lib/web3/abis'
+import { logger } from '@/lib/logger'
+
+
+const CAPABILITIES_HASH =
+  '0x0000000000000000000000000000000000000000000000000000000000000001' as const
+const identityRegistryAbi = parseAbi(IDENTITY_REGISTRY_ABI)
+const BASE_SEPOLIA_CHAIN_ID = baseSepolia.id
 
 export default function SettingsPage() {
   const router = useRouter()
-  const { ready, authenticated } = useAuth()
+  const { ready, authenticated, wallet, refresh } = useAuth()
   const { user, setUser } = useAuthStore()
   const [activeTab, setActiveTab] = useState('profile')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   // Profile settings state
   const [displayName, setDisplayName] = useState(user?.displayName || '')
   const [username, setUsername] = useState(user?.username || '')
-  const [bio, setBio] = useState('')
+  const [bio, setBio] = useState(user?.bio || '')
 
   // Notification settings state
   const [emailNotifications, setEmailNotifications] = useState(true)
@@ -60,59 +71,139 @@ export default function SettingsPage() {
 
   const usernameChangeLimit = getUsernameChangeTimeRemaining()
 
-  // Sync username when user changes
+  // Sync profile fields when user data changes
   useEffect(() => {
-    if (user?.username) {
-      setUsername(user.username)
-    }
-  }, [user?.username])
+    setDisplayName(user?.displayName ?? '')
+    setUsername(user?.username ?? '')
+    setBio(user?.bio ?? '')
+  }, [user?.displayName, user?.username, user?.bio])
 
   const handleSave = async () => {
     if (!user?.id) return
-    
+    if (user.onChainRegistered !== true) {
+      setErrorMessage('Complétez votre enregistrement on-chain avant de modifier votre profil.')
+      return
+    }
+
     setSaving(true)
     setSaved(false)
-    
-    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    }
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
+    setErrorMessage(null)
 
-    const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/update-profile`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        displayName,
-        username,
-        bio,
-      }),
-    })
+    try {
+      if (!wallet?.address) {
+        throw new Error('Connectez votre wallet pour mettre à jour votre profil.')
+      }
 
-    if (!response.ok) {
-      const data = await response.json()
-      throw new Error(data.error || 'Failed to save settings')
-    }
+      const registryAddress = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA
+      if (!registryAddress) {
+        throw new Error("L'adresse du contrat d'identité n'est pas configurée.")
+      }
 
-    const data = await response.json()
-    
-    // Update user in store
-    if (data.user && user) {
-      setUser({
-        ...user,
-        username: data.user.username,
-        displayName: data.user.displayName,
-        bio: data.user.bio,
-        usernameChangedAt: data.user.usernameChangedAt,
-        referralCode: data.user.referralCode, // Update referral code if username changed
+      const provider = (await wallet.getEthereumProvider()) as EIP1193Provider
+      if (wallet.chainId !== `eip155:${BASE_SEPOLIA_CHAIN_ID}`) {
+        await wallet.switchChain(BASE_SEPOLIA_CHAIN_ID)
+      }
+
+      await provider.request({ method: 'eth_requestAccounts' })
+
+      const trimmedDisplayName = (displayName ?? '').trim()
+      const trimmedUsername = (username ?? '').trim()
+      const trimmedBio = (bio ?? '').trim()
+
+      const endpoint = `https://babylon.game/agent/${wallet.address.toLowerCase()}`
+      const metadata = JSON.stringify({
+        name: trimmedDisplayName || trimmedUsername || user.displayName || user.username || 'Babylon User',
+        username: trimmedUsername || null,
+        bio: trimmedBio || null,
+        profileImageUrl: user.profileImageUrl ?? null,
+        coverImageUrl: user.coverImageUrl ?? null,
+        type: 'user',
+        updated: new Date().toISOString(),
       })
-    }
 
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
-    setSaving(false)
+      const data = encodeFunctionData({
+        abi: identityRegistryAbi,
+        functionName: 'updateAgent',
+        args: [endpoint, CAPABILITIES_HASH, metadata],
+      })
+
+      let txHash: unknown
+      try {
+        const txRequest = {
+          from: wallet.address as `0x${string}`,
+          to: registryAddress as `0x${string}`,
+          data,
+          value: '0x0' as `0x${string}`,
+        }
+        txHash = await provider.request({
+          method: 'eth_sendTransaction',
+          params: [txRequest],
+        } as {
+          method: 'eth_sendTransaction'
+          params: [typeof txRequest]
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message.toLowerCase() : ''
+        if (message.includes('user rejected')) {
+          throw new Error('Transaction annulée dans votre wallet.')
+        }
+        if (message.includes('insufficient funds')) {
+          throw new Error('Fonds insuffisants pour couvrir le gas sur Base Sepolia.')
+        }
+        throw error instanceof Error ? error : new Error('Échec de la soumission de la transaction on-chain.')
+      }
+
+      if (typeof txHash !== 'string') {
+        throw new Error('Réponse inattendue du wallet lors de la soumission de la transaction.')
+      }
+
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
+      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/update-profile`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          displayName: trimmedDisplayName,
+          username: trimmedUsername,
+          bio: trimmedBio,
+          onchainTxHash: txHash,
+        }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        const message = payload?.error || 'Impossible de sauvegarder vos modifications.'
+        throw new Error(message)
+      }
+
+      if (payload.user) {
+        setUser({
+          ...user,
+          username: payload.user.username,
+          displayName: payload.user.displayName,
+          bio: payload.user.bio,
+          usernameChangedAt: payload.user.usernameChangedAt,
+          referralCode: payload.user.referralCode,
+          onChainRegistered: payload.user.onChainRegistered ?? user.onChainRegistered,
+        })
+      }
+
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+      await refresh().catch(() => undefined)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Une erreur est survenue lors de la mise à jour du profil.'
+      setErrorMessage(message)
+      logger.error('Failed to save profile settings', { error }, 'SettingsPage')
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (!ready) {
@@ -393,9 +484,17 @@ export default function SettingsPage() {
           {/* Save Button - Only show for profile tab (theme saves automatically) */}
           {activeTab === 'profile' && (
             <div className="pt-6 border-t border-border">
+              {errorMessage && (
+                <p className="mb-4 text-sm text-red-500">{errorMessage}</p>
+              )}
+              {user?.onChainRegistered !== true && !errorMessage && (
+                <p className="mb-4 text-sm text-yellow-500">
+                  Complétez d’abord votre enregistrement on-chain pour pouvoir modifier votre profil.
+                </p>
+              )}
               <button
                 onClick={handleSave}
-                disabled={saving}
+                disabled={saving || user?.onChainRegistered !== true}
                 className={cn(
                   'flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all',
                   'bg-[#1c9cf0] text-white hover:bg-[#1a8cd8]',

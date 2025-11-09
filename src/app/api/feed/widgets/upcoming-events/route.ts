@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server'
-import { prisma } from '@/lib/database-service'
+import { optionalAuth } from '@/lib/api/auth-middleware'
+import { asUser } from '@/lib/db/context'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { UpcomingEventsQuerySchema } from '@/lib/validation/schemas'
 import { logger } from '@/lib/logger'
@@ -28,10 +29,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     timeframe: searchParams.get('timeframe') || '7d'
   }
   UpcomingEventsQuerySchema.parse(queryParams)
-  const events: UpcomingEvent[] = []
+  
+  // Optional auth - upcoming events are public but RLS still applies
+  const authUser = await optionalAuth(request).catch(() => null)
+
+  // Get upcoming events with RLS
+  const events: UpcomingEvent[] = await asUser(authUser, async (db) => {
+    const eventsList: UpcomingEvent[] = []
 
     // 1. Get active questions that will resolve soon (within configured days)
-    const activeQuestions = await prisma.question.findMany({
+    const activeQuestions = await db.question.findMany({
       where: {
         status: 'active',
         resolutionDate: {
@@ -99,7 +106,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         }
       }
 
-          events.push({
+          eventsList.push({
             id: question.id,
             title,
             date: eventDate,
@@ -114,7 +121,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
     // 2. Get upcoming world events - dynamically determine event types from database
     // First, get all unique event types that could be upcoming events
-    const uniqueEventTypes = await prisma.worldEvent.findMany({
+    const uniqueEventTypes = await db.worldEvent.findMany({
       select: { eventType: true },
       distinct: ['eventType'],
       where: {
@@ -144,7 +151,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         ))
       : []
     
-    const upcomingWorldEvents = await prisma.worldEvent.findMany({
+    const upcomingWorldEvents = await db.worldEvent.findMany({
       where: {
         timestamp: {
           gte: new Date(), // Future events only
@@ -189,7 +196,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       else if (eventTypeLower.includes('summit')) title = 'Industry Summit'
       else if (eventTypeLower.includes('conference')) title = 'Tech Conference'
 
-      events.push({
+      eventsList.push({
         id: event.id,
         title,
         date: dateStr,
@@ -204,19 +211,22 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       })
     }
 
-  // Sort by date/time and take top N
-  const sortedEvents = events
-    .sort((a, b) => {
-      const dateA = new Date(`${a.date} ${a.time || ''}`).getTime()
-      const dateB = new Date(`${b.date} ${b.time || ''}`).getTime()
-      return dateA - dateB
-    })
-    .slice(0, FEED_WIDGET_CONFIG.MAX_UPCOMING_EVENTS)
+    // Sort by date/time and take top N
+    const sortedEvents = eventsList
+      .sort((a, b) => {
+        const dateA = new Date(`${a.date} ${a.time || ''}`).getTime()
+        const dateB = new Date(`${b.date} ${b.time || ''}`).getTime()
+        return dateA - dateB
+      })
+      .slice(0, FEED_WIDGET_CONFIG.MAX_UPCOMING_EVENTS)
 
-  logger.info('Upcoming events fetched successfully', { count: sortedEvents.length }, 'GET /api/feed/widgets/upcoming-events')
+    return sortedEvents
+  })
+
+  logger.info('Upcoming events fetched successfully', { count: events.length }, 'GET /api/feed/widgets/upcoming-events')
 
   return successResponse({
     success: true,
-    events: sortedEvents,
+    events: events,
   })
 })

@@ -11,6 +11,7 @@ import { BusinessLogicError, AuthorizationError } from '@/lib/errors';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
 import { WalletService } from '@/lib/services/wallet-service';
 import { logger } from '@/lib/logger';
+import { findUserByIdentifier } from '@/lib/users/user-lookup';
 /**
  * GET /api/users/[userId]/balance
  * Get user's virtual balance and stats
@@ -25,30 +26,30 @@ export const GET = withErrorHandling(async (
   // Optional authentication - check if user is requesting their own balance
   const authUser = await optionalAuth(request);
 
-  // If authenticated, ensure they're requesting their own balance
-  if (authUser && authUser.userId !== userId) {
-    throw new AuthorizationError('Can only view your own balance', 'balance', 'read');
-  }
-
   // Ensure user exists in database
-  let dbUser = await prisma.user.findUnique({
-    where: { id: userId },
-  });
+  let dbUser = await findUserByIdentifier(userId);
 
   if (!dbUser) {
-    // Create user if they don't exist yet
     dbUser = await prisma.user.create({
       data: {
         id: userId,
+        privyId: userId,
         isActor: false,
       },
     });
   }
 
-  // Get balance info
-  const balanceInfo = await WalletService.getBalance(userId);
+  const canonicalUserId = dbUser!.id;
 
-  logger.info('Balance fetched successfully', { userId, balance: balanceInfo.balance }, 'GET /api/users/[userId]/balance');
+  // If authenticated, ensure they're requesting their own balance
+  if (authUser && authUser.userId !== canonicalUserId) {
+    throw new AuthorizationError('Can only view your own balance', 'balance', 'read');
+  }
+
+  // Get balance info
+  const balanceInfo = await WalletService.getBalance(canonicalUserId);
+
+  logger.info('Balance fetched successfully', { userId: canonicalUserId, balance: balanceInfo.balance }, 'GET /api/users/[userId]/balance');
 
   return successResponse({
     balance: balanceInfo.balance,

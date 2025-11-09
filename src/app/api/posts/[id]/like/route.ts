@@ -12,6 +12,7 @@ import { IdParamSchema } from '@/lib/validation/schemas';
 import { notifyReactionOnPost } from '@/lib/services/notification-service';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
+import { ensureUserForAuth } from '@/lib/users/ensure-user';
 
 /**
  * POST /api/posts/[id]/like
@@ -26,19 +27,12 @@ export const POST = withErrorHandling(async (
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { id: postId } = IdParamSchema.parse(params);
 
-    // Ensure user exists in database (upsert pattern)
-    await prisma.user.upsert({
-      where: { id: user.userId },
-      update: {
-        walletAddress: user.walletAddress,
-      },
-      create: {
-        id: user.userId,
-        walletAddress: user.walletAddress,
-        displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-        isActor: false,
-      },
-    });
+    const displayName = user.walletAddress
+      ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+      : 'Anonymous';
+
+    const { user: dbUser } = await ensureUserForAuth(user, { displayName });
+    const canonicalUserId = dbUser.id;
 
     // Check if post exists first
     let post = await prisma.post.findUnique({
@@ -66,7 +60,7 @@ export const POST = withErrorHandling(async (
       where: {
         postId_userId_type: {
           postId,
-          userId: user.userId,
+          userId: canonicalUserId,
           type: 'like',
         },
       },
@@ -80,16 +74,16 @@ export const POST = withErrorHandling(async (
     await prisma.reaction.create({
       data: {
         postId,
-        userId: user.userId,
+        userId: canonicalUserId,
         type: 'like',
       },
     });
 
     // Create notification for post author (if not self-like)
-    if (post.authorId && post.authorId !== user.userId && post.authorId !== 'unknown') {
+    if (post.authorId && post.authorId !== canonicalUserId && post.authorId !== 'unknown') {
       await notifyReactionOnPost(
         post.authorId,
-        user.userId,
+        canonicalUserId,
         postId,
         'like'
       );
@@ -103,7 +97,7 @@ export const POST = withErrorHandling(async (
       },
     });
 
-  logger.info('Post liked successfully', { postId, userId: user.userId, likeCount }, 'POST /api/posts/[id]/like');
+  logger.info('Post liked successfully', { postId, userId: canonicalUserId, likeCount }, 'POST /api/posts/[id]/like');
 
   return successResponse({
     data: {
@@ -131,32 +125,26 @@ export const DELETE = withErrorHandling(async (
   }
 
     // Ensure user exists in database (upsert pattern)
-    await prisma.user.upsert({
-      where: { id: user.userId },
-      update: {
-        walletAddress: user.walletAddress,
-      },
-      create: {
-        id: user.userId,
-        walletAddress: user.walletAddress,
-        displayName: user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'Anonymous',
-        isActor: false,
-      },
-    });
+  const displayName = user.walletAddress
+    ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+    : 'Anonymous';
+
+  const { user: dbUser } = await ensureUserForAuth(user, { displayName });
+  const canonicalUserId = dbUser.id;
 
     // Find existing like
     const reaction = await prisma.reaction.findUnique({
       where: {
         postId_userId_type: {
           postId,
-          userId: user.userId,
+          userId: canonicalUserId,
           type: 'like',
         },
       },
     });
 
     if (!reaction) {
-      throw new NotFoundError('Like', `${postId}-${user.userId}`);
+      throw new NotFoundError('Like', `${postId}-${canonicalUserId}`);
     }
 
     // Delete like
@@ -174,7 +162,7 @@ export const DELETE = withErrorHandling(async (
       },
     });
 
-  logger.info('Post unliked successfully', { postId, userId: user.userId, likeCount }, 'DELETE /api/posts/[id]/like');
+  logger.info('Post unliked successfully', { postId, userId: canonicalUserId, likeCount }, 'DELETE /api/posts/[id]/like');
 
   return successResponse({
     data: {

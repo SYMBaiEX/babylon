@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { Prisma } from '@prisma/client';
-import { prisma } from '@/lib/database-service';
+import { authenticate } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { NotFoundError, BusinessLogicError, InsufficientFundsError } from '@/lib/errors';
 import { PoolDepositBodySchema } from '@/lib/validation/schemas/pool';
@@ -20,8 +21,16 @@ export const POST = withErrorHandling(async (
   const body = await request.json();
   const { userId, amount } = PoolDepositBodySchema.parse(body);
 
-  // Use transaction to ensure atomicity
-  const result = await prisma.$transaction(async (tx) => {
+  // Authenticate user
+  const authUser = await authenticate(request);
+  if (authUser.userId !== userId) {
+    throw new BusinessLogicError('User ID mismatch', 'USER_ID_MISMATCH');
+  }
+
+  // Deposit with RLS (transaction is handled inside asUser)
+  const result = await asUser(authUser, async (db) => {
+    // Use transaction to ensure atomicity
+    return await db.$transaction(async (tx) => {
     // 1. Get pool
     const pool = await tx.pool.findUnique({
       where: { id: poolId },
@@ -150,17 +159,18 @@ export const POST = withErrorHandling(async (
       });
     }
 
-    return {
-      deposit: {
-        id: deposit.id,
-        poolId,
-        amount,
-        shares,
-        currentValue: amount,
-        depositedAt: deposit.depositedAt.toISOString(),
-      },
-      newBalance: newUserBalance,
-    };
+      return {
+        deposit: {
+          id: deposit.id,
+          poolId,
+          amount,
+          shares,
+          currentValue: amount,
+          depositedAt: deposit.depositedAt.toISOString(),
+        },
+        newBalance: newUserBalance,
+      };
+    });
   });
 
   logger.info('Pool deposit successful', {

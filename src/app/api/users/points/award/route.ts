@@ -7,12 +7,13 @@
 
 import { successResponse } from '@/lib/api/auth-middleware'
 import { prisma } from '@/lib/database-service'
-import { BusinessLogicError, NotFoundError } from '@/lib/errors'
+import { BusinessLogicError } from '@/lib/errors'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger'
 import { AwardPointsSchema, UserIdParamSchema } from '@/lib/validation/schemas'
 import { Prisma } from '@prisma/client'
 import type { NextRequest } from 'next/server'
+import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 
 /**
  * POST /api/users/points/award
@@ -24,18 +25,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const { userId, points: amount, reason, description } = AwardPointsSchema.parse(body);
 
   // Verify user exists and get current balance
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      virtualBalance: true,
-      totalDeposited: true,
-    },
+  const user = await requireUserByIdentifier(userId, {
+    id: true,
+    virtualBalance: true,
+    totalDeposited: true,
   });
-
-  if (!user) {
-    throw new NotFoundError('User', userId);
-  }
 
   // Calculate balance changes
   const balanceBefore = new Prisma.Decimal(user.virtualBalance.toString());
@@ -72,7 +66,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     },
   });
 
-  logger.info(`Successfully awarded ${amount} points`, { userId, amount, reason }, 'POST /api/users/points/award');
+  logger.info(`Successfully awarded ${amount} points`, { userId: user.id, amount, reason }, 'POST /api/users/points/award');
 
   return successResponse({
     message: `Successfully awarded ${amount} points`,
@@ -106,11 +100,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   
   // Validate userId format
   const { userId } = UserIdParamSchema.parse({ userId: userIdParam });
+  const targetUser = await requireUserByIdentifier(userId, { id: true });
+  const canonicalUserId = targetUser.id;
 
   // Fetch deposit transactions (points awards)
   const transactions = await prisma.balanceTransaction.findMany({
     where: {
-      userId,
+      userId: canonicalUserId,
       type: 'deposit',
     },
     orderBy: {
@@ -126,7 +122,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     },
   });
 
-  logger.info('Points award history fetched', { userId, transactionCount: transactions.length }, 'GET /api/users/points/award');
+  logger.info('Points award history fetched', { userId: canonicalUserId, transactionCount: transactions.length }, 'GET /api/users/points/award');
 
   return successResponse({
     transactions: transactions.map(tx => ({

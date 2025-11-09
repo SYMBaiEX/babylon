@@ -8,6 +8,7 @@
 
 import { logger } from '../src/lib/logger';
 import { redis, redisClientType, isRedisAvailable, safePublish, safePoll } from '../src/lib/redis';
+import type Redis from 'ioredis';
 
 async function testRedis() {
   logger.info('Testing Redis integration...', undefined, 'Test');
@@ -98,8 +99,7 @@ async function testRedis() {
   
   // Cleanup
   if (redisClientType === 'standard') {
-    const IORedis = (await import('ioredis')).default;
-    const client = redis as InstanceType<typeof IORedis>;
+    const client = redis as Redis;
     await client.quit();
   }
   

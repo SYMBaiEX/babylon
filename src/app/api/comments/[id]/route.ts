@@ -4,8 +4,8 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
 import { authenticate } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, NotFoundError, AuthorizationError } from '@/lib/errors';
 import { IdParamSchema, UpdateCommentSchema } from '@/lib/validation/schemas';
@@ -27,42 +27,47 @@ export const PATCH = withErrorHandling(async (
   const body = await request.json();
   const { content } = UpdateCommentSchema.parse(body);
 
-  // Find comment
-  const comment = await prisma.comment.findUnique({
-    where: { id: commentId },
-  });
+  // Update comment with RLS
+  const updatedComment = await asUser(user, async (db) => {
+    // Find comment
+    const comment = await db.comment.findUnique({
+      where: { id: commentId },
+    });
 
-  if (!comment) {
-    throw new NotFoundError('Comment', commentId);
-  }
+    if (!comment) {
+      throw new NotFoundError('Comment', commentId);
+    }
 
-  // Check if user is the author
-  if (comment.authorId !== user.userId) {
-    throw new AuthorizationError('You can only edit your own comments', 'comment', 'edit');
-  }
+    // Check if user is the author
+    if (comment.authorId !== user.userId) {
+      throw new AuthorizationError('You can only edit your own comments', 'comment', 'edit');
+    }
 
-  // Update comment
-  const updatedComment = await prisma.comment.update({
-    where: { id: commentId },
-    data: {
-      content: content.trim(),
-    },
-    include: {
-      author: {
-        select: {
-          id: true,
-          displayName: true,
-          username: true,
-          profileImageUrl: true,
+    // Update comment
+    const updated = await db.comment.update({
+      where: { id: commentId },
+      data: {
+        content: content.trim(),
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            displayName: true,
+            username: true,
+            profileImageUrl: true,
+          },
+        },
+        _count: {
+          select: {
+            reactions: true,
+            replies: true,
+          },
         },
       },
-      _count: {
-        select: {
-          reactions: true,
-          replies: true,
-        },
-      },
-    },
+    });
+
+    return updated;
   });
 
   logger.info('Comment updated successfully', { commentId, userId: user.userId }, 'PATCH /api/comments/[id]');
@@ -94,37 +99,44 @@ export const DELETE = withErrorHandling(async (
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { id: commentId } = IdParamSchema.parse(params);
 
-  // Find comment
-  const comment = await prisma.comment.findUnique({
-    where: { id: commentId },
-    include: {
-      _count: {
-        select: {
-          replies: true,
+  // Delete comment with RLS
+  const deletedRepliesCount = await asUser(user, async (db) => {
+    // Find comment
+    const comment = await db.comment.findUnique({
+      where: { id: commentId },
+      include: {
+        _count: {
+          select: {
+            replies: true,
+          },
         },
       },
-    },
+    });
+
+    if (!comment) {
+      throw new NotFoundError('Comment', commentId);
+    }
+
+    // Check if user is the author
+    if (comment.authorId !== user.userId) {
+      throw new AuthorizationError('You can only delete your own comments', 'comment', 'delete');
+    }
+
+    const repliesCount = comment._count.replies;
+
+    // Delete comment (cascade will delete reactions and replies)
+    await db.comment.delete({
+      where: { id: commentId },
+    });
+
+    return repliesCount;
   });
 
-  if (!comment) {
-    throw new NotFoundError('Comment', commentId);
-  }
-
-  // Check if user is the author
-  if (comment.authorId !== user.userId) {
-    throw new AuthorizationError('You can only delete your own comments', 'comment', 'delete');
-  }
-
-  // Delete comment (cascade will delete reactions and replies)
-  await prisma.comment.delete({
-    where: { id: commentId },
-  });
-
-  logger.info('Comment deleted successfully', { commentId, userId: user.userId, deletedRepliesCount: comment._count.replies }, 'DELETE /api/comments/[id]');
+  logger.info('Comment deleted successfully', { commentId, userId: user.userId, deletedRepliesCount }, 'DELETE /api/comments/[id]');
 
   return successResponse({
     message: 'Comment deleted successfully',
     deletedCommentId: commentId,
-    deletedRepliesCount: comment._count.replies,
+    deletedRepliesCount,
   });
 });

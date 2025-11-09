@@ -4,8 +4,8 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
 import { authenticate } from '@/lib/api/auth-middleware';
+import { asUser, asSystem } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { ChatQuerySchema, ChatCreateSchema } from '@/lib/validation/schemas';
@@ -35,25 +35,27 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   if (getAllChats) {
     // Return all game chats (no auth required for read-only game data)
-    const gameChats = await prisma.chat.findMany({
-      where: {
-        isGroup: true,
-        gameId: 'continuous',
-      },
-      include: {
-        messages: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
+    const gameChats = await asSystem(async (db) => {
+      return await db.chat.findMany({
+        where: {
+          isGroup: true,
+          gameId: 'continuous',
         },
-        _count: {
-          select: {
-            messages: true,
+        include: {
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+          _count: {
+            select: {
+              messages: true,
+            },
           },
         },
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
+        orderBy: {
+          createdAt: 'asc',
+        },
+      });
     });
 
     logger.info('All game chats fetched', { count: gameChats.length }, 'GET /api/chats');
@@ -71,8 +73,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const user = await authenticate(request);
 
+  // Get user's chats with RLS
+  const { groupChats, directChats } = await asUser(user, async (db) => {
     // Get user's group chat memberships
-    const memberships = await prisma.groupChatMembership.findMany({
+    const memberships = await db.groupChatMembership.findMany({
       where: {
         userId: user.userId,
         isActive: true,
@@ -84,7 +88,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
     // Get chat details for group chats
     const groupChatIds = memberships.map((m) => m.chatId);
-    const groupChatDetails = await prisma.chat.findMany({
+    const groupChatDetails = await db.chat.findMany({
       where: {
         id: { in: groupChatIds },
       },
@@ -99,14 +103,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const chatDetailsMap = new Map(groupChatDetails.map((c) => [c.id, c]));
 
     // Get DM chats the user participates in
-    const dmParticipants = await prisma.chatParticipant.findMany({
+    const dmParticipants = await db.chatParticipant.findMany({
       where: {
         userId: user.userId,
       },
     });
 
     const dmChatIds = dmParticipants.map((p) => p.chatId);
-    const dmChatsDetails = await prisma.chat.findMany({
+    const dmChatsDetails = await db.chat.findMany({
       where: {
         id: { in: dmChatIds },
         isGroup: false,
@@ -147,7 +151,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         
         if (otherParticipant) {
           // Try to get user details
-          const otherUser = await prisma.user.findUnique({
+          const otherUser = await db.user.findUnique({
             where: { id: otherParticipant.userId },
             select: { displayName: true, username: true },
           });
@@ -156,7 +160,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             chatName = otherUser.displayName || otherUser.username || 'Unknown';
           } else {
             // Check if it's an actor
-            const actor = await prisma.actor.findUnique({
+            const actor = await db.actor.findUnique({
               where: { id: otherParticipant.userId },
               select: { name: true },
             });
@@ -176,6 +180,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         };
       })
     );
+
+    return { groupChats, directChats };
+  });
 
   logger.info('User chats fetched successfully', { userId: user.userId, groupChats: groupChats.length, directChats: directChats.length }, 'GET /api/chats');
 
@@ -197,8 +204,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const body = await request.json();
   const { name, isGroup, participantIds } = ChatCreateSchema.parse(body);
 
+  // Create the chat with RLS
+  const chat = await asUser(user, async (db) => {
     // Create the chat
-    const chat = await prisma.chat.create({
+    const newChat = await db.chat.create({
       data: {
         name: name || null,
         isGroup: isGroup || false,
@@ -206,26 +215,29 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     });
 
     // Add creator as participant
-    await prisma.chatParticipant.create({
+    await db.chatParticipant.create({
       data: {
-        chatId: chat.id,
+        chatId: newChat.id,
         userId: user.userId,
       },
     });
 
-  // Add other participants if provided
-  if (participantIds && Array.isArray(participantIds)) {
-    await Promise.all(
-      participantIds.map((participantId: string) =>
-        prisma.chatParticipant.create({
-          data: {
-            chatId: chat.id,
-            userId: participantId,
-          },
-        })
-      )
-    );
-  }
+    // Add other participants if provided
+    if (participantIds && Array.isArray(participantIds)) {
+      await Promise.all(
+        participantIds.map((participantId: string) =>
+          db.chatParticipant.create({
+            data: {
+              chatId: newChat.id,
+              userId: participantId,
+            },
+          })
+        )
+      );
+    }
+
+    return newChat;
+  });
 
   logger.info('Chat created successfully', { chatId: chat.id, userId: user.userId, isGroup, participantCount: (participantIds?.length || 0) + 1 }, 'POST /api/chats');
 

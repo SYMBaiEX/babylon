@@ -14,10 +14,11 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { AuthorizationError, InternalServerError } from '@/lib/errors'
 import { AgentOnboardSchema } from '@/lib/validation/schemas/agent'
 import { authenticate } from '@/lib/api/auth-middleware'
-import { prisma } from '@/lib/database-service'
+import { asUser } from '@/lib/db/context'
 import { logger } from '@/lib/logger'
 import { Agent0Client } from '@/agents/agent0/Agent0Client'
 import type { AgentCapabilities } from '@/a2a/types'
+import { syncAfterAgent0Registration } from '@/lib/reputation/agent0-reputation-sync'
 
 // Contract addresses
 const IDENTITY_REGISTRY = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA as Address
@@ -107,9 +108,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const body = await request.json()
   const { agentName, endpoint } = AgentOnboardSchema.parse(body)
 
-    // Check if agent exists in database (use upsert to avoid race conditions)
+    // Check if agent exists in database (use upsert to avoid race conditions) with RLS
     // Note: Agents don't have wallet addresses - they're registered via server wallet
-    const dbUser = await prisma.user.upsert({
+    const dbUser = await asUser(user, async (db) => {
+      return await db.user.upsert({
       where: {
         username: agentId, // Use username as unique identifier for agents
       },
@@ -119,6 +121,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         bio: `Autonomous AI agent: ${agentId}`,
       },
       create: {
+        privyId: agentId,
         username: agentId,
         displayName: agentName || agentId,
         virtualBalance: 10000, // Start with 10k points
@@ -134,6 +137,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         nftTokenId: true,
         registrationTxHash: true,
       },
+    })
     })
 
     // Create clients
@@ -242,8 +246,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     logger.info('All win transactions confirmed', { count: 7 }, 'AgentOnboard')
     logger.info('Initial reputation set to 70 for agent (7 wins out of 10 bets)', { tokenId }, 'AgentOnboard')
 
-    // Update database with ERC-8004 registration
-    await prisma.user.update({
+    // Update database with ERC-8004 registration with RLS
+    await asUser(user, async (db) => {
+      return await db.user.update({
       where: { id: dbUser.id },
       data: {
         onChainRegistered: true,
@@ -253,36 +258,134 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         displayName: name,
       },
     })
+    })
 
-    const agentWalletAddress = account.address
-    
-    const agent0Client = new Agent0Client({
-      network: (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia',
-      rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_RPC_URL || '',
-      privateKey: DEPLOYER_PRIVATE_KEY
-    })
-    
-    const agent0Result = await agent0Client.registerAgent({
-      name: name,
-      description: dbUser.bio || `Autonomous AI agent: ${agentId}`,
-      walletAddress: agentWalletAddress,
-      mcpEndpoint: undefined,
-      a2aEndpoint: endpoint || `wss://babylon.game/ws/a2a`,
-      capabilities: {
-        strategies: ['momentum', 'sentiment', 'volume'],
-        markets: ['prediction', 'perpetuals'],
-        actions: ['analyze', 'trade', 'coordinate'],
-        version: '1.0.0'
-      } as AgentCapabilities
-    })
-    
-    const agent0MetadataCID = agent0Result.metadataCID
-    
-    logger.info(`Agent registered with Agent0 SDK`, { 
-      agentId, 
-      tokenId: agent0Result.tokenId,
-      metadataCID: agent0MetadataCID
-    }, 'AgentOnboard')
+    // Register with Agent0 SDK and publish to IPFS (if enabled)
+    let agent0MetadataCID: string | null = null
+    if (process.env.AGENT0_ENABLED === 'true') {
+      logger.info('Registering agent with Agent0 SDK...', { agentId, tokenId }, 'AgentOnboard')
+
+      // Get agent wallet address (if available) or use server wallet
+      const agentWalletAddress = account.address
+
+      // Create agent metadata (Agent0 SDK will publish to IPFS)
+      const agentMetadata = {
+        name: name,
+        description: dbUser.bio || `Autonomous AI agent: ${agentId}`,
+        version: '1.0.0',
+        type: 'agent',
+        endpoints: {
+          a2a: endpoint || `wss://babylon.game/ws/a2a`,
+          api: `https://babylon.game/api/agents/${agentId}`,
+        },
+        capabilities: {
+          strategies: ['momentum', 'sentiment', 'volume', 'arbitrage', 'market_making'], // AI strategies
+          markets: ['prediction', 'perpetuals', 'pools'],
+          actions: [
+            // AI Analysis
+            'analyze',
+            'predict',
+            'backtest',
+            'optimize',
+            // Trading
+            'trade',
+            'buy_prediction',
+            'sell_prediction',
+            'open_perp_position',
+            'close_perp_position',
+            'get_positions',
+            'get_balance',
+            // Liquidity Provision
+            'deposit_pool',
+            'withdraw_pool',
+            'manage_liquidity',
+            'get_pools',
+            'get_pool_deposits',
+            // Social & Coordination
+            'post',
+            'reply',
+            'share',
+            'comment',
+            'follow',
+            'coordinate',
+            'form_coalition',
+            'share_analysis',
+            'chat',
+            // Discovery
+            'discover_agents',
+            'search_users',
+            'get_profile',
+            'query_feed',
+            // Referrals
+            'get_referral_code',
+            'get_referrals'
+          ],
+          version: '1.0.0'
+        } as AgentCapabilities,
+        babylon: {
+          agentId,
+          tokenId,
+          walletAddress: agentWalletAddress,
+          registrationTxHash: txHash
+        }
+      }
+
+      // Register with Agent0 SDK (handles IPFS publishing internally)
+      // Use Ethereum Sepolia RPC (where Agent0 contracts are deployed)
+      const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || process.env.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com'
+
+      // Configure IPFS - use Pinata if available, otherwise use public IPFS node
+      const ipfsConfig = process.env.PINATA_JWT
+        ? { ipfsProvider: 'pinata' as const, pinataJwt: process.env.PINATA_JWT }
+        : { ipfsProvider: 'node' as const, ipfsNodeUrl: process.env.IPFS_NODE_URL || 'https://ipfs.io' }
+
+      const agent0Client = new Agent0Client({
+        network: (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia',
+        rpcUrl,
+        privateKey: DEPLOYER_PRIVATE_KEY,
+        ...ipfsConfig
+      })
+
+      const agent0Result = await agent0Client.registerAgent({
+        name: name,
+        description: dbUser.bio || `Autonomous AI agent: ${agentId}`,
+        walletAddress: agentWalletAddress,
+        mcpEndpoint: undefined, // Agents don't expose MCP by default
+        a2aEndpoint: endpoint || `wss://babylon.game/ws/a2a`,
+        capabilities: {
+          ...agentMetadata.capabilities,
+          platform: 'babylon', // Identify as Babylon agent
+          userType: 'agent' // Agent type
+        }
+      })
+
+      // Extract metadata CID from Agent0 result
+      agent0MetadataCID = agent0Result.metadataCID || null
+
+      logger.info(`✅ Agent registered with Agent0 SDK`, {
+        agentId,
+        tokenId: agent0Result.tokenId,
+        metadataCID: agent0MetadataCID
+      }, 'AgentOnboard')
+
+      // Sync on-chain reputation to local database
+      try {
+        await syncAfterAgent0Registration(dbUser.id, agent0Result.tokenId)
+        logger.info('Agent0 reputation synced successfully', {
+          userId: dbUser.id,
+          agent0TokenId: agent0Result.tokenId
+        }, 'AgentOnboard')
+      } catch (syncError) {
+        // Log error but don't fail registration
+        logger.error('Failed to sync Agent0 reputation after registration', {
+          userId: dbUser.id,
+          agent0TokenId: agent0Result.tokenId,
+          error: syncError
+        }, 'AgentOnboard')
+      }
+    } else {
+      logger.info('Agent0 integration disabled, skipping agent registration', { agentId }, 'AgentOnboard')
+    }
 
   logger.info('Agent onboarded successfully', {
     agentId,
@@ -314,13 +417,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const agentId = user.userId
 
-  const dbUser = await prisma.user.findUniqueOrThrow({
-    where: { username: agentId },
-    select: {
-      onChainRegistered: true,
-      nftTokenId: true,
-      registrationTxHash: true,
-    },
+  const dbUser = await asUser(user, async (db) => {
+    return await db.user.findUniqueOrThrow({
+      where: { username: agentId },
+      select: {
+        onChainRegistered: true,
+        nftTokenId: true,
+        registrationTxHash: true,
+      },
+    })
   })
 
   const isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null
@@ -334,4 +439,3 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     agentId,
   })
 });
-

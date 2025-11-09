@@ -1,15 +1,18 @@
 /**
  * Markets Widget API
- * 
+ *
  * GET /api/feed/widgets/markets - Get trending prediction markets for sidebar widget
  */
 
-import { db, prisma } from '@/lib/database-service'
+import type { NextRequest } from 'next/server'
+import { db } from '@/lib/database-service'
+import { optionalAuth, type AuthenticatedUser } from '@/lib/api/auth-middleware'
+import { asUser, asPublic } from '@/lib/db/context'
 import { NextResponse } from 'next/server'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const questions = await db.getActiveQuestions()
-  
+
   if (questions.length === 0) {
     return NextResponse.json({
       success: true,
@@ -17,16 +20,33 @@ export async function GET() {
     })
   }
 
+  // Optional auth - markets are public but RLS still applies
+  const authUser: AuthenticatedUser | null = await optionalAuth(request).catch(() => null)
+
   const marketIds = questions.map(q => String(q.id))
-  const markets = await prisma.market.findMany({
-    where: {
-      id: { in: marketIds },
-      resolved: false,
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-  })
+  const markets = authUser
+    ? await asUser(authUser, async (dbPrisma) => {
+      return await dbPrisma.market.findMany({
+        where: {
+          id: { in: marketIds },
+          resolved: false,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      })
+    })
+    : await asPublic(async (dbPrisma) => {
+      return await dbPrisma.market.findMany({
+        where: {
+          id: { in: marketIds },
+          resolved: false,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      })
+    })
 
   const marketMap = new Map(markets.map(m => [m.id, m]))
 
@@ -54,13 +74,13 @@ export async function GET() {
       const aTime = a.endDate ? new Date(a.endDate).getTime() : Date.now()
       const bTime = b.endDate ? new Date(b.endDate).getTime() : Date.now()
       const now = Date.now()
-      
+
       const aRecency = Math.max(0, 1 - (aTime - now) / (30 * 24 * 60 * 60 * 1000))
       const bRecency = Math.max(0, 1 - (bTime - now) / (30 * 24 * 60 * 60 * 1000))
-      
+
       const aScore = (a.volume * 0.7) + (aRecency * 1000 * 0.3)
       const bScore = (b.volume * 0.7) + (bRecency * 1000 * 0.3)
-      
+
       return bScore - aScore
     })
     .slice(0, 5)

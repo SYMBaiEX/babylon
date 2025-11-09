@@ -42,7 +42,11 @@ export const UpdateUserSchema = z.object({
   coverImageUrl: URLSchema.optional(),
   showTwitterPublic: z.boolean().optional(),
   showFarcasterPublic: z.boolean().optional(),
-  showWalletPublic: z.boolean().optional()
+  showWalletPublic: z.boolean().optional(),
+  onchainTxHash: z
+    .string()
+    .regex(/^0x[0-9a-fA-F]{64}$/, 'onchainTxHash must be a valid 32-byte hex string')
+    .optional()
 });
 
 /**
@@ -143,8 +147,15 @@ export const OnChainRegistrationSchema = z.object({
   username: z.string().min(1).max(50).optional(),
   displayName: z.string().min(1).max(100).optional(),
   bio: createTrimmedStringSchema(undefined, 500).optional(),
-  profileImageUrl: URLSchema.optional(),
-  coverImageUrl: URLSchema.optional(),
+  // Accept valid URLs or local asset paths (for preset images)
+  profileImageUrl: z.string().refine(
+    (val) => !val || val.startsWith('/assets/') || val.startsWith('http://') || val.startsWith('https://') || val.startsWith('/uploads/'),
+    { message: 'Must be a valid URL or asset path' }
+  ).optional(),
+  coverImageUrl: z.string().refine(
+    (val) => !val || val.startsWith('/assets/') || val.startsWith('http://') || val.startsWith('https://') || val.startsWith('/uploads/'),
+    { message: 'Must be a valid URL or asset path' }
+  ).optional(),
   endpoint: URLSchema.optional(),
   referralCode: z.string().optional()
 });
@@ -209,8 +220,8 @@ export const UserListResponseSchema = z.object({
  */
 export const UserPostsQuerySchema = z.object({
   type: z.enum(['posts', 'replies']).default('posts'),
-  page: z.coerce.number().positive().default(1),
-  limit: z.coerce.number().positive().max(100).default(100)
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(100).default(100)
 });
 
 /**

@@ -4,7 +4,8 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
+import { optionalAuth } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { PoolQuerySchema, PaginationSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
@@ -17,66 +18,74 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Validate query parameters
   const { searchParams } = new URL(request.url);
   const queryParams = {
-    isActive: searchParams.get('isActive'),
-    npcActorId: searchParams.get('npcActorId'),
-    minValue: searchParams.get('minValue'),
-    maxValue: searchParams.get('maxValue'),
-    sortBy: searchParams.get('sortBy'),
-    search: searchParams.get('search'),
-    page: searchParams.get('page'),
-    limit: searchParams.get('limit')
+    isActive: searchParams.get('isActive') || undefined,
+    npcActorId: searchParams.get('npcActorId') || undefined,
+    minValue: searchParams.get('minValue') || undefined,
+    maxValue: searchParams.get('maxValue') || undefined,
+    sortBy: searchParams.get('sortBy') || undefined,
+    search: searchParams.get('search') || undefined,
+    page: searchParams.get('page') || undefined,
+    limit: searchParams.get('limit') || undefined
   };
+  // Validate query parameters
   PoolQuerySchema.merge(PaginationSchema).partial().parse(queryParams);
-  const pools = await prisma.pool.findMany({
-    where: {
-      isActive: true,
-    },
-    include: {
-      npcActor: {
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          tier: true,
-          personality: true,
-        },
+  
+  // Optional auth - pools are public but RLS still applies
+  const authUser = await optionalAuth(request).catch(() => null);
+  
+  // Get pools with RLS
+  const pools = await asUser(authUser, async (db) => {
+    return await db.pool.findMany({
+      where: {
+        isActive: true,
       },
-      deposits: {
-        where: {
-          withdrawnAt: null,
-        },
-        select: {
-          amount: true,
-          currentValue: true,
-        },
-      },
-      positions: {
-        where: {
-          closedAt: null,
-        },
-        select: {
-          marketType: true,
-          ticker: true,
-          marketId: true,
-          side: true,
-          size: true,
-          unrealizedPnL: true,
-        },
-      },
-      _count: {
-        select: {
-          deposits: {
-            where: {
-              withdrawnAt: null,
-            },
+      include: {
+        npcActor: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            tier: true,
+            personality: true,
           },
-          trades: true,
+        },
+        deposits: {
+          where: {
+            withdrawnAt: null,
+          },
+          select: {
+            amount: true,
+            currentValue: true,
+          },
+        },
+        positions: {
+          where: {
+            closedAt: null,
+          },
+          select: {
+            marketType: true,
+            ticker: true,
+            marketId: true,
+            side: true,
+            size: true,
+            unrealizedPnL: true,
+          },
+        },
+        _count: {
+          select: {
+            deposits: {
+              where: {
+                withdrawnAt: null,
+              },
+            },
+            trades: true,
+          },
         },
       },
-    },
-    orderBy: [
-      { totalValue: 'desc' },
-    ],
+      orderBy: [
+        { totalValue: 'desc' },
+      ],
+    });
   });
 
   // Calculate metrics for each pool

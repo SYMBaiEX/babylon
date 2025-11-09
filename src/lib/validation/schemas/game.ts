@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { UUIDSchema, UserIdSchema } from './common';
+import { UserIdSchema } from './common';
 
 /**
  * Game tick cron authentication schema
@@ -28,9 +28,12 @@ export const ImageUploadSchema = z.object({
 
 /**
  * Upload image schema (legacy - for file objects)
+ * File/Blob objects are validated in the handler, so we use z.custom() for runtime validation
  */
 export const UploadImageSchema = z.object({
-  file: z.any(), // File/Blob object - validated in handler
+  file: z.custom<File | Blob>((val) => val instanceof File || val instanceof Blob, {
+    message: 'File must be a File or Blob object'
+  }),
   filename: z.string().optional(),
   maxSizeKB: z.number().positive().max(10240).default(5120) // 5MB default
 });
@@ -59,7 +62,7 @@ export const RegistryQuerySchema = z.object({
  * Award points schema
  */
 export const AwardPointsSchema = z.object({
-  userId: UUIDSchema,
+  userId: UserIdSchema,
   points: z.number().int().min(-1000000).max(1000000),
   reason: z.enum([
     'profile_completion',

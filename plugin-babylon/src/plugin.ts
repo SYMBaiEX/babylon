@@ -124,7 +124,7 @@ const configSchema = z.object({
     .string()
     .url()
     .optional()
-    .default("ws://localhost:8080")
+    .default("ws://localhost:8081")
     .describe(
       "A2A WebSocket server endpoint for real-time agent communication",
     ),

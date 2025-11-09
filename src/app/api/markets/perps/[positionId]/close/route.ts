@@ -4,12 +4,12 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
+import { authenticate } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { NotFoundError, BusinessLogicError, AuthorizationError } from '@/lib/errors';
 import { PositionIdParamSchema, ClosePerpPositionSchema } from '@/lib/validation/schemas';
 import { getPerpsEngine } from '@/lib/perps-service';
-import { authenticate } from '@/lib/api/auth-middleware';
 import { WalletService } from '@/lib/services/wallet-service';
 import { logger } from '@/lib/logger';
 
@@ -31,9 +31,11 @@ export const POST = withErrorHandling(async (
     ClosePerpPositionSchema.parse(body);
   }
 
-  // Get position from database
-  const dbPosition = await prisma.perpPosition.findUnique({
-    where: { id: positionId },
+  // Get position from database with RLS
+  const dbPosition = await asUser(user, async (db) => {
+    return await db.perpPosition.findUnique({
+      where: { id: positionId },
+    });
   });
 
   if (!dbPosition) {
@@ -83,16 +85,18 @@ export const POST = withErrorHandling(async (
   // Record PnL
   await WalletService.recordPnL(user.userId, realizedPnL);
 
-  // Update position in database
-  await prisma.perpPosition.update({
-    where: { id: positionId },
-    data: {
-      closedAt: new Date(),
-      realizedPnL: realizedPnL,
-      currentPrice: position.currentPrice,
-      unrealizedPnL: 0,
-      unrealizedPnLPercent: 0,
-    },
+  // Update position in database with RLS
+  await asUser(user, async (db) => {
+    return await db.perpPosition.update({
+      where: { id: positionId },
+      data: {
+        closedAt: new Date(),
+        realizedPnL: realizedPnL,
+        currentPrice: position.currentPrice,
+        unrealizedPnL: 0,
+        unrealizedPnLPercent: 0,
+      },
+    });
   });
 
   const newBalance = await WalletService.getBalance(user.userId);

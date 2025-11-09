@@ -8,11 +8,12 @@
 import { gameService } from '@/lib/game-service';
 import type { NextRequest} from 'next/server';
 import { NextResponse } from 'next/server';
-import { authenticate, errorResponse, successResponse } from '@/lib/api/auth-middleware';
+import { authenticate, errorResponse, successResponse, isAuthenticationError } from '@/lib/api/auth-middleware';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '@/lib/logger';
 import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
 import { prisma } from '@/lib/prisma';
+import { ensureUserForAuth } from '@/lib/users/ensure-user';
 
 /**
  * Safely convert a date value to ISO string
@@ -334,39 +335,21 @@ export async function POST(request: NextRequest) {
       return errorResponse('Post content must be 280 characters or less', 400);
     }
 
-    // Ensure user exists in database and fetch with username/displayName
-    let dbUser = await prisma.user.findUnique({
-      where: { id: authUser.userId },
-      select: {
-        id: true,
-        username: true,
-        displayName: true,
-        profileImageUrl: true,
-      },
-    });
+    const fallbackDisplayName = authUser.walletAddress
+      ? `${authUser.walletAddress.slice(0, 6)}...${authUser.walletAddress.slice(-4)}`
+      : 'Anonymous';
 
-    if (!dbUser) {
-      // Create user if they don't exist yet
-      dbUser = await prisma.user.create({
-        data: {
-          id: authUser.userId,
-          isActor: false,
-        },
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-          profileImageUrl: true,
-        },
-      });
-    }
+    const { user: canonicalUser } = await ensureUserForAuth(authUser, {
+      displayName: fallbackDisplayName,
+    });
+    const canonicalUserId = canonicalUser.id;
 
     // Create post
     const post = await prisma.post.create({
       data: {
         id: uuidv4(),
         content: content.trim(),
-        authorId: authUser.userId,
+        authorId: canonicalUserId,
         timestamp: new Date(),
       },
       include: {
@@ -377,7 +360,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Determine author name for display (prefer username or displayName, fallback to generated name)
-    const authorName = dbUser.username || dbUser.displayName || `user_${authUser.userId.slice(0, 8)}`;
+    const authorName = canonicalUser.username || canonicalUser.displayName || `user_${authUser.userId.slice(0, 8)}`;
 
     // Broadcast new post to SSE feed channel for real-time updates
     try {
@@ -388,9 +371,9 @@ export async function POST(request: NextRequest) {
           content: post.content,
           authorId: post.authorId,
           authorName: authorName,
-          authorUsername: dbUser.username,
-          authorDisplayName: dbUser.displayName,
-          authorProfileImageUrl: dbUser.profileImageUrl,
+          authorUsername: canonicalUser.username,
+          authorDisplayName: canonicalUser.displayName,
+          authorProfileImageUrl: canonicalUser.profileImageUrl,
           timestamp: post.timestamp.toISOString(),
         },
       });
@@ -407,9 +390,9 @@ export async function POST(request: NextRequest) {
         content: post.content,
         authorId: post.authorId,
         authorName: authorName,
-        authorUsername: dbUser.username,
-        authorDisplayName: dbUser.displayName,
-        authorProfileImageUrl: dbUser.profileImageUrl,
+          authorUsername: canonicalUser.username,
+          authorDisplayName: canonicalUser.displayName,
+          authorProfileImageUrl: canonicalUser.profileImageUrl,
         timestamp: post.timestamp.toISOString(),
         createdAt: post.createdAt.toISOString(),
       },
@@ -417,8 +400,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error('Error creating post:', error, 'POST /api/posts');
     
-    if (error instanceof Error && error.message === 'Authentication failed') {
-      return errorResponse('Authentication required', 401);
+    if (isAuthenticationError(error)) {
+      const message =
+        (error instanceof Error && error.message) || 'Authentication required';
+      return errorResponse(message, 401);
     }
     
     return errorResponse('Failed to create post', 500);

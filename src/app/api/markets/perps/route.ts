@@ -4,13 +4,19 @@
  * GET /api/markets/perps - Get all tradeable companies
  */
 
+import type { NextRequest } from 'next/server'
 import { db } from '@/lib/database-service';
+import { optionalAuth, type AuthenticatedUser } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 
-export const GET = withErrorHandling(async () => {
+export const GET = withErrorHandling(async (request: NextRequest) => {
   // Get ONLY companies (not media, government, think tanks)
   const companies = await db.getCompanies();
+
+  // Optional auth - markets are public but RLS still applies
+  const authUser: AuthenticatedUser | null = await optionalAuth(request).catch(() => null);
 
   // Build markets with REAL 24h stats
   const markets = await Promise.all(
@@ -38,20 +44,23 @@ export const GET = withErrorHandling(async () => {
         low24h = Math.min(...priceHistory.map(p => p.price), currentPrice);
       }
 
-      const dbPositions = await db.prisma.perpPosition.findMany({
-        where: {
-          organizationId: company.id,
-          closedAt: null,
-        },
-        select: {
-          id: true,
-          userId: true,
-          side: true,
-          size: true,
-          leverage: true,
-          entryPrice: true,
-          currentPrice: true,
-        },
+      // Get positions with RLS
+      const dbPositions = await asUser(authUser, async (dbPrisma) => {
+        return await dbPrisma.perpPosition.findMany({
+          where: {
+            organizationId: company.id,
+            closedAt: null,
+          },
+          select: {
+            id: true,
+            userId: true,
+            side: true,
+            size: true,
+            leverage: true,
+            entryPrice: true,
+            currentPrice: true,
+          },
+        });
       });
       
       const positions = dbPositions.map(p => ({

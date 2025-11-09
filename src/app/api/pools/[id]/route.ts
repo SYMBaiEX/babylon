@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
+import { optionalAuth } from '@/lib/api/auth-middleware';
+import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { NotFoundError, BusinessLogicError } from '@/lib/errors';
 import { IdParamSchema } from '@/lib/validation/schemas';
@@ -16,7 +17,12 @@ export const GET = withErrorHandling(async (
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { id } = IdParamSchema.parse(params);
 
-    const pool = await prisma.pool.findUnique({
+  // Optional auth - pools are public but RLS still applies
+  const authUser = await optionalAuth(_request).catch(() => null);
+
+  // Get pool details with RLS
+  const pool = await asUser(authUser, async (db) => {
+    return await db.pool.findUnique({
       where: { id },
       include: {
         npcActor: {
@@ -54,10 +60,11 @@ export const GET = withErrorHandling(async (
         },
       },
     });
+  });
 
-    if (!pool) {
-      throw new NotFoundError('Pool', id);
-    }
+  if (!pool) {
+    throw new NotFoundError('Pool', id);
+  }
 
     // Calculate metrics
     const totalDeposits = parseFloat(pool.totalDeposits.toString());

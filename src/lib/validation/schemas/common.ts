@@ -12,15 +12,18 @@ export const UUIDSchema = z.string().uuid({
 });
 
 /**
- * User ID schema that accepts both UUID and Privy DID formats
- * Privy DIDs are in the format: did:privy:base58string
+ * User ID schema - accepts both UUID and Privy DID formats
+ * Examples:
+ * - UUID: "550e8400-e29b-41d4-a716-446655440000"
+ * - Privy DID: "did:privy:cm6sqq4og01qw9l70rbmyjn20"
  */
 export const UserIdSchema = z.string().refine(
   (val) => {
-    // Check if it's a UUID
+    // Check if it's a valid UUID
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
-    // Check if it's a Privy DID
+    // Check if it's a valid Privy DID
     const privyDidRegex = /^did:privy:[a-z0-9]+$/;
+
     return uuidRegex.test(val) || privyDidRegex.test(val);
   },
   {
@@ -284,11 +287,12 @@ export const IdParamSchema = z.object({
 
 /**
  * Generic success response schema
+ * Uses z.unknown() for data to allow any JSON-serializable value while maintaining type safety
  */
 export const SuccessResponseSchema = z.object({
   success: z.literal(true),
   message: z.string().optional(),
-  data: z.any().optional()
+  data: z.unknown().optional()
 });
 
 /**

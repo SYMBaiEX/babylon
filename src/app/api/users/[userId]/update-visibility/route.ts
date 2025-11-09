@@ -6,6 +6,7 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, AuthorizationError } from '@/lib/errors';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
+import { requireUserByIdentifier } from '@/lib/users/user-lookup';
 
 const UpdateVisibilityRequestSchema = z.object({
   platform: z.enum(['twitter', 'farcaster', 'wallet']),
@@ -24,9 +25,11 @@ export const POST = withErrorHandling(async (
   const authUser = await authenticate(request);
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
   const { userId } = UserIdParamSchema.parse(params);
+  const targetUser = await requireUserByIdentifier(userId, { id: true });
+  const canonicalUserId = targetUser.id;
 
   // Verify user is updating their own preferences
-  if (authUser.userId !== userId) {
+  if (authUser.userId !== canonicalUserId) {
     throw new AuthorizationError('You can only update your own visibility preferences', 'visibility-preferences', 'update');
   }
 
@@ -50,7 +53,7 @@ export const POST = withErrorHandling(async (
 
   // Update user visibility preference
   const updatedUser = await prisma.user.update({
-    where: { id: userId },
+    where: { id: canonicalUserId },
     data: updateData,
     select: {
       id: true,
@@ -61,8 +64,8 @@ export const POST = withErrorHandling(async (
   });
 
   logger.info(
-    `User ${userId} updated ${platform} visibility to ${visible}`,
-    { userId, platform, visible },
+    `User ${canonicalUserId} updated ${platform} visibility to ${visible}`,
+    { userId: canonicalUserId, platform, visible },
     'POST /api/users/[userId]/update-visibility'
   );
 
@@ -75,4 +78,3 @@ export const POST = withErrorHandling(async (
     },
   });
 });
-

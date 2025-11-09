@@ -53,10 +53,12 @@ export interface Agent0RegistrationResult {
  * Agent0 Search Filters
  */
 export interface Agent0SearchFilters {
+  name?: string
   strategies?: string[]
   markets?: string[]
   minReputation?: number
-  hasX402?: boolean
+  x402Support?: boolean
+  hasX402?: boolean // Legacy, use x402Support instead
   type?: string
 }
 
@@ -97,6 +99,7 @@ export interface Agent0FeedbackParams {
   targetAgentId: number
   rating: number  // -5 to +5
   comment: string
+  transactionId?: string  // Optional local transaction/feedback ID for tracking
 }
 
 /**

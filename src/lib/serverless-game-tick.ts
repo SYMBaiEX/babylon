@@ -13,6 +13,7 @@ import { prisma } from './prisma';
 import { logger } from './logger';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
 import { ArticleGenerator } from '@/engine/ArticleGenerator';
+import { db } from './database-service';
 import type { Prisma } from '@prisma/client';
 import type { WorldEvent, ActorTier } from '@/shared/types';
 
@@ -639,15 +640,13 @@ async function updateWidgetCaches(): Promise<number> {
   let cachesUpdated = 0;
 
   try {
-    const { db } = await import('@/lib/database-service');
-    
     const companies = await db.getCompanies();
-    
+
     if (!companies || companies.length === 0) {
       logger.warn('No companies found for widget cache update', {}, 'GameTick');
       return 0;
     }
-    
+
     const perpMarketsWithStats = await Promise.all(
       companies
         .filter(company => company && company.id && company.name) // Filter out invalid companies

@@ -1,7 +1,7 @@
 'use client'
 
 import { cn, sanitizeId } from '@/lib/utils'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface AvatarProps {
   id?: string
@@ -29,7 +29,7 @@ const sizeClasses = {
 
 export function Avatar({ id, name, type = 'actor', src, alt, size = 'md', className, scaleFactor = 1, imageUrl }: AvatarProps) {
   const [imageError, setImageError] = useState(false)
-  
+
   // Determine the image path to use:
   // 1. If src is provided directly (uploaded profile image), use it
   // 2. Otherwise, use imageUrl if provided
@@ -56,6 +56,11 @@ export function Avatar({ id, name, type = 'actor', src, alt, size = 'md', classN
   const displayName = alt || name || (id ? id : 'User')
   const initial = displayName.charAt(0).toUpperCase()
 
+  // Reset error flag when source changes
+  useEffect(() => {
+    setImageError(false)
+  }, [imagePath])
+
   // Base sizes in rem
   const baseSizes = {
     sm: 2,    // 32px
@@ -64,11 +69,13 @@ export function Avatar({ id, name, type = 'actor', src, alt, size = 'md', classN
   }
 
   const scaledSize = baseSizes[size] * scaleFactor
+  const hasImage = Boolean(imagePath && !imageError)
 
   return (
     <div
       className={cn(
-        'bg-primary/20 flex items-center justify-center overflow-hidden rounded-full',
+        'flex items-center justify-center overflow-hidden rounded-full bg-sidebar/40',
+        hasImage ? '' : 'bg-primary/20 text-primary font-bold',
         className
       )}
       style={{
@@ -77,7 +84,7 @@ export function Avatar({ id, name, type = 'actor', src, alt, size = 'md', classN
         fontSize: `${scaleFactor}rem`
       }}
     >
-      {imagePath && !imageError ? (
+      {hasImage ? (
         <img
           src={imagePath}
           alt={displayName}
@@ -85,9 +92,7 @@ export function Avatar({ id, name, type = 'actor', src, alt, size = 'md', classN
           onError={() => setImageError(true)}
         />
       ) : (
-        <div className="text-primary font-bold">
-          {initial}
-        </div>
+        <span aria-hidden="true">{initial}</span>
       )}
     </div>
   )

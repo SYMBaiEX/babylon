@@ -20,7 +20,7 @@
         "@types/ws": "^8.18.1",
         "@upstash/redis": "^1.35.6",
         "@vercel/blob": "^2.0.0",
-        "agent0-sdk": "^0.2.1",
+        "agent0-sdk": "^0.2.3",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "concurrently": "^9.2.1",
@@ -1078,7 +1078,7 @@
 
     "agent-base": ["agent-base@7.1.4", "", {}, "sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ=="],
 
-    "agent0-sdk": ["agent0-sdk@0.2.1", "", { "dependencies": { "dotenv": "^16.3.1", "ethers": "^6.9.0", "graphql-request": "^6.1.0", "ipfs-http-client": "^60.0.1" } }, "sha512-xpscXXj6ev9NhP6p4huKmbc3sSWplX/84gynj2c088oPbORV/IRDfrLWiTY0lPwLvDmgAI3AARE+BpS3YkLPjQ=="],
+    "agent0-sdk": ["agent0-sdk@0.2.3", "", { "dependencies": { "dotenv": "^16.3.1", "ethers": "^6.9.0", "graphql-request": "^6.1.0", "ipfs-http-client": "^60.0.1" } }, "sha512-3UJ6+JClofL6KB/YUQv9a08s+L/655ebYo6aiqx1Y6p4F0ccrXxPXQABo/C4TgSZnPP1IidiXb0xdnrdt+xGrQ=="],
 
     "agentkeepalive": ["agentkeepalive@4.6.0", "", { "dependencies": { "humanize-ms": "^1.2.1" } }, ""],
 

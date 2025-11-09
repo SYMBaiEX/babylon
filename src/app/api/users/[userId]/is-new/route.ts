@@ -7,12 +7,12 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware';
-import { prisma } from '@/lib/database-service';
 import { AuthorizationError, BusinessLogicError } from '@/lib/errors';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
+import { findUserByIdentifier } from '@/lib/users/user-lookup';
 
 /**
  * GET /api/users/[userId]/is-new
@@ -32,30 +32,29 @@ export const GET = withErrorHandling(async (
     return successResponse({ needsSetup: false });
   }
 
-  // Ensure requesting user matches the userId in the URL
-  if (authUser.userId !== userId) {
+  // Check if user exists and needs setup
+  const dbUser = await findUserByIdentifier(userId, {
+    id: true,
+    username: true,
+    displayName: true,
+    bio: true,
+    profileImageUrl: true,
+    profileComplete: true,
+    hasUsername: true,
+    hasBio: true,
+    hasProfileImage: true,
+  });
+
+  const canonicalUserId = dbUser?.id ?? userId;
+
+  // Ensure requesting user matches the target user
+  if (authUser.userId !== canonicalUserId) {
     throw new AuthorizationError('You can only check your own setup status', 'user-setup', 'read');
   }
 
-  // Check if user exists and needs setup
-  const dbUser = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      bio: true,
-      profileImageUrl: true,
-      profileComplete: true,
-      hasUsername: true,
-      hasBio: true,
-      hasProfileImage: true,
-    },
-  });
-
   if (!dbUser) {
     // User doesn't exist yet - needs setup
-    logger.info('User not found, needs setup', { userId }, 'GET /api/users/[userId]/is-new');
+    logger.info('User not found, needs setup', { userId: canonicalUserId }, 'GET /api/users/[userId]/is-new');
     return successResponse({ needsSetup: true });
   }
 
@@ -68,7 +67,7 @@ export const GET = withErrorHandling(async (
     !dbUser.hasBio
   );
 
-  logger.info('User setup status checked', { userId, needsSetup }, 'GET /api/users/[userId]/is-new');
+  logger.info('User setup status checked', { userId: canonicalUserId, needsSetup }, 'GET /api/users/[userId]/is-new');
 
   return successResponse({
     needsSetup,
@@ -78,4 +77,3 @@ export const GET = withErrorHandling(async (
     hasProfileImage: dbUser.hasProfileImage || false,
   });
 });
-
