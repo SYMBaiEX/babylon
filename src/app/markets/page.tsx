@@ -9,7 +9,6 @@ import { UserPoolPositions } from '@/components/markets/UserPoolPositions'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { WalletBalance } from '@/components/shared/WalletBalance'
 import { useAuth } from '@/hooks/useAuth'
-import { useChannelSubscription } from '@/hooks/useChannelSubscription'
 import { cn } from '@/lib/utils'
 import type { PerpPosition } from '@/shared/perps-types'
 import { ArrowUpDown, Clock, Flame, Search, TrendingDown, TrendingUp } from 'lucide-react'
@@ -187,14 +186,7 @@ export default function MarketsPage() {
     }
   }, [authenticated, user?.id, fetchData])
 
-  // Subscribe to markets channel for real-time updates
-  const handleMarketsUpdate = useCallback((data: Record<string, unknown>) => {
-    if (data.type === 'price_update' || data.type === 'new_questions') {
-      fetchDataRef.current?.()
-    }
-  }, [])
-
-  useChannelSubscription('markets', handleMarketsUpdate)
+  // Note: Real-time updates via SSE removed - using periodic polling instead
 
   const filteredPerpMarkets = perpMarkets.filter(m =>
     !searchQuery.trim() ||

@@ -315,6 +315,16 @@ class DatabaseService {
   }
 
   /**
+   * Get all questions (active and resolved)
+   */
+  async getAllQuestions(): Promise<Question[]> {
+    const questions = await prisma.question.findMany({
+      orderBy: { createdDate: 'desc' },
+    });
+    return questions.map(q => this.adaptQuestion(q));
+  }
+
+  /**
    * Resolve a question
    */
   async resolveQuestion(id: string, resolvedOutcome: boolean) {

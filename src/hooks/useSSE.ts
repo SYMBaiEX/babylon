@@ -152,10 +152,22 @@ export function useSSE(options: SSEHookOptions = {}): SSEHookReturn {
     const g = getGlobal();
     g.__babylon_sse_subscribers__ = Math.max(0, (g.__babylon_sse_subscribers__ || 0) - 1);
 
+    // Close the connection immediately if this is the last subscriber
+    // This prevents navigation blocking
     if (g.__babylon_sse_subscribers__ === 0 && g.__babylon_sse_source__) {
-      g.__babylon_sse_source__.close();
+      try {
+        g.__babylon_sse_source__.close();
+      } catch (err) {
+        // Ignore errors during close
+        logger.debug('Error closing SSE connection', { error: err }, 'useSSE');
+      }
       g.__babylon_sse_source__ = null;
       logger.debug('SSE connection closed (no more subscribers)', undefined, 'useSSE');
+    }
+
+    // Clear local reference immediately
+    if (eventSourceRef.current) {
+      eventSourceRef.current = null;
     }
 
     setIsConnected(false);
@@ -191,10 +203,11 @@ export function useSSE(options: SSEHookOptions = {}): SSEHookReturn {
   // Auto-connect on mount
   useEffect(() => {
     let mounted = true;
+    let cleanup = false;
     
     getAccessToken()
       .then(token => {
-        if (token && mounted) {
+        if (token && mounted && !cleanup) {
           connect();
         }
       })
@@ -202,9 +215,20 @@ export function useSSE(options: SSEHookOptions = {}): SSEHookReturn {
         // Silently fail if not authenticated
       });
 
+    // Cleanup function
     return () => {
       mounted = false;
+      cleanup = true;
+      
+      // Force immediate disconnect to prevent blocking navigation
+      // Note: NavigationManager also handles this proactively during route changes
       disconnect();
+      
+      // Clear any pending reconnect attempts
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
     };
   }, [connect, disconnect, getAccessToken]); // Only run once on mount
 

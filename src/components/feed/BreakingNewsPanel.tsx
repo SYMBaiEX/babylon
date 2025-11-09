@@ -1,11 +1,9 @@
 'use client'
 
-import { logger } from '@/lib/logger'
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { TrendingUp, Calendar, DollarSign, Activity } from 'lucide-react'
-import { useChannelSubscription } from '@/hooks/useChannelSubscription'
-import { BreakingNewsDetailModal } from './BreakingNewsDetailModal'
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
+import { Activity, Calendar, DollarSign, TrendingUp } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { BreakingNewsDetailModal } from './BreakingNewsDetailModal'
 
 interface BreakingNewsItem {
   id: string
@@ -70,17 +68,7 @@ export function BreakingNewsPanel() {
     fetchNews()
   }, [fetchNews])
 
-  // Subscribe to breaking-news channel for real-time updates
-  const handleChannelUpdate = useCallback((data: Record<string, unknown>) => {
-    if (data.type === 'new_event') {
-      // Refresh breaking news when new event arrives
-      logger.debug('Breaking news update received, refreshing...', { data }, 'BreakingNewsPanel')
-      // Use ref to avoid dependency on fetchNews
-      fetchNewsRef.current?.()
-    }
-  }, []) // Empty dependency array prevents re-creation
-
-  useChannelSubscription('breaking-news', handleChannelUpdate)
+  // Note: Real-time updates via SSE removed - using periodic polling instead
 
   const getIcon = (icon: BreakingNewsItem['icon']) => {
     switch (icon) {

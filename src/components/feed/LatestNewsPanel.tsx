@@ -1,10 +1,10 @@
 'use client'
 
 import { logger } from '@/lib/logger'
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { Newspaper, TrendingUp, AlertCircle } from 'lucide-react'
-import { useChannelSubscription } from '@/hooks/useChannelSubscription'
+import { AlertCircle, Newspaper, TrendingUp } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 // ArticleDetailModal removed - articles now use /post/[id] page
+import { useWidgetRefresh } from '@/contexts/WidgetRefreshContext'
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
 
 interface ArticleItem {
@@ -25,6 +25,7 @@ export function LatestNewsPanel() {
   const [articles, setArticles] = useState<ArticleItem[]>([])
   const [loading, setLoading] = useState(true)
   const { getLatestNews, setLatestNews } = useWidgetCacheStore()
+  const { registerRefresh, unregisterRefresh } = useWidgetRefresh()
 
   // Use ref to store fetchArticles function to break dependency chain
   const fetchArticlesRef = useRef<(() => void) | null>(null)
@@ -111,19 +112,14 @@ export function LatestNewsPanel() {
     fetchArticles()
   }, [fetchArticles])
 
-  // Subscribe to feed channel for real-time updates via SSE
-  const handleChannelUpdate = useCallback((data: Record<string, unknown>) => {
-    if (data.type === 'new_post' && data.post) {
-      const post = data.post as { type?: string }
-      // Only refresh if it's an article
-      if (post?.type === 'article') {
-        logger.info('New article received via SSE, refreshing...', { postId: (post as { id?: string }).id }, 'LatestNewsPanel')
-        fetchArticlesRef.current?.()
-      }
-    }
-  }, [])
+  // Register refresh function
+  useEffect(() => {
+    const refresh = () => fetchArticles(true)
+    registerRefresh('latest-news', refresh)
+    return () => unregisterRefresh('latest-news')
+  }, [registerRefresh, unregisterRefresh, fetchArticles])
 
-  useChannelSubscription('feed', handleChannelUpdate)
+  // Note: Real-time updates via SSE removed - using manual pull-to-refresh
 
   const getSentimentIcon = (sentiment?: string) => {
     switch (sentiment) {

@@ -5,7 +5,6 @@ import { MessageCircle, Send, Search, X, ArrowLeft, Users, AlertCircle, Check, L
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { usePrivy } from '@privy-io/react-auth'
-import { useChatMessages } from '@/hooks/useChatMessages'
 import { LoginButton } from '@/components/auth/LoginButton'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { Avatar } from '@/components/shared/Avatar'
@@ -85,11 +84,12 @@ export default function ChatsPage() {
   const [sendError, setSendError] = useState<string | null>(null)
   const [sendSuccess, setSendSuccess] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-
-  // WebSocket messages for real-time updates
-  const { addMessage: addWsMessage } = useChatMessages(selectedChatId)
-
-  // WebSocket is initialized lazily by the client; no-op here to avoid extra requests
+  const chatContainerRef = useRef<HTMLDivElement>(null)
+  
+  // Pull-to-refresh state
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [pullDistance, setPullDistance] = useState(0)
+  const touchStartY = useRef<number>(0)
 
   // Load user's chats from database
   useEffect(() => {
@@ -109,6 +109,46 @@ export default function ChatsPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatDetails?.messages])
+
+  // Pull-to-refresh for current chat
+  const handleRefresh = async () => {
+    if (isRefreshing || !selectedChatId) return
+    setIsRefreshing(true)
+    try {
+      await loadChatDetails(selectedChatId)
+    } finally {
+      setIsRefreshing(false)
+      setPullDistance(0)
+    }
+  }
+
+  // Pull-to-refresh touch handlers
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    const container = chatContainerRef.current
+    if (container && container.scrollTop === 0) {
+      touchStartY.current = e.touches[0]?.clientY ?? 0
+    }
+  }
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    const container = chatContainerRef.current
+    if (!container || container.scrollTop > 0 || isRefreshing) return
+
+    const touchY = e.touches[0]?.clientY ?? 0
+    const distance = touchY - touchStartY.current
+
+    if (distance > 0 && distance < 150) {
+      setPullDistance(distance)
+    }
+  }
+
+  const handleTouchEnd = () => {
+    if (pullDistance > 80) {
+      handleRefresh()
+    } else {
+      setPullDistance(0)
+    }
+  }
 
   const loadGroupChats = async () => {
     setLoading(true)
@@ -218,14 +258,11 @@ export default function ChatsPage() {
         setTimeout(() => setSendSuccess(false), 2000)
       }
 
-      if (data.message && selectedChatId) {
-        addWsMessage({
-          id: data.message.id,
-          content: data.message.content,
-          chatId: data.message.chatId,
-          senderId: data.message.senderId,
-          createdAt: data.message.createdAt,
-          isGameChat: true
+      if (data.message && chatDetails) {
+        // Add the new message to chat details immediately
+        setChatDetails({
+          ...chatDetails,
+          messages: [...(chatDetails.messages || []), data.message],
         })
       }
 
@@ -522,7 +559,28 @@ export default function ChatsPage() {
                     </div>
 
                     {/* Messages */}
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div 
+                      ref={chatContainerRef}
+                      className="flex-1 overflow-y-auto p-4 space-y-4 relative"
+                      onTouchStart={handleTouchStart}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={handleTouchEnd}
+                    >
+                      {/* Pull-to-refresh indicator */}
+                      {pullDistance > 0 && (
+                        <div 
+                          className="absolute top-0 left-0 right-0 flex items-center justify-center py-2 transition-opacity"
+                          style={{ opacity: Math.min(pullDistance / 80, 1) }}
+                        >
+                          <Loader2 
+                            className={cn(
+                              "w-6 h-6 text-primary",
+                              pullDistance > 80 ? "animate-spin" : ""
+                            )} 
+                          />
+                        </div>
+                      )}
+                      
                       {loadingChat ? (
                         <div className="flex items-center justify-center h-full">
                           <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -894,7 +952,27 @@ export default function ChatsPage() {
                       </div>
 
                       {/* Messages */}
-                      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                      <div 
+                        className="flex-1 overflow-y-auto p-4 space-y-4 relative"
+                        onTouchStart={handleTouchStart}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={handleTouchEnd}
+                      >
+                        {/* Pull-to-refresh indicator */}
+                        {pullDistance > 0 && (
+                          <div 
+                            className="absolute top-0 left-0 right-0 flex items-center justify-center py-2 transition-opacity"
+                            style={{ opacity: Math.min(pullDistance / 80, 1) }}
+                          >
+                            <Loader2 
+                              className={cn(
+                                "w-6 h-6 text-primary",
+                                pullDistance > 80 ? "animate-spin" : ""
+                              )} 
+                            />
+                          </div>
+                        )}
+                        
                         {loadingChat ? (
                           <div className="flex items-center justify-center h-full">
                             <Loader2 className="w-8 h-8 animate-spin text-primary" />

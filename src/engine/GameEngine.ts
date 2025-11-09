@@ -13,38 +13,38 @@
  * - Satirical LLM-generated group chat names
  */
 
-import { EventEmitter } from 'events';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { Prisma } from '@prisma/client';
-import { FeedGenerator } from './FeedGenerator';
-import { QuestionManager } from './QuestionManager';
-import { PriceEngine } from './PriceEngine';
-import { PerpetualsEngine } from './PerpetualsEngine';
-import { A2AGameIntegration, type A2AGameConfig } from './A2AGameIntegration';
-import { BabylonLLMClient } from '../generator/llm/openai-client';
+import { logger } from '@/lib/logger';
+import { ActorSocialActions } from '@/lib/services/ActorSocialActions';
+import { broadcastChatMessage, broadcastToChannel } from '@/lib/sse/event-broadcaster';
+import type {
+  Actor,
+  ActorConnection,
+  ActorsDatabase,
+  ActorTier,
+  ChatMessage,
+  FeedPost,
+  GroupChat,
+  Organization,
+  PriceUpdate,
+  Question,
+  Scenario,
+  SelectedActor,
+  WorldEvent,
+} from '@/shared/types';
 import { shuffleArray, toQuestionIdNumber, toQuestionIdNumberOrNull } from '@/shared/utils';
+import type { JsonValue } from '@/types/common';
+import { Prisma } from '@prisma/client';
+import { EventEmitter } from 'events';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { BabylonLLMClient } from '../generator/llm/openai-client';
 import { db } from '../lib/database-service';
 import { ReputationService } from '../lib/services/reputation-service';
-import { logger } from '@/lib/logger';
-import { broadcastToChannel, broadcastChatMessage } from '@/lib/sse/event-broadcaster';
-import { ActorSocialActions } from '@/lib/services/ActorSocialActions';
-import type {
-  SelectedActor,
-  Actor,
-  ActorTier,
-  Organization,
-  Question,
-  FeedPost,
-  PriceUpdate,
-  ActorConnection,
-  Scenario,
-  GroupChat,
-  WorldEvent,
-  ActorsDatabase,
-  ChatMessage,
-} from '@/shared/types';
-import type { JsonValue } from '@/types/common';
+import { A2AGameIntegration, type A2AGameConfig } from './A2AGameIntegration';
+import { FeedGenerator } from './FeedGenerator';
+import { PerpetualsEngine } from './PerpetualsEngine';
+import { PriceEngine } from './PriceEngine';
+import { QuestionManager } from './QuestionManager';
 
 interface GameConfig {
   tickIntervalMs?: number;
@@ -116,10 +116,34 @@ export class GameEngine extends EventEmitter {
     
     logger.info('INITIALIZING GAME ENGINE', undefined, 'GameEngine');
 
-    const actorsPath = join(process.cwd(), 'public/data/actors.json');
-    const actorsData = JSON.parse(readFileSync(actorsPath, 'utf-8')) as ActorsDatabase;
+    // Load actors from HTTP endpoint
+    logger.info('Loading actors from HTTP...', undefined, 'GameEngine');
+    let actorsData: ActorsDatabase;
+    
+    try {
+      // Try to fetch from the public endpoint
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+      const response = await fetch(`${baseUrl}/data/actors.json`, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(10000), // 10 second timeout
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      actorsData = await response.json() as ActorsDatabase;
+      logger.info('Successfully loaded actors from HTTP', undefined, 'GameEngine');
+    } catch (httpError) {
+      // Fallback to file system if HTTP fails (useful for local development)
+      const errorMessage = httpError instanceof Error ? httpError.message : String(httpError);
+      logger.warn(`Failed to load actors from HTTP (${errorMessage}), falling back to file system`, { error: httpError }, 'GameEngine');
+      
+      const actorsPath = join(process.cwd(), 'public/data/actors.json');
+      actorsData = JSON.parse(readFileSync(actorsPath, 'utf-8')) as ActorsDatabase;
+      logger.info('Loaded actors from file system (fallback)', undefined, 'GameEngine');
+    }
 
-    logger.info('Loading actors...', undefined, 'GameEngine');
     this.actors = this.selectAllActors(actorsData.actors);
     logger.info(`Loaded ${this.actors.length} actors`, { actorCount: this.actors.length }, 'GameEngine');
 
@@ -194,7 +218,10 @@ export class GameEngine extends EventEmitter {
     }, 8 * 60 * 60 * 1000);
 
     this.dailySnapshotIntervalId = setInterval(() => {
-      this.checkDailySnapshot();
+      this.checkDailySnapshot().catch(error => {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(`Daily snapshot error: ${errorMessage}`, { error }, 'GameEngine');
+      });
     }, 60 * 1000);
 
     this.emit('started');
@@ -208,7 +235,17 @@ export class GameEngine extends EventEmitter {
     if (this.dailySnapshotIntervalId) clearInterval(this.dailySnapshotIntervalId);
 
     this.isRunning = false;
-    this.saveState();
+
+    // Update game state in database
+    try {
+      await db.updateGameState({
+        lastTickAt: new Date(),
+        activeQuestions: this.questions.filter(q => q.status === 'active').length,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.warn(`Failed to update game state on stop: ${errorMessage}`, { error }, 'GameEngine');
+    }
 
     // Shutdown A2A integration
     await this.a2aIntegration.shutdown();
@@ -242,6 +279,14 @@ export class GameEngine extends EventEmitter {
           const index = this.questions.findIndex(q => q.id === question.id);
           if (index >= 0) {
             this.questions[index] = resolved;
+          }
+
+          // Update question status in database
+          try {
+            await db.resolveQuestion(question.id as string, question.outcome);
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.error(`Failed to update question status in database: ${errorMessage}`, { error, questionId: question.id }, 'GameEngine');
           }
 
           // Update on-chain reputation for all users who had positions
@@ -450,10 +495,6 @@ export class GameEngine extends EventEmitter {
             timestamp: Date.now(),
           });
         }
-      }
-
-      if (this.recentTicks.length % 10 === 0) {
-        this.saveState();
       }
 
       // Process random social actions (invites/DMs) every 5 ticks (every ~5 minutes)
@@ -1012,13 +1053,23 @@ OUTPUT JSON:
     const nextId = Math.max(0, ...this.questions.map(q => toQuestionIdNumber(q.id))) + 1;
 
     // Get recent events for context
-    const recentEvents = this.recentTicks
-      .slice(-60) // Last hour
-      .flatMap(t => t.events);
+    const recentEvents = await db.prisma.worldEvent.findMany({
+      take: 60,
+      orderBy: { timestamp: 'desc' },
+    });
 
-    const recentDays = this.buildRecentDaysContext(recentEvents);
+    const recentDays = this.buildRecentDaysContext(recentEvents.map(e => ({
+      id: e.id,
+      day: e.dayNumber || 0,
+      type: e.eventType as WorldEvent['type'],
+      actors: e.actors as string[],
+      description: e.description,
+      relatedQuestion: e.relatedQuestion ?? undefined,
+      pointsToward: (e.pointsToward as 'YES' | 'NO' | null) ?? null,
+      visibility: e.visibility as WorldEvent['visibility'],
+    })));
 
-    return await this.questionManager.generateDailyQuestions({
+    const newQuestions = await this.questionManager.generateDailyQuestions({
       currentDate,
       scenarios: this.scenarios,
       actors: this.actors.filter(a => a.role === 'main'),
@@ -1035,6 +1086,21 @@ OUTPUT JSON:
       })),
       nextQuestionId: nextId,
     });
+
+    // Persist new questions to database
+    for (const question of newQuestions) {
+      try {
+        await db.createQuestion({
+          ...question,
+          questionNumber: toQuestionIdNumber(question.id),
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(`Failed to persist question ${question.id}: ${errorMessage}`, { error, questionId: question.id }, 'GameEngine');
+      }
+    }
+
+    return newQuestions;
   }
 
   private buildRecentDaysContext(recentEvents: WorldEvent[]): Array<{ day: number; events: WorldEvent[] }> {
@@ -1045,14 +1111,23 @@ OUTPUT JSON:
     }];
   }
 
-  private checkDailySnapshot(): void {
+  private async checkDailySnapshot(): Promise<void> {
     const currentDate = new Date().toISOString().split('T')[0]!;
     
     if (currentDate !== this.lastDailySnapshot) {
       logger.info(`Recording daily snapshot for ${this.lastDailySnapshot}`, { date: this.lastDailySnapshot }, 'GameEngine');
       this.perpsEngine.recordDailySnapshot(this.lastDailySnapshot);
       this.lastDailySnapshot = currentDate;
-      this.saveState();
+      
+      // Save to database instead of file
+      try {
+        await db.updateGameState({
+          lastSnapshotAt: new Date(this.lastDailySnapshot),
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.warn(`Failed to update lastSnapshotAt: ${errorMessage}`, { error }, 'GameEngine');
+      }
     }
   }
 
@@ -1304,46 +1379,37 @@ OUTPUT JSON:
     }
   }
 
-  private saveState(): void {
-    if (!existsSync(this.config.savePath)) {
-      mkdirSync(this.config.savePath, { recursive: true });
-    }
-
-    const state = {
-      ticks: this.recentTicks,
-      questions: this.questions,
-      organizations: this.priceEngine.getAllCompanies(),
-      perpsState: this.perpsEngine.exportState(),
-      lastDailySnapshot: this.lastDailySnapshot,
-      timestamp: new Date().toISOString(),
-    };
-
-    const statePath = join(this.config.savePath, 'history.json');
-    writeFileSync(statePath, JSON.stringify(state, null, 2));
-  }
-
+  /**
+   * Load state from database instead of file
+   */
   private async loadHistory(): Promise<void> {
-    const historyPath = join(this.config.savePath, 'history.json');
-    
-    if (existsSync(historyPath)) {
-      try {
-        const data = JSON.parse(readFileSync(historyPath, 'utf-8'));
-        this.recentTicks = data.ticks || [];
-        this.questions = data.questions || [];
-        this.lastDailySnapshot = data.lastDailySnapshot || new Date().toISOString().split('T')[0]!;
-        
-        if (data.perpsState) {
-          this.perpsEngine.importState(data.perpsState);
-        }
-        
-        logger.info('Loaded history', {
-          ticks: this.recentTicks.length,
-          questions: this.questions.length
-        }, 'GameEngine');
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error(`Failed to load history: ${errorMessage}`, { error }, 'GameEngine');
+    try {
+      // Load all questions from database (active and resolved)
+      const dbQuestions = await db.getAllQuestions();
+      this.questions = dbQuestions;
+      
+      logger.info('Loaded questions from database', {
+        questions: this.questions.length,
+        active: this.questions.filter(q => q.status === 'active').length,
+      }, 'GameEngine');
+
+      // Load last daily snapshot date from game state
+      const gameState = await db.getGameState();
+      if (gameState?.lastSnapshotAt) {
+        this.lastDailySnapshot = gameState.lastSnapshotAt.toISOString().split('T')[0]!;
+        logger.info('Loaded lastDailySnapshot from database', { date: this.lastDailySnapshot }, 'GameEngine');
+      } else {
+        this.lastDailySnapshot = new Date().toISOString().split('T')[0]!;
+        logger.info('No lastDailySnapshot in database, using current date', { date: this.lastDailySnapshot }, 'GameEngine');
       }
+
+      // Note: recentTicks are not loaded as they're ephemeral
+      // Posts and events can be queried from database as needed
+      // Perps positions are automatically loaded by PerpetualsEngine from database
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to load history from database: ${errorMessage}`, { error }, 'GameEngine');
     }
   }
 
@@ -1634,12 +1700,20 @@ Return ONLY this JSON:
     return this.organizations;
   }
 
+  /**
+   * @deprecated Use db.getRecentPosts() directly instead
+   * This method reads from in-memory ticks which are ephemeral
+   */
   getRecentPosts(minutes: number = 60): FeedPost[] {
     return this.recentTicks
       .slice(-minutes)
       .flatMap(t => t.posts);
   }
 
+  /**
+   * @deprecated Use database queries for chat messages instead
+   * This method reads from in-memory ticks which are ephemeral
+   */
   getGroupChatMessages(chatId: string, minutes: number = 60): ChatMessage[] {
     return this.recentTicks
       .slice(-minutes)

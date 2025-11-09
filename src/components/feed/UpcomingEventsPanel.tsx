@@ -1,11 +1,9 @@
 'use client'
 
-import { logger } from '@/lib/logger'
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { Calendar } from 'lucide-react'
-import { useChannelSubscription } from '@/hooks/useChannelSubscription'
-import { UpcomingEventsDetailModal } from './UpcomingEventsDetailModal'
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
+import { Calendar } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { UpcomingEventsDetailModal } from './UpcomingEventsDetailModal'
 
 interface UpcomingEvent {
   id: string
@@ -70,17 +68,7 @@ export function UpcomingEventsPanel() {
     fetchEvents()
   }, [fetchEvents])
 
-  // Subscribe to upcoming-events channel for real-time updates
-  const handleChannelUpdate = useCallback((data: Record<string, unknown>) => {
-    if (data.type === 'new_questions') {
-      // Refresh upcoming events when new questions are created
-      logger.debug('Upcoming events update received, refreshing...', { data }, 'UpcomingEventsPanel')
-      // Use ref to avoid dependency on fetchEvents
-      fetchEventsRef.current?.()
-    }
-  }, []) // Empty dependency array prevents re-creation
-
-  useChannelSubscription('upcoming-events', handleChannelUpdate)
+  // Note: Real-time updates via SSE removed - using periodic polling instead
 
   const handleEventClick = (event: UpcomingEvent) => {
     setSelectedEvent(event)

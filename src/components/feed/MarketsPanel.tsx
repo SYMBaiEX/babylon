@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
+import { useWidgetRefresh } from '@/contexts/WidgetRefreshContext'
 
 interface Market {
   id: string
@@ -16,6 +17,7 @@ export function MarketsPanel() {
   const router = useRouter()
   const [markets, setMarkets] = useState<Market[]>([])
   const [loading, setLoading] = useState(true)
+  const { registerRefresh, unregisterRefresh } = useWidgetRefresh()
 
   const fetchMarkets = useCallback(async () => {
     const response = await fetch('/api/feed/widgets/markets')
@@ -29,6 +31,12 @@ export function MarketsPanel() {
   useEffect(() => {
     fetchMarkets()
   }, [fetchMarkets])
+
+  // Register refresh function
+  useEffect(() => {
+    registerRefresh('markets', fetchMarkets)
+    return () => unregisterRefresh('markets')
+  }, [registerRefresh, unregisterRefresh, fetchMarkets])
 
   const handleMarketClick = (marketId: string) => {
     router.push(`/markets/${marketId}`)

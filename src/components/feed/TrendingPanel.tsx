@@ -1,10 +1,9 @@
 'use client'
 
-import { logger } from '@/lib/logger'
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { useChannelSubscription } from '@/hooks/useChannelSubscription'
-import { useRouter } from 'next/navigation'
+import { useWidgetRefresh } from '@/contexts/WidgetRefreshContext'
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
+import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 interface TrendingItem {
   id: string
@@ -21,6 +20,7 @@ export function TrendingPanel() {
   const [trending, setTrending] = useState<TrendingItem[]>([])
   const [loading, setLoading] = useState(true)
   const { getTrending, setTrending: cacheTrending } = useWidgetCacheStore()
+  const { registerRefresh, unregisterRefresh } = useWidgetRefresh()
 
   // Use ref to store fetchTrending function to break dependency chain
   const fetchTrendingRef = useRef<(() => void) | null>(null)
@@ -55,16 +55,14 @@ export function TrendingPanel() {
     fetchTrending()
   }, [fetchTrending])
 
-  // Subscribe to trending channel for real-time updates
-  const handleChannelUpdate = useCallback((data: Record<string, unknown>) => {
-    if (data.type === 'trending_updated') {
-      // Refresh trending when calculation completes
-      logger.debug('Trending update received, refreshing...', { data }, 'TrendingPanel')
-      fetchTrendingRef.current?.()
-    }
-  }, [])
+  // Register refresh function
+  useEffect(() => {
+    const refresh = () => fetchTrending(true)
+    registerRefresh('trending', refresh)
+    return () => unregisterRefresh('trending')
+  }, [registerRefresh, unregisterRefresh, fetchTrending])
 
-  useChannelSubscription('trending', handleChannelUpdate)
+  // Note: Real-time updates via SSE removed - using manual pull-to-refresh
 
   const handleTrendingClick = (item: TrendingItem) => {
     router.push(`/trending/${item.tagSlug}`)

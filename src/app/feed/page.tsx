@@ -16,15 +16,17 @@ import { cn } from '@/lib/utils'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
 import { useAuth } from '@/hooks/useAuth'
 import type { FeedPost } from '@/shared/types'
-import { useChannelSubscription } from '@/hooks/useChannelSubscription'
+import { WidgetRefreshProvider, useWidgetRefresh } from '@/contexts/WidgetRefreshContext'
+import { RefreshCw } from 'lucide-react'
 
 const PAGE_SIZE = 20
 
-export default function FeedPage() {
+function FeedPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { authenticated } = useAuth()
   const { user } = useAuthStore()
+  const { refreshAll: refreshWidgets } = useWidgetRefresh()
   const [tab, setTab] = useState<'latest' | 'following'>('latest')
   const [searchQuery, setSearchQuery] = useState('')
   
@@ -167,11 +169,13 @@ export default function FeedPage() {
     setIsRefreshing(true)
     try {
       await fetchLatestPosts(0, false)
+      // Also refresh widgets
+      refreshWidgets()
     } finally {
       setIsRefreshing(false)
       setPullDistance(0)
     }
-  }, [isRefreshing, tab, fetchLatestPosts])
+  }, [isRefreshing, tab, fetchLatestPosts, refreshWidgets])
 
   // Pull-to-refresh handlers
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
@@ -211,63 +215,6 @@ export default function FeedPage() {
       fetchLatestPosts(0, false)
     }
   }, [tab, fetchLatestPosts])
-
-  // Polling fallback: Refresh feed every 30 seconds
-  useEffect(() => {
-    if (tab !== 'latest') return
-    
-    const interval = setInterval(() => {
-      void fetchLatestPosts(0, false)
-    }, 30000)
-    
-    return () => clearInterval(interval)
-  }, [tab, fetchLatestPosts])
-
-  // Subscribe to feed channel for real-time updates
-  const handleFeedUpdate = useCallback((data: Record<string, unknown>) => {
-    if (data.type === 'new_post' && data.post) {
-      const newPost = data.post as FeedPost
-      console.debug('New post received via WebSocket, inserting into feed...', { postId: newPost.id })
-
-      // Directly insert the new post into the state for instant update
-      setPosts(prev => {
-        // Check if post already exists to avoid duplicates
-        const exists = prev.some(p => p.id === newPost.id)
-        if (exists) return prev
-
-        // Add new post at the beginning (newest first)
-        const updated = [newPost, ...prev]
-
-        // Sort by timestamp to ensure chronological order
-        return updated.sort((a, b) => {
-          const aTime = new Date(a.timestamp ?? 0).getTime()
-          const bTime = new Date(b.timestamp ?? 0).getTime()
-          return bTime - aTime // Newest first
-        })
-      })
-
-      // If we're on the following tab and this is from someone we follow,
-      // also add to followingPosts
-      if (tab === 'following' && user) {
-        setFollowingPosts(prev => {
-          const exists = prev.some(p => p.id === newPost.id)
-          if (exists) return prev
-
-          const updated = [newPost, ...prev]
-          return updated.sort((a, b) => {
-            const aTime = new Date(a.timestamp ?? 0).getTime()
-            const bTime = new Date(b.timestamp ?? 0).getTime()
-            return bTime - aTime
-          })
-        })
-      }
-
-      // Update offset to reflect new total
-      setOffset(prev => prev + 1)
-    }
-  }, [tab, user])
-
-  useChannelSubscription(tab === 'latest' ? 'feed' : null, handleFeedUpdate)
 
   // Infinite scroll observer for latest tab
   useEffect(() => {
@@ -753,6 +700,22 @@ export default function FeedPage() {
 
       </div>
 
+      {/* Desktop refresh button */}
+      <button
+        onClick={handleRefresh}
+        disabled={isRefreshing}
+        className={cn(
+          'hidden md:block fixed bottom-8 right-8 z-10',
+          'bg-primary text-primary-foreground rounded-full p-4',
+          'shadow-lg hover:shadow-xl transition-all',
+          'hover:scale-110 active:scale-95',
+          isRefreshing && 'opacity-50 cursor-not-allowed'
+        )}
+        title="Refresh feed and widgets"
+      >
+        <RefreshCw className={cn('w-6 h-6', isRefreshing && 'animate-spin')} />
+      </button>
+
       {/* Create Post Modal */}
       <CreatePostModal
         isOpen={showCreateModal}
@@ -769,5 +732,14 @@ export default function FeedPage() {
         }}
       />
     </PageContainer>
+  )
+}
+
+// Wrap with provider
+export default function FeedPage() {
+  return (
+    <WidgetRefreshProvider>
+      <FeedPageContent />
+    </WidgetRefreshProvider>
   )
 }
