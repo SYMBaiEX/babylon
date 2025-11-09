@@ -14,6 +14,7 @@ import { logger } from './logger';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
 import { ArticleGenerator } from '@/engine/ArticleGenerator';
 import { db } from './database-service';
+import { calculateTrendingIfNeeded } from './services/trending-calculation-service';
 import type { Prisma } from '@prisma/client';
 import type { WorldEvent, ActorTier } from '@/shared/types';
 
@@ -25,6 +26,7 @@ export interface GameTickResult {
   questionsResolved: number;
   questionsCreated: number;
   widgetCachesUpdated: number;
+  trendingCalculated: boolean;
 }
 
 /**
@@ -48,6 +50,7 @@ export async function executeGameTick(): Promise<GameTickResult> {
     questionsResolved: 0,
     questionsCreated: 0,
     widgetCachesUpdated: 0,
+    trendingCalculated: false,
   };
 
   try {
@@ -178,6 +181,18 @@ export async function executeGameTick(): Promise<GameTickResult> {
       result.widgetCachesUpdated = cachesUpdated;
     } catch (error) {
       logger.error('Failed to update widget caches', { error }, 'GameTick');
+    }
+
+    // Calculate trending tags if needed (checks 30-minute interval internally)
+    try {
+      const trendingCalculated = await calculateTrendingIfNeeded();
+      result.trendingCalculated = trendingCalculated;
+      if (trendingCalculated) {
+        logger.info('Trending tags recalculated', {}, 'GameTick');
+      }
+    } catch (error) {
+      logger.error('Failed to calculate trending tags', { error }, 'GameTick');
+      // Don't fail the entire tick if trending calculation fails
     }
 
     const durationMs = Date.now() - startedAt;
