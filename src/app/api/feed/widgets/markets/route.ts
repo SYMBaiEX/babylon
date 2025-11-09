@@ -31,7 +31,6 @@ export async function GET(request: NextRequest) {
           return await dbPrisma.market.findMany({
             where: {
               id: { in: marketIds },
-              resolved: false,
             },
             orderBy: {
               createdAt: 'desc',
@@ -42,11 +41,12 @@ export async function GET(request: NextRequest) {
         const marketMap = new Map(markets.map(m => [m.id, m]))
 
         return questions
-          .filter(q => marketMap.has(String(q.id)))
+          // Don't filter out questions without markets - show all active questions
+          .filter(q => q.status === 'active')
           .map(q => {
-            const market = marketMap.get(String(q.id))!
-            const yesShares = Number(market.yesShares)
-            const noShares = Number(market.noShares)
+            const market = marketMap.get(String(q.id))
+            const yesShares = market ? Number(market.yesShares) : 0
+            const noShares = market ? Number(market.noShares) : 0
             const totalShares = yesShares + noShares
 
             const yesPrice = totalShares > 0 ? yesShares / totalShares : 0.5
@@ -103,7 +103,6 @@ export async function GET(request: NextRequest) {
     return await dbPrisma.market.findMany({
       where: {
         id: { in: marketIds },
-        resolved: false,
       },
       orderBy: {
         createdAt: 'desc',
@@ -114,11 +113,12 @@ export async function GET(request: NextRequest) {
   const marketMap = new Map(markets.map(m => [m.id, m]))
 
   const formattedMarkets = questions
-    .filter(q => marketMap.has(String(q.id)))
+    // Don't filter out questions without markets - show all active questions
+    .filter(q => q.status === 'active')
     .map(q => {
-      const market = marketMap.get(String(q.id))!
-      const yesShares = Number(market.yesShares)
-      const noShares = Number(market.noShares)
+      const market = marketMap.get(String(q.id))
+      const yesShares = market ? Number(market.yesShares) : 0
+      const noShares = market ? Number(market.noShares) : 0
       const totalShares = yesShares + noShares
 
       const yesPrice = totalShares > 0 ? yesShares / totalShares : 0.5
