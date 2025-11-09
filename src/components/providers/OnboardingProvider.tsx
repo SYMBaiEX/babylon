@@ -12,8 +12,6 @@ import {
   parseAbi,
   type Address,
   type EIP1193Provider,
-  type ExactPartial,
-  type RpcTransactionRequest,
 } from 'viem'
 import { baseSepolia } from 'viem/chains'
 import { IDENTITY_REGISTRY_ABI } from '@/lib/web3/abis'
@@ -64,16 +62,19 @@ async function requestClientRegistrationTx(
     args: [profile.username, agentEndpoint, CAPABILITIES_HASH, metadataUri],
   })
 
-  const txRequest: ExactPartial<RpcTransactionRequest> = {
+  const txRequest = {
     from: walletAddress as Address,
     to: registryAddress as Address,
     data,
-    value: '0x0',
+    value: '0x0' as `0x${string}`,
   }
 
   const txHash = await walletProvider.request({
     method: 'eth_sendTransaction',
-    params: [txRequest] as any,
+    params: [txRequest],
+  } as {
+    method: 'eth_sendTransaction'
+    params: [typeof txRequest]
   })
 
   if (typeof txHash !== 'string') {

@@ -86,6 +86,7 @@ export default function ActorProfilePage() {
     timestamp: string
     authorName?: string
     authorUsername?: string | null
+    authorProfileImageUrl?: string | null
   }>>([])
   const [loadingPosts, setLoadingPosts] = useState(false)
   
@@ -326,7 +327,7 @@ export default function ActorProfilePage() {
           author: apiPost.authorId,
           authorName: apiPost.authorName || actorInfo?.name || apiPost.authorId,
           authorUsername: actorInfo?.username || null,
-          authorProfileImageUrl: apiPost.authorProfileImageUrl || actorInfo?.profileImageUrl || null,
+          authorProfileImageUrl: actorInfo?.profileImageUrl || null,
           timestamp: apiPost.timestamp,
           type: POST_TYPES.POST, // User-generated posts
           sentiment: 0, // Neutral sentiment for user posts

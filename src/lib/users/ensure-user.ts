@@ -98,13 +98,12 @@ export async function ensureUserForAuth(
         'ensureUserForAuth'
       )
 
-      const fallbackCreateData = { ...createData }
-      delete (fallbackCreateData as any).privyId
+      const { privyId: _privyId, ...fallbackCreateData } = createData
 
       canonicalUser = await prisma.user.upsert({
         where: { id: fallbackCreateData.id },
         update: updateData,
-        create: fallbackCreateData,
+        create: fallbackCreateData as Prisma.UserCreateInput,
         select: selectWithoutPrivyId,
       })
     } else {

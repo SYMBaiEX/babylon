@@ -1,36 +1,47 @@
 import { prisma } from '@/lib/database-service'
 import { NotFoundError } from '@/lib/errors'
-import { Prisma } from '@prisma/client'
+import { Prisma, type User } from '@prisma/client'
 
 type SelectArg = Parameters<typeof prisma.user.findUnique>[0]['select']
 
 export async function findUserByIdentifier<T extends SelectArg | undefined = undefined>(
   identifier: string,
   select?: T
-) {
-  const baseArgs = select ? { select } : undefined
-
-  const byId = await prisma.user.findUnique({
-    where: { id: identifier },
-    ...baseArgs,
-  } as any)
-
-  if (byId) {
-    return byId
+): Promise<T extends undefined ? User | null : (T extends SelectArg ? Prisma.UserGetPayload<{ select: T }> | null : never)> {
+  // Try to find by ID first
+  if (select) {
+    const byId = await prisma.user.findUnique({ where: { id: identifier }, select })
+    if (byId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return byId as any
+    }
+  } else {
+    const byId = await prisma.user.findUnique({ where: { id: identifier } })
+    if (byId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return byId as any
+    }
   }
 
+  // Try to find by privyId
   try {
-    return await prisma.user.findUnique({
-      where: { privyId: identifier },
-      ...baseArgs,
-    } as any)
+    if (select) {
+      const byPrivyId = await prisma.user.findUnique({ where: { privyId: identifier }, select })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return byPrivyId as any
+    } else {
+      const byPrivyId = await prisma.user.findUnique({ where: { privyId: identifier } })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return byPrivyId as any
+    }
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2022' &&
       error.meta?.column === 'User.privyId'
     ) {
-      return null
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return null as any
     }
     throw error
   }

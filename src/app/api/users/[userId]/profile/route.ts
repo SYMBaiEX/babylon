@@ -61,7 +61,7 @@ export const GET = withErrorHandling(async (
         following: true,
       },
     },
-  }) as any;
+  });
 
   logger.info('User profile fetched successfully', { userId }, 'GET /api/users/[userId]/profile');
 

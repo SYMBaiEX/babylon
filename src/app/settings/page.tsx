@@ -129,16 +129,18 @@ export default function SettingsPage() {
 
       let txHash: unknown
       try {
+        const txRequest = {
+          from: wallet.address as `0x${string}`,
+          to: registryAddress as `0x${string}`,
+          data,
+          value: '0x0' as `0x${string}`,
+        }
         txHash = await provider.request({
           method: 'eth_sendTransaction',
-          params: [
-            {
-              from: wallet.address,
-              to: registryAddress,
-              data,
-              value: '0x0',
-            },
-          ],
+          params: [txRequest],
+        } as {
+          method: 'eth_sendTransaction'
+          params: [typeof txRequest]
         })
       } catch (error) {
         const message = error instanceof Error ? error.message.toLowerCase() : ''

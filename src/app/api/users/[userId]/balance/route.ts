@@ -39,7 +39,7 @@ export const GET = withErrorHandling(async (
     });
   }
 
-  const canonicalUserId = dbUser.id;
+  const canonicalUserId = dbUser!.id;
 
   // If authenticated, ensure they're requesting their own balance
   if (authUser && authUser.userId !== canonicalUserId) {

@@ -60,6 +60,29 @@ const IDENTITY_REGISTRY_ABI = [
       { name: 'endpoint', type: 'string', indexed: false },
     ],
   },
+  {
+    type: 'event',
+    name: 'AgentUpdated',
+    inputs: [
+      { name: 'tokenId', type: 'uint256', indexed: true },
+      { name: 'endpoint', type: 'string', indexed: false },
+      { name: 'capabilitiesHash', type: 'bytes32', indexed: false },
+    ],
+  },
+  {
+    type: 'function',
+    name: 'getAgentProfile',
+    inputs: [{ name: 'tokenId', type: 'uint256' }],
+    outputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'endpoint', type: 'string' },
+      { name: 'capabilitiesHash', type: 'bytes32' },
+      { name: 'name', type: 'string' },
+      { name: 'registered', type: 'uint256' },
+      { name: 'metadataURI', type: 'string' },
+    ],
+    stateMutability: 'view',
+  },
 ] as const
 
 const REPUTATION_SYSTEM_ABI = [
@@ -490,7 +513,12 @@ export async function processOnchainRegistration({
     throw new InternalServerError('Registration transaction receipt missing after processing')
   }
 
-  const agentRegisteredLog = finalizedReceipt.logs.find((log) => {
+  // Filter logs by contract address first to avoid decoding errors on Transfer events
+  const contractLogs = finalizedReceipt.logs.filter(log =>
+    log.address.toLowerCase() === IDENTITY_REGISTRY.toLowerCase()
+  )
+
+  const agentRegisteredLog = contractLogs.find((log) => {
     try {
       const decodedLog = decodeEventLog({ abi: IDENTITY_REGISTRY_ABI, data: log.data, topics: log.topics })
       return decodedLog.eventName === 'AgentRegistered'
@@ -550,6 +578,10 @@ export async function processOnchainRegistration({
       onChainRegistered: true,
       nftTokenId: tokenId,
       registrationTxHash: registrationTxHash ?? submittedTxHash ?? null,
+      // Store registration blockchain metadata
+      registrationBlockNumber: finalizedReceipt.blockNumber,
+      registrationGasUsed: finalizedReceipt.gasUsed,
+      registrationTimestamp: new Date(),
       username: user.isAgent ? user.userId : (username || dbUser.username),
       displayName: displayName || username || dbUser.username || user.userId,
       bio: bio || (user.isAgent ? `Autonomous AI agent: ${user.userId}` : undefined) || dbUser.username || null,
@@ -565,7 +597,7 @@ export async function processOnchainRegistration({
       privateKey: DEPLOYER_PRIVATE_KEY,
     })
 
-    await agent0Client.registerAgent({
+    const agent0Result = await agent0Client.registerAgent({
       name: username || dbUser.username || user.userId,
       description: bio || `Autonomous AI agent: ${user.userId}`,
       imageUrl: profileImageUrl ?? undefined,
@@ -579,7 +611,21 @@ export async function processOnchainRegistration({
       } as AgentCapabilities,
     })
 
-    logger.info('Agent registered with Agent0', { agentId: user.userId }, 'OnboardingOnchain')
+    // Store Agent0 registration metadata
+    await prisma.user.update({
+      where: { id: dbUser.id },
+      data: {
+        agent0TokenId: agent0Result.tokenId,
+        agent0MetadataCID: agent0Result.metadataCID ?? null,
+        agent0RegisteredAt: new Date(),
+      },
+    })
+
+    logger.info('Agent registered with Agent0', {
+      agentId: user.userId,
+      agent0TokenId: agent0Result.tokenId,
+      metadataCID: agent0Result.metadataCID
+    }, 'OnboardingOnchain')
   }
 
   const userWithBalance = await prisma.user.findUnique({
