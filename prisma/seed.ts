@@ -45,55 +45,45 @@ async function main() {
   logger.info('Seeding actors...', undefined, 'Script');
   let poolActorsCount = 0;
   
+  // Create actors individually (Prisma Accelerate limitation with array fields)
   for (const actor of actorsData.actors) {
-    // Check if actor has a pool and if profile image exists
     const hasPool = actor.hasPool === true;
     const imagePath = join(process.cwd(), 'public', 'images', 'actors', `${actor.id}.jpg`);
     const profileImageUrl = existsSync(imagePath) ? `/images/actors/${actor.id}.jpg` : null;
     
-    await prisma.actor.upsert({
-      where: { id: actor.id },
-      create: {
-        id: actor.id,
-        name: actor.name,
-        description: actor.description,
-        domain: actor.domain || [],
-        personality: actor.personality,
-        tier: actor.tier,
-        affiliations: actor.affiliations || [],
-        postStyle: actor.postStyle,
-        postExample: actor.postExample || [],
-        hasPool: hasPool,
-        tradingBalance: hasPool ? 10000 : 0,
-        reputationPoints: hasPool ? 10000 : 0,
-        profileImageUrl: profileImageUrl,
-      },
-      update: {
-        name: actor.name,
-        description: actor.description,
-        domain: actor.domain || [],
-        personality: actor.personality,
-        tier: actor.tier,
-        affiliations: actor.affiliations || [],
-        postStyle: actor.postStyle,
-        postExample: actor.postExample || [],
-        hasPool: hasPool,
-        // Only update trading balance and points if hasPool
-        ...(hasPool && {
-          tradingBalance: 10000,
-          reputationPoints: 10000,
-        }),
-        // Update profile image if it exists
-        ...(profileImageUrl && { profileImageUrl }),
-      },
-    });
-    
     if (hasPool) poolActorsCount++;
+    
+    try {
+      await prisma.actor.create({
+        data: {
+          id: actor.id,
+          name: actor.name,
+          description: actor.description || null,
+          domain: actor.domain || [],
+          personality: actor.personality || null,
+          tier: actor.tier || null,
+          affiliations: actor.affiliations || [],
+          postStyle: actor.postStyle || null,
+          postExample: actor.postExample || [],
+          hasPool: hasPool,
+          tradingBalance: hasPool ? new Prisma.Decimal(10000) : new Prisma.Decimal(0),
+          reputationPoints: hasPool ? 10000 : 0,
+          profileImageUrl: profileImageUrl,
+        },
+      });
+    } catch (error: any) {
+      // Skip if actor already exists (P2002 = unique constraint violation)
+      if (error.code !== 'P2002') {
+        throw error;
+      }
+    }
   }
+  
   logger.info(`Seeded ${actorsData.actors.length} actors (${poolActorsCount} with trading pools)`, undefined, 'Script');
 
   // Seed organizations
   logger.info('Seeding organizations...', undefined, 'Script');
+  
   let orgCount = 0;
   for (const org of actorsData.organizations) {
     // Skip if missing required fields
@@ -101,29 +91,29 @@ async function main() {
       logger.warn(`Skipping org "${org.id || 'unknown'}" - missing required fields`, undefined, 'Script');
       continue;
     }
-
-    await prisma.organization.upsert({
-      where: { id: org.id },
-      create: {
-        id: org.id,
-        name: org.name,
-        description: org.description || '',
-        type: org.type,
-        canBeInvolved: org.canBeInvolved !== false,
-        initialPrice: org.initialPrice || null,
-        currentPrice: org.initialPrice || null,
-      },
-      update: {
-        name: org.name,
-        description: org.description || '',
-        type: org.type,
-        canBeInvolved: org.canBeInvolved !== false,
-        initialPrice: org.initialPrice || null,
-        currentPrice: org.initialPrice || org.currentPrice || null,
-      },
-    });
-    orgCount++;
+    
+    try {
+      await prisma.organization.create({
+        data: {
+          id: org.id,
+          name: org.name,
+          description: org.description || '',
+          type: org.type,
+          canBeInvolved: org.canBeInvolved !== false,
+          initialPrice: org.initialPrice || null,
+          currentPrice: org.initialPrice || null,
+        },
+      });
+      orgCount++;
+    } catch (error: any) {
+      // Skip if organization already exists (P2002 = unique constraint violation)
+      if (error.code !== 'P2002') {
+        throw error;
+      }
+      orgCount++;
+    }
   }
+  
   logger.info(`Seeded ${orgCount} organizations`, undefined, 'Script');
 
   // Initialize game state
@@ -149,6 +139,7 @@ async function main() {
 
   // Initialize pools for actors with hasPool=true
   logger.info('Initializing trading pools...', undefined, 'Script');
+  
   const poolActors = await prisma.actor.findMany({
     where: { hasPool: true },
     select: { id: true, name: true },
@@ -156,12 +147,7 @@ async function main() {
   
   let poolsCreated = 0;
   for (const actor of poolActors) {
-    // Check if pool already exists
-    const existingPool = await prisma.pool.findFirst({
-      where: { npcActorId: actor.id },
-    });
-    
-    if (!existingPool) {
+    try {
       await prisma.pool.create({
         data: {
           npcActorId: actor.id,
@@ -173,14 +159,20 @@ async function main() {
           lifetimePnL: new Prisma.Decimal(0),
           performanceFeeRate: 0.08,
           totalFeesCollected: new Prisma.Decimal(0),
-          isActive: true,
+          isActive: true
         },
       });
+      poolsCreated++;
+    } catch (error: any) {
+      // Skip if pool already exists (P2002 = unique constraint violation)
+      if (error.code !== 'P2002') {
+        throw error;
+      }
       poolsCreated++;
     }
   }
   
-  logger.info(`Initialized ${poolsCreated} new pools (${poolActors.length} total pool actors)`, undefined, 'Script');
+  logger.info(`Initialized ${poolsCreated} pools for ${poolActors.length} pool actors`, undefined, 'Script');
 
   // Stats
   const stats = {
