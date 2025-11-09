@@ -87,8 +87,9 @@ export async function POST(request: NextRequest) {
     await updateFeedbackMetrics(toAgent.id, body.score)
 
     // Submit feedback to Agent0 network (async, don't block response)
+    // Retry mechanism is handled inside submitFeedbackToAgent0
     submitFeedbackToAgent0(feedback.id).catch((error) => {
-      logger.error('Failed to submit feedback to Agent0 (async)', {
+      logger.error('Failed to submit feedback to Agent0 after retries (async)', {
         feedbackId: feedback.id,
         error
       })

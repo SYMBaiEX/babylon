@@ -3,12 +3,16 @@
  *
  * Updates existing on-chain registration with new capabilities and metadata
  * without minting a new NFT. Uploads new IPFS file and updates tokenURI.
+ * Uses agent0-sdk directly to avoid import chain issues.
  */
 
-import { Agent0Client } from '../src/agents/agent0/Agent0Client'
-import { prisma } from '../src/lib/database-service'
-import { logger } from '../src/lib/logger'
-import type { AgentCapabilities } from '../src/a2a/types'
+import { SDK } from 'agent0-sdk'
+import { PrismaClient } from '@prisma/client'
+import 'dotenv/config'
+
+const prisma = new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+})
 
 async function updateBabylonRegistration() {
   try {
@@ -40,27 +44,24 @@ async function updateBabylonRegistration() {
     }
 
     const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || process.env.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com'
-    const ipfsConfig = process.env.PINATA_JWT
-      ? { ipfsProvider: 'pinata' as const, pinataJwt: process.env.PINATA_JWT }
-      : { ipfsProvider: 'node' as const, ipfsNodeUrl: process.env.IPFS_NODE_URL || 'https://ipfs.io' }
+    const network = (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia'
+    const chainId = network === 'sepolia' ? 11155111 : 1
 
-    const agent0Client = new Agent0Client({
-      network: (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia',
+    // Configure IPFS
+    const ipfsConfig = process.env.PINATA_JWT
+      ? { ipfs: 'pinata' as const, pinataJwt: process.env.PINATA_JWT }
+      : { ipfs: 'node' as const, ipfsNodeUrl: process.env.IPFS_NODE_URL || 'https://ipfs.io' }
+
+    const sdk = new SDK({
+      chainId,
       rpcUrl,
-      privateKey: gamePrivateKey,
+      signer: gamePrivateKey,
       ...ipfsConfig
     })
 
-    // Ensure SDK is initialized
-    await agent0Client['ensureSDK']()
-    const sdk = agent0Client.getSDK()
-
-    if (!sdk) {
-      throw new Error('Failed to initialize Agent0 SDK')
-    }
+    console.log('✓ SDK initialized')
 
     console.log('📥 Loading existing agent from registry...')
-    const chainId = (process.env.AGENT0_NETWORK === 'mainnet') ? 1 : 11155111
     const agentId = `${chainId}:${tokenId}` as `${number}:${number}`
 
     // Load existing agent
@@ -113,7 +114,7 @@ async function updateBabylonRegistration() {
         ],
         protocols: ['a2a', 'mcp', 'rest'],
         version: '1.0.0'
-      } as AgentCapabilities,
+      },
       metadata: {
         network: process.env.AGENT0_NETWORK || 'sepolia',
         startingBalance: 1000,
@@ -166,8 +167,10 @@ async function updateBabylonRegistration() {
           registered: true,
           tokenId,
           metadataCID: newMetadataCID,
-          txHash: registrationData.txHash, // Keep original registration tx
-          registeredAt: registrationData.registeredAt, // Keep original date
+          agentId,
+          agentURI: registrationFile.agentURI,
+          txHash: (registrationData.txHash as string) || undefined,
+          registeredAt: (registrationData.registeredAt as string) || undefined,
           lastUpdated: new Date().toISOString()
         }
       }

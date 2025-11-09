@@ -110,12 +110,40 @@ export class Agent0Service extends Service {
   
   /**
    * Submit feedback for an agent
+   * 
+   * Uses Agent0Client.submitFeedback which includes:
+   * - Rate limiting (5 requests/minute for feedback)
+   * - Circuit breaker protection
+   * - Retry mechanism for transient failures
+   * - Structured error handling (throws Agent0FeedbackError)
+   * 
+   * @param targetAgentId - Agent0 token ID
+   * @param rating - Score 0-100 (matches SDK requirement)
+   * @param comment - Feedback comment
+   * @param tags - Optional tags for categorization
+   * @param capability - Optional capability being rated
+   * @param skill - Optional skill being rated
+   * @throws Agent0FeedbackError if submission fails
    */
-  async submitFeedback(targetAgentId: number, rating: number, comment: string): Promise<void> {
-    await this.agent0Client!.submitFeedback({
+  async submitFeedback(
+    targetAgentId: number, 
+    rating: number, 
+    comment: string,
+    tags?: string[],
+    capability?: string,
+    skill?: string
+  ): Promise<void> {
+    if (!this.agent0Client) {
+      throw new Error('Agent0Client not initialized - check AGENT0_ENABLED and credentials')
+    }
+    
+    await this.agent0Client.submitFeedback({
       targetAgentId,
-      rating,
-      comment
+      rating, // 0-100 scale
+      comment,
+      tags,
+      capability,
+      skill,
     })
   }
   

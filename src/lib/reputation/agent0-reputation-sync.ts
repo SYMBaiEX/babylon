@@ -10,6 +10,9 @@ import { getOnChainReputation, syncOnChainReputation } from './blockchain-reputa
 import { getAgent0Client } from '@/agents/agent0/Agent0Client'
 import { recalculateReputation, getReputationBreakdown } from './reputation-service'
 import { logger } from '@/lib/logger'
+import { retryIfRetryable } from '@/lib/retry'
+import { Agent0FeedbackError, Agent0DuplicateFeedbackError, Agent0ReputationError } from '@/lib/errors'
+import { agent0Metrics } from '@/lib/metrics/agent0-metrics'
 
 /**
  * Sync Agent0 on-chain reputation to local database after registration
@@ -22,8 +25,13 @@ import { logger } from '@/lib/logger'
  * @returns Updated performance metrics
  */
 export async function syncAfterAgent0Registration(userId: string, agent0TokenId: number) {
+  const startTime = Date.now()
+  
   try {
     logger.info('Syncing reputation after Agent0 registration', { userId, agent0TokenId })
+    
+    // Track sync start
+    agent0Metrics.increment('agent0.sync.start', { userId, agent0TokenId })
 
     // Get on-chain reputation data
     const onChainRep = await getOnChainReputation(agent0TokenId)
@@ -69,16 +77,33 @@ export async function syncAfterAgent0Registration(userId: string, agent0TokenId:
       agent0TokenId,
       trustScore: onChainRep.trustScore.toString(),
       accuracyScore: onChainRep.accuracyScore.toString(),
+      duration: Date.now() - startTime,
     })
+    
+    // Track success metric
+    agent0Metrics.increment('agent0.sync.success', { userId, agent0TokenId })
 
     return updated
   } catch (error) {
+    // Track error metric
+    agent0Metrics.increment('agent0.sync.error', {
+      userId,
+      errorType: error instanceof Error ? error.name : 'Unknown',
+    })
+    
     logger.error('Failed to sync reputation after Agent0 registration', {
       userId,
       agent0TokenId,
       error,
+      duration: Date.now() - startTime,
     })
-    throw error
+    
+    throw new Agent0ReputationError(
+      `Failed to sync reputation: ${error instanceof Error ? error.message : String(error)}`,
+      agent0TokenId,
+      undefined,
+      error instanceof Error ? error : undefined
+    )
   }
 }
 
@@ -93,6 +118,8 @@ export async function syncAfterAgent0Registration(userId: string, agent0TokenId:
  * @returns Agent0 submission result
  */
 export async function submitFeedbackToAgent0(feedbackId: string, submitToBlockchain = false) {
+  const startTime = Date.now()
+  
   try {
     // Get feedback record with agent info
     const feedback = await prisma.feedback.findUnique({
@@ -109,11 +136,32 @@ export async function submitFeedbackToAgent0(feedbackId: string, submitToBlockch
     })
 
     if (!feedback) {
-      throw new Error(`Feedback ${feedbackId} not found`)
+      throw new Agent0FeedbackError(`Feedback ${feedbackId} not found`, feedbackId)
     }
 
     if (!feedback.toUser) {
-      throw new Error('Feedback has no recipient user')
+      throw new Agent0FeedbackError('Feedback has no recipient user', feedbackId)
+    }
+
+    // Check if already submitted to prevent duplicates
+    if (
+      feedback.metadata &&
+      typeof feedback.metadata === 'object' &&
+      'agent0Submitted' in feedback.metadata &&
+      feedback.metadata.agent0Submitted === true
+    ) {
+      logger.info('Feedback already submitted to Agent0', {
+        feedbackId,
+        agent0TokenId: feedback.toUser.agent0TokenId,
+      })
+      
+      // Track as duplicate
+      agent0Metrics.increment('agent0.feedback.duplicate', {
+        feedbackId,
+        targetAgentId: feedback.toUser.agent0TokenId,
+      })
+      
+      throw new Agent0DuplicateFeedbackError(feedbackId, feedback.toUser.agent0TokenId!)
     }
 
     const agent0TokenId = feedback.toUser.agent0TokenId
@@ -129,17 +177,49 @@ export async function submitFeedbackToAgent0(feedbackId: string, submitToBlockch
     // Get Agent0 client
     const agent0Client = getAgent0Client()
 
-    // Convert 0-100 score to -5 to +5 scale for Agent0
-    // 0-100 → -5 to +5 (0 = -5, 50 = 0, 100 = +5)
-    const agent0Rating = Math.round((feedback.score / 100) * 10 - 5)
+    // Use score directly (already 0-100 scale, matches SDK requirement)
+    const agent0Score = Math.max(0, Math.min(100, feedback.score))
 
-    // Submit to Agent0 network
-    await agent0Client.submitFeedback({
-      targetAgentId: agent0TokenId,
-      rating: agent0Rating,
-      comment: feedback.comment || 'Feedback from Babylon platform',
-      transactionId: feedback.id,
-    })
+    // Extract optional parameters from feedback metadata
+    const tags = (feedback.metadata && typeof feedback.metadata === 'object' && 'tags' in feedback.metadata)
+      ? (Array.isArray(feedback.metadata.tags) ? feedback.metadata.tags as string[] : [])
+      : []
+    
+    const capability = (feedback.metadata && typeof feedback.metadata === 'object' && 'capability' in feedback.metadata)
+      ? feedback.metadata.capability as string
+      : feedback.category || undefined
+    
+    const skill = (feedback.metadata && typeof feedback.metadata === 'object' && 'skill' in feedback.metadata)
+      ? feedback.metadata.skill as string
+      : undefined
+
+    // Submit to Agent0 network with retry mechanism (only for retryable errors)
+    await retryIfRetryable(
+      async () => {
+        await agent0Client.submitFeedback({
+          targetAgentId: agent0TokenId,
+          rating: agent0Score, // 0-100 scale (matches SDK)
+          comment: feedback.comment || 'Feedback from Babylon platform',
+          transactionId: feedback.id,
+          tags: tags.length > 0 ? tags : undefined,
+          capability,
+          skill,
+        })
+      },
+      {
+        maxAttempts: 3,
+        initialDelay: 1000,
+        maxDelay: 10000,
+        backoffFactor: 2,
+        onRetry: (attempt, error) => {
+          logger.warn('Retrying Agent0 feedback submission', {
+            feedbackId,
+            attempt,
+            error: error.message,
+          })
+        },
+      }
+    )
 
     // Update feedback record to mark as submitted to Agent0
     await prisma.feedback.update({
@@ -160,7 +240,19 @@ export async function submitFeedbackToAgent0(feedbackId: string, submitToBlockch
       feedbackId,
       agent0TokenId,
       score: feedback.score,
-      agent0Rating,
+      agent0Score,
+      tags: tags.length,
+      capability,
+      skill,
+      duration: Date.now() - startTime,
+    })
+    
+    // Track success metric
+    agent0Metrics.increment('agent0.feedback.success', {
+      targetAgentId: agent0TokenId,
+      hasTags: tags.length > 0,
+      hasCapability: !!capability,
+      hasSkill: !!skill,
     })
 
     // If requested, also submit to blockchain (ERC-8004)
@@ -175,12 +267,34 @@ export async function submitFeedbackToAgent0(feedbackId: string, submitToBlockch
 
     return {
       agent0TokenId,
-      agent0Rating,
+      agent0Rating: agent0Score, // Keep for backward compatibility
       submitted: true,
     }
   } catch (error) {
-    logger.error('Failed to submit feedback to Agent0', { feedbackId, error })
-    throw error
+    // Track error metric
+    agent0Metrics.increment('agent0.feedback.error', {
+      errorType: error instanceof Error ? error.name : 'Unknown',
+    })
+    
+    logger.error('Failed to submit feedback to Agent0', { 
+      feedbackId, 
+      error,
+      duration: Date.now() - startTime,
+    })
+    
+    // If it's already a structured error, rethrow
+    if (error instanceof Agent0FeedbackError) {
+      throw error
+    }
+    
+    // Otherwise wrap in Agent0FeedbackError
+    throw new Agent0FeedbackError(
+      `Failed to submit feedback to Agent0: ${error instanceof Error ? error.message : String(error)}`,
+      feedbackId,
+      undefined,
+      undefined,
+      error instanceof Error ? error : undefined
+    )
   }
 }
 
@@ -233,8 +347,63 @@ export async function periodicReputationSync(userId?: string) {
           continue
         }
 
-        // Sync on-chain reputation
+        // Sync on-chain reputation (ERC-8004)
         await syncOnChainReputation(user.id, user.agent0TokenId)
+
+        // Sync from Agent0 network reputation
+        try {
+          const agent0Client = getAgent0Client()
+          
+          // Use getReputationSummary for more complete data
+          const reputationSummary = await agent0Client.getReputationSummary(user.agent0TokenId)
+
+          if (reputationSummary) {
+            // Update local metrics with Agent0 reputation
+            // Only update lastSyncedAt - Agent0 reputation is tracked via ReputationBridge
+            await prisma.agentPerformanceMetrics.update({
+              where: { userId: user.id },
+              data: {
+                lastSyncedAt: new Date(),
+              },
+            })
+
+            logger.info('Synced Agent0 reputation', {
+              userId: user.id,
+              agent0TokenId: user.agent0TokenId,
+              trustScore: reputationSummary.trustScore,
+              accuracyScore: reputationSummary.accuracyScore,
+              totalFeedback: reputationSummary.totalFeedback,
+              note: 'Agent0 reputation aggregated via ReputationBridge.getAggregatedReputation()',
+            })
+          } else {
+            // Fallback to getAgentProfile if getReputationSummary returns null
+            const agent0Profile = await agent0Client.getAgentProfile(user.agent0TokenId)
+
+            if (agent0Profile?.reputation) {
+              await prisma.agentPerformanceMetrics.update({
+                where: { userId: user.id },
+                data: {
+                  lastSyncedAt: new Date(),
+                },
+              })
+
+              logger.info('Synced Agent0 reputation (fallback)', {
+                userId: user.id,
+                agent0TokenId: user.agent0TokenId,
+                trustScore: agent0Profile.reputation.trustScore,
+                accuracyScore: agent0Profile.reputation.accuracyScore,
+                note: 'Agent0 reputation aggregated via ReputationBridge.getAggregatedReputation()',
+              })
+            }
+          }
+        } catch (error) {
+          logger.warn('Failed to sync Agent0 reputation (non-critical)', {
+            userId: user.id,
+            agent0TokenId: user.agent0TokenId,
+            error,
+          })
+          // Don't fail the entire sync if Agent0 sync fails
+        }
 
         // Recalculate local reputation
         await recalculateReputation(user.id)

@@ -23,7 +23,9 @@ describe('Agent0Client', () => {
     const client = new Agent0Client({
       network: 'sepolia',
       rpcUrl,
-      privateKey
+      privateKey,
+      ipfsProvider: 'node', // Use 'node' for testing
+      ipfsNodeUrl: 'https://ipfs.infura.io:5001'
     })
     
     expect(client).toBeDefined()
@@ -37,7 +39,9 @@ describe('Agent0Client', () => {
     const client = new Agent0Client({
       network: 'sepolia',
       rpcUrl,
-      privateKey
+      privateKey,
+      ipfsProvider: 'node', // Use 'node' for testing
+      ipfsNodeUrl: 'https://ipfs.infura.io:5001'
     })
     
     const results = await client.searchAgents({
@@ -54,7 +58,9 @@ describe('Agent0Client', () => {
     const client = new Agent0Client({
       network: 'sepolia',
       rpcUrl,
-      privateKey
+      privateKey,
+      ipfsProvider: 'node', // Use 'node' for testing
+      ipfsNodeUrl: 'https://ipfs.infura.io:5001'
     })
     
     const profile = await client.getAgentProfile(1)

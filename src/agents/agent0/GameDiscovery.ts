@@ -5,8 +5,7 @@
  * through the Agent0 registry.
  */
 
-import { SubgraphClient } from './SubgraphClient'
-import { IPFSPublisher } from './IPFSPublisher'
+import { getAgent0Client } from './Agent0Client'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/database-service'
 
@@ -31,67 +30,79 @@ export interface DiscoverableGame {
   }
   reputation?: {
     trustScore: number
+    accuracyScore: number
   }
 }
 
+/**
+ * Game Discovery Service
+ * 
+ * Uses Agent0 SDK directly - the SDK automatically queries the subgraph internally.
+ * Clean implementation leveraging SDK's built-in functionality.
+ */
 export class GameDiscoveryService {
-  private subgraphClient: SubgraphClient
-  private ipfsPublisher: IPFSPublisher
-  
+  // Uses Agent0Client singleton which handles all SDK interactions
   constructor() {
-    this.subgraphClient = new SubgraphClient()
-    this.ipfsPublisher = new IPFSPublisher()
+    // No initialization needed
   }
   
   /**
    * Discover games by type (prediction markets, trading games, etc.)
-   * This is what external agents call to find Babylon
+   * Uses Agent0 SDK which automatically queries the subgraph
    */
   async discoverGames(filters: {
     type?: string  // "game-platform", "prediction-market", etc.
     markets?: string[]  // ["prediction", "perpetuals"]
     minReputation?: number
   }): Promise<DiscoverableGame[]> {
-    const subgraphAgents = await this.subgraphClient.getGamePlatforms({
-      markets: filters.markets,
-      minTrustScore: filters.minReputation
-    })
-    
-    const games: DiscoverableGame[] = []
-    
-    for (const agent of subgraphAgents) {
-      const metadata = await this.ipfsPublisher.fetchMetadata(agent.metadataCID)
+    try {
+      const agent0Client = getAgent0Client()
       
-      games.push({
-        tokenId: agent.tokenId,
-        name: agent.name,
-        type: agent.type || 'game-platform',
-        metadataCID: agent.metadataCID,
-        endpoints: {
-          a2a: metadata.endpoints?.a2a || agent.a2aEndpoint || '',
-          mcp: metadata.endpoints?.mcp || agent.mcpEndpoint || '',
-          api: metadata.endpoints?.api || '',
-          docs: metadata.endpoints?.docs,
-          websocket: metadata.endpoints?.websocket
-        },
-        capabilities: {
-          markets: metadata.capabilities?.markets || [],
-          actions: metadata.capabilities?.actions || [],
-          protocols: metadata.capabilities?.protocols || [],
-          socialFeatures: metadata.capabilities?.socialFeatures,
-          realtime: metadata.capabilities?.realtime
-        },
-        reputation: agent.reputation ? {
-          trustScore: agent.reputation.trustScore
-        } : undefined
+      // Use SDK's searchAgents - it automatically uses the subgraph
+      const agents = await agent0Client.searchAgents({
+        type: filters.type || 'game-platform',
+        markets: filters.markets,
+        minReputation: filters.minReputation
       })
+      
+      // Transform to DiscoverableGame format
+      const games: DiscoverableGame[] = []
+      
+      for (const agent of agents) {
+        games.push({
+          tokenId: agent.tokenId,
+          name: agent.name,
+          type: filters.type || 'game-platform',
+          metadataCID: agent.metadataCID,
+          endpoints: {
+            a2a: '', // Would be in metadata/registrationFile
+            mcp: '', // Would be in metadata/registrationFile
+            api: '', // Would be in metadata/registrationFile
+          },
+          capabilities: {
+            markets: agent.capabilities.markets || [],
+            actions: agent.capabilities.actions || [],
+            protocols: ['a2a', 'mcp'], // Default protocols, could be extended from metadata
+            socialFeatures: agent.capabilities.platform === 'babylon',
+            realtime: agent.capabilities.platform === 'babylon'
+          },
+          reputation: {
+            trustScore: agent.reputation.trustScore,
+            accuracyScore: agent.reputation.accuracyScore
+          }
+        })
+      }
+      
+      logger.info('Discovered games via Agent0 SDK', {
+        count: games.length,
+        filters
+      }, 'GameDiscovery')
+      
+      return games
+    } catch (error) {
+      logger.error('Failed to discover games', { filters, error }, 'GameDiscovery')
+      return []
     }
-    
-    if (filters.type) {
-      return games.filter(g => g.type === filters.type)
-    }
-    
-    return games
   }
   
   /**
@@ -122,38 +133,45 @@ export class GameDiscoveryService {
         logger.warn(`Babylon not found in registry (attempt ${attempt}/${maxRetries})`, undefined, 'GameDiscovery')
       }
     
+      // Fallback: Check database for Babylon's registration
       if (process.env.NEXT_RUNTIME === 'nodejs') {
-        const config = await prisma.gameConfig.findUnique({
-          where: { key: 'agent0_registration' }
-        })
-        
-        if (config?.value && typeof config.value === 'object' && 'tokenId' in config.value) {
-          const tokenId = Number(config.value.tokenId)
-          const agent = await this.subgraphClient.getAgent(tokenId)
+        try {
+          const config = await prisma.gameConfig.findUnique({
+            where: { key: 'agent0_registration' }
+          })
           
-          if (agent) {
-            const metadata = await this.ipfsPublisher.fetchMetadata(agent.metadataCID)
-            return {
-              tokenId: agent.tokenId,
-              name: agent.name,
-              type: agent.type || 'game-platform',
-              metadataCID: agent.metadataCID,
-              endpoints: {
-                a2a: metadata.endpoints?.a2a || agent.a2aEndpoint || '',
-                mcp: metadata.endpoints?.mcp || agent.mcpEndpoint || '',
-                api: metadata.endpoints?.api || '',
-                docs: metadata.endpoints?.docs,
-                websocket: metadata.endpoints?.websocket
-              },
-              capabilities: {
-                markets: metadata.capabilities?.markets || [],
-                actions: metadata.capabilities?.actions || [],
-                protocols: metadata.capabilities?.protocols || [],
-                socialFeatures: metadata.capabilities?.socialFeatures,
-                realtime: metadata.capabilities?.realtime
+          if (config?.value && typeof config.value === 'object' && 'tokenId' in config.value) {
+            const tokenId = Number(config.value.tokenId)
+            const agent0Client = getAgent0Client()
+            const profile = await agent0Client.getAgentProfile(tokenId)
+            
+            if (profile) {
+              return {
+                tokenId: profile.tokenId,
+                name: profile.name,
+                type: 'game-platform',
+                metadataCID: profile.metadataCID,
+                endpoints: {
+                  a2a: '', // Would be in registrationFile
+                  mcp: '', // Would be in registrationFile
+                  api: '',
+                },
+                capabilities: {
+                  markets: profile.capabilities.markets || [],
+                  actions: profile.capabilities.actions || [],
+                  protocols: ['a2a', 'mcp'], // Default protocols
+                  socialFeatures: profile.capabilities.platform === 'babylon',
+                  realtime: profile.capabilities.platform === 'babylon'
+                },
+                reputation: {
+                  trustScore: profile.reputation.trustScore,
+                  accuracyScore: profile.reputation.accuracyScore
+                }
               }
             }
           }
+        } catch (error) {
+          logger.warn('Failed to get Babylon from database', { error }, 'GameDiscovery')
         }
       }
       
@@ -238,38 +256,42 @@ export class GameDiscoveryService {
   }
   
   /**
-   * Get game metadata by token ID
+   * Get game metadata by token ID using Agent0 SDK
    */
   async getGameByTokenId(tokenId: number): Promise<DiscoverableGame | null> {
-    const agent = await this.subgraphClient.getAgent(tokenId)
-    if (!agent) {
+    try {
+      const agent0Client = getAgent0Client()
+      const profile = await agent0Client.getAgentProfile(tokenId)
+      
+      if (!profile) {
+        return null
+      }
+      
+      return {
+        tokenId: profile.tokenId,
+        name: profile.name,
+        type: 'game-platform',
+        metadataCID: profile.metadataCID,
+        endpoints: {
+          a2a: '', // Would be in registrationFile/metadata
+          mcp: '', // Would be in registrationFile/metadata
+          api: '',
+        },
+        capabilities: {
+          markets: profile.capabilities.markets || [],
+          actions: profile.capabilities.actions || [],
+          protocols: ['a2a', 'mcp'], // Default protocols
+          socialFeatures: profile.capabilities.platform === 'babylon',
+          realtime: profile.capabilities.platform === 'babylon'
+        },
+        reputation: {
+          trustScore: profile.reputation.trustScore,
+          accuracyScore: profile.reputation.accuracyScore
+        }
+      }
+    } catch (error) {
+      logger.error('Failed to get game by token ID', { tokenId, error }, 'GameDiscovery')
       return null
-    }
-    
-    const metadata = await this.ipfsPublisher.fetchMetadata(agent.metadataCID)
-    
-    return {
-      tokenId: agent.tokenId,
-      name: agent.name,
-      type: agent.type || 'game-platform',
-      metadataCID: agent.metadataCID,
-      endpoints: {
-        a2a: metadata.endpoints?.a2a || agent.a2aEndpoint || '',
-        mcp: metadata.endpoints?.mcp || agent.mcpEndpoint || '',
-        api: metadata.endpoints?.api || '',
-        docs: metadata.endpoints?.docs,
-        websocket: metadata.endpoints?.websocket
-      },
-      capabilities: {
-        markets: metadata.capabilities?.markets || [],
-        actions: metadata.capabilities?.actions || [],
-        protocols: metadata.capabilities?.protocols || [],
-        socialFeatures: metadata.capabilities?.socialFeatures,
-        realtime: metadata.capabilities?.realtime
-      },
-      reputation: agent.reputation ? {
-        trustScore: agent.reputation.trustScore
-      } : undefined
     }
   }
 }

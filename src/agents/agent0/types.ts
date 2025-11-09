@@ -15,6 +15,42 @@ export interface IAgent0Client {
   searchAgents(filters: Agent0SearchFilters): Promise<Agent0SearchResult[]>
   submitFeedback(params: Agent0FeedbackParams): Promise<void>
   getAgentProfile(tokenId: number): Promise<Agent0AgentProfile | null>
+  getReputationSummary(tokenId: number): Promise<{
+    trustScore: number
+    accuracyScore: number
+    totalFeedback: number
+  } | null>
+  searchFeedback(
+    tokenId: number,
+    filters?: {
+      minScore?: number
+      maxScore?: number
+      tags?: string[]
+      limit?: number
+    }
+  ): Promise<Array<{
+    id: string
+    from: string
+    score: number
+    comment?: string
+    tags?: string[]
+    capability?: string
+    skill?: string
+    timestamp: number
+  }>>
+  getFeedback(
+    tokenId: number,
+    feedbackId: string
+  ): Promise<{
+    id: string
+    from: string
+    score: number
+    comment?: string
+    tags?: string[]
+    capability?: string
+    skill?: string
+    timestamp: number
+  } | null>
   isAvailable(): boolean
 }
 
@@ -97,9 +133,12 @@ export interface Agent0AgentProfile {
  */
 export interface Agent0FeedbackParams {
   targetAgentId: number
-  rating: number  // -5 to +5
+  rating: number  // 0-100 scale (matches SDK requirement)
   comment: string
   transactionId?: string  // Optional local transaction/feedback ID for tracking
+  tags?: string[]  // Optional tags for categorization
+  capability?: string  // Optional capability being rated
+  skill?: string  // Optional skill being rated
 }
 
 /**

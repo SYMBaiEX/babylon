@@ -52,14 +52,19 @@ export const AgentMetadataSchema = z.object({
 
 /**
  * Agent feedback submission schema
+ * Note: For Agent0 SDK, rating is 0-100 scale. For ERC-8004 contract, rating is -5 to +5.
+ * This schema supports Agent0 SDK format (0-100).
  */
 export const AgentFeedbackCreateSchema = z.object({
   targetAgentId: z.union([
     z.number().int().positive(),
     z.string().regex(/^\d+$/).transform(val => parseInt(val, 10))
   ]),
-  rating: z.number().int().min(-5).max(5, { message: 'Rating must be between -5 and 5' }),
-  comment: createTrimmedStringSchema(1, 1000)
+  rating: z.number().min(0).max(100, { message: 'Rating must be between 0 and 100 (Agent0 SDK scale)' }),
+  comment: createTrimmedStringSchema(1, 1000),
+  tags: z.array(z.string()).optional(),
+  capability: z.string().optional(),
+  skill: z.string().optional()
 });
 
 /**

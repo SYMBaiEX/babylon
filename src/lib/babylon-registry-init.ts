@@ -8,7 +8,7 @@
 import { Agent0Client } from '@/agents/agent0/Agent0Client'
 import type { AgentMetadata } from '@/agents/agent0/IPFSPublisher'
 import { logger } from '@/lib/logger'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '@/lib/prisma'
 
 export interface BabylonRegistrationResult {
   tokenId: number

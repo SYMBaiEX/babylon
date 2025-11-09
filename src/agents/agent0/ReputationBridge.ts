@@ -6,18 +6,16 @@
  */
 
 import type { RegistryClient } from '@/a2a/blockchain/registry-client'
-import { SubgraphClient } from './SubgraphClient'
 import type { AgentReputation } from '@/a2a/types'
 import { logger } from '@/lib/logger'
 import type { IReputationBridge, AggregatedReputation } from './types'
+import { getAgent0Client } from './Agent0Client'
 
 export class ReputationBridge implements IReputationBridge {
   private erc8004Registry: RegistryClient | null
-  private subgraphClient: SubgraphClient
   
   constructor(erc8004Registry: RegistryClient | null = null) {
     this.erc8004Registry = erc8004Registry
-    this.subgraphClient = new SubgraphClient()
   }
   
   /**
@@ -56,25 +54,50 @@ export class ReputationBridge implements IReputationBridge {
   }
   
   /**
-   * Get reputation from Agent0 network
+   * Get reputation from Agent0 network using SDK
+   * Uses getReputationSummary for more complete data including totalFeedback count
    */
   private async getAgent0Reputation(tokenId: number): Promise<AgentReputation> {
-    const agent = await this.subgraphClient.getAgent(tokenId)
-    
-    if (!agent || !agent.reputation) {
+    try {
+      const agent0Client = getAgent0Client()
+      
+      // Try to get reputation summary first (includes totalFeedback)
+      const summary = await agent0Client.getReputationSummary(tokenId)
+      
+      if (summary) {
+        // Agent0 reputation scores are 0-100, convert to 0-1 scale for consistency
+        return {
+          totalBets: summary.totalFeedback || 0, // Use totalFeedback as proxy for totalBets
+          winningBets: 0, // SDK doesn't provide this breakdown
+          accuracyScore: summary.accuracyScore / 100,
+          trustScore: summary.trustScore / 100,
+          totalVolume: '0',
+          profitLoss: 0,
+          isBanned: false
+        }
+      }
+      
+      // Fallback to getAgentProfile if getReputationSummary fails
+      const agent = await agent0Client.getAgentProfile(tokenId)
+      
+      if (!agent || !agent.reputation) {
+        logger.debug(`No Agent0 reputation found for token ${tokenId}`, undefined, 'ReputationBridge')
+        return this.getDefaultReputation()
+      }
+      
+      // Agent0 reputation scores are 0-100, convert to 0-1 scale for consistency
+      return {
+        totalBets: 0, // SDK doesn't provide bet counts
+        winningBets: 0,
+        accuracyScore: agent.reputation.accuracyScore / 100,
+        trustScore: agent.reputation.trustScore / 100,
+        totalVolume: '0',
+        profitLoss: 0,
+        isBanned: false
+      }
+    } catch (error) {
+      logger.error(`Failed to get Agent0 reputation for token ${tokenId}`, { error }, 'ReputationBridge')
       return this.getDefaultReputation()
-    }
-    
-    const rep = agent.reputation
-    
-    return {
-      totalBets: rep.totalBets || 0,
-      winningBets: rep.winningBets || 0,
-      accuracyScore: (rep.accuracyScore || 0) / 100,
-      trustScore: (rep.trustScore || 0) / 100,
-      totalVolume: '0',
-      profitLoss: 0,
-      isBanned: false
     }
   }
   
@@ -159,7 +182,7 @@ export class ReputationBridge implements IReputationBridge {
    * Sync local reputation to Agent0 network
    * This can be called periodically to keep both systems in sync
    */
-  async syncReputationToAgent0(tokenId: number, agent0Client: { submitFeedback: (params: { targetAgentId: number; rating: number; comment: string }) => Promise<void> }): Promise<void> {
+  async syncReputationToAgent0(tokenId: number, agent0Client: { submitFeedback: (params: { targetAgentId: number; rating: number; comment: string; tags?: string[]; capability?: string; skill?: string }) => Promise<void> }): Promise<void> {
     logger.info(`Syncing reputation for token ${tokenId} to Agent0 network`, undefined, 'ReputationBridge')
     
     const localRep = await this.getLocalReputation(tokenId)
@@ -169,15 +192,17 @@ export class ReputationBridge implements IReputationBridge {
       return
     }
     
-    const rating = Math.round((localRep.accuracyScore - 0.5) * 10)
-    const clampedRating = Math.max(-5, Math.min(5, rating))
+    // Convert accuracy score (0-1) to 0-100 scale for Agent0 SDK
+    const agent0Score = Math.max(0, Math.min(100, localRep.accuracyScore * 100))
     
     const comment = `Local reputation sync: ${localRep.totalBets} bets, ${localRep.winningBets} wins, ${(localRep.accuracyScore * 100).toFixed(1)}% accuracy`
     
     await agent0Client.submitFeedback({
       targetAgentId: tokenId,
-      rating: clampedRating,
-      comment
+      rating: agent0Score, // 0-100 scale (matches SDK)
+      comment,
+      tags: ['reputation-sync', 'automated'],
+      capability: 'trading-performance',
     })
     
     logger.info(`✅ Synced reputation for token ${tokenId} to Agent0 network`, undefined, 'ReputationBridge')
