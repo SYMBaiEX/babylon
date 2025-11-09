@@ -7,7 +7,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { logger } from '../src/lib/logger'
-import type { ActorData, ElizaCharacter, ElizaMessageExample } from '../src/shared/types'
+import type { Actor, ActorData, ElizaCharacter, ElizaMessageExample } from '../src/shared/types'
 
 function convertActorToCharacter(actor: ActorData): ElizaCharacter {
   // Extract bio from description
@@ -112,7 +112,7 @@ async function main() {
   logger.info('Generating Eliza character files from actors.json...', undefined, 'Script');
 
   // Read actors.json
-  const actorsPath = join(process.cwd(), 'data', 'actors.json')
+  const actorsPath = join(process.cwd(), 'public', 'data', 'actors.json')
   const actorsData = JSON.parse(readFileSync(actorsPath, 'utf-8'))
   const actors: Actor[] = actorsData.actors
 

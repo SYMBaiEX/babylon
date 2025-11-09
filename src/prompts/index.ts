@@ -60,9 +60,9 @@ export { groupChatNames } from './game/group-chat-names';
 export { questionGeneration } from './game/question-generation';
 
 // Image prompts
-export { actorPortrait } from './image/actor-portrait';
+export { actorPortrait, actorBanner } from './image/actor-portrait';
 export { userProfileBanner } from './image/user-profile-banner';
-export { organizationLogo } from './image/organization-logo';
+export { organizationLogo, organizationBanner } from './image/organization-logo';
 export { userProfilePicture } from './image/user-profile-picture';
 
 // System prompts

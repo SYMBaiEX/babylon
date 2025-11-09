@@ -29,7 +29,7 @@ interface ActorsData {
 }
 
 function validateActors(): void {
-  const actorsPath = join(process.cwd(), 'data', 'actors.json');
+  const actorsPath = join(process.cwd(), 'public', 'data', 'actors.json');
   const data: ActorsData = JSON.parse(readFileSync(actorsPath, 'utf-8'));
 
   const { actors, organizations } = data;
