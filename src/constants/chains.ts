@@ -1,24 +1,15 @@
-import { base, baseSepolia } from 'viem/chains';
+import { base, baseSepolia, mainnet, sepolia } from 'viem/chains';
 
-type Network = 'mainnet' | 'testnet';
-
-const rawNetwork = process.env.NEXT_PUBLIC_CHAIN_TYPE;
-
-const envNetwork =
-  rawNetwork === undefined || rawNetwork === null || rawNetwork.trim() === ''
-    ? 'testnet'
-    : (rawNetwork.trim().toLowerCase() as Network);
+const rawChainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID);
 
 const resolveChain = () => {
-  switch (envNetwork) {
-    case 'testnet':
-      return baseSepolia;
-    case 'mainnet':
-    default:
-      return base;
-  }
+  if (rawChainId === base.id) return base;
+  if (rawChainId === mainnet.id) return mainnet;
+  if (rawChainId === sepolia.id) return sepolia;
+  return baseSepolia;
 };
 
-export const NETWORK: Network = envNetwork;
 export const CHAIN = resolveChain();
 export const CHAIN_ID = CHAIN.id;
+export const NETWORK: 'mainnet' | 'testnet' =
+  CHAIN_ID === base.id || CHAIN_ID === mainnet.id ? 'mainnet' : 'testnet';

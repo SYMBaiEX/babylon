@@ -8,7 +8,6 @@ import { useRouter } from 'next/navigation';
 import { type ConnectedWallet, useSendTransaction } from '@privy-io/react-auth';
 import { ArrowLeft, Bell, Palette, Save, Shield, User } from 'lucide-react';
 import { encodeFunctionData, parseAbi } from 'viem';
-import { baseSepolia } from 'viem/chains';
 
 import { LoginButton } from '@/components/auth/LoginButton';
 import { PageContainer } from '@/components/shared/PageContainer';
@@ -19,12 +18,12 @@ import { IDENTITY_REGISTRY_ABI } from '@/lib/web3/abis';
 
 import { useAuth } from '@/hooks/useAuth';
 
+import { CHAIN_ID } from '@/constants/chains';
 import { useAuthStore } from '@/stores/authStore';
 
 const CAPABILITIES_HASH =
   '0x0000000000000000000000000000000000000000000000000000000000000001' as const;
 const identityRegistryAbi = parseAbi(IDENTITY_REGISTRY_ABI);
-const BASE_SEPOLIA_CHAIN_ID = baseSepolia.id;
 const isEmbeddedWallet = (candidate?: ConnectedWallet | null) =>
   candidate?.walletClientType === 'privy' ||
   candidate?.walletClientType === 'privy-v2';
@@ -131,9 +130,6 @@ export default function SettingsPage() {
           'Les mises à jour on-chain nécessitent votre wallet Babylon (embedded Privy).'
         );
       }
-      if (wallet.chainId !== `eip155:${BASE_SEPOLIA_CHAIN_ID}`) {
-        await wallet.switchChain(BASE_SEPOLIA_CHAIN_ID);
-      }
 
       const trimmedDisplayName = (displayName ?? '').trim();
       const trimmedUsername = (username ?? '').trim();
@@ -167,7 +163,7 @@ export default function SettingsPage() {
           to: registryAddress as `0x${string}`,
           data,
           value: '0x0' as `0x${string}`,
-          chainId: BASE_SEPOLIA_CHAIN_ID,
+          chainId: CHAIN_ID,
         };
         const { hash } = await privySendTransaction(txRequest, {
           sponsor: true,
