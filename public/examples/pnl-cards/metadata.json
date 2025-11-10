@@ -1,0 +1,172 @@
+[
+  {
+    "type": "portfolio",
+    "user": {
+      "id": "user-1",
+      "displayName": "Alex Trader",
+      "username": "alextrader",
+      "handle": "alextrader",
+      "profileImageUrl": null
+    },
+    "data": {
+      "lifetimePnL": 2500,
+      "netContributions": 10000,
+      "totalDeposited": 10000,
+      "totalWithdrawn": 0,
+      "availableBalance": 5000,
+      "unrealizedPerpPnL": 1200,
+      "unrealizedPredictionPnL": 800,
+      "unrealizedPoolPnL": 500,
+      "totalUnrealizedPnL": 2500,
+      "totalPnL": 2500,
+      "accountEquity": 12500
+    },
+    "filename": "portfolio-1.png",
+    "description": "Profitable portfolio example"
+  },
+  {
+    "type": "portfolio",
+    "user": {
+      "id": "user-2",
+      "displayName": "Sarah DeFi",
+      "username": "sarahdefi",
+      "handle": "sarahdefi",
+      "profileImageUrl": null
+    },
+    "data": {
+      "lifetimePnL": -500,
+      "netContributions": 5000,
+      "totalDeposited": 5000,
+      "totalWithdrawn": 0,
+      "availableBalance": 2000,
+      "unrealizedPerpPnL": -300,
+      "unrealizedPredictionPnL": -150,
+      "unrealizedPoolPnL": -50,
+      "totalUnrealizedPnL": -500,
+      "totalPnL": -500,
+      "accountEquity": 4500
+    },
+    "filename": "portfolio-2.png",
+    "description": "Loss portfolio example"
+  },
+  {
+    "type": "perps",
+    "user": {
+      "id": "user-1",
+      "displayName": "Alex Trader",
+      "username": "alextrader",
+      "handle": "alextrader",
+      "profileImageUrl": null
+    },
+    "data": {
+      "unrealizedPnL": 1200,
+      "positionCount": 5,
+      "totalValue": 8000,
+      "categorySpecific": {
+        "openInterest": 8000
+      }
+    },
+    "filename": "perps-1.png",
+    "description": "Profitable perps example"
+  },
+  {
+    "type": "perps",
+    "user": {
+      "id": "user-2",
+      "displayName": "Sarah DeFi",
+      "username": "sarahdefi",
+      "handle": "sarahdefi",
+      "profileImageUrl": null
+    },
+    "data": {
+      "unrealizedPnL": -300,
+      "positionCount": 3,
+      "totalValue": 4000,
+      "categorySpecific": {
+        "openInterest": 4000
+      }
+    },
+    "filename": "perps-2.png",
+    "description": "Loss perps example"
+  },
+  {
+    "type": "predictions",
+    "user": {
+      "id": "user-1",
+      "displayName": "Alex Trader",
+      "username": "alextrader",
+      "handle": "alextrader",
+      "profileImageUrl": null
+    },
+    "data": {
+      "unrealizedPnL": 800,
+      "positionCount": 8,
+      "totalValue": 3500,
+      "categorySpecific": {
+        "totalShares": 1250.5
+      }
+    },
+    "filename": "predictions-1.png",
+    "description": "Profitable predictions example"
+  },
+  {
+    "type": "predictions",
+    "user": {
+      "id": "user-2",
+      "displayName": "Sarah DeFi",
+      "username": "sarahdefi",
+      "handle": "sarahdefi",
+      "profileImageUrl": null
+    },
+    "data": {
+      "unrealizedPnL": -150,
+      "positionCount": 4,
+      "totalValue": 1800,
+      "categorySpecific": {
+        "totalShares": 520.25
+      }
+    },
+    "filename": "predictions-2.png",
+    "description": "Loss predictions example"
+  },
+  {
+    "type": "pools",
+    "user": {
+      "id": "user-1",
+      "displayName": "Alex Trader",
+      "username": "alextrader",
+      "handle": "alextrader",
+      "profileImageUrl": null
+    },
+    "data": {
+      "unrealizedPnL": 500,
+      "positionCount": 2,
+      "totalValue": 3500,
+      "categorySpecific": {
+        "totalInvested": 3000
+      }
+    },
+    "filename": "pools-1.png",
+    "description": "Profitable pools example"
+  },
+  {
+    "type": "pools",
+    "user": {
+      "id": "user-2",
+      "displayName": "Sarah DeFi",
+      "username": "sarahdefi",
+      "handle": "sarahdefi",
+      "profileImageUrl": null
+    },
+    "data": {
+      "unrealizedPnL": -50,
+      "positionCount": 1,
+      "totalValue": 950,
+      "categorySpecific": {
+        "totalInvested": 1000
+      }
+    },
+    "filename": "pools-2.png",
+    "description": "Loss pools example"
+  }
+]

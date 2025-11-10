@@ -145,6 +145,7 @@ model User {
   performanceMetrics AgentPerformanceMetrics?
   tradingFees          TradingFee[] @relation("TraderFees")
   referralFeesEarned   TradingFee[] @relation("ReferrerFees")
+  userActorFollows     UserActorFollow[]
 
   @@index([walletAddress])
   @@index([username])
@@ -622,6 +623,7 @@ model Actor {
   following        ActorFollow[] @relation("ActorFollower")
   relationshipsAs1 ActorRelationship[] @relation("Actor1Relationships")
   relationshipsAs2 ActorRelationship[] @relation("Actor2Relationships")
+  userActorFollows   UserActorFollow[]
   // Posts authored by actors (no FK constraint - handled at application level)
   // Query with: prisma.post.findMany({ where: { authorId: actorId } })
 

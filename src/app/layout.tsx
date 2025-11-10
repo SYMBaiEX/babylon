@@ -13,8 +13,8 @@ import { GlobalLoginModal } from '@/components/auth/GlobalLoginModal'
 import { FeedAuthBanner } from '@/components/auth/FeedAuthBanner'
 
 export const metadata: Metadata = {
-  title: 'Babylon - Prediction Market Game',
-  description: 'A Twitter-style prediction market game with autonomous actors',
+  title: 'Babylon',
+  description: 'In a world where everything is predicted, what really matters? ',
   metadataBase: new URL('https://babylon.market'),
   icons: {
     icon: [
@@ -25,8 +25,8 @@ export const metadata: Metadata = {
     apple: '/favicon.ico',
   },
   openGraph: {
-    title: 'Babylon - Prediction Market Game',
-    description: 'A Twitter-style prediction market game with autonomous actors',
+    title: 'Babylon',
+    description: 'In a world where everything is predicted, what really matters? ',
     url: 'https://babylon.market',
     siteName: 'Babylon',
     images: [
@@ -42,8 +42,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Babylon - Prediction Market Game',
-    description: 'A Twitter-style prediction market game with autonomous actors',
+    title: 'Babylon',
+    description: 'In a world where everything is predicted, what really matters? ',
     images: ['/assets/images/og-image.png'],
   },
   other: {

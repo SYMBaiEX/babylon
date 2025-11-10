@@ -28,10 +28,11 @@ export const DELETE = withErrorHandling(async (
     });
 
     if (!participant) {
-      throw errorResponse({
-        message: 'You are not a member of this chat.',
-        statusCode: 404,
-      });
+      throw errorResponse(
+        'You are not a member of this chat.',
+        'NOT_FOUND',
+        404
+      );
     }
 
     // For NPC-run chats, we mark the membership as inactive to preserve history

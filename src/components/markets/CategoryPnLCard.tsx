@@ -1,9 +1,25 @@
-import { type PortfolioPnLSnapshot } from '@/hooks/usePortfolioPnL'
 import { cn } from '@/lib/utils'
 import { ArrowDownRight, ArrowUpRight, RefreshCcw, Share2 } from 'lucide-react'
 
-interface PortfolioPnLCardProps {
-  data: PortfolioPnLSnapshot | null
+type MarketCategory = 'perps' | 'predictions' | 'pools'
+
+interface CategoryPnLData {
+  unrealizedPnL: number
+  positionCount: number
+  totalValue?: number
+  categorySpecific?: {
+    // For perps
+    openInterest?: number
+    // For predictions
+    totalShares?: number
+    // For pools
+    totalInvested?: number
+  }
+}
+
+interface CategoryPnLCardProps {
+  category: MarketCategory
+  data: CategoryPnLData | null
   loading: boolean
   error: string | null
   onShare: () => void
@@ -35,23 +51,49 @@ function formatRelativeTime(timestamp: number | null) {
   return `Updated ${diffDays}d ago`
 }
 
-export function PortfolioPnLCard({
+const categoryConfig = {
+  perps: {
+    title: 'Perpetual Futures P&L',
+    color: 'from-green-500/10 via-emerald-500/10 to-green-500/5',
+    border: 'border-green-500/20',
+  },
+  predictions: {
+    title: 'Prediction Markets P&L',
+    color: 'from-purple-500/10 via-violet-500/10 to-purple-500/5',
+    border: 'border-purple-500/20',
+  },
+  pools: {
+    title: 'Trading Pools P&L',
+    color: 'from-orange-500/10 via-amber-500/10 to-orange-500/5',
+    border: 'border-orange-500/20',
+  },
+}
+
+export function CategoryPnLCard({
+  category,
   data,
   loading,
   error,
   onShare,
   onRefresh,
   lastUpdated,
-}: PortfolioPnLCardProps) {
-  const totalPnL = data?.totalPnL ?? 0
-  const pnlIsPositive = totalPnL >= 0
+}: CategoryPnLCardProps) {
+  const config = categoryConfig[category]
+  const pnl = data?.unrealizedPnL ?? 0
+  const pnlIsPositive = pnl >= 0
 
   return (
-    <section className="rounded-xl border border-[#0066FF]/20 bg-gradient-to-br from-[#0066FF]/10 via-purple-500/10 to-[#0066FF]/5 p-4 sm:p-5 shadow-sm">
+    <section
+      className={cn(
+        'rounded-xl border bg-gradient-to-br p-4 sm:p-5 shadow-sm',
+        config.border,
+        config.color,
+      )}
+    >
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Your P&amp;L
+            {config.title}
           </h2>
           <p className="text-xs text-muted-foreground">{formatRelativeTime(lastUpdated)}</p>
         </div>
@@ -62,7 +104,7 @@ export function PortfolioPnLCard({
             onClick={onRefresh}
             disabled={loading}
             className="flex items-center justify-center rounded-lg border border-white/10 bg-white/10 p-2 text-white backdrop-blur transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
-            aria-label="Refresh P&L"
+            aria-label={`Refresh ${category} P&L`}
           >
             <RefreshCcw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </button>
@@ -73,7 +115,7 @@ export function PortfolioPnLCard({
             className="inline-flex items-center gap-2 rounded-lg bg-white/90 px-3 py-2 text-sm font-semibold text-[#0B1C3D] shadow transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Share2 className="h-4 w-4" />
-            Share P&amp;L
+            Share
           </button>
         </div>
       </div>
@@ -82,7 +124,7 @@ export function PortfolioPnLCard({
         <div className="mt-6 space-y-4">
           <div className="h-10 w-64 animate-pulse rounded bg-white/20" />
           <div className="grid grid-cols-2 gap-3">
-            {[1, 2, 3, 4].map((key) => (
+            {[1, 2].map((key) => (
               <div key={key} className="h-16 rounded-lg bg-white/10" />
             ))}
           </div>
@@ -111,40 +153,47 @@ export function PortfolioPnLCard({
               </div>
               <p className="text-4xl font-bold text-white sm:text-5xl">
                 {pnlIsPositive ? '+' : ''}
-                {formatCurrency(totalPnL)}
+                {formatCurrency(pnl)}
               </p>
             </div>
 
             <dl className="mt-6 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
               <div className="rounded-lg border border-white/10 bg-white/10 p-3 backdrop-blur">
-                <dt className="text-xs uppercase text-white/70">Net Contributions</dt>
-                <dd className="text-base font-semibold text-white">
-                  {formatCurrency(data.netContributions)}
-                </dd>
+                <dt className="text-xs uppercase text-white/70">Open Positions</dt>
+                <dd className="text-base font-semibold text-white">{data.positionCount}</dd>
               </div>
-              <div className="rounded-lg border border-white/10 bg-white/10 p-3 backdrop-blur">
-                <dt className="text-xs uppercase text-white/70">Account Equity</dt>
-                <dd className="text-base font-semibold text-white">
-                  {formatCurrency(data.accountEquity)}
-                </dd>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-white/10 p-3 backdrop-blur">
-                <dt className="text-xs uppercase text-white/70">Available Cash</dt>
-                <dd className="text-base font-semibold text-white">
-                  {formatCurrency(data.availableBalance)}
-                </dd>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-white/10 p-3 backdrop-blur">
-                <dt className="text-xs uppercase text-white/70">Unrealized P&amp;L</dt>
-                <dd className="text-base font-semibold text-white">
-                  {formatCurrency(data.totalUnrealizedPnL)}
-                </dd>
-                <p className="mt-1 text-xs text-white/70">
-                  Perps {formatCurrency(data.unrealizedPerpPnL)} · Predictions{' '}
-                  {formatCurrency(data.unrealizedPredictionPnL)} · Pools{' '}
-                  {formatCurrency(data.unrealizedPoolPnL)}
-                </p>
-              </div>
+              {data.totalValue !== undefined && (
+                <div className="rounded-lg border border-white/10 bg-white/10 p-3 backdrop-blur">
+                  <dt className="text-xs uppercase text-white/70">Total Value</dt>
+                  <dd className="text-base font-semibold text-white">
+                    {formatCurrency(data.totalValue)}
+                  </dd>
+                </div>
+              )}
+              {data.categorySpecific?.openInterest !== undefined && (
+                <div className="rounded-lg border border-white/10 bg-white/10 p-3 backdrop-blur">
+                  <dt className="text-xs uppercase text-white/70">Open Interest</dt>
+                  <dd className="text-base font-semibold text-white">
+                    {formatCurrency(data.categorySpecific.openInterest)}
+                  </dd>
+                </div>
+              )}
+              {data.categorySpecific?.totalShares !== undefined && (
+                <div className="rounded-lg border border-white/10 bg-white/10 p-3 backdrop-blur">
+                  <dt className="text-xs uppercase text-white/70">Total Shares</dt>
+                  <dd className="text-base font-semibold text-white">
+                    {data.categorySpecific.totalShares.toFixed(2)}
+                  </dd>
+                </div>
+              )}
+              {data.categorySpecific?.totalInvested !== undefined && (
+                <div className="rounded-lg border border-white/10 bg-white/10 p-3 backdrop-blur">
+                  <dt className="text-xs uppercase text-white/70">Total Invested</dt>
+                  <dd className="text-base font-semibold text-white">
+                    {formatCurrency(data.categorySpecific.totalInvested)}
+                  </dd>
+                </div>
+              )}
             </dl>
           </>
         )

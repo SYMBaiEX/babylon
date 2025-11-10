@@ -1,8 +1,21 @@
-import type { PortfolioPnLSnapshot } from '@/hooks/usePortfolioPnL'
 import type { User } from '@/stores/authStore'
 
-interface PortfolioPnLShareCardProps {
-  data: PortfolioPnLSnapshot
+type MarketCategory = 'perps' | 'predictions' | 'pools'
+
+interface CategoryPnLData {
+  unrealizedPnL: number
+  positionCount: number
+  totalValue?: number
+  categorySpecific?: {
+    openInterest?: number
+    totalShares?: number
+    totalInvested?: number
+  }
+}
+
+interface CategoryPnLShareCardProps {
+  category: MarketCategory
+  data: CategoryPnLData
   user: User
   timestamp: Date
   className?: string
@@ -18,7 +31,26 @@ function formatCurrency(value: number) {
   return formatter.format(Number.isFinite(value) ? value : 0)
 }
 
-export function PortfolioPnLShareCard({ data, user, timestamp, className }: PortfolioPnLShareCardProps) {
+const categoryConfig = {
+  perps: {
+    title: 'Perpetual Futures',
+    emoji: '📈',
+    gradient: 'radial-gradient(circle at top left, rgba(16, 185, 129, 0.85), rgba(10, 10, 30, 0.95)), linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(0, 102, 255, 0.35))',
+  },
+  predictions: {
+    title: 'Prediction Markets',
+    emoji: '🔮',
+    gradient: 'radial-gradient(circle at top left, rgba(168, 85, 247, 0.85), rgba(10, 10, 30, 0.95)), linear-gradient(135deg, rgba(168, 85, 247, 0.3), rgba(0, 102, 255, 0.35))',
+  },
+  pools: {
+    title: 'Trading Pools',
+    emoji: '💰',
+    gradient: 'radial-gradient(circle at top left, rgba(249, 115, 22, 0.85), rgba(10, 10, 30, 0.95)), linear-gradient(135deg, rgba(249, 115, 22, 0.3), rgba(0, 102, 255, 0.35))',
+  },
+}
+
+export function CategoryPnLShareCard({ category, data, user, timestamp, className }: CategoryPnLShareCardProps) {
+  const config = categoryConfig[category]
   const displayName = user.displayName || 'Babylon Trader'
   const handle =
     user.username || user.farcasterUsername || user.twitterUsername || user.walletAddress || 'anon'
@@ -36,8 +68,7 @@ export function PortfolioPnLShareCard({ data, user, timestamp, className }: Port
         width: 1200,
         height: 630,
         borderRadius: 32,
-        background:
-          'radial-gradient(circle at top left, rgba(0, 102, 255, 0.85), rgba(10, 10, 30, 0.95)), linear-gradient(135deg, rgba(25, 15, 60, 0.9), rgba(0, 102, 255, 0.35))',
+        background: config.gradient,
         color: '#F8FAFC',
         padding: '64px',
         display: 'flex',
@@ -162,27 +193,30 @@ export function PortfolioPnLShareCard({ data, user, timestamp, className }: Port
       </header>
 
       <main>
-        <p
-          style={{
-            fontSize: 22,
-            textTransform: 'uppercase',
-            letterSpacing: '0.25em',
-            color: 'rgba(226, 232, 255, 0.65)',
-          }}
-        >
-          Total Performance
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+          <span style={{ fontSize: 48 }}>{config.emoji}</span>
+          <p
+            style={{
+              fontSize: 22,
+              textTransform: 'uppercase',
+              letterSpacing: '0.25em',
+              color: 'rgba(226, 232, 255, 0.65)',
+            }}
+          >
+            {config.title}
+          </p>
+        </div>
         <p
           style={{
             marginTop: 16,
             fontSize: 96,
             fontWeight: 700,
             lineHeight: 1.05,
-            color: data.totalPnL >= 0 ? '#34D399' : '#F87171',
+            color: data.unrealizedPnL >= 0 ? '#34D399' : '#F87171',
           }}
         >
-          {data.totalPnL >= 0 ? '+' : ''}
-          {formatCurrency(data.totalPnL)}
+          {data.unrealizedPnL >= 0 ? '+' : ''}
+          {formatCurrency(data.unrealizedPnL)}
         </p>
 
         <div
@@ -193,47 +227,30 @@ export function PortfolioPnLShareCard({ data, user, timestamp, className }: Port
             gap: 24,
           }}
         >
-          <Stat title="Net Contributions" value={formatCurrency(data.netContributions)} />
-          <Stat title="Account Equity" value={formatCurrency(data.accountEquity)} />
-          <Stat title="Available Cash" value={formatCurrency(data.availableBalance)} />
+          <Stat title="Open Positions" value={data.positionCount.toString()} />
+          {data.totalValue !== undefined && (
+            <Stat title="Total Value" value={formatCurrency(data.totalValue)} />
+          )}
+          {data.categorySpecific?.openInterest !== undefined && (
+            <Stat title="Open Interest" value={formatCurrency(data.categorySpecific.openInterest)} />
+          )}
+          {data.categorySpecific?.totalShares !== undefined && (
+            <Stat title="Total Shares" value={data.categorySpecific.totalShares.toFixed(2)} />
+          )}
+          {data.categorySpecific?.totalInvested !== undefined && (
+            <Stat title="Total Invested" value={formatCurrency(data.categorySpecific.totalInvested)} />
+          )}
         </div>
       </main>
 
       <footer
         style={{
           display: 'flex',
-          justifyContent: 'space-between',
+          justifyContent: 'center',
           alignItems: 'center',
           marginTop: 48,
         }}
       >
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-            gap: 16,
-          }}
-        >
-          <Stat
-            title="Perps P&L"
-            value={formatCurrency(data.unrealizedPerpPnL)}
-            align="start"
-            small
-          />
-          <Stat
-            title="Predictions P&L"
-            value={formatCurrency(data.unrealizedPredictionPnL)}
-            align="start"
-            small
-          />
-          <Stat
-            title="Pools P&L"
-            value={formatCurrency(data.unrealizedPoolPnL)}
-            align="start"
-            small
-          />
-        </div>
-
         <p
           style={{
             fontSize: 20,
@@ -253,10 +270,9 @@ interface StatProps {
   title: string
   value: string
   align?: 'start' | 'center' | 'end'
-  small?: boolean
 }
 
-function Stat({ title, value, align = 'center', small = false }: StatProps) {
+function Stat({ title, value, align = 'center' }: StatProps) {
   return (
     <div
       style={{
@@ -269,13 +285,13 @@ function Stat({ title, value, align = 'center', small = false }: StatProps) {
         padding: '24px 28px',
         border: '1px solid rgba(148, 163, 184, 0.2)',
         backdropFilter: 'blur(12px)',
-        minHeight: small ? 120 : 160,
+        minHeight: 140,
         justifyContent: 'center',
       }}
     >
       <p
         style={{
-          fontSize: small ? 18 : 20,
+          fontSize: 18,
           fontWeight: 500,
           color: 'rgba(226, 232, 255, 0.7)',
           textTransform: 'uppercase',
@@ -286,8 +302,8 @@ function Stat({ title, value, align = 'center', small = false }: StatProps) {
       </p>
       <p
         style={{
-          marginTop: small ? 12 : 16,
-          fontSize: small ? 32 : 40,
+          marginTop: 12,
+          fontSize: 32,
           fontWeight: 700,
           color: '#F8FAFC',
         }}

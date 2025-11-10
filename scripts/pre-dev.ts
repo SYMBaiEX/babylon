@@ -274,6 +274,43 @@ if (actorCount === 0) {
   }
 }
 
+// Check and initialize trending and news
+logger.info('Checking trending and news...', undefined, 'Script');
+const trendingCount = await prisma.trendingTag.count();
+const newsCount = await prisma.post.count({ where: { type: 'article' } });
+
+const MIN_TRENDING = 5;
+const MIN_NEWS = 10;
+
+if (trendingCount < MIN_TRENDING || newsCount < MIN_NEWS) {
+  logger.info(`Initializing trending (${trendingCount}/${MIN_TRENDING}) and news (${newsCount}/${MIN_NEWS})...`, undefined, 'Script');
+  await $`bun run scripts/init-trending-and-news.ts`;
+} else {
+  logger.info(`Trending (${trendingCount}) and news (${newsCount}) already populated`, undefined, 'Script');
+}
+
+// Check if posts need tagging for trending to work
+logger.info('Checking post tagging...', undefined, 'Script');
+const totalPosts = await prisma.post.count();
+const postsWithTags = await prisma.post.count({
+  where: { postTags: { some: {} } }
+});
+const untaggedPosts = totalPosts - postsWithTags;
+
+if (untaggedPosts > 0 && totalPosts > 0) {
+  const taggedPercentage = Math.round((postsWithTags / totalPosts) * 100);
+  logger.info(`Posts: ${postsWithTags}/${totalPosts} tagged (${taggedPercentage}%)`, undefined, 'Script');
+  
+  // If more than 20% of posts are untagged and we have more than 10 posts, suggest backfill
+  if (untaggedPosts > 10 && taggedPercentage < 80) {
+    logger.info('⚠️  Many posts are untagged. Trending may not work well.', undefined, 'Script');
+    logger.info('💡 To tag existing posts, run: bun run backfill:tags', undefined, 'Script');
+    logger.info('   New posts will be tagged automatically.', undefined, 'Script');
+  }
+} else {
+  logger.info(`All ${totalPosts} posts are tagged`, undefined, 'Script');
+}
+
 await prisma.$disconnect();
 
 logger.info('All checks passed! Starting Next.js...', undefined, 'Script');

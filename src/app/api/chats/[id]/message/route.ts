@@ -36,7 +36,7 @@ export const POST = withErrorHandling(async (
   const { content } = ChatMessageCreateSchema.parse(body)
 
   // 3. Determine chat type and check membership
-  const chat = await asUser(user, async (db) => {
+  let chat = await asUser(user, async (db) => {
     return await db.chat.findUnique({
       where: { id: chatId },
       select: {
@@ -51,6 +51,92 @@ export const POST = withErrorHandling(async (
       },
     })
   })
+
+  // If chat doesn't exist and it's a DM format, create it automatically
+  if (!chat && chatId.startsWith('dm-')) {
+    // Extract user IDs from DM chat ID format: dm-{id1}-{id2}
+    const dmPrefix = 'dm-'
+    const idsString = chatId.substring(dmPrefix.length)
+    const participantIds = idsString.split('-')
+    
+    // Verify the current user is one of the participants
+    if (!participantIds.includes(user.userId)) {
+      throw new BusinessLogicError('Invalid DM chat participants', 'INVALID_DM_PARTICIPANTS')
+    }
+    
+    // Get the other participant ID
+    const otherUserId = participantIds.find(id => id !== user.userId)
+    if (!otherUserId) {
+      throw new BusinessLogicError('Invalid DM chat format', 'INVALID_DM_FORMAT')
+    }
+    
+    // Create the DM chat
+    chat = await asUser(user, async (db) => {
+      // Verify other user exists and is not an actor
+      const otherUser = await db.user.findUnique({
+        where: { id: otherUserId },
+        select: { id: true, isActor: true },
+      })
+      
+      if (!otherUser) {
+        throw new BusinessLogicError('Other user not found', 'USER_NOT_FOUND')
+      }
+      
+      if (otherUser.isActor) {
+        throw new BusinessLogicError('Cannot DM actors/NPCs', 'CANNOT_DM_ACTOR')
+      }
+      
+      // Create the chat
+      await db.chat.create({
+        data: {
+          id: chatId,
+          name: null,
+          isGroup: false,
+        },
+        select: {
+          id: true,
+          isGroup: true,
+          gameId: true,
+          participants: {
+            select: {
+              userId: true,
+            },
+          },
+        },
+      })
+      
+      // Add both participants
+      await Promise.all([
+        db.chatParticipant.create({
+          data: {
+            chatId,
+            userId: user.userId,
+          },
+        }),
+        db.chatParticipant.create({
+          data: {
+            chatId,
+            userId: otherUserId,
+          },
+        }),
+      ])
+      
+      // Reload to include participants
+      return await db.chat.findUnique({
+        where: { id: chatId },
+        select: {
+          id: true,
+          isGroup: true,
+          gameId: true,
+          participants: {
+            select: {
+              userId: true,
+            },
+          },
+        },
+      })
+    })
+  }
 
   if (!chat) {
     throw new BusinessLogicError('Chat not found', 'CHAT_NOT_FOUND')

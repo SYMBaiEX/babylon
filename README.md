@@ -1,4 +1,4 @@
-# 🎮 Babylon - Prediction Market Game
+# 🎮 Babylon
 
 A real-time prediction market game with autonomous NPCs, perpetual futures, and gamified social mechanics.
 

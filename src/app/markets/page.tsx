@@ -4,6 +4,8 @@ import { MarketsWidgetSidebar } from '@/components/markets/MarketsWidgetSidebar'
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList'
 import { PortfolioPnLCard } from '@/components/markets/PortfolioPnLCard'
 import { PortfolioPnLShareModal } from '@/components/markets/PortfolioPnLShareModal'
+import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard'
+import { CategoryPnLShareModal } from '@/components/markets/CategoryPnLShareModal'
 import { PoolsErrorBoundary } from '@/components/markets/PoolsErrorBoundary'
 import { PoolsList } from '@/components/markets/PoolsList'
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList'
@@ -19,6 +21,7 @@ import type { PerpPosition } from '@/shared/perps-types'
 import { ArrowUpDown, Clock, Flame, Search, TrendingDown, TrendingUp, Sparkles } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { UserPoolSummary } from '@/types/pools'
 
 interface PredictionPosition {
   id: string
@@ -98,12 +101,14 @@ export default function MarketsPage() {
   const [predictionSort, setPredictionSort] = useState<PredictionSort>('trending')
   const [showBuyPointsModal, setShowBuyPointsModal] = useState(false)
   const [showPnLShareModal, setShowPnLShareModal] = useState(false)
+  const [showCategoryPnLShareModal, setShowCategoryPnLShareModal] = useState<'perps' | 'predictions' | 'pools' | null>(null)
   
   // Data
   const [perpMarkets, setPerpMarkets] = useState<PerpMarket[]>([])
   const [predictions, setPredictions] = useState<PredictionMarket[]>([])
   const [perpPositions, setPerpPositions] = useState<PerpPosition[]>([])
   const [predictionPositions, setPredictionPositions] = useState<PredictionPosition[]>([])
+  const [poolSummary, setPoolSummary] = useState<UserPoolSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [balanceRefreshTrigger, setBalanceRefreshTrigger] = useState(0)
   const [topPools, setTopPools] = useState<Pool[]>([])
@@ -156,14 +161,19 @@ export default function MarketsPage() {
     setTopPools(sortedPools)
 
     if (isAuth && userId) {
-      const positionsRes = await fetch(`/api/markets/positions/${encodeURIComponent(userId)}`)
+      const [positionsRes, poolDepositsRes] = await Promise.all([
+        fetch(`/api/markets/positions/${encodeURIComponent(userId)}`),
+        fetch(`/api/pools/deposits/${encodeURIComponent(userId)}`),
+      ])
       const positionsData = await positionsRes.json()
+      const poolDepositsData = await poolDepositsRes.json()
 
       const perpPos = positionsData.perpetuals?.positions || []
       const predPos = positionsData.predictions?.positions || []
 
       setPerpPositions(perpPos)
       setPredictionPositions(predPos)
+      setPoolSummary(poolDepositsData.summary || null)
     }
 
     // Trigger balance refresh after data fetch (after trades)
@@ -287,6 +297,47 @@ export default function MarketsPage() {
       .sort((a, b) => b.totalShares - a.totalShares)
       .slice(0, 6)
   }, [predictions])
+
+  // Category P&L data
+  const perpPnLData = useMemo(() => {
+    if (perpPositions.length === 0) return null
+    const unrealizedPnL = perpPositions.reduce((sum, pos) => sum + (pos.unrealizedPnL || 0), 0)
+    const totalValue = perpPositions.reduce((sum, pos) => sum + Math.abs(pos.size || 0), 0)
+    const openInterest = perpPositions.reduce((sum, pos) => sum + Math.abs(pos.size || 0), 0)
+    return {
+      unrealizedPnL,
+      positionCount: perpPositions.length,
+      totalValue,
+      categorySpecific: { openInterest },
+    }
+  }, [perpPositions])
+
+  const predictionPnLData = useMemo(() => {
+    if (predictionPositions.length === 0) return null
+    const unrealizedPnL = predictionPositions.reduce((sum, pos) => {
+      const currentValue = pos.shares * pos.currentPrice
+      const costBasis = pos.shares * pos.avgPrice
+      return sum + (currentValue - costBasis)
+    }, 0)
+    const totalShares = predictionPositions.reduce((sum, pos) => sum + pos.shares, 0)
+    const totalValue = predictionPositions.reduce((sum, pos) => sum + pos.shares * pos.currentPrice, 0)
+    return {
+      unrealizedPnL,
+      positionCount: predictionPositions.length,
+      totalValue,
+      categorySpecific: { totalShares },
+    }
+  }, [predictionPositions])
+
+  const poolPnLData = useMemo(() => {
+    if (!poolSummary || poolSummary.activePools === 0) return null
+    return {
+      unrealizedPnL: poolSummary.totalUnrealizedPnL,
+      positionCount: poolSummary.activePools,
+      totalValue: poolSummary.totalCurrentValue,
+      categorySpecific: { totalInvested: poolSummary.totalInvested },
+    }
+  }, [poolSummary])
 
   const handleMarketClick = (market: PerpMarket) => {
     // Navigate to dedicated perp page
@@ -619,7 +670,22 @@ export default function MarketsPage() {
         ) : activeTab === 'pools' ? (
           <PoolsErrorBoundary>
             <div id="pools-panel" role="tabpanel" aria-labelledby="pools-tab" className="p-4">
-              {/* Show user's pool positions FIRST if authenticated */}
+              {/* Category P&L Card */}
+              {authenticated && poolPnLData && (
+                <div className="mb-6">
+                  <CategoryPnLCard
+                    category="pools"
+                    data={poolPnLData}
+                    loading={portfolioLoading}
+                    error={portfolioError}
+                    onShare={() => setShowCategoryPnLShareModal('pools')}
+                    onRefresh={refreshPortfolio}
+                    lastUpdated={portfolioUpdatedAt}
+                  />
+                </div>
+              )}
+
+              {/* Show user's pool positions if authenticated */}
               {authenticated && (
                 <div className="mb-6">
                   <UserPoolPositions onWithdraw={fetchData} />
@@ -634,7 +700,22 @@ export default function MarketsPage() {
           </PoolsErrorBoundary>
         ) : activeTab === 'futures' ? (
           <div id="futures-panel" role="tabpanel" aria-labelledby="futures-tab" className="p-4">
-            {/* Show positions section FIRST if authenticated and has positions */}
+            {/* Category P&L Card */}
+            {authenticated && perpPnLData && (
+              <div className="mb-6">
+                <CategoryPnLCard
+                  category="perps"
+                  data={perpPnLData}
+                  loading={portfolioLoading}
+                  error={portfolioError}
+                  onShare={() => setShowCategoryPnLShareModal('perps')}
+                  onRefresh={refreshPortfolio}
+                  lastUpdated={portfolioUpdatedAt}
+                />
+              </div>
+            )}
+
+            {/* Show positions section if authenticated and has positions */}
             {authenticated && perpPositions.length > 0 && (
               <>
                 <h2 className="text-sm font-bold text-muted-foreground mb-3">YOUR POSITIONS ({perpPositions.length})</h2>
@@ -681,7 +762,22 @@ export default function MarketsPage() {
           </div>
         ) : (
           <div id="predictions-panel" role="tabpanel" aria-labelledby="predictions-tab" className="p-4">
-            {/* Show positions section FIRST if authenticated and has positions */}
+            {/* Category P&L Card */}
+            {authenticated && predictionPnLData && (
+              <div className="mb-6">
+                <CategoryPnLCard
+                  category="predictions"
+                  data={predictionPnLData}
+                  loading={portfolioLoading}
+                  error={portfolioError}
+                  onShare={() => setShowCategoryPnLShareModal('predictions')}
+                  onRefresh={refreshPortfolio}
+                  lastUpdated={portfolioUpdatedAt}
+                />
+              </div>
+            )}
+
+            {/* Show positions section if authenticated and has positions */}
             {authenticated && predictionPositions.length > 0 && (
               <>
                 <h2 className="text-sm font-bold text-muted-foreground mb-3">YOUR POSITIONS ({predictionPositions.length})</h2>
@@ -1145,7 +1241,22 @@ export default function MarketsPage() {
           ) : activeTab === 'pools' ? (
             <PoolsErrorBoundary>
               <div id="pools-panel" role="tabpanel" aria-labelledby="pools-tab" className="p-4">
-                {/* Show user's pool positions FIRST if authenticated */}
+                {/* Category P&L Card */}
+                {authenticated && poolPnLData && (
+                  <div className="mb-6">
+                    <CategoryPnLCard
+                      category="pools"
+                      data={poolPnLData}
+                      loading={portfolioLoading}
+                      error={portfolioError}
+                      onShare={() => setShowCategoryPnLShareModal('pools')}
+                      onRefresh={refreshPortfolio}
+                      lastUpdated={portfolioUpdatedAt}
+                    />
+                  </div>
+                )}
+
+                {/* Show user's pool positions if authenticated */}
                 {authenticated && (
                   <div className="mb-6">
                     <UserPoolPositions onWithdraw={fetchData} />
@@ -1160,7 +1271,22 @@ export default function MarketsPage() {
             </PoolsErrorBoundary>
           ) : activeTab === 'futures' ? (
             <div id="futures-panel" role="tabpanel" aria-labelledby="futures-tab" className="p-4">
-              {/* Show positions section FIRST if authenticated and has positions */}
+              {/* Category P&L Card */}
+              {authenticated && perpPnLData && (
+                <div className="mb-6">
+                  <CategoryPnLCard
+                    category="perps"
+                    data={perpPnLData}
+                    loading={portfolioLoading}
+                    error={portfolioError}
+                    onShare={() => setShowCategoryPnLShareModal('perps')}
+                    onRefresh={refreshPortfolio}
+                    lastUpdated={portfolioUpdatedAt}
+                  />
+                </div>
+              )}
+
+              {/* Show positions section if authenticated and has positions */}
               {authenticated && perpPositions.length > 0 && (
                 <>
                   <h2 className="text-sm font-bold text-muted-foreground mb-3">YOUR POSITIONS ({perpPositions.length})</h2>
@@ -1207,7 +1333,22 @@ export default function MarketsPage() {
             </div>
           ) : (
             <div id="predictions-panel" role="tabpanel" aria-labelledby="predictions-tab" className="p-4">
-              {/* Show positions section FIRST if authenticated and has positions */}
+              {/* Category P&L Card */}
+              {authenticated && predictionPnLData && (
+                <div className="mb-6">
+                  <CategoryPnLCard
+                    category="predictions"
+                    data={predictionPnLData}
+                    loading={portfolioLoading}
+                    error={portfolioError}
+                    onShare={() => setShowCategoryPnLShareModal('predictions')}
+                    onRefresh={refreshPortfolio}
+                    lastUpdated={portfolioUpdatedAt}
+                  />
+                </div>
+              )}
+
+              {/* Show positions section if authenticated and has positions */}
               {authenticated && predictionPositions.length > 0 && (
                 <>
                   <h2 className="text-sm font-bold text-muted-foreground mb-3">YOUR POSITIONS ({predictionPositions.length})</h2>
@@ -1373,6 +1514,40 @@ export default function MarketsPage() {
         user={user ?? null}
         lastUpdated={portfolioUpdatedAt}
       />
+
+      {/* Category P&L Share Modals */}
+      {showCategoryPnLShareModal === 'perps' && (
+        <CategoryPnLShareModal
+          isOpen={true}
+          onClose={() => setShowCategoryPnLShareModal(null)}
+          category="perps"
+          data={perpPnLData}
+          user={user ?? null}
+          lastUpdated={portfolioUpdatedAt}
+        />
+      )}
+
+      {showCategoryPnLShareModal === 'predictions' && (
+        <CategoryPnLShareModal
+          isOpen={true}
+          onClose={() => setShowCategoryPnLShareModal(null)}
+          category="predictions"
+          data={predictionPnLData}
+          user={user ?? null}
+          lastUpdated={portfolioUpdatedAt}
+        />
+      )}
+
+      {showCategoryPnLShareModal === 'pools' && (
+        <CategoryPnLShareModal
+          isOpen={true}
+          onClose={() => setShowCategoryPnLShareModal(null)}
+          category="pools"
+          data={poolPnLData}
+          user={user ?? null}
+          lastUpdated={portfolioUpdatedAt}
+        />
+      )}
 
       {/* Buy Points Modal */}
       <BuyPointsModal

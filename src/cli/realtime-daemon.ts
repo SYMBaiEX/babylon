@@ -1,6 +1,6 @@
 /**
  * Babylon Game Daemon
- * 
+ *
  * Continuously running game engine that generates content every minute.
  * - Runs at 1x speed
  * - Generates 10-20 posts per minute
@@ -8,21 +8,23 @@
  * - Creates/resolves questions automatically
  * - Keeps rolling 30-day history
  * - Does NOT auto-start ElizaOS agents (agents should be started separately)
- * 
+ *
  * Usage:
  *   npm run daemon              (start daemon)
  *   npm run daemon:verbose      (with detailed logging)
- * 
+ *
  * Environment Variables:
  *   AUTO_START_AGENTS=true      (default: false) - Auto-start agents on daemon launch (not recommended)
  *   AGENT_AUTO_TRADE=true       (default: false) - Enable auto-trading for agents
  */
+import { type ChildProcess, spawn } from 'child_process';
+import { join, resolve } from 'path';
+import { fileURLToPath } from 'url';
+
+import { clearEngineInstance, setEngineInstance } from '@/lib/engine';
+import { logger } from '@/lib/logger';
 
 import { GameEngine } from '../engine/GameEngine';
-import { spawn, type ChildProcess } from 'child_process';
-import { join } from 'path';
-import { logger } from '@/lib/logger';
-import { setEngineInstance, clearEngineInstance } from '@/lib/engine';
 import { registerBabylonGame } from '../lib/babylon-registry-init';
 
 interface CLIOptions {
@@ -33,7 +35,7 @@ function parseArgs(): CLIOptions {
   const args = process.argv.slice(2);
   const options: CLIOptions = {};
 
-  args.forEach(arg => {
+  args.forEach((arg) => {
     if (arg === '--verbose' || arg === '-v') {
       options.verbose = true;
     }
@@ -54,7 +56,11 @@ async function main() {
 
   if (!groqKey && !openaiKey) {
     logger.error('ERROR: No API key found!', undefined, 'CLI');
-    logger.error('Set GROQ_API_KEY or OPENAI_API_KEY environment variable.', undefined, 'CLI');
+    logger.error(
+      'Set GROQ_API_KEY or OPENAI_API_KEY environment variable.',
+      undefined,
+      'CLI'
+    );
     process.exit(1);
   }
 
@@ -81,13 +87,17 @@ async function main() {
   // Set up event listeners
   engine.on('tick', (tick) => {
     if (options.verbose) {
-      logger.info('Tick Summary:', {
-        posts: tick.posts.length,
-        priceUpdates: tick.priceUpdates.length,
-        events: tick.events.length,
-        questionsResolved: tick.questionsResolved,
-        questionsCreated: tick.questionsCreated
-      }, 'CLI');
+      logger.info(
+        'Tick Summary:',
+        {
+          posts: tick.posts.length,
+          priceUpdates: tick.priceUpdates.length,
+          events: tick.events.length,
+          questionsResolved: tick.questionsResolved,
+          questionsCreated: tick.questionsCreated,
+        },
+        'CLI'
+      );
     }
   });
 
@@ -105,16 +115,20 @@ async function main() {
     logger.info(`Active Questions: ${state.activeQuestions}`, undefined, 'CLI');
     logger.info(`Total Questions: ${state.totalQuestions}`, undefined, 'CLI');
     logger.info(`History Ticks: ${state.recentTicks}`, undefined, 'CLI');
-    
+
     await engine.stop();
     clearEngineInstance();
     logger.info('Daemon stopped', undefined, 'CLI');
     process.exit(0);
   });
-  
+
   // Also handle SIGTERM for process managers
   process.on('SIGTERM', async () => {
-    logger.info('Received SIGTERM, shutting down gracefully...', undefined, 'CLI');
+    logger.info(
+      'Received SIGTERM, shutting down gracefully...',
+      undefined,
+      'CLI'
+    );
     await engine.stop();
     clearEngineInstance();
     process.exit(0);
@@ -123,7 +137,7 @@ async function main() {
   // Initialize and start
   await engine.initialize();
   engine.start();
-  
+
   // Register engine instance so API routes can query status
   setEngineInstance(engine);
   logger.info('Engine instance registered for API access', undefined, 'CLI');
@@ -134,23 +148,39 @@ async function main() {
     try {
       const result = await registerBabylonGame();
       if (result) {
-        logger.info(`✅ Babylon registered with Agent0 (Token ID: ${result.tokenId})`, undefined, 'CLI');
+        logger.info(
+          `✅ Babylon registered with Agent0 (Token ID: ${result.tokenId})`,
+          undefined,
+          'CLI'
+        );
       } else {
         logger.info('Babylon already registered with Agent0', undefined, 'CLI');
       }
     } catch (error) {
       logger.warn('Failed to register with Agent0 (non-fatal):', error, 'CLI');
-      logger.warn('Game will continue without Agent0 registration', undefined, 'CLI');
+      logger.warn(
+        'Game will continue without Agent0 registration',
+        undefined,
+        'CLI'
+      );
     }
   }
 
   // Auto-start agents only if explicitly enabled
   const autoStartAgents = process.env.AUTO_START_AGENTS === 'true'; // Default to false
   if (autoStartAgents) {
-    logger.info('Starting agents (AUTO_START_AGENTS=true)...', undefined, 'CLI');
+    logger.info(
+      'Starting agents (AUTO_START_AGENTS=true)...',
+      undefined,
+      'CLI'
+    );
     await startAgents();
   } else {
-    logger.info('Agent auto-start disabled. Start agents separately with: bun run eliza:all', undefined, 'CLI');
+    logger.info(
+      'Agent auto-start disabled. Start agents separately with: bun run eliza:all',
+      undefined,
+      'CLI'
+    );
   }
 
   // Keep process alive
@@ -168,40 +198,62 @@ let agentProcess: ChildProcess | null = null;
 async function startAgents(): Promise<void> {
   // If agents already started, don't start again
   if (agentsStarted && agentProcess) {
-    logger.info('Agents already started, skipping duplicate spawn', undefined, 'CLI');
+    logger.info(
+      'Agents already started, skipping duplicate spawn',
+      undefined,
+      'CLI'
+    );
     return;
   }
 
   const agentScript = join(process.cwd(), 'scripts', 'run-all-agents.ts');
   const autoTrade = process.env.AGENT_AUTO_TRADE === 'true';
-  
-  logger.info(`Spawning agents with auto-trade: ${autoTrade ? 'ENABLED' : 'DISABLED'}`, undefined, 'CLI');
-  
-  agentProcess = spawn('bun', [
-    agentScript,
-    '--max=1', // Only start 1 agent on daemon bootup
-    ...(autoTrade ? ['--auto-trade'] : []),
-  ], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: {
-      ...process.env,
-    },
-  });
+
+  logger.info(
+    `Spawning agents with auto-trade: ${autoTrade ? 'ENABLED' : 'DISABLED'}`,
+    undefined,
+    'CLI'
+  );
+
+  agentProcess = spawn(
+    'bun',
+    [
+      agentScript,
+      '--max=1', // Only start 1 agent on daemon bootup
+      ...(autoTrade ? ['--auto-trade'] : []),
+    ],
+    {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+      },
+    }
+  );
 
   agentsStarted = true;
 
   // Log agent output
   agentProcess.stdout?.on('data', (data) => {
-    const lines = data.toString().split('\n').filter((line: string) => line.trim());
+    const lines = data
+      .toString()
+      .split('\n')
+      .filter((line: string) => line.trim());
     lines.forEach((line: string) => {
-      if (line.includes('✅') || line.includes('❌') || line.includes('Starting')) {
+      if (
+        line.includes('✅') ||
+        line.includes('❌') ||
+        line.includes('Starting')
+      ) {
         logger.info(line, undefined, 'CLI');
       }
     });
   });
 
   agentProcess.stderr?.on('data', (data) => {
-    const errorLines = data.toString().split('\n').filter((line: string) => line.trim());
+    const errorLines = data
+      .toString()
+      .split('\n')
+      .filter((line: string) => line.trim());
     errorLines.forEach((line: string) => {
       if (line.includes('Error') || line.includes('error')) {
         logger.warn(line, undefined, 'CLI');
@@ -213,21 +265,50 @@ async function startAgents(): Promise<void> {
     agentsStarted = false;
     agentProcess = null;
     if (code !== 0 && code !== null) {
-      logger.warn(`Agent spawn process exited with code ${code}`, undefined, 'CLI');
+      logger.warn(
+        `Agent spawn process exited with code ${code}`,
+        undefined,
+        'CLI'
+      );
     }
   });
 
   // Wait a bit to see if agents start successfully
-  await new Promise(resolve => setTimeout(resolve, 5000));
-  
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+
   logger.info('Agent spawn process started', undefined, 'CLI');
 }
 
-// Run if called directly
-if (import.meta.main) {
-  main()
+function isDirectExecution(): boolean {
+  if (typeof process === 'undefined' || !process.argv?.[1]) {
+    return false;
+  }
+
+  try {
+    const modulePath = fileURLToPath(import.meta.url);
+    return modulePath === resolve(process.argv[1]!);
+  } catch {
+    return false;
+  }
+}
+
+const invokedDirectly =
+  (import.meta as unknown as { main?: boolean })?.main === true
+    ? true
+    : isDirectExecution();
+
+if (invokedDirectly) {
+  main().catch((error) => {
+    logger.error(
+      'Daemon crashed during startup',
+      {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      },
+      'CLI'
+    );
+    process.exit(1);
+  });
 }
 
 export { main };
-
-

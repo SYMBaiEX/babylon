@@ -9,12 +9,13 @@ interface BouncingLogoProps {
 
 export function BouncingLogo({ size = 40, className }: BouncingLogoProps) {
   return (
-    <div className={cn("flex items-center justify-center", className)}>
+    <div className={cn("flex items-center justify-center h-full", className)}>
       <div
-        className="animate-bounce-squish origin-bottom"
+        className="animate-bounce-squish will-change-transform"
         style={{
           width: size,
           height: size,
+          transformOrigin: "center bottom",
         }}
       >
         <svg

@@ -42,6 +42,12 @@ export const GET = withErrorHandling(async (
     prisma.actorFollow.count({
       where: { followingId: actorId },
     }),
+    // Actors following this actor (NPCs)
+    prisma.actorFollow.count({
+      where: {
+        followingId: actorId,
+      },
+    }),
     // Users following this actor (players)
     prisma.userActorFollow.count({
       where: {

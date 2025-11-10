@@ -16,7 +16,7 @@ import { POST_TYPES } from '@/shared/constants'
 import type { Actor, FeedPost, Organization } from '@/shared/types'
 import { useGameStore } from '@/stores/gameStore'
 import type { ProfileInfo } from '@/types/profiles'
-import { ArrowLeft, Mail, Search } from 'lucide-react'
+import { ArrowLeft, MessageCircle, Search } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
@@ -68,6 +68,7 @@ export default function ActorProfilePage() {
   // Load actor/user info
   const [actorInfo, setActorInfo] = useState<ProfileInfo | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isCreatingDM, setIsCreatingDM] = useState(false)
   const [apiPosts, setApiPosts] = useState<Array<{
     id: string
     content: string
@@ -86,6 +87,27 @@ export default function ActorProfilePage() {
   const [loadingPosts, setLoadingPosts] = useState(false)
   
   const currentUserId = user?.id
+
+  // Handle creating DM with user
+  const handleMessageClick = async () => {
+    if (!authenticated || !actorInfo?.id || isCreatingDM || !user?.id) return
+
+    setIsCreatingDM(true)
+    try {
+      // Generate deterministic chat ID (same format as backend)
+      // Sort IDs to ensure consistency
+      const sortedIds = [user.id, actorInfo.id].sort()
+      const chatId = `dm-${sortedIds.join('-')}`
+      
+      // Navigate directly to chat page
+      // Chat will be created in DB when first message is sent
+      router.push(`/chats?chat=${chatId}&newDM=${actorInfo.id}`)
+    } catch (error) {
+      console.error('Error opening DM:', error)
+    } finally {
+      setIsCreatingDM(false)
+    }
+  }
 
   useEffect(() => {
     const loadActorInfo = async () => {
@@ -561,10 +583,15 @@ export default function ActorProfilePage() {
               <div className="flex items-center gap-2 pt-3">
                 {authenticated && user && user.id !== actorInfo.id && (
                   <>
-                    {/* Only show mail button for users, not actors/NPCs */}
+                    {/* Only show message button for users, not actors/NPCs */}
                     {actorInfo.isUser && actorInfo.type === 'user' && (
-                      <button className="p-2 rounded-full border border-border hover:bg-muted/50 transition-colors">
-                        <Mail className="w-5 h-5" />
+                      <button 
+                        onClick={handleMessageClick}
+                        disabled={isCreatingDM}
+                        className="p-2 rounded-full border border-border hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Send message"
+                      >
+                        <MessageCircle className="w-5 h-5" />
                       </button>
                     )}
                     <FollowButton
@@ -805,10 +832,15 @@ export default function ActorProfilePage() {
                 <div className="flex items-center gap-2 pt-3">
                   {authenticated && user && user.id !== actorInfo.id && (
                     <>
-                      {/* Only show mail button for users, not actors/NPCs */}
+                      {/* Only show message button for users, not actors/NPCs */}
                       {actorInfo.isUser && actorInfo.type === 'user' && (
-                        <button className="p-2 rounded-full border border-border hover:bg-muted/50 transition-colors">
-                          <Mail className="w-5 h-5" />
+                        <button 
+                          onClick={handleMessageClick}
+                          disabled={isCreatingDM}
+                          className="p-2 rounded-full border border-border hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Send message"
+                        >
+                          <MessageCircle className="w-5 h-5" />
                         </button>
                       )}
                       <FollowButton
