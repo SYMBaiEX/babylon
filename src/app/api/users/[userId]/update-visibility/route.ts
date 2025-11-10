@@ -19,11 +19,11 @@ const UpdateVisibilityRequestSchema = z.object({
  */
 export const POST = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ userId: string }> }
+  context: { params: Promise<{ userId: string }> }
 ) => {
   // Authenticate user
   const authUser = await authenticate(request);
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params);
   const { userId } = UserIdParamSchema.parse(params);
   const targetUser = await requireUserByIdentifier(userId, { id: true });
   const canonicalUserId = targetUser.id;

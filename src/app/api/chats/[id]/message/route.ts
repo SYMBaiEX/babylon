@@ -21,11 +21,11 @@ import { ChatMessageCreateSchema } from '@/lib/validation/schemas'
  */
 export const POST = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) => {
   // 1. Authenticate user
   const user = await authenticate(request)
-  const { id: chatId } = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')))
+  const { id: chatId } = await context.params
 
   if (!chatId) {
     throw new BusinessLogicError('Chat ID is required', 'CHAT_ID_REQUIRED')

@@ -17,11 +17,11 @@ import { logger } from '@/lib/logger';
  */
 export const POST = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) => {
   // Authenticate user
   const user = await authenticate(request);
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params);
   const { id: commentId } = IdParamSchema.parse(params);
 
   // Ensure user exists in database (upsert pattern)
@@ -93,11 +93,11 @@ export const POST = withErrorHandling(async (
  */
 export const DELETE = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) => {
   // Authenticate user
   const user = await authenticate(request);
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params);
   const { id: commentId } = IdParamSchema.parse(params);
 
   // Ensure user exists in database (upsert pattern)

@@ -18,9 +18,9 @@ import type { NextRequest } from 'next/server';
  */
 export const GET = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) => {
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params);
   const { id: postId } = PostIdParamSchema.parse(params);
 
   // Optional authentication (to show liked status for logged-in users)

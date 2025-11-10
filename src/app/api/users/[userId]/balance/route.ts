@@ -18,9 +18,9 @@ import { cachedDb } from '@/lib/cached-database-service';
  */
 export const GET = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ userId: string }> }
+  context: { params: Promise<{ userId: string }> }
 ) => {
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params);
   const { userId } = UserIdParamSchema.parse(params);
 
   // Optional authentication - check if user is requesting their own balance

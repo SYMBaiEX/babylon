@@ -11,9 +11,9 @@ import { asUser } from '@/lib/db/context'
  */
 export const DELETE = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) => {
-  const { id: chatId } = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')))
+  const { id: chatId } = await context.params
   const user = await authenticate(request)
 
   await asUser(user, async (db) => {

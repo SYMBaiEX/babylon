@@ -15,9 +15,9 @@ import type { NextRequest } from 'next/server';
  */
 export const GET = withErrorHandling(async (
   _request: NextRequest,
-  context?: { params: Promise<{ actorId: string }> }
+  context: { params: Promise<{ actorId: string }> }
 ) => {
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params;
   const { actorId } = params;
 
   // Verify actor exists

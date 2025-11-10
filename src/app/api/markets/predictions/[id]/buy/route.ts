@@ -21,9 +21,9 @@ import { FEE_CONFIG } from '@/lib/config/fees';
  */
 export const POST = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) => {
-  const { id: marketId } = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const { id: marketId } = await context.params);
 
   // Authentication - errors propagate to withErrorHandling
   const user = await authenticate(request);

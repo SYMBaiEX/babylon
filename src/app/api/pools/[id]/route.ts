@@ -12,9 +12,9 @@ import { logger } from '@/lib/logger';
  */
 export const GET = withErrorHandling(async (
   _request: NextRequest,
-  context?: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) => {
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params);
   const { id } = IdParamSchema.parse(params);
 
   // Optional auth - pools are public but RLS still applies

@@ -32,10 +32,10 @@ interface FollowerResponse {
  */
 export const GET = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ userId: string }> }
+  context: { params: Promise<{ userId: string }> }
 ) => {
   await optionalAuth(request);
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params);
   const { userId: targetIdentifier } = UserIdParamSchema.parse(params);
   
   // Validate query parameters

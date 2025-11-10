@@ -12,10 +12,10 @@ import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 
 export const GET = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ userId: string }> }
+  context: { params: Promise<{ userId: string }> }
 ) => {
   const authUser = await authenticate(request)
-  const { userId } = await (context?.params || Promise.reject(new Error('Missing route context')))
+  const { userId } = await context.params)
   
   // Verify authorization
   const user = await requireUserByIdentifier(userId, {

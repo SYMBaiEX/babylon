@@ -17,9 +17,9 @@ import { ChatQuerySchema } from '@/lib/validation/schemas'
  */
 export const GET = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) => {
-  const { id: chatId } = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')))
+  const { id: chatId } = await context.params
 
   // Validate query parameters
   const { searchParams } = new URL(request.url)

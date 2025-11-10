@@ -20,13 +20,13 @@ const BanUserSchema = z.object({
 
 export const POST = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ userId: string }> }
+  context: { params: Promise<{ userId: string }> }
 ) => {
   // Require admin authentication
   const adminUser = await requireAdmin(request);
 
   // Parse params
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params);
   const { userId } = params;
 
   // Parse request body

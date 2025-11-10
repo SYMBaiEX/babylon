@@ -18,9 +18,9 @@ import { logger } from '@/lib/logger';
  */
 export const GET = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ username: string }> }
+  context: { params: Promise<{ username: string }> }
 ) => {
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params);
   const { username } = UsernameParamSchema.parse(params);
 
   // Optional authentication

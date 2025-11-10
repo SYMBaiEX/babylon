@@ -12,9 +12,9 @@ import { logger } from '@/lib/logger';
  */
 export const GET = withErrorHandling(async (
   _request: NextRequest,
-  context?: { params: Promise<{ userId: string }> }
+  context: { params: Promise<{ userId: string }> }
 ) => {
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params);
   const { userId } = UserIdParamSchema.parse(params);
 
   // Optional auth - deposits are public for stats but RLS still applies

@@ -18,11 +18,11 @@ import { findUserByIdentifier } from '@/lib/users/user-lookup';
  */
 export const POST = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ userId: string }> }
+  context: { params: Promise<{ userId: string }> }
 ) => {
   // Authenticate user
   const user = await authenticate(request);
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params);
   const { userId: targetIdentifier } = UserIdParamSchema.parse(params);
   const targetUser = await findUserByIdentifier(targetIdentifier, { id: true, isActor: true });
   const targetId = targetUser?.id ?? targetIdentifier;
@@ -185,11 +185,11 @@ export const POST = withErrorHandling(async (
  */
 export const DELETE = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ userId: string }> }
+  context: { params: Promise<{ userId: string }> }
 ) => {
   // Authenticate user
   const user = await authenticate(request);
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params);
   const { userId: targetIdentifier } = UserIdParamSchema.parse(params);
   const targetUser = await findUserByIdentifier(targetIdentifier, { id: true });
   const targetId = targetUser?.id ?? targetIdentifier;
@@ -283,11 +283,11 @@ export const DELETE = withErrorHandling(async (
  */
 export const GET = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ userId: string }> }
+  context: { params: Promise<{ userId: string }> }
 ) => {
   // Optional authentication - if not authenticated, return false
   const authUser = await authenticate(request).catch(() => null);
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params);
   const { userId: targetId } = UserIdParamSchema.parse(params);
 
   if (!authUser) {

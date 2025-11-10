@@ -13,7 +13,6 @@ import { usePathname, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useRef, useState } from 'react'
 
 function SidebarContent() {
-  const [isAdmin, setIsAdmin] = useState(false)
   const [showMdMenu, setShowMdMenu] = useState(false)
   const [copiedReferral, setCopiedReferral] = useState(false)
   const mdMenuRef = useRef<HTMLDivElement>(null)
@@ -34,6 +33,9 @@ function SidebarContent() {
     return null
   }
 
+  // Check if user is admin from the user object
+  const isAdmin = user?.isAdmin ?? false
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -48,27 +50,6 @@ function SidebarContent() {
     }
     return undefined
   }, [showMdMenu])
-
-  // Check if user is admin
-  useEffect(() => {
-    const checkAdmin = async () => {
-      if (!authenticated) {
-        setIsAdmin(false)
-        return
-      }
-
-      try {
-        const response = await fetch('/api/admin/stats')
-        // Silently handle 403 - it just means user is not an admin
-        setIsAdmin(response.ok)
-      } catch {
-        // Silently handle errors - user is not an admin
-        setIsAdmin(false)
-      }
-    }
-
-    checkAdmin()
-  }, [authenticated, ready, user?.profileComplete])
 
   const copyReferralCode = async () => {
     if (!user?.referralCode) return

@@ -3,7 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   turbopack: {},
   // Specify workspace root to silence lockfile warning
-  outputFileTracingRoot: process.cwd(),
+  // outputFileTracingRoot: process.cwd(), // Commented out - can cause issues on Vercel
   experimental: {
     optimizePackageImports: ['lucide-react'],
     // instrumentationHook removed - available by default in Next.js 15+
