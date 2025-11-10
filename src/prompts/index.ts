@@ -54,10 +54,12 @@ export { groupChatName } from './game/group-chat-name';
 export { dayEvents } from './game/day-events';
 export { questions } from './game/questions';
 export { groupMessage } from './game/group-message';
+export { groupInitialMessage } from './game/group-initial-message';
 export { priceAnnouncement } from './game/price-announcement';
 export { priceImpact } from './game/price-impact';
 export { groupChatNames } from './game/group-chat-names';
 export { questionGeneration } from './game/question-generation';
+export { questionEvent } from './game/question-event';
 
 // Image prompts
 export { actorPortrait, actorBanner } from './image/actor-portrait';

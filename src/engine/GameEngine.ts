@@ -54,6 +54,18 @@ import { MarketContextService } from '@/lib/services/market-context-service';
 import { TradeExecutionService } from '@/lib/services/trade-execution-service';
 import { GroupChatSweep } from '@/lib/services/group-chat-sweep';
 import type { ExecutionResult } from '@/types/market-decisions';
+import {
+  renderPrompt,
+  resolutionEvent,
+  questionEvent,
+  directReaction,
+  companyPost,
+  ambientPost,
+  groupMessage,
+  groupInitialMessage,
+  groupChatName,
+  getPromptParams,
+} from '@/prompts';
 
 interface GameConfig {
   tickIntervalMs?: number;
@@ -755,34 +767,33 @@ export class GameEngine extends EventEmitter {
     const shouldPointToOutcome = urgency === 'critical' || (urgency === 'high' && Math.random() > 0.3);
     const currentDay = this.getGameDayNumber(new Date());
 
-    const prompt = `Generate a SPECIFIC event for this prediction market question:
+    const urgencyRequirement = urgency === 'critical'
+      ? 'Event must CLEARLY point toward the outcome'
+      : urgency === 'high'
+      ? 'Event should hint strongly at the outcome'
+      : 'Event can be ambiguous or early development';
 
-QUESTION: ${question.text}
-PREDETERMINED OUTCOME: ${question.outcome ? 'YES' : 'NO'}
-DAYS UNTIL RESOLUTION: ${daysLeft}
-URGENCY: ${urgency}
+    const outcomeGuidance = shouldPointToOutcome
+      ? `Event should support the ${question.outcome ? 'YES' : 'NO'} outcome`
+      : 'Event can be neutral or misleading';
 
-INVOLVED ACTORS: ${involvedActors.map(a => `${a.name} (${a.description})`).join(', ')}
+    const prompt = renderPrompt(questionEvent, {
+      questionText: question.text,
+      outcome: question.outcome ? 'YES' : 'NO',
+      daysLeft: daysLeft.toString(),
+      urgency,
+      involvedActors: involvedActors.map(a => `${a.name} (${a.description})`).join(', '),
+      urgencyRequirement,
+      outcomeGuidance,
+    });
 
-REQUIREMENTS:
-- Event must be SPECIFIC and OBSERVABLE
-- ${urgency === 'critical' ? 'Event must CLEARLY point toward the outcome' : urgency === 'high' ? 'Event should hint strongly at the outcome' : 'Event can be ambiguous or early development'}
-- ${shouldPointToOutcome ? `Event should support the ${question.outcome ? 'YES' : 'NO'} outcome` : 'Event can be neutral or misleading'}
-- Use actor names and be dramatic
-- One sentence, max 150 characters
-- Satirical tone
-
-OUTPUT JSON:
-{
-  "description": "Your event here",
-  "type": "announcement|scandal|deal|conflict|revelation"
-}`;
+    const params = getPromptParams(questionEvent);
 
     try {
       const response = await this.llm.generateJSON<{
         description: string;
         type: string;
-      }>(prompt, undefined, { temperature: 0.8, maxTokens: 500 });
+      }>(prompt, undefined, params);
 
       return {
         id: `event-${Date.now()}-${Math.random()}`,
@@ -828,37 +839,42 @@ OUTPUT JSON:
 
     const currentDay = this.getGameDayNumber(new Date());
 
-    const prompt = `Generate a DEFINITIVE resolution event for this prediction market:
+    // Get recent events for context
+    const recentEvents = await db.prisma.worldEvent.findMany({
+      where: { relatedQuestion: toQuestionIdNumberOrNull(question.id) },
+      take: 10,
+      orderBy: { timestamp: 'desc' },
+    });
 
-QUESTION: ${question.text}
-FINAL OUTCOME: ${question.outcome ? 'YES' : 'NO'}
+    const eventHistory = recentEvents.length > 0
+      ? recentEvents.map(e => e.description).join('; ')
+      : 'No previous events';
 
-REQUIREMENT:
-- Event must DEFINITIVELY PROVE the ${question.outcome ? 'YES' : 'NO'} outcome
-- Must be concrete and observable
-- ${question.outcome ? 'Clearly shows it HAPPENED/SUCCEEDED' : 'Clearly shows it FAILED/WAS CANCELLED/DID NOT HAPPEN'}
-- Use specific details and actor names
-- One sentence, max 150 characters
-- Dramatic and satirical
+    const outcomeContext = question.outcome
+      ? 'Clearly shows it HAPPENED/SUCCEEDED. Use specific details and actor names.'
+      : 'Clearly shows it FAILED/WAS CANCELLED/DID NOT HAPPEN. Use specific details and actor names.';
 
-OUTPUT JSON:
-{
-  "description": "Your resolution event",
-  "type": "announcement|scandal|revelation"
-}`;
+    const prompt = renderPrompt(resolutionEvent, {
+      questionText: question.text,
+      outcome: question.outcome ? 'YES' : 'NO',
+      eventHistory,
+      outcomeContext,
+    });
+
+    const params = getPromptParams(resolutionEvent);
 
     try {
       const response = await this.llm.generateJSON<{
-        description: string;
+        event: string;
         type: string;
-      }>(prompt, undefined, { temperature: 0.7, maxTokens: 500 });
+      }>(prompt, undefined, params);
 
       return {
         id: `resolution-${Date.now()}`,
         day: currentDay,
         type: (response.type as WorldEvent['type']) || 'announcement',
         actors: involvedActors.map(a => a.id),
-        description: response.description,
+        description: response.event || `Resolution: ${question.text}`,
         relatedQuestion: toQuestionIdNumberOrNull(question.id),
         pointsToward: question.outcome ? 'YES' : 'NO',
         visibility: 'public',
@@ -1026,39 +1042,44 @@ OUTPUT JSON:
       event.actors
     );
 
-    let relationshipInstructions = '';
+    let relationshipContextString = '';
     if (relationshipContext.relationships.length > 0) {
-      relationshipInstructions = `\n\nYOUR RELATIONSHIPS WITH PEOPLE INVOLVED:\n${relationshipContext.contextString}\n\nConsider these relationships when posting:
+      relationshipContextString = `\n\nYOUR RELATIONSHIPS WITH PEOPLE INVOLVED:\n${relationshipContext.contextString}\n\nConsider these relationships when posting:
 - If a rival: Be critical, competitive, or call them out
 - If an ally: Be supportive, tag them positively
 - If you respect them: Reference their expertise
 - If you have beef: Be sarcastic or dismissive`;
     }
 
-    const prompt = `You are ${actor.name}. ${actor.description || ''}
+    const eventGuidance = clueStrength > 0.7
+      ? 'Provide clear insight about the outcome'
+      : clueStrength > 0.4
+      ? 'Give subtle hints'
+      : 'Be speculative';
 
-EVENT: ${event.description}
-RELATED QUESTION: ${question.text}
-THIS EVENT ${event.pointsToward === 'YES' ? 'supports YES' : event.pointsToward === 'NO' ? 'supports NO' : 'is ambiguous'}${relationshipInstructions}
+    const outcomeFrame = event.pointsToward === 'YES'
+      ? 'Frame as potentially positive'
+      : event.pointsToward === 'NO'
+      ? 'Highlight concerns or problems'
+      : 'Be neutral or speculative';
 
-Write a social media post (max 280 chars) reacting to this event.
-${actor.personality ? `Your personality: ${actor.personality}` : ''}
-${actor.postStyle ? `Your style: ${actor.postStyle}` : ''}
+    const emotionalContext = actor.personality || actor.postStyle
+      ? `${actor.personality ? `Personality: ${actor.personality}` : ''}${actor.postStyle ? `\nStyle: ${actor.postStyle}` : ''}`
+      : '';
 
-The post should:
-- React to the EVENT specifically
-- ${clueStrength > 0.7 ? 'Provide clear insight about the outcome' : clueStrength > 0.4 ? 'Give subtle hints' : 'Be speculative'}
-- Match your personality
-- Reflect your relationships with involved parties
-- Be satirical and entertaining
+    const prompt = renderPrompt(directReaction, {
+      actorName: actor.name,
+      actorDescription: actor.description || '',
+      emotionalContext,
+      relationshipContext: relationshipContextString,
+      eventDescription: event.description,
+      eventType: event.type,
+      relatedQuestion: `Related Question: ${question.text}`,
+      eventGuidance,
+      outcomeFrame,
+    });
 
-OUTPUT JSON:
-{
-  "post": "your post here",
-  "sentiment": -1 to 1,
-  "clueStrength": 0 to 1,
-  "pointsToward": true/false/null
-}`;
+    const params = getPromptParams(directReaction);
 
     try {
       const response = await this.llm.generateJSON<{
@@ -1066,7 +1087,7 @@ OUTPUT JSON:
         sentiment: number;
         clueStrength: number;
         pointsToward: boolean | null;
-      }>(prompt, undefined, { temperature: 0.9, maxTokens: 1000 });
+      }>(prompt, undefined, params);
 
       // Strict validation
       if (!response.post || typeof response.post !== 'string') {
@@ -1108,26 +1129,31 @@ OUTPUT JSON:
   ): Promise<FeedPost | null> {
     const daysLeft = this.getDaysUntilResolution(question);
     const clueStrength = this.calculateClueStrength(daysLeft);
+    const currentDay = this.getGameDayNumber(new Date());
 
-    const prompt = `You are ${actor.name}. ${actor.description || ''}
+    const emotionalContext = actor.personality || actor.postStyle
+      ? `${actor.personality ? `Personality: ${actor.personality}` : ''}${actor.postStyle ? `\nStyle: ${actor.postStyle}` : ''}`
+      : '';
 
-ACTIVE QUESTION: ${question.text}
-DAYS LEFT: ${daysLeft}
+    const prompt = renderPrompt(ambientPost, {
+      actorName: actor.name,
+      actorDescription: actor.description || '',
+      emotionalContext,
+      day: currentDay.toString(),
+      progressContext: `Question: ${question.text}`,
+      atmosphereNote: 'Speculate about this question indirectly',
+      outcomeFrame: 'Be thoughtful and speculative',
+    });
 
-Write a social media post (max 280 chars) speculating about this question.
-${actor.postStyle ? `Your style: ${actor.postStyle}` : ''}
-
-OUTPUT JSON:
-{
-  "post": "your speculation here"
-}`;
+    const params = getPromptParams(ambientPost);
 
     try {
-      const response = await this.llm.generateJSON<{ post: string }>(
-        prompt,
-        undefined,
-        { temperature: 0.9, maxTokens: 500 }
-      );
+      const response = await this.llm.generateJSON<{
+        post: string;
+        sentiment: number;
+        clueStrength: number;
+        pointsToward: boolean | null;
+      }>(prompt, undefined, params);
 
       // Strict validation
       if (!response.post || typeof response.post !== 'string') {
@@ -1142,9 +1168,9 @@ OUTPUT JSON:
         content: response.post,
         author: actor.id,
         authorName: actor.name,
-        sentiment: Math.random() * 2 - 1,
-        clueStrength,
-        pointsToward: Math.random() > 0.5,
+        sentiment: response.sentiment || 0,
+        clueStrength: response.clueStrength || clueStrength,
+        pointsToward: response.pointsToward ?? null,
       };
     } catch (llmError) {
       // Don't create post if LLM fails
@@ -1163,26 +1189,30 @@ OUTPUT JSON:
     question: Question,
     clueStrength: number
   ): Promise<FeedPost> {
-    const prompt = `You are ${org.name}, a ${org.type} organization. Write a news headline and brief summary about this event.
+    const outcomeFrame = event.pointsToward === 'YES'
+      ? 'Frame as potentially positive'
+      : event.pointsToward === 'NO'
+      ? 'Highlight concerns or problems'
+      : 'Be neutral or analytical';
 
-EVENT: ${event.description}
-RELATED QUESTION: ${question.text}
-THIS EVENT ${event.pointsToward === 'YES' ? 'supports YES' : event.pointsToward === 'NO' ? 'supports NO' : 'is ambiguous'}
+    const prompt = renderPrompt(companyPost, {
+      companyName: org.name,
+      companyDescription: org.type,
+      eventDescription: event.description,
+      eventType: event.type,
+      postType: 'news article',
+      outcomeFrame,
+    });
 
-Write a professional news article (max 300 chars) covering this event.
-Be informative and analytical.
-
-OUTPUT JSON:
-{
-  "title": "news headline",
-  "summary": "brief summary"
-}`;
+    const params = getPromptParams(companyPost);
 
     try {
       const response = await this.llm.generateJSON<{
-        title: string;
-        summary: string;
-      }>(prompt, undefined, { temperature: 0.7, maxTokens: 1000 });
+        post: string;
+        sentiment: number;
+        clueStrength: number;
+        pointsToward: boolean | null;
+      }>(prompt, undefined, params);
 
       return {
         id: generateSnowflakeId(),
@@ -1217,28 +1247,26 @@ OUTPUT JSON:
     org: Organization,
     question: Question
   ): Promise<FeedPost | null> {
-    const daysLeft = this.getDaysUntilResolution(question);
+    const prompt = renderPrompt(companyPost, {
+      companyName: org.name,
+      companyDescription: org.type,
+      eventDescription: `Question: ${question.text}`,
+      eventType: 'analysis',
+      postType: 'news analysis',
+      outcomeFrame: 'Be analytical and neutral',
+    });
 
-    const prompt = `You are ${org.name}, a ${org.type} organization. Write a news analysis piece about this prediction market.
-
-ACTIVE QUESTION: ${question.text}
-DAYS LEFT: ${daysLeft}
-
-Write a professional news headline and summary (max 300 chars) analyzing this question.
-
-OUTPUT JSON:
-{
-  "title": "analysis headline",
-  "summary": "brief analysis"
-}`;
+    const params = getPromptParams(companyPost);
 
     try {
       const response = await this.llm.generateJSON<{
-        title: string;
-        summary: string;
-      }>(prompt, undefined, { temperature: 0.7, maxTokens: 1000 });
+        post: string;
+        sentiment: number;
+        clueStrength: number;
+        pointsToward: boolean | null;
+      }>(prompt, undefined, params);
 
-      if (!response.title || !response.summary) {
+      if (!response.post) {
         return null;
       }
 
@@ -1246,14 +1274,13 @@ OUTPUT JSON:
         id: generateSnowflakeId(),
         day: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
         timestamp: new Date().toISOString(),
-        type: 'news',
-        content: response.summary,
+        type: 'article',
+        content: response.post,
         author: org.id,
         authorName: org.name,
-        articleTitle: response.title,
-        sentiment: 0,
-        clueStrength: 0.1,
-        pointsToward: null,
+        sentiment: response.sentiment || 0,
+        clueStrength: response.clueStrength || 0.1,
+        pointsToward: response.pointsToward ?? null,
       };
     } catch (error) {
       logger.debug('LLM failed to generate ambient org article', { error }, 'GameEngine');
@@ -1363,31 +1390,35 @@ OUTPUT JSON:
       event.actors
     );
 
-    let relationshipInfo = '';
+    let relationshipContextString = '';
     if (relationshipContext.relationships.length > 0) {
-      relationshipInfo = `\n\nYour relationships: ${relationshipContext.contextString}`;
+      relationshipContextString = `\n\nYour relationships: ${relationshipContext.contextString}\nReference your relationships if relevant (e.g., "my sources say...", "rivals won't admit but...")`;
     }
 
-    const prompt = `You are ${actor.name} in a private group chat.
+    const informationHint = clueStrength > 0.7
+      ? 'Be fairly direct about what you think will happen.'
+      : 'Be speculative and cautious.';
 
-EVENT: ${event.description}
-QUESTION: ${question.text}
-OUTCOME: ${question.outcome ? 'YES' : 'NO'} (you may hint at this)${relationshipInfo}
+    const eventContext = `Event: ${event.description}\nQuestion: ${question.text}\nOutcome: ${question.outcome ? 'YES' : 'NO'} (you may hint at this)`;
 
-Write a brief chat message (max 150 chars) giving your insider take.
-${clueStrength > 0.7 ? 'Be fairly direct about what you think will happen.' : 'Be speculative and cautious.'}
-${relationshipContext.relationships.length > 0 ? 'Reference your relationships if relevant (e.g., "my sources say...", "rivals won\'t admit but...")' : ''}
+    const prompt = renderPrompt(groupMessage, {
+      actorName: actor.name,
+      actorDescription: actor.description || '',
+      personality: actor.personality || 'strategic',
+      domain: actor.role || 'general',
+      groupTheme: question.text,
+      eventContext,
+      relationshipContext: relationshipContextString,
+      informationHint,
+    });
 
-OUTPUT JSON:
-{
-  "message": "your message"
-}`;
+    const params = getPromptParams(groupMessage);
 
     try {
       const response = await this.llm.generateJSON<{ message: string }>(
         prompt,
         undefined,
-        { temperature: 0.9, maxTokens: 500 }
+        params
       );
 
       // Strict validation
@@ -2136,38 +2167,23 @@ OUTPUT JSON:
     
     const memberNames = members.map(m => m.name).join(', ');
     
-    const prompt = `You are ${admin.name}, the admin of a private group chat called "${chat.name}".
+    const prompt = renderPrompt(groupInitialMessage, {
+      adminName: admin.name,
+      chatName: chat.name,
+      adminRole: admin.role,
+      domain: chat.theme || 'general',
+      adminDescription: admin.description || 'influential figure',
+      personality: admin.personality || 'strategic and connected',
+      memberNames,
+    });
 
-YOUR CONTEXT:
-- Role: ${admin.role}
-- Domain: ${chat.theme || 'general'}
-- Description: ${admin.description || 'influential figure'}
-- Personality: ${admin.personality || 'strategic and connected'}
-
-GROUP MEMBERS: ${memberNames}
-
-Write the first message to this group chat. It should:
-1. Set the tone for insider discussions
-2. Reference your shared domain/interests (${chat.theme})
-3. Be 1-2 sentences, casual but strategic
-4. Sound like you're bringing together powerful people for a reason
-5. Match your personality and the satirical tone of the group name
-
-Examples for tone (but make it unique):
-- "Figured we should have a place to talk about what's really happening with AI before the peasants find out."
-- "Welcome. Let's discuss how we're all going to profit from this crypto crash."
-- "Time to coordinate our totally-not-coordinated strategy for the metaverse."
-
-OUTPUT JSON:
-{
-  "message": "your initial message here"
-}`;
+    const params = getPromptParams(groupInitialMessage);
 
     try {
       const response = await this.llm.generateJSON<{ message: string }>(
         prompt,
         undefined,
-        { temperature: 0.8, maxTokens: 500 }
+        params
       );
       
       return response.message || `Welcome to ${chat.name}. Let's discuss what's happening in ${chat.theme}.`;
@@ -2190,40 +2206,21 @@ OUTPUT JSON:
       .map(m => `- ${m.name}: ${m.description || 'actor'}${m.affiliations?.length ? ` [${m.affiliations.join(', ')}]` : ''}`)
       .join('\n');
     
-    const prompt = `Generate a funny, satirical group chat name for this private group.
+    const prompt = renderPrompt(groupChatName, {
+      adminName: admin.name,
+      adminRole: admin.role,
+      domain,
+      adminAffiliations: admin.affiliations?.join(', ') || 'none',
+      memberDescriptions,
+    });
 
-ADMIN (group creator): ${admin.name}
-- Role: ${admin.role}
-- Domain: ${domain}
-- Affiliations: ${admin.affiliations?.join(', ') || 'none'}
-
-MEMBERS:
-${memberDescriptions}
-
-The group chat name should:
-1. Be satirical and darkly funny (like "silicon valley trauma support" or "ponzi schemers united")
-2. Reference the domain (${domain}) or the members' shared context
-3. Feel like an inside joke between these specific people
-4. Be 2-6 words long
-5. Use lowercase
-6. Be something these wealthy, powerful, slightly dysfunctional people would ironically name their private chat
-
-Examples for inspiration (but make it unique to THIS group):
-- "billionaire brunch club"
-- "regulatory capture squad"
-- "metaverse disasters anonymous"
-- "crypto widows & orphans"
-
-Return ONLY this JSON:
-{
-  "name": "the group chat name here"
-}`;
+    const params = getPromptParams(groupChatName);
 
     try {
       const response = await this.llm.generateJSON<{ name: string }>(
         prompt,
         undefined,
-        { temperature: 0.9, maxTokens: 500 }
+        params
       );
       
       return response.name || `${admin.name}'s Circle`;

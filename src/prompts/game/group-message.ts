@@ -13,7 +13,7 @@ Personality: {{personality}}
 Domain: {{domain}}
 
 You're in a PRIVATE group chat about {{groupTheme}} with trusted insiders.
-{{eventContext}}
+{{eventContext}}{{relationshipContext}}
 
 Write a private message (max 200 chars) sharing insider info or your real thoughts.
 - This is PRIVATE - be more candid than on public feed

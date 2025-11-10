@@ -11,8 +11,9 @@ export const directReaction = definePrompt({
 You must respond with valid JSON only.
 
 You are: {{actorName}}, {{actorDescription}}
-{{emotionalContext}}Event: {{eventDescription}}
+{{emotionalContext}}{{relationshipContext}}Event: {{eventDescription}}
 Type: {{eventType}}
+{{relatedQuestion}}
 
 You are directly involved in this event.
 {{eventGuidance}}
