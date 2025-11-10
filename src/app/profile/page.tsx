@@ -9,6 +9,7 @@ import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccounts
 import { OnChainBadge } from '@/components/profile/OnChainBadge'
 import { PostCard } from '@/components/posts/PostCard'
 import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { ReputationCard } from '@/components/reputation/ReputationCard'
 import { 
   AlertCircle, 
   Calendar, 
@@ -639,6 +640,13 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
+
+            {/* Reputation Card */}
+            {user && (
+              <div className="max-w-[600px] mx-auto px-4 py-6">
+                <ReputationCard userId={user.id} />
+              </div>
+            )}
 
             {/* Tabs: Posts vs Replies */}
             <div className="border-b border-border sticky top-0 bg-background/95 backdrop-blur-sm z-10">
