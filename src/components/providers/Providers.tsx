@@ -1,21 +1,22 @@
-'use client'
+'use client';
 
-import { PrivyProvider, type PrivyClientConfig } from '@privy-io/react-auth'
-import { WagmiProvider } from '@privy-io/wagmi'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useState, useEffect, Fragment, useMemo, Suspense } from 'react'
-import { privyConfig } from '@/lib/privy-config'
-import { ThemeProvider } from '@/components/shared/ThemeProvider'
-import { FontSizeProvider } from '@/contexts/FontSizeContext'
-import { GamePlaybackManager } from './GamePlaybackManager'
-import { ReferralCaptureProvider } from './ReferralCaptureProvider'
-import { OnboardingProvider } from './OnboardingProvider'
-import { http } from 'viem'
-import { mainnet, sepolia, base, baseSepolia } from 'viem/chains'
-import { createConfig } from 'wagmi'
+import { Fragment, Suspense, useEffect, useState } from 'react';
+
+import { type PrivyClientConfig, PrivyProvider } from '@privy-io/react-auth';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+import { ThemeProvider } from '@/components/shared/ThemeProvider';
+
+import { privyConfig } from '@/lib/privy-config';
+
+import { FontSizeProvider } from '@/contexts/FontSizeContext';
+
+import { GamePlaybackManager } from './GamePlaybackManager';
+import { OnboardingProvider } from './OnboardingProvider';
+import { ReferralCaptureProvider } from './ReferralCaptureProvider';
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [mounted, setMounted] = useState(false)
+  const [mounted, setMounted] = useState(false);
 
   const [queryClient] = useState(
     () =>
@@ -27,29 +28,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
           },
         },
       })
-  )
-
-  // Create wagmi config inside component to avoid SSR issues
-  const wagmiConfig = useMemo(
-    () =>
-      createConfig({
-        chains: [base, baseSepolia, mainnet, sepolia],
-        transports: {
-          [base.id]: http(process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'),
-          [baseSepolia.id]: http(process.env.NEXT_PUBLIC_RPC_URL || 'https://sepolia.base.org'),
-          [mainnet.id]: http(process.env.NEXT_PUBLIC_RPC_URL || undefined),
-          [sepolia.id]: http(process.env.NEXT_PUBLIC_RPC_URL || undefined),
-        },
-      }),
-    []
-  )
+  );
 
   // Check if Privy is configured (for build-time safety)
-  const hasPrivyConfig = privyConfig.appId && privyConfig.appId !== ''
+  const hasPrivyConfig = privyConfig.appId && privyConfig.appId !== '';
 
   useEffect(() => {
-    setMounted(true)
-  }, [])
+    setMounted(true);
+  }, []);
 
   // Render without Privy if not configured (for build-time)
   if (!hasPrivyConfig) {
@@ -73,7 +59,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           </FontSizeProvider>
         </ThemeProvider>
       </div>
-    )
+    );
   }
 
   return (
@@ -91,24 +77,22 @@ export function Providers({ children }: { children: React.ReactNode }) {
               appId={privyConfig.appId}
               config={privyConfig.config as PrivyClientConfig}
             >
-              <WagmiProvider config={wagmiConfig}>
-                {/* Capture referral code from URL if present */}
-                <Suspense fallback={null}>
-                  <ReferralCaptureProvider />
-                </Suspense>
-                {/* Onboarding provider for username setup */}
-                <OnboardingProvider>
-                  {mounted ? (
-                    <Fragment>{children}</Fragment>
-                  ) : (
-                    <div className="min-h-screen bg-sidebar" />
-                  )}
-                </OnboardingProvider>
-              </WagmiProvider>
+              {/* Capture referral code from URL if present */}
+              <Suspense fallback={null}>
+                <ReferralCaptureProvider />
+              </Suspense>
+              {/* Onboarding provider for username setup */}
+              <OnboardingProvider>
+                {mounted ? (
+                  <Fragment>{children}</Fragment>
+                ) : (
+                  <div className="min-h-screen bg-sidebar" />
+                )}
+              </OnboardingProvider>
             </PrivyProvider>
           </QueryClientProvider>
         </FontSizeProvider>
       </ThemeProvider>
     </div>
-  )
+  );
 }

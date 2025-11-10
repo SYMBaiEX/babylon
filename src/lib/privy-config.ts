@@ -1,7 +1,6 @@
 import type { PrivyClientConfig } from '@privy-io/react-auth';
-import { http } from 'viem';
-import { base, baseSepolia, mainnet, sepolia } from 'viem/chains';
-import { createConfig } from 'wagmi';
+
+import { CHAIN } from '@/constants/chains';
 
 /**
  * Extended Privy client config that includes "system" theme support
@@ -29,39 +28,6 @@ export interface ExtendedPrivyClientConfig
   };
 }
 
-// Environment configuration
-const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID) || 8453; // Default to Base mainnet
-const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || '';
-
-// Chain selection based on CHAIN_ID
-const getSelectedChain = () => {
-  switch (chainId) {
-    case 11155111:
-      return sepolia;
-    case 1:
-      return mainnet;
-    case 84532:
-      return baseSepolia;
-    case 8453:
-      return base;
-    default:
-      return base;
-  }
-};
-
-const selectedChain = getSelectedChain();
-
-// Wagmi configuration for Privy with Base L2 support
-export const wagmiConfig = createConfig({
-  chains: [base, baseSepolia, mainnet, sepolia],
-  transports: {
-    [base.id]: http(rpcUrl || 'https://mainnet.base.org'),
-    [baseSepolia.id]: http(rpcUrl || 'https://sepolia.base.org'),
-    [mainnet.id]: http(rpcUrl || undefined),
-    [sepolia.id]: http(rpcUrl || undefined),
-  },
-});
-
 // Privy configuration
 export const privyConfig: {
   appId: string;
@@ -73,7 +39,7 @@ export const privyConfig: {
       theme: 'dark' as const,
       accentColor: '#1c9cf0',
       logo: '/assets/logos/logo.svg',
-      showWalletLoginFirst: false, // Changed to false to prioritize Farcaster
+      showWalletLoginFirst: false,
       walletList: [
         'metamask',
         'rabby_wallet',
@@ -84,17 +50,14 @@ export const privyConfig: {
       ],
       walletChainType: 'ethereum-only' as const,
     } satisfies ExtendedAppearance,
-    // Prioritize Farcaster login, then wallet, then email
     loginMethods: ['farcaster', 'wallet', 'email'],
     embeddedWallets: {
       ethereum: {
         createOnLogin: 'all-users' as const,
       },
     },
-    defaultChain: selectedChain,
-    // Wallet configuration - supports all chains including Base L2
-    supportedChains: [base, baseSepolia, mainnet, sepolia],
-    // WalletConnect configuration for mobile wallets
+    defaultChain: CHAIN,
+    supportedChains: [CHAIN],
     walletConnectCloudProjectId:
       process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
   },
