@@ -8,7 +8,7 @@ import {
   successResponse
 } from '@/lib/api/auth-middleware';
 import { prisma } from '@/lib/database-service';
-import { AuthorizationError, BusinessLogicError, NotFoundError } from '@/lib/errors';
+import { AuthorizationError, NotFoundError } from '@/lib/errors';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { ReferralQuerySchema, UserIdParamSchema } from '@/lib/validation/schemas';
@@ -21,11 +21,11 @@ import { requireUserByIdentifier } from '@/lib/users/user-lookup';
  */
 export const GET = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ userId: string }> }
+  context: { params: Promise<{ userId: string }> }
 ) => {
   // Authenticate user
   const authUser = await authenticate(request);
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params;
   const { userId } = UserIdParamSchema.parse(params);
   const targetUser = await requireUserByIdentifier(userId, { id: true });
   const canonicalUserId = targetUser.id;

@@ -69,9 +69,9 @@ export function CommentInput({
       // Clear optimistic state on success
       setOptimisticComment(null);
 
-      // Call onSubmit callback if provided
+      // Call onSubmit callback if provided (await if it returns a promise)
       if (onSubmit) {
-        onSubmit(comment);
+        await Promise.resolve(onSubmit(comment));
       }
     } else {
       // Restore content if failed

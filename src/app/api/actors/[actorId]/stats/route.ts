@@ -15,9 +15,9 @@ import type { NextRequest } from 'next/server';
  */
 export const GET = withErrorHandling(async (
   _request: NextRequest,
-  context?: { params: Promise<{ actorId: string }> }
+  context: { params: Promise<{ actorId: string }> }
 ) => {
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params;
   const { actorId } = params;
 
   // Verify actor exists
@@ -30,20 +30,33 @@ export const GET = withErrorHandling(async (
     throw new BusinessLogicError(`Actor ${actorId} not found`, 'NOT_FOUND');
   }
 
-  // Get follower counts (both from ActorFollow and FollowStatus)
-  const [actorFollowerCount, userFollowerCount, followingCount, postCount] = await Promise.all([
-    // NPCs following this actor
+  // Get follower counts (both from ActorFollow and UserActorFollow)
+  const [
+    actorFollowerCount,
+    userActorFollowerCount,
+    legacyUserFollowerCount,
+    followingCount,
+    postCount,
+  ] = await Promise.all([
+    // NPCs following this actor (ActorFollow)
     prisma.actorFollow.count({
       where: { followingId: actorId },
     }),
-    // Users following this actor
-    prisma.followStatus.count({
-      where: { 
-        npcId: actorId,
-        isActive: true,
+    // Users following this actor (UserActorFollow)
+    prisma.userActorFollow.count({
+      where: {
+        actorId,
       },
     }),
-    // This actor following others (only NPC-to-NPC follows)
+    // Legacy FollowStatus entries created before migration
+    prisma.followStatus.count({
+      where: {
+        npcId: actorId,
+        isActive: true,
+        followReason: 'user_followed',
+      },
+    }),
+    // This actor following others (only NPC-to-NPC follows via ActorFollow)
     prisma.actorFollow.count({
       where: { followerId: actorId },
     }),
@@ -53,13 +66,15 @@ export const GET = withErrorHandling(async (
     }),
   ]);
 
-  const totalFollowers = actorFollowerCount + userFollowerCount;
+  const totalUserFollowers = userActorFollowerCount + legacyUserFollowerCount;
+  const totalFollowers = actorFollowerCount + totalUserFollowers;
 
   logger.info('Actor stats fetched successfully', { 
     actorId, 
     totalFollowers,
     actorFollowerCount,
-    userFollowerCount,
+    userActorFollowerCount,
+    legacyUserFollowerCount,
     followingCount 
   }, 'GET /api/actors/[actorId]/stats');
 
@@ -69,7 +84,7 @@ export const GET = withErrorHandling(async (
       following: followingCount,
       posts: postCount,
       actorFollowers: actorFollowerCount,
-      userFollowers: userFollowerCount,
+      userFollowers: totalUserFollowers,
     },
   });
 });

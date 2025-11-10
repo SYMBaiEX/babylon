@@ -7,7 +7,7 @@ import type { NextRequest } from 'next/server';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { BusinessLogicError, NotFoundError, AuthorizationError } from '@/lib/errors';
+import {  NotFoundError, AuthorizationError } from '@/lib/errors';
 import { IdParamSchema, UpdateCommentSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 /**
@@ -16,12 +16,11 @@ import { logger } from '@/lib/logger';
  */
 export const PATCH = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) => {
   // Authenticate user
   const user = await authenticate(request);
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
-  const { id: commentId } = IdParamSchema.parse(params);
+  const { id: commentId } = IdParamSchema.parse(await context.params);
 
   // Parse and validate request body
   const body = await request.json();
@@ -92,12 +91,11 @@ export const PATCH = withErrorHandling(async (
  */
 export const DELETE = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) => {
   // Authenticate user
   const user = await authenticate(request);
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
-  const { id: commentId } = IdParamSchema.parse(params);
+  const { id: commentId } = IdParamSchema.parse(await context.params);
 
   // Delete comment with RLS
   const deletedRepliesCount = await asUser(user, async (db) => {

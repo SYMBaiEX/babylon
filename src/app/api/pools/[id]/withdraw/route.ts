@@ -18,9 +18,9 @@ import { logger } from '@/lib/logger';
  */
 export const POST = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) => {
-  const { id: poolId } = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const { id: poolId } = await context.params;
 
   const body = await request.json();
   const { userId, depositId } = PoolWithdrawBodySchema.parse(body);

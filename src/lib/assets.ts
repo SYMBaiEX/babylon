@@ -22,11 +22,22 @@ export function getStaticAssetUrl(path: string): string {
 }
 
 /**
+ * Get deterministic fallback profile image based on ID
+ * Returns a random-looking but deterministic profile image from the user-profiles set
+ */
+export function getFallbackProfileImageUrl(id: string): string {
+  // Hash the id to get a number between 1-100
+  const hash = Array.from(id).reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  const profileNum = (hash % 100) + 1
+  return getStaticAssetUrl(`/assets/user-profiles/profile-${profileNum}.jpg`)
+}
+
+/**
  * Get actor/user profile image URL
  * Tries multiple sources in order:
  * 1. Uploaded profile image URL (from S3/Blob storage)
  * 2. Static actor image from /public/images/actors/
- * 3. Returns null if not found (component will show fallback)
+ * 3. Returns null if not found (Avatar component will handle fallback on error)
  */
 export function getProfileImageUrl(
   profileImageUrl: string | null | undefined,
@@ -43,7 +54,7 @@ export function getProfileImageUrl(
     return getStaticAssetUrl(`/images/actors/${userId}.jpg`)
   }
   
-  // No image available
+  // No image available - Avatar component will handle fallback
   return null
 }
 

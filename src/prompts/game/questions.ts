@@ -30,7 +30,7 @@ Each question must:
 - Reference specific actors and events
 
 Examples of GOOD questions (including organizations):
-- "Will Elon's Husk announce Tesla's brain upload feature?"
+- "Will Ailon Muskannounce Tesla's brain upload feature?"
 - "Will Scam Altman's AGI pass the Turing test publicly?"
 - "Will Vitamin Uterin fork Ethereum before Day 30?"
 - "Will MSDNC break story about leaked OpenLIE documents?"

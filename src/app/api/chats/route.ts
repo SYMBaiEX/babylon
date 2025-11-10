@@ -142,32 +142,41 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       })
       .filter((c) => c !== null);
 
-    // Format DM chats - get the other participant's name
+    // Format DM chats - get the other participant's name and details
     const directChats = await Promise.all(
       dmChatsDetails.map(async (chat) => {
         // Find the other participant (not the current user)
         const otherParticipant = chat.participants.find((p) => p.userId !== user.userId);
         let chatName = chat.name || 'Direct Message';
+        let otherUserDetails = null;
         
         if (otherParticipant) {
-          // Try to get user details
+          // Try to get user details (real users only, not actors)
           const otherUser = await db.user.findUnique({
             where: { id: otherParticipant.userId },
-            select: { displayName: true, username: true },
+            select: { 
+              id: true,
+              displayName: true, 
+              username: true,
+              profileImageUrl: true,
+              isActor: true,
+            },
           });
           
-          if (otherUser) {
+          if (otherUser && !otherUser.isActor) {
             chatName = otherUser.displayName || otherUser.username || 'Unknown';
-          } else {
-            // Check if it's an actor
-            const actor = await db.actor.findUnique({
-              where: { id: otherParticipant.userId },
-              select: { name: true },
-            });
-            if (actor) {
-              chatName = actor.name;
-            }
+            otherUserDetails = {
+              id: otherUser.id,
+              displayName: otherUser.displayName,
+              username: otherUser.username,
+              profileImageUrl: otherUser.profileImageUrl,
+            };
           }
+        }
+        
+        // Only return DMs with real users (not NPCs)
+        if (!otherUserDetails) {
+          return null;
         }
         
         return {
@@ -177,9 +186,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           lastMessage: chat.messages[0] || null,
           participants: chat.participants.length,
           updatedAt: chat.updatedAt,
+          otherUser: otherUserDetails,
         };
       })
-    );
+    ).then(chats => chats.filter(c => c !== null));
 
     return { groupChats, directChats };
   });

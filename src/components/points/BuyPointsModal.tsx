@@ -5,7 +5,7 @@ import { X, DollarSign, Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
-import { usePrivy } from '@privy-io/react-auth'
+import { useSendTransaction, usePrivy } from '@privy-io/react-auth'
 import { BouncingLogo } from '@/components/shared/BouncingLogo'
 
 interface BuyPointsModalProps {
@@ -24,8 +24,9 @@ interface PaymentRequest {
 }
 
 export function BuyPointsModal({ isOpen, onClose, onSuccess }: BuyPointsModalProps) {
-  const { user } = useAuth()
-  const { sendTransaction, getAccessToken } = usePrivy()
+  const { user, wallet } = useAuth()
+  const { getAccessToken } = usePrivy()
+  const { sendTransaction } = useSendTransaction()
   
   const [amountUSD, setAmountUSD] = useState('10')
   const [step, setStep] = useState<PaymentStep>('input')
@@ -148,25 +149,45 @@ export function BuyPointsModal({ isOpen, onClose, onSuccess }: BuyPointsModalPro
     setStep('payment')
 
     try {
-      // Send transaction using Privy
-      const tx = await sendTransaction({
-        to: paymentRequest.to,
-        value: paymentRequest.amount,
-        chainId: 84532, // Base Sepolia
-      })
+      if (!wallet?.address) {
+        throw new Error('Please connect your wallet to continue')
+      }
 
-      if (!tx.hash) {
+      // Send transaction using Privy with gas sponsorship
+      const { hash } = await sendTransaction(
+        {
+          to: paymentRequest.to as `0x${string}`,
+          value: paymentRequest.amount as `0x${string}`,
+          chainId: 84532, // Base Sepolia
+        },
+        {
+          sponsor: true, // Enable gas sponsorship
+          address: wallet.address as `0x${string}`,
+        }
+      )
+
+      if (!hash) {
         throw new Error('Transaction failed')
       }
 
-      setTxHash(tx.hash)
+      setTxHash(hash)
       setStep('verifying')
       
       // Verify payment and credit points
-      await handleVerifyPayment(paymentRequest.requestId, tx.hash, paymentRequest)
+      await handleVerifyPayment(paymentRequest.requestId, hash, paymentRequest)
     } catch (err) {
       console.error('Payment failed:', err)
-      setError(err instanceof Error ? err.message : 'Payment failed')
+      const errorMessage = err instanceof Error ? err.message : 'Payment failed'
+      
+      // Provide helpful error messages
+      if (errorMessage.includes('sponsor')) {
+        setError('Gas sponsorship unavailable. Please ensure you are using your Babylon embedded wallet.')
+      } else if (errorMessage.includes('user rejected')) {
+        setError('Transaction was cancelled.')
+      } else {
+        setError(errorMessage)
+      }
+      
       setStep('error')
       toast.error('Payment transaction failed')
       setLoading(false)
@@ -179,7 +200,7 @@ export function BuyPointsModal({ isOpen, onClose, onSuccess }: BuyPointsModalPro
     paymentRequest: PaymentRequest
   ) => {
     try {
-      const token = await getAccessToken()
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
       if (!token) {
         throw new Error('Authentication required')
       }

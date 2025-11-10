@@ -13,7 +13,7 @@
 import { prisma } from '@/lib/database-service';
 
 export interface SweepDecision {
-  shouldRemove: boolean;
+  kickChance: number;
   reason?: string;
   stats: {
     hoursSinceLastMessage: number;
@@ -24,20 +24,21 @@ export interface SweepDecision {
 }
 
 export class GroupChatSweep {
-  // Inactivity thresholds
-  private static readonly MAX_INACTIVE_HOURS = 72; // 72 hours without posting
+  // Base probability of being kicked per day, even with ideal activity
+  private static readonly BASE_KICK_PROBABILITY = 0.01; // 1%
 
-  // Over-posting thresholds
-  private static readonly MAX_MESSAGES_PER_DAY = 10;
+  // Inactivity thresholds (in hours)
+  private static readonly INACTIVITY_GRACE_PERIOD_HOURS = 24;
+  private static readonly INACTIVITY_MAX_HOURS = 72; // At this point, kick is certain
 
-  // Quality thresholds
-  private static readonly MIN_QUALITY_SCORE = 0.5;
-  private static readonly MIN_MESSAGES_FOR_QUALITY_CHECK = 5;
+  // Activity thresholds (messages per 24 hours)
+  private static readonly ACTIVITY_SWEET_SPOT_MAX = 4; // Up to this many messages is ideal
+  private static readonly ACTIVITY_HARD_CAP = 15; // At this point, kick is certain
 
   /**
-   * Check if a user should be removed from a group chat
+   * Calculate the probability that a user should be removed from a group chat.
    */
-  static async checkForRemoval(
+  static async calculateKickChance(
     userId: string,
     chatId: string
   ): Promise<SweepDecision> {
@@ -50,16 +51,18 @@ export class GroupChatSweep {
       },
     });
 
+    const baseStats = {
+      hoursSinceLastMessage: 0,
+      messagesLast24h: 0,
+      averageQuality: 0,
+      totalMessages: 0,
+    };
+
     if (!membership || !membership.isActive) {
       return {
-        shouldRemove: false,
-        reason: 'Not a member',
-        stats: {
-          hoursSinceLastMessage: 0,
-          messagesLast24h: 0,
-          averageQuality: 0,
-          totalMessages: 0,
-        },
+        kickChance: 0,
+        reason: 'Not an active member',
+        stats: baseStats,
       };
     }
 
@@ -75,93 +78,60 @@ export class GroupChatSweep {
     });
 
     const totalMessages = allMessages.length;
+    const hoursSinceJoin =
+      (Date.now() - membership.joinedAt.getTime()) / (1000 * 60 * 60);
 
-    // If no messages yet, give them grace period (24 hours)
+    // If no messages yet, give them a grace period
     if (totalMessages === 0) {
-      const hoursSinceJoin =
-        (Date.now() - membership.joinedAt.getTime()) / (1000 * 60 * 60);
-
-      if (hoursSinceJoin > 24) {
+      if (hoursSinceJoin > this.INACTIVITY_GRACE_PERIOD_HOURS) {
         return {
-          shouldRemove: true,
-          reason: 'Never posted after joining (24+ hours)',
-          stats: {
-            hoursSinceLastMessage: hoursSinceJoin,
-            messagesLast24h: 0,
-            averageQuality: 0,
-            totalMessages: 0,
-          },
+          kickChance: 0.75, // High chance of being kicked if no posts after grace period
+          reason: `Never posted after joining (${Math.floor(hoursSinceJoin)} hours ago)`,
+          stats: { ...baseStats, hoursSinceLastMessage: hoursSinceJoin },
         };
       }
-
+      // Safe for now if they just joined
       return {
-        shouldRemove: false,
-        stats: {
-          hoursSinceLastMessage: hoursSinceJoin,
-          messagesLast24h: 0,
-          averageQuality: 0,
-          totalMessages: 0,
-        },
+        kickChance: 0,
+        stats: { ...baseStats, hoursSinceLastMessage: hoursSinceJoin },
       };
     }
 
-    // Check inactivity
+    // --- Calculate inactivity penalty ---
+    let inactivityPenalty = 0;
+    let reason = '';
     const lastMessage = allMessages[0]!;
     const hoursSinceLastMessage =
       (Date.now() - lastMessage.createdAt.getTime()) / (1000 * 60 * 60);
 
-    if (hoursSinceLastMessage > this.MAX_INACTIVE_HOURS) {
-      return {
-        shouldRemove: true,
-        reason: `Inactive for ${Math.floor(hoursSinceLastMessage)} hours`,
-        stats: {
-          hoursSinceLastMessage,
-          messagesLast24h: 0,
-          averageQuality: membership.qualityScore,
-          totalMessages,
-        },
-      };
+    if (hoursSinceLastMessage > this.INACTIVITY_GRACE_PERIOD_HOURS) {
+      const excessHours = hoursSinceLastMessage - this.INACTIVITY_GRACE_PERIOD_HOURS;
+      const range = this.INACTIVITY_MAX_HOURS - this.INACTIVITY_GRACE_PERIOD_HOURS;
+      inactivityPenalty = Math.pow(Math.min(excessHours / range, 1), 2);
+      reason = `Inactive for ${Math.floor(hoursSinceLastMessage)} hours`;
     }
 
-    // Check over-posting
+    // --- Calculate over-activity penalty ---
+    let overactivityPenalty = 0;
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const messagesLast24h = allMessages.filter(
       (m) => m.createdAt >= oneDayAgo
     ).length;
 
-    if (messagesLast24h > this.MAX_MESSAGES_PER_DAY) {
-      return {
-        shouldRemove: true,
-        reason: `Over-posting: ${messagesLast24h} messages in 24h (max ${this.MAX_MESSAGES_PER_DAY})`,
-        stats: {
-          hoursSinceLastMessage,
-          messagesLast24h,
-          averageQuality: membership.qualityScore,
-          totalMessages,
-        },
-      };
+    if (messagesLast24h > this.ACTIVITY_SWEET_SPOT_MAX) {
+      const excessMessages = messagesLast24h - this.ACTIVITY_SWEET_SPOT_MAX;
+      const range = this.ACTIVITY_HARD_CAP - this.ACTIVITY_SWEET_SPOT_MAX;
+      overactivityPenalty = Math.pow(Math.min(excessMessages / range, 1), 2);
+      reason = `Over-posting: ${messagesLast24h} messages in 24h`;
     }
+    
+    // --- Combine penalties ---
+    const penalty = Math.max(inactivityPenalty, overactivityPenalty);
+    const kickChance = Math.min(1, this.BASE_KICK_PROBABILITY + penalty);
 
-    // Check quality (only if enough messages)
-    if (
-      totalMessages >= this.MIN_MESSAGES_FOR_QUALITY_CHECK &&
-      membership.qualityScore < this.MIN_QUALITY_SCORE
-    ) {
-      return {
-        shouldRemove: true,
-        reason: `Low quality: ${(membership.qualityScore * 100).toFixed(0)}% (min ${(this.MIN_QUALITY_SCORE * 100).toFixed(0)}%)`,
-        stats: {
-          hoursSinceLastMessage,
-          messagesLast24h,
-          averageQuality: membership.qualityScore,
-          totalMessages,
-        },
-      };
-    }
-
-    // All checks passed
     return {
-      shouldRemove: false,
+      kickChance,
+      reason: kickChance > this.BASE_KICK_PROBABILITY ? reason : 'Random sweep',
       stats: {
         hoursSinceLastMessage,
         messagesLast24h,
@@ -212,14 +182,15 @@ export class GroupChatSweep {
     const reasons: Record<string, number> = {};
 
     for (const membership of memberships) {
-      const decision = await this.checkForRemoval(membership.userId, chatId);
+      const decision = await this.calculateKickChance(membership.userId, chatId);
 
-      if (decision.shouldRemove && decision.reason) {
+      if (Math.random() < decision.kickChance && decision.reason) {
         await this.removeFromChat(membership.userId, chatId, decision.reason);
         removed++;
 
         // Track reasons
-        reasons[decision.reason] = (reasons[decision.reason] || 0) + 1;
+        const genericReason = decision.reason.split(':')[0] || 'Unknown';
+        reasons[genericReason] = (reasons[genericReason] || 0) + 1;
       }
     }
 

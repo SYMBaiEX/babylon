@@ -1,24 +1,25 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { useGameStore } from '@/stores/gameStore'
-import { useAuthStore } from '@/stores/authStore'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { FeedToggle } from '@/components/shared/FeedToggle'
-import { PageContainer } from '@/components/shared/PageContainer'
-import { SearchBar } from '@/components/shared/SearchBar'
-import { PostCard } from '@/components/posts/PostCard'
-import { InviteFriendsBanner } from '@/components/shared/InviteFriendsBanner'
-import { WidgetSidebar } from '@/components/shared/WidgetSidebar'
-import { TrendingPanel } from '@/components/feed/TrendingPanel'
 import { CreatePostModal } from '@/components/posts/CreatePostModal'
+import { PostCard } from '@/components/posts/PostCard'
+import { FeedToggle } from '@/components/shared/FeedToggle'
+import { InviteFriendsBanner } from '@/components/shared/InviteFriendsBanner'
+import { PageContainer } from '@/components/shared/PageContainer'
+import { PullToRefreshIndicator } from '@/components/shared/PullToRefreshIndicator'
+import { SearchBar } from '@/components/shared/SearchBar'
 import { FeedSkeleton } from '@/components/shared/Skeleton'
-import { cn } from '@/lib/utils'
-import { useErrorToasts } from '@/hooks/useErrorToasts'
-import { useAuth } from '@/hooks/useAuth'
-import type { FeedPost } from '@/shared/types'
+import { WidgetSidebar } from '@/components/shared/WidgetSidebar'
 import { useWidgetRefresh } from '@/contexts/WidgetRefreshContext'
-import { RefreshCw } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
+import { useErrorToasts } from '@/hooks/useErrorToasts'
+import { usePullToRefresh } from '@/hooks/usePullToRefresh'
+import { cn } from '@/lib/utils'
+import type { FeedPost } from '@/shared/types'
+import { useAuthStore } from '@/stores/authStore'
+import { useGameStore } from '@/stores/gameStore'
+import { Plus } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const PAGE_SIZE = 20
 
@@ -50,10 +51,6 @@ function FeedPageContent() {
   const [actorNames, setActorNames] = useState<Map<string, string>>(new Map())
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const [pullDistance, setPullDistance] = useState(0)
-  const touchStartY = useRef<number>(0)
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   
   // Smart banner frequency based on user referrals
   const calculateBannerInterval = () => {
@@ -109,11 +106,13 @@ function FeedPageContent() {
     loadActorNames()
   }, [])
 
-  const fetchLatestPosts = useCallback(async (requestOffset: number, append = false) => {
+  const fetchLatestPosts = useCallback(async (requestOffset: number, append = false, skipLoadingState = false) => {
     if (tab !== 'latest') return
 
-    if (append) setLoadingMore(true)
-    else if (!isRefreshing) setLoading(true)
+    if (!skipLoadingState) {
+      if (append) setLoadingMore(true)
+      else setLoading(true)
+    }
 
     const response = await fetch(`/api/posts?limit=${PAGE_SIZE}&offset=${requestOffset}`)
     if (!response.ok) {
@@ -161,52 +160,29 @@ function FeedPageContent() {
       setHasMore(moreAvailable)
     }
 
-    if (append) setLoadingMore(false)
-    else if (!isRefreshing) setLoading(false)
-  }, [tab, isRefreshing])
+    if (!skipLoadingState) {
+      if (append) setLoadingMore(false)
+      else setLoading(false)
+    }
+  }, [tab])
 
   const handleRefresh = useCallback(async () => {
-    if (isRefreshing || tab !== 'latest') return
-    setIsRefreshing(true)
-    try {
-      await fetchLatestPosts(0, false)
-      // Also refresh widgets
-      refreshWidgets()
-    } finally {
-      setIsRefreshing(false)
-      setPullDistance(0)
-    }
-  }, [isRefreshing, tab, fetchLatestPosts, refreshWidgets])
+    if (tab !== 'latest') return
+    // Use skipLoadingState=true since pull-to-refresh shows its own loading indicator
+    await fetchLatestPosts(0, false, true)
+    // Also refresh widgets
+    refreshWidgets()
+  }, [tab, fetchLatestPosts, refreshWidgets])
 
-  // Pull-to-refresh handlers
-  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    const container = scrollContainerRef.current
-    if (container && container.scrollTop === 0) {
-      touchStartY.current = e.touches[0]?.clientY ?? 0
-    }
-  }, [])
-
-  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    const container = scrollContainerRef.current
-    if (!container || container.scrollTop > 0 || isRefreshing) return
-
-    const touchY = e.touches[0]?.clientY ?? 0
-    const distance = touchY - touchStartY.current
-
-    if (distance > 0 && distance < 150) {
-      setPullDistance(distance)
-    }
-  }, [isRefreshing])
-
-  const handleTouchEnd = useCallback(() => {
-    setPullDistance((currentDistance) => {
-      if (currentDistance > 80) {
-        handleRefresh()
-        return 0
-      }
-      return 0
-    })
-  }, [handleRefresh])
+  // Pull-to-refresh hook
+  const {
+    pullDistance,
+    isRefreshing,
+    containerRef: scrollContainerRef,
+  } = usePullToRefresh({
+    onRefresh: handleRefresh,
+    enabled: tab === 'latest',
+  })
 
   // Initial load and reset when switching to latest tab
   useEffect(() => {
@@ -355,13 +331,15 @@ function FeedPageContent() {
 
   return (
     <PageContainer noPadding className="flex flex-col min-h-screen w-full overflow-visible">
-      {/* Mobile: Header with tabs, Hoot button, and search below */}
+      {/* Mobile: Header with tabs and search */}
       <div className="sticky top-0 z-10 bg-background shadow-sm flex-shrink-0 md:hidden">
-        {/* Top row: Tabs and Hoot button */}
         <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2">
           {/* Tabs on left */}
           <div className="flex-shrink-0">
             <FeedToggle activeTab={tab} onTabChange={setTab} />
+          </div>
+          {/* Search on right */}
+          <div className="flex-1 max-w-[200px]">
             <SearchBar
               value={searchQuery}
               onChange={setSearchQuery}
@@ -372,7 +350,7 @@ function FeedPageContent() {
         </div>
       </div>
 
-      {/* Desktop: Multi-column layout - NO overflow-hidden, let page scroll naturally */}
+      {/* Desktop: Multi-column layout with scrollable feed */}
       <div className="hidden lg:flex flex-1 min-h-0">
         {/* Left: Feed area - aligned with sidebar, full width */}
         <div className="flex-1 flex flex-col min-w-0 border-l border-r border-[rgba(120,120,120,0.5)]">
@@ -391,13 +369,24 @@ function FeedPageContent() {
             </div>
           </div>
 
-          {/* Feed content - NO overflow, page scroll handles this */}
-          <div className="flex-1 bg-background">
-              {(loading || (tab === 'following' && loadingFollowing)) ? (
-                <div className="w-full">
-                  <FeedSkeleton count={6} />
-                </div>
-              ) : filteredPosts.length === 0 && !searchQuery && tab === 'latest' ? (
+          {/* Feed content - Scrollable container with pull-to-refresh */}
+          <div 
+            ref={scrollContainerRef}
+            className="flex-1 bg-background overflow-y-auto overflow-x-hidden"
+          >
+            <div className="w-full max-w-[700px] mx-auto">
+              {/* Pull to refresh indicator (desktop) */}
+              <PullToRefreshIndicator
+                pullDistance={pullDistance}
+                isRefreshing={isRefreshing}
+              />
+            </div>
+            
+            {(loading || (tab === 'following' && loadingFollowing)) ? (
+              <div className="w-full max-w-[700px] mx-auto px-6">
+                <FeedSkeleton count={6} />
+              </div>
+            ) : filteredPosts.length === 0 && !searchQuery && tab === 'latest' ? (
                 // No posts yet
                 <div className="w-full p-4 sm:p-8 text-center">
                   <div className="text-muted-foreground py-8 sm:py-12">
@@ -454,10 +443,10 @@ function FeedPageContent() {
                     </button>
                   </div>
                 </div>
-              ) : (
-                // Show posts - full width
-                <div className="w-full px-6 space-y-0 max-w-[700px] mx-auto">
-                  {filteredPosts.map((post, i: number) => {
+            ) : (
+              // Show posts - centered container
+              <div className="w-full px-6 space-y-0 max-w-[700px] mx-auto">
+                {filteredPosts.map((post, i: number) => {
                     // Handle both FeedPost (from game store) and API post shapes
                     // API posts have authorId, FeedPost has author (both are author IDs)
                     const authorId = ('authorId' in post ? post.authorId : post.author) || ''
@@ -513,10 +502,10 @@ function FeedPageContent() {
                           You&apos;re all caught up.
                         </div>
                       )}
-                    </>
-                  )}
-                </div>
-              )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -524,118 +513,83 @@ function FeedPageContent() {
         <WidgetSidebar />
       </div>
 
-      {/* Mobile/Tablet: Feed area with optional trending */}
+      {/* Mobile/Tablet: Feed area */}
       <div 
         ref={scrollContainerRef}
-        className="flex lg:hidden flex-1 overflow-y-auto overflow-x-hidden bg-background w-full relative"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+        className="flex lg:hidden flex-1 overflow-y-auto overflow-x-hidden bg-background w-full"
       >
-        {/* Trending panel (mobile/tablet view - shows above feed) */}
-        <div className="md:hidden sticky top-0 z-[5] bg-background px-4 py-3 border-b border-border">
-          <TrendingPanel />
-        </div>
-
-        {/* Pull to refresh indicator */}
-        {pullDistance > 0 && (
-          <div 
-            className="absolute top-0 left-0 right-0 flex items-center justify-center transition-all duration-200 z-50"
-            style={{ 
-              height: `${pullDistance}px`,
-              opacity: Math.min(pullDistance / 80, 1)
-            }}
-          >
-            <div className={cn(
-              "flex flex-col items-center gap-1",
-              pullDistance > 80 ? "text-[#3462f3]" : "text-muted-foreground"
-            )}>
-              <div className={cn(
-                "transition-transform duration-200",
-                isRefreshing && "animate-spin"
-              )}>
-                {isRefreshing ? (
-                  <svg className="w-5 h-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                  </svg>
-                )}
-              </div>
-              <span className="text-xs font-medium">
-                {isRefreshing ? 'Refreshing...' : pullDistance > 80 ? 'Release to refresh' : 'Pull to refresh'}
-              </span>
+        <div className="w-full">
+          {/* Pull to refresh indicator */}
+          <PullToRefreshIndicator
+            pullDistance={pullDistance}
+            isRefreshing={isRefreshing}
+          />
+          
+          {(loading || (tab === 'following' && loadingFollowing)) ? (
+            <div className="w-full px-4">
+              <FeedSkeleton count={5} />
             </div>
-          </div>
-        )}
-        {(loading || (tab === 'following' && loadingFollowing)) ? (
-          <div className="w-full">
-            <FeedSkeleton count={5} />
-          </div>
-        ) : filteredPosts.length === 0 && !searchQuery && tab === 'latest' ? (
-          // No posts yet
-          <div className="w-full p-4 sm:p-8 text-center">
-            <div className="text-muted-foreground py-8 sm:py-12">
-              <h2 className="text-xl sm:text-2xl font-bold mb-2 text-foreground">No Posts Yet</h2>
-              <p className="mb-4 text-sm sm:text-base">
-                Engine is generating posts...
-              </p>
-              <div className="text-xs sm:text-sm text-muted-foreground space-y-2">
-                <p>Check terminal for tick logs.</p>
-                <p>Posts appear within 60 seconds.</p>
+          ) : filteredPosts.length === 0 && !searchQuery && tab === 'latest' ? (
+            // No posts yet
+            <div className="w-full p-4 sm:p-8 text-center">
+              <div className="text-muted-foreground py-8 sm:py-12">
+                <h2 className="text-xl sm:text-2xl font-bold mb-2 text-foreground">No Posts Yet</h2>
+                <p className="mb-4 text-sm sm:text-base">
+                  Engine is generating posts...
+                </p>
+                <div className="text-xs sm:text-sm text-muted-foreground space-y-2">
+                  <p>Check terminal for tick logs.</p>
+                  <p>Posts appear within 60 seconds.</p>
+                </div>
               </div>
             </div>
-          </div>
-        ) : filteredPosts.length === 0 && !searchQuery && tab === 'following' ? (
-          // Following tab with no followed profiles
-          <div className="w-full p-4 sm:p-8 text-center">
-            <div className="text-muted-foreground py-8 sm:py-12">
-              <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">👥 Not Following Anyone Yet</h2>
-              <p className="mb-4 text-sm sm:text-base">
-                {loadingFollowing
-                  ? 'Loading following...'
-                  : 'Follow profiles to see their posts here. Visit a profile and click the Follow button.'}
-              </p>
+          ) : filteredPosts.length === 0 && !searchQuery && tab === 'following' ? (
+            // Following tab with no followed profiles
+            <div className="w-full p-4 sm:p-8 text-center">
+              <div className="text-muted-foreground py-8 sm:py-12">
+                <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">👥 Not Following Anyone Yet</h2>
+                <p className="mb-4 text-sm sm:text-base">
+                  {loadingFollowing
+                    ? 'Loading following...'
+                    : 'Follow profiles to see their posts here. Visit a profile and click the Follow button.'}
+                </p>
+              </div>
             </div>
-          </div>
-        ) : filteredPosts.length === 0 && !searchQuery ? (
-          // Game loaded but no visible posts yet
-          <div className="w-full p-4 sm:p-8 text-center">
-          <div className="text-muted-foreground py-8 sm:py-12">
-            <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">⏱️ No Posts Yet</h2>
-            <p className="mb-4 text-sm sm:text-base">
-              Game is running in the background via realtime-daemon. Content will appear here as it's generated.
-            </p>
-          </div>
-          </div>
-        ) : filteredPosts.length === 0 && searchQuery ? (
-          // No search results
-          <div className="w-full p-4 sm:p-8 text-center">
-            <div className="text-muted-foreground py-8 sm:py-12">
-              <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">No Results</h2>
-              <p className="mb-4 text-sm sm:text-base break-words">
-                No posts found matching &quot;{searchQuery}&quot;
-              </p>
-              <button
-                onClick={() => setSearchQuery('')}
-                className={cn(
-                  'inline-block px-4 sm:px-6 py-2 sm:py-3 font-semibold rounded text-sm sm:text-base cursor-pointer',
-                  'bg-[#3462f3] text-white',
-                  'hover:bg-[#2952d9]',
-                  'transition-all duration-300'
-                )}
-              >
-                Clear Search
-              </button>
+          ) : filteredPosts.length === 0 && !searchQuery ? (
+            // Game loaded but no visible posts yet
+            <div className="w-full p-4 sm:p-8 text-center">
+              <div className="text-muted-foreground py-8 sm:py-12">
+                <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">⏱️ No Posts Yet</h2>
+                <p className="mb-4 text-sm sm:text-base">
+                  Game is running in the background via realtime-daemon. Content will appear here as it's generated.
+                </p>
+              </div>
             </div>
-          </div>
-        ) : (
-          // Show posts - full width, left-aligned
-          <div className="w-full px-4">
-            {filteredPosts.map((post, i: number) => {
+          ) : filteredPosts.length === 0 && searchQuery ? (
+            // No search results
+            <div className="w-full p-4 sm:p-8 text-center">
+              <div className="text-muted-foreground py-8 sm:py-12">
+                <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">No Results</h2>
+                <p className="mb-4 text-sm sm:text-base break-words">
+                  No posts found matching &quot;{searchQuery}&quot;
+                </p>
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className={cn(
+                    'inline-block px-4 sm:px-6 py-2 sm:py-3 font-semibold rounded text-sm sm:text-base cursor-pointer',
+                    'bg-[#3462f3] text-white',
+                    'hover:bg-[#2952d9]',
+                    'transition-all duration-300'
+                  )}
+                >
+                  Clear Search
+                </button>
+              </div>
+            </div>
+          ) : (
+            // Show posts
+            <div className="w-full px-4">
+              {filteredPosts.map((post, i: number) => {
               // Handle both FeedPost (from game store) and API post shapes
               // API posts have authorId, FeedPost has author (both are author IDs)
               const authorId = ('authorId' in post ? post.authorId : post.author) || ''
@@ -676,43 +630,47 @@ function FeedPageContent() {
                     />
                   )}
                 </div>
-              )
-            })}
-            {tab === 'latest' && (
-              <>
-                <div ref={loadMoreRef} className="h-1 w-full" />
-                {loadingMore && (
-                  <div className="py-4 text-center text-sm text-muted-foreground">
-                    Loading more posts...
-                  </div>
-                )}
-                {!loadingMore && !hasMore && posts.length > 0 && (
-                  <div className="py-4 text-center text-xs text-muted-foreground">
-                    You&apos;re all caught up.
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
-
+                )
+              })}
+              {tab === 'latest' && (
+                <>
+                  <div ref={loadMoreRef} className="h-1 w-full" />
+                  {loadingMore && (
+                    <div className="py-4 text-center text-sm text-muted-foreground">
+                      Loading more posts...
+                    </div>
+                  )}
+                  {!loadingMore && !hasMore && posts.length > 0 && (
+                    <div className="py-4 text-center text-xs text-muted-foreground">
+                      You&apos;re all caught up.
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Desktop refresh button */}
-      <button
-        onClick={handleRefresh}
-        disabled={isRefreshing}
-        className={cn(
-          'hidden md:block fixed bottom-8 right-8 z-10',
-          'bg-primary text-primary-foreground rounded-full p-4',
-          'shadow-lg hover:shadow-xl transition-all',
-          'hover:scale-110 active:scale-95',
-          isRefreshing && 'opacity-50 cursor-not-allowed'
-        )}
-        title="Refresh feed and widgets"
-      >
-        <RefreshCw className={cn('w-6 h-6', isRefreshing && 'animate-spin')} />
-      </button>
+      {/* Floating Post Button - Bottom Right */}
+      {authenticated && (
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className={cn(
+            'fixed bottom-20 right-4 md:bottom-6 md:right-6 z-[100]',
+            'flex items-center justify-center gap-2',
+            'bg-[#0066FF] hover:bg-[#2952d9]',
+            'text-white font-semibold',
+            'rounded-full',
+            'transition-all duration-200',
+            'shadow-lg hover:shadow-xl hover:scale-105',
+            'w-14 h-14 md:w-16 md:h-16'
+          )}
+          aria-label="Create Post"
+        >
+          <Plus className="w-6 h-6 md:w-7 md:h-7" />
+        </button>
+      )}
 
       {/* Create Post Modal */}
       <CreatePostModal

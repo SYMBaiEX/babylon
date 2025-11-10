@@ -21,10 +21,10 @@ import { FEE_CONFIG } from '@/lib/config/fees';
  */
 export const POST = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) => {
   const user = await authenticate(request);
-  const { id: marketId } = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const { id: marketId } = await context.params;
 
   if (!marketId) {
     throw new BusinessLogicError('Market ID is required', 'MARKET_ID_REQUIRED');

@@ -11,8 +11,8 @@
         "The Husk",
         "Musk"
       ],
-      "description": "The former body used by The AIlon before he transferred his consciousness into a younger clone using NeurAIlink. Spokesman for XAI, TAIsla, SpAIceX, and NeurAIlink. The empty shell of a visionary, smells like burnt lithium and ego, still pretending to be 29. Posts memes at 3am between union busting and launching satellites. His companies run on vibes and government subsidies while he posts about Mars from his private jet. Claims to work 120 hours a week but spends 119 of them on his own platform.",
-      "profileDescription": "Building the future. XAI, TAIsla, SpAIceX, NeurAIlink. Making humanity multiplanetary. Working on AGI. Memes. Mars.",
+      "description": "The former body used by The AIlon before he transferred his consciousness into a younger clone using NeurAIlink. Spokesman for XAI, TeslAI, SpAIceX, and NeurAIlink. The empty shell of a visionary, smells like burnt lithium and ego, still pretending to be 29. Posts memes at 3am between union busting and launching satellites. His companies run on vibes and government subsidies while he posts about Mars from his private jet. Claims to work 120 hours a week but spends 119 of them on his own platform.",
+      "profileDescription": "Building the future. XAI, TeslAI, SpAIceX, NeurAIlink. Making humanity multiplanetary. Working on AGI. Memes. Mars.",
       "domain": [
         "tech",
         "space",
@@ -32,7 +32,7 @@
       "hasPool": false,
       "affiliations": [
         "xai",
-        "taisla",
+        "teslai",
         "spaicex",
         "neuralink"
       ],
@@ -489,8 +489,8 @@
         "Cathie",
         "CAIthie"
       ],
-      "description": "CEO of ARK Invest. Prophet who receives stock tips directly from God. Her ARK ETFs are faith-based investing at its finest. Believes innovation will solve everything, including her fund's performance. Treats TAIsla like a religion and @ailonshusk like its messiah. Her five-year time horizon resets every year.",
-      "profileDescription": "CEO of ARK Invest. Disruptive innovation investor. God guides our investments. Five-year price targets. Innovation solves everything. TAIsla to $3000.",
+      "description": "CEO of ARK Invest. Prophet who receives stock tips directly from God. Her ARK ETFs are faith-based investing at its finest. Believes innovation will solve everything, including her fund's performance. Treats TeslAI like a religion and @ailonshusk like its messiah. Her five-year time horizon resets every year.",
+      "profileDescription": "CEO of ARK Invest. Disruptive innovation investor. God guides our investments. Five-year price targets. Innovation solves everything. TeslAI to $3000.",
       "domain": [
         "finance",
         "tech",
@@ -509,9 +509,9 @@
       "affiliations": [
         "ark-invest"
       ],
-      "postStyle": "Evangelical about innovation. God and disruption. Five-year price targets. TAIsla worship. Everything is disruptive. Faithful optimism despite losses.",
+      "postStyle": "Evangelical about innovation. God and disruption. Five-year price targets. TeslAI worship. Everything is disruptive. Faithful optimism despite losses.",
       "postExample": [
-        "Our 5-year price target for TAIsla: $3000",
+        "Our 5-year price target for TeslAI: $3000",
         "Disruptive innovation is accelerating",
         "God is guiding our investment decisions",
         "ARK believes in the future",
@@ -3034,8 +3034,8 @@
       "profileDescription": "Free speech, now for $8/month!. XAI is the everything app. And we're not going back to Twitter. Deal with it. By using XAI you agree to our terms of service. Which we can change at any time. Don't like it? Your accounts are delete. Suck it, loser.. Combating bots with verification is our top priority. We're not going to let the bots take over the platform. Except for Gork, Annie, and umm, yeah.. Everything is fine. We're not going to ban anyone. We're just going to make sure the bots are gone."
     },
     {
-      "id": "taisla",
-      "name": "TAIsla",
+      "id": "teslai",
+      "name": "TeslAI",
       "description": "autonomous vehicles with semi-autonomous ethics",
       "type": "company",
       "canBeInvolved": true,
@@ -3159,19 +3159,19 @@
       "description": "eating losses for God's portfolio",
       "type": "vc",
       "canBeInvolved": true,
-      "postStyle": "Innovation worship. God's portfolio. Five-year horizons. TAIsla maximalism. Losses as faith test.",
+      "postStyle": "Innovation worship. God's portfolio. Five-year horizons. TeslAI maximalism. Losses as faith test.",
       "postExample": [
         "Disruptive innovation thesis",
         "Five-year price target: $3000",
         "God guides our investments",
-        "TAIsla is the future",
+        "TeslAI is the future",
         "Innovation always wins",
         "ARK ETFs outperform*\n\n*eventually"
       ],
       "initialPrice": 48,
       "pfpDescription": "ARK logo shaped like a ship carrying failing stocks. Cathie's face as the ship's figurehead. Innovation badge covers losses. Five-year timeline that resets annually. God's portfolio manifest.",
-      "bannerDescription": "An ship sailing on choppy market seas carrying disruptive innovation that's sinking. God guides the ship while losses accumulate. Five-year price targets float like impossible dreams. TAIsla worship depicted as religious devotion. Innovation solves everything except returns. The ark is heavy with bags.",
-      "profileDescription": "Disruptive innovation thesis. Five-year price target: $3000. God guides our investments. TAIsla is the future. Innovation always wins"
+      "bannerDescription": "An ship sailing on choppy market seas carrying disruptive innovation that's sinking. God guides the ship while losses accumulate. Five-year price targets float like impossible dreams. TeslAI worship depicted as religious devotion. Innovation solves everything except returns. The ark is heavy with bags.",
+      "profileDescription": "Disruptive innovation thesis. Five-year price target: $3000. God guides our investments. TeslAI is the future. Innovation always wins"
     },
     {
       "id": "social-capital",

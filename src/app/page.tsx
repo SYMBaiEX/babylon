@@ -24,11 +24,14 @@ function HomePageContent() {
         window.location.hostname === '127.0.0.1' ||
         window.location.hostname === '')
 
-    // Check for dev query parameters
-    const hasDevParam = searchParams.get('dev') !== null || searchParams.get('develop') !== null
+    // Check if dev mode is enabled via URL parameter (?dev=true)
+    const isDevMode = searchParams.get('dev') === 'true'
+    
+    // Check if we're on production (babylon.market)
+    const isProduction = typeof window !== 'undefined' && window.location.hostname === 'babylon.market'
 
-    // Show app if on localhost OR has dev param
-    const showApp = isLocalhost || hasDevParam
+    // Show app if on localhost OR (on production with ?dev=true)
+    const showApp = isLocalhost || (isProduction && isDevMode) || (!isProduction && !isLocalhost)
     setShouldShowApp(showApp)
     setIsChecking(false)
 

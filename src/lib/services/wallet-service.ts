@@ -1,18 +1,17 @@
 /**
  * Virtual Wallet Service
- * 
+ *
  * Manages user's virtual USD balance for trading:
  * - Starting balance: $1,000
  * - Tracks all transactions
  * - Validates sufficient funds
  * - Calculates PnL
  */
-
 import { Prisma } from '@prisma/client';
-import { prisma } from '@/lib/prisma';
-import { logger } from '@/lib/logger';
-import { cachedDb } from '@/lib/cached-database-service';
 
+import { cachedDb } from '@/lib/cached-database-service';
+import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
 
 export interface BalanceInfo {
   balance: number;
@@ -107,14 +106,15 @@ export class WalletService {
     const newBalance = currentBalance - amount;
 
     // Update balance and record transaction in a single transaction
-    await prisma.$transaction([
-      prisma.user.update({
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
         where: { id: userId },
         data: {
           virtualBalance: new Prisma.Decimal(newBalance),
         },
-      }),
-      prisma.balanceTransaction.create({
+      });
+
+      await tx.balanceTransaction.create({
         data: {
           userId,
           type,
@@ -124,12 +124,16 @@ export class WalletService {
           relatedId,
           description,
         },
-      }),
-    ]);
+      });
+    });
 
     // Invalidate user cache after balance change
     await cachedDb.invalidateUserCache(userId).catch((err) => {
-      logger.error('Failed to invalidate user cache after debit', { userId, error: err }, 'WalletService');
+      logger.error(
+        'Failed to invalidate user cache after debit',
+        { userId, error: err },
+        'WalletService'
+      );
     });
   }
 
@@ -155,14 +159,15 @@ export class WalletService {
     const newBalance = currentBalance + amount;
 
     // Update balance and record transaction
-    await prisma.$transaction([
-      prisma.user.update({
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
         where: { id: userId },
         data: {
           virtualBalance: new Prisma.Decimal(newBalance),
         },
-      }),
-      prisma.balanceTransaction.create({
+      });
+
+      await tx.balanceTransaction.create({
         data: {
           userId,
           type,
@@ -172,12 +177,16 @@ export class WalletService {
           relatedId,
           description,
         },
-      }),
-    ]);
+      });
+    });
 
     // Invalidate user cache after balance change
     await cachedDb.invalidateUserCache(userId).catch((err) => {
-      logger.error('Failed to invalidate user cache after credit', { userId, error: err }, 'WalletService');
+      logger.error(
+        'Failed to invalidate user cache after credit',
+        { userId, error: err },
+        'WalletService'
+      );
     });
   }
 
@@ -242,15 +251,16 @@ export class WalletService {
 
     // Only initialize if balance is 0 (new user)
     if (Number(user.virtualBalance) === 0) {
-      await prisma.$transaction([
-        prisma.user.update({
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
           where: { id: userId },
           data: {
             virtualBalance: new Prisma.Decimal(this.STARTING_BALANCE),
             totalDeposited: new Prisma.Decimal(this.STARTING_BALANCE),
           },
-        }),
-        prisma.balanceTransaction.create({
+        });
+
+        await tx.balanceTransaction.create({
           data: {
             userId,
             type: 'deposit',
@@ -259,9 +269,8 @@ export class WalletService {
             balanceAfter: new Prisma.Decimal(this.STARTING_BALANCE),
             description: 'Initial deposit - Welcome to Babylon!',
           },
-        }),
-      ]);
+        });
+      });
     }
   }
 }
-

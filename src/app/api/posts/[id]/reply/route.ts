@@ -23,12 +23,11 @@ import { ensureUserForAuth } from '@/lib/users/ensure-user';
  */
 export const POST = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) => {
   // 1. Authenticate user
   const user = await authenticate(request);
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
-  const { id: postId } = PostIdParamSchema.parse(params);
+  const { id: postId } = PostIdParamSchema.parse(await context.params);
 
   // 2. Parse and validate request body
   const body = await request.json();

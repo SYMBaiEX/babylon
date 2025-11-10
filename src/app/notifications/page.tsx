@@ -8,6 +8,8 @@ import { Avatar } from '@/components/shared/Avatar'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
+import { usePullToRefresh } from '@/hooks/usePullToRefresh'
+import { PullToRefreshIndicator } from '@/components/shared/PullToRefreshIndicator'
 
 interface Notification {
   id: string
@@ -33,7 +35,7 @@ export default function NotificationsPage() {
   const [unreadCount, setUnreadCount] = useState(0)
   const [markingAsRead, setMarkingAsRead] = useState(false)
 
-  const fetchNotifications = useCallback(async (showLoading = true) => {
+  const fetchNotifications = useCallback(async (showLoading = true, silent = false) => {
     if (showLoading) {
       setLoading(true)
     }
@@ -56,13 +58,32 @@ export default function NotificationsPage() {
       const data = await response.json()
       setNotifications(data.notifications || [])
       setUnreadCount(data.unreadCount || 0)
+      if (!silent) {
+        toast.success('Notifications refreshed')
+      }
     } else {
       console.error('Failed to fetch notifications:', response.statusText)
+      if (!silent) {
+        toast.error('Failed to refresh notifications')
+      }
     }
     if (showLoading) {
       setLoading(false)
     }
   }, [])
+
+  const handleRefresh = useCallback(async () => {
+    await fetchNotifications(false, false) // Show loading via pull-to-refresh indicator, show toast on complete
+  }, [fetchNotifications])
+
+  // Pull-to-refresh hook
+  const {
+    pullDistance,
+    isRefreshing,
+    containerRef,
+  } = usePullToRefresh({
+    onRefresh: handleRefresh,
+  })
 
   useEffect(() => {
     if (!authenticated || !user) {
@@ -70,14 +91,14 @@ export default function NotificationsPage() {
       return
     }
 
-    fetchNotifications()
+    fetchNotifications(true, true) // Initial load: show loading, but silent (no toast)
 
     // Poll for new notifications every 30 seconds when page is visible
     // Use silent refresh (no loading indicator) for polling
     const interval = setInterval(() => {
       // Only refresh if page is visible (not in background tab)
       if (document.visibilityState === 'visible') {
-        fetchNotifications(false) // Silent refresh, no loading indicator
+        fetchNotifications(false, true) // Silent refresh, no loading indicator, no toast
       }
     }, 30000)
 
@@ -252,7 +273,15 @@ export default function NotificationsPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div 
+        ref={containerRef}
+        className="flex-1 overflow-y-auto relative"
+      >
+        {/* Pull to refresh indicator */}
+        <PullToRefreshIndicator
+          pullDistance={pullDistance}
+          isRefreshing={isRefreshing}
+        />
         {loading ? (
           <div className="flex flex-col items-center justify-center py-12">
             <div className="text-muted-foreground">Loading notifications...</div>

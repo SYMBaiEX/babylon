@@ -3,21 +3,37 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { X, Home, TrendingUp, MessageCircle, Trophy, Gift, Bell, LogOut, Coins } from 'lucide-react'
+import { X, Home, TrendingUp, MessageCircle, Trophy, Gift, Bell, LogOut, Coins, Copy, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { useLoginModal } from '@/hooks/useLoginModal'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { Avatar } from '@/components/shared/Avatar'
+import { Suspense } from 'react'
 
-export function MobileHeader() {
+function MobileHeaderContent() {
   const { authenticated, logout } = useAuth()
   const { user, setUser } = useAuthStore()
   const { showLoginModal } = useLoginModal()
   const [showSideMenu, setShowSideMenu] = useState(false)
   const [pointsData, setPointsData] = useState<{ available: number; total: number } | null>(null)
+  const [copiedReferral, setCopiedReferral] = useState(false)
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  // Check if dev mode is enabled via URL parameter
+  const isDevMode = searchParams.get('dev') === 'true'
+  
+  // Hide mobile header on production (babylon.market) on home page unless ?dev=true
+  const isProduction = typeof window !== 'undefined' && window.location.hostname === 'babylon.market'
+  const isHomePage = pathname === '/'
+  const shouldHide = isProduction && isHomePage && !isDevMode
+
+  // If should be hidden, don't render anything
+  if (shouldHide) {
+    return null
+  }
 
   useEffect(() => {
     if (!authenticated || !user?.id || user.profileImageUrl) {
@@ -84,6 +100,20 @@ export function MobileHeader() {
     const interval = setInterval(fetchPoints, 30000)
     return () => clearInterval(interval)
   }, [authenticated, user?.id])
+
+  const copyReferralCode = async () => {
+    if (!user?.referralCode) return
+    
+    try {
+      // Create full referral URL
+      const referralUrl = `${window.location.origin}?ref=${user.referralCode}`
+      await navigator.clipboard.writeText(referralUrl)
+      setCopiedReferral(true)
+      setTimeout(() => setCopiedReferral(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy referral code:', err)
+    }
+  }
 
   const menuItems = [
     {
@@ -196,7 +226,7 @@ export function MobileHeader() {
             <Link 
               href="/profile"
               onClick={() => setShowSideMenu(false)}
-              className="flex items-center justify-between p-4 hover:bg-sidebar-accent transition-colors"
+              className="flex items-center justify-between p-4 hover:bg-sidebar-accent transition-colors flex-shrink-0"
             >
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <Avatar 
@@ -230,7 +260,7 @@ export function MobileHeader() {
 
             {/* Points Display */}
             {pointsData && (
-              <div className="px-4 py-4 bg-muted/30">
+              <div className="px-4 py-4 bg-muted/30 flex-shrink-0">
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#0066FF' }}>
                     <Coins className="w-5 h-5 text-white" />
@@ -240,16 +270,13 @@ export function MobileHeader() {
                     <div className="font-bold text-base text-foreground mt-1">
                       {pointsData.available.toLocaleString()} pts
                     </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      of {pointsData.total.toLocaleString()} total
-                    </div>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Menu Items */}
-            <nav className="flex-1 overflow-y-auto">
+            {/* Menu Items - Scrollable */}
+            <nav className="flex-1 overflow-y-auto min-h-0">
               {menuItems.map((item) => {
                 const Icon = item.icon
                 return (
@@ -271,8 +298,37 @@ export function MobileHeader() {
               })}
             </nav>
 
-            {/* Logout Button at Bottom */}
-            <div className="p-3">
+            {/* Bottom Section - Referral & Logout */}
+            <div className="flex-shrink-0 border-t border-border bg-sidebar pb-20">
+              {/* Referral Code Button */}
+              {user?.referralCode && (
+                <button
+                  onClick={copyReferralCode}
+                  className="flex items-center gap-4 px-4 py-3 w-full text-left hover:bg-sidebar-accent transition-colors font-semibold"
+                >
+                  {copiedReferral ? (
+                    <>
+                      <Check className="w-5 h-5 text-green-500" />
+                      <span className="text-base text-green-500">Referral Link Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-5 h-5" style={{ color: '#0066FF' }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-base text-foreground">Copy Referral Link</div>
+                        <div className="text-xs text-muted-foreground font-mono truncate">
+                          {typeof window !== 'undefined' && `${window.location.host}?ref=${user.referralCode}`}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </button>
+              )}
+              
+              {/* Separator */}
+              {user?.referralCode && <div className="border-t border-border" />}
+              
+              {/* Logout Button */}
               <button
                 onClick={() => {
                   setShowSideMenu(false)
@@ -288,5 +344,13 @@ export function MobileHeader() {
         </>
       )}
     </>
+  )
+}
+
+export function MobileHeader() {
+  return (
+    <Suspense fallback={null}>
+      <MobileHeaderContent />
+    </Suspense>
   )
 }

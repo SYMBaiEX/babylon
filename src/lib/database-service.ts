@@ -81,7 +81,7 @@ class DatabaseService {
    * Create a new post
    */
   async createPost(post: FeedPost & { gameId?: string; dayNumber?: number }) {
-    return await prisma.post.create({
+    const created = await prisma.post.create({
       data: {
         id: post.id,
         content: post.content,
@@ -91,6 +91,79 @@ class DatabaseService {
         timestamp: new Date(post.timestamp),
       },
     });
+
+    // Generate and store tags for the post (async, don't wait)
+    this.tagPostAsync(post.id, post.content).catch(error => {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.warn('Failed to tag post', { 
+        postId: post.id,
+        error: errorMessage 
+      }, 'DatabaseService');
+    });
+
+    return created;
+  }
+
+  /**
+   * Tag a post asynchronously (fire-and-forget)
+   */
+  private async tagPostAsync(postId: string, content: string): Promise<void> {
+    const tagMap = await generateTagsForPosts([{ id: postId, content }]);
+    const tags = tagMap.get(postId);
+    if (tags && tags.length > 0) {
+      await storeTagsForPost(postId, tags);
+    }
+  }
+
+  /**
+   * Create a post with all fields (including article fields) and auto-tag it
+   * Used by serverless game tick
+   */
+  async createPostWithAllFields(data: {
+    id: string;
+    type?: string;
+    content: string;
+    fullContent?: string;
+    articleTitle?: string;
+    byline?: string;
+    biasScore?: number;
+    sentiment?: string;
+    slant?: string;
+    category?: string;
+    authorId: string;
+    gameId?: string;
+    dayNumber?: number;
+    timestamp: Date;
+  }) {
+    const created = await prisma.post.create({
+      data: {
+        id: data.id,
+        type: data.type || 'post',
+        content: data.content,
+        fullContent: data.fullContent,
+        articleTitle: data.articleTitle,
+        byline: data.byline,
+        biasScore: data.biasScore,
+        sentiment: data.sentiment,
+        slant: data.slant,
+        category: data.category,
+        authorId: data.authorId,
+        gameId: data.gameId,
+        dayNumber: data.dayNumber,
+        timestamp: data.timestamp,
+      },
+    });
+
+    // Generate and store tags for the post (async, don't wait)
+    this.tagPostAsync(data.id, data.content).catch(error => {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.warn('Failed to tag post', { 
+        postId: data.id,
+        error: errorMessage 
+      }, 'DatabaseService');
+    });
+
+    return created;
   }
 
   /**

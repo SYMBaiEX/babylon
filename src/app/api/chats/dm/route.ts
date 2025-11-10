@@ -29,22 +29,29 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Create or get DM chat with RLS
   const chat = await asUser(user, async (db) => {
-    // Check if target user exists
+    // Check if target user exists and is a real user (not an NPC)
     const targetUser = await db.user.findUnique({
       where: { id: targetUserId },
-      select: { id: true, isActor: true },
+      select: { 
+        id: true, 
+        isActor: true,
+        displayName: true,
+        username: true,
+        profileImageUrl: true,
+      },
     });
 
-    // If not a user, check if it's an actor
+    // Reject if target doesn't exist
     if (!targetUser) {
-      const targetActor = await db.actor.findUnique({
-        where: { id: targetUserId },
-        select: { id: true },
-      });
+      throw new NotFoundError('User', targetUserId);
+    }
 
-      if (!targetActor) {
-        throw new NotFoundError('User or profile', targetUserId);
-      }
+    // Reject if target is an NPC actor
+    if (targetUser.isActor) {
+      throw new BusinessLogicError(
+        'Cannot send direct messages to NPC actors. Use group chats to interact with NPCs.',
+        'INVALID_DM_TARGET'
+      );
     }
 
     // Create DM chat ID (consistent format - sort IDs for consistency)
@@ -118,16 +125,22 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       }
     }
 
-    return existingChat;
+    return { chat: existingChat, targetUser };
   });
 
-  logger.info('DM chat created or retrieved successfully', { chatId: chat.id, userId: user.userId, targetUserId }, 'POST /api/chats/dm');
+  logger.info('DM chat created or retrieved successfully', { chatId: chat.chat.id, userId: user.userId, targetUserId }, 'POST /api/chats/dm');
 
   return successResponse({
     chat: {
-      id: chat.id,
-      name: chat.name,
-      isGroup: chat.isGroup,
+      id: chat.chat.id,
+      name: chat.chat.name,
+      isGroup: chat.chat.isGroup,
+      otherUser: {
+        id: chat.targetUser.id,
+        displayName: chat.targetUser.displayName,
+        username: chat.targetUser.username,
+        profileImageUrl: chat.targetUser.profileImageUrl,
+      },
     },
   }, 201);
 });

@@ -34,11 +34,11 @@ interface FollowingResponse {
  */
 export const GET = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ userId: string }> }
+  context: { params: Promise<{ userId: string }> }
 ) => {
   // Optional authentication - if authenticated, can provide personalized data
   const authUser = await optionalAuth(request);
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params;
   const { userId: targetIdentifier } = UserIdParamSchema.parse(params);
   
   // Validate query parameters
@@ -125,32 +125,58 @@ export const GET = withErrorHandling(async (
       },
     });
 
-    // Get actors being followed (FollowStatus model)
-    const actorFollows = await prisma.followStatus.findMany({
-    where: {
-      userId: targetId,
-      isActive: true,
-    },
-    orderBy: {
-      followedAt: 'desc',
-    },
-  });
-
-    // Fetch actor details from Actor table
-    const actorIds = actorFollows.map((f) => f.npcId);
-    const actors = await prisma.actor.findMany({
+    // Get actors being followed (UserActorFollow model with legacy support)
+    const actorFollows = await prisma.userActorFollow.findMany({
       where: {
-        id: { in: actorIds },
+        userId: targetId,
+      },
+      include: {
+        actor: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            profileImageUrl: true,
+            tier: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    const migratedActorIds = new Set(actorFollows.map(f => f.actorId));
+
+    const legacyActorFollows = await prisma.followStatus.findMany({
+      where: {
+        userId: targetId,
+        isActive: true,
+        followReason: 'user_followed',
+      },
+      orderBy: {
+        followedAt: 'desc',
+      },
+    });
+
+    const legacyActorIds = legacyActorFollows
+      .map(f => f.npcId)
+      .filter(id => !migratedActorIds.has(id));
+
+    const legacyActors = await prisma.actor.findMany({
+      where: {
+        id: { in: legacyActorIds },
       },
       select: {
         id: true,
         name: true,
         description: true,
-        postStyle: true,
+        profileImageUrl: true,
+        tier: true,
       },
     });
 
-    const actorMap = new Map(actors.map((a) => [a.id, a]));
+    const legacyActorMap = new Map(legacyActors.map(actor => [actor.id, actor]));
 
     // Check mutual follows if authenticated user is viewing their own following list
     const mutualFollowChecks = authUser && authUser.userId === targetId
@@ -187,19 +213,48 @@ export const GET = withErrorHandling(async (
         isMutualFollow: mutualFollowMap.get(f.following.id) || false,
       })),
       ...actorFollows.map((f) => {
-        const actor = actorMap.get(f.npcId);
+        if (!f.actor) {
+          return {
+            id: f.actorId,
+            displayName: f.actorId,
+            username: null,
+            profileImageUrl: null,
+            bio: null,
+            isActor: true,
+            followedAt: f.createdAt.toISOString(),
+            type: 'actor' as const,
+            tier: null,
+          };
+        }
+
         return {
-          id: f.npcId,
-          displayName: actor?.name || f.npcId,
+          id: f.actor.id,
+          displayName: f.actor.name || f.actor.id,
           username: null,
-          profileImageUrl: null,
-          bio: actor?.description || null,
+          profileImageUrl: f.actor.profileImageUrl || null,
+          bio: f.actor.description || null,
           isActor: true,
-          followedAt: f.followedAt.toISOString(),
+          followedAt: f.createdAt.toISOString(),
           type: 'actor' as const,
-          tier: null,
+          tier: f.actor.tier || null,
         };
       }),
+      ...legacyActorFollows
+        .filter(f => !migratedActorIds.has(f.npcId))
+        .map((f) => {
+          const actor = legacyActorMap.get(f.npcId);
+          return {
+            id: f.npcId,
+            displayName: actor?.name || f.npcId,
+            username: null,
+            profileImageUrl: actor?.profileImageUrl || null,
+            bio: actor?.description || null,
+            isActor: true,
+            followedAt: f.followedAt.toISOString(),
+            type: 'actor' as const,
+            tier: actor?.tier || null,
+          };
+        }),
     ].sort((a, b) => new Date(b.followedAt).getTime() - new Date(a.followedAt).getTime());
   }
 

@@ -1,12 +1,27 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { Home, TrendingUp, MessageCircle, Bell } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Suspense } from 'react'
 
-export function BottomNav() {
+function BottomNavContent() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  // Check if dev mode is enabled via URL parameter
+  const isDevMode = searchParams.get('dev') === 'true'
+  
+  // Hide bottom nav on production (babylon.market) on home page unless ?dev=true
+  const isProduction = typeof window !== 'undefined' && window.location.hostname === 'babylon.market'
+  const isHomePage = pathname === '/'
+  const shouldHide = isProduction && isHomePage && !isDevMode
+
+  // If should be hidden, don't render anything
+  if (shouldHide) {
+    return null
+  }
 
   const navItems = [
     {
@@ -71,5 +86,13 @@ export function BottomNav() {
         </div>
       </div>
     </nav>
+  )
+}
+
+export function BottomNav() {
+  return (
+    <Suspense fallback={null}>
+      <BottomNavContent />
+    </Suspense>
   )
 }

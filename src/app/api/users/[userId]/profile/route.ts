@@ -4,8 +4,8 @@
  */
 
 import type { NextRequest } from 'next/server';
+import { prisma } from '@/lib/database-service';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { BusinessLogicError } from '@/lib/errors';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { logger } from '@/lib/logger';
@@ -17,9 +17,9 @@ import { requireUserByIdentifier } from '@/lib/users/user-lookup';
  */
 export const GET = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ userId: string }> }
+  context: { params: Promise<{ userId: string }> }
 ) => {
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params;
   const { userId } = UserIdParamSchema.parse(params);
 
   // Optional authentication
@@ -59,8 +59,17 @@ export const GET = withErrorHandling(async (
         reactions: true,
         followedBy: true,
         following: true,
+        userActorFollows: true, // Count of actors this user follows
       },
     },
+  });
+
+  // Calculate total following count (users + actors)
+  const totalFollowing = dbUser._count.following + dbUser._count.userActorFollows;
+
+  // Get post count for user
+  const postCount = await prisma.post.count({
+    where: { authorId: dbUser.id },
   });
 
   logger.info('User profile fetched successfully', { userId }, 'GET /api/users/[userId]/profile');
@@ -97,7 +106,8 @@ export const GET = withErrorHandling(async (
         comments: dbUser._count.comments,
         reactions: dbUser._count.reactions,
         followers: dbUser._count.followedBy,
-        following: dbUser._count.following,
+        following: totalFollowing, // Include both user and actor follows
+        posts: postCount,
       },
     },
   });

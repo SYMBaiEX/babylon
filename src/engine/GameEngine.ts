@@ -14,6 +14,7 @@
  */
 
 import { logger } from '@/lib/logger';
+import { generateSnowflakeId } from '@/lib/snowflake';
 import { ActorSocialActions } from '@/lib/services/ActorSocialActions';
 import { FollowInitializer } from '@/lib/services/FollowInitializer';
 import { RelationshipManager } from '@/lib/services/RelationshipManager';
@@ -50,6 +51,7 @@ import { QuestionManager } from './QuestionManager';
 import { MarketDecisionEngine } from './MarketDecisionEngine';
 import { MarketContextService } from '@/lib/services/market-context-service';
 import { TradeExecutionService } from '@/lib/services/trade-execution-service';
+import { GroupChatSweep } from '@/lib/services/group-chat-sweep';
 import type { ExecutionResult } from '@/types/market-decisions';
 
 interface GameConfig {
@@ -95,6 +97,7 @@ export class GameEngine extends EventEmitter {
   private intervalId?: NodeJS.Timeout;
   private fundingIntervalId?: NodeJS.Timeout;
   private dailySnapshotIntervalId?: NodeJS.Timeout;
+  private lastChatSweep: string = new Date().toISOString().split('T')[0]!;
   private luckMood: Map<string, { luck: string; mood: number }> = new Map();
   private lastDailySnapshot: string = new Date().toISOString().split('T')[0]!;
 
@@ -577,6 +580,23 @@ export class GameEngine extends EventEmitter {
         }
       }
 
+      // Run daily group chat sweep
+      if (currentDate !== this.lastChatSweep) {
+        logger.info('Running daily group chat sweep...', { date: currentDate }, 'GameEngine');
+        try {
+          const sweepResult = await GroupChatSweep.sweepAllChats();
+          logger.info(`Group chat sweep complete: ${sweepResult.totalRemoved} users removed from ${sweepResult.chatsChecked} chats`, sweepResult, 'GameEngine');
+          this.lastChatSweep = currentDate;
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorStack = error instanceof Error ? error.stack : undefined;
+          logger.error(`Failed to run group chat sweep: ${errorMessage}`, {
+            error: errorMessage,
+            stack: errorStack,
+          }, 'GameEngine');
+        }
+      }
+
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
@@ -969,7 +989,7 @@ OUTPUT JSON:
       }
 
       return {
-        id: `post-${Date.now()}-${Math.random()}`,
+        id: generateSnowflakeId(),
         day: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
         timestamp: new Date().toISOString(),
         type: 'post',
@@ -1030,7 +1050,7 @@ OUTPUT JSON:
       }
 
       return {
-        id: `post-${Date.now()}-${Math.random()}`,
+        id: generateSnowflakeId(),
         day: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
         timestamp: new Date().toISOString(),
         type: 'post',
@@ -1080,7 +1100,7 @@ OUTPUT JSON:
       }>(prompt, undefined, { temperature: 0.7, maxTokens: 1000 });
 
       return {
-        id: `org-article-${Date.now()}-${Math.random()}`,
+        id: generateSnowflakeId(),
         day: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
         timestamp: new Date().toISOString(),
         type: 'news',
@@ -1138,7 +1158,7 @@ OUTPUT JSON:
       }
 
       return {
-        id: `org-ambient-${Date.now()}-${Math.random()}`,
+        id: generateSnowflakeId(),
         day: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
         timestamp: new Date().toISOString(),
         type: 'news',

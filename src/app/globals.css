@@ -173,6 +173,14 @@ body {
   background-color: var(--background);
   color: var(--foreground);
   font-feature-settings: "rlig" 1, "calt" 1;
+  /* Prevent native pull-to-refresh and overscroll effects */
+  overscroll-behavior-y: contain;
+  overflow-y: auto;
+}
+
+/* Prevent pull-to-refresh on the entire app */
+html {
+  overscroll-behavior-y: contain;
 }
 
 /* All buttons and links should have pointer cursor */
@@ -299,4 +307,32 @@ button:disabled {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: -0.01em;
+}
+
+/* Overscroll behavior utilities for pull-to-refresh */
+.overscroll-none {
+  overscroll-behavior: none;
+}
+
+.overscroll-contain {
+  overscroll-behavior: contain;
+}
+
+.overscroll-auto {
+  overscroll-behavior: auto;
+}
+
+/* Prevent pull-to-refresh on specific elements */
+.no-pull-refresh {
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Touch action for better pull-to-refresh control */
+.touch-pan-y {
+  touch-action: pan-y;
+}
+
+.touch-none {
+  touch-action: none;
 }

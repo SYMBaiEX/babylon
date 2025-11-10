@@ -59,6 +59,11 @@ export function useSSE(options: SSEHookOptions = {}): SSEHookReturn {
   const channelsRef = useRef<Set<Channel>>(new Set(channels));
 
   const connect = useCallback(async () => {
+    // Skip if not in browser environment
+    if (typeof window === 'undefined' || typeof EventSource === 'undefined') {
+      return;
+    }
+
     // Check if already connected
     const g = getGlobal();
     const existing = g.__babylon_sse_source__;

@@ -10,11 +10,11 @@ import { getCacheOrFetch } from '@/lib/cache-service';
 import { cachedDb } from '@/lib/cached-database-service';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
+import { generateSnowflakeId } from '@/lib/snowflake';
 import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
 import { ensureUserForAuth } from '@/lib/users/ensure-user';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Safely convert a date value to ISO string
@@ -60,20 +60,30 @@ export async function GET(request: Request) {
       const allFollowedIds = await getCacheOrFetch(
         followsCacheKey,
         async () => {
-          const [userFollows, actorFollows] = await Promise.all([
+          const [userFollows, actorFollows, legacyActorFollows] = await Promise.all([
             prisma.follow.findMany({
               where: { followerId: userId },
               select: { followingId: true },
             }),
+            prisma.userActorFollow.findMany({
+              where: { userId: userId },
+              select: { actorId: true },
+            }),
             prisma.followStatus.findMany({
-              where: { userId: userId, isActive: true },
+              where: { 
+                userId: userId, 
+                isActive: true,
+                followReason: 'user_followed',
+              },
               select: { npcId: true },
             }),
           ]);
 
           const followedUserIds = userFollows.map((f) => f.followingId);
-          const followedActorIds = actorFollows.map((f) => f.npcId);
-          return [...followedUserIds, ...followedActorIds];
+          const followedActorIds = new Set<string>();
+          actorFollows.forEach((f) => followedActorIds.add(f.actorId));
+          legacyActorFollows.forEach((f) => followedActorIds.add(f.npcId));
+          return [...followedUserIds, ...Array.from(followedActorIds)];
         },
         {
           namespace: 'user:follows',
@@ -386,10 +396,10 @@ export async function POST(request: NextRequest) {
     });
     const canonicalUserId = canonicalUser.id;
 
-    // Create post
+    // Create post with Snowflake ID
     const post = await prisma.post.create({
       data: {
-        id: uuidv4(),
+        id: generateSnowflakeId(),
         content: content.trim(),
         authorId: canonicalUserId,
         timestamp: new Date(),

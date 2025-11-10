@@ -21,11 +21,10 @@ import { FEE_CONFIG } from '@/lib/config/fees';
  */
 export const POST = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ positionId: string }> }
+  context: { params: Promise<{ positionId: string }> }
 ) => {
   const user = await authenticate(request);
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
-  const { positionId } = PositionIdParamSchema.parse(params);
+  const { positionId } = PositionIdParamSchema.parse(await context.params);
   
   // Parse and validate request body (optional for partial close)
   const body = await request.json().catch(() => ({}));

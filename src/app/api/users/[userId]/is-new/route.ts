@@ -7,7 +7,7 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware';
-import { AuthorizationError, BusinessLogicError } from '@/lib/errors';
+import { AuthorizationError } from '@/lib/errors';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
@@ -20,11 +20,11 @@ import { findUserByIdentifier } from '@/lib/users/user-lookup';
  */
 export const GET = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ userId: string }> }
+  context: { params: Promise<{ userId: string }> }
 ) => {
   // Optional authentication - if not authenticated, return needsSetup: false
   const authUser = await authenticate(request).catch(() => null);
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params;
   const { userId } = UserIdParamSchema.parse(params);
 
   if (!authUser) {

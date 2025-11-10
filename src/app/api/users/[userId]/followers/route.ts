@@ -32,10 +32,10 @@ interface FollowerResponse {
  */
 export const GET = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ userId: string }> }
+  context: { params: Promise<{ userId: string }> }
 ) => {
   await optionalAuth(request);
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const params = await context.params;
   const { userId: targetIdentifier } = UserIdParamSchema.parse(params);
   
   // Validate query parameters
@@ -88,19 +88,43 @@ export const GET = withErrorHandling(async (
       orderBy: { createdAt: 'desc' },
     });
 
-    const userFollowerStatuses = await prisma.followStatus.findMany({
+    const userActorFollowers = await prisma.userActorFollow.findMany({
+      where: {
+        actorId: targetId,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            displayName: true,
+            username: true,
+            profileImageUrl: true,
+            bio: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+
+    const migratedUserIds = new Set(userActorFollowers.map(f => f.userId));
+
+    const legacyUserFollowerStatuses = await prisma.followStatus.findMany({
       where: {
         npcId: targetId,
         isActive: true,
+        followReason: 'user_followed',
       },
       orderBy: { followedAt: 'desc' },
       take: 100,
     });
 
     // Fetch user data separately since FollowStatus doesn't have a relation to User
-    const userIds = userFollowerStatuses.map(f => f.userId);
+    const legacyUserIds = legacyUserFollowerStatuses
+      .map(f => f.userId)
+      .filter(id => !migratedUserIds.has(id));
     const users = await prisma.user.findMany({
-      where: { id: { in: userIds } },
+      where: { id: { in: legacyUserIds } },
       select: {
         id: true,
         displayName: true,
@@ -124,8 +148,21 @@ export const GET = withErrorHandling(async (
         isActor: true,
         tier: f.follower.tier || undefined,
       })),
-      ...userFollowerStatuses.map(f => {
-        const user = userMap.get(f.userId);
+      ...userActorFollowers
+        .filter(f => !!f.user)
+        .map(f => ({
+          id: f.user!.id,
+          displayName: f.user!.displayName || '',
+          username: f.user!.username || null,
+          profileImageUrl: f.user!.profileImageUrl || null,
+          bio: f.user!.bio || '',
+          followedAt: f.createdAt.toISOString(),
+          isActor: false,
+        })),
+      ...legacyUserFollowerStatuses
+        .filter(f => !migratedUserIds.has(f.userId))
+        .map(f => {
+          const user = userMap.get(f.userId);
         return {
           id: f.userId,
           displayName: user?.displayName || '',
@@ -136,7 +173,10 @@ export const GET = withErrorHandling(async (
           isActor: false,
         };
       }),
-    ];
+    ].sort(
+      (a, b) =>
+        new Date(b.followedAt).getTime() - new Date(a.followedAt).getTime()
+    );
   } else {
     // Target is a regular user
     const follows = await prisma.follow.findMany({
@@ -155,15 +195,57 @@ export const GET = withErrorHandling(async (
       orderBy: { createdAt: 'desc' },
     });
 
-    followers = follows.map(f => ({
-      id: f.follower.id,
-      displayName: f.follower.displayName || '',
-      username: f.follower.username || null,
-      profileImageUrl: f.follower.profileImageUrl || null,
-      bio: f.follower.bio || '',
-      followedAt: f.createdAt.toISOString(),
-      isActor: false,
-    }));
+    const npcFollowers = await prisma.followStatus.findMany({
+      where: {
+        userId: targetId,
+        isActive: true,
+        NOT: {
+          followReason: 'user_followed',
+        },
+      },
+      orderBy: { followedAt: 'desc' },
+    });
+
+    const npcIds = npcFollowers.map(f => f.npcId);
+    const npcActors = await prisma.actor.findMany({
+      where: { id: { in: npcIds } },
+      select: {
+        id: true,
+        name: true,
+        tier: true,
+        profileImageUrl: true,
+        description: true,
+      },
+    });
+    const actorMap = new Map(npcActors.map(actor => [actor.id, actor]));
+
+    followers = [
+      ...follows.map(f => ({
+        id: f.follower.id,
+        displayName: f.follower.displayName || '',
+        username: f.follower.username || null,
+        profileImageUrl: f.follower.profileImageUrl || null,
+        bio: f.follower.bio || '',
+        followedAt: f.createdAt.toISOString(),
+        isActor: false,
+      })),
+      ...npcFollowers.map(f => {
+        const actor = actorMap.get(f.npcId);
+        return {
+          id: f.npcId,
+          displayName: actor?.name || f.npcId,
+          username: actor?.id || null,
+          profileImageUrl: actor?.profileImageUrl || null,
+          bio: actor?.description || '',
+          followedAt: f.followedAt.toISOString(),
+          isActor: true,
+          tier: actor?.tier || undefined,
+        };
+      }),
+    ].sort(
+      (a, b) =>
+        new Date(b.followedAt).getTime() - new Date(a.followedAt).getTime()
+    );
   }
 
   logger.info('Followers fetched successfully', { targetId, count: followers.length, isActor: !!targetActor }, 'GET /api/users/[userId]/followers');

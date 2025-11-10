@@ -7,7 +7,7 @@ import type { NextRequest } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { asUser, asSystem } from '@/lib/db/context'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
-import { BusinessLogicError, NotFoundError, AuthorizationError } from '@/lib/errors'
+import {  NotFoundError, AuthorizationError } from '@/lib/errors'
 import { logger } from '@/lib/logger'
 import { ChatQuerySchema } from '@/lib/validation/schemas'
 
@@ -17,9 +17,9 @@ import { ChatQuerySchema } from '@/lib/validation/schemas'
  */
 export const GET = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) => {
-  const { id: chatId } = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')))
+  const { id: chatId } = await context.params
 
   // Validate query parameters
   const { searchParams } = new URL(request.url)
@@ -194,24 +194,31 @@ export const GET = withErrorHandling(async (
           };
         });
 
-    // For DMs, get the other participant's name
+    // For DMs, get the other participant's name and details
     let displayName = fullChat.name;
+    let otherUser = null;
     if (!fullChat.isGroup && !fullChat.name && userId) {
       const otherParticipant = fullChat.participants.find((p) => p.userId !== userId);
       if (otherParticipant) {
-        const otherUser = usersMap.get(otherParticipant.userId);
-        if (otherUser) {
-          displayName = otherUser.displayName || otherUser.username || 'Unknown';
-        } else {
-          const actor = actorsMap.get(otherParticipant.userId);
-          if (actor) {
-            displayName = actor.name;
-          }
+        const otherUserData = usersMap.get(otherParticipant.userId);
+        if (otherUserData) {
+          displayName = otherUserData.displayName || otherUserData.username || 'Unknown';
+          otherUser = {
+            id: otherParticipant.userId,
+            displayName: otherUserData.displayName,
+            username: otherUserData.username,
+            profileImageUrl: otherUserData.profileImageUrl,
+          };
         }
       }
     }
 
-  logger.info('Chat fetched successfully', { chatId, isGameChat, debugMode }, 'GET /api/chats/[id]')
+  logger.info('Chat fetched successfully', { 
+    chatId, 
+    isGameChat, 
+    isDM: !fullChat.isGroup,
+    debugMode 
+  }, 'GET /api/chats/[id]')
 
   return successResponse({
     chat: {
@@ -220,6 +227,7 @@ export const GET = withErrorHandling(async (
       isGroup: fullChat.isGroup,
       createdAt: fullChat.createdAt,
       updatedAt: fullChat.updatedAt,
+      otherUser: otherUser,
     },
     messages: fullChat.messages.map((msg) => ({
       id: msg.id,

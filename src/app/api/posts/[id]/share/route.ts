@@ -13,6 +13,7 @@ import { notifyShare } from '@/lib/services/notification-service';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
 import { ensureUserForAuth, getCanonicalUserId } from '@/lib/users/ensure-user';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 /**
  * POST /api/posts/[id]/share
@@ -20,12 +21,11 @@ import { ensureUserForAuth, getCanonicalUserId } from '@/lib/users/ensure-user';
  */
 export const POST = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) => {
   // Authenticate user
   const user = await authenticate(request);
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
-  const { id: postId } = PostIdParamSchema.parse(params);
+  const { id: postId } = PostIdParamSchema.parse(await context.params);
   
   // Parse and validate request body (optional comment)
   const body = await request.json().catch(() => ({}));
@@ -94,8 +94,8 @@ export const POST = withErrorHandling(async (
     });
 
     // Create a repost post (like a retweet) that shows on user's profile and feed
-    // Format: repost-{originalPostId}-{userId}-{timestamp}
-    const repostId = `repost-${postId}-${canonicalUserId}-${Date.now()}`;
+    // Use Snowflake ID for repost
+    const repostId = generateSnowflakeId();
     
     // Get original post content for repost
     const originalPost = await prisma.post.findUnique({
@@ -176,12 +176,11 @@ export const POST = withErrorHandling(async (
  */
 export const DELETE = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) => {
   // Authenticate user
   const user = await authenticate(request);
-  const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
-  const { id: postId } = PostIdParamSchema.parse(params);
+  const { id: postId } = PostIdParamSchema.parse(await context.params);
 
   const fallbackDisplayName = user.walletAddress
     ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`

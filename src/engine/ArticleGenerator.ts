@@ -14,6 +14,7 @@
 
 import type { Actor, Organization, WorldEvent } from '@/shared/types';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 export interface Article {
   id: string;
@@ -168,7 +169,7 @@ export class ArticleGenerator {
 
     // Create article object
     const article: Article = {
-      id: `article-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+      id: generateSnowflakeId(),
       title: response.title,
       summary: response.summary,
       content: response.content,

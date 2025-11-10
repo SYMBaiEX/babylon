@@ -14,9 +14,9 @@ import { cachedDb } from '@/lib/cached-database-service';
  */
 export const POST = withErrorHandling(async (
   request: NextRequest,
-  context?: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) => {
-  const { id: poolId } = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
+  const { id: poolId } = await context.params;
 
   // Parse and validate request body
   const body = await request.json();

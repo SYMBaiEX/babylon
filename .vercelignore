@@ -3,17 +3,7 @@
 
 # Local development
 .env.local
-.env.development
-
-# CLI tools (not needed at runtime)
-src/cli/
-
-# Game engine (runs as daemon, not serverless)
-games/babylon/
-games/realtime/
-
-# NOTE: scripts/ is NOT ignored - needed for prebuild script
-# The bundle-prompts.ts script must run during Vercel build
+.env.Development
 
 # Test files
 tests/
@@ -21,7 +11,6 @@ tests/
 **/__tests__/
 
 # Contract deployment
-contracts/
 deployments/
 lib/forge-std/
 

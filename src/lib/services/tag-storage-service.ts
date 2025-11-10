@@ -1,12 +1,12 @@
 /**
  * Tag Storage Service
- * 
+ *
  * Handles storage and retrieval of tags in the database
  */
+import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
 
-import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
-import type { GeneratedTag } from './tag-generation-service'
+import type { GeneratedTag } from './tag-generation-service';
 
 /**
  * Store tags for a post
@@ -18,22 +18,22 @@ export async function storeTagsForPost(
   tags: GeneratedTag[]
 ): Promise<void> {
   if (tags.length === 0) {
-    return
+    return;
   }
 
-  const tagNames = tags.map(t => t.name)
+  const tagNames = tags.map((t) => t.name);
   const existingTags = await prisma.tag.findMany({
     where: { name: { in: tagNames } },
-  })
-  
-  const existingTagMap = new Map(existingTags.map(t => [t.name, t]))
-  
-  const tagsToCreate = tags.filter(t => !existingTagMap.has(t.name))
-  
+  });
+
+  const existingTagMap = new Map(existingTags.map((t) => [t.name, t]));
+
+  const tagsToCreate = tags.filter((t) => !existingTagMap.has(t.name));
+
   if (tagsToCreate.length > 0) {
     // Use upsert to handle race conditions when multiple posts create the same tag simultaneously
     const createdTags = await Promise.all(
-      tagsToCreate.map(async tag => {
+      tagsToCreate.map(async (tag) => {
         try {
           return await prisma.tag.upsert({
             where: { name: tag.name },
@@ -43,36 +43,50 @@ export async function storeTagsForPost(
               displayName: tag.displayName,
               category: tag.category || null,
             },
-          })
+          });
         } catch (error) {
           // If upsert fails (shouldn't happen with proper unique constraints), fetch existing
-          logger.warn('Tag upsert failed, fetching existing', { tagName: tag.name, error }, 'TagStorageService')
-          return await prisma.tag.findUniqueOrThrow({ where: { name: tag.name } })
+          logger.warn(
+            'Tag upsert failed, fetching existing',
+            { tagName: tag.name, error },
+            'TagStorageService'
+          );
+          return await prisma.tag.findUniqueOrThrow({
+            where: { name: tag.name },
+          });
         }
       })
-    )
-    
-    createdTags.forEach(t => existingTagMap.set(t.name, t))
-    logger.debug('Created/fetched new tags', { count: createdTags.length }, 'TagStorageService')
+    );
+
+    createdTags.forEach((t) => existingTagMap.set(t.name, t));
+    logger.debug(
+      'Created/fetched new tags',
+      { count: createdTags.length },
+      'TagStorageService'
+    );
   }
-  
-  const postTagData = tags.map(tag => {
-    const dbTag = existingTagMap.get(tag.name)!
+
+  const postTagData = tags.map((tag) => {
+    const dbTag = existingTagMap.get(tag.name)!;
     return {
       postId,
       tagId: dbTag.id,
-    }
-  })
-  
+    };
+  });
+
   await prisma.postTag.createMany({
     data: postTagData,
     skipDuplicates: true,
-  })
+  });
 
-  logger.debug('Stored tags for post', {
-    postId,
-    tagCount: tags.length,
-  }, 'TagStorageService')
+  logger.debug(
+    'Stored tags for post',
+    {
+      postId,
+      tagCount: tags.length,
+    },
+    'TagStorageService'
+  );
 }
 
 /**
@@ -87,7 +101,7 @@ export async function getTagsForPost(postId: string) {
     orderBy: {
       createdAt: 'asc',
     },
-  })
+  });
 }
 
 /**
@@ -96,23 +110,23 @@ export async function getTagsForPost(postId: string) {
 export async function getPostsByTag(
   tagName: string,
   options: {
-    limit?: number
-    offset?: number
+    limit?: number;
+    offset?: number;
   } = {}
 ) {
-  const { limit = 20, offset = 0 } = options
+  const { limit = 20, offset = 0 } = options;
 
   // Find tag by normalized name
   const tag = await prisma.tag.findUnique({
     where: { name: tagName.toLowerCase() },
-  })
+  });
 
   if (!tag) {
     return {
       tag: null,
       posts: [],
       total: 0,
-    }
+    };
   }
 
   // Get posts with this tag
@@ -131,13 +145,13 @@ export async function getPostsByTag(
     prisma.postTag.count({
       where: { tagId: tag.id },
     }),
-  ])
+  ]);
 
   return {
     tag,
-    posts: postTags.map(pt => pt.post),
+    posts: postTags.map((pt) => pt.post),
     total,
-  }
+  };
 }
 
 /**
@@ -146,30 +160,34 @@ export async function getPostsByTag(
 export async function getTagStatistics(
   windowStart: Date,
   windowEnd: Date
-): Promise<Array<{
-  tagId: string
-  tagName: string
-  tagDisplayName: string
-  tagCategory: string | null
-  postCount: number
-  recentPostCount: number // Last 24 hours
-  oldestPostDate: Date
-  newestPostDate: Date
-}>> {
+): Promise<
+  Array<{
+    tagId: string;
+    tagName: string;
+    tagDisplayName: string;
+    tagCategory: string | null;
+    postCount: number;
+    recentPostCount: number; // Last 24 hours
+    oldestPostDate: Date;
+    newestPostDate: Date;
+  }>
+> {
   // Calculate 24 hours ago from window end
-  const last24Hours = new Date(windowEnd.getTime() - 24 * 60 * 60 * 1000)
+  const last24Hours = new Date(windowEnd.getTime() - 24 * 60 * 60 * 1000);
 
   // Get tag counts within the window
-  const result = await prisma.$queryRaw<Array<{
-    tagId: string
-    tagName: string
-    tagDisplayName: string
-    tagCategory: string | null
-    postCount: bigint
-    recentPostCount: bigint
-    oldestPostDate: Date
-    newestPostDate: Date
-  }>>`
+  const result = await prisma.$queryRaw<
+    Array<{
+      tagId: string;
+      tagName: string;
+      tagDisplayName: string;
+      tagCategory: string | null;
+      postCount: bigint;
+      recentPostCount: bigint;
+      oldestPostDate: Date;
+      newestPostDate: Date;
+    }>
+  >`
     SELECT 
       t.id as "tagId",
       t.name as "tagName",
@@ -186,13 +204,13 @@ export async function getTagStatistics(
     GROUP BY t.id, t.name, t."displayName", t.category
     HAVING COUNT(pt.id) >= 3
     ORDER BY "postCount" DESC
-  `
+  `;
 
-  return result.map(row => ({
+  return result.map((row) => ({
     ...row,
     postCount: Number(row.postCount),
     recentPostCount: Number(row.recentPostCount),
-  }))
+  }));
 }
 
 /**
@@ -200,37 +218,43 @@ export async function getTagStatistics(
  */
 export async function storeTrendingTags(
   tags: Array<{
-    tagId: string
-    score: number
-    postCount: number
-    rank: number
-    relatedContext?: string
+    tagId: string;
+    score: number;
+    postCount: number;
+    rank: number;
+    relatedContext?: string;
   }>,
   windowStart: Date,
   windowEnd: Date
 ): Promise<void> {
   // Store all trending tags in a transaction
-  await prisma.$transaction(
-    tags.map(tag =>
-      prisma.trendingTag.create({
-        data: {
-          tagId: tag.tagId,
-          score: tag.score,
-          postCount: tag.postCount,
-          rank: tag.rank,
-          windowStart,
-          windowEnd,
-          relatedContext: tag.relatedContext || null,
-        },
-      })
-    )
-  )
+  await prisma.$transaction(async (tx) => {
+    await Promise.all(
+      tags.map((tag) =>
+        tx.trendingTag.create({
+          data: {
+            tagId: tag.tagId,
+            score: tag.score,
+            postCount: tag.postCount,
+            rank: tag.rank,
+            windowStart,
+            windowEnd,
+            relatedContext: tag.relatedContext || null,
+          },
+        })
+      )
+    );
+  });
 
-  logger.info('Stored trending tags', {
-    count: tags.length,
-    windowStart,
-    windowEnd,
-  }, 'TagStorageService')
+  logger.info(
+    'Stored trending tags',
+    {
+      count: tags.length,
+      windowStart,
+      windowEnd,
+    },
+    'TagStorageService'
+  );
 }
 
 /**
@@ -241,15 +265,15 @@ export async function getCurrentTrendingTags(limit = 10) {
   const latestCalculation = await prisma.trendingTag.findFirst({
     orderBy: { calculatedAt: 'desc' },
     select: { calculatedAt: true },
-  })
+  });
 
   if (!latestCalculation) {
-    return []
+    return [];
   }
 
   // Get all trending tags from the latest calculation
   // Use >= comparison to handle potential timestamp precision issues
-  const cutoffTime = new Date(latestCalculation.calculatedAt.getTime() - 1000) // 1 second buffer
+  const cutoffTime = new Date(latestCalculation.calculatedAt.getTime() - 1000); // 1 second buffer
 
   return await prisma.trendingTag.findMany({
     where: {
@@ -264,7 +288,7 @@ export async function getCurrentTrendingTags(limit = 10) {
       rank: 'asc',
     },
     take: limit,
-  })
+  });
 }
 
 /**
@@ -281,12 +305,12 @@ export async function getRelatedTags(
     select: { postId: true },
     take: 100, // Sample recent posts
     orderBy: { createdAt: 'desc' },
-  })
+  });
 
-  const postIds = postsWithTag.map(pt => pt.postId)
+  const postIds = postsWithTag.map((pt) => pt.postId);
 
   if (postIds.length === 0) {
-    return []
+    return [];
   }
 
   // Find other tags that appear in the same posts
@@ -295,39 +319,40 @@ export async function getRelatedTags(
     by: ['tagId'],
     where: {
       postId: {
-        in: postIds
+        in: postIds,
       },
       tagId: {
-        not: tagId
-      }
+        not: tagId,
+      },
     },
     _count: {
-      tagId: true
+      tagId: true,
     },
     orderBy: {
       _count: {
-        tagId: 'desc'
-      }
+        tagId: 'desc',
+      },
     },
-    take: limit
-  })
+    take: limit,
+  });
 
   // Get tag display names
-  const tagIds = coOccurringTags.map(t => t.tagId)
+  const tagIds = coOccurringTags.map((t) => t.tagId);
   const tags = await prisma.tag.findMany({
     where: {
       id: {
-        in: tagIds
-      }
+        in: tagIds,
+      },
     },
     select: {
       id: true,
-      displayName: true
-    }
-  })
+      displayName: true,
+    },
+  });
 
   // Map back to preserve order
-  const tagMap = new Map(tags.map(t => [t.id, t.displayName]))
-  return tagIds.map(id => tagMap.get(id)).filter((name): name is string => name !== undefined)
+  const tagMap = new Map(tags.map((t) => [t.id, t.displayName]));
+  return tagIds
+    .map((id) => tagMap.get(id))
+    .filter((name): name is string => name !== undefined);
 }
-

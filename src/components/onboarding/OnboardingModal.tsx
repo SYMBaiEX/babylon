@@ -478,7 +478,7 @@ export function OnboardingModal({
     void onSubmitProfile(profilePayload)
   }
 
-  const canClose = stage === 'COMPLETED' || stage === 'ONCHAIN'
+  const canClose = !isSubmitting // Allow closing at any stage when not submitting
   const canLogout = stage !== 'COMPLETED' && !isSubmitting
 
   const handleLogout = () => {
