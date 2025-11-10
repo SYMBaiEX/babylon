@@ -1186,7 +1186,7 @@ export class GameEngine extends EventEmitter {
   private async generateOrgArticleAboutEvent(
     org: Organization,
     event: WorldEvent,
-    question: Question,
+    _question: Question,
     clueStrength: number
   ): Promise<FeedPost> {
     const outcomeFrame = event.pointsToward === 'YES'
@@ -1219,13 +1219,12 @@ export class GameEngine extends EventEmitter {
         day: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
         timestamp: new Date().toISOString(),
         type: 'news',
-        content: response.summary,
+        content: response.post,
         author: org.id,
         authorName: org.name,
-        articleTitle: response.title,
-        sentiment: 0,
-        clueStrength: clueStrength,
-        pointsToward: event.pointsToward === 'YES' ? true : event.pointsToward === 'NO' ? false : null,
+        sentiment: response.sentiment || 0,
+        clueStrength: response.clueStrength || clueStrength,
+        pointsToward: response.pointsToward ?? (event.pointsToward === 'YES' ? true : event.pointsToward === 'NO' ? false : null),
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate article';
@@ -1274,7 +1273,7 @@ export class GameEngine extends EventEmitter {
         id: generateSnowflakeId(),
         day: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
         timestamp: new Date().toISOString(),
-        type: 'article',
+        type: 'news',
         content: response.post,
         author: org.id,
         authorName: org.name,
