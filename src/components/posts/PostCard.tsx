@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Avatar } from '@/components/shared/Avatar';
 import { TaggedText } from '@/components/shared/TaggedText';
-import { VerifiedBadge } from '@/components/shared/VerifiedBadge';
+import { VerifiedBadge, isNpcIdentifier } from '@/components/shared/VerifiedBadge';
 import { InteractionBar } from '@/components/interactions';
 import { useFontSize } from '@/contexts/FontSizeContext';
 import { getProfileUrl } from '@/lib/profile-utils';
@@ -86,6 +86,8 @@ export const PostCard = memo(function PostCard({
     isShared: post.isShared ?? false,
   };
 
+  const showVerifiedBadge = isNpcIdentifier(post.authorId);
+
   const handleClick = () => {
     if (onClick) {
       onClick();
@@ -137,7 +139,7 @@ export const PostCard = memo(function PostCard({
               >
                 {post.authorName}
               </Link>
-              <VerifiedBadge size="md" className="sm:w-6 sm:h-6" />
+              {showVerifiedBadge && <VerifiedBadge size="md" className="sm:w-6 sm:h-6" />}
             </div>
             {/* Handle row */}
             <Link

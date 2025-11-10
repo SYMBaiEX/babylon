@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { Avatar } from '@/components/shared/Avatar';
 import { TaggedText } from '@/components/shared/TaggedText';
-import { VerifiedBadge } from '@/components/shared/VerifiedBadge';
+import { VerifiedBadge, isNpcIdentifier } from '@/components/shared/VerifiedBadge';
 import { LikeButton } from './LikeButton';
 import { CommentInput } from './CommentInput';
 import type { CommentCardProps } from '@/types/interactions';
@@ -34,6 +34,8 @@ export function CommentCard({
 
   const isMaxDepth = depth >= maxDepth;
   const hasReplies = comment.replies && comment.replies.length > 0;
+
+  const showVerifiedBadge = isNpcIdentifier(comment.userId);
 
   const handleReply = () => {
     setIsReplying(true);
@@ -91,7 +93,7 @@ export function CommentCard({
             <span className="font-semibold text-sm truncate">
               {comment.userName}
             </span>
-            <VerifiedBadge size="sm" className="-ml-1" />
+            {showVerifiedBadge && <VerifiedBadge size="sm" className="-ml-1" />}
             <span className="text-xs text-muted-foreground truncate">
               @{comment.userUsername || comment.userName}
             </span>

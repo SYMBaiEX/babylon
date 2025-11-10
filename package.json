@@ -111,6 +111,7 @@
     "graphql": "^16.12.0",
     "graphql-request": "^7.3.1",
     "ioredis": "^5.8.2",
+    "html-to-image": "^1.11.11",
     "lucide-react": "^0.548.0",
     "multiformats": "^13.4.1",
     "next": "^16.0.0",

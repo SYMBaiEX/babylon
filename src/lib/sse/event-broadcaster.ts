@@ -453,6 +453,7 @@ export function broadcastChatMessage(
     senderId: string;
     createdAt: string;
     isGameChat?: boolean;
+    isDMChat?: boolean;
   }
 ): void {
   broadcastToChannel(`chat:${chatId}`, {

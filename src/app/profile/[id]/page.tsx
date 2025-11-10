@@ -589,7 +589,7 @@ export default function ActorProfilePage() {
             <div className="mb-3">
               <div className="flex items-center gap-1 mb-0.5">
                 <h2 className="text-xl font-bold">{actorInfo.name ?? actorInfo.username ?? ''}</h2>
-                {actorInfo.type === 'actor' && (
+                {actorInfo.type === 'actor' && !actorInfo.isUser && (
                   <VerifiedBadge size="md" />
                 )}
                 {actorInfo.type === 'user' && (
@@ -833,7 +833,7 @@ export default function ActorProfilePage() {
               <div className="mb-3">
                 <div className="flex items-center gap-1 mb-0.5">
                   <h2 className="text-xl font-bold">{actorInfo.name ?? actorInfo.username ?? ''}</h2>
-                  {actorInfo.type === 'actor' && (
+                  {actorInfo.type === 'actor' && !actorInfo.isUser && (
                     <VerifiedBadge size="md" />
                   )}
                 </div>

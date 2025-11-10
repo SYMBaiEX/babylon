@@ -31,16 +31,29 @@ export const GET = withErrorHandling(async (
   }
 
   // Get follower counts (both from ActorFollow and FollowStatus)
-  const [actorFollowerCount, userFollowerCount, followingCount, postCount] = await Promise.all([
+  const [
+    actorFollowerCount,
+    userActorFollowerCount,
+    legacyUserFollowerCount,
+    followingCount,
+    postCount,
+  ] = await Promise.all([
     // NPCs following this actor
     prisma.actorFollow.count({
       where: { followingId: actorId },
     }),
-    // Users following this actor
+    // Users following this actor (players)
+    prisma.userActorFollow.count({
+      where: {
+        actorId,
+      },
+    }),
+    // Legacy FollowStatus entries created before migration
     prisma.followStatus.count({
-      where: { 
+      where: {
         npcId: actorId,
         isActive: true,
+        followReason: 'user_followed',
       },
     }),
     // This actor following others (only NPC-to-NPC follows)
@@ -53,13 +66,15 @@ export const GET = withErrorHandling(async (
     }),
   ]);
 
-  const totalFollowers = actorFollowerCount + userFollowerCount;
+  const totalUserFollowers = userActorFollowerCount + legacyUserFollowerCount;
+  const totalFollowers = actorFollowerCount + totalUserFollowers;
 
   logger.info('Actor stats fetched successfully', { 
     actorId, 
     totalFollowers,
     actorFollowerCount,
-    userFollowerCount,
+    userActorFollowerCount,
+    legacyUserFollowerCount,
     followingCount 
   }, 'GET /api/actors/[actorId]/stats');
 
@@ -69,7 +84,7 @@ export const GET = withErrorHandling(async (
       following: followingCount,
       posts: postCount,
       actorFollowers: actorFollowerCount,
-      userFollowers: userFollowerCount,
+      userFollowers: totalUserFollowers,
     },
   });
 });

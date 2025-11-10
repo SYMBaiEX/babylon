@@ -35,46 +35,66 @@ export const POST = withErrorHandling(async (
   const body = await request.json()
   const { content } = ChatMessageCreateSchema.parse(body)
 
-  // 3. Check if user is a member of this chat
-  // For game chats (containing hyphens), skip membership check as they're virtual
-  const isGameChat = chatId.includes('-')
+  // 3. Determine chat type and check membership
+  const chat = await asUser(user, async (db) => {
+    return await db.chat.findUnique({
+      where: { id: chatId },
+      select: {
+        id: true,
+        isGroup: true,
+        gameId: true,
+        participants: {
+          select: {
+            userId: true,
+          },
+        },
+      },
+    })
+  })
+
+  if (!chat) {
+    throw new BusinessLogicError('Chat not found', 'CHAT_NOT_FOUND')
+  }
+
+  // Determine chat type
+  const isGameChat = chat.isGroup && chat.gameId === 'continuous'
+  const isDMChat = !chat.isGroup
+  const isGroupChat = chat.isGroup && !isGameChat
+
+  // Check membership
   let isMember = true
-
   if (!isGameChat) {
-    isMember = await GroupChatInvite.isInChat(user.userId, chatId)
-    if (!isMember) {
-      throw new AuthorizationError('You are not a member of this group chat', 'chat', 'write')
+    // For DMs, check ChatParticipant
+    if (isDMChat) {
+      isMember = chat.participants.some(p => p.userId === user.userId)
+      if (!isMember) {
+        throw new AuthorizationError('You are not a participant in this DM', 'chat', 'write')
+      }
+    }
+    // For group chats, check GroupChatMembership
+    else if (isGroupChat) {
+      isMember = await GroupChatInvite.isInChat(user.userId, chatId)
+      if (!isMember) {
+        throw new AuthorizationError('You are not a member of this group chat', 'chat', 'write')
+      }
     }
   }
 
-  // 4. Check if user should be removed (pre-check) - only for database chats
-  let sweepDecision: SweepDecision = {
-    shouldRemove: false,
-    reason: undefined,
-    stats: {
-      hoursSinceLastMessage: 0,
-      messagesLast24h: 0,
-      averageQuality: 0,
-      totalMessages: 0
-    }
+  // 4. Check kick probability for group chats (not DMs) - skip for now since we don't want to kick during message send
+  let sweepDecision: SweepDecision | null = null
+
+  if (isGroupChat) {
+    sweepDecision = await GroupChatSweep.calculateKickChance(user.userId, chatId)
+    // Note: We don't actually kick here, just calculate stats for response
+    // Actual kicks happen via sweep background job
   }
 
-  if (!isGameChat) {
-    sweepDecision = await GroupChatSweep.checkForRemoval(user.userId, chatId)
-    if (sweepDecision.shouldRemove) {
-      await GroupChatSweep.removeFromChat(user.userId, chatId, sweepDecision.reason || 'Auto-removed')
-      throw new AuthorizationError(
-        `You have been removed from this chat: ${sweepDecision.reason}`,
-        'chat',
-        'write'
-      )
-    }
-  }
-
+  // 5. Check message quality
+  const contextType = isDMChat ? 'dm' : 'groupchat'
   const qualityResult = await MessageQualityChecker.checkQuality(
     content,
     user.userId,
-    'groupchat',
+    contextType,
     isGameChat ? '' : chatId
   )
 
@@ -85,11 +105,21 @@ export const POST = withErrorHandling(async (
     )
   }
 
-    // 6. Create message (only for database chats)
+    // 6. Create message
     let message = null;
     let membership = null;
     
-    if (!isGameChat) {
+    if (isGameChat) {
+      // For game chats, create a mock message object
+      message = {
+        id: `game-${Date.now()}`,
+        content: content.trim(),
+        chatId,
+        senderId: user.userId,
+        createdAt: new Date(),
+      };
+    } else {
+      // For DMs and group chats, persist to database
       const result = await asUser(user, async (db) => {
         const msg = await db.message.create({
           data: {
@@ -99,33 +129,27 @@ export const POST = withErrorHandling(async (
           },
         });
 
-        // 7. Update user's quality score in chat
-        await GroupChatSweep.updateQualityScore(user.userId, chatId, qualityResult.score);
+        // 7. Update user's quality score in group chat (not DMs)
+        if (isGroupChat) {
+          await GroupChatSweep.updateQualityScore(user.userId, chatId, qualityResult.score);
 
-        // 8. Get updated membership stats
-        const mem = await db.groupChatMembership.findUnique({
-          where: {
-            userId_chatId: {
-              userId: user.userId,
-              chatId,
+          // 8. Get updated membership stats
+          const mem = await db.groupChatMembership.findUnique({
+            where: {
+              userId_chatId: {
+                userId: user.userId,
+                chatId,
+              },
             },
-          },
-        });
+          });
+          return { message: msg, membership: mem };
+        }
 
-        return { message: msg, membership: mem };
+        return { message: msg, membership: null };
       });
 
       message = result.message;
       membership = result.membership;
-    } else {
-      // For game chats, create a mock message object
-      message = {
-        id: `game-${Date.now()}`,
-        content: content.trim(),
-        chatId,
-        senderId: user.userId,
-        createdAt: new Date(),
-      };
     }
 
     // 9. Broadcast message via SSE
@@ -136,10 +160,16 @@ export const POST = withErrorHandling(async (
       senderId: message.senderId,
       createdAt: message.createdAt.toISOString(),
       isGameChat,
+      isDMChat,
     });
 
   // 10. Return success with feedback
-  logger.info('Message sent successfully', { chatId, userId: user.userId, isGameChat, qualityScore: qualityResult.score }, 'POST /api/chats/[id]/message')
+  logger.info('Message sent successfully', { 
+    chatId, 
+    userId: user.userId, 
+    chatType: isDMChat ? 'dm' : (isGameChat ? 'game' : 'group'),
+    qualityScore: qualityResult.score 
+  }, 'POST /api/chats/[id]/message')
 
   return successResponse(
     {
@@ -155,15 +185,15 @@ export const POST = withErrorHandling(async (
         warnings: qualityResult.warnings,
         factors: qualityResult.factors,
       },
-      membership: {
+      membership: isGroupChat ? {
         messageCount: membership?.messageCount || 0,
         qualityScore: membership?.qualityScore || 0,
         lastMessageAt: membership?.lastMessageAt,
-        messagesLast24h: sweepDecision.stats.messagesLast24h,
+        messagesLast24h: sweepDecision?.stats.messagesLast24h || 0,
         status: 'active',
-      },
+      } : undefined,
       warnings: qualityResult.warnings,
-      isGameChat,
+      chatType: isDMChat ? 'dm' : (isGameChat ? 'game' : 'group'),
     },
     201
   )

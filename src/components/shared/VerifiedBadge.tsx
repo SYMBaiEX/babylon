@@ -11,6 +11,21 @@ const sizeMap = {
   lg: 'w-6 h-6',
 };
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isNpcIdentifier(identifier?: string | null): boolean {
+  if (!identifier) return false;
+
+  const normalized = identifier.trim().toLowerCase();
+  if (!normalized) return false;
+
+  if (normalized.startsWith('did:')) return false;
+  if (normalized.includes('privy')) return false;
+  if (UUID_PATTERN.test(normalized)) return false;
+
+  return true;
+}
+
 export function VerifiedBadge({ className, size = 'md' }: VerifiedBadgeProps) {
   return (
     <svg
@@ -35,4 +50,3 @@ export function VerifiedBadge({ className, size = 'md' }: VerifiedBadgeProps) {
     </svg>
   );
 }
-

@@ -42,8 +42,8 @@ export class MessageQualityChecker {
   static async checkQuality(
     message: string,
     userId: string,
-    contextType: 'reply' | 'groupchat',
-    contextId: string // postId or chatId
+    contextType: 'reply' | 'groupchat' | 'dm',
+    contextId: string // postId, chatId, or empty for game chats
   ): Promise<QualityCheckResult> {
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -120,7 +120,7 @@ export class MessageQualityChecker {
   private static async checkUniqueness(
     message: string,
     userId: string,
-    contextType: 'reply' | 'groupchat',
+    contextType: 'reply' | 'groupchat' | 'dm',
     contextId: string,
     errors: string[],
     warnings: string[]
@@ -148,8 +148,8 @@ export class MessageQualityChecker {
         },
       });
       recentMessages = recentComments.map((c) => c.content);
-    } else {
-      // Check messages from this user in this chat
+    } else if (contextType === 'dm' || contextType === 'groupchat') {
+      // Check messages from this user in this chat (works for both DMs and group chats)
       const recentChatMessages = await prisma.message.findMany({
         where: {
           chatId: contextId,

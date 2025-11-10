@@ -13,6 +13,12 @@ import { TaggedText } from '@/components/shared/TaggedText'
 import { ChatListSkeleton } from '@/components/shared/Skeleton'
 import { cn } from '@/lib/utils'
 import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import { useRouter } from 'react-router-dom';
+import { useA2A } from '@/hooks/useA2A';
+import { useChatParam } from '@/hooks/useChatParam';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { buttonVariants } from '@/components/ui/button';
 
 interface Chat {
   id: string
@@ -27,6 +33,12 @@ interface Chat {
   qualityScore?: number
   participants?: number
   updatedAt: string
+  otherUser?: {
+    id: string
+    displayName: string | null
+    username: string | null
+    profileImageUrl: string | null
+  }
 }
 
 interface Message {
@@ -57,6 +69,28 @@ export default function ChatsPage() {
   const { ready, authenticated } = useAuth()
   const { user } = useAuthStore()
   const { getAccessToken } = usePrivy()
+  const router = useRouter();
+  const { debug } = useA2A();
+  const { chatParam } = useChatParam();
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
+  const [groupChats, setGroupChats] = useState<Chat[]>([])
+  const [chatDetails, setChatDetails] = useState<ChatDetails | null>(null)
+  const [messageInput, setMessageInput] = useState('')
+  const [_loading, setLoading] = useState(true)
+  const [loadingChat, setLoadingChat] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
+  const [sendSuccess, setSendSuccess] = useState(false)
+  const [isLeaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [isLeavingChat, setIsLeavingChat] = useState(false);
+  const [leaveChatError, setLeaveChatError] = useState<string | null>(null);
+  const [isCreatingChat, setCreatingChat] = useState(false);
+  const [createChatError, setCreateChatError] = useState<string | null>(null);
+  const [createChatName, setCreateChatName] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const chatContainerRef = useRef<HTMLDivElement>(null)
   
   // Debug mode: enabled in localhost
   const isDebugMode = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
@@ -85,13 +119,24 @@ export default function ChatsPage() {
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [sendSuccess, setSendSuccess] = useState(false)
+  const [isLeaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [isLeavingChat, setIsLeavingChat] = useState(false);
+  const [leaveChatError, setLeaveChatError] = useState<string | null>(null);
+  const [isCreatingChat, setCreatingChat] = useState(false);
+  const [createChatError, setCreateChatError] = useState<string | null>(null);
+  const [createChatName, setCreateChatName] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
   
   // Pull-to-refresh state
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const [pullDistance, setPullDistance] = useState(0)
-  const touchStartY = useRef<number>(0)
+  const [isRefreshing, _startRefresh] = usePullToRefresh(async () => {
+    if (isRefreshing || !selectedChatId) return;
+    try {
+      await loadChatDetails(selectedChatId);
+    } catch (error) {
+      console.error('Error refreshing chat details:', error);
+    }
+  });
 
   // Load user's chats from database
   useEffect(() => {
@@ -111,18 +156,6 @@ export default function ChatsPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatDetails?.messages])
-
-  // Pull-to-refresh for current chat
-  const handleRefresh = async () => {
-    if (isRefreshing || !selectedChatId) return
-    setIsRefreshing(true)
-    try {
-      await loadChatDetails(selectedChatId)
-    } finally {
-      setIsRefreshing(false)
-      setPullDistance(0)
-    }
-  }
 
   // Pull-to-refresh touch handlers
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
@@ -152,6 +185,43 @@ export default function ChatsPage() {
     }
   }
 
+  const handleLeaveChat = async () => {
+    if (!selectedChatId) return;
+    setIsLeavingChat(true);
+    setLeaveChatError(null);
+
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+      setLeaveChatError('Authentication failed. Please try again.');
+      setIsLeavingChat(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/chats/${selectedChatId}/participants/me`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to leave chat');
+      }
+
+      setLeaveConfirmOpen(false);
+      setSelectedChatId(null);
+      await loadGroupChats(); // Refresh the chat list
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+      setLeaveChatError(errorMessage);
+    } finally {
+      setIsLeavingChat(false);
+    }
+  };
+
+
   const loadGroupChats = async () => {
     setLoading(true)
     
@@ -177,11 +247,7 @@ export default function ChatsPage() {
     })
     const data = await response.json()
 
-    const allChats = [
-      ...(data.groupChats || []),
-      ...(data.directChats || [])
-    ]
-    setGroupChats(allChats)
+    setGroupChats(data.groupChats || [])
     setLoading(false)
   }
 
@@ -541,6 +607,22 @@ export default function ChatsPage() {
                               ?.name || 'Group'
                           }
                         </h3>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreVertical className="h-5 w-5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => setLeaveConfirmOpen(true)}
+                              className="text-red-500"
+                            >
+                              <LogOut className="mr-2 h-4 w-4" />
+                              <span>Leave Chat</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
 
                       {/* Desktop header - chat name only */}
@@ -935,6 +1017,22 @@ export default function ChatsPage() {
                           <h3 className="text-lg font-bold text-foreground">
                             {chatDetails?.chat?.name || 'Chat'}
                           </h3>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreVertical className="h-5 w-5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => setLeaveConfirmOpen(true)}
+                                className="text-red-500"
+                              >
+                                <LogOut className="mr-2 h-4 w-4" />
+                                <span>Leave Chat</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
 
                         {/* Desktop header - chat name only */}
@@ -1169,6 +1267,28 @@ export default function ChatsPage() {
           </div>
         </div>
       </PageContainer>
+      <AlertDialog open={isLeaveConfirmOpen} onOpenChange={setLeaveConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <p className="text-sm text-muted-foreground">
+                Are you sure you want to leave this chat?
+              </p>
+              {leaveChatError && (
+                <p className="text-sm text-red-500 mt-2">{leaveChatError}</p>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setLeaveConfirmOpen(false); setLeaveChatError(null); }}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleLeaveChat} className={buttonVariants({ variant: 'destructive' })} disabled={isLeavingChat}>
+              {isLeavingChat && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

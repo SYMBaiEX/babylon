@@ -2,6 +2,8 @@
 
 import { MarketsWidgetSidebar } from '@/components/markets/MarketsWidgetSidebar'
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList'
+import { PortfolioPnLCard } from '@/components/markets/PortfolioPnLCard'
+import { PortfolioPnLShareModal } from '@/components/markets/PortfolioPnLShareModal'
 import { PoolsErrorBoundary } from '@/components/markets/PoolsErrorBoundary'
 import { PoolsList } from '@/components/markets/PoolsList'
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList'
@@ -11,6 +13,7 @@ import { WalletBalance } from '@/components/shared/WalletBalance'
 import { Skeleton, WidgetPanelSkeleton } from '@/components/shared/Skeleton'
 import { BuyPointsModal } from '@/components/points/BuyPointsModal'
 import { useAuth } from '@/hooks/useAuth'
+import { usePortfolioPnL } from '@/hooks/usePortfolioPnL'
 import { cn } from '@/lib/utils'
 import type { PerpPosition } from '@/shared/perps-types'
 import { ArrowUpDown, Clock, Flame, Search, TrendingDown, TrendingUp, Sparkles } from 'lucide-react'
@@ -94,6 +97,7 @@ export default function MarketsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [predictionSort, setPredictionSort] = useState<PredictionSort>('trending')
   const [showBuyPointsModal, setShowBuyPointsModal] = useState(false)
+  const [showPnLShareModal, setShowPnLShareModal] = useState(false)
   
   // Data
   const [perpMarkets, setPerpMarkets] = useState<PerpMarket[]>([])
@@ -103,6 +107,14 @@ export default function MarketsPage() {
   const [loading, setLoading] = useState(true)
   const [balanceRefreshTrigger, setBalanceRefreshTrigger] = useState(0)
   const [topPools, setTopPools] = useState<Pool[]>([])
+
+  const {
+    data: portfolioPnL,
+    loading: portfolioLoading,
+    error: portfolioError,
+    refresh: refreshPortfolio,
+    lastUpdated: portfolioUpdatedAt,
+  } = usePortfolioPnL()
 
   // Use refs to store latest values to break dependency chains
   const fetchDataRef = useRef<(() => Promise<void>) | null>(null)
@@ -163,6 +175,12 @@ export default function MarketsPage() {
   useEffect(() => {
     fetchDataRef.current = fetchData
   }, [fetchData])
+
+  useEffect(() => {
+    if (!authenticated) return
+    if (!balanceRefreshTrigger) return
+    void refreshPortfolio()
+  }, [authenticated, balanceRefreshTrigger, refreshPortfolio])
 
   // Initial fetch on mount and when auth state changes
   // Use refs to track auth state changes without causing fetchData to recreate
@@ -421,6 +439,17 @@ export default function MarketsPage() {
           <div className="flex-1 overflow-y-auto">
         {activeTab === 'dashboard' ? (
           <div id="dashboard-panel" role="tabpanel" aria-labelledby="dashboard-tab" className="p-4 space-y-6">
+            {authenticated && (
+              <PortfolioPnLCard
+                data={portfolioPnL}
+                loading={portfolioLoading}
+                error={portfolioError}
+                onShare={() => setShowPnLShareModal(true)}
+                onRefresh={refreshPortfolio}
+                lastUpdated={portfolioUpdatedAt}
+              />
+            )}
+
             {/* Positions Overview - Only show if authenticated and has positions */}
             {authenticated && (perpPositions.length > 0 || predictionPositions.length > 0) && (
               <div className="bg-gradient-to-br from-[#0066FF]/10 to-purple-500/10 rounded-lg p-4 border border-[#0066FF]/20">
@@ -939,6 +968,17 @@ export default function MarketsPage() {
         <div className="flex-1 overflow-y-auto">
           {activeTab === 'dashboard' ? (
             <div id="dashboard-panel" role="tabpanel" aria-labelledby="dashboard-tab" className="p-4 space-y-6">
+              {authenticated && (
+                <PortfolioPnLCard
+                  data={portfolioPnL}
+                  loading={portfolioLoading}
+                  error={portfolioError}
+                  onShare={() => setShowPnLShareModal(true)}
+                  onRefresh={refreshPortfolio}
+                  lastUpdated={portfolioUpdatedAt}
+                />
+              )}
+
               {/* Positions Overview - Only show if authenticated and has positions */}
               {authenticated && (perpPositions.length > 0 || predictionPositions.length > 0) && (
                 <div className="bg-gradient-to-br from-[#0066FF]/10 to-purple-500/10 rounded-lg p-4 border border-[#0066FF]/20">
@@ -1325,6 +1365,14 @@ export default function MarketsPage() {
           </div>
         )}
       </div>
+
+      <PortfolioPnLShareModal
+        isOpen={showPnLShareModal}
+        onClose={() => setShowPnLShareModal(false)}
+        data={portfolioPnL}
+        user={user ?? null}
+        lastUpdated={portfolioUpdatedAt}
+      />
 
       {/* Buy Points Modal */}
       <BuyPointsModal

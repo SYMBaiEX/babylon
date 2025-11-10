@@ -194,6 +194,66 @@ async function main() {
     logger.warn('This updates actors.json with relationship data', undefined, 'Script');
   }
 
+  // Seed default real users for DM testing
+  logger.info('Seeding default real users for DM testing...', undefined, 'Script');
+  
+  const defaultUsers = [
+    {
+      id: 'demo-user-babylon-support',
+      privyId: 'did:privy:babylon-support-demo',
+      username: 'babylon-support',
+      displayName: 'Babylon Support',
+      bio: 'Official Babylon support account. Send us a message if you need help!',
+      profileImageUrl: '/assets/user-profiles/profile-1.jpg',
+      isActor: false,
+      profileComplete: true,
+      hasUsername: true,
+      hasBio: true,
+      hasProfileImage: true,
+      reputationPoints: 5000,
+    },
+    {
+      id: 'demo-user-welcome-bot',
+      privyId: 'did:privy:babylon-welcome-bot',
+      username: 'welcome-bot',
+      displayName: 'Welcome Bot',
+      bio: 'New to Babylon? Message me to learn how to play!',
+      profileImageUrl: '/assets/user-profiles/profile-2.jpg',
+      isActor: false,
+      profileComplete: true,
+      hasUsername: true,
+      hasBio: true,
+      hasProfileImage: true,
+      reputationPoints: 3000,
+    },
+  ];
+
+  let usersCreated = 0;
+  for (const userData of defaultUsers) {
+    try {
+      await prisma.user.upsert({
+        where: { id: userData.id },
+        update: {
+          username: userData.username,
+          displayName: userData.displayName,
+          bio: userData.bio,
+          profileImageUrl: userData.profileImageUrl,
+          profileComplete: userData.profileComplete,
+          hasUsername: userData.hasUsername,
+          hasBio: userData.hasBio,
+          hasProfileImage: userData.hasProfileImage,
+          reputationPoints: userData.reputationPoints,
+        },
+        create: userData,
+      });
+      usersCreated++;
+    } catch (error: any) {
+      logger.error(`Failed to create user ${userData.username}`, error, 'Script');
+    }
+  }
+
+  logger.info(`Created/updated ${usersCreated} default real users for DM testing`, undefined, 'Script');
+
   // Stats
   const stats = {
     actors: await prisma.actor.count(),
@@ -204,6 +264,7 @@ async function main() {
     relationships: await prisma.actorRelationship.count(),
     follows: await prisma.actorFollow.count(),
     posts: await prisma.post.count(),
+    realUsers: await prisma.user.count({ where: { isActor: false } }),
   };
 
   logger.info('Database Summary:', {
@@ -212,7 +273,8 @@ async function main() {
     organizations: `${stats.organizations} (${stats.companies} companies)`,
     relationships: stats.relationships,
     follows: stats.follows,
-    posts: stats.posts
+    posts: stats.posts,
+    realUsers: stats.realUsers,
   }, 'Script');
 
   logger.info('SEED COMPLETE', undefined, 'Script');

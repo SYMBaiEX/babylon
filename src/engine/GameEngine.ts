@@ -51,6 +51,7 @@ import { QuestionManager } from './QuestionManager';
 import { MarketDecisionEngine } from './MarketDecisionEngine';
 import { MarketContextService } from '@/lib/services/market-context-service';
 import { TradeExecutionService } from '@/lib/services/trade-execution-service';
+import { GroupChatSweep } from '@/lib/services/group-chat-sweep';
 import type { ExecutionResult } from '@/types/market-decisions';
 
 interface GameConfig {
@@ -96,6 +97,7 @@ export class GameEngine extends EventEmitter {
   private intervalId?: NodeJS.Timeout;
   private fundingIntervalId?: NodeJS.Timeout;
   private dailySnapshotIntervalId?: NodeJS.Timeout;
+  private lastChatSweep: string = new Date().toISOString().split('T')[0]!;
   private luckMood: Map<string, { luck: string; mood: number }> = new Map();
   private lastDailySnapshot: string = new Date().toISOString().split('T')[0]!;
 
@@ -574,6 +576,23 @@ export class GameEngine extends EventEmitter {
           logger.warn('Failed to process social actions', { 
             error: errorMessage,
             stack: errorStack 
+          }, 'GameEngine');
+        }
+      }
+
+      // Run daily group chat sweep
+      if (currentDate !== this.lastChatSweep) {
+        logger.info('Running daily group chat sweep...', { date: currentDate }, 'GameEngine');
+        try {
+          const sweepResult = await GroupChatSweep.sweepAllChats();
+          logger.info(`Group chat sweep complete: ${sweepResult.totalRemoved} users removed from ${sweepResult.chatsChecked} chats`, sweepResult, 'GameEngine');
+          this.lastChatSweep = currentDate;
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorStack = error instanceof Error ? error.stack : undefined;
+          logger.error(`Failed to run group chat sweep: ${errorMessage}`, {
+            error: errorMessage,
+            stack: errorStack,
           }, 'GameEngine');
         }
       }

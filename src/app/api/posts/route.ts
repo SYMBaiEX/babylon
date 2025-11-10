@@ -60,20 +60,30 @@ export async function GET(request: Request) {
       const allFollowedIds = await getCacheOrFetch(
         followsCacheKey,
         async () => {
-          const [userFollows, actorFollows] = await Promise.all([
+          const [userFollows, actorFollows, legacyActorFollows] = await Promise.all([
             prisma.follow.findMany({
               where: { followerId: userId },
               select: { followingId: true },
             }),
+            prisma.userActorFollow.findMany({
+              where: { userId: userId },
+              select: { actorId: true },
+            }),
             prisma.followStatus.findMany({
-              where: { userId: userId, isActive: true },
+              where: { 
+                userId: userId, 
+                isActive: true,
+                followReason: 'user_followed',
+              },
               select: { npcId: true },
             }),
           ]);
 
           const followedUserIds = userFollows.map((f) => f.followingId);
-          const followedActorIds = actorFollows.map((f) => f.npcId);
-          return [...followedUserIds, ...followedActorIds];
+          const followedActorIds = new Set<string>();
+          actorFollows.forEach((f) => followedActorIds.add(f.actorId));
+          legacyActorFollows.forEach((f) => followedActorIds.add(f.npcId));
+          return [...followedUserIds, ...Array.from(followedActorIds)];
         },
         {
           namespace: 'user:follows',

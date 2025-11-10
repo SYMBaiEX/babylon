@@ -7,8 +7,8 @@
 import { useState } from 'react'
 import { Share2, Twitter, Link as LinkIcon, Check } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { logger } from '@/lib/logger'
 import { ShareVerificationModal } from './ShareVerificationModal'
+import { trackExternalShare } from '@/lib/share/trackExternalShare'
 
 // Farcaster icon component
 function FarcasterIcon({ className }: { className?: string }) {
@@ -48,60 +48,24 @@ export function ExternalShareButton({
   const shareUrl = url || (typeof window !== 'undefined' ? window.location.href : '')
   const shareText = text || 'Check this out!'
 
-  const trackShare = async (platform: string): Promise<string | null> => {
-    if (!authenticated || !user) {
-      logger.warn('User not authenticated, cannot track share', undefined, 'ExternalShareButton')
-      return null
-    }
-
-    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-    if (!token) {
-      logger.warn('No access token available', undefined, 'ExternalShareButton')
-      return null
-    }
-
-    try {
-      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/share`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          platform,
-          contentType,
-          contentId,
-          url: shareUrl,
-        }),
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        if (data.points?.awarded > 0) {
-          logger.info(
-            `Earned ${data.points.awarded} points for sharing to ${platform}`,
-            { platform, points: data.points.awarded },
-            'ExternalShareButton'
-          )
-          
-          // Show success feedback
-          setShared(true)
-          setTimeout(() => setShared(false), 2000)
-        }
-        return data.shareAction?.id || null
-      }
-    } catch (error) {
-      logger.error('Failed to track share', { error, platform }, 'ExternalShareButton')
-    }
-    
-    return null
-  }
-
   const handleShareToTwitter = async () => {
     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`
     window.open(twitterUrl, '_blank', 'width=550,height=420')
     
-    const shareId = await trackShare('twitter')
+    const result = authenticated && user
+      ? await trackExternalShare({
+          platform: 'twitter',
+          contentType,
+          contentId,
+          url: shareUrl,
+          userId: user.id,
+        })
+      : { shareActionId: null, pointsAwarded: 0, alreadyAwarded: false }
+    if (result.pointsAwarded > 0) {
+      setShared(true)
+      setTimeout(() => setShared(false), 2000)
+    }
+    const shareId = result.shareActionId
     setShowMenu(false)
     
     // Show verification modal after a short delay (gives user time to post)
@@ -119,7 +83,20 @@ export function ExternalShareButton({
     const warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}`
     window.open(warpcastUrl, '_blank', 'width=550,height=600')
     
-    const shareId = await trackShare('farcaster')
+    const result = authenticated && user
+      ? await trackExternalShare({
+          platform: 'farcaster',
+          contentType,
+          contentId,
+          url: shareUrl,
+          userId: user.id,
+        })
+      : { shareActionId: null, pointsAwarded: 0, alreadyAwarded: false }
+    if (result.pointsAwarded > 0) {
+      setShared(true)
+      setTimeout(() => setShared(false), 2000)
+    }
+    const shareId = result.shareActionId
     setShowMenu(false)
     
     // Show verification modal after a short delay (gives user time to post)
@@ -133,7 +110,15 @@ export function ExternalShareButton({
 
   const handleCopyLink = async () => {
     await navigator.clipboard.writeText(shareUrl)
-    trackShare('link')
+    if (authenticated && user) {
+      void trackExternalShare({
+        platform: 'link',
+        contentType,
+        contentId,
+        url: shareUrl,
+        userId: user.id,
+      })
+    }
     setShared(true)
     setTimeout(() => setShared(false), 2000)
     setShowMenu(false)
