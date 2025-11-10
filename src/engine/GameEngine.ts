@@ -14,6 +14,7 @@
  */
 
 import { logger } from '@/lib/logger';
+import { generateSnowflakeId } from '@/lib/snowflake';
 import { ActorSocialActions } from '@/lib/services/ActorSocialActions';
 import { FollowInitializer } from '@/lib/services/FollowInitializer';
 import { RelationshipManager } from '@/lib/services/RelationshipManager';
@@ -969,7 +970,7 @@ OUTPUT JSON:
       }
 
       return {
-        id: `post-${Date.now()}-${Math.random()}`,
+        id: generateSnowflakeId(),
         day: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
         timestamp: new Date().toISOString(),
         type: 'post',
@@ -1030,7 +1031,7 @@ OUTPUT JSON:
       }
 
       return {
-        id: `post-${Date.now()}-${Math.random()}`,
+        id: generateSnowflakeId(),
         day: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
         timestamp: new Date().toISOString(),
         type: 'post',
@@ -1080,7 +1081,7 @@ OUTPUT JSON:
       }>(prompt, undefined, { temperature: 0.7, maxTokens: 1000 });
 
       return {
-        id: `org-article-${Date.now()}-${Math.random()}`,
+        id: generateSnowflakeId(),
         day: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
         timestamp: new Date().toISOString(),
         type: 'news',
@@ -1138,7 +1139,7 @@ OUTPUT JSON:
       }
 
       return {
-        id: `org-ambient-${Date.now()}-${Math.random()}`,
+        id: generateSnowflakeId(),
         day: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
         timestamp: new Date().toISOString(),
         type: 'news',

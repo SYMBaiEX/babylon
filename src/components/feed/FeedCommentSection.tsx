@@ -314,8 +314,16 @@ export function FeedCommentSection({
                 <CommentInput
                   postId={postId}
                   placeholder="Post your reply..."
-                  onSubmit={async (_comment) => {
-                    // Call onCommentAdded callback if provided (closes modal)
+                  onSubmit={async (comment) => {
+                    // Only proceed if comment was successfully created
+                    if (!comment) return;
+                    
+                    // Close the modal immediately
+                    if (onClose) {
+                      onClose();
+                    }
+                    
+                    // Call onCommentAdded callback if provided (after closing)
                     if (onCommentAdded) {
                       onCommentAdded();
                     }

@@ -10,11 +10,11 @@ import { getCacheOrFetch } from '@/lib/cache-service';
 import { cachedDb } from '@/lib/cached-database-service';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
+import { generateSnowflakeId } from '@/lib/snowflake';
 import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
 import { ensureUserForAuth } from '@/lib/users/ensure-user';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Safely convert a date value to ISO string
@@ -386,10 +386,10 @@ export async function POST(request: NextRequest) {
     });
     const canonicalUserId = canonicalUser.id;
 
-    // Create post
+    // Create post with Snowflake ID
     const post = await prisma.post.create({
       data: {
-        id: uuidv4(),
+        id: generateSnowflakeId(),
         content: content.trim(),
         authorId: canonicalUserId,
         timestamp: new Date(),

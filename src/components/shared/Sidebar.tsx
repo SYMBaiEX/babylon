@@ -2,22 +2,52 @@
 
 import { LoginButton } from '@/components/auth/LoginButton'
 import { UserMenu } from '@/components/auth/UserMenu'
-import { CreatePostModal } from '@/components/posts/CreatePostModal'
+import { Avatar } from '@/components/shared/Avatar'
 import { Separator } from '@/components/shared/Separator'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
-import { Bell, Gift, Home, MessageCircle, Plus, Shield, TrendingUp, Trophy, User } from 'lucide-react'
+import { Bell, Check, Copy, Gift, Home, LogOut, MessageCircle, Shield, TrendingUp, Trophy, User } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { usePathname, useSearchParams } from 'next/navigation'
+import { Suspense, useEffect, useRef, useState } from 'react'
 
-export function Sidebar() {
-  const [showCreateModal, setShowCreateModal] = useState(false)
+function SidebarContent() {
   const [isAdmin, setIsAdmin] = useState(false)
+  const [showMdMenu, setShowMdMenu] = useState(false)
+  const [copiedReferral, setCopiedReferral] = useState(false)
+  const mdMenuRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
-  const router = useRouter()
-  const { ready, authenticated, user } = useAuth()
+  const searchParams = useSearchParams()
+  const { ready, authenticated, user, logout } = useAuth()
+
+  // Check if dev mode is enabled via URL parameter
+  const isDevMode = searchParams.get('dev') === 'true'
+  
+  // Hide sidebar on production (babylon.market) on home page unless ?dev=true
+  const isProduction = typeof window !== 'undefined' && window.location.hostname === 'babylon.market'
+  const isHomePage = pathname === '/'
+  const shouldHideSidebar = isProduction && isHomePage && !isDevMode
+
+  // If sidebar should be hidden, don't render anything
+  if (shouldHideSidebar) {
+    return null
+  }
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (mdMenuRef.current && !mdMenuRef.current.contains(event.target as Node)) {
+        setShowMdMenu(false)
+      }
+    }
+
+    if (showMdMenu) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+    return undefined
+  }, [showMdMenu])
 
   // Check if user is admin
   useEffect(() => {
@@ -29,14 +59,28 @@ export function Sidebar() {
 
       try {
         const response = await fetch('/api/admin/stats')
+        // Silently handle 403 - it just means user is not an admin
         setIsAdmin(response.ok)
       } catch {
+        // Silently handle errors - user is not an admin
         setIsAdmin(false)
       }
     }
 
     checkAdmin()
-  }, [authenticated, user])
+  }, [authenticated, ready, user?.profileComplete])
+
+  const copyReferralCode = async () => {
+    if (!user?.referralCode) return
+    
+    try {
+      await navigator.clipboard.writeText(user.referralCode)
+      setCopiedReferral(true)
+      setTimeout(() => setCopiedReferral(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy referral code:', err)
+    }
+  }
 
   const navItems = [
     {
@@ -215,33 +259,12 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Post Button */}
-      {authenticated && (
-        <div className="px-4 py-3 flex justify-center lg:justify-start">
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className={cn(
-              'flex items-center justify-center gap-2',
-              'bg-[#0066FF] hover:bg-[#2952d9]',
-              'text-white font-semibold',
-              'rounded-full',
-              'transition-all duration-200',
-              'shadow-md hover:shadow-lg',
-              'md:w-12 md:h-12 lg:w-full lg:py-3'
-            )}
-          >
-            <Plus className="w-5 h-5" />
-            <span className="text-lg hidden lg:inline">Post</span>
-          </button>
-        </div>
-      )}
-
       {/* Separator - only shown on desktop */}
       <div className="hidden lg:block px-4 py-2">
         <Separator />
       </div>
 
-      {/* Bottom Section - Authentication */}
+      {/* Bottom Section - Authentication (Desktop lg+) */}
       <div className="hidden lg:block p-4">
         {!ready ? (
           // Skeleton loader while authentication is initializing
@@ -258,21 +281,74 @@ export function Sidebar() {
           <LoginButton />
         )}
       </div>
-    </aside>
 
-    {/* Create Post Modal */}
-    <CreatePostModal
-      isOpen={showCreateModal}
-      onClose={() => setShowCreateModal(false)}
-      onPostCreated={() => {
-        // Refresh the page if on feed, otherwise navigate to feed
-        if (pathname === '/feed') {
-          window.location.reload()
-        } else {
-          router.push('/feed')
-        }
-      }}
-    />
+      {/* Bottom Section - User Icon (Tablet md) */}
+      {authenticated && user && (
+        <div className="md:block lg:hidden relative" ref={mdMenuRef}>
+          <div className="p-4 flex justify-center">
+            <button
+              onClick={() => setShowMdMenu(!showMdMenu)}
+              className="hover:opacity-80 transition-opacity"
+              aria-label="Open user menu"
+            >
+              <Avatar 
+                id={user.id} 
+                name={user.displayName || user.email || 'User'} 
+                type="user"
+                size="md"
+                src={user.profileImageUrl || undefined}
+                imageUrl={user.profileImageUrl || undefined}
+              />
+            </button>
+          </div>
+
+          {/* Dropdown Menu - Icon Only */}
+          {showMdMenu && (
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-auto bg-sidebar border border-border rounded-lg shadow-lg overflow-hidden z-50">
+              {/* Referral Code */}
+              {user.referralCode && (
+                <button
+                  onClick={copyReferralCode}
+                  className="w-full flex items-center justify-center p-3 hover:bg-sidebar-accent transition-colors"
+                  title={copiedReferral ? "Copied!" : "Copy Referral Link"}
+                  aria-label={copiedReferral ? "Copied!" : "Copy Referral Link"}
+                >
+                  {copiedReferral ? (
+                    <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
+                  ) : (
+                    <Copy className="w-5 h-5 text-sidebar-foreground flex-shrink-0" />
+                  )}
+                </button>
+              )}
+              
+              {/* Separator */}
+              {user.referralCode && <div className="border-t border-border" />}
+              
+              {/* Logout */}
+              <button
+                onClick={() => {
+                  setShowMdMenu(false)
+                  logout()
+                }}
+                className="w-full flex items-center justify-center p-3 hover:bg-destructive/10 transition-colors text-destructive"
+                title="Logout"
+                aria-label="Logout"
+              >
+                <LogOut className="w-5 h-5 flex-shrink-0" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </aside>
     </>
+  )
+}
+
+export function Sidebar() {
+  return (
+    <Suspense fallback={null}>
+      <SidebarContent />
+    </Suspense>
   )
 }

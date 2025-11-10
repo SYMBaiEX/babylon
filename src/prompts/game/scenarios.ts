@@ -23,7 +23,7 @@ Each scenario should:
 - Be satirical/darkly funny
 
 Examples:
-- "Elon's Husk announces plan to upload consciousness to Tesla, Xitter crashes from announcement traffic"
+- "Ailon Muskannounces plan to upload consciousness to Tesla, Xitter crashes from announcement traffic"
 - "Scam Altman's AGI becomes self-aware, OpenLIE issues crisis management statement"
 - "Vitamin Uterin proposes Ethereum runs for President, MSDNC breaks exclusive interview"
 

@@ -95,8 +95,22 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const [submittedProfile, setSubmittedProfile] = useState<OnboardingProfilePayload | null>(null)
   const [userDismissed, setUserDismissed] = useState(false)
   const [importedProfileData, setImportedProfileData] = useState<ImportedProfileData | null>(null)
+  const [hasProgressedPastSocialImport, setHasProgressedPastSocialImport] = useState(false)
 
   const shouldShowModal = useMemo(() => {
+    // Check if dev mode is enabled via URL parameter
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const isDevMode = params.get('dev') === 'true'
+      const isProduction = window.location.hostname === 'babylon.market'
+      const isHomePage = window.location.pathname === '/'
+      
+      // Hide onboarding modal on production (babylon.market) on home page unless ?dev=true
+      if (isProduction && isHomePage && !isDevMode) {
+        return false
+      }
+    }
+
     if (!authenticated || loadingProfile) {
       return false
     }
@@ -116,7 +130,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       return true // Show briefly to show success message, but allow closing
     }
 
-    return Boolean(needsOnboarding || needsOnchain || stage === 'ONCHAIN' || stage === 'SOCIAL_IMPORT')
+    return Boolean(needsOnboarding || needsOnchain || stage === 'ONCHAIN' || stage === 'SOCIAL_IMPORT' || stage === 'PROFILE')
   }, [authenticated, loadingProfile, needsOnboarding, needsOnchain, stage, user, userDismissed])
 
   useEffect(() => {
@@ -126,6 +140,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       setError(null)
       setUserDismissed(false) // Reset dismissed state on logout
       setImportedProfileData(null)
+      setHasProgressedPastSocialImport(false)
       return
     }
 
@@ -134,8 +149,11 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     }
 
     if (needsOnboarding) {
-      setStage('SOCIAL_IMPORT')
-      setImportedProfileData(null)
+      // Don't reset to SOCIAL_IMPORT if user has already progressed past it
+      if (!hasProgressedPastSocialImport) {
+        setStage('SOCIAL_IMPORT')
+        setImportedProfileData(null)
+      }
       return
     }
 
@@ -158,8 +176,9 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       setSubmittedProfile(null)
       setError(null)
       setImportedProfileData(null)
+      setHasProgressedPastSocialImport(false)
     }
-  }, [authenticated, loadingProfile, needsOnboarding, needsOnchain, user, submittedProfile, stage])
+  }, [authenticated, loadingProfile, needsOnboarding, needsOnchain, user, submittedProfile, stage, hasProgressedPastSocialImport])
 
   // Listen for social import callbacks from URL parameters
   useEffect(() => {
@@ -175,6 +194,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         logger.info('Social profile data received', { platform: socialImport }, 'OnboardingProvider')
         
         setImportedProfileData(profileData)
+        setHasProgressedPastSocialImport(true)
         setStage('PROFILE')
         
         // Clean up URL
@@ -486,6 +506,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
           logger.info('Farcaster profile imported', { username: profile.username, fid: profile.fid }, 'OnboardingProvider')
           
           setImportedProfileData(profileData)
+          setHasProgressedPastSocialImport(true)
           setStage('PROFILE')
           setIsSubmitting(false)
         } catch (farcasterError) {
@@ -507,6 +528,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
 
   const handleSkipSocialImport = useCallback(() => {
     logger.info('User skipped social import', { userId: user?.id }, 'OnboardingProvider')
+    setHasProgressedPastSocialImport(true)
     setStage('PROFILE')
     setImportedProfileData(null)
   }, [user])
@@ -524,7 +546,12 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     setSubmittedProfile(null)
     setError(null)
     setImportedProfileData(null)
-  }, [stage, needsOnboarding, needsOnchain, user])
+    setHasProgressedPastSocialImport(false)
+    
+    // Clear onboarding flags so modal doesn't keep reappearing
+    setNeedsOnboarding(false)
+    setNeedsOnchain(false)
+  }, [stage, needsOnboarding, needsOnchain, user, setNeedsOnboarding, setNeedsOnchain])
 
   return (
     <>

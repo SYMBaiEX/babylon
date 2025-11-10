@@ -65,16 +65,16 @@ Respond with ONLY valid JSON:
 
 ## Examples
 
-Event: "Mork Zorkorborg announces new metaverse feature"
-Company: FaceHook
+Event: "MAIrk Zuckerberg announces new metaverse feature"
+Company: MetAI
 → {"direction": "positive", "magnitude": "moderate", "reasoning": "Direct product announcement from CEO"}
 
-Event: "Elon's Husk tweets conspiracy theory"
+Event: "Ailon Musktweets conspiracy theory"
 Company: FaceHook
 → {"direction": "neutral", "magnitude": "minor", "reasoning": "Unrelated to FaceHook operations"}
 
-Event: "SEC investigates Palmer Sucky for securities fraud"
-Company: Anduritalin
+Event: "SEC investigates Palmer LuckAI for securities fraud"
+Company: AInduril
 → {"direction": "negative", "magnitude": "major", "reasoning": "CEO under federal investigation"}
 `.trim()
 });

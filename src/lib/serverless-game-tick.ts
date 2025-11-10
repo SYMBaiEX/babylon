@@ -17,6 +17,7 @@ import { calculateTrendingIfNeeded } from './services/trending-calculation-servi
 import { MarketContextService } from './services/market-context-service';
 import { MarketDecisionEngine } from '@/engine/MarketDecisionEngine';
 import { TradeExecutionService } from './services/trade-execution-service';
+import { generateSnowflakeId } from './snowflake';
 import type { Prisma } from '@prisma/client';
 import type { ExecutionResult } from '@/types/market-decisions';
 
@@ -353,6 +354,7 @@ Return your response as JSON in this exact format:
 
         await prisma.post.create({
           data: {
+            id: generateSnowflakeId(),
             content: response.post,
             authorId: creator.id,
             gameId: 'continuous',
@@ -392,6 +394,7 @@ Return your response as JSON in this exact format:
 
         await prisma.post.create({
           data: {
+            id: generateSnowflakeId(),
             type: 'article',
             content: response.summary,
             articleTitle: response.title,

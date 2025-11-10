@@ -6,8 +6,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Avatar } from '@/components/shared/Avatar';
 import { TaggedText } from '@/components/shared/TaggedText';
+import { VerifiedBadge } from '@/components/shared/VerifiedBadge';
 import { InteractionBar } from '@/components/interactions';
-import { ShieldCheck } from 'lucide-react';
 import { useFontSize } from '@/contexts/FontSizeContext';
 import { getProfileUrl } from '@/lib/profile-utils';
 import type { PostInteraction } from '@/types/interactions';
@@ -129,7 +129,7 @@ export const PostCard = memo(function PostCard({
           {/* Name and Handle stacked vertically */}
           <div className="flex flex-col min-w-0">
             {/* Name row with verified badge */}
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0">
               <Link
                 href={getProfileUrl(post.authorId, post.authorUsername)}
                 className="font-semibold text-lg sm:text-xl text-foreground hover:underline truncate"
@@ -137,7 +137,7 @@ export const PostCard = memo(function PostCard({
               >
                 {post.authorName}
               </Link>
-              <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500 flex-shrink-0" fill="currentColor" />
+              <VerifiedBadge size="md" className="sm:w-6 sm:h-6" />
             </div>
             {/* Handle row */}
             <Link

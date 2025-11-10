@@ -43,7 +43,18 @@ export function useAuth(): UseAuthReturn {
     clearAuth,
   } = useAuthStore()
 
-  const wallet = useMemo(() => wallets[0], [wallets])
+  // Prioritize external wallets (EOA) over Privy embedded wallets
+  // This ensures users' funded wallets are used for transactions instead of empty embedded wallets
+  const wallet = useMemo(() => {
+    if (wallets.length === 0) return undefined
+    
+    // First, try to find an imported/external wallet (not embedded Privy wallet)
+    const externalWallet = wallets.find(w => w.walletClientType !== 'privy')
+    if (externalWallet) return externalWallet
+    
+    // If no external wallet, fall back to first available wallet (might be Privy embedded)
+    return wallets[0]
+  }, [wallets])
 
   const persistAccessToken = async (): Promise<string | null> => {
     if (!authenticated) {
@@ -221,6 +232,7 @@ export function useAuth(): UseAuthReturn {
 
   const linkSocialAccounts = async () => {
     if (!authenticated || !privyUser) return
+    if (isLoadingProfile) return  // Wait for profile to load
     if (needsOnboarding || needsOnchain) return
     if (linkedSocialUsers.has(privyUser.id)) return
 
@@ -334,7 +346,7 @@ export function useAuth(): UseAuthReturn {
 
   useEffect(() => {
     void linkSocialAccounts()
-  }, [authenticated, privyUser?.id, wallet?.address, needsOnboarding])
+  }, [authenticated, privyUser?.id, wallet?.address, needsOnboarding, isLoadingProfile])
 
   const refresh = async () => {
     if (!authenticated || !privyUser) return

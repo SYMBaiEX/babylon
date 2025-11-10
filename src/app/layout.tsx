@@ -62,6 +62,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  // Disable viewport scaling and overscroll for better pull-to-refresh control
+  interactiveWidget: 'resizes-content',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: 'white' },
     { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
@@ -74,27 +76,27 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className="antialiased bg-sidebar font-sans" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className="overscroll-none">
+      <body className="antialiased bg-background font-sans overscroll-none" suppressHydrationWarning>
         <Providers>
           <Toaster position="top-center" richColors />
           <GlobalLoginModal />
 
-          {/* Mobile Header */}
+          {/* Mobile Header - Fixed, not affected by pull-to-refresh */}
           <MobileHeader />
 
-          <div className="flex min-h-screen max-w-screen-xl mx-auto">
-            {/* Desktop Sidebar */}
+          <div className="flex min-h-screen max-w-screen-xl mx-auto bg-sidebar">
+            {/* Desktop Sidebar - Sticky, not affected by pull-to-refresh */}
             <Sidebar />
 
-            {/* Main Content Area - Early 2000s: Simple boxy layout */}
-            <main className="flex-1 min-h-screen w-full pt-14 pb-14 md:pt-0 md:pb-0 bg-background md:bg-sidebar">
-              <div className="h-[calc(100vh-7rem)] md:h-auto w-full">
+            {/* Main Content Area - Scrollable content with pull-to-refresh */}
+            <main className="flex-1 min-h-screen w-full pt-14 pb-14 md:pt-0 md:pb-0 bg-background overflow-hidden">
+              <div className="h-[calc(100vh-7rem)] md:h-auto w-full overflow-y-auto overscroll-contain">
                 {children}
               </div>
             </main>
 
-            {/* Mobile Bottom Navigation */}
+            {/* Mobile Bottom Navigation - Fixed, not affected by pull-to-refresh */}
             <BottomNav />
           </div>
 

@@ -5,6 +5,7 @@ import { OnChainBadge } from '@/components/profile/OnChainBadge'
 import { ProfileWidget } from '@/components/profile/ProfileWidget'
 import { PostCard } from '@/components/posts/PostCard'
 import { Avatar } from '@/components/shared/Avatar'
+import { VerifiedBadge } from '@/components/shared/VerifiedBadge'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { ProfileHeaderSkeleton, FeedSkeleton } from '@/components/shared/Skeleton'
 import { useAuth } from '@/hooks/useAuth'
@@ -15,7 +16,7 @@ import { POST_TYPES } from '@/shared/constants'
 import type { Actor, FeedPost, Organization } from '@/shared/types'
 import { useGameStore } from '@/stores/gameStore'
 import type { ProfileInfo } from '@/types/profiles'
-import { ArrowLeft, Mail, Search, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Mail, Search } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
@@ -560,12 +561,17 @@ export default function ActorProfilePage() {
               <div className="flex items-center gap-2 pt-3">
                 {authenticated && user && user.id !== actorInfo.id && (
                   <>
-                    <button className="p-2 rounded-full border border-border hover:bg-muted/50 transition-colors">
-                      <Mail className="w-5 h-5" />
-                    </button>
-                    <button className="px-4 py-2 rounded-full font-bold bg-foreground text-background hover:bg-foreground/90 transition-colors">
-                      Follow
-                    </button>
+                    {/* Only show mail button for users, not actors/NPCs */}
+                    {actorInfo.isUser && actorInfo.type === 'user' && (
+                      <button className="p-2 rounded-full border border-border hover:bg-muted/50 transition-colors">
+                        <Mail className="w-5 h-5" />
+                      </button>
+                    )}
+                    <FollowButton
+                      userId={actorInfo.id}
+                      size="md"
+                      variant="button"
+                    />
                   </>
                 )}
                 {isOwnProfile && (
@@ -584,7 +590,7 @@ export default function ActorProfilePage() {
               <div className="flex items-center gap-1 mb-0.5">
                 <h2 className="text-xl font-bold">{actorInfo.name ?? actorInfo.username ?? ''}</h2>
                 {actorInfo.type === 'actor' && (
-                  <ShieldCheck className="w-5 h-5 text-blue-500 flex-shrink-0" fill="currentColor" />
+                  <VerifiedBadge size="md" />
                 )}
                 {actorInfo.type === 'user' && (
                   <OnChainBadge 
@@ -799,9 +805,12 @@ export default function ActorProfilePage() {
                 <div className="flex items-center gap-2 pt-3">
                   {authenticated && user && user.id !== actorInfo.id && (
                     <>
-                      <button className="p-2 rounded-full border border-border hover:bg-muted/50 transition-colors">
-                        <Mail className="w-5 h-5" />
-                      </button>
+                      {/* Only show mail button for users, not actors/NPCs */}
+                      {actorInfo.isUser && actorInfo.type === 'user' && (
+                        <button className="p-2 rounded-full border border-border hover:bg-muted/50 transition-colors">
+                          <Mail className="w-5 h-5" />
+                        </button>
+                      )}
                       <FollowButton
                         userId={actorInfo.id}
                         size="md"
@@ -825,7 +834,7 @@ export default function ActorProfilePage() {
                 <div className="flex items-center gap-1 mb-0.5">
                   <h2 className="text-xl font-bold">{actorInfo.name ?? actorInfo.username ?? ''}</h2>
                   {actorInfo.type === 'actor' && (
-                    <ShieldCheck className="w-5 h-5 text-blue-500 flex-shrink-0" fill="currentColor" />
+                    <VerifiedBadge size="md" />
                   )}
                 </div>
                 {actorInfo.username && (

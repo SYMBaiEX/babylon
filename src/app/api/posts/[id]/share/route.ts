@@ -13,6 +13,7 @@ import { notifyShare } from '@/lib/services/notification-service';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
 import { ensureUserForAuth, getCanonicalUserId } from '@/lib/users/ensure-user';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 /**
  * POST /api/posts/[id]/share
@@ -94,8 +95,8 @@ export const POST = withErrorHandling(async (
     });
 
     // Create a repost post (like a retweet) that shows on user's profile and feed
-    // Format: repost-{originalPostId}-{userId}-{timestamp}
-    const repostId = `repost-${postId}-${canonicalUserId}-${Date.now()}`;
+    // Use Snowflake ID for repost
+    const repostId = generateSnowflakeId();
     
     // Get original post content for repost
     const originalPost = await prisma.post.findUnique({

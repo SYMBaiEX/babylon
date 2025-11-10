@@ -65,7 +65,7 @@ export const privyConfig: {
       accentColor: '#0066FF',
       logo: '/assets/logos/logo.svg',
       showWalletLoginFirst: false, // Changed to false to prioritize Farcaster
-      walletList: ['metamask', 'rabby_wallet', 'detected_wallets', 'rainbow', 'coinbase_wallet', 'wallet_connect'],
+      walletList: ['metamask', 'rabby_wallet', 'detected_wallets', 'rainbow', 'coinbase_wallet'],
       walletChainType: 'ethereum-only' as const,
     } satisfies ExtendedAppearance,
     // Prioritize Farcaster login for Mini Apps
@@ -77,11 +77,17 @@ export const privyConfig: {
       ethereum: {
         createOnLogin: 'off' as const, // Changed from 'users-without-wallets' for Mini Apps
       },
+      // Explicitly disable Solana to prevent warnings
+      solana: {
+        createOnLogin: 'off' as const,
+      },
     },
     defaultChain: selectedChain,
     // Wallet configuration - supports all chains including Base L2
     supportedChains: [base, baseSepolia, mainnet, sepolia],
-    // WalletConnect configuration for mobile wallets
-    walletConnectCloudProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
+    // WalletConnect configuration removed - configure NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID in .env if needed
+    ...(process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID && {
+      walletConnectCloudProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
+    }),
   },
 }

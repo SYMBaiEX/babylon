@@ -136,8 +136,8 @@ export function InteractionBar({
           }}
           onClose={() => setShowComments(false)}
           onCommentAdded={() => {
-            setShowComments(false);
             // Comment count is automatically updated by the store's addComment method
+            // Note: modal is already closed by onClose callback
           }}
         />
       )}

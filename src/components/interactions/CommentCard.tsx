@@ -1,12 +1,13 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { MoreVertical, Reply, Trash2, Edit2, ShieldCheck } from 'lucide-react';
+import { MoreVertical, Reply, Trash2, Edit2 } from 'lucide-react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { Avatar } from '@/components/shared/Avatar';
 import { TaggedText } from '@/components/shared/TaggedText';
+import { VerifiedBadge } from '@/components/shared/VerifiedBadge';
 import { LikeButton } from './LikeButton';
 import { CommentInput } from './CommentInput';
 import type { CommentCardProps } from '@/types/interactions';
@@ -90,7 +91,7 @@ export function CommentCard({
             <span className="font-semibold text-sm truncate">
               {comment.userName}
             </span>
-            <ShieldCheck className="w-4 h-4 text-blue-500 flex-shrink-0" fill="currentColor" />
+            <VerifiedBadge size="sm" className="-ml-1" />
             <span className="text-xs text-muted-foreground truncate">
               @{comment.userUsername || comment.userName}
             </span>

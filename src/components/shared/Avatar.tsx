@@ -28,13 +28,16 @@ const sizeClasses = {
 }
 
 export function Avatar({ id, name, type = 'actor', src, alt, size = 'md', className, scaleFactor = 1, imageUrl }: AvatarProps) {
-  const [imageError, setImageError] = useState(false)
+  const [primaryImageError, setPrimaryImageError] = useState(false)
+  const [fallbackImageError, setFallbackImageError] = useState(false)
 
   // Determine the image path to use:
   // 1. If src is provided directly (uploaded profile image), use it
   // 2. Otherwise, use imageUrl if provided
   // 3. Finally, construct from id (static actor/org image)
   let imagePath: string | undefined
+  let fallbackPath: string | undefined
+  
   if (src) {
     imagePath = src
   } else if (imageUrl) {
@@ -52,13 +55,22 @@ export function Avatar({ id, name, type = 'actor', src, alt, size = 'md', classN
     }
   }
 
+  // Generate deterministic fallback based on id
+  if (id && !src && !imageUrl) {
+    // Hash the id to get a number between 1-100
+    const hash = Array.from(id).reduce((acc, char) => acc + char.charCodeAt(0), 0)
+    const profileNum = (hash % 100) + 1
+    fallbackPath = `/assets/user-profiles/profile-${profileNum}.jpg`
+  }
+
   // Display name is alt (if provided) or name (if provided) or first letter of id
   const displayName = alt || name || (id ? id : 'User')
   const initial = displayName.charAt(0).toUpperCase()
 
-  // Reset error flag when source changes
+  // Reset error flags when source changes
   useEffect(() => {
-    setImageError(false)
+    setPrimaryImageError(false)
+    setFallbackImageError(false)
   }, [imagePath])
 
   // Base sizes in rem
@@ -69,10 +81,31 @@ export function Avatar({ id, name, type = 'actor', src, alt, size = 'md', classN
   }
 
   const scaledSize = baseSizes[size] * scaleFactor
-  const hasImage = Boolean(imagePath && !imageError)
+  
+  // Determine which image to show based on error states
+  let currentImagePath: string | undefined
+  if (!primaryImageError && imagePath) {
+    // Try primary image first
+    currentImagePath = imagePath
+  } else if (!fallbackImageError && fallbackPath) {
+    // If primary failed, try fallback
+    currentImagePath = fallbackPath
+  }
+  
+  const hasImage = Boolean(currentImagePath)
 
   // Check if className includes w-full h-full (for containers that should fill parent)
   const shouldFillParent = className?.includes('w-full') && className?.includes('h-full')
+
+  const handleImageError = () => {
+    if (!primaryImageError) {
+      // Primary image failed
+      setPrimaryImageError(true)
+    } else {
+      // Fallback image failed
+      setFallbackImageError(true)
+    }
+  }
 
   return (
     <div
@@ -93,10 +126,10 @@ export function Avatar({ id, name, type = 'actor', src, alt, size = 'md', classN
     >
       {hasImage ? (
         <img
-          src={imagePath}
+          src={currentImagePath}
           alt={displayName}
           className="w-full h-full object-cover"
-          onError={() => setImageError(true)}
+          onError={handleImageError}
         />
       ) : (
         <span aria-hidden="true">{initial}</span>

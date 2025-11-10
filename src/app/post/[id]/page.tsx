@@ -248,6 +248,20 @@ export default function PostPage({ params }: PostPageProps) {
                   />
                 )}
               </div>
+
+              {/* Comments Section - Always visible below the post */}
+              <div className="border-b border-border">
+                <FeedCommentSection
+                  postId={postId}
+                  postData={post}
+                  onCommentAdded={() => {
+                    // Update post interactions after comment is added
+                    setTimeout(() => {
+                      updatePostInteractions();
+                    }, 300);
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -363,6 +377,20 @@ export default function PostPage({ params }: PostPageProps) {
               />
             )}
           </div>
+
+          {/* Comments Section - Always visible below the post */}
+          <div className="border-b border-border">
+            <FeedCommentSection
+              postId={postId}
+              postData={post}
+              onCommentAdded={() => {
+                // Update post interactions after comment is added
+                setTimeout(() => {
+                  updatePostInteractions();
+                }, 300);
+              }}
+            />
+          </div>
         </div>
       </div>
 
@@ -373,8 +401,8 @@ export default function PostPage({ params }: PostPageProps) {
           postData={post}
           onClose={() => setIsCommentModalOpen(false)}
           onCommentAdded={() => {
-            setIsCommentModalOpen(false);
             // Update post interactions after comment is added
+            // Note: modal is already closed by onClose callback
             setTimeout(() => {
               updatePostInteractions();
             }, 300);
