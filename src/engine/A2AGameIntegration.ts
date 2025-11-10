@@ -7,23 +7,23 @@
  * - Coalition formation for coordinated strategies
  * - Distributed prediction market intelligence
  */
-
 import { EventEmitter } from 'events';
-import { A2AWebSocketServer } from '../a2a/server';
-import { RegistryClient } from '../a2a/blockchain';
+
 import { logger } from '@/lib/logger';
-import type {
-  Question,
-  PriceUpdate,
-  SelectedActor,
-  FeedPost
-} from '@/shared/types';
-import type {
-  A2AServerConfig,
-  AgentConnection
-} from '../a2a/types';
+
 import { getAgent0Client } from '@/agents/agent0/Agent0Client';
 import { getUnifiedDiscoveryService } from '@/agents/agent0/UnifiedDiscovery';
+import type {
+  FeedPost,
+  PriceUpdate,
+  Question,
+  SelectedActor,
+} from '@/shared/types';
+import { createPortSingleton } from '@/utils/singleton';
+
+import { RegistryClient } from '../a2a/blockchain';
+import { A2AWebSocketServer } from '../a2a/server';
+import type { A2AServerConfig, AgentConnection } from '../a2a/types';
 
 export interface A2AGameConfig {
   enabled: boolean;
@@ -62,10 +62,16 @@ export interface Coalition {
   active: boolean;
 }
 
-import { createPortSingleton } from '@/utils/singleton'
-
 // Singleton for A2A server instance
-const a2aServerSingleton = createPortSingleton<A2AWebSocketServer>('a2aServer', 'a2aServerPort')
+const a2aServerSingleton = createPortSingleton<A2AWebSocketServer>(
+  'a2aServer',
+  'a2aServerPort'
+);
+
+const describeError = (error: unknown) =>
+  error instanceof Error
+    ? { message: error.message, stack: error.stack }
+    : { message: String(error) };
 
 export class A2AGameIntegration extends EventEmitter {
   private server?: A2AWebSocketServer;
@@ -84,8 +90,14 @@ export class A2AGameIntegration extends EventEmitter {
       maxConnections: config?.maxConnections ?? 1000,
       enableBlockchain: config?.enableBlockchain ?? false,
       rpcUrl: config?.rpcUrl ?? process.env.BASE_SEPOLIA_RPC_URL ?? '',
-      identityRegistryAddress: config?.identityRegistryAddress ?? process.env.IDENTITY_REGISTRY_ADDRESS ?? '',
-      reputationSystemAddress: config?.reputationSystemAddress ?? process.env.REPUTATION_SYSTEM_ADDRESS ?? '',
+      identityRegistryAddress:
+        config?.identityRegistryAddress ??
+        process.env.IDENTITY_REGISTRY_ADDRESS ??
+        '',
+      reputationSystemAddress:
+        config?.reputationSystemAddress ??
+        process.env.REPUTATION_SYSTEM_ADDRESS ??
+        '',
     };
   }
 
@@ -99,7 +111,11 @@ export class A2AGameIntegration extends EventEmitter {
     }
 
     logger.info('INITIALIZING A2A PROTOCOL', undefined, 'A2AGameIntegration');
-    logger.info('==============================', undefined, 'A2AGameIntegration');
+    logger.info(
+      '==============================',
+      undefined,
+      'A2AGameIntegration'
+    );
 
     // Set up blockchain registry if enabled
     if (this.config.enableBlockchain && this.config.rpcUrl) {
@@ -108,17 +124,33 @@ export class A2AGameIntegration extends EventEmitter {
         identityRegistryAddress: this.config.identityRegistryAddress,
         reputationSystemAddress: this.config.reputationSystemAddress,
       });
-      logger.info('Blockchain registry connected', undefined, 'A2AGameIntegration');
+      logger.info(
+        'Blockchain registry connected',
+        undefined,
+        'A2AGameIntegration'
+      );
     }
 
     // Initialize Agent0 integration (if enabled)
-    let agent0Client = null
-    let unifiedDiscovery = null
-    
+    let agent0Client = null;
+    let unifiedDiscovery = null;
+
     if (process.env.AGENT0_ENABLED === 'true') {
-      agent0Client = getAgent0Client()
-      unifiedDiscovery = getUnifiedDiscoveryService()
-      logger.info('Agent0 integration enabled for A2A server', undefined, 'A2AGameIntegration');
+      try {
+        agent0Client = getAgent0Client();
+        unifiedDiscovery = getUnifiedDiscoveryService();
+        logger.info(
+          'Agent0 integration enabled for A2A server',
+          undefined,
+          'A2AGameIntegration'
+        );
+      } catch (error) {
+        logger.warn(
+          'Agent0 integration disabled (missing Agent0 env or failed initialization)',
+          describeError(error),
+          'A2AGameIntegration'
+        );
+      }
     }
 
     // Create A2A WebSocket server
@@ -136,19 +168,27 @@ export class A2AGameIntegration extends EventEmitter {
       unifiedDiscovery: unifiedDiscovery ?? undefined,
     };
 
-    const existing = a2aServerSingleton.getInstance(this.config.port)
+    const existing = a2aServerSingleton.getInstance(this.config.port);
     if (existing) {
-      logger.info('Reusing existing A2A WebSocket server from singleton', undefined, 'A2AGameIntegration');
+      logger.info(
+        'Reusing existing A2A WebSocket server from singleton',
+        undefined,
+        'A2AGameIntegration'
+      );
       this.server = existing;
       this.setupServerEventHandlers();
       return;
     }
-    
+
     this.server = new A2AWebSocketServer(serverConfig);
     await this.server.waitForReady();
     this.setupServerEventHandlers();
 
-    logger.info(`A2A server listening on ws://${this.config.host}:${this.config.port}`, undefined, 'A2AGameIntegration');
+    logger.info(
+      `A2A server listening on ws://${this.config.host}:${this.config.port}`,
+      undefined,
+      'A2AGameIntegration'
+    );
   }
 
   /**
@@ -158,12 +198,20 @@ export class A2AGameIntegration extends EventEmitter {
     if (!this.server) return;
 
     this.server.on('agent.connected', (data) => {
-      logger.info(`Agent connected: ${data.agentId}`, undefined, 'A2AGameIntegration');
+      logger.info(
+        `Agent connected: ${data.agentId}`,
+        undefined,
+        'A2AGameIntegration'
+      );
       this.emit('agent.connected', data);
     });
 
     this.server.on('agent.disconnected', (data) => {
-      logger.info(`Agent disconnected: ${data.agentId}`, undefined, 'A2AGameIntegration');
+      logger.info(
+        `Agent disconnected: ${data.agentId}`,
+        undefined,
+        'A2AGameIntegration'
+      );
       this.emit('agent.disconnected', data);
     });
 
@@ -180,15 +228,18 @@ export class A2AGameIntegration extends EventEmitter {
   /**
    * Broadcast market data to all connected agents
    */
-  broadcastMarketData(questions: Question[], priceUpdates: PriceUpdate[]): void {
+  broadcastMarketData(
+    questions: Question[],
+    priceUpdates: PriceUpdate[]
+  ): void {
     if (!this.server) return;
 
     const broadcast: MarketDataBroadcast = {
       type: 'market_update',
       timestamp: Date.now(),
-      questions: questions.filter(q => q.status === 'active'),
+      questions: questions.filter((q) => q.status === 'active'),
       priceUpdates: priceUpdates.slice(-10), // Last 10 updates
-      activeMarkets: questions.filter(q => q.status === 'active').length,
+      activeMarkets: questions.filter((q) => q.status === 'active').length,
     };
 
     this.server.broadcastAll({
@@ -245,7 +296,11 @@ export class A2AGameIntegration extends EventEmitter {
     // Emit event for game engine to process
     this.emit('agent.analysis', analysis);
 
-    logger.info(`Agent ${analysis.agentId} shared analysis for question ${analysis.questionId}`, undefined, 'A2AGameIntegration');
+    logger.info(
+      `Agent ${analysis.agentId} shared analysis for question ${analysis.questionId}`,
+      undefined,
+      'A2AGameIntegration'
+    );
   }
 
   /**
@@ -307,7 +362,11 @@ export class A2AGameIntegration extends EventEmitter {
     });
 
     this.emit('coalition.created', coalition);
-    logger.info(`Coalition "${coalition.name}" created by ${data.agentId}`, undefined, 'A2AGameIntegration');
+    logger.info(
+      `Coalition "${coalition.name}" created by ${data.agentId}`,
+      undefined,
+      'A2AGameIntegration'
+    );
   }
 
   /**
@@ -328,9 +387,10 @@ export class A2AGameIntegration extends EventEmitter {
     const analyses = this.getQuestionAnalyses(questionId);
     if (analyses.length === 0) return null;
 
-    const yesVotes = analyses.filter(a => a.prediction).length;
+    const yesVotes = analyses.filter((a) => a.prediction).length;
     const totalVotes = analyses.length;
-    const avgConfidence = analyses.reduce((sum, a) => sum + a.confidence, 0) / totalVotes;
+    const avgConfidence =
+      analyses.reduce((sum, a) => sum + a.confidence, 0) / totalVotes;
 
     return {
       prediction: yesVotes > totalVotes / 2,
@@ -343,7 +403,7 @@ export class A2AGameIntegration extends EventEmitter {
    * Get all active coalitions
    */
   getActiveCoalitions(): Coalition[] {
-    return Array.from(this.coalitions.values()).filter(c => c.active);
+    return Array.from(this.coalitions.values()).filter((c) => c.active);
   }
 
   /**
@@ -384,7 +444,10 @@ export class A2AGameIntegration extends EventEmitter {
       enabled: this.config.enabled,
       agentCount: this.getAgentCount(),
       coalitionCount: this.getActiveCoalitions().length,
-      analysesCount: Array.from(this.agentAnalyses.values()).reduce((sum, arr) => sum + arr.length, 0),
+      analysesCount: Array.from(this.agentAnalyses.values()).reduce(
+        (sum, arr) => sum + arr.length,
+        0
+      ),
     };
   }
 }

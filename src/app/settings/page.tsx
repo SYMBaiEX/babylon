@@ -1,185 +1,228 @@
-'use client'
+'use client';
 
-import { LoginButton } from '@/components/auth/LoginButton'
-import { PageContainer } from '@/components/shared/PageContainer'
-import { useAuth } from '@/hooks/useAuth'
-import { cn } from '@/lib/utils'
-import { useAuthStore } from '@/stores/authStore'
-import { ArrowLeft, Bell, Palette, Save, Shield, User } from 'lucide-react'
-import { useTheme } from 'next-themes'
-import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
-import { encodeFunctionData, parseAbi, type EIP1193Provider } from 'viem'
-import { baseSepolia } from 'viem/chains'
-import { IDENTITY_REGISTRY_ABI } from '@/lib/web3/abis'
-import { logger } from '@/lib/logger'
+import { useEffect, useState } from 'react';
 
+import { useTheme } from 'next-themes';
+import { useRouter } from 'next/navigation';
+
+import { type ConnectedWallet, useSendTransaction } from '@privy-io/react-auth';
+import { ArrowLeft, Bell, Palette, Save, Shield, User } from 'lucide-react';
+import { encodeFunctionData, parseAbi } from 'viem';
+import { baseSepolia } from 'viem/chains';
+
+import { LoginButton } from '@/components/auth/LoginButton';
+import { PageContainer } from '@/components/shared/PageContainer';
+
+import { logger } from '@/lib/logger';
+import { cn } from '@/lib/utils';
+import { IDENTITY_REGISTRY_ABI } from '@/lib/web3/abis';
+
+import { useAuth } from '@/hooks/useAuth';
+
+import { useAuthStore } from '@/stores/authStore';
 
 const CAPABILITIES_HASH =
-  '0x0000000000000000000000000000000000000000000000000000000000000001' as const
-const identityRegistryAbi = parseAbi(IDENTITY_REGISTRY_ABI)
-const BASE_SEPOLIA_CHAIN_ID = baseSepolia.id
+  '0x0000000000000000000000000000000000000000000000000000000000000001' as const;
+const identityRegistryAbi = parseAbi(IDENTITY_REGISTRY_ABI);
+const BASE_SEPOLIA_CHAIN_ID = baseSepolia.id;
+const isEmbeddedWallet = (candidate?: ConnectedWallet | null) =>
+  candidate?.walletClientType === 'privy' ||
+  candidate?.walletClientType === 'privy-v2';
 
 export default function SettingsPage() {
-  const router = useRouter()
-  const { ready, authenticated, wallet, refresh } = useAuth()
-  const { user, setUser } = useAuthStore()
-  const [activeTab, setActiveTab] = useState('profile')
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const router = useRouter();
+  const { ready, authenticated, wallet, refresh } = useAuth();
+  const { user, setUser } = useAuthStore();
+  const [activeTab, setActiveTab] = useState('profile');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Profile settings state
-  const [displayName, setDisplayName] = useState(user?.displayName || '')
-  const [username, setUsername] = useState(user?.username || '')
-  const [bio, setBio] = useState(user?.bio || '')
+  const [displayName, setDisplayName] = useState(user?.displayName || '');
+  const [username, setUsername] = useState(user?.username || '');
+  const [bio, setBio] = useState(user?.bio || '');
 
   // Notification settings state
-  const [emailNotifications, setEmailNotifications] = useState(true)
-  const [pushNotifications, setPushNotifications] = useState(true)
-  const [postNotifications, setPostNotifications] = useState(true)
-  const [marketNotifications, setMarketNotifications] = useState(true)
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [pushNotifications, setPushNotifications] = useState(true);
+  const [postNotifications, setPostNotifications] = useState(true);
+  const [marketNotifications, setMarketNotifications] = useState(true);
+  const { sendTransaction: privySendTransaction } = useSendTransaction();
 
   // Theme settings - connected to next-themes
-  const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
 
   // Wait for hydration to avoid SSR mismatch
   useEffect(() => {
-    setMounted(true)
-  }, [])
+    setMounted(true);
+  }, []);
 
   // Calculate time remaining until username can be changed again
-  const getUsernameChangeTimeRemaining = (): { canChange: boolean; hours: number; minutes: number } | null => {
-    if (!user?.usernameChangedAt) return { canChange: true, hours: 0, minutes: 0 }
-    
-    const lastChangeTime = new Date(user.usernameChangedAt).getTime()
-    const now = Date.now()
-    const hoursSinceChange = (now - lastChangeTime) / (1000 * 60 * 60)
-    const hoursRemaining = 24 - hoursSinceChange
+  const getUsernameChangeTimeRemaining = (): {
+    canChange: boolean;
+    hours: number;
+    minutes: number;
+  } | null => {
+    if (!user?.usernameChangedAt)
+      return { canChange: true, hours: 0, minutes: 0 };
+
+    const lastChangeTime = new Date(user.usernameChangedAt).getTime();
+    const now = Date.now();
+    const hoursSinceChange = (now - lastChangeTime) / (1000 * 60 * 60);
+    const hoursRemaining = 24 - hoursSinceChange;
 
     if (hoursRemaining <= 0) {
-      return { canChange: true, hours: 0, minutes: 0 }
+      return { canChange: true, hours: 0, minutes: 0 };
     }
 
     return {
       canChange: false,
       hours: Math.floor(hoursRemaining),
       minutes: Math.floor((hoursRemaining - Math.floor(hoursRemaining)) * 60),
-    }
-  }
+    };
+  };
 
-  const usernameChangeLimit = getUsernameChangeTimeRemaining()
+  const usernameChangeLimit = getUsernameChangeTimeRemaining();
 
   // Sync profile fields when user data changes
   useEffect(() => {
-    setDisplayName(user?.displayName ?? '')
-    setUsername(user?.username ?? '')
-    setBio(user?.bio ?? '')
-  }, [user?.displayName, user?.username, user?.bio])
+    setDisplayName(user?.displayName ?? '');
+    setUsername(user?.username ?? '');
+    setBio(user?.bio ?? '');
+  }, [user?.displayName, user?.username, user?.bio]);
 
   const handleSave = async () => {
-    if (!user?.id) return
+    if (!user?.id) return;
     if (user.onChainRegistered !== true) {
-      setErrorMessage('Complétez votre enregistrement on-chain avant de modifier votre profil.')
-      return
+      setErrorMessage(
+        'Complétez votre enregistrement on-chain avant de modifier votre profil.'
+      );
+      return;
     }
 
-    setSaving(true)
-    setSaved(false)
-    setErrorMessage(null)
+    setSaving(true);
+    setSaved(false);
+    setErrorMessage(null);
 
     try {
       if (!wallet?.address) {
-        throw new Error('Connectez votre wallet pour mettre à jour votre profil.')
+        throw new Error(
+          'Connectez votre wallet pour mettre à jour votre profil.'
+        );
       }
 
-      const registryAddress = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA
+      const registryAddress =
+        process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA;
       if (!registryAddress) {
-        throw new Error("L'adresse du contrat d'identité n'est pas configurée.")
+        throw new Error(
+          "L'adresse du contrat d'identité n'est pas configurée."
+        );
       }
 
-      const provider = (await wallet.getEthereumProvider()) as EIP1193Provider
+      if (!wallet) {
+        throw new Error(
+          'Connectez votre wallet Babylon pour modifier votre profil.'
+        );
+      }
+      if (!isEmbeddedWallet(wallet)) {
+        throw new Error(
+          'Les mises à jour on-chain nécessitent votre wallet Babylon (embedded Privy).'
+        );
+      }
       if (wallet.chainId !== `eip155:${BASE_SEPOLIA_CHAIN_ID}`) {
-        await wallet.switchChain(BASE_SEPOLIA_CHAIN_ID)
+        await wallet.switchChain(BASE_SEPOLIA_CHAIN_ID);
       }
 
-      await provider.request({ method: 'eth_requestAccounts' })
+      const trimmedDisplayName = (displayName ?? '').trim();
+      const trimmedUsername = (username ?? '').trim();
+      const trimmedBio = (bio ?? '').trim();
 
-      const trimmedDisplayName = (displayName ?? '').trim()
-      const trimmedUsername = (username ?? '').trim()
-      const trimmedBio = (bio ?? '').trim()
-
-      const endpoint = `https://babylon.game/agent/${wallet.address.toLowerCase()}`
+      const endpoint = `https://babylon.game/agent/${wallet.address.toLowerCase()}`;
       const metadata = JSON.stringify({
-        name: trimmedDisplayName || trimmedUsername || user.displayName || user.username || 'Babylon User',
+        name:
+          trimmedDisplayName ||
+          trimmedUsername ||
+          user.displayName ||
+          user.username ||
+          'Babylon User',
         username: trimmedUsername || null,
         bio: trimmedBio || null,
         profileImageUrl: user.profileImageUrl ?? null,
         coverImageUrl: user.coverImageUrl ?? null,
         type: 'user',
         updated: new Date().toISOString(),
-      })
+      });
 
       const data = encodeFunctionData({
         abi: identityRegistryAbi,
         functionName: 'updateAgent',
         args: [endpoint, CAPABILITIES_HASH, metadata],
-      })
+      });
 
-      let txHash: unknown
+      let txHash: string;
       try {
         const txRequest = {
-          from: wallet.address as `0x${string}`,
           to: registryAddress as `0x${string}`,
           data,
           value: '0x0' as `0x${string}`,
-        }
-        txHash = await provider.request({
-          method: 'eth_sendTransaction',
-          params: [txRequest],
-        } as {
-          method: 'eth_sendTransaction'
-          params: [typeof txRequest]
-        })
+          chainId: BASE_SEPOLIA_CHAIN_ID,
+        };
+        const { hash } = await privySendTransaction(txRequest, {
+          sponsor: true,
+          address: wallet.address as `0x${string}`,
+        });
+        txHash = hash;
       } catch (error) {
-        const message = error instanceof Error ? error.message.toLowerCase() : ''
+        const message =
+          error instanceof Error ? error.message.toLowerCase() : '';
         if (message.includes('user rejected')) {
-          throw new Error('Transaction annulée dans votre wallet.')
+          throw new Error('Transaction annulée dans votre wallet.');
         }
         if (message.includes('insufficient funds')) {
-          throw new Error('Fonds insuffisants pour couvrir le gas sur Base Sepolia.')
+          throw new Error(
+            'Fonds insuffisants pour couvrir le gas sur Base Sepolia.'
+          );
         }
-        throw error instanceof Error ? error : new Error('Échec de la soumission de la transaction on-chain.')
+        if (message.includes('sponsor')) {
+          throw new Error(
+            'Impossible de sponsoriser cette transaction. Vérifiez que votre wallet Babylon est actif.'
+          );
+        }
+        throw error instanceof Error
+          ? error
+          : new Error('Échec de la soumission de la transaction on-chain.');
       }
 
-      if (typeof txHash !== 'string') {
-        throw new Error('Réponse inattendue du wallet lors de la soumission de la transaction.')
-      }
-
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      const token =
+        typeof window !== 'undefined' ? window.__privyAccessToken : null;
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
-      }
+      };
       if (token) {
-        headers['Authorization'] = `Bearer ${token}`
+        headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/update-profile`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          displayName: trimmedDisplayName,
-          username: trimmedUsername,
-          bio: trimmedBio,
-          onchainTxHash: txHash,
-        }),
-      })
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(user.id)}/update-profile`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            displayName: trimmedDisplayName,
+            username: trimmedUsername,
+            bio: trimmedBio,
+            onchainTxHash: txHash,
+          }),
+        }
+      );
 
-      const payload = await response.json().catch(() => ({}))
+      const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const message = payload?.error || 'Impossible de sauvegarder vos modifications.'
-        throw new Error(message)
+        const message =
+          payload?.error || 'Impossible de sauvegarder vos modifications.';
+        throw new Error(message);
       }
 
       if (payload.user) {
@@ -190,21 +233,29 @@ export default function SettingsPage() {
           bio: payload.user.bio,
           usernameChangedAt: payload.user.usernameChangedAt,
           referralCode: payload.user.referralCode,
-          onChainRegistered: payload.user.onChainRegistered ?? user.onChainRegistered,
-        })
+          onChainRegistered:
+            payload.user.onChainRegistered ?? user.onChainRegistered,
+        });
       }
 
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-      await refresh().catch(() => undefined)
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      await refresh().catch(() => undefined);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Une erreur est survenue lors de la mise à jour du profil.'
-      setErrorMessage(message)
-      logger.error('Failed to save profile settings', { error }, 'SettingsPage')
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Une erreur est survenue lors de la mise à jour du profil.';
+      setErrorMessage(message);
+      logger.error(
+        'Failed to save profile settings',
+        { error },
+        'SettingsPage'
+      );
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   if (!ready) {
     return (
@@ -213,7 +264,7 @@ export default function SettingsPage() {
           <p className="text-muted-foreground">Loading...</p>
         </div>
       </PageContainer>
-    )
+    );
   }
 
   if (!authenticated) {
@@ -227,7 +278,7 @@ export default function SettingsPage() {
           <LoginButton />
         </div>
       </PageContainer>
-    )
+    );
   }
 
   const tabs = [
@@ -235,7 +286,7 @@ export default function SettingsPage() {
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'theme', label: 'Theme', icon: Palette },
     { id: 'security', label: 'Security', icon: Shield },
-  ]
+  ];
 
   return (
     <PageContainer>
@@ -255,7 +306,7 @@ export default function SettingsPage() {
         {/* Tab Navigation */}
         <div className="flex gap-1 mb-8 border-b border-border">
           {tabs.map((tab) => {
-            const Icon = tab.icon
+            const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
@@ -270,7 +321,7 @@ export default function SettingsPage() {
                 <Icon className="w-4 h-4" />
                 <span className="font-medium">{tab.label}</span>
               </button>
-            )
+            );
           })}
         </div>
 
@@ -279,7 +330,10 @@ export default function SettingsPage() {
           {activeTab === 'profile' && (
             <div className="space-y-6">
               <div>
-                <label htmlFor="displayName" className="block text-sm font-medium mb-2">
+                <label
+                  htmlFor="displayName"
+                  className="block text-sm font-medium mb-2"
+                >
                   Display Name
                 </label>
                 <input
@@ -293,7 +347,10 @@ export default function SettingsPage() {
               </div>
 
               <div>
-                <label htmlFor="username" className="block text-sm font-medium mb-2">
+                <label
+                  htmlFor="username"
+                  className="block text-sm font-medium mb-2"
+                >
                   Username
                 </label>
                 <input
@@ -301,17 +358,22 @@ export default function SettingsPage() {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  disabled={Boolean(usernameChangeLimit && !usernameChangeLimit.canChange)}
+                  disabled={Boolean(
+                    usernameChangeLimit && !usernameChangeLimit.canChange
+                  )}
                   className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1c9cf0] disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="Enter your username"
                 />
                 {usernameChangeLimit && !usernameChangeLimit.canChange ? (
                   <p className="text-xs text-yellow-500 mt-1">
-                    Username can only be changed once every 24 hours. Please wait {usernameChangeLimit.hours}h {usernameChangeLimit.minutes}m before changing again.
+                    Username can only be changed once every 24 hours. Please
+                    wait {usernameChangeLimit.hours}h{' '}
+                    {usernameChangeLimit.minutes}m before changing again.
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Username can be changed once every 24 hours. Changing your username will update your referral code.
+                    Username can be changed once every 24 hours. Changing your
+                    username will update your referral code.
                   </p>
                 )}
               </div>
@@ -432,11 +494,16 @@ export default function SettingsPage() {
                           className="w-4 h-4 text-[#1c9cf0]"
                         />
                         <div>
-                          <p className="font-medium capitalize">{themeOption}</p>
+                          <p className="font-medium capitalize">
+                            {themeOption}
+                          </p>
                           <p className="text-sm text-muted-foreground">
-                            {themeOption === 'light' && 'Light background with dark text'}
-                            {themeOption === 'dark' && 'Dark background with light text'}
-                            {themeOption === 'system' && 'Match your system settings'}
+                            {themeOption === 'light' &&
+                              'Light background with dark text'}
+                            {themeOption === 'dark' &&
+                              'Dark background with light text'}
+                            {themeOption === 'system' &&
+                              'Match your system settings'}
                           </p>
                         </div>
                       </label>
@@ -472,7 +539,8 @@ export default function SettingsPage() {
               <div className="p-4 border border-red-500/20 bg-red-500/5 rounded-lg">
                 <h3 className="font-medium text-red-500 mb-2">Danger Zone</h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Delete your account and all associated data. This action cannot be undone.
+                  Delete your account and all associated data. This action
+                  cannot be undone.
                 </p>
                 <button className="text-red-500 hover:text-red-600 text-sm font-medium">
                   Delete Account →
@@ -489,7 +557,8 @@ export default function SettingsPage() {
               )}
               {user?.onChainRegistered !== true && !errorMessage && (
                 <p className="mb-4 text-sm text-yellow-500">
-                  Complétez d’abord votre enregistrement on-chain pour pouvoir modifier votre profil.
+                  Complétez d’abord votre enregistrement on-chain pour pouvoir
+                  modifier votre profil.
                 </p>
               )}
               <button
@@ -502,11 +571,13 @@ export default function SettingsPage() {
                 )}
               >
                 <Save className="w-4 h-4" />
-                <span>{saving ? 'Saving...' : saved ? 'Saved!' : 'Save Changes'}</span>
+                <span>
+                  {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Changes'}
+                </span>
               </button>
             </div>
           )}
-          
+
           {/* Theme saves automatically, show confirmation */}
           {activeTab === 'theme' && mounted && (
             <div className="pt-6 border-t border-border">
@@ -518,5 +589,5 @@ export default function SettingsPage() {
         </div>
       </div>
     </PageContainer>
-  )
+  );
 }

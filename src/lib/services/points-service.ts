@@ -4,11 +4,10 @@
  * Centralized service for managing reputation points and rewards
  * Tracks all point transactions and ensures no duplicate awards
  */
+import { prisma } from '@/lib/database-service';
+import { logger } from '@/lib/logger';
 
-import { prisma } from '@/lib/database-service'
-import { logger } from '@/lib/logger'
-import type { JsonValue } from '@/types/common'
-
+import type { JsonValue } from '@/types/common';
 
 // Point award amounts
 export const POINTS = {
@@ -20,9 +19,9 @@ export const POINTS = {
   SHARE_ACTION: 1000,
   SHARE_TO_TWITTER: 1000,
   REFERRAL_SIGNUP: 250,
-} as const
+} as const;
 
-export type PointsReason = 
+export type PointsReason =
   | 'initial_signup'
   | 'profile_completion'
   | 'farcaster_link'
@@ -32,14 +31,14 @@ export type PointsReason =
   | 'share_to_twitter'
   | 'referral_signup'
   | 'admin_award'
-  | 'admin_deduction'
+  | 'admin_deduction';
 
 interface AwardPointsResult {
-  success: boolean
-  pointsAwarded: number
-  newTotal: number
-  alreadyAwarded?: boolean
-  error?: string
+  success: boolean;
+  pointsAwarded: number;
+  newTotal: number;
+  alreadyAwarded?: boolean;
+  error?: string;
 }
 
 export class PointsService {
@@ -62,7 +61,7 @@ export class PointsService {
         pointsAwardedForTwitter: true,
         pointsAwardedForWallet: true,
       },
-    })
+    });
 
     if (!user) {
       return {
@@ -70,53 +69,52 @@ export class PointsService {
         pointsAwarded: 0,
         newTotal: 0,
         error: 'User not found',
-      }
+      };
     }
 
     // Check if points were already awarded for this reason
-    const alreadyAwarded = this.checkAlreadyAwarded(user, reason)
+    const alreadyAwarded = this.checkAlreadyAwarded(user, reason);
     if (alreadyAwarded) {
       return {
         success: true,
         pointsAwarded: 0,
         newTotal: user.reputationPoints,
         alreadyAwarded: true,
-      }
+      };
     }
 
-    const pointsBefore = user.reputationPoints
-    const pointsAfter = pointsBefore + amount
+    const pointsBefore = user.reputationPoints;
+    const pointsAfter = pointsBefore + amount;
 
     // Update user points and tracking flags in a transaction
     const updateData: Record<string, JsonValue> = {
       reputationPoints: pointsAfter,
-    }
+    };
 
     // Set the appropriate tracking flag
     switch (reason) {
       case 'profile_completion':
-        updateData.pointsAwardedForProfile = true
-        break
+        updateData.pointsAwardedForProfile = true;
+        break;
       case 'farcaster_link':
-        updateData.pointsAwardedForFarcaster = true
-        break
+        updateData.pointsAwardedForFarcaster = true;
+        break;
       case 'twitter_link':
-        updateData.pointsAwardedForTwitter = true
-        break
+        updateData.pointsAwardedForTwitter = true;
+        break;
       case 'wallet_connect':
-        updateData.pointsAwardedForWallet = true
-        break
+        updateData.pointsAwardedForWallet = true;
+        break;
     }
 
     // Execute in transaction
-    await prisma.$transaction([
-      // Update user points
-      prisma.user.update({
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
         where: { id: userId },
         data: updateData,
-      }),
-      // Create transaction record
-      prisma.pointsTransaction.create({
+      });
+
+      await tx.pointsTransaction.create({
         data: {
           userId,
           amount,
@@ -125,64 +123,79 @@ export class PointsService {
           reason,
           metadata: metadata ? JSON.stringify(metadata) : null,
         },
-      }),
-    ])
+      });
+    });
 
     logger.info(
       `Awarded ${amount} points to user ${userId} for ${reason}`,
       { userId, amount, reason, pointsBefore, pointsAfter },
       'PointsService'
-    )
+    );
 
     return {
       success: true,
       pointsAwarded: amount,
       newTotal: pointsAfter,
-    }
+    };
   }
 
   /**
    * Award points for profile completion (username + image + bio)
    * This consolidates what were previously separate rewards
    */
-  static async awardProfileCompletion(userId: string): Promise<AwardPointsResult> {
-    return this.awardPoints(userId, POINTS.PROFILE_COMPLETION, 'profile_completion')
+  static async awardProfileCompletion(
+    userId: string
+  ): Promise<AwardPointsResult> {
+    return this.awardPoints(
+      userId,
+      POINTS.PROFILE_COMPLETION,
+      'profile_completion'
+    );
   }
 
   /**
    * Award points for Farcaster link
    */
-  static async awardFarcasterLink(userId: string, farcasterUsername?: string): Promise<AwardPointsResult> {
+  static async awardFarcasterLink(
+    userId: string,
+    farcasterUsername?: string
+  ): Promise<AwardPointsResult> {
     return this.awardPoints(
       userId,
       POINTS.FARCASTER_LINK,
       'farcaster_link',
       farcasterUsername ? { farcasterUsername } : undefined
-    )
+    );
   }
 
   /**
    * Award points for Twitter link
    */
-  static async awardTwitterLink(userId: string, twitterUsername?: string): Promise<AwardPointsResult> {
+  static async awardTwitterLink(
+    userId: string,
+    twitterUsername?: string
+  ): Promise<AwardPointsResult> {
     return this.awardPoints(
       userId,
       POINTS.TWITTER_LINK,
       'twitter_link',
       twitterUsername ? { twitterUsername } : undefined
-    )
+    );
   }
 
   /**
    * Award points for wallet connection
    */
-  static async awardWalletConnect(userId: string, walletAddress?: string): Promise<AwardPointsResult> {
+  static async awardWalletConnect(
+    userId: string,
+    walletAddress?: string
+  ): Promise<AwardPointsResult> {
     return this.awardPoints(
       userId,
       POINTS.WALLET_CONNECT,
       'wallet_connect',
       walletAddress ? { walletAddress } : undefined
-    )
+    );
   }
 
   /**
@@ -194,14 +207,15 @@ export class PointsService {
     contentType: string,
     contentId?: string
   ): Promise<AwardPointsResult> {
-    const amount = platform === 'twitter' ? POINTS.SHARE_TO_TWITTER : POINTS.SHARE_ACTION
-    const reason = platform === 'twitter' ? 'share_to_twitter' : 'share_action'
+    const amount =
+      platform === 'twitter' ? POINTS.SHARE_TO_TWITTER : POINTS.SHARE_ACTION;
+    const reason = platform === 'twitter' ? 'share_to_twitter' : 'share_action';
 
     return this.awardPoints(userId, amount, reason, {
       platform,
       contentType,
       ...(contentId ? { contentId } : {}),
-    })
+    });
   }
 
   /**
@@ -216,17 +230,17 @@ export class PointsService {
       POINTS.REFERRAL_SIGNUP,
       'referral_signup',
       { referredUserId }
-    )
+    );
 
     // Also increment referral count
     if (result.success) {
       await prisma.user.update({
         where: { id: referrerId },
         data: { referralCount: { increment: 1 } },
-      })
+      });
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -234,24 +248,24 @@ export class PointsService {
    */
   private static checkAlreadyAwarded(
     user: {
-      pointsAwardedForProfile: boolean
-      pointsAwardedForFarcaster: boolean
-      pointsAwardedForTwitter: boolean
-      pointsAwardedForWallet: boolean
+      pointsAwardedForProfile: boolean;
+      pointsAwardedForFarcaster: boolean;
+      pointsAwardedForTwitter: boolean;
+      pointsAwardedForWallet: boolean;
     },
     reason: PointsReason
   ): boolean {
     switch (reason) {
       case 'profile_completion':
-        return user.pointsAwardedForProfile
+        return user.pointsAwardedForProfile;
       case 'farcaster_link':
-        return user.pointsAwardedForFarcaster
+        return user.pointsAwardedForFarcaster;
       case 'twitter_link':
-        return user.pointsAwardedForTwitter
+        return user.pointsAwardedForTwitter;
       case 'wallet_connect':
-        return user.pointsAwardedForWallet
+        return user.pointsAwardedForWallet;
       default:
-        return false // For share actions and referrals, allow multiple awards
+        return false; // For share actions and referrals, allow multiple awards
     }
   }
 
@@ -269,17 +283,17 @@ export class PointsService {
           take: 50,
         },
       },
-    })
+    });
 
     if (!user) {
-      return null
+      return null;
     }
 
     return {
       points: user.reputationPoints,
       referralCount: user.referralCount,
       transactions: user.pointsTransactions,
-    }
+    };
   }
 
   /**
@@ -290,7 +304,7 @@ export class PointsService {
     pageSize: number = 100,
     minPoints: number = 10000
   ) {
-    const skip = (page - 1) * pageSize
+    const skip = (page - 1) * pageSize;
 
     const users = await prisma.user.findMany({
       where: {
@@ -306,7 +320,7 @@ export class PointsService {
         referralCount: true,
         createdAt: true,
       },
-    })
+    });
 
     const actors = await prisma.actor.findMany({
       where: {
@@ -322,10 +336,10 @@ export class PointsService {
         tier: true,
         createdAt: true,
       },
-    })
+    });
 
     const combined = [
-      ...users.map(user => ({
+      ...users.map((user) => ({
         id: user.id,
         username: user.username,
         displayName: user.displayName,
@@ -336,7 +350,7 @@ export class PointsService {
         isActor: false,
         tier: null,
       })),
-      ...actors.map(actor => ({
+      ...actors.map((actor) => ({
         id: actor.id,
         username: actor.id,
         displayName: actor.name,
@@ -347,16 +361,16 @@ export class PointsService {
         isActor: true,
         tier: actor.tier,
       })),
-    ]
+    ];
 
-    combined.sort((a, b) => b.reputationPoints - a.reputationPoints)
+    combined.sort((a, b) => b.reputationPoints - a.reputationPoints);
 
-    const paginatedResults = combined.slice(skip, skip + pageSize)
+    const paginatedResults = combined.slice(skip, skip + pageSize);
 
     const resultsWithRank = paginatedResults.map((entry, index) => ({
       ...entry,
       rank: skip + index + 1,
-    }))
+    }));
 
     return {
       users: resultsWithRank,
@@ -364,7 +378,7 @@ export class PointsService {
       page,
       pageSize,
       totalPages: Math.ceil(combined.length / pageSize),
-    }
+    };
   }
 
   /**
@@ -374,10 +388,10 @@ export class PointsService {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { reputationPoints: true, isActor: true },
-    })
+    });
 
     if (!user || user.isActor) {
-      return null
+      return null;
     }
 
     // Count users with more points
@@ -386,7 +400,7 @@ export class PointsService {
         reputationPoints: { gt: user.reputationPoints },
         isActor: false,
       },
-    })
+    });
 
     // Count actors with more points
     const higherActorsCount = await prisma.actor.count({
@@ -394,9 +408,8 @@ export class PointsService {
         reputationPoints: { gt: user.reputationPoints },
         hasPool: true,
       },
-    })
+    });
 
-    return higherUsersCount + higherActorsCount + 1
+    return higherUsersCount + higherActorsCount + 1;
   }
 }
-

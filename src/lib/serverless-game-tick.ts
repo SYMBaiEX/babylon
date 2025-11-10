@@ -1,22 +1,23 @@
 /**
  * Serverless Game Tick Logic
- * 
+ *
  * Lightweight game content generation for Vercel Cron Jobs.
  * Executes a single "tick" of game logic without persistent processes.
- * 
+ *
  * This replaces the continuous daemon with stateless, scheduled execution.
- * 
+ *
  * ✅ Vercel-compatible: No filesystem access, completes in <60s
  */
-
-import { prisma } from './prisma';
-import { logger } from './logger';
-import { BabylonLLMClient } from '@/generator/llm/openai-client';
-import { ArticleGenerator } from '@/engine/ArticleGenerator';
-import { db } from './database-service';
-import { calculateTrendingIfNeeded } from './services/trending-calculation-service';
 import type { Prisma } from '@prisma/client';
-import type { WorldEvent, ActorTier } from '@/shared/types';
+
+import { ArticleGenerator } from '@/engine/ArticleGenerator';
+import { BabylonLLMClient } from '@/generator/llm/openai-client';
+import type { ActorTier, WorldEvent } from '@/shared/types';
+
+import { db } from './database-service';
+import { logger } from './logger';
+import { prisma } from './prisma';
+import { calculateTrendingIfNeeded } from './services/trending-calculation-service';
 
 export interface GameTickResult {
   postsCreated: number;
@@ -39,7 +40,11 @@ export async function executeGameTick(): Promise<GameTickResult> {
   const budgetMs = Number(process.env.GAME_TICK_BUDGET_MS || 45000);
   const deadline = startedAt + budgetMs;
 
-  logger.info('Executing game tick', { timestamp: timestamp.toISOString() }, 'GameTick');
+  logger.info(
+    'Executing game tick',
+    { timestamp: timestamp.toISOString() },
+    'GameTick'
+  );
 
   // Initialize result counters
   const result: GameTickResult = {
@@ -71,9 +76,13 @@ export async function executeGameTick(): Promise<GameTickResult> {
       },
     });
 
-    logger.info(`Found ${activeQuestions.length} active questions`, { count: activeQuestions.length }, 'GameTick');
+    logger.info(
+      `Found ${activeQuestions.length} active questions`,
+      { count: activeQuestions.length },
+      'GameTick'
+    );
 
-    const questionsToResolve = activeQuestions.filter(q => {
+    const questionsToResolve = activeQuestions.filter((q) => {
       if (!q.resolutionDate) return false;
       const resolutionDate = new Date(q.resolutionDate);
       return resolutionDate <= timestamp;
@@ -81,21 +90,29 @@ export async function executeGameTick(): Promise<GameTickResult> {
 
     if (questionsToResolve.length > 0) {
       try {
-        logger.info(`Resolving ${questionsToResolve.length} questions`, { count: questionsToResolve.length }, 'GameTick');
-        
+        logger.info(
+          `Resolving ${questionsToResolve.length} questions`,
+          { count: questionsToResolve.length },
+          'GameTick'
+        );
+
         await prisma.question.updateMany({
           where: {
-            id: { in: questionsToResolve.map(q => q.id) },
+            id: { in: questionsToResolve.map((q) => q.id) },
           },
           data: { status: 'resolved' },
         });
-        
+
         for (const question of questionsToResolve) {
           try {
             await resolveQuestionPayouts(question.questionNumber);
             result.questionsResolved++;
           } catch (error) {
-            logger.error('Failed to resolve question payout', { error, questionNumber: question.questionNumber }, 'GameTick');
+            logger.error(
+              'Failed to resolve question payout',
+              { error, questionNumber: question.questionNumber },
+              'GameTick'
+            );
           }
         }
       } catch (error) {
@@ -107,20 +124,36 @@ export async function executeGameTick(): Promise<GameTickResult> {
     if (llmClient) {
       if (Date.now() < deadline) {
         try {
-          const postsGenerated = await generatePosts(activeQuestions.slice(0, 3), timestamp, llmClient, deadline);
+          const postsGenerated = await generatePosts(
+            activeQuestions.slice(0, 3),
+            timestamp,
+            llmClient,
+            deadline
+          );
           result.postsCreated = postsGenerated;
         } catch (error) {
           logger.error('Failed to generate posts', { error }, 'GameTick');
         }
       } else {
-        logger.warn('Skipping post generation – tick budget exceeded', { budgetMs }, 'GameTick');
+        logger.warn(
+          'Skipping post generation – tick budget exceeded',
+          { budgetMs },
+          'GameTick'
+        );
       }
     } else {
-      logger.warn('Skipping post generation – LLM unavailable', undefined, 'GameTick');
+      logger.warn(
+        'Skipping post generation – LLM unavailable',
+        undefined,
+        'GameTick'
+      );
     }
 
     try {
-      const eventsGenerated = await generateEvents(activeQuestions.slice(0, 3), timestamp);
+      const eventsGenerated = await generateEvents(
+        activeQuestions.slice(0, 3),
+        timestamp
+      );
       result.eventsCreated = eventsGenerated;
     } catch (error) {
       logger.error('Failed to generate events', { error }, 'GameTick');
@@ -129,16 +162,28 @@ export async function executeGameTick(): Promise<GameTickResult> {
     if (llmClient) {
       if (Date.now() < deadline) {
         try {
-          const articlesGenerated = await generateArticles(timestamp, llmClient, deadline);
+          const articlesGenerated = await generateArticles(
+            timestamp,
+            llmClient,
+            deadline
+          );
           result.articlesCreated = articlesGenerated;
         } catch (error) {
           logger.error('Failed to generate articles', { error }, 'GameTick');
         }
       } else {
-        logger.warn('Skipping article generation – tick budget exceeded', { budgetMs }, 'GameTick');
+        logger.warn(
+          'Skipping article generation – tick budget exceeded',
+          { budgetMs },
+          'GameTick'
+        );
       }
     } else {
-      logger.warn('Skipping article generation – LLM unavailable', undefined, 'GameTick');
+      logger.warn(
+        'Skipping article generation – LLM unavailable',
+        undefined,
+        'GameTick'
+      );
     }
 
     try {
@@ -149,15 +194,28 @@ export async function executeGameTick(): Promise<GameTickResult> {
     }
 
     try {
-      const currentActiveCount = activeQuestions.length - result.questionsResolved;
+      const currentActiveCount =
+        activeQuestions.length - result.questionsResolved;
       if (currentActiveCount < 10) {
         if (llmClient && Date.now() < deadline) {
-          const questionsGenerated = await generateNewQuestions(Math.min(3, 15 - currentActiveCount), llmClient, deadline);
+          const questionsGenerated = await generateNewQuestions(
+            Math.min(3, 15 - currentActiveCount),
+            llmClient,
+            deadline
+          );
           result.questionsCreated = questionsGenerated;
         } else if (!llmClient) {
-          logger.warn('Skipping question generation – LLM unavailable', undefined, 'GameTick');
+          logger.warn(
+            'Skipping question generation – LLM unavailable',
+            undefined,
+            'GameTick'
+          );
         } else {
-          logger.warn('Skipping question generation – tick budget exceeded', { budgetMs }, 'GameTick');
+          logger.warn(
+            'Skipping question generation – tick budget exceeded',
+            { budgetMs },
+            'GameTick'
+          );
         }
       }
     } catch (error) {
@@ -197,7 +255,6 @@ export async function executeGameTick(): Promise<GameTickResult> {
 
     const durationMs = Date.now() - startedAt;
     logger.info('Game tick completed', { ...result, durationMs }, 'GameTick');
-
   } catch (error) {
     logger.error('Critical error in game tick', { error }, 'GameTick');
     throw error;
@@ -233,16 +290,24 @@ async function generatePosts(
   for (let i = 0; i < postsToGenerate && i < questions.length; i++) {
     // Check deadline before each post generation
     if (Date.now() > deadlineMs) {
-      logger.warn('Post generation aborted due to tick budget limit', { generated: postsCreated }, 'GameTick');
+      logger.warn(
+        'Post generation aborted due to tick budget limit',
+        { generated: postsCreated },
+        'GameTick'
+      );
       break;
     }
 
     const question = questions[i];
     const actor = actors[i % actors.length];
-    
+
     // Defensive checks for question and actor validity
     if (!question || !actor || !actor.name) {
-      logger.warn('Missing question or actor data', { questionIndex: i }, 'GameTick');
+      logger.warn(
+        'Missing question or actor data',
+        { questionIndex: i },
+        'GameTick'
+      );
       continue;
     }
 
@@ -256,11 +321,11 @@ Return your response as JSON in this exact format:
     try {
       const response = await llm.generateJSON<{ post: string }>(
         prompt,
-        { 
+        {
           properties: {
-            post: { type: 'string' }
+            post: { type: 'string' },
           },
-          required: ['post'] 
+          required: ['post'],
         },
         { temperature: 0.9, maxTokens: 200 }
       );
@@ -281,7 +346,11 @@ Return your response as JSON in this exact format:
       });
       postsCreated++;
     } catch (error) {
-      logger.error('Failed to generate post', { error, questionIndex: i, actorId: actor.id, questionId: question.id }, 'GameTick');
+      logger.error(
+        'Failed to generate post',
+        { error, questionIndex: i, actorId: actor.id, questionId: question.id },
+        'GameTick'
+      );
       // Continue with next post instead of failing entire batch
     }
   }
@@ -292,7 +361,10 @@ Return your response as JSON in this exact format:
 /**
  * Generate events
  */
-async function generateEvents(questions: Array<{ id: string; text: string; questionNumber: number }>, timestamp: Date): Promise<number> {
+async function generateEvents(
+  questions: Array<{ id: string; text: string; questionNumber: number }>,
+  timestamp: Date
+): Promise<number> {
   if (questions.length === 0) return 0;
 
   let eventsCreated = 0;
@@ -301,9 +373,13 @@ async function generateEvents(questions: Array<{ id: string; text: string; quest
   for (let i = 0; i < eventsToGenerate; i++) {
     try {
       const question = questions[i];
-      
+
       if (!question || !question.text) {
-        logger.warn('Missing question data for event', { questionIndex: i }, 'GameTick');
+        logger.warn(
+          'Missing question data for event',
+          { questionIndex: i },
+          'GameTick'
+        );
         continue;
       }
 
@@ -321,7 +397,11 @@ async function generateEvents(questions: Array<{ id: string; text: string; quest
       });
       eventsCreated++;
     } catch (error) {
-      logger.error('Failed to generate event', { error, questionIndex: i }, 'GameTick');
+      logger.error(
+        'Failed to generate event',
+        { error, questionIndex: i },
+        'GameTick'
+      );
       // Continue with next event
     }
   }
@@ -360,7 +440,7 @@ async function generateArticles(
   // Get actors for journalist bylines and relationship context
   const actors = await prisma.actor.findMany({
     take: 50,
-      orderBy: { tier: 'asc' }, // Higher tier actors first
+    orderBy: { tier: 'asc' }, // Higher tier actors first
   });
 
   if (actors.length === 0) {
@@ -380,7 +460,11 @@ async function generateArticles(
   for (const event of eventsTocover) {
     // Check deadline before each article generation
     if (Date.now() > deadlineMs) {
-      logger.warn('Article generation aborted due to tick budget limit', { articlesCreated }, 'GameTick');
+      logger.warn(
+        'Article generation aborted due to tick budget limit',
+        { articlesCreated },
+        'GameTick'
+      );
       break;
     }
 
@@ -395,7 +479,7 @@ async function generateArticles(
         day: event.dayNumber || 0,
       };
 
-      const organizations = newsOrgs.map(org => ({
+      const organizations = newsOrgs.map((org) => ({
         id: org.id,
         name: org.name || 'Unknown Organization',
         description: org.description || '',
@@ -406,8 +490,8 @@ async function generateArticles(
       }));
 
       const actorList = actors
-        .filter(a => a && a.id && a.name) // Filter out invalid actors
-        .map(a => ({
+        .filter((a) => a && a.id && a.name) // Filter out invalid actors
+        .map((a) => ({
           id: a.id,
           name: a.name,
           description: a.description || '',
@@ -423,7 +507,11 @@ async function generateArticles(
         }));
 
       if (actorList.length === 0) {
-        logger.warn('No valid actors for article generation', { eventId: event.id }, 'GameTick');
+        logger.warn(
+          'No valid actors for article generation',
+          { eventId: event.id },
+          'GameTick'
+        );
         continue;
       }
 
@@ -436,7 +524,11 @@ async function generateArticles(
 
       for (const article of articles) {
         if (!article || !article.authorOrgId) {
-          logger.warn('Invalid article generated', { eventId: event.id }, 'GameTick');
+          logger.warn(
+            'Invalid article generated',
+            { eventId: event.id },
+            'GameTick'
+          );
           continue;
         }
 
@@ -460,7 +552,11 @@ async function generateArticles(
         articlesCreated++;
       }
     } catch (error) {
-      logger.error('Failed to generate article from event', { error, eventId: event.id }, 'GameTick');
+      logger.error(
+        'Failed to generate article from event',
+        { error, eventId: event.id },
+        'GameTick'
+      );
     }
   }
 
@@ -481,15 +577,20 @@ async function updateMarketPrices(timestamp: Date): Promise<number> {
   if (organizations.length === 0) return 0;
 
   // Prepare batch updates and stock price records
-  const updates: Array<{ id: string; newPrice: number; oldPrice: number; change: number }> = [];
-  
+  const updates: Array<{
+    id: string;
+    newPrice: number;
+    oldPrice: number;
+    change: number;
+  }> = [];
+
   for (const org of organizations) {
     if (!org.currentPrice) continue;
 
     // Small random price movement (-2% to +2%)
     const change = (Math.random() - 0.5) * 0.04;
     const newPrice = Number(org.currentPrice) * (1 + change);
-    
+
     updates.push({
       id: org.id,
       newPrice,
@@ -498,25 +599,26 @@ async function updateMarketPrices(timestamp: Date): Promise<number> {
     });
   }
 
-  await prisma.$transaction([
-    // Update all organization prices
-    ...updates.map(u =>
-      prisma.organization.update({
-        where: { id: u.id },
-        data: { currentPrice: u.newPrice },
-      })
-    ),
-    // Create all stock price records
-    prisma.stockPrice.createMany({
-      data: updates.map(u => ({
+  await prisma.$transaction(async (tx) => {
+    await Promise.all(
+      updates.map((u) =>
+        tx.organization.update({
+          where: { id: u.id },
+          data: { currentPrice: u.newPrice },
+        })
+      )
+    );
+
+    await tx.stockPrice.createMany({
+      data: updates.map((u) => ({
         organizationId: u.id,
         price: u.newPrice,
         change: u.newPrice - u.oldPrice,
         changePercent: u.change * 100,
         timestamp: timestamp,
       })),
-    }),
-  ]);
+    });
+  });
 
   return updates.length;
 }
@@ -533,7 +635,11 @@ async function generateNewQuestions(
 
   for (let i = 0; i < count; i++) {
     if (Date.now() > deadlineMs) {
-      logger.warn('Question generation aborted due to tick budget limit', { questionsCreated }, 'GameTick');
+      logger.warn(
+        'Question generation aborted due to tick budget limit',
+        { questionsCreated },
+        'GameTick'
+      );
       break;
     }
 
@@ -545,21 +651,29 @@ Return your response as JSON in this exact format:
   "resolutionCriteria": "Clear criteria for resolution"
 }`;
 
-    let response: { question: string; resolutionCriteria: string } | null = null;
+    let response: { question: string; resolutionCriteria: string } | null =
+      null;
     try {
-      response = await llm.generateJSON<{ question: string; resolutionCriteria: string }>(
+      response = await llm.generateJSON<{
+        question: string;
+        resolutionCriteria: string;
+      }>(
         prompt,
-        { 
+        {
           properties: {
             question: { type: 'string' },
-            resolutionCriteria: { type: 'string' }
+            resolutionCriteria: { type: 'string' },
           },
-          required: ['question', 'resolutionCriteria'] 
+          required: ['question', 'resolutionCriteria'],
         },
         { temperature: 0.8, maxTokens: 300 }
       );
     } catch (error) {
-      logger.warn('Failed to generate new question via LLM', { error }, 'GameTick');
+      logger.warn(
+        'Failed to generate new question via LLM',
+        { error },
+        'GameTick'
+      );
       continue;
     }
 
@@ -577,7 +691,11 @@ Return your response as JSON in this exact format:
       });
       nextQuestionNumber = (lastQuestion?.questionNumber || 0) + 1;
     } catch (error) {
-      logger.error('Failed to calculate next question number', { error }, 'GameTick');
+      logger.error(
+        'Failed to calculate next question number',
+        { error },
+        'GameTick'
+      );
       continue;
     }
 
@@ -609,7 +727,11 @@ Return your response as JSON in this exact format:
 
       questionsCreated++;
     } catch (error) {
-      logger.error('Failed to persist generated question', { error }, 'GameTick');
+      logger.error(
+        'Failed to persist generated question',
+        { error },
+        'GameTick'
+      );
     }
   }
 
@@ -642,12 +764,13 @@ async function resolveQuestionPayouts(questionNumber: number): Promise<void> {
 
   // Pay out winners
   for (const position of positions) {
-    const isWinner = (position.side === true && question.outcome) || 
-                     (position.side === false && !question.outcome);
+    const isWinner =
+      (position.side === true && question.outcome) ||
+      (position.side === false && !question.outcome);
 
     if (isWinner) {
       const payout = Number(position.shares) * 2; // Simplified: 2x payout for winners
-      
+
       await prisma.user.update({
         where: { id: position.userId },
         data: {
@@ -658,7 +781,7 @@ async function resolveQuestionPayouts(questionNumber: number): Promise<void> {
       });
     }
   }
-  
+
   // Mark market as resolved
   await prisma.market.update({
     where: { id: market.id },
@@ -686,15 +809,16 @@ async function updateWidgetCaches(): Promise<number> {
 
     const perpMarketsWithStats = await Promise.all(
       companies
-        .filter(company => company && company.id && company.name) // Filter out invalid companies
+        .filter((company) => company && company.id && company.name) // Filter out invalid companies
         .map(async (company) => {
           try {
-            const currentPrice = company.currentPrice || company.initialPrice || 100;
-            
+            const currentPrice =
+              company.currentPrice || company.initialPrice || 100;
+
             const priceHistory = await db.getPriceHistory(company.id, 1440);
-            
+
             let changePercent24h = 0;
-            
+
             if (priceHistory && priceHistory.length > 0) {
               const price24hAgo = priceHistory[priceHistory.length - 1];
               if (price24hAgo && price24hAgo.price) {
@@ -702,7 +826,7 @@ async function updateWidgetCaches(): Promise<number> {
                 changePercent24h = (change24h / price24hAgo.price) * 100;
               }
             }
-            
+
             return {
               ticker: company.id.toUpperCase().replace(/-/g, ''),
               organizationId: company.id,
@@ -712,7 +836,11 @@ async function updateWidgetCaches(): Promise<number> {
               volume24h: 0,
             };
           } catch (error) {
-            logger.warn('Failed to get price stats for company', { companyId: company.id, error }, 'GameTick');
+            logger.warn(
+              'Failed to get price stats for company',
+              { companyId: company.id, error },
+              'GameTick'
+            );
             // Return a safe default
             return {
               ticker: company.id.toUpperCase().replace(/-/g, ''),
@@ -727,7 +855,9 @@ async function updateWidgetCaches(): Promise<number> {
     );
 
     const topPerpGainers = perpMarketsWithStats
-      .sort((a, b) => Math.abs(b.changePercent24h) - Math.abs(a.changePercent24h))
+      .sort(
+        (a, b) => Math.abs(b.changePercent24h) - Math.abs(a.changePercent24h)
+      )
       .slice(0, 3);
 
     // 2. Get top 3 pool gainers
@@ -742,22 +872,31 @@ async function updateWidgetCaches(): Promise<number> {
     });
 
     const poolsWithReturn = pools
-      .filter(pool => pool && pool.id && pool.name) // Filter out invalid pools
+      .filter((pool) => pool && pool.id && pool.name) // Filter out invalid pools
       .map((pool) => {
         const totalDeposits = parseFloat(pool.totalDeposits.toString());
         const totalValue = parseFloat(pool.totalValue.toString());
-        const totalReturn = totalDeposits > 0 
-          ? ((totalValue - totalDeposits) / totalDeposits) * 100 
-          : 0;
+        const totalReturn =
+          totalDeposits > 0
+            ? ((totalValue - totalDeposits) / totalDeposits) * 100
+            : 0;
 
         // Safely extract npcActor name with multiple fallbacks
         let npcActorName = 'Unknown';
         try {
-          if (pool.npcActor && typeof pool.npcActor === 'object' && 'name' in pool.npcActor) {
+          if (
+            pool.npcActor &&
+            typeof pool.npcActor === 'object' &&
+            'name' in pool.npcActor
+          ) {
             npcActorName = pool.npcActor.name || 'Unknown';
           }
         } catch (e) {
-          logger.warn('Failed to extract npcActor name', { poolId: pool.id, error: e }, 'GameTick');
+          logger.warn(
+            'Failed to extract npcActor name',
+            { poolId: pool.id, error: e },
+            'GameTick'
+          );
         }
 
         return {
@@ -793,17 +932,17 @@ async function updateWidgetCaches(): Promise<number> {
       const noShares = market.noShares ? Number(market.noShares) : 0;
       const totalShares = yesShares + noShares;
       const totalVolume = totalShares * 0.5;
-      
-      const ageInHours = (Date.now() - market.createdAt.getTime()) / (1000 * 60 * 60);
-      const timeWeight = ageInHours < 24 
-        ? 2.0 
-        : Math.max(1.0, 2.0 - (ageInHours - 24) / (6 * 24));
-      
+
+      const ageInHours =
+        (Date.now() - market.createdAt.getTime()) / (1000 * 60 * 60);
+      const timeWeight =
+        ageInHours < 24
+          ? 2.0
+          : Math.max(1.0, 2.0 - (ageInHours - 24) / (6 * 24));
+
       const timeWeightedScore = totalVolume * timeWeight;
-      
-      const yesPrice = totalShares > 0 
-        ? yesShares / totalShares 
-        : 0.5;
+
+      const yesPrice = totalShares > 0 ? yesShares / totalShares : 0.5;
 
       return {
         id: parseInt(market.id) || 0,
