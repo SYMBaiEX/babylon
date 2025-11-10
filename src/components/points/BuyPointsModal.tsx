@@ -1,113 +1,132 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { X, DollarSign, Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useAuth } from '@/hooks/useAuth'
-import { toast } from 'sonner'
-import { useSendTransaction, usePrivy } from '@privy-io/react-auth'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { useEffect, useState } from 'react';
+
+import { usePrivy } from '@privy-io/react-auth';
+import {
+  AlertCircle,
+  CheckCircle2,
+  DollarSign,
+  Sparkles,
+  X,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import type { Address } from 'viem';
+
+import { BouncingLogo } from '@/components/shared/BouncingLogo';
+
+import { cn } from '@/lib/utils';
+import { WALLET_ERROR_MESSAGES } from '@/lib/wallet-utils';
+
+import { useAuth } from '@/hooks/useAuth';
+import { useBuyPointsTx } from '@/hooks/useBuyPointsTx';
 
 interface BuyPointsModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onSuccess?: () => void
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess?: () => void;
 }
 
-type PaymentStep = 'input' | 'payment' | 'verifying' | 'success' | 'error'
+type PaymentStep = 'input' | 'payment' | 'verifying' | 'success' | 'error';
 
 interface PaymentRequest {
-  requestId: string
-  to: string
-  from: string
-  amount: string
+  requestId: string;
+  to: string;
+  from: string;
+  amount: string;
 }
 
-export function BuyPointsModal({ isOpen, onClose, onSuccess }: BuyPointsModalProps) {
-  const { user, wallet } = useAuth()
-  const { getAccessToken } = usePrivy()
-  const { sendTransaction } = useSendTransaction()
-  
-  const [amountUSD, setAmountUSD] = useState('10')
-  const [step, setStep] = useState<PaymentStep>('input')
-  const [loading, setLoading] = useState(false)
-  const [_paymentRequestId, setPaymentRequestId] = useState<string | null>(null)
-  const [txHash, setTxHash] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [pointsAwarded, setPointsAwarded] = useState(0)
+export function BuyPointsModal({
+  isOpen,
+  onClose,
+  onSuccess,
+}: BuyPointsModalProps) {
+  const { user, smartWalletAddress, smartWalletReady } = useAuth();
+  const { getAccessToken } = usePrivy();
+  const { sendPointsPayment } = useBuyPointsTx();
+
+  const [amountUSD, setAmountUSD] = useState('10');
+  const [step, setStep] = useState<PaymentStep>('input');
+  const [loading, setLoading] = useState(false);
+  const [_paymentRequestId, setPaymentRequestId] = useState<string | null>(
+    null
+  );
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pointsAwarded, setPointsAwarded] = useState(0);
 
   // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
       setTimeout(() => {
-        setAmountUSD('10')
-        setStep('input')
-        setLoading(false)
-        setPaymentRequestId(null)
-        setTxHash(null)
-        setError(null)
-        setPointsAwarded(0)
-      }, 300)
+        setAmountUSD('10');
+        setStep('input');
+        setLoading(false);
+        setPaymentRequestId(null);
+        setTxHash(null);
+        setError(null);
+        setPointsAwarded(0);
+      }, 300);
     }
-  }, [isOpen])
+  }, [isOpen]);
 
   // Handle escape key and body scroll lock
   useEffect(() => {
     if (!isOpen) {
-      document.body.style.overflow = ''
-      return
+      document.body.style.overflow = '';
+      return;
     }
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !loading && step === 'input') {
-        onClose()
+        onClose();
       }
-    }
+    };
 
-    document.addEventListener('keydown', handleEscape)
-    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', handleEscape);
+    document.body.style.overflow = 'hidden';
 
     return () => {
-      document.removeEventListener('keydown', handleEscape)
-      document.body.style.overflow = ''
-    }
-  }, [isOpen, onClose, loading, step])
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = '';
+    };
+  }, [isOpen, onClose, loading, step]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      document.body.style.overflow = ''
-    }
-  }, [])
+      document.body.style.overflow = '';
+    };
+  }, []);
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
-  const amountNum = parseFloat(amountUSD) || 0
-  const pointsAmount = Math.floor(amountNum * 100)
+  const amountNum = parseFloat(amountUSD) || 0;
+  const pointsAmount = Math.floor(amountNum * 100);
 
   const handleCreatePayment = async () => {
-    if (!user?.walletAddress) {
-      toast.error('Please connect your wallet first')
-      return
+    if (!user || !smartWalletAddress || !smartWalletReady) {
+      toast.error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
+      return;
     }
 
     if (amountNum < 1) {
-      toast.error('Minimum purchase is $1')
-      return
+      toast.error('Minimum purchase is $1');
+      return;
     }
 
     if (amountNum > 1000) {
-      toast.error('Maximum purchase is $1000')
-      return
+      toast.error('Maximum purchase is $1000');
+      return;
     }
 
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
 
     try {
-      const token = await getAccessToken()
+      const token = await getAccessToken();
       if (!token) {
-        throw new Error('Authentication required')
+        throw new Error('Authentication required');
       }
 
       // Create payment request
@@ -115,104 +134,87 @@ export function BuyPointsModal({ isOpen, onClose, onSuccess }: BuyPointsModalPro
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           amountUSD: amountNum,
-          fromAddress: user.walletAddress,
+          fromAddress: smartWalletAddress,
         }),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to create payment request')
+        throw new Error(data.error || 'Failed to create payment request');
       }
 
-      setPaymentRequestId(data.paymentRequest.requestId)
-      setStep('payment')
-      
+      setPaymentRequestId(data.paymentRequest.requestId);
+      setStep('payment');
+
       // Initiate blockchain transaction
-      await handleSendPayment(data.paymentRequest)
+      await handleSendPayment(data.paymentRequest);
     } catch (err) {
-      console.error('Failed to create payment:', err)
-      setError(err instanceof Error ? err.message : 'Failed to create payment')
-      setStep('error')
-      toast.error('Failed to create payment request')
+      console.error('Failed to create payment:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create payment');
+      setStep('error');
+      toast.error('Failed to create payment request');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleSendPayment = async (paymentRequest: PaymentRequest) => {
-    setLoading(true)
-    setStep('payment')
+    setLoading(true);
+    setStep('payment');
 
     try {
-      if (!wallet?.address) {
-        throw new Error('Please connect your wallet to continue')
+      if (!smartWalletReady || !smartWalletAddress) {
+        throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
       }
 
-      // Send transaction using Privy with gas sponsorship
-      const { hash } = await sendTransaction(
-        {
-          to: paymentRequest.to as `0x${string}`,
-          value: paymentRequest.amount as `0x${string}`,
-          chainId: 84532, // Base Sepolia
-        },
-        {
-          sponsor: true, // Enable gas sponsorship
-          address: wallet.address as `0x${string}`,
-        }
-      )
+      const hash = await sendPointsPayment({
+        to: paymentRequest.to as Address,
+        amountWei: paymentRequest.amount,
+      });
 
-      if (!hash) {
-        throw new Error('Transaction failed')
-      }
+      setTxHash(hash);
+      setStep('verifying');
 
-      setTxHash(hash)
-      setStep('verifying')
-      
       // Verify payment and credit points
-      await handleVerifyPayment(paymentRequest.requestId, hash, paymentRequest)
+      await handleVerifyPayment(paymentRequest.requestId, hash, paymentRequest);
     } catch (err) {
-      console.error('Payment failed:', err)
-      const errorMessage = err instanceof Error ? err.message : 'Payment failed'
-      
-      // Provide helpful error messages
-      if (errorMessage.includes('sponsor')) {
-        setError('Gas sponsorship unavailable. Please ensure you are using your Babylon embedded wallet.')
-      } else if (errorMessage.includes('user rejected')) {
-        setError('Transaction was cancelled.')
-      } else {
-        setError(errorMessage)
-      }
-      
-      setStep('error')
-      toast.error('Payment transaction failed')
-      setLoading(false)
+      console.error('Payment failed:', err);
+      const errorMessage =
+        err instanceof Error ? err.message : 'Payment failed';
+
+      setError(errorMessage);
+
+      setStep('error');
+      toast.error('Payment transaction failed');
+      setLoading(false);
     }
-  }
+  };
 
   const handleVerifyPayment = async (
-    requestId: string, 
+    requestId: string,
     transactionHash: string,
     paymentRequest: PaymentRequest
   ) => {
     try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      const token =
+        typeof window !== 'undefined' ? window.__privyAccessToken : null;
       if (!token) {
-        throw new Error('Authentication required')
+        throw new Error('Authentication required');
       }
 
       // Wait a bit for transaction to be confirmed
-      await new Promise(resolve => setTimeout(resolve, 3000))
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
       const response = await fetch('/api/points/purchase/verify-payment', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           requestId,
@@ -221,38 +223,40 @@ export function BuyPointsModal({ isOpen, onClose, onSuccess }: BuyPointsModalPro
           toAddress: paymentRequest.to,
           amount: paymentRequest.amount,
         }),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to verify payment')
+        throw new Error(data.error || 'Failed to verify payment');
       }
 
-      setPointsAwarded(data.pointsAwarded)
-      setStep('success')
-      toast.success(`Successfully purchased ${data.pointsAwarded} points!`)
-      
+      setPointsAwarded(data.pointsAwarded);
+      setStep('success');
+      toast.success(`Successfully purchased ${data.pointsAwarded} points!`);
+
       // Call onSuccess callback
       if (onSuccess) {
-        onSuccess()
+        onSuccess();
       }
     } catch (err) {
-      console.error('Payment verification failed:', err)
-      setError(err instanceof Error ? err.message : 'Payment verification failed')
-      setStep('error')
-      toast.error('Failed to verify payment')
+      console.error('Payment verification failed:', err);
+      setError(
+        err instanceof Error ? err.message : 'Payment verification failed'
+      );
+      setStep('error');
+      toast.error('Failed to verify payment');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleClose = () => {
     if (loading || step === 'payment' || step === 'verifying') {
-      return // Prevent closing during payment
+      return; // Prevent closing during payment
     }
-    onClose()
-  }
+    onClose();
+  };
 
   const renderContent = () => {
     switch (step) {
@@ -306,11 +310,17 @@ export function BuyPointsModal({ isOpen, onClose, onSuccess }: BuyPointsModalPro
               {/* Points Calculation */}
               <div className="bg-sidebar border border-border rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-muted-foreground">You'll receive:</span>
+                  <span className="text-sm text-muted-foreground">
+                    You'll receive:
+                  </span>
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-yellow-500" />
-                    <span className="text-xl font-bold">{pointsAmount.toLocaleString()}</span>
-                    <span className="text-sm text-muted-foreground">points</span>
+                    <span className="text-xl font-bold">
+                      {pointsAmount.toLocaleString()}
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      points
+                    </span>
                   </div>
                 </div>
                 <div className="text-xs text-muted-foreground text-center mt-2">
@@ -323,8 +333,13 @@ export function BuyPointsModal({ isOpen, onClose, onSuccess }: BuyPointsModalPro
                 <div className="flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
                   <div className="text-xs text-blue-700 dark:text-blue-300">
-                    <p className="font-medium mb-1">Points are non-transferable</p>
-                    <p>Points can be used for trading and rewards but cannot be transferred to other users.</p>
+                    <p className="font-medium mb-1">
+                      Points are non-transferable
+                    </p>
+                    <p>
+                      Points can be used for trading and rewards but cannot be
+                      transferred to other users.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -352,7 +367,7 @@ export function BuyPointsModal({ isOpen, onClose, onSuccess }: BuyPointsModalPro
               </button>
             </div>
           </>
-        )
+        );
 
       case 'payment':
       case 'verifying':
@@ -362,10 +377,12 @@ export function BuyPointsModal({ isOpen, onClose, onSuccess }: BuyPointsModalPro
               <BouncingLogo size={64} />
             </div>
             <h3 className="text-lg font-semibold mb-2">
-              {step === 'payment' ? 'Processing Payment...' : 'Verifying Transaction...'}
+              {step === 'payment'
+                ? 'Processing Payment...'
+                : 'Verifying Transaction...'}
             </h3>
             <p className="text-sm text-muted-foreground mb-4">
-              {step === 'payment' 
+              {step === 'payment'
                 ? 'Please confirm the transaction in your wallet'
                 : 'Confirming your payment on the blockchain'}
             </p>
@@ -380,7 +397,7 @@ export function BuyPointsModal({ isOpen, onClose, onSuccess }: BuyPointsModalPro
               </a>
             )}
           </div>
-        )
+        );
 
       case 'success':
         return (
@@ -390,10 +407,14 @@ export function BuyPointsModal({ isOpen, onClose, onSuccess }: BuyPointsModalPro
             <div className="bg-sidebar border border-border rounded-lg p-4 mb-6">
               <div className="flex items-center justify-center gap-2 mb-2">
                 <Sparkles className="h-6 w-6 text-yellow-500" />
-                <span className="text-2xl font-bold">{pointsAwarded.toLocaleString()}</span>
+                <span className="text-2xl font-bold">
+                  {pointsAwarded.toLocaleString()}
+                </span>
                 <span className="text-muted-foreground">points</span>
               </div>
-              <p className="text-xs text-muted-foreground">added to your account</p>
+              <p className="text-xs text-muted-foreground">
+                added to your account
+              </p>
             </div>
             {txHash && (
               <a
@@ -412,7 +433,7 @@ export function BuyPointsModal({ isOpen, onClose, onSuccess }: BuyPointsModalPro
               Done
             </button>
           </div>
-        )
+        );
 
       case 'error':
         return (
@@ -431,8 +452,8 @@ export function BuyPointsModal({ isOpen, onClose, onSuccess }: BuyPointsModalPro
               </button>
               <button
                 onClick={() => {
-                  setStep('input')
-                  setError(null)
+                  setStep('input');
+                  setError(null);
                 }}
                 className="flex-1 px-4 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
               >
@@ -440,20 +461,20 @@ export function BuyPointsModal({ isOpen, onClose, onSuccess }: BuyPointsModalPro
               </button>
             </div>
           </div>
-        )
+        );
     }
-  }
+  };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
-          handleClose()
+          handleClose();
         }
       }}
     >
-      <div 
+      <div
         className="bg-background border border-border rounded-xl w-full max-w-md shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -473,11 +494,8 @@ export function BuyPointsModal({ isOpen, onClose, onSuccess }: BuyPointsModalPro
         </div>
 
         {/* Content */}
-        <div className="p-6">
-          {renderContent()}
-        </div>
+        <div className="p-6">{renderContent()}</div>
       </div>
     </div>
-  )
+  );
 }
-
