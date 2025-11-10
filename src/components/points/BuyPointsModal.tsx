@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
-import { usePrivy } from '@privy-io/react-auth';
+import { useFundWallet, usePrivy } from '@privy-io/react-auth';
 import {
   AlertCircle,
   CheckCircle2,
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Address } from 'viem';
+import { formatEther } from 'viem';
 
 import { BouncingLogo } from '@/components/shared/BouncingLogo';
 
@@ -20,6 +21,9 @@ import { WALLET_ERROR_MESSAGES } from '@/lib/wallet-utils';
 
 import { useAuth } from '@/hooks/useAuth';
 import { useBuyPointsTx } from '@/hooks/useBuyPointsTx';
+import { useSmartWalletBalance } from '@/hooks/useSmartWalletBalance';
+
+import { CHAIN } from '@/constants/chains';
 
 interface BuyPointsModalProps {
   isOpen: boolean;
@@ -43,7 +47,9 @@ export function BuyPointsModal({
 }: BuyPointsModalProps) {
   const { user, smartWalletAddress, smartWalletReady } = useAuth();
   const { getAccessToken } = usePrivy();
+  const { fundWallet } = useFundWallet();
   const { sendPointsPayment } = useBuyPointsTx();
+  const { balance, refreshBalance } = useSmartWalletBalance();
 
   const [amountUSD, setAmountUSD] = useState('10');
   const [step, setStep] = useState<PaymentStep>('input');
@@ -54,6 +60,51 @@ export function BuyPointsModal({
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pointsAwarded, setPointsAwarded] = useState(0);
+
+  const ensureFunds = useCallback(
+    async (requiredAmountWei: bigint) => {
+      if (!smartWalletAddress) {
+        throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
+      }
+
+      const currentBalance = balance ?? (await refreshBalance());
+      if (currentBalance !== null && currentBalance >= requiredAmountWei) {
+        return true;
+      }
+
+      const deficit =
+        requiredAmountWei - (currentBalance ?? 0n) > 0n
+          ? requiredAmountWei - (currentBalance ?? 0n)
+          : requiredAmountWei;
+
+      try {
+        await fundWallet({
+          address: smartWalletAddress,
+          options: {
+            chain: CHAIN,
+            amount: formatEther(deficit),
+            asset: 'native-currency',
+          },
+        });
+      } catch (fundingError) {
+        throw new Error(
+          fundingError instanceof Error
+            ? fundingError.message
+            : 'Funding flow cancelled. Please add funds to continue.'
+        );
+      }
+
+      const updatedBalance = await refreshBalance();
+      if (!updatedBalance || updatedBalance < requiredAmountWei) {
+        throw new Error(
+          'Funds are still settling. Please try again once the deposit arrives.'
+        );
+      }
+
+      return true;
+    },
+    [balance, fundWallet, refreshBalance, smartWalletAddress]
+  );
 
   // Reset state when modal closes
   useEffect(() => {
@@ -172,9 +223,12 @@ export function BuyPointsModal({
         throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
       }
 
+      const requiredAmountWei = BigInt(paymentRequest.amount);
+      await ensureFunds(requiredAmountWei);
+
       const hash = await sendPointsPayment({
         to: paymentRequest.to as Address,
-        amountWei: paymentRequest.amount,
+        amountWei: requiredAmountWei,
       });
 
       setTxHash(hash);
