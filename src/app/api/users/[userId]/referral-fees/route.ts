@@ -14,8 +14,8 @@ export const GET = withErrorHandling(async (
   request: NextRequest,
   context: { params: Promise<{ userId: string }> }
 ) => {
-  const authUser = await authenticate(request)
-  const { userId } = await context.params)
+  const authUser = await authenticate(request);
+  const { userId } = await context.params;
   
   // Verify authorization
   const user = await requireUserByIdentifier(userId, {

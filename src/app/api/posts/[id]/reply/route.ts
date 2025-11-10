@@ -27,8 +27,7 @@ export const POST = withErrorHandling(async (
 ) => {
   // 1. Authenticate user
   const user = await authenticate(request);
-  const params = await context.params);
-  const { id: postId } = PostIdParamSchema.parse(params);
+  const { id: postId } = PostIdParamSchema.parse(await context.params);
 
   // 2. Parse and validate request body
   const body = await request.json();

@@ -25,8 +25,7 @@ export const POST = withErrorHandling(async (
 ) => {
   // Authenticate user
   const user = await authenticate(request);
-  const params = await context.params);
-  const { id: postId } = PostIdParamSchema.parse(params);
+  const { id: postId } = PostIdParamSchema.parse(await context.params);
   
   // Parse and validate request body (optional comment)
   const body = await request.json().catch(() => ({}));
@@ -181,8 +180,7 @@ export const DELETE = withErrorHandling(async (
 ) => {
   // Authenticate user
   const user = await authenticate(request);
-  const params = await context.params);
-  const { id: postId } = PostIdParamSchema.parse(params);
+  const { id: postId } = PostIdParamSchema.parse(await context.params);
 
   const fallbackDisplayName = user.walletAddress
     ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`

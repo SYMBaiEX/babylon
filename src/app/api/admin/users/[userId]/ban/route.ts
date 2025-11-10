@@ -26,8 +26,7 @@ export const POST = withErrorHandling(async (
   const adminUser = await requireAdmin(request);
 
   // Parse params
-  const params = await context.params);
-  const { userId } = params;
+  const { userId } = await context.params;
 
   // Parse request body
   const body = await request.json();

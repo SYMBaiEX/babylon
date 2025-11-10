@@ -8,7 +8,7 @@ import {
   successResponse
 } from '@/lib/api/auth-middleware'
 import { prisma } from '@/lib/database-service'
-import { AuthorizationError, BusinessLogicError } from '@/lib/errors'
+import { AuthorizationError } from '@/lib/errors'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger'
 import { PointsService } from '@/lib/services/points-service'
@@ -34,7 +34,7 @@ export const POST = withErrorHandling(async (
 ) => {
   // Authenticate user
   const authUser = await authenticate(request);
-  const params = await context.params);
+  const params = await context.params;
   const { userId } = UserIdParamSchema.parse(params);
   const targetUser = await requireUserByIdentifier(userId, { id: true });
   const canonicalUserId = targetUser.id;

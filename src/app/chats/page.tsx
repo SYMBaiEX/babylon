@@ -102,7 +102,7 @@ export default function ChatsPage() {
   const chatContainerRef = useRef<HTMLDivElement | null>(null)
   
   // Use SSE for real-time messages
-  const { messages: realtimeMessages } = useChatMessages(selectedChatId)
+  const { messages: realtimeMessages, isConnected: sseConnected } = useChatMessages(selectedChatId)
   
   // Pull-to-refresh state
   const {
@@ -1003,6 +1003,25 @@ export default function ChatsPage() {
                       >
                         <X className="w-4 h-4" />
                       </button>
+                    )}
+                  </div>
+                  
+                  {/* Status Row */}
+                  <div className="flex items-center justify-between text-xs text-muted-foreground mt-2">
+                    <span>
+                      {filteredChats.length} {activeFilter === 'all' ? 'conversations' : activeFilter === 'dms' ? 'direct messages' : 'group chats'}
+                    </span>
+                    {authenticated && selectedChatId && (
+                      <div className={cn(
+                        'flex items-center gap-1.5',
+                        sseConnected ? 'text-green-500' : 'text-yellow-500'
+                      )}>
+                        <div className={cn(
+                          'w-1.5 h-1.5 rounded-full',
+                          sseConnected ? 'bg-green-500' : 'bg-yellow-500'
+                        )} />
+                        <span>{sseConnected ? 'Live' : 'Connecting...'}</span>
+                      </div>
                     )}
                   </div>
                 </div>

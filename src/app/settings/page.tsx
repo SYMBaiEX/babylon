@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { useRouter } from 'next/navigation';
 
-import { type ConnectedWallet, useSendTransaction } from '@privy-io/react-auth';
+import { useSendTransaction } from '@privy-io/react-auth';
 import { ArrowLeft, Bell, Palette, Save, Shield, User } from 'lucide-react';
 import { encodeFunctionData, parseAbi } from 'viem';
 
@@ -18,14 +18,16 @@ import { useAuth } from '@/hooks/useAuth';
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 import { IDENTITY_REGISTRY_ABI } from '@/lib/web3/abis';
+import {
+  isEmbeddedPrivyWallet,
+  getWalletErrorMessage,
+  WALLET_ERROR_MESSAGES,
+} from '@/lib/wallet-utils';
 import { useAuthStore } from '@/stores/authStore';
 
 const CAPABILITIES_HASH =
   '0x0000000000000000000000000000000000000000000000000000000000000001' as const;
 const identityRegistryAbi = parseAbi(IDENTITY_REGISTRY_ABI);
-const isEmbeddedWallet = (candidate?: ConnectedWallet | null) =>
-  candidate?.walletClientType === 'privy' ||
-  candidate?.walletClientType === 'privy-v2';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -106,9 +108,7 @@ export default function SettingsPage() {
 
     try {
       if (!wallet?.address) {
-        throw new Error(
-          'Connectez votre wallet pour mettre à jour votre profil.'
-        );
+        throw new Error(WALLET_ERROR_MESSAGES.NO_WALLET);
       }
 
       const registryAddress =
@@ -119,15 +119,14 @@ export default function SettingsPage() {
         );
       }
 
-      if (!wallet) {
-        throw new Error(
-          'Connectez votre wallet Babylon pour modifier votre profil.'
+      // Check if using embedded wallet for gas sponsorship
+      if (!isEmbeddedPrivyWallet(wallet)) {
+        logger.warn(
+          'User attempting to update profile with external wallet',
+          { walletType: wallet.walletClientType, address: wallet.address },
+          'SettingsPage'
         );
-      }
-      if (!isEmbeddedWallet(wallet)) {
-        throw new Error(
-          'Les mises à jour on-chain nécessitent votre wallet Babylon (embedded Privy).'
-        );
+        throw new Error(WALLET_ERROR_MESSAGES.EXTERNAL_WALLET_ONLY);
       }
 
       const trimmedDisplayName = (displayName ?? '').trim();
@@ -170,24 +169,14 @@ export default function SettingsPage() {
         });
         txHash = hash;
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message.toLowerCase() : '';
-        if (message.includes('user rejected')) {
-          throw new Error('Transaction annulée dans votre wallet.');
-        }
-        if (message.includes('insufficient funds')) {
-          throw new Error(
-            'Fonds insuffisants pour couvrir le gas sur Base Sepolia.'
-          );
-        }
-        if (message.includes('sponsor')) {
-          throw new Error(
-            'Impossible de sponsoriser cette transaction. Vérifiez que votre wallet Babylon est actif.'
-          );
-        }
-        throw error instanceof Error
-          ? error
-          : new Error('Échec de la soumission de la transaction on-chain.');
+        // Use wallet error utility for consistent error messages
+        const userFriendlyMessage = getWalletErrorMessage(error);
+        logger.error(
+          'Failed to submit on-chain profile update transaction',
+          { error, walletAddress: wallet.address },
+          'SettingsPage'
+        );
+        throw new Error(userFriendlyMessage);
       }
 
       const token =

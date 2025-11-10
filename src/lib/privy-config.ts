@@ -53,10 +53,10 @@ export const privyConfig: {
     // Reference: https://docs.privy.io/recipes/farcaster/mini-apps
     loginMethods: ['farcaster', 'wallet', 'email'],
     embeddedWallets: {
-      // Note: Automatic embedded wallet creation is not supported for Farcaster Mini Apps
-      // Wallets are created manually or use the injected Farcaster/Base App wallet
+      // Embedded wallets are created for all users to enable gas sponsorship
+      // External wallets can still be connected, but embedded wallets are required for gasless transactions
       ethereum: {
-        createOnLogin: 'off' as const, // Changed from 'users-without-wallets' for Mini Apps
+        createOnLogin: 'all-users' as const, // Enable for all users to support gas sponsorship
       },
       // Explicitly disable Solana to prevent warnings
       solana: {

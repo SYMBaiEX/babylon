@@ -7,7 +7,7 @@ import type { NextRequest } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { asUser, asSystem } from '@/lib/db/context'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
-import { BusinessLogicError, NotFoundError, AuthorizationError } from '@/lib/errors'
+import {  NotFoundError, AuthorizationError } from '@/lib/errors'
 import { logger } from '@/lib/logger'
 import { ChatQuerySchema } from '@/lib/validation/schemas'
 

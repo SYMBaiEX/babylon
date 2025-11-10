@@ -38,7 +38,7 @@ export const GET = withErrorHandling(async (
 ) => {
   // Optional authentication - if authenticated, can provide personalized data
   const authUser = await optionalAuth(request);
-  const params = await context.params);
+  const params = await context.params;
   const { userId: targetIdentifier } = UserIdParamSchema.parse(params);
   
   // Validate query parameters

@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { asUser, asPublic } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { NotFoundError, BusinessLogicError } from '@/lib/errors';
+import { NotFoundError } from '@/lib/errors';
 import { IdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 
@@ -14,8 +14,7 @@ export const GET = withErrorHandling(async (
   _request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) => {
-  const params = await context.params);
-  const { id } = IdParamSchema.parse(params);
+  const { id } = IdParamSchema.parse(await context.params);
 
   // Optional auth - pools are public but RLS still applies
   const authUser = await optionalAuth(_request).catch(() => null);

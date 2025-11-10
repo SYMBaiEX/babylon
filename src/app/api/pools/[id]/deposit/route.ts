@@ -16,7 +16,7 @@ export const POST = withErrorHandling(async (
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) => {
-  const { id: poolId } = await context.params);
+  const { id: poolId } = await context.params;
 
   // Parse and validate request body
   const body = await request.json();

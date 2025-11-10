@@ -7,7 +7,6 @@ import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/database-service';
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { BusinessLogicError } from '@/lib/errors';
 import { UserIdParamSchema, UserPostsQuerySchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { requireUserByIdentifier } from '@/lib/users/user-lookup';
@@ -20,7 +19,7 @@ export const GET = withErrorHandling(async (
   request: NextRequest,
   context: { params: Promise<{ userId: string }> }
 ) => {
-  const params = await context.params);
+  const params = await context.params;
   const { userId } = UserIdParamSchema.parse(params);
   const targetUser = await requireUserByIdentifier(userId, { id: true });
   const canonicalUserId = targetUser.id;

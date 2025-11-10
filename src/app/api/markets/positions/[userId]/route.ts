@@ -5,7 +5,6 @@
 
 import type { NextRequest } from 'next/server';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { BusinessLogicError } from '@/lib/errors';
 import { UserIdParamSchema, UserPositionsQuerySchema } from '@/lib/validation/schemas';
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { asUser, asPublic } from '@/lib/db/context';
@@ -19,8 +18,7 @@ export const GET = withErrorHandling(async (
   request: NextRequest,
   context: { params: Promise<{ userId: string }> }
 ) => {
-  const params = await context.params);
-  const { userId } = UserIdParamSchema.parse(params);
+  const { userId } = UserIdParamSchema.parse(await context.params);
   
   // Validate query parameters
   const { searchParams } = new URL(request.url);

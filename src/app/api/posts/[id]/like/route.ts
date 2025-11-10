@@ -24,8 +24,7 @@ export const POST = withErrorHandling(async (
 ) => {
   // Authenticate user
   const user = await authenticate(request);
-  const params = await context.params);
-  const { id: postId } = PostIdParamSchema.parse(params);
+  const { id: postId } = PostIdParamSchema.parse(await context.params);
 
     const displayName = user.walletAddress
       ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
@@ -117,7 +116,7 @@ export const DELETE = withErrorHandling(async (
 ) => {
   // Authenticate user
   const user = await authenticate(request);
-  const { id: postId } = await context.params);
+  const { id: postId } = await context.params;
 
   // Validate post ID
   if (!postId) {

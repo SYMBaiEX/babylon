@@ -264,6 +264,20 @@ export interface RouteContext {
  * @param handler The async route handler function
  * @returns A wrapped handler with automatic error handling
  */
+// Overload 1: Handler without context (for routes without dynamic params)
+export function withErrorHandling(
+  handler: (req: NextRequest) => Promise<NextResponse> | NextResponse
+): (req: NextRequest) => Promise<NextResponse>;
+
+// Overload 2: Handler with context (for routes with dynamic params)
+export function withErrorHandling<TContext extends RouteContext = RouteContext>(
+  handler: (
+    req: NextRequest,
+    context: TContext
+  ) => Promise<NextResponse> | NextResponse
+): (req: NextRequest, context: TContext) => Promise<NextResponse>;
+
+// Implementation
 export function withErrorHandling<TContext extends RouteContext = RouteContext>(
   handler: (
     req: NextRequest,
@@ -273,7 +287,7 @@ export function withErrorHandling<TContext extends RouteContext = RouteContext>(
   return async (req: NextRequest, context?: TContext): Promise<NextResponse> => {
     try {
       // Execute the handler
-      const response = await handler(req, context);
+      const response = await handler(req, context!);
       return response;
     } catch (error) {
       // Handle any errors that occur

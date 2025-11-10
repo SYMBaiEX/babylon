@@ -7,7 +7,7 @@ import {
   authenticate,
   successResponse
 } from '@/lib/api/auth-middleware';
-import { AuthorizationError, BusinessLogicError } from '@/lib/errors';
+import { AuthorizationError } from '@/lib/errors';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
@@ -24,7 +24,7 @@ export const GET = withErrorHandling(async (
 ) => {
   // Optional authentication - if not authenticated, return needsSetup: false
   const authUser = await authenticate(request).catch(() => null);
-  const params = await context.params);
+  const params = await context.params;
   const { userId } = UserIdParamSchema.parse(params);
 
   if (!authUser) {

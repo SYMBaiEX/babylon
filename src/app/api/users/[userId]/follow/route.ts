@@ -22,7 +22,7 @@ export const POST = withErrorHandling(async (
 ) => {
   // Authenticate user
   const user = await authenticate(request);
-  const params = await context.params);
+  const params = await context.params;
   const { userId: targetIdentifier } = UserIdParamSchema.parse(params);
   const targetUser = await findUserByIdentifier(targetIdentifier, { id: true, isActor: true });
   const targetId = targetUser?.id ?? targetIdentifier;
@@ -189,7 +189,7 @@ export const DELETE = withErrorHandling(async (
 ) => {
   // Authenticate user
   const user = await authenticate(request);
-  const params = await context.params);
+  const params = await context.params;
   const { userId: targetIdentifier } = UserIdParamSchema.parse(params);
   const targetUser = await findUserByIdentifier(targetIdentifier, { id: true });
   const targetId = targetUser?.id ?? targetIdentifier;
@@ -287,7 +287,7 @@ export const GET = withErrorHandling(async (
 ) => {
   // Optional authentication - if not authenticated, return false
   const authUser = await authenticate(request).catch(() => null);
-  const params = await context.params);
+  const params = await context.params;
   const { userId: targetId } = UserIdParamSchema.parse(params);
 
   if (!authUser) {

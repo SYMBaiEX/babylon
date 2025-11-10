@@ -35,7 +35,7 @@ export const GET = withErrorHandling(async (
   context: { params: Promise<{ userId: string }> }
 ) => {
   await optionalAuth(request);
-  const params = await context.params);
+  const params = await context.params;
   const { userId: targetIdentifier } = UserIdParamSchema.parse(params);
   
   // Validate query parameters

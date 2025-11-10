@@ -11,10 +11,10 @@ import { prisma } from '@/lib/database-service'
 import { AuthorizationError, BusinessLogicError } from '@/lib/errors'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger'
+import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 import { UserIdParamSchema, UUIDSchema } from '@/lib/validation/schemas'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 
 const VerifyShareRequestSchema = z.object({
   shareId: UUIDSchema,
@@ -32,8 +32,7 @@ export const POST = withErrorHandling(async (
 ) => {
   // Authenticate user
   const authUser = await authenticate(request);
-  const params = await context.params);
-  const { userId } = UserIdParamSchema.parse(params);
+  const { userId } = UserIdParamSchema.parse(await context.params);
   const targetUser = await requireUserByIdentifier(userId, { id: true });
   const canonicalUserId = targetUser.id;
 

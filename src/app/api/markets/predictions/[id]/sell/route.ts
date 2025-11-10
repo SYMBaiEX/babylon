@@ -24,7 +24,7 @@ export const POST = withErrorHandling(async (
   context: { params: Promise<{ id: string }> }
 ) => {
   const user = await authenticate(request);
-  const { id: marketId } = await context.params);
+  const { id: marketId } = await context.params;
 
   if (!marketId) {
     throw new BusinessLogicError('Market ID is required', 'MARKET_ID_REQUIRED');

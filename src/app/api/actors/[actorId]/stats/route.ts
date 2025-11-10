@@ -30,7 +30,7 @@ export const GET = withErrorHandling(async (
     throw new BusinessLogicError(`Actor ${actorId} not found`, 'NOT_FOUND');
   }
 
-  // Get follower counts (both from ActorFollow and FollowStatus)
+  // Get follower counts (both from ActorFollow and UserActorFollow)
   const [
     actorFollowerCount,
     userActorFollowerCount,
@@ -38,17 +38,11 @@ export const GET = withErrorHandling(async (
     followingCount,
     postCount,
   ] = await Promise.all([
-    // NPCs following this actor
+    // NPCs following this actor (ActorFollow)
     prisma.actorFollow.count({
       where: { followingId: actorId },
     }),
-    // Actors following this actor (NPCs)
-    prisma.actorFollow.count({
-      where: {
-        followingId: actorId,
-      },
-    }),
-    // Users following this actor (players)
+    // Users following this actor (UserActorFollow)
     prisma.userActorFollow.count({
       where: {
         actorId,
@@ -62,7 +56,7 @@ export const GET = withErrorHandling(async (
         followReason: 'user_followed',
       },
     }),
-    // This actor following others (only NPC-to-NPC follows)
+    // This actor following others (only NPC-to-NPC follows via ActorFollow)
     prisma.actorFollow.count({
       where: { followerId: actorId },
     }),

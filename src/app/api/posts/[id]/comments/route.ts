@@ -90,7 +90,7 @@ export const GET = withErrorHandling(async (
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) => {
-  const { id: postId } = await context.params);
+  const { id: postId } = await context.params;
 
   // Optional authentication (to show liked status for logged-in users)
   const user = await optionalAuth(request);
@@ -178,8 +178,7 @@ export const POST = withErrorHandling(async (
 ) => {
   // Authenticate user
   const user = await authenticate(request);
-  const params = await context.params);
-  const { id: postId } = PostIdParamSchema.parse(params);
+  const { id: postId } = PostIdParamSchema.parse(await context.params);
 
   // Parse and validate request body
   const body = await request.json();

@@ -24,7 +24,7 @@ export const POST = withErrorHandling(async (
 ) => {
   // Authenticate user
   const user = await authenticate(request);
-  const params = await context.params);
+  const params = await context.params;
   const { id: targetIdentifier } = IdParamSchema.parse(params);
 
   // Favorite profile with RLS
@@ -110,7 +110,7 @@ export const DELETE = withErrorHandling(async (
 ) => {
   // Authenticate user
   const user = await authenticate(request);
-  const params = await context.params);
+  const params = await context.params;
   const { id: targetIdentifier } = IdParamSchema.parse(params);
 
   // Unfavorite profile with RLS

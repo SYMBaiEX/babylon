@@ -3,15 +3,15 @@
  * Methods: GET (get user balance)
  */
 
-import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
-import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { optionalAuth } from '@/lib/api/auth-middleware';
-import { BusinessLogicError, AuthorizationError } from '@/lib/errors';
-import { UserIdParamSchema } from '@/lib/validation/schemas';
+import { cachedDb } from '@/lib/cached-database-service';
+import { prisma } from '@/lib/database-service';
+import { AuthorizationError, BusinessLogicError } from '@/lib/errors';
+import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { findUserByIdentifier } from '@/lib/users/user-lookup';
-import { cachedDb } from '@/lib/cached-database-service';
+import { UserIdParamSchema } from '@/lib/validation/schemas';
+import type { NextRequest } from 'next/server';
 /**
  * GET /api/users/[userId]/balance
  * Get user's virtual balance and stats
@@ -20,8 +20,7 @@ export const GET = withErrorHandling(async (
   request: NextRequest,
   context: { params: Promise<{ userId: string }> }
 ) => {
-  const params = await context.params);
-  const { userId } = UserIdParamSchema.parse(params);
+  const { userId } = UserIdParamSchema.parse(await context.params);
 
   // Optional authentication - check if user is requesting their own balance
   const authUser = await optionalAuth(request);

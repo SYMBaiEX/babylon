@@ -24,8 +24,7 @@ export const POST = withErrorHandling(async (
   context: { params: Promise<{ positionId: string }> }
 ) => {
   const user = await authenticate(request);
-  const params = await context.params);
-  const { positionId } = PositionIdParamSchema.parse(params);
+  const { positionId } = PositionIdParamSchema.parse(await context.params);
   
   // Parse and validate request body (optional for partial close)
   const body = await request.json().catch(() => ({}));

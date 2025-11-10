@@ -23,7 +23,7 @@ export const POST = withErrorHandling(async (
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) => {
-  const { id: marketId } = await context.params);
+  const { id: marketId } = await context.params;
 
   // Authentication - errors propagate to withErrorHandling
   const user = await authenticate(request);

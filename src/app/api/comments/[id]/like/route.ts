@@ -21,8 +21,7 @@ export const POST = withErrorHandling(async (
 ) => {
   // Authenticate user
   const user = await authenticate(request);
-  const params = await context.params);
-  const { id: commentId } = IdParamSchema.parse(params);
+  const { id: commentId } = IdParamSchema.parse(await context.params);
 
   // Ensure user exists in database (upsert pattern)
     const displayName = user.walletAddress
@@ -97,8 +96,7 @@ export const DELETE = withErrorHandling(async (
 ) => {
   // Authenticate user
   const user = await authenticate(request);
-  const params = await context.params);
-  const { id: commentId } = IdParamSchema.parse(params);
+  const { id: commentId } = IdParamSchema.parse(await context.params);
 
   // Ensure user exists in database (upsert pattern)
   const displayName = user.walletAddress

@@ -28,7 +28,7 @@ export const POST = withErrorHandling(async (
 ) => {
   // Authenticate user
   const authUser = await authenticate(request);
-  const params = await context.params);
+  const params = await context.params;
   const { userId } = UserIdParamSchema.parse(params);
   const targetUser = await requireUserByIdentifier(userId, { id: true });
   const canonicalUserId = targetUser.id;

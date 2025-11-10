@@ -2,7 +2,6 @@ import type { NextRequest } from 'next/server';
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { asUser, asPublic } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { BusinessLogicError } from '@/lib/errors';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 
@@ -14,8 +13,7 @@ export const GET = withErrorHandling(async (
   _request: NextRequest,
   context: { params: Promise<{ userId: string }> }
 ) => {
-  const params = await context.params);
-  const { userId } = UserIdParamSchema.parse(params);
+  const { userId } = UserIdParamSchema.parse(await context.params);
 
   // Optional auth - deposits are public for stats but RLS still applies
   const authUser = await optionalAuth(_request).catch(() => null);

@@ -449,8 +449,10 @@ function leaveAllChannels(userId: string) {
 /**
  * Broadcast a message to all clients in a chat room
  * Uses type-safe message construction
+ * @deprecated Kept for reference only - SSE is now used instead
  */
-export function broadcastMessage(chatId: string, message: ChatMessage) {
+// @ts-expect-error - Kept for reference only
+function _broadcastMessage(chatId: string, message: ChatMessage) {
   const room = chatRooms.get(chatId)
   if (!room) return
 
@@ -477,8 +479,10 @@ export function broadcastMessage(chatId: string, message: ChatMessage) {
 /**
  * Broadcast to a channel (feed, markets, breaking-news, etc.)
  * Uses type-safe message construction and validation
+ * @deprecated Kept for reference only - SSE is now used instead
  */
-export function broadcastToChannel(channel: WebSocketChannel, data: Record<string, JsonValue>) {
+// @ts-expect-error - Kept for reference only
+function _broadcastToChannel(channel: WebSocketChannel, data: Record<string, JsonValue>) {
   const subscribers = channels.get(channel)
   if (!subscribers || subscribers.size === 0) return
 

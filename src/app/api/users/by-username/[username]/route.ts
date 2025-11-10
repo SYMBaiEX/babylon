@@ -8,7 +8,7 @@ import type { PrismaClient } from '@prisma/client';
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { asUser, asPublic } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { BusinessLogicError, NotFoundError } from '@/lib/errors';
+import {  NotFoundError } from '@/lib/errors';
 import { UsernameParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 
@@ -20,7 +20,7 @@ export const GET = withErrorHandling(async (
   request: NextRequest,
   context: { params: Promise<{ username: string }> }
 ) => {
-  const params = await context.params);
+  const params = await context.params;
   const { username } = UsernameParamSchema.parse(params);
 
   // Optional authentication

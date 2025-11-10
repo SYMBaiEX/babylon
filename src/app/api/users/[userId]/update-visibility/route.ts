@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/database-service';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { BusinessLogicError, AuthorizationError } from '@/lib/errors';
+import {  AuthorizationError } from '@/lib/errors';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { requireUserByIdentifier } from '@/lib/users/user-lookup';
@@ -23,7 +23,7 @@ export const POST = withErrorHandling(async (
 ) => {
   // Authenticate user
   const authUser = await authenticate(request);
-  const params = await context.params);
+  const params = await context.params;
   const { userId } = UserIdParamSchema.parse(params);
   const targetUser = await requireUserByIdentifier(userId, { id: true });
   const canonicalUserId = targetUser.id;

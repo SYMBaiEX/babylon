@@ -1,7 +1,6 @@
 import type { NextRequest } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { withErrorHandling, successResponse, errorResponse } from '@/lib/errors/error-handler'
-import { BusinessLogicError } from '@/lib/errors'
 import { logger } from '@/lib/logger'
 import { asUser } from '@/lib/db/context'
 

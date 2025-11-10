@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
-  type ConnectedWallet,
   useIdentityToken,
   useSendTransaction,
 } from '@privy-io/react-auth';
@@ -17,6 +16,11 @@ import { apiFetch } from '@/lib/api/fetch';
 import { logger } from '@/lib/logger';
 import type { OnboardingProfilePayload } from '@/lib/onboarding/types';
 import { IDENTITY_REGISTRY_ABI } from '@/lib/web3/abis';
+import {
+  isEmbeddedPrivyWallet,
+  WALLET_ERROR_MESSAGES,
+  getWalletErrorMessage,
+} from '@/lib/wallet-utils';
 
 import { useAuth } from '@/hooks/useAuth';
 
@@ -32,9 +36,6 @@ type OnboardingStage = 'SOCIAL_IMPORT' | 'PROFILE' | 'ONCHAIN' | 'COMPLETED';
 const CAPABILITIES_HASH =
   '0x0000000000000000000000000000000000000000000000000000000000000001' as const;
 const identityRegistryAbi = parseAbi(IDENTITY_REGISTRY_ABI);
-const isEmbeddedPrivyWallet = (candidate?: ConnectedWallet | null) =>
-  candidate?.walletClientType === 'privy' ||
-  candidate?.walletClientType === 'privy-v2';
 
 function extractErrorMessage(error: unknown): string {
   if (!error) return 'Unknown error';
@@ -350,10 +351,18 @@ export function OnboardingProvider({
 
       const completeWithClient = async () => {
         if (!embeddedWallet?.address) {
-          throw new Error(
-            'Gasless registration requires your Babylon embedded wallet.'
+          throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
+        }
+        
+        // Warn if user is connected with external wallet
+        if (wallet && !isEmbeddedPrivyWallet(wallet)) {
+          logger.warn(
+            'User has external wallet connected, but embedded wallet required for gas sponsorship',
+            { externalWallet: wallet.address, embeddedWallet: embeddedWallet.address },
+            'OnboardingProvider'
           );
         }
+        
         logger.info(
           'Attempting client-signed on-chain registration',
           { address: embeddedWallet.address },
@@ -391,7 +400,7 @@ export function OnboardingProvider({
             applyResponse(clientResponse);
             return;
           } catch (clientFallbackError) {
-            const fallbackMessage = extractErrorMessage(clientFallbackError);
+            const fallbackMessage = getWalletErrorMessage(clientFallbackError);
             setError(fallbackMessage);
             logger.error(
               'Client fallback failed after server signer unsupported',
@@ -402,7 +411,9 @@ export function OnboardingProvider({
           }
         }
 
-        setError(message);
+        // Use wallet-aware error message
+        const userFriendlyMessage = getWalletErrorMessage(rawError);
+        setError(userFriendlyMessage);
         logger.error(
           'Failed to complete on-chain onboarding',
           { error: rawError },

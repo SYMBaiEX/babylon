@@ -25,6 +25,7 @@ interface UseAuthReturn {
   login: () => void;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+  getAccessToken: () => Promise<string | null>;
 }
 
 let lastSyncedWalletAddress: string | null = null;
@@ -60,16 +61,17 @@ export function useAuth(): UseAuthReturn {
     clearAuth,
   } = useAuthStore();
 
-  // Prioritize external wallets (EOA) over Privy embedded wallets
-  // This ensures users' funded wallets are used for transactions instead of empty embedded wallets
+  // Prioritize embedded Privy wallets for gas sponsorship
+  // Embedded wallets enable gasless transactions via Privy's paymaster
+  // External wallets can be used, but users must pay their own gas
   const wallet = useMemo(() => {
     if (wallets.length === 0) return undefined;
 
-    // First, try to find an imported/external wallet (not embedded Privy wallet)
-    const externalWallet = wallets.find((w) => w.walletClientType !== 'privy');
-    if (externalWallet) return externalWallet;
+    // First, try to find the Privy embedded wallet for gas sponsorship
+    const embeddedWallet = wallets.find((w) => w.walletClientType === 'privy');
+    if (embeddedWallet) return embeddedWallet;
 
-    // If no external wallet, fall back to first available wallet (might be Privy embedded)
+    // If no embedded wallet, fall back to external wallet (user pays gas)
     return wallets[0];
   }, [wallets]);
 
@@ -443,6 +445,7 @@ export function useAuth(): UseAuthReturn {
     login,
     logout: handleLogout,
     refresh,
+    getAccessToken,
   };
 }
 
