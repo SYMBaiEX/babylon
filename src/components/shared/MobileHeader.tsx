@@ -270,9 +270,6 @@ function MobileHeaderContent() {
                     <div className="font-bold text-base text-foreground mt-1">
                       {pointsData.available.toLocaleString()} pts
                     </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      of {pointsData.total.toLocaleString()} total
-                    </div>
                   </div>
                 </div>
               </div>
