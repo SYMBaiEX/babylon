@@ -43,6 +43,7 @@ import { join } from 'path';
 import { BabylonLLMClient } from '../generator/llm/openai-client';
 import { db } from '../lib/database-service';
 import { ReputationService } from '../lib/services/reputation-service';
+import { CompletionFormat, type TradeMetrics } from '../lib/reputation/reputation-service';
 import { A2AGameIntegration, type A2AGameConfig } from './A2AGameIntegration';
 import { FeedGenerator } from './FeedGenerator';
 import { PerpetualsEngine } from './PerpetualsEngine';
@@ -338,12 +339,96 @@ export class GameEngine extends EventEmitter {
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             const errorStack = error instanceof Error ? error.stack : undefined;
-            logger.error(`Failed to update reputation for market ${question.id}: ${errorMessage}`, { 
+            logger.error(`Failed to update reputation for market ${question.id}: ${errorMessage}`, {
               error: errorMessage,
               stack: errorStack,
-              questionId: question.id 
+              questionId: question.id
             }, 'GameEngine');
             // Don't fail the entire tick if reputation update fails
+          }
+
+          // Auto-generate feedback for all positions in this resolved market
+          logger.info(`Generating auto-feedback for resolved market ${question.id}`, { questionId: question.id }, 'GameEngine');
+          try {
+            // Query all resolved positions for this market
+            const positions = await db.prisma.position.findMany({
+              where: {
+                questionId: toQuestionIdNumber(question.id),
+                status: 'resolved',
+              },
+              include: {
+                user: true,
+                question: true,
+              },
+            });
+
+            let successCount = 0;
+            let failCount = 0;
+
+            // Generate feedback for each position
+            for (const position of positions) {
+              try {
+                // Calculate trade performance metrics from position data
+                const pnl = position.pnl?.toNumber() || 0;
+                const amount = position.amount?.toNumber() || 0;
+                const profitable = pnl > 0;
+                const roi = amount > 0 ? pnl / amount : 0;
+
+                // Calculate holding period (time from creation to resolution)
+                const createdAt = position.createdAt;
+                const resolvedAt = position.resolvedAt || new Date();
+                const holdingPeriodMs = resolvedAt.getTime() - createdAt.getTime();
+                const holdingPeriodHours = holdingPeriodMs / (1000 * 60 * 60);
+
+                // Simple timing score: shorter profitable trades are better (0-1 scale)
+                const timingScore = profitable
+                  ? Math.max(0, Math.min(1, 1 - (holdingPeriodHours / 168))) // Normalize to week
+                  : 0.3; // Low score for unprofitable trades
+
+                // Risk score based on position size and outcome (0-1 scale)
+                const riskScore = Math.abs(roi) > 0.5 ? 0.8 : 0.5;
+
+                const tradeMetrics: TradeMetrics = {
+                  profitable,
+                  roi,
+                  holdingPeriod: holdingPeriodHours,
+                  timingScore,
+                  riskScore,
+                };
+
+                // Generate trade completion feedback
+                await CompletionFormat(
+                  position.userId,
+                  `position_${position.id}`,
+                  tradeMetrics
+                );
+
+                successCount++;
+              } catch (feedbackError) {
+                failCount++;
+                const errorMessage = feedbackError instanceof Error ? feedbackError.message : String(feedbackError);
+                logger.warn(`Failed to generate feedback for position ${position.id}: ${errorMessage}`, {
+                  positionId: position.id,
+                  userId: position.userId,
+                }, 'GameEngine');
+              }
+            }
+
+            logger.info(`Auto-feedback generated: ${successCount} success, ${failCount} failed (${positions.length} total positions)`, {
+              successCount,
+              failCount,
+              totalPositions: positions.length,
+              questionId: question.id
+            }, 'GameEngine');
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            const errorStack = error instanceof Error ? error.stack : undefined;
+            logger.error(`Failed to generate auto-feedback for market ${question.id}: ${errorMessage}`, {
+              error: errorMessage,
+              stack: errorStack,
+              questionId: question.id
+            }, 'GameEngine');
+            // Don't fail the entire tick if feedback generation fails
           }
         }
       }

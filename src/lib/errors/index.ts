@@ -19,6 +19,16 @@ export {
   ServiceUnavailableError
 } from './base.errors';
 
+export {
+  Agent0Error,
+  Agent0RegistrationError,
+  Agent0FeedbackError,
+  Agent0ReputationError,
+  Agent0SearchError,
+  Agent0DuplicateFeedbackError,
+  Agent0RateLimitError
+} from './agent0.errors';
+
 // Re-import for runtime usage
 import { BabylonError, ValidationError } from './base.errors';
 
