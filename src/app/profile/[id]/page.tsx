@@ -1,21 +1,21 @@
 'use client'
 
-import { InteractionBar } from '@/components/interactions'
 import { FollowButton } from '@/components/interactions/FollowButton'
+import { OnChainBadge } from '@/components/profile/OnChainBadge'
 import { ProfileWidget } from '@/components/profile/ProfileWidget'
+import { PostCard } from '@/components/posts/PostCard'
 import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
-import { TaggedText } from '@/components/shared/TaggedText'
-import { useFontSize } from '@/contexts/FontSizeContext'
+import { ProfileHeaderSkeleton, FeedSkeleton } from '@/components/shared/Skeleton'
 import { useAuth } from '@/hooks/useAuth'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
-import { extractUsername, getProfileUrl, isUsername } from '@/lib/profile-utils'
+import { extractUsername, isUsername } from '@/lib/profile-utils'
 import { cn } from '@/lib/utils'
 import { POST_TYPES } from '@/shared/constants'
 import type { Actor, FeedPost, Organization } from '@/shared/types'
 import { useGameStore } from '@/stores/gameStore'
 import type { ProfileInfo } from '@/types/profiles'
-import { ArrowLeft, Briefcase, Calendar, Mail, Search, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Mail, Search, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
@@ -26,11 +26,9 @@ export default function ActorProfilePage() {
   const identifier = decodeURIComponent(params.id as string)
   const isUsernameParam = isUsername(identifier)
   const actorId = isUsernameParam ? extractUsername(identifier) : identifier
-  const { fontSize } = useFontSize()
   const { user, authenticated } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
   const [tab, setTab] = useState<'posts' | 'replies'>('posts')
-  const [isMobile, setIsMobile] = useState(false)
   const { allGames } = useGameStore();
   
   // Check if viewing own profile - compare with both actorId and identifier (for ID-based URLs)
@@ -63,15 +61,6 @@ export default function ActorProfilePage() {
     }
   }, [authenticated, user?.id, user?.username, actorId, identifier, isUsernameParam, router])
 
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 640);
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
   // Enable error toast notifications
   useErrorToasts()
 
@@ -87,6 +76,11 @@ export default function ActorProfilePage() {
     authorName?: string
     authorUsername?: string | null
     authorProfileImageUrl?: string | null
+    likeCount?: number
+    commentCount?: number
+    shareCount?: number
+    isLiked?: boolean
+    isShared?: boolean
   }>>([])
   const [loadingPosts, setLoadingPosts] = useState(false)
   
@@ -213,10 +207,30 @@ export default function ActorProfilePage() {
           }
         }
         
+        // Fetch actor stats from database
+        let stats = { followers: 0, following: 0, posts: 0 }
+        try {
+          const statsResponse = await fetch(`/api/actors/${encodeURIComponent(actor.id)}/stats`)
+          if (statsResponse.ok) {
+            const statsData = await statsResponse.json()
+            if (statsData.stats) {
+              stats = {
+                followers: statsData.stats.followers || 0,
+                following: statsData.stats.following || 0,
+                posts: statsData.stats.posts || 0,
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load actor stats:', error)
+          // Continue with default stats (0)
+        }
+        
         setActorInfo({
           id: actor.id,
           name: actor.name,
           description: actor.description,
+          profileDescription: actor.profileDescription,
           tier: actor.tier,
           domain: actor.domain,
           personality: actor.personality,
@@ -225,6 +239,7 @@ export default function ActorProfilePage() {
           type: 'actor' as const,
           game: gameId ? { id: gameId } : undefined,
           username: ('username' in actor ? actor.username as string : actor.id) as string | undefined, // Use username if available, fallback to ID
+          stats,
         })
         setLoading(false)
         return
@@ -236,12 +251,33 @@ export default function ActorProfilePage() {
         org = actorsDb.organizations?.find((o) => o.name === actorId)
       }
       if (org) {
+        // Fetch organization stats from database (orgs are also stored as actors)
+        let stats = { followers: 0, following: 0, posts: 0 }
+        try {
+          const statsResponse = await fetch(`/api/actors/${encodeURIComponent(org.id)}/stats`)
+          if (statsResponse.ok) {
+            const statsData = await statsResponse.json()
+            if (statsData.stats) {
+              stats = {
+                followers: statsData.stats.followers || 0,
+                following: statsData.stats.following || 0,
+                posts: statsData.stats.posts || 0,
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load organization stats:', error)
+          // Continue with default stats (0)
+        }
+        
         setActorInfo({
           id: org.id,
           name: org.name,
           description: org.description,
+          profileDescription: org.profileDescription,
           type: 'organization' as const,
           role: 'Organization',
+          stats,
         })
         setLoading(false)
         return
@@ -326,13 +362,18 @@ export default function ActorProfilePage() {
           content: apiPost.content,
           author: apiPost.authorId,
           authorName: apiPost.authorName || actorInfo?.name || apiPost.authorId,
-          authorUsername: actorInfo?.username || null,
-          authorProfileImageUrl: actorInfo?.profileImageUrl || null,
+          authorUsername: apiPost.authorUsername || actorInfo?.username || null,
+          authorProfileImageUrl: apiPost.authorProfileImageUrl || actorInfo?.profileImageUrl || null,
           timestamp: apiPost.timestamp,
           type: POST_TYPES.POST, // User-generated posts
           sentiment: 0, // Neutral sentiment for user posts
           clueStrength: 0, // User posts don't have clue strength
           pointsToward: null, // User posts don't hint at yes/no
+          likeCount: apiPost.likeCount,
+          commentCount: apiPost.commentCount,
+          shareCount: apiPost.shareCount,
+          isLiked: apiPost.isLiked,
+          isShared: apiPost.isShared,
         },
         gameId: '',
         gameName: '',
@@ -390,20 +431,12 @@ export default function ActorProfilePage() {
     }
     
     return (
-      <PageContainer noPadding className="flex flex-col">
-        <div className="sticky top-0 z-10 bg-background">
-          <div className="px-4 py-3 flex items-center gap-4">
-            <Link
-              href="/feed"
-              className="hover:bg-muted/50 rounded-full p-2 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <h1 className="text-xl font-bold">Loading...</h1>
+      <PageContainer noPadding className="min-h-screen">
+        <div className="w-full max-w-[700px] mx-auto">
+          <ProfileHeaderSkeleton />
+          <div className="border-t border-border/5 mt-4">
+            <FeedSkeleton count={5} />
           </div>
-        </div>
-        <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          <p className="text-muted-foreground">Loading profile...</p>
         </div>
       </PageContainer>
     )
@@ -453,7 +486,7 @@ export default function ActorProfilePage() {
               </Link>
               <div className="flex-1">
                 <h1 className="text-xl font-bold">{actorInfo.name}</h1>
-                <p className="text-sm text-muted-foreground">{actorPosts.length} posts</p>
+                <p className="text-sm text-muted-foreground">{actorInfo.stats?.posts || actorPosts.length} posts</p>
               </div>
             </div>
           </div>
@@ -470,9 +503,33 @@ export default function ActorProfilePage() {
                 alt="Cover"
                 className="w-full h-full object-cover"
               />
-            ) : (
-              <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/5" />
-            )}
+            ) : actorInfo.type === 'actor' ? (
+              <img
+                src={`/images/actor-banners/${actorInfo.id}.jpg`}
+                alt={`${actorInfo.name} banner`}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  // Fallback to gradient if image not found
+                  e.currentTarget.style.display = 'none'
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                }}
+              />
+            ) : actorInfo.type === 'organization' ? (
+              <img
+                src={`/images/org-banners/${actorInfo.id}.jpg`}
+                alt={`${actorInfo.name} banner`}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  // Fallback to gradient if image not found
+                  e.currentTarget.style.display = 'none'
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                }}
+              />
+            ) : null}
+            <div className={cn(
+              "w-full h-full bg-gradient-to-br from-primary/20 to-primary/5",
+              (actorInfo.type === 'actor' || actorInfo.type === 'organization') ? "hidden" : ""
+            )} />
           </div>
 
           {/* Profile Info Container */}
@@ -529,6 +586,13 @@ export default function ActorProfilePage() {
                 {actorInfo.type === 'actor' && (
                   <ShieldCheck className="w-5 h-5 text-blue-500 flex-shrink-0" fill="currentColor" />
                 )}
+                {actorInfo.type === 'user' && (
+                  <OnChainBadge 
+                    isRegistered={actorInfo.onChainRegistered ?? false}
+                    nftTokenId={actorInfo.nftTokenId ?? null}
+                    size="md"
+                  />
+                )}
               </div>
               {actorInfo.username && (
                 <p className="text-muted-foreground text-[15px]">@{actorInfo.username}</p>
@@ -536,26 +600,10 @@ export default function ActorProfilePage() {
             </div>
 
             {/* Description/Bio */}
-            {actorInfo.description && (
-              <p className="text-foreground text-[15px] mb-3 whitespace-pre-wrap">{actorInfo.description}</p>
-            )}
-
-            {/* Metadata */}
-            {(actorInfo.role || actorInfo.game?.id) && (
-              <div className="flex flex-wrap items-center gap-3 text-[15px] text-muted-foreground mb-3">
-                {actorInfo.role && (
-                  <div className="flex items-center gap-1">
-                    <Briefcase className="w-4 h-4" />
-                    <span>{actorInfo.role}</span>
-                  </div>
-                )}
-                {actorInfo.game?.id && (
-                  <div className="flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
-                    <span>Active in {actorInfo.game.id}</span>
-                  </div>
-                )}
-              </div>
+            {(actorInfo.profileDescription || actorInfo.description) && (
+              <p className="text-foreground text-[15px] mb-3 whitespace-pre-wrap">
+                {actorInfo.profileDescription || actorInfo.description}
+              </p>
             )}
 
             {/* Stats */}
@@ -582,28 +630,22 @@ export default function ActorProfilePage() {
                 className={cn(
                   'px-4 h-full font-semibold transition-all duration-300 relative hover:bg-muted/30',
                   tab === 'posts'
-                    ? 'text-foreground'
-                    : 'text-muted-foreground'
+                    ? 'text-foreground opacity-100'
+                    : 'text-foreground opacity-50'
                 )}
               >
                 Posts
-                {tab === 'posts' && (
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
-                )}
               </button>
               <button
                 onClick={() => setTab('replies')}
                 className={cn(
                   'px-4 h-full font-semibold transition-all duration-300 relative hover:bg-muted/30',
                   tab === 'replies'
-                    ? 'text-foreground'
-                    : 'text-muted-foreground'
+                    ? 'text-foreground opacity-100'
+                    : 'text-foreground opacity-50'
                 )}
               >
                 Replies
-                {tab === 'replies' && (
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
-                )}
               </button>
             </div>
 
@@ -624,8 +666,8 @@ export default function ActorProfilePage() {
         {/* Posts */}
         <div className="px-4">
           {loadingPosts ? (
-            <div className="py-12 text-center">
-              <p className="text-muted-foreground">Loading posts...</p>
+            <div className="w-full">
+              <FeedSkeleton count={5} />
             </div>
           ) : filteredPosts.length === 0 ? (
             <div className="py-12 text-center">
@@ -634,109 +676,29 @@ export default function ActorProfilePage() {
               </p>
             </div>
           ) : (
-            filteredPosts.map((item, i) => {
-              const postDate = new Date(item.post.timestamp)
-              const now = new Date()
-              const diffMs = now.getTime() - postDate.getTime()
-              const diffMinutes = Math.floor(diffMs / 60000)
-              const diffHours = Math.floor(diffMs / 3600000)
-              const diffDays = Math.floor(diffMs / 86400000)
-
-              let timeAgo: string
-              if (diffMinutes < 1) timeAgo = 'Just now'
-              else if (diffMinutes < 60) timeAgo = `${diffMinutes}m ago`
-              else if (diffHours < 24) timeAgo = `${diffHours}h ago`
-              else if (diffDays < 7) timeAgo = `${diffDays}d ago`
-              else timeAgo = postDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-
-              return (
-                <article
+            <div className="space-y-0">
+              {filteredPosts.map((item, i) => (
+                <PostCard
                   key={`${item.post.id}-${i}`}
-                  className={cn(
-                    'px-4 py-3',
-                    'hover:bg-muted/30',
-                    'transition-all duration-200'
-                  )}
-                  style={{
-                    fontSize: `${fontSize}rem`,
+                  post={{
+                    id: item.post.id,
+                    content: item.post.content,
+                    authorId: item.post.author,
+                    authorName: item.post.authorName,
+                    authorUsername: item.post.authorUsername || null,
+                    authorProfileImageUrl: item.post.authorProfileImageUrl || null,
+                    timestamp: item.post.timestamp,
+                    likeCount: item.post.likeCount,
+                    commentCount: item.post.commentCount,
+                    shareCount: item.post.shareCount,
+                    isLiked: item.post.isLiked,
+                    isShared: item.post.isShared,
                   }}
-                >
-                  <div className="flex gap-3">
-                    {/* Avatar - Round */}
-                    <div className="flex-shrink-0">
-                      <Avatar
-                        id={item.post.author}
-                        name={item.post.authorName}
-                        type="user"
-                        size="md"
-                        scaleFactor={fontSize * (isMobile ? 0.9 : 1)}
-                        src={item.post.authorProfileImageUrl || actorInfo?.profileImageUrl || undefined}
-                      />
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      {/* Author, handle on left, timestamp on right */}
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <Link
-                            href={getProfileUrl(item.post.author, item.post.authorUsername || actorInfo?.username)}
-                            className="font-semibold text-foreground hover:underline truncate"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {item.post.authorName}
-                          </Link>
-                          <ShieldCheck className="w-5 h-5 text-blue-500 flex-shrink-0" fill="currentColor" />
-                          <Link
-                            href={getProfileUrl(item.post.author, item.post.authorUsername || actorInfo?.username)}
-                            className="text-muted-foreground hover:underline truncate"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            @{item.post.authorUsername || actorInfo?.username || item.post.author}
-                          </Link>
-                        </div>
-                        {/* Timestamp - Right aligned */}
-                        <time className="text-muted-foreground text-sm flex-shrink-0 ml-auto" title={postDate.toLocaleString()}>
-                          {timeAgo}
-                        </time>
-                      </div>
-
-                      {/* Post content - Below name/handle row */}
-                      <div className="text-foreground leading-normal whitespace-pre-wrap break-words">
-                        <TaggedText
-                          text={item.post.content}
-                          onTagClick={(tag) => {
-                            router.push(`/feed?search=${encodeURIComponent(tag)}`)
-                          }}
-                        />
-                      </div>
-
-                      {/* Metadata */}
-                      {item.post.replyTo && (
-                        <div className="mt-2 text-sm text-muted-foreground flex items-center gap-1">
-                          <span className="text-xs">↩️</span>
-                          <span>Replying to a post</span>
-                        </div>
-                      )}
-
-                      {/* Interactions */}
-                      <InteractionBar
-                        postId={item.post.id}
-                        initialInteractions={{
-                          postId: item.post.id,
-                          likeCount: 0,
-                          commentCount: 0,
-                          shareCount: 0,
-                          isLiked: false,
-                          isShared: false,
-                        }}
-                        className="mt-3"
-                      />
-                    </div>
-                  </div>
-                </article>
-              )
-            })
+                  onClick={() => router.push(`/post/${item.post.id}`)}
+                  showInteractions={true}
+                />
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -763,7 +725,7 @@ export default function ActorProfilePage() {
             </Link>
             <div className="flex-1">
               <h1 className="text-xl font-bold">{actorInfo.name}</h1>
-              <p className="text-sm text-muted-foreground">{actorPosts.length} posts</p>
+              <p className="text-sm text-muted-foreground">{actorInfo.stats?.posts || actorPosts.length} posts</p>
             </div>
           </div>
         </div>
@@ -780,9 +742,33 @@ export default function ActorProfilePage() {
                   alt="Cover"
                   className="w-full h-full object-cover"
                 />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/5" />
-              )}
+              ) : actorInfo.type === 'actor' ? (
+                <img
+                  src={`/images/actor-banners/${actorInfo.id}.jpg`}
+                  alt={`${actorInfo.name} banner`}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    // Fallback to gradient if image not found
+                    e.currentTarget.style.display = 'none'
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                  }}
+                />
+              ) : actorInfo.type === 'organization' ? (
+                <img
+                  src={`/images/org-banners/${actorInfo.id}.jpg`}
+                  alt={`${actorInfo.name} banner`}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    // Fallback to gradient if image not found
+                    e.currentTarget.style.display = 'none'
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                  }}
+                />
+              ) : null}
+              <div className={cn(
+                "w-full h-full bg-gradient-to-br from-primary/20 to-primary/5",
+                (actorInfo.type === 'actor' || actorInfo.type === 'organization') ? "hidden" : ""
+              )} />
             </div>
 
             {/* Profile Info Container */}
@@ -817,7 +803,7 @@ export default function ActorProfilePage() {
                         <Mail className="w-5 h-5" />
                       </button>
                       <FollowButton
-                        userId={actorInfo.username || actorInfo.id}
+                        userId={actorInfo.id}
                         size="md"
                         variant="button"
                       />
@@ -848,26 +834,10 @@ export default function ActorProfilePage() {
               </div>
 
               {/* Description/Bio */}
-              {actorInfo.description && (
-                <p className="text-foreground text-[15px] mb-3 whitespace-pre-wrap">{actorInfo.description}</p>
-              )}
-
-              {/* Metadata */}
-              {(actorInfo.role || actorInfo.game?.id) && (
-                <div className="flex flex-wrap items-center gap-3 text-[15px] text-muted-foreground mb-3">
-                  {actorInfo.role && (
-                    <div className="flex items-center gap-1">
-                      <Briefcase className="w-4 h-4" />
-                      <span>{actorInfo.role}</span>
-                    </div>
-                  )}
-                  {actorInfo.game?.id && (
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4" />
-                      <span>Active in {actorInfo.game.id}</span>
-                    </div>
-                  )}
-                </div>
+              {(actorInfo.profileDescription || actorInfo.description) && (
+                <p className="text-foreground text-[15px] mb-3 whitespace-pre-wrap">
+                  {actorInfo.profileDescription || actorInfo.description}
+                </p>
               )}
 
               {/* Stats */}
@@ -894,28 +864,22 @@ export default function ActorProfilePage() {
                   className={cn(
                     'px-4 h-14 font-semibold transition-all duration-300 relative hover:bg-muted/30',
                     tab === 'posts'
-                      ? 'text-foreground'
-                      : 'text-muted-foreground'
+                      ? 'text-foreground opacity-100'
+                      : 'text-foreground opacity-50'
                   )}
                 >
                   Posts
-                  {tab === 'posts' && (
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
-                  )}
                 </button>
                 <button
                   onClick={() => setTab('replies')}
                   className={cn(
                     'px-4 h-14 font-semibold transition-all duration-300 relative hover:bg-muted/30',
                     tab === 'replies'
-                      ? 'text-foreground'
-                      : 'text-muted-foreground'
+                      ? 'text-foreground opacity-100'
+                      : 'text-foreground opacity-50'
                   )}
                 >
                   Replies
-                  {tab === 'replies' && (
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
-                  )}
                 </button>
               </div>
 
@@ -936,8 +900,8 @@ export default function ActorProfilePage() {
           {/* Posts */}
           <div className="px-4">
             {loadingPosts ? (
-              <div className="py-12 text-center">
-                <p className="text-muted-foreground">Loading posts...</p>
+              <div className="w-full">
+                <FeedSkeleton count={4} />
               </div>
             ) : filteredPosts.length === 0 ? (
               <div className="py-12 text-center">
@@ -946,109 +910,29 @@ export default function ActorProfilePage() {
                 </p>
               </div>
             ) : (
-              filteredPosts.map((item, i) => {
-                const postDate = new Date(item.post.timestamp)
-                const now = new Date()
-                const diffMs = now.getTime() - postDate.getTime()
-                const diffMinutes = Math.floor(diffMs / 60000)
-                const diffHours = Math.floor(diffMs / 3600000)
-                const diffDays = Math.floor(diffMs / 86400000)
-
-                let timeAgo: string
-                if (diffMinutes < 1) timeAgo = 'Just now'
-                else if (diffMinutes < 60) timeAgo = `${diffMinutes}m ago`
-                else if (diffHours < 24) timeAgo = `${diffHours}h ago`
-                else if (diffDays < 7) timeAgo = `${diffDays}d ago`
-                else timeAgo = postDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-
-                return (
-                  <article
+              <div className="space-y-0">
+                {filteredPosts.map((item, i) => (
+                  <PostCard
                     key={`${item.post.id}-${i}`}
-                    className={cn(
-                      'px-4 py-3',
-                      'hover:bg-muted/30',
-                      'transition-all duration-200'
-                    )}
-                    style={{
-                      fontSize: `${fontSize}rem`,
+                    post={{
+                      id: item.post.id,
+                      content: item.post.content,
+                      authorId: item.post.author,
+                      authorName: item.post.authorName,
+                      authorUsername: item.post.authorUsername || null,
+                      authorProfileImageUrl: item.post.authorProfileImageUrl || null,
+                      timestamp: item.post.timestamp,
+                      likeCount: item.post.likeCount,
+                      commentCount: item.post.commentCount,
+                      shareCount: item.post.shareCount,
+                      isLiked: item.post.isLiked,
+                      isShared: item.post.isShared,
                     }}
-                  >
-                    <div className="flex gap-3">
-                      {/* Avatar - Round */}
-                      <div className="flex-shrink-0">
-                      <Avatar
-                        id={item.post.author}
-                        name={item.post.authorName}
-                        type="user"
-                        size="md"
-                        scaleFactor={fontSize * (isMobile ? 0.9 : 1)}
-                        src={item.post.authorProfileImageUrl || actorInfo?.profileImageUrl || undefined}
-                      />
-                    </div>
-
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        {/* Author, handle on left, timestamp on right */}
-                        <div className="flex items-center justify-between gap-2 mb-2">
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <Link
-                              href={getProfileUrl(item.post.author, item.post.authorUsername || actorInfo?.username)}
-                              className="font-semibold text-foreground hover:underline truncate"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {item.post.authorName}
-                            </Link>
-                            <ShieldCheck className="w-5 h-5 text-blue-500 flex-shrink-0" fill="currentColor" />
-                            <Link
-                              href={getProfileUrl(item.post.author, item.post.authorUsername || actorInfo?.username)}
-                              className="text-muted-foreground hover:underline truncate"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              @{item.post.authorUsername || actorInfo?.username || item.post.author}
-                            </Link>
-                          </div>
-                          {/* Timestamp - Right aligned */}
-                          <time className="text-muted-foreground text-sm flex-shrink-0 ml-auto" title={postDate.toLocaleString()}>
-                            {timeAgo}
-                          </time>
-                        </div>
-
-                        {/* Post content - Below name/handle row */}
-                        <div className="text-foreground leading-normal whitespace-pre-wrap break-words">
-                          <TaggedText
-                            text={item.post.content}
-                            onTagClick={(tag) => {
-                              router.push(`/feed?search=${encodeURIComponent(tag)}`)
-                            }}
-                          />
-                        </div>
-
-                        {/* Metadata */}
-                        {item.post.replyTo && (
-                          <div className="mt-2 text-sm text-muted-foreground flex items-center gap-1">
-                            <span className="text-xs">↩️</span>
-                            <span>Replying to a post</span>
-                          </div>
-                        )}
-
-                        {/* Interactions */}
-                        <InteractionBar
-                          postId={item.post.id}
-                          initialInteractions={{
-                            postId: item.post.id,
-                            likeCount: 0,
-                            commentCount: 0,
-                            shareCount: 0,
-                            isLiked: false,
-                            isShared: false,
-                          }}
-                          className="mt-3"
-                        />
-                      </div>
-                    </div>
-                  </article>
-                )
-              })
+                    onClick={() => router.push(`/post/${item.post.id}`)}
+                    showInteractions={true}
+                  />
+                ))}
+              </div>
             )}
           </div>
         </div>

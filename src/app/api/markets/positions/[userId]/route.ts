@@ -28,8 +28,8 @@ export const GET = withErrorHandling(async (
     userId,
     type: searchParams.get('type') || 'all',
     status: searchParams.get('status') || 'open',
-    page: searchParams.get('page'),
-    limit: searchParams.get('limit')
+    page: searchParams.get('page') || undefined,
+    limit: searchParams.get('limit') || undefined
   };
   UserPositionsQuerySchema.parse(queryParams);
 

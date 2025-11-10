@@ -170,6 +170,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       0
     );
 
+    // Handle dates that might be strings (from cache) or Date objects (from DB)
+    const openedAt = typeof pool.openedAt === 'string' ? pool.openedAt : pool.openedAt.toISOString();
+    const updatedAt = typeof pool.updatedAt === 'string' ? pool.updatedAt : pool.updatedAt.toISOString();
+
     return {
       id: pool.id,
       name: pool.name,
@@ -187,8 +191,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       openPositions: pool.positions.length,
       totalUnrealizedPnL,
       activeDepositsValue,
-      openedAt: pool.openedAt.toISOString(),
-      updatedAt: pool.updatedAt.toISOString(),
+      openedAt,
+      updatedAt,
     };
   });
 

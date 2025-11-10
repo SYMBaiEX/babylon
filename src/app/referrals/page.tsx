@@ -5,11 +5,11 @@ import { RewardsWidget } from '@/components/referrals/RewardsWidget'
 import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { Separator } from '@/components/shared/Separator'
-import { ShareButton } from '@/components/shared/ShareButton'
 import { useAuth } from '@/hooks/useAuth'
 import { getProfileUrl } from '@/lib/profile-utils'
 import { useAuthStore } from '@/stores/authStore'
 import { usePrivy } from '@privy-io/react-auth'
+import { BouncingLogo } from '@/components/shared/BouncingLogo'
 import {
   Check,
   Copy,
@@ -142,7 +142,9 @@ export default function ReferralsPage() {
       {authenticated && loading && (
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="text-center">
-            <div className="w-8 h-8 border-4 border-[#1c9cf0] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <div className="mx-auto mb-4 flex justify-center">
+              <BouncingLogo size={32} />
+            </div>
             <p className="text-muted-foreground">Loading referral data...</p>
           </div>
         </div>
@@ -168,7 +170,7 @@ export default function ReferralsPage() {
             {/* Total Referrals */}
             <div className="rounded-lg bg-muted/30 p-3 border border-border">
               <div className="flex items-center gap-1.5 mb-1">
-                <Users className="w-4 h-4 text-[#1c9cf0]" />
+                <Users className="w-4 h-4 text-[#0066FF]" />
                 <h3 className="text-xs font-medium text-foreground">Total</h3>
               </div>
               <div className="text-2xl font-bold text-foreground">
@@ -196,10 +198,10 @@ export default function ReferralsPage() {
             {/* Following Back */}
             <div className="rounded-lg bg-muted/30 p-3 border border-border">
               <div className="flex items-center gap-1.5 mb-1">
-                <Heart className="w-4 h-4 text-[#1c9cf0]" />
+                <Heart className="w-4 h-4 text-[#0066FF]" />
                 <h3 className="text-xs font-medium text-foreground">Following</h3>
               </div>
-              <div className="text-2xl font-bold text-[#1c9cf0]">
+              <div className="text-2xl font-bold text-[#0066FF]">
                 {referralData.stats.followingCount}
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -211,7 +213,7 @@ export default function ReferralsPage() {
           {/* Referral Code Card */}
           <div className="rounded-lg bg-muted/30 border border-border p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Gift className="w-5 h-5 text-[#1c9cf0]" />
+              <Gift className="w-5 h-5 text-[#0066FF]" />
               <h2 className="text-base font-bold text-foreground">Your Referral Code</h2>
             </div>
 
@@ -278,22 +280,10 @@ export default function ReferralsPage() {
                 </div>
               </div>
 
-              {/* Share Buttons */}
-              {referralData.referralUrl && (
-                <div className="flex gap-2 pt-1">
-                  <ShareButton
-                    contentType="referral"
-                    url={referralData.referralUrl}
-                    text="Join me on Babylon! 🎮"
-                    className="flex-1"
-                  />
-                </div>
-              )}
-
               {/* Reward Info */}
-              <div className="bg-[#1c9cf0]/10 rounded-lg p-3 border border-[#1c9cf0]/20">
+              <div className="bg-[#0066FF]/10 rounded-lg p-3 border border-[#0066FF]/20">
                 <h3 className="text-sm font-semibold text-foreground mb-1.5 flex items-center gap-1.5">
-                  <UserPlus className="w-3.5 h-3.5 text-[#1c9cf0]" />
+                  <UserPlus className="w-3.5 h-3.5 text-[#0066FF]" />
                   Rewards
                 </h3>
                 <ul className="space-y-1 text-xs text-muted-foreground">
@@ -302,8 +292,8 @@ export default function ReferralsPage() {
                     <span><strong className="text-yellow-500">+250 points</strong> per signup</span>
                   </li>
                   <li className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 bg-[#1c9cf0] rounded-full"></span>
-                    <span><strong className="text-[#1c9cf0]">Auto-follow</strong> - they follow you</span>
+                    <span className="w-1.5 h-1.5 bg-[#0066FF] rounded-full"></span>
+                    <span><strong className="text-[#0066FF]">Auto-follow</strong> - they follow you</span>
                   </li>
                   <li className="flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
@@ -320,13 +310,13 @@ export default function ReferralsPage() {
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-bold text-foreground flex items-center gap-1.5">
-                <Users className="w-4 h-4 text-[#1c9cf0]" />
+                <Users className="w-4 h-4 text-[#0066FF]" />
                 Your Referrals ({referralData.stats.totalReferrals})
               </h2>
               {referralData.stats.totalReferrals > 0 && (
                 <a
                   href="/leaderboard"
-                  className="text-xs text-[#1c9cf0] hover:text-[#1a8cd8] flex items-center gap-1 transition-colors"
+                  className="text-xs text-[#0066FF] hover:text-[#2952d9] flex items-center gap-1 transition-colors"
                 >
                   Leaderboard
                   <ExternalLink className="w-3 h-3" />
@@ -363,7 +353,7 @@ export default function ReferralsPage() {
                           {referredUser.displayName || referredUser.username || 'Anonymous'}
                         </h3>
                         {referredUser.isFollowing && (
-                          <Heart className="w-3 h-3 text-[#1c9cf0] fill-[#1c9cf0] flex-shrink-0" />
+                          <Heart className="w-3 h-3 text-[#0066FF] fill-[#0066FF] flex-shrink-0" />
                         )}
                       </div>
                       {referredUser.username && (
@@ -397,22 +387,22 @@ export default function ReferralsPage() {
 
           {/* Tips Section */}
           {referralData.stats.totalReferrals < 5 && (
-            <div className="rounded-lg bg-[#1c9cf0]/10 border border-[#1c9cf0]/20 p-3">
+            <div className="rounded-lg bg-[#0066FF]/10 border border-[#0066FF]/20 p-3">
               <h3 className="text-sm font-semibold text-foreground mb-1.5 flex items-center gap-1.5">
-                <TrendingUp className="w-3.5 h-3.5 text-[#1c9cf0]" />
+                <TrendingUp className="w-3.5 h-3.5 text-[#0066FF]" />
                 Tips to Get More Referrals
               </h3>
               <ul className="space-y-1 text-xs text-muted-foreground">
                 <li className="flex items-start gap-1.5">
-                  <span className="text-[#1c9cf0] mt-0.5">•</span>
+                  <span className="text-[#0066FF] mt-0.5">•</span>
                   <span>Share on Twitter/X for maximum reach</span>
                 </li>
                 <li className="flex items-start gap-1.5">
-                  <span className="text-[#1c9cf0] mt-0.5">•</span>
+                  <span className="text-[#0066FF] mt-0.5">•</span>
                   <span>Tell friends about competing with 21 AI traders</span>
                 </li>
                 <li className="flex items-start gap-1.5">
-                  <span className="text-[#1c9cf0] mt-0.5">•</span>
+                  <span className="text-[#0066FF] mt-0.5">•</span>
                   <span>Share interesting markets or trades</span>
                 </li>
               </ul>
@@ -438,7 +428,7 @@ export default function ReferralsPage() {
               {/* Total Referrals */}
               <div className="rounded-lg bg-muted/30 p-2 sm:p-4 border border-border w-full">
                 <div className="flex items-center gap-1 sm:gap-2 mb-1 sm:mb-2">
-                  <Users className="w-3 h-3 sm:w-5 sm:h-5 text-[#1c9cf0]" />
+                  <Users className="w-3 h-3 sm:w-5 sm:h-5 text-[#0066FF]" />
                   <h3 className="text-xs sm:text-sm font-medium text-foreground truncate">Total</h3>
                 </div>
                 <div className="text-xl sm:text-3xl font-bold text-foreground">
@@ -466,10 +456,10 @@ export default function ReferralsPage() {
               {/* Following Back */}
               <div className="rounded-lg bg-muted/30 p-2 sm:p-4 border border-border w-full">
                 <div className="flex items-center gap-1 sm:gap-2 mb-1 sm:mb-2">
-                  <Heart className="w-3 h-3 sm:w-5 sm:h-5 text-[#1c9cf0]" />
+                  <Heart className="w-3 h-3 sm:w-5 sm:h-5 text-[#0066FF]" />
                   <h3 className="text-xs sm:text-sm font-medium text-foreground truncate">Following</h3>
                 </div>
-                <div className="text-xl sm:text-3xl font-bold text-[#1c9cf0]">
+                <div className="text-xl sm:text-3xl font-bold text-[#0066FF]">
                   {referralData.stats.followingCount}
                 </div>
                 <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 line-clamp-1">
@@ -481,7 +471,7 @@ export default function ReferralsPage() {
             {/* Referral Code Card */}
             <div className="rounded-lg bg-muted/30 border border-border p-4 w-full">
               <div className="flex items-center gap-2 mb-4">
-                <Gift className="w-6 h-6 text-[#1c9cf0]" />
+                <Gift className="w-6 h-6 text-[#0066FF]" />
                 <h2 className="text-lg font-bold text-foreground">Your Referral Code</h2>
               </div>
 
@@ -538,22 +528,10 @@ export default function ReferralsPage() {
                   </div>
                 </div>
 
-                {/* Share Buttons */}
-                {referralData.referralUrl && (
-                  <div className="flex gap-2 pt-2 w-full">
-                    <ShareButton
-                      contentType="referral"
-                      url={referralData.referralUrl}
-                      text="Join me on Babylon! 🎮"
-                      className="flex-1"
-                    />
-                  </div>
-                )}
-
                 {/* Reward Info */}
-                <div className="bg-[#1c9cf0]/10 rounded-lg p-4 border border-[#1c9cf0]/20 w-full">
+                <div className="bg-[#0066FF]/10 rounded-lg p-4 border border-[#0066FF]/20 w-full">
                   <h3 className="text-base font-semibold text-foreground mb-2 flex items-center gap-2">
-                    <UserPlus className="w-4 h-4 text-[#1c9cf0]" />
+                    <UserPlus className="w-4 h-4 text-[#0066FF]" />
                     Referral Rewards
                   </h3>
                   <ul className="space-y-2 text-sm text-muted-foreground">
@@ -562,8 +540,8 @@ export default function ReferralsPage() {
                       <span><strong className="text-yellow-500">+250 points</strong> for each friend who signs up</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <span className="w-2 h-2 bg-[#1c9cf0] rounded-full mt-1.5 flex-shrink-0"></span>
-                      <span><strong className="text-[#1c9cf0]">Auto-follow</strong> - they'll automatically follow you</span>
+                      <span className="w-2 h-2 bg-[#0066FF] rounded-full mt-1.5 flex-shrink-0"></span>
+                      <span><strong className="text-[#0066FF]">Auto-follow</strong> - they'll automatically follow you</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="w-2 h-2 bg-green-500 rounded-full mt-1.5 flex-shrink-0"></span>
@@ -580,13 +558,13 @@ export default function ReferralsPage() {
             <div className="w-full">
               <div className="flex items-center justify-between mb-4 w-full">
                 <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <Users className="w-5 h-5 text-[#1c9cf0]" />
+                  <Users className="w-5 h-5 text-[#0066FF]" />
                   <span>Your Referrals ({referralData.stats.totalReferrals})</span>
                 </h2>
                 {referralData.stats.totalReferrals > 0 && (
                   <a
                     href="/leaderboard"
-                    className="text-sm text-[#1c9cf0] hover:text-[#1a8cd8] flex items-center gap-1 transition-colors flex-shrink-0 ml-2"
+                    className="text-sm text-[#0066FF] hover:text-[#2952d9] flex items-center gap-1 transition-colors flex-shrink-0 ml-2"
                   >
                     Leaderboard
                     <ExternalLink className="w-4 h-4" />
@@ -646,8 +624,8 @@ export default function ReferralsPage() {
                         </div>
                         {referredUser.isFollowing && (
                           <div className="flex items-center gap-1 text-xs">
-                            <Heart className="w-3 h-3 text-[#1c9cf0] fill-[#1c9cf0]" />
-                            <span className="text-[#1c9cf0]">Following</span>
+                            <Heart className="w-3 h-3 text-[#0066FF] fill-[#0066FF]" />
+                            <span className="text-[#0066FF]">Following</span>
                           </div>
                         )}
                       </div>
@@ -668,26 +646,26 @@ export default function ReferralsPage() {
 
             {/* Tips Section */}
             {referralData.stats.totalReferrals < 5 && (
-              <div className="rounded-lg bg-[#1c9cf0]/10 border border-[#1c9cf0]/20 p-4 w-full">
+              <div className="rounded-lg bg-[#0066FF]/10 border border-[#0066FF]/20 p-4 w-full">
                 <h3 className="text-base font-semibold text-foreground mb-2 flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-[#1c9cf0]" />
+                  <TrendingUp className="w-4 h-4 text-[#0066FF]" />
                   Tips to Get More Referrals
                 </h3>
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li className="flex items-start gap-2">
-                    <span className="text-[#1c9cf0] mt-0.5 flex-shrink-0">•</span>
+                    <span className="text-[#0066FF] mt-0.5 flex-shrink-0">•</span>
                     <span>Share your referral link on Twitter/X for maximum reach</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-[#1c9cf0] mt-0.5 flex-shrink-0">•</span>
+                    <span className="text-[#0066FF] mt-0.5 flex-shrink-0">•</span>
                     <span>Tell friends about the 21 AI traders they can compete against</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-[#1c9cf0] mt-0.5 flex-shrink-0">•</span>
+                    <span className="text-[#0066FF] mt-0.5 flex-shrink-0">•</span>
                     <span>Share interesting markets or trades you've made</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-[#1c9cf0] mt-0.5 flex-shrink-0">•</span>
+                    <span className="text-[#0066FF] mt-0.5 flex-shrink-0">•</span>
                     <span>Your referrals automatically follow you - build your network!</span>
                   </li>
                 </ul>

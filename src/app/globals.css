@@ -7,35 +7,35 @@
   --card-foreground: #0f1419;
   --popover: #ffffff;
   --popover-foreground: #0f1419;
-  --primary: #1da1f2;
+  --primary: #0066FF;
   --primary-foreground: #ffffff;
   --secondary: #0f1419;
   --secondary-foreground: #ffffff;
   --muted: #e5e5e6;
   --muted-foreground: #0f1419;
   --accent: #e3ecf6;
-  --accent-foreground: #1e9df1;
+  --accent-foreground: #0066FF;
   --destructive: #f4212e;
   --destructive-foreground: #ffffff;
   --border: #ffffff2a;
   --input: #f7f9fa;
-  --ring: #1da1f2;
-  --chart-1: #1e9df1;
+  --ring: #0066FF;
+  --chart-1: #0066FF;
   --chart-2: #00b87a;
   --chart-3: #f7b928;
   --chart-4: #17bf63;
   --chart-5: #e0245e;
   --sidebar: #fafafa;
   --sidebar-foreground: #0f1419;
-  --sidebar-primary: #1e9df1;
+  --sidebar-primary: #0066FF;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #e3ecf6;
-  --sidebar-accent-foreground: #1e9df1;
+  --sidebar-accent-foreground: #0066FF;
   --sidebar-border: #e1e8ed;
-  --sidebar-ring: #1da1f2;
+  --sidebar-ring: #0066FF;
   --scrollbar-track: #e5e5e6;
-  --scrollbar-thumb: #1c9cf0;
-  --scrollbar-thumb-hover: #1da1f2;
+  --scrollbar-thumb: #0066FF;
+  --scrollbar-thumb-hover: #2952d9;
   --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: "Courier New", Courier, monospace;
@@ -46,14 +46,14 @@
   --shadow-spread: 0px;
   --shadow-opacity: 0.08;
   --shadow-color: rgba(101,119,134,0.2);
-  --shadow-2xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-sm: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-md: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 2px 4px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-lg: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 4px 6px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 8px 10px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-2xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
+  --shadow-2xs: 0px 2px 0px 0px hsl(226 89% 58% / 0.00);
+  --shadow-xs: 0px 2px 0px 0px hsl(226 89% 58% / 0.00);
+  --shadow-sm: 0px 2px 0px 0px hsl(226 89% 58% / 0.00), 0px 1px 2px -1px hsl(226 89% 58% / 0.00);
+  --shadow: 0px 2px 0px 0px hsl(226 89% 58% / 0.00), 0px 1px 2px -1px hsl(226 89% 58% / 0.00);
+  --shadow-md: 0px 2px 0px 0px hsl(226 89% 58% / 0.00), 0px 2px 4px -1px hsl(226 89% 58% / 0.00);
+  --shadow-lg: 0px 2px 0px 0px hsl(226 89% 58% / 0.00), 0px 4px 6px -1px hsl(226 89% 58% / 0.00);
+  --shadow-xl: 0px 2px 0px 0px hsl(226 89% 58% / 0.00), 0px 8px 10px -1px hsl(226 89% 58% / 0.00);
+  --shadow-2xl: 0px 2px 0px 0px hsl(226 89% 58% / 0.00);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 }
@@ -65,35 +65,35 @@
   --card-foreground: #d9d9d9;
   --popover: #000000;
   --popover-foreground: #e7e9ea;
-  --primary: #1da1f2;
+  --primary: #0066FF;
   --primary-foreground: #ffffff;
   --secondary: #f0f3f4;
   --secondary-foreground: #0f1419;
   --muted: #181818;
   --muted-foreground: #72767a;
   --accent: #061622;
-  --accent-foreground: #1c9cf0;
+  --accent-foreground: #0066FF;
   --destructive: #f4212e;
   --destructive-foreground: #ffffff;
   --border: #2f3336;
   --input: #22303c;
-  --ring: #1da1f2;
-  --chart-1: #1e9df1;
+  --ring: #0066FF;
+  --chart-1: #0066FF;
   --chart-2: #00b87a;
   --chart-3: #f7b928;
   --chart-4: #17bf63;
   --chart-5: #e0245e;
   --sidebar: #0a0a0a;
   --sidebar-foreground: #d9d9d9;
-  --sidebar-primary: #1da1f2;
+  --sidebar-primary: #0066FF;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #1a1a1a;
-  --sidebar-accent-foreground: #1c9cf0;
+  --sidebar-accent-foreground: #0066FF;
   --sidebar-border: #2f3336;
-  --sidebar-ring: #1da1f2;
+  --sidebar-ring: #0066FF;
   --scrollbar-track: #000000;
-  --scrollbar-thumb: #1c9cf0;
-  --scrollbar-thumb-hover: #1da1f2;
+  --scrollbar-thumb: #0066FF;
+  --scrollbar-thumb-hover: #2952d9;
   --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;
@@ -103,15 +103,15 @@
   --shadow-blur: 0px;
   --shadow-spread: 0px;
   --shadow-opacity: 0;
-  --shadow-color: rgba(29,161,242,0.25);
-  --shadow-2xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-sm: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 1px 2px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-md: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 2px 4px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-lg: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 4px 6px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 8px 10px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
-  --shadow-2xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
+  --shadow-color: rgba(52,98,243,0.25);
+  --shadow-2xs: 0px 2px 0px 0px hsl(226 89% 58% / 0.00);
+  --shadow-xs: 0px 2px 0px 0px hsl(226 89% 58% / 0.00);
+  --shadow-sm: 0px 2px 0px 0px hsl(226 89% 58% / 0.00), 0px 1px 2px -1px hsl(226 89% 58% / 0.00);
+  --shadow: 0px 2px 0px 0px hsl(226 89% 58% / 0.00), 0px 1px 2px -1px hsl(226 89% 58% / 0.00);
+  --shadow-md: 0px 2px 0px 0px hsl(226 89% 58% / 0.00), 0px 2px 4px -1px hsl(226 89% 58% / 0.00);
+  --shadow-lg: 0px 2px 0px 0px hsl(226 89% 58% / 0.00), 0px 4px 6px -1px hsl(226 89% 58% / 0.00);
+  --shadow-xl: 0px 2px 0px 0px hsl(226 89% 58% / 0.00), 0px 8px 10px -1px hsl(226 89% 58% / 0.00);
+  --shadow-2xl: 0px 2px 0px 0px hsl(226 89% 58% / 0.00);
 }
 
 /* @tailwind-css v4 theme block */
@@ -173,6 +173,16 @@ body {
   background-color: var(--background);
   color: var(--foreground);
   font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+/* All buttons and links should have pointer cursor */
+button:not(:disabled),
+a[href] {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
 }
 
 /* Allow rounded elements to maintain their rounded state */

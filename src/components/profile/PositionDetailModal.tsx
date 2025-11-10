@@ -249,7 +249,7 @@ export function PositionDetailModal({ isOpen, onClose, type, data, userId, onSuc
             className={cn(
               "flex-1 px-4 py-3 font-medium transition-colors",
               activeTab === 'details'
-                ? "text-[#1c9cf0] border-b-2 border-[#1c9cf0]"
+                ? "text-[#0066FF] border-b-2 border-[#0066FF]"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -268,7 +268,7 @@ export function PositionDetailModal({ isOpen, onClose, type, data, userId, onSuc
               className={cn(
                 "flex-1 px-4 py-3 font-medium transition-colors",
                 activeTab === 'trade'
-                  ? "text-[#1c9cf0] border-b-2 border-[#1c9cf0]"
+                  ? "text-[#0066FF] border-b-2 border-[#0066FF]"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -562,7 +562,7 @@ export function PositionDetailModal({ isOpen, onClose, type, data, userId, onSuc
                       onChange={(e) => setAmount(e.target.value)}
                       min="1"
                       step="1"
-                      className="w-full px-4 py-3 rounded bg-muted/50 text-foreground text-base font-medium focus:outline-none focus:bg-muted focus:ring-2 focus:ring-[#1c9cf0]/30"
+                      className="w-full px-4 py-3 rounded bg-muted/50 text-foreground text-base font-medium focus:outline-none focus:bg-muted focus:ring-2 focus:ring-[#0066FF]/30"
                       placeholder="Min: $1"
                     />
                   </div>
@@ -649,7 +649,7 @@ export function PositionDetailModal({ isOpen, onClose, type, data, userId, onSuc
                         onChange={(e) => setSize(e.target.value)}
                         min={perpMarket.minOrderSize}
                         step="10"
-                        className="w-32 px-3 py-1.5 rounded bg-background/50 text-foreground text-right font-medium focus:outline-none focus:bg-background focus:ring-2 focus:ring-[#1c9cf0]/30"
+                        className="w-32 px-3 py-1.5 rounded bg-background/50 text-foreground text-right font-medium focus:outline-none focus:bg-background focus:ring-2 focus:ring-[#0066FF]/30"
                         placeholder={`Min: $${perpMarket.minOrderSize}`}
                       />
                     </div>

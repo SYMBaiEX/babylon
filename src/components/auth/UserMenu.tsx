@@ -159,7 +159,7 @@ export function UserMenu() {
               </>
             ) : (
               <>
-                <Copy className="w-5 h-5" style={{ color: '#1c9cf0' }} />
+                <Copy className="w-5 h-5" style={{ color: '#0066FF' }} />
                 <div className="flex flex-col flex-1 min-w-0">
                   <span className="text-sm font-semibold text-foreground">Copy Referral Link</span>
                   <span className="text-xs text-muted-foreground font-mono truncate">

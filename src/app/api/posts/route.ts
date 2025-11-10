@@ -257,10 +257,12 @@ export async function GET(request: Request) {
         
         if (actor) {
           authorName = actor.name;
-          authorProfileImageUrl = actor.profileImageUrl || null;
+          // Use database profileImageUrl or construct path from actor ID
+          authorProfileImageUrl = actor.profileImageUrl || `/images/actors/${actor.id}.jpg`;
         } else if (org) {
           authorName = org.name;
-          authorProfileImageUrl = org.imageUrl || null;
+          // Use database imageUrl or construct path from organization ID  
+          authorProfileImageUrl = org.imageUrl || `/images/organizations/${org.id}.jpg`;
         } else if (user) {
           authorName = user.displayName || user.username || post.authorId || 'Unknown';
           authorUsername = user.username || null;

@@ -7,6 +7,7 @@ import { ArrowLeft, Award, Calendar, DollarSign, Info, TrendingDown, TrendingUp,
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { BouncingLogo } from '@/components/shared/BouncingLogo'
 
 interface Pool {
   id: string
@@ -152,7 +153,9 @@ export default function PoolDetailPage() {
       <PageContainer>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
+            <div className="mx-auto mb-4 flex justify-center">
+              <BouncingLogo size={48} />
+            </div>
             <p className="text-muted-foreground">Loading pool...</p>
           </div>
         </div>
@@ -257,7 +260,7 @@ export default function PoolDetailPage() {
 
           {/* User Position if exists */}
           {pool.userDeposit && pool.userDeposit > 0 && (
-            <div className="mt-4 p-4 bg-[#1da1f2]/10 rounded-lg border border-[#1da1f2]/20">
+            <div className="mt-4 p-4 bg-[#0066FF]/10 rounded-lg border border-[#0066FF]/20">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm text-muted-foreground">Your Deposit</div>
@@ -349,7 +352,7 @@ export default function PoolDetailPage() {
                 onChange={(e) => setDepositAmount(e.target.value)}
                 min="10"
                 step="10"
-                className="w-full px-4 py-3 rounded bg-background text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-[#1da1f2]/30"
+                className="w-full px-4 py-3 rounded bg-background text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30"
                 placeholder="Min: $10"
               />
             </div>
@@ -397,13 +400,13 @@ export default function PoolDetailPage() {
               disabled={submitting || depositNum < 10}
               className={cn(
                 'w-full py-4 rounded-lg font-bold text-white text-lg transition-all cursor-pointer',
-                'bg-[#1da1f2] hover:bg-[#1a8cd8]',
+                'bg-[#0066FF] hover:bg-[#2952d9]',
                 (submitting || depositNum < 10) && 'opacity-50 cursor-not-allowed'
               )}
             >
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <BouncingLogo size={20} />
                   Depositing...
                 </span>
               ) : authenticated ? (

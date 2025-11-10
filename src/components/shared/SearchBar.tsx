@@ -18,7 +18,7 @@ export function SearchBar({ value, onChange, placeholder = 'Search...', classNam
         'absolute top-1/2 -translate-y-1/2 pointer-events-none',
         compact ? 'left-3' : 'left-4'
       )}>
-        <Search className={cn(compact ? 'w-3.5 h-3.5' : 'w-4 h-4')} style={{ color: '#1c9cf0' }} />
+        <Search className={cn(compact ? 'w-3.5 h-3.5' : 'w-4 h-4')} style={{ color: '#0066FF' }} />
       </div>
       <input
         type="text"
@@ -28,7 +28,7 @@ export function SearchBar({ value, onChange, placeholder = 'Search...', classNam
         className={cn(
           'w-full',
           'bg-muted/50 border-2',
-          'focus:outline-none focus:ring-2 focus:ring-[#1c9cf0]',
+          'focus:outline-none focus:ring-2 focus:ring-[#0066FF]',
           'transition-all duration-200',
           'text-foreground',
           compact 
@@ -37,7 +37,7 @@ export function SearchBar({ value, onChange, placeholder = 'Search...', classNam
           'rounded-lg'
         )}
         style={{
-          borderColor: '#1c9cf0',
+          borderColor: '#0066FF',
           borderRadius: '2em',
         }}
       />
@@ -54,7 +54,7 @@ export function SearchBar({ value, onChange, placeholder = 'Search...', classNam
       )}
       <style jsx>{`
         input::placeholder {
-          color: #1c9cf0;
+          color: #0066FF;
           opacity: 0.8;
         }
       `}</style>

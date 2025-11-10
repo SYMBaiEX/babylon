@@ -10,7 +10,9 @@ import { PageContainer } from '@/components/shared/PageContainer'
 import { Avatar } from '@/components/shared/Avatar'
 import { Separator } from '@/components/shared/Separator'
 import { TaggedText } from '@/components/shared/TaggedText'
+import { ChatListSkeleton } from '@/components/shared/Skeleton'
 import { cn } from '@/lib/utils'
+import { BouncingLogo } from '@/components/shared/BouncingLogo'
 
 interface Chat {
   id: string
@@ -583,7 +585,7 @@ export default function ChatsPage() {
                       
                       {loadingChat ? (
                         <div className="flex items-center justify-center h-full">
-                          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                          <BouncingLogo size={32} />
                         </div>
                       ) : (
                         (chatDetails?.messages || []).map((msg, i) => {
@@ -648,7 +650,7 @@ export default function ChatsPage() {
                                   )}
                                   style={{
                                     backgroundColor: isCurrentUser
-                                      ? '#1c9cf020'
+                                      ? '#0066FF20'
                                       : 'rgba(var(--sidebar-accent), 0.5)',
                                   }}
                                 >
@@ -739,10 +741,10 @@ export default function ChatsPage() {
                               'transition-all duration-300',
                               'disabled:opacity-50 disabled:cursor-not-allowed'
                             )}
-                            style={{ color: '#1c9cf0' }}
+                            style={{ color: '#0066FF' }}
                           >
                             {sending ? (
-                              <Loader2 className="w-5 h-5 animate-spin" />
+                              <BouncingLogo size={20} />
                             ) : (
                               <Send className="w-5 h-5" />
                             )}
@@ -850,9 +852,7 @@ export default function ChatsPage() {
                 {/* Groups List */}
                 <div className="flex-1 overflow-y-auto">
                   {_loading ? (
-                    <div className="p-4 text-center text-muted-foreground">
-                      Loading chats...
-                    </div>
+                    <ChatListSkeleton count={10} />
                   ) : filteredUserChats.length === 0 ? (
                     <div className="text-center text-muted-foreground py-12">
                       <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
@@ -975,7 +975,7 @@ export default function ChatsPage() {
                         
                         {loadingChat ? (
                           <div className="flex items-center justify-center h-full">
-                            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                            <BouncingLogo size={32} />
                           </div>
                         ) : (
                           (chatDetails?.messages || []).map((msg, i) => {
@@ -1040,7 +1040,7 @@ export default function ChatsPage() {
                                     )}
                                     style={{
                                       backgroundColor: isCurrentUser
-                                        ? '#1c9cf020'
+                                        ? '#0066FF20'
                                         : 'rgba(var(--sidebar-accent), 0.5)',
                                     }}
                                   >
@@ -1131,10 +1131,10 @@ export default function ChatsPage() {
                                 'transition-all duration-300',
                                 'disabled:opacity-50 disabled:cursor-not-allowed'
                               )}
-                              style={{ color: '#1c9cf0' }}
+                              style={{ color: '#0066FF' }}
                             >
                               {sending ? (
-                                <Loader2 className="w-5 h-5 animate-spin" />
+                                <BouncingLogo size={20} />
                               ) : (
                                 <Send className="w-5 h-5" />
                               )}

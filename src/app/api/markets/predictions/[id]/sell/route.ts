@@ -13,6 +13,8 @@ import { PredictionMarketSellSchema } from '@/lib/validation/schemas/trade';
 import { WalletService } from '@/lib/services/wallet-service';
 import { PredictionPricing } from '@/lib/prediction-pricing';
 import { logger } from '@/lib/logger';
+import { FeeService } from '@/lib/services/fee-service';
+import { FEE_CONFIG } from '@/lib/config/fees';
 /**
  * POST /api/markets/predictions/[id]/sell
  * Sell shares from prediction market position
@@ -32,7 +34,7 @@ export const POST = withErrorHandling(async (
   const { shares } = PredictionMarketSellSchema.parse(body);
 
   // Execute sell with RLS
-  const { proceeds, pnl, remainingShares, positionClosed, calculation } = await asUser(user, async (db) => {
+  const { grossProceeds, netProceeds, pnl, remainingShares, positionClosed, calculation } = await asUser(user, async (db) => {
     // Get or find market
     let market = await db.market.findUnique({
       where: { id: marketId },
@@ -130,33 +132,34 @@ export const POST = withErrorHandling(async (
 
     const side = position.side ? 'yes' : 'no';
 
-    // Calculate proceeds using AMM
-    const calculation = PredictionPricing.calculateSell(
+    // Calculate proceeds using AMM with fees
+    const calculation = PredictionPricing.calculateSellWithFees(
       Number(market.yesShares),
       Number(market.noShares),
       side,
       shares
     );
 
-    const proceedsAmount = calculation.totalCost;
+    const grossProceeds = calculation.totalCost; // Gross proceeds before fee
+    const netProceeds = calculation.netProceeds!; // Net proceeds after fee
 
-    // Credit proceeds to balance
+    // Credit net proceeds to balance
     await WalletService.credit(
       user.userId,
-      proceedsAmount,
+      netProceeds,
       'pred_sell',
       `Sold ${shares} ${side.toUpperCase()} shares in: ${market.question}`,
       marketId
     );
 
-    // Update market shares
+    // Update market shares (use gross proceeds for liquidity)
     await db.market.update({
       where: { id: marketId },
       data: {
         yesShares: new Prisma.Decimal(calculation.newYesPrice * (Number(market.yesShares) + Number(market.noShares))),
         noShares: new Prisma.Decimal(calculation.newNoPrice * (Number(market.yesShares) + Number(market.noShares))),
         liquidity: {
-          decrement: new Prisma.Decimal(proceedsAmount),
+          decrement: new Prisma.Decimal(grossProceeds),
         },
       },
     });
@@ -177,13 +180,14 @@ export const POST = withErrorHandling(async (
       });
     }
 
-    // Calculate PnL
+    // Calculate PnL (use net proceeds)
     const costBasis = Number(position.avgPrice) * shares;
-    const profitLoss = proceedsAmount - costBasis;
+    const profitLoss = netProceeds - costBasis;
     await WalletService.recordPnL(user.userId, profitLoss);
 
     return { 
-      proceeds: proceedsAmount, 
+      grossProceeds,
+      netProceeds, 
       pnl: profitLoss, 
       remainingShares: remaining, 
       positionClosed: remaining <= 0.01,
@@ -191,24 +195,40 @@ export const POST = withErrorHandling(async (
     };
   });
 
+  // Process trading fee and distribute to referrer if applicable
+  const feeResult = await FeeService.processTradingFee(
+    user.userId,
+    FEE_CONFIG.FEE_TYPES.PRED_SELL,
+    grossProceeds,
+    undefined,
+    marketId
+  );
+
   const newBalance = await WalletService.getBalance(user.userId);
 
-  logger.info('Shares sold successfully', {
+  logger.info('Shares sold successfully with fee', {
     userId: user.userId,
     marketId,
     sharesSold: shares,
-    proceeds,
+    grossProceeds,
+    netProceeds,
+    fee: feeResult.feeCharged,
     pnl
   }, 'POST /api/markets/predictions/[id]/sell');
 
   return successResponse({
     sharesSold: shares,
-    proceeds,
+    grossProceeds,
+    netProceeds,
     pnl,
     market: {
       yesPrice: calculation.newYesPrice,
       noPrice: calculation.newNoPrice,
       priceImpact: calculation.priceImpact,
+    },
+    fee: {
+      amount: feeResult.feeCharged,
+      referrerPaid: feeResult.referrerPaid,
     },
     remainingShares,
     positionClosed,

@@ -55,6 +55,7 @@ export const GET = withErrorHandling(async (
       referralCode: true,
       referralCount: true,
       reputationPoints: true,
+      totalFeesEarned: true,
       pointsAwardedForProfile: true,
       pointsAwardedForFarcaster: true,
       pointsAwardedForTwitter: true,
@@ -92,8 +93,17 @@ export const GET = withErrorHandling(async (
     },
   });
 
-  // Calculate total points earned from referrals
-  const totalPointsEarned = referrals.length * 250;
+  // Get fee earnings from referrals
+  const feeEarnings = await prisma.tradingFee.aggregate({
+    where: {
+      referrerId: canonicalUserId,
+    },
+    _sum: {
+      referrerFee: true,
+    },
+  })
+  
+  const totalFeesEarned = Number(feeEarnings._sum.referrerFee || 0)
 
   // Check if referrer (current user) is following the referred users
   const referredUserIds = referrals
@@ -143,6 +153,7 @@ export const GET = withErrorHandling(async (
       profileImageUrl: user.profileImageUrl,
       referralCode: referralCode,
       reputationPoints: user.reputationPoints,
+      totalFeesEarned: user.totalFeesEarned,
       pointsAwardedForProfile: user.pointsAwardedForProfile,
       pointsAwardedForFarcaster: user.pointsAwardedForFarcaster,
       pointsAwardedForTwitter: user.pointsAwardedForTwitter,
@@ -153,8 +164,8 @@ export const GET = withErrorHandling(async (
     },
     stats: {
       totalReferrals: referrals.length,
-      totalPointsEarned,
-      pointsPerReferral: 250,
+      totalFeesEarned,
+      feeShareRate: 0.50, // 50% of fees
       followingCount: followingUserIds.size,
     },
     referredUsers,

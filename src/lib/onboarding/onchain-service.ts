@@ -4,7 +4,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
-import { BusinessLogicError, ValidationError, InternalServerError } from '@/lib/errors'
+import { BusinessLogicError, ValidationError, InternalServerError, ConflictError } from '@/lib/errors'
 import { PointsService } from '@/lib/services/points-service'
 import { notifyNewAccount } from '@/lib/services/notification-service'
 import { Agent0Client } from '@/agents/agent0/Agent0Client'
@@ -333,14 +333,31 @@ export async function processOnchainRegistration({
   }
 
   if (isRegistered && tokenId) {
-    if (!dbUser.onChainRegistered) {
-      await prisma.user.update({
-        where: { id: dbUser.id },
-        data: {
-          onChainRegistered: true,
-          nftTokenId: tokenId,
-        },
-      })
+    // User is already registered on-chain, sync the DB if needed
+    if (!dbUser.onChainRegistered || dbUser.nftTokenId !== tokenId) {
+      try {
+        await prisma.user.update({
+          where: { id: dbUser.id },
+          data: {
+            onChainRegistered: true,
+            nftTokenId: tokenId,
+          },
+        })
+        logger.info(
+          'Synced on-chain registration status to database',
+          { userId: dbUser.id, tokenId, wasRegistered: dbUser.onChainRegistered },
+          'processOnchainRegistration'
+        )
+      } catch (updateError) {
+        // If update fails due to unique constraint on nftTokenId, another user might have this tokenId
+        // This shouldn't happen in normal flow, but handle it gracefully
+        logger.warn(
+          'Failed to sync nftTokenId - may already be assigned to another user',
+          { userId: dbUser.id, tokenId, error: updateError },
+          'processOnchainRegistration'
+        )
+        // Still return success since the user IS registered on-chain
+      }
     }
 
     const hasWelcomeBonus = await prisma.balanceTransaction.findFirst({
@@ -349,6 +366,12 @@ export async function processOnchainRegistration({
         description: 'Welcome bonus - initial signup',
       },
     })
+
+    logger.info(
+      'User already registered on-chain, returning existing registration',
+      { userId: dbUser.id, tokenId, alreadyRegistered: true },
+      'processOnchainRegistration'
+    )
 
     return {
       message: 'Already registered on-chain',
@@ -578,23 +601,57 @@ export async function processOnchainRegistration({
     )
   }
 
-  await prisma.user.update({
-    where: { id: dbUser.id },
-    data: {
-      onChainRegistered: true,
-      nftTokenId: tokenId,
-      registrationTxHash: registrationTxHash ?? submittedTxHash ?? null,
-      // Store registration blockchain metadata
-      registrationBlockNumber: finalizedReceipt.blockNumber,
-      registrationGasUsed: finalizedReceipt.gasUsed,
-      registrationTimestamp: new Date(),
-      username: user.isAgent ? user.userId : (username || dbUser.username),
-      displayName: displayName || username || dbUser.username || user.userId,
-      bio: bio || (user.isAgent ? `Autonomous AI agent: ${user.userId}` : undefined) || dbUser.username || null,
-      profileImageUrl: profileImageUrl ?? undefined,
-      coverImageUrl: coverImageUrl ?? undefined,
-    },
-  })
+  try {
+    await prisma.user.update({
+      where: { id: dbUser.id },
+      data: {
+        onChainRegistered: true,
+        nftTokenId: tokenId,
+        registrationTxHash: registrationTxHash ?? submittedTxHash ?? null,
+        // Store registration blockchain metadata
+        registrationBlockNumber: finalizedReceipt.blockNumber,
+        registrationGasUsed: finalizedReceipt.gasUsed,
+        registrationTimestamp: new Date(),
+        username: user.isAgent ? user.userId : (username || dbUser.username),
+        displayName: displayName || username || dbUser.username || user.userId,
+        bio: bio || (user.isAgent ? `Autonomous AI agent: ${user.userId}` : undefined) || dbUser.username || null,
+        profileImageUrl: profileImageUrl ?? undefined,
+        coverImageUrl: coverImageUrl ?? undefined,
+      },
+    })
+  } catch (dbError) {
+    // Check if this is a duplicate nftTokenId error
+    if (dbError && typeof dbError === 'object' && 'code' in dbError) {
+      const prismaError = dbError as { code?: string; meta?: { target?: string[] } }
+      if (prismaError.code === 'P2002' && prismaError.meta?.target?.includes('nftTokenId')) {
+        // This user was already registered with this tokenId, likely a race condition
+        logger.warn(
+          'User registration completed but nftTokenId already exists in database',
+          { userId: dbUser.id, tokenId, existingNftTokenId: dbUser.nftTokenId },
+          'processOnchainRegistration'
+        )
+        // Verify the existing tokenId matches
+        const existingUser = await prisma.user.findUnique({
+          where: { id: dbUser.id },
+          select: { nftTokenId: true, onChainRegistered: true },
+        })
+        if (existingUser?.nftTokenId === tokenId) {
+          // Same tokenId, this is fine - the user is already registered
+          logger.info('User already has this nftTokenId, continuing', { userId: dbUser.id, tokenId }, 'processOnchainRegistration')
+        } else {
+          // Different tokenId is assigned to another user - this is a serious error
+          throw new ConflictError(
+            'This NFT token ID is already assigned to another user. Please contact support.',
+            'nftTokenId'
+          )
+        }
+      } else {
+        throw dbError
+      }
+    } else {
+      throw dbError
+    }
+  }
 
   if (user.isAgent) {
     const agent0Client = new Agent0Client({
@@ -693,7 +750,6 @@ export async function processOnchainRegistration({
           status: 'completed',
           referredUserId: dbUser.id,
           completedAt: new Date(),
-          pointsAwarded: true,
         },
         create: {
           referrerId,
@@ -701,7 +757,6 @@ export async function processOnchainRegistration({
           referredUserId: dbUser.id,
           status: 'completed',
           completedAt: new Date(),
-          pointsAwarded: true,
         },
       })
     }

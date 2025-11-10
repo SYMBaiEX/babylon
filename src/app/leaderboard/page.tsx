@@ -3,6 +3,7 @@
 import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { RankBadge, RankNumber } from '@/components/shared/RankBadge'
+import { LeaderboardSkeleton } from '@/components/shared/Skeleton'
 import { useAuth } from '@/hooks/useAuth'
 import { ChevronLeft, ChevronRight, TrendingUp, Trophy, Users } from 'lucide-react'
 import Link from 'next/link'
@@ -39,7 +40,7 @@ export default function LeaderboardPage() {
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 100
-  const minPoints = 10000
+  const minPoints = 500 // Show all users and NPCs with >500 reputation
 
   // Fetch leaderboard data
   useEffect(() => {
@@ -84,10 +85,9 @@ export default function LeaderboardPage() {
 
       {/* Loading State */}
       {loading && (
-        <div className="flex-1 flex items-center justify-center p-8">
-          <div className="text-center">
-            <div className="w-8 h-8 border-2 border-[#1c9cf0] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading leaderboard...</p>
+        <div className="flex-1 overflow-y-auto">
+          <div className="w-full max-w-4xl mx-auto px-4 lg:px-6">
+            <LeaderboardSkeleton count={15} />
           </div>
         </div>
       )}
@@ -122,7 +122,7 @@ export default function LeaderboardPage() {
         <div className="flex-1 overflow-y-auto">
           <div className="w-full max-w-4xl mx-auto px-4 lg:px-6">
             <div className="flex items-center gap-2 mb-4 px-4 pt-4">
-              <Users className="w-5 h-5 text-[#1c9cf0]" />
+              <Users className="w-5 h-5 text-[#0066FF]" />
               <h2 className="text-lg font-semibold text-foreground">
                 {leaderboardData.leaderboard.length} {leaderboardData.leaderboard.length === 1 ? 'Player' : 'Players'}
               </h2>
@@ -139,11 +139,11 @@ export default function LeaderboardPage() {
                     href={profileUrl}
                     className={`block p-4 transition-colors ${
                       isCurrentUser
-                        ? 'bg-[#1c9cf0]/20 border-l-4'
+                        ? 'bg-[#0066FF]/20 border-l-4'
                         : 'hover:bg-muted/30'
                     }`}
                     style={{
-                      borderLeftColor: isCurrentUser ? '#1c9cf0' : 'transparent',
+                      borderLeftColor: isCurrentUser ? '#0066FF' : 'transparent',
                     }}
                   >
                     <div className="flex items-center gap-4">
@@ -170,7 +170,7 @@ export default function LeaderboardPage() {
                             {player.displayName || player.username || 'Anonymous'}
                           </h3>
                           {isCurrentUser && (
-                            <span className="px-2 py-0.5 text-xs font-semibold bg-[#1c9cf0] text-white rounded">
+                            <span className="px-2 py-0.5 text-xs font-semibold bg-[#0066FF] text-white rounded">
                               YOU
                             </span>
                           )}
@@ -247,10 +247,9 @@ export default function LeaderboardPage() {
 
         {/* Loading State */}
         {loading && (
-          <div className="flex-1 flex items-center justify-center p-8">
-            <div className="text-center">
-              <div className="w-8 h-8 border-2 border-[#1c9cf0] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Loading leaderboard...</p>
+          <div className="flex-1 overflow-y-auto">
+            <div className="w-full px-4 sm:px-6">
+              <LeaderboardSkeleton count={10} />
             </div>
           </div>
         )}
@@ -286,7 +285,7 @@ export default function LeaderboardPage() {
             <div className="w-full px-4 sm:px-6">
               {/* Header */}
               <div className="flex items-center gap-2 mb-4 pt-4 pb-2">
-                <Users className="w-5 h-5 text-[#1c9cf0]" />
+                <Users className="w-5 h-5 text-[#0066FF]" />
                 <h2 className="text-lg font-semibold text-foreground">
                   {leaderboardData.leaderboard.length} {leaderboardData.leaderboard.length === 1 ? 'Player' : 'Players'}
                 </h2>
@@ -304,11 +303,11 @@ export default function LeaderboardPage() {
                       href={profileUrl}
                       className={`block p-3 sm:p-4 transition-colors ${
                         isCurrentUser
-                          ? 'bg-[#1c9cf0]/20 border-l-4'
+                          ? 'bg-[#0066FF]/20 border-l-4'
                           : 'hover:bg-muted/30'
                       }`}
                       style={{
-                        borderLeftColor: isCurrentUser ? '#1c9cf0' : 'transparent',
+                        borderLeftColor: isCurrentUser ? '#0066FF' : 'transparent',
                       }}
                     >
                       <div className="flex items-center gap-2 sm:gap-4">
@@ -335,7 +334,7 @@ export default function LeaderboardPage() {
                               {player.displayName || player.username || 'Anonymous'}
                             </h3>
                             {isCurrentUser && (
-                              <span className="text-xs px-2 py-0.5 rounded bg-[#1c9cf0]/20 text-[#1c9cf0] flex-shrink-0">
+                              <span className="text-xs px-2 py-0.5 rounded bg-[#0066FF]/20 text-[#0066FF] flex-shrink-0">
                                 You
                               </span>
                             )}

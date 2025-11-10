@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { BouncingLogo } from '@/components/shared/BouncingLogo'
 
 interface PerpPosition {
   id: string
@@ -192,7 +193,7 @@ export function PerpPositionsList({ positions, onPositionClosed }: PerpPositions
             >
               {isClosing ? (
                 <span className="flex items-center justify-center gap-2">
-                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  <BouncingLogo size={16} />
                   Closing...
                 </span>
               ) : (

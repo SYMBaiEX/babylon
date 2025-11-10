@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../src/lib/prisma';
 import * as fs from 'fs';
 import * as path from 'path';
+import { CapitalAllocationService } from '../src/lib/services/capital-allocation-service';
 
 interface Actor {
   id: string;
@@ -51,6 +52,11 @@ async function initPools() {
         where: { id: actor.id },
       });
       
+      // Calculate realistic starting capital based on tier, role, domain
+      const capitalAllocation = CapitalAllocationService.calculateCapital(actor);
+      console.log(`  💰 Capital allocation: $${capitalAllocation.tradingBalance.toLocaleString()}`);
+      console.log(`     ${capitalAllocation.reasoning}`);
+      
       if (!dbActor) {
         console.log('  ➕ Creating actor in database...');
         dbActor = await prisma.actor.create({
@@ -68,19 +74,19 @@ async function initPools() {
             initialLuck: actor.initialLuck || 'medium',
             initialMood: actor.initialMood || 0,
             hasPool: true,
-            tradingBalance: new Prisma.Decimal(10000), // Traders start with $10,000
-            reputationPoints: 10000, // Trader NPCs start with 10k reputation
+            tradingBalance: new Prisma.Decimal(capitalAllocation.tradingBalance),
+            reputationPoints: capitalAllocation.reputationPoints,
           },
         });
       } else {
-        // Update existing actor with hasPool and trading balance
+        // Update existing actor with hasPool and realistic trading balance
         console.log('  🔄 Updating actor...');
         dbActor = await prisma.actor.update({
           where: { id: actor.id },
           data: {
             hasPool: true,
-            tradingBalance: new Prisma.Decimal(10000),
-            reputationPoints: 10000, // Ensure trader NPCs have high reputation
+            tradingBalance: new Prisma.Decimal(capitalAllocation.tradingBalance),
+            reputationPoints: capitalAllocation.reputationPoints,
           },
         });
       }
@@ -93,7 +99,20 @@ async function initPools() {
       });
       
       if (existingPool) {
-        console.log(`  ✅ Pool already exists: ${existingPool.name}`);
+        // Update pool if it has 0 balance (needs initialization)
+        if (existingPool.totalValue.toNumber() === 0 && existingPool.availableBalance.toNumber() === 0) {
+          console.log(`  🔄 Updating pool with initial capital: ${existingPool.name}`);
+          await prisma.pool.update({
+            where: { id: existingPool.id },
+            data: {
+              totalValue: new Prisma.Decimal(capitalAllocation.initialPoolBalance),
+              availableBalance: new Prisma.Decimal(capitalAllocation.initialPoolBalance),
+            },
+          });
+          console.log(`  ✅ Pool updated with $${capitalAllocation.initialPoolBalance.toLocaleString()}`);
+        } else {
+          console.log(`  ✅ Pool already exists: ${existingPool.name} ($${existingPool.totalValue.toNumber().toLocaleString()})`);
+        }
         continue;
       }
       
@@ -103,16 +122,17 @@ async function initPools() {
       
       console.log(`  🎯 Creating pool: ${poolName}`);
       
+      // Pool starts with NPC's initial capital (already calculated above)
       await prisma.pool.create({
         data: {
           npcActorId: actor.id,
           name: poolName,
           description: poolDescription,
-          totalValue: new Prisma.Decimal(0),
-          totalDeposits: new Prisma.Decimal(0),
-          availableBalance: new Prisma.Decimal(0),
+          totalValue: new Prisma.Decimal(capitalAllocation.initialPoolBalance),
+          totalDeposits: new Prisma.Decimal(0), // No user deposits yet
+          availableBalance: new Prisma.Decimal(capitalAllocation.initialPoolBalance),
           lifetimePnL: new Prisma.Decimal(0),
-          performanceFeeRate: 0.08, // 8% performance fee
+          performanceFeeRate: 0.05, // 5% performance fee (only on profits)
           totalFeesCollected: new Prisma.Decimal(0),
           isActive: true,
         },

@@ -86,12 +86,16 @@ export class Agent0Client implements IAgent0Client {
           rpcUrl: this.config.rpcUrl 
         }, 'Agent0Client')
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        const errorStack = error instanceof Error ? error.stack : undefined
         logger.error('Failed to initialize Agent0Client', {
-          error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
+          error: errorMessage,
+          stack: errorStack,
           config: { chainId: this.chainId, rpcUrl: this.config.rpcUrl, network: this.config.network }
         }, 'Agent0Client')
-        throw error
+        this.sdk = null
+        this.initPromise = null
+        throw new Error(`Agent0Client initialization failed: ${errorMessage}`)
       }
     })()
     
@@ -187,8 +191,14 @@ export class Agent0Client implements IAgent0Client {
         metadataCID: registrationFile.agentURI?.replace('ipfs://', '') || undefined
       }
     } catch (error) {
-      logger.error('Failed to register agent:', error, 'Agent0Client [registerAgent]')
-      throw error
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorStack = error instanceof Error ? error.stack : undefined
+      logger.error('Failed to register agent', {
+        error: errorMessage,
+        stack: errorStack,
+        agentName: params.name
+      }, 'Agent0Client [registerAgent]')
+      throw new Error(`Agent registration failed: ${errorMessage}`)
     }
   }
   
@@ -241,7 +251,13 @@ export class Agent0Client implements IAgent0Client {
         }
       }))
     } catch (error) {
-      logger.error('Failed to search agents:', error, 'Agent0Client [searchAgents]')
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorStack = error instanceof Error ? error.stack : undefined
+      logger.error('Failed to search agents', {
+        error: errorMessage,
+        stack: errorStack,
+        filters
+      }, 'Agent0Client [searchAgents]')
       return []
     }
   }
@@ -287,8 +303,15 @@ export class Agent0Client implements IAgent0Client {
       
       logger.info(`Feedback submitted successfully for agent ${agentId}`, undefined, 'Agent0Client [submitFeedback]')
     } catch (error) {
-      logger.error('Failed to submit feedback:', error, 'Agent0Client [submitFeedback]')
-      throw error
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorStack = error instanceof Error ? error.stack : undefined
+      logger.error('Failed to submit feedback', {
+        error: errorMessage,
+        stack: errorStack,
+        targetAgentId: params.targetAgentId,
+        rating: params.rating
+      }, 'Agent0Client [submitFeedback]')
+      throw new Error(`Feedback submission failed: ${errorMessage}`)
     }
   }
   
@@ -331,7 +354,13 @@ export class Agent0Client implements IAgent0Client {
         }
       }
     } catch (error) {
-      logger.error(`Failed to get agent profile for token ${tokenId}:`, error, 'Agent0Client [getAgentProfile]')
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorStack = error instanceof Error ? error.stack : undefined
+      logger.error(`Failed to get agent profile for token ${tokenId}`, {
+        error: errorMessage,
+        stack: errorStack,
+        tokenId
+      }, 'Agent0Client [getAgentProfile]')
       return null
     }
   }

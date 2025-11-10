@@ -218,7 +218,7 @@ export function buildRelationshipContext(
 
   const actorIds = new Set(actors.map(a => a.id));
   const relevantRelationships = relationships.filter(
-    r => actorIds.has(r.actor1) && actorIds.has(r.actor2)
+    r => actorIds.has(r.actor1Id) && actorIds.has(r.actor2Id)
   );
 
   if (relevantRelationships.length === 0) {
@@ -227,11 +227,12 @@ export function buildRelationshipContext(
 
   const actorMap = new Map(actors.map(a => [a.id, a.name]));
   const relationshipLines = relevantRelationships
-    .slice(0, 10) // Limit to avoid token bloat
+    .slice(0, 10)
     .map(r => {
-      const name1 = actorMap.get(r.actor1) || r.actor1;
-      const name2 = actorMap.get(r.actor2) || r.actor2;
-      return `- ${name1} & ${name2}: ${r.relationship}${r.context ? ` (${r.context})` : ''}`;
+      const name1 = actorMap.get(r.actor1Id) || r.actor1Id;
+      const name2 = actorMap.get(r.actor2Id) || r.actor2Id;
+      const sentimentDesc = r.sentiment > 0.5 ? 'respect' : r.sentiment < -0.5 ? 'beef' : 'neutral';
+      return `- ${name1} & ${name2}: ${r.relationshipType} (${sentimentDesc})${r.history ? ` - ${r.history}` : ''}`;
     })
     .join('\n');
 

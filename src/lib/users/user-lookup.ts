@@ -27,12 +27,16 @@ export async function findUserByIdentifier<T extends SelectArg | undefined = und
   try {
     if (select) {
       const byPrivyId = await prisma.user.findUnique({ where: { privyId: identifier }, select })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return byPrivyId as any
+      if (byPrivyId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return byPrivyId as any
+      }
     } else {
       const byPrivyId = await prisma.user.findUnique({ where: { privyId: identifier } })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return byPrivyId as any
+      if (byPrivyId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return byPrivyId as any
+      }
     }
   } catch (error) {
     if (
@@ -40,10 +44,21 @@ export async function findUserByIdentifier<T extends SelectArg | undefined = und
       error.code === 'P2022' &&
       error.meta?.column === 'User.privyId'
     ) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return null as any
+      // Fall through to try username lookup
+    } else {
+      throw error
     }
-    throw error
+  }
+
+  // Try to find by username
+  if (select) {
+    const byUsername = await prisma.user.findUnique({ where: { username: identifier }, select })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return byUsername as any
+  } else {
+    const byUsername = await prisma.user.findUnique({ where: { username: identifier } })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return byUsername as any
   }
 }
 

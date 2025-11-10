@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import type { UserPoolDeposit, UserPoolSummary } from '@/types/pools'
+import { BouncingLogo } from '@/components/shared/BouncingLogo'
 
 interface UserPoolPositionsProps {
   onWithdraw?: () => void
@@ -78,7 +79,7 @@ export function UserPoolPositions({ onWithdraw }: UserPoolPositionsProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+        <BouncingLogo size={24} />
       </div>
     )
   }

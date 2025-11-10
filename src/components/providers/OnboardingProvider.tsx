@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore, type User as StoreUser } from '@/stores/authStore'
-import { OnboardingModal } from '@/components/onboarding/OnboardingModal'
+import { OnboardingModal, type ImportedProfileData } from '@/components/onboarding/OnboardingModal'
 import { apiFetch } from '@/lib/api/fetch'
 import { logger } from '@/lib/logger'
 import { clearReferralCode, getReferralCode } from './ReferralCaptureProvider'
@@ -18,7 +18,7 @@ import { IDENTITY_REGISTRY_ABI } from '@/lib/web3/abis'
 import type { OnboardingProfilePayload } from '@/lib/onboarding/types'
 import { useIdentityToken } from '@privy-io/react-auth'
 
-type OnboardingStage = 'PROFILE' | 'ONCHAIN' | 'COMPLETED'
+type OnboardingStage = 'SOCIAL_IMPORT' | 'PROFILE' | 'ONCHAIN' | 'COMPLETED'
 
 const CAPABILITIES_HASH =
   '0x0000000000000000000000000000000000000000000000000000000000000001' as const
@@ -89,24 +89,43 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const { setUser, setNeedsOnboarding, setNeedsOnchain } = useAuthStore()
   const { identityToken } = useIdentityToken()
 
-  const [stage, setStage] = useState<OnboardingStage>('PROFILE')
+  const [stage, setStage] = useState<OnboardingStage>('SOCIAL_IMPORT')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submittedProfile, setSubmittedProfile] = useState<OnboardingProfilePayload | null>(null)
+  const [userDismissed, setUserDismissed] = useState(false)
+  const [importedProfileData, setImportedProfileData] = useState<ImportedProfileData | null>(null)
 
   const shouldShowModal = useMemo(() => {
     if (!authenticated || loadingProfile) {
       return false
     }
 
-    return Boolean(needsOnboarding || needsOnchain || stage === 'ONCHAIN' || stage === 'COMPLETED')
-  }, [authenticated, loadingProfile, needsOnboarding, needsOnchain, stage])
+    // User explicitly dismissed the modal
+    if (userDismissed) {
+      return false
+    }
+
+    // Don't show modal if user is already fully registered (defensive check)
+    if (user?.onChainRegistered && user?.nftTokenId && user?.profileComplete) {
+      return false
+    }
+
+    // Don't keep showing modal after completion
+    if (stage === 'COMPLETED') {
+      return true // Show briefly to show success message, but allow closing
+    }
+
+    return Boolean(needsOnboarding || needsOnchain || stage === 'ONCHAIN' || stage === 'SOCIAL_IMPORT')
+  }, [authenticated, loadingProfile, needsOnboarding, needsOnchain, stage, user, userDismissed])
 
   useEffect(() => {
     if (!authenticated) {
-      setStage('PROFILE')
+      setStage('SOCIAL_IMPORT')
       setSubmittedProfile(null)
       setError(null)
+      setUserDismissed(false) // Reset dismissed state on logout
+      setImportedProfileData(null)
       return
     }
 
@@ -115,7 +134,8 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     }
 
     if (needsOnboarding) {
-      setStage('PROFILE')
+      setStage('SOCIAL_IMPORT')
+      setImportedProfileData(null)
       return
     }
 
@@ -134,14 +154,55 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     }
 
     if (stage !== 'COMPLETED') {
-      setStage('PROFILE')
+      setStage('SOCIAL_IMPORT')
       setSubmittedProfile(null)
       setError(null)
+      setImportedProfileData(null)
     }
   }, [authenticated, loadingProfile, needsOnboarding, needsOnchain, user, submittedProfile, stage])
 
+  // Listen for social import callbacks from URL parameters
+  useEffect(() => {
+    if (typeof window === 'undefined' || !authenticated || stage !== 'SOCIAL_IMPORT') return
+
+    const params = new URLSearchParams(window.location.search)
+    const socialImport = params.get('social_import')
+    const dataParam = params.get('data')
+
+    if (socialImport && dataParam) {
+      try {
+        const profileData = JSON.parse(decodeURIComponent(dataParam)) as ImportedProfileData
+        logger.info('Social profile data received', { platform: socialImport }, 'OnboardingProvider')
+        
+        setImportedProfileData(profileData)
+        setStage('PROFILE')
+        
+        // Clean up URL
+        const newUrl = new URL(window.location.href)
+        newUrl.searchParams.delete('social_import')
+        newUrl.searchParams.delete('data')
+        window.history.replaceState({}, '', newUrl.toString())
+      } catch (err) {
+        logger.error('Failed to parse social import data', { error: err }, 'OnboardingProvider')
+      }
+    }
+  }, [authenticated, stage])
+
   const submitOnchain = useCallback(
     async (profile: OnboardingProfilePayload, referralCode: string | null) => {
+      // Defensive check: skip if user is already fully registered
+      if (user?.onChainRegistered && user?.nftTokenId && user?.profileComplete) {
+        logger.info(
+          'User already fully registered, skipping onchain submission',
+          { userId: user.id, nftTokenId: user.nftTokenId },
+          'OnboardingProvider'
+        )
+        setNeedsOnboarding(false)
+        setNeedsOnchain(false)
+        setStage('COMPLETED')
+        return
+      }
+
       const body = {
         walletAddress: wallet?.address ?? null,
         referralCode: referralCode ?? undefined,
@@ -237,26 +298,29 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       try {
         let response: { onchain: unknown; user: StoreUser | null }
 
-        if (wallet?.address && !user?.isActor) {
-          try {
-            response = await completeWithClient()
-          } catch (clientError) {
-            const message = extractErrorMessage(clientError).toLowerCase()
-            if (message.includes('user rejected')) {
-              throw new Error('Transaction cancelled in wallet. Please approve to continue.')
-            }
-            if (message.includes('insufficient funds')) {
-              throw new Error('Insufficient funds to pay gas on Base Sepolia.')
-            }
+        // Try server-signed registration first (gasless for users)
+        try {
+          response = await completeWithServer()
+        } catch (serverError) {
+          const message = extractErrorMessage(serverError).toLowerCase()
+          
+          // If server signer is not supported or unavailable, fall back to client
+          if (
+            (message.includes('SERVER_SIGNER_UNSUPPORTED') ||
+              message.includes('Server wallet not configured')) &&
+            wallet?.address &&
+            !user?.isActor
+          ) {
             logger.warn(
-              'Client-signed registration attempt failed; falling back to server signer',
-              { error: clientError },
+              'Server-signed registration unavailable; falling back to client signer',
+              { error: serverError },
               'OnboardingProvider'
             )
-            response = await completeWithServer()
+            response = await completeWithClient()
+          } else {
+            // Re-throw other server errors
+            throw serverError
           }
-        } else {
-          response = await completeWithServer()
         }
 
         applyResponse(response)
@@ -378,12 +442,89 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     }
   }, [submittedProfile, submitOnchain])
 
-  const handleClose = useCallback(() => {
-    if (needsOnboarding || needsOnchain) return
-    setStage('PROFILE')
+  const handleSkipOnchain = useCallback(() => {
+    logger.info('User skipped onchain registration', { userId: user?.id }, 'OnboardingProvider')
+    setNeedsOnchain(false)
+    setUserDismissed(true)
+    setStage('SOCIAL_IMPORT')
     setSubmittedProfile(null)
     setError(null)
-  }, [needsOnboarding, needsOnchain])
+    setImportedProfileData(null)
+  }, [user, setNeedsOnchain])
+
+  const handleSocialImport = useCallback(async (platform: 'twitter' | 'farcaster') => {
+    setIsSubmitting(true)
+    setError(null)
+
+    try {
+      logger.info('Initiating social import', { platform }, 'OnboardingProvider')
+
+      if (platform === 'twitter') {
+        // Redirect to Twitter OAuth for onboarding
+        window.location.href = '/api/auth/onboarding/twitter/initiate'
+      } else if (platform === 'farcaster') {
+        // Use Farcaster popup flow
+        try {
+          const { openFarcasterOnboardingPopup } = await import('@/lib/farcaster-onboarding')
+          
+          if (!user?.id) {
+            throw new Error('User ID not available')
+          }
+
+          const profile = await openFarcasterOnboardingPopup(user.id)
+          
+          // Convert to ImportedProfileData format
+          const profileData: ImportedProfileData = {
+            platform: 'farcaster',
+            username: profile.username,
+            displayName: profile.displayName || profile.username,
+            bio: profile.bio,
+            profileImageUrl: profile.pfpUrl,
+            farcasterFid: profile.fid.toString(),
+          }
+
+          logger.info('Farcaster profile imported', { username: profile.username, fid: profile.fid }, 'OnboardingProvider')
+          
+          setImportedProfileData(profileData)
+          setStage('PROFILE')
+          setIsSubmitting(false)
+        } catch (farcasterError) {
+          const errorMessage = farcasterError instanceof Error 
+            ? farcasterError.message 
+            : 'Failed to authenticate with Farcaster'
+          
+          logger.error('Farcaster import failed', { error: farcasterError }, 'OnboardingProvider')
+          setError(errorMessage)
+          setIsSubmitting(false)
+        }
+      }
+    } catch (err) {
+      logger.error('Failed to initiate social import', { platform, error: err }, 'OnboardingProvider')
+      setError('Failed to connect. Please try again.')
+      setIsSubmitting(false)
+    }
+  }, [user])
+
+  const handleSkipSocialImport = useCallback(() => {
+    logger.info('User skipped social import', { userId: user?.id }, 'OnboardingProvider')
+    setStage('PROFILE')
+    setImportedProfileData(null)
+  }, [user])
+
+  const handleClose = useCallback(() => {
+    logger.info('User closed onboarding modal', { 
+      stage, 
+      needsOnboarding, 
+      needsOnchain,
+      userRegistered: user?.onChainRegistered 
+    }, 'OnboardingProvider')
+    
+    setUserDismissed(true)
+    setStage('SOCIAL_IMPORT')
+    setSubmittedProfile(null)
+    setError(null)
+    setImportedProfileData(null)
+  }, [stage, needsOnboarding, needsOnchain, user])
 
   return (
     <>
@@ -396,7 +537,12 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
           error={error}
           onSubmitProfile={handleProfileSubmit}
           onRetryOnchain={handleRetryOnchain}
+          onSkipOnchain={handleSkipOnchain}
+          onSocialImport={handleSocialImport}
+          onSkipSocialImport={handleSkipSocialImport}
           onClose={handleClose}
+          user={user}
+          importedData={importedProfileData}
         />
       )}
     </>

@@ -88,7 +88,7 @@ export function UpcomingEventsDetailModal({ isOpen, onClose, event }: UpcomingEv
           {/* Header */}
           <div className="flex items-start justify-between mb-6">
             <div className="flex items-start gap-4 flex-1">
-              <div className="text-[#1c9cf0] mt-1 flex-shrink-0">
+              <div className="text-[#0066FF] mt-1 flex-shrink-0">
                 <Calendar className="w-8 h-8" />
               </div>
               <div className="flex-1 min-w-0">
@@ -101,7 +101,7 @@ export function UpcomingEventsDetailModal({ isOpen, onClose, event }: UpcomingEv
                     <span>{formatFullDate(event.date, event.time)}</span>
                   </div>
                   {event.isLive && (
-                    <span className="text-sm font-semibold text-[#1c9cf0] bg-[#1c9cf0]/10 px-3 py-1 rounded flex-shrink-0">
+                    <span className="text-sm font-semibold text-[#0066FF] bg-[#0066FF]/10 px-3 py-1 rounded flex-shrink-0">
                       LIVE
                     </span>
                   )}

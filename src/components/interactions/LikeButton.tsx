@@ -5,6 +5,7 @@ import { Heart, Laugh, Frown } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useInteractionStore } from '@/stores/interactionStore';
 import type { LikeButtonProps } from '@/types/interactions';
+import { BouncingLogo } from '@/components/shared/BouncingLogo';
 
 // Reaction configuration type
 type ReactionConfig = {
@@ -181,10 +182,7 @@ export function LikeButton({
         )}
       >
         {isLoading ? (
-          <div 
-            className={cn('border-2 border-current border-t-transparent rounded-full animate-spin')} 
-            style={{ width: iconSizes[size], height: iconSizes[size] }} 
-          />
+          <BouncingLogo size={iconSizes[size]} />
         ) : (
           <Icon
             size={iconSizes[size]}

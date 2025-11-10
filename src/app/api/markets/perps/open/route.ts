@@ -12,6 +12,8 @@ import { PerpOpenPositionSchema } from '@/lib/validation/schemas/trade';
 import { getPerpsEngine } from '@/lib/perps-service';
 import { WalletService } from '@/lib/services/wallet-service';
 import { logger } from '@/lib/logger';
+import { FeeService } from '@/lib/services/fee-service';
+import { FEE_CONFIG } from '@/lib/config/fees';
 
 /**
  * POST /api/markets/perps/open
@@ -54,13 +56,17 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Calculate margin required
   const marginRequired = size / leverage;
+  
+  // Calculate fee
+  const feeCalc = FeeService.calculateFee(size);
+  const totalCost = marginRequired + feeCalc.feeAmount;
 
-  // Check balance
-  const hasFunds = await WalletService.hasSufficientBalance(user.userId, marginRequired);
+  // Check balance (need margin + fee)
+  const hasFunds = await WalletService.hasSufficientBalance(user.userId, totalCost);
 
   if (!hasFunds) {
     const balance = await WalletService.getBalance(user.userId);
-    throw new InsufficientFundsError(marginRequired, Number(balance.balance), 'USD');
+    throw new InsufficientFundsError(totalCost, Number(balance.balance), 'USD');
   }
 
   // Open position via engine first (before debiting)
@@ -93,11 +99,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         }
 
         const currentBalance = Number(dbUser.virtualBalance);
-        if (currentBalance < marginRequired) {
-          throw new InsufficientFundsError(marginRequired, currentBalance, 'USD');
+        if (currentBalance < totalCost) {
+          throw new InsufficientFundsError(totalCost, currentBalance, 'USD');
         }
 
-        const newBalance = currentBalance - marginRequired;
+        const newBalance = currentBalance - totalCost;
 
         // Update balance
         await tx.user.update({
@@ -107,16 +113,16 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           },
         });
 
-        // Create balance transaction with position ID
+        // Create balance transaction with position ID (includes fee)
         await tx.balanceTransaction.create({
           data: {
             userId: user.userId,
             type: 'perp_open',
-            amount: -marginRequired,
+            amount: -totalCost,
             balanceBefore: currentBalance,
             balanceAfter: newBalance,
             relatedId: position.id,
-            description: `Opened ${leverage}x ${side} position on ${ticker}`,
+            description: `Opened ${leverage}x ${side} position on ${ticker} (incl. $${feeCalc.feeAmount.toFixed(2)} fee)`,
           },
         });
 
@@ -146,14 +152,25 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     throw error;
   }
 
-  logger.info('Position opened successfully', {
+  // Process trading fee and distribute to referrer if applicable
+  const feeResult = await FeeService.processTradingFee(
+    user.userId,
+    FEE_CONFIG.FEE_TYPES.PERP_OPEN,
+    size,
+    position.id,
+    ticker
+  );
+
+  logger.info('Position opened with fee', {
     userId: user.userId,
     positionId: position.id,
     ticker,
     side,
     size,
     leverage,
-    marginPaid: marginRequired
+    marginPaid: marginRequired,
+    fee: feeResult.feeCharged,
+    referrerPaid: feeResult.referrerPaid,
   }, 'POST /api/markets/perps/open');
 
   return successResponse(
@@ -173,6 +190,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         openedAt: position.openedAt,
       },
       marginPaid: marginRequired,
+      fee: {
+        amount: feeResult.feeCharged,
+        referrerPaid: feeResult.referrerPaid,
+      },
       newBalance: (await WalletService.getBalance(user.userId)).balance,
     },
     201

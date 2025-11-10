@@ -12,11 +12,12 @@ import { InviteFriendsBanner } from '@/components/shared/InviteFriendsBanner'
 import { WidgetSidebar } from '@/components/shared/WidgetSidebar'
 import { TrendingPanel } from '@/components/feed/TrendingPanel'
 import { CreatePostModal } from '@/components/posts/CreatePostModal'
+import { FeedSkeleton } from '@/components/shared/Skeleton'
 import { cn } from '@/lib/utils'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
 import { useAuth } from '@/hooks/useAuth'
 import type { FeedPost } from '@/shared/types'
-import { WidgetRefreshProvider, useWidgetRefresh } from '@/contexts/WidgetRefreshContext'
+import { useWidgetRefresh } from '@/contexts/WidgetRefreshContext'
 import { RefreshCw } from 'lucide-react'
 
 const PAGE_SIZE = 20
@@ -343,9 +344,9 @@ function FeedPageContent() {
     return (
       <PageContainer noPadding className="flex flex-col">
         <FeedToggle activeTab={tab} onTabChange={setTab} />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center text-muted-foreground">
-            <div className="text-lg mb-2">Loading posts...</div>
+        <div className="flex-1 overflow-y-auto">
+          <div className="w-full px-4 sm:px-6">
+            <FeedSkeleton count={8} />
           </div>
         </div>
       </PageContainer>
@@ -393,10 +394,8 @@ function FeedPageContent() {
           {/* Feed content - NO overflow, page scroll handles this */}
           <div className="flex-1 bg-background">
               {(loading || (tab === 'following' && loadingFollowing)) ? (
-                <div className="w-full p-4 sm:p-8 text-center">
-                  <div className="text-muted-foreground py-12">
-                    <p>Loading posts...</p>
-                  </div>
+                <div className="w-full">
+                  <FeedSkeleton count={6} />
                 </div>
               ) : filteredPosts.length === 0 && !searchQuery && tab === 'latest' ? (
                 // No posts yet
@@ -446,8 +445,8 @@ function FeedPageContent() {
                       onClick={() => setSearchQuery('')}
                       className={cn(
                         'inline-block px-4 sm:px-6 py-2 sm:py-3 font-semibold rounded text-sm sm:text-base cursor-pointer',
-                        'bg-[#1da1f2] text-white',
-                        'hover:bg-[#1a8cd8]',
+                        'bg-[#3462f3] text-white',
+                        'hover:bg-[#2952d9]',
                         'transition-all duration-300'
                       )}
                     >
@@ -549,7 +548,7 @@ function FeedPageContent() {
           >
             <div className={cn(
               "flex flex-col items-center gap-1",
-              pullDistance > 80 ? "text-[#1c9cf0]" : "text-muted-foreground"
+              pullDistance > 80 ? "text-[#3462f3]" : "text-muted-foreground"
             )}>
               <div className={cn(
                 "transition-transform duration-200",
@@ -573,10 +572,8 @@ function FeedPageContent() {
           </div>
         )}
         {(loading || (tab === 'following' && loadingFollowing)) ? (
-          <div className="w-full p-4 sm:p-8 text-center">
-            <div className="text-muted-foreground py-12">
-              <p>Loading posts...</p>
-            </div>
+          <div className="w-full">
+            <FeedSkeleton count={5} />
           </div>
         ) : filteredPosts.length === 0 && !searchQuery && tab === 'latest' ? (
           // No posts yet
@@ -626,8 +623,8 @@ function FeedPageContent() {
                 onClick={() => setSearchQuery('')}
                 className={cn(
                   'inline-block px-4 sm:px-6 py-2 sm:py-3 font-semibold rounded text-sm sm:text-base cursor-pointer',
-                  'bg-[#1da1f2] text-white',
-                  'hover:bg-[#1a8cd8]',
+                  'bg-[#3462f3] text-white',
+                  'hover:bg-[#2952d9]',
                   'transition-all duration-300'
                 )}
               >
@@ -654,6 +651,7 @@ function FeedPageContent() {
                 authorId,
                 authorName,
                 authorUsername: ('authorUsername' in post ? post.authorUsername : null) || null,
+                authorProfileImageUrl: ('authorProfileImageUrl' in post ? post.authorProfileImageUrl : null),
                 timestamp: post.timestamp,
                 likeCount: ('likeCount' in post ? (post.likeCount as number) : 0) || 0,
                 commentCount: ('commentCount' in post ? (post.commentCount as number) : 0) || 0,
@@ -735,11 +733,7 @@ function FeedPageContent() {
   )
 }
 
-// Wrap with provider
+// Export the feed page content directly (WidgetRefreshProvider is now in root Providers)
 export default function FeedPage() {
-  return (
-    <WidgetRefreshProvider>
-      <FeedPageContent />
-    </WidgetRefreshProvider>
-  )
+  return <FeedPageContent />
 }

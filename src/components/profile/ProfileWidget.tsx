@@ -6,6 +6,7 @@ import { TrendingUp, TrendingDown, HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
 import { PositionDetailModal } from './PositionDetailModal'
+import { BouncingLogo } from '@/components/shared/BouncingLogo'
 import type {
   UserBalanceData,
   PredictionPosition,
@@ -169,7 +170,7 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
     return (
       <div className="flex flex-col h-full overflow-y-auto w-full">
         <div className="flex items-center justify-center py-8">
-          <div className="w-6 h-6 border-2 border-[#1c9cf0] border-t-transparent rounded-full animate-spin"></div>
+          <BouncingLogo size={24} />
         </div>
       </div>
     )
@@ -209,7 +210,7 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
       <div className="mb-6">
         <button
           onClick={() => router.push('/markets')}
-          className="text-lg font-bold text-foreground mb-3 hover:text-[#1c9cf0] transition-colors cursor-pointer text-left"
+          className="text-lg font-bold text-foreground mb-3 hover:text-[#0066FF] transition-colors cursor-pointer text-left"
         >
           Holdings
         </button>
@@ -219,7 +220,7 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
           <div className="mb-4">
             <button
               onClick={() => router.push('/markets')}
-              className="text-xs font-semibold text-muted-foreground mb-2 uppercase hover:text-[#1c9cf0] transition-colors cursor-pointer block"
+              className="text-xs font-semibold text-muted-foreground mb-2 uppercase hover:text-[#0066FF] transition-colors cursor-pointer block"
             >
               PREDICTIONS
             </button>
@@ -258,7 +259,7 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
           <div className="mb-4">
             <button
               onClick={() => router.push('/markets')}
-              className="text-xs font-semibold text-muted-foreground mb-2 uppercase hover:text-[#1c9cf0] transition-colors cursor-pointer block"
+              className="text-xs font-semibold text-muted-foreground mb-2 uppercase hover:text-[#0066FF] transition-colors cursor-pointer block"
             >
               STOCKS
             </button>
@@ -301,7 +302,7 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
           <div className="mb-4">
             <button
               onClick={() => router.push('/markets')}
-              className="text-xs font-semibold text-muted-foreground mb-2 uppercase hover:text-[#1c9cf0] transition-colors cursor-pointer block"
+              className="text-xs font-semibold text-muted-foreground mb-2 uppercase hover:text-[#0066FF] transition-colors cursor-pointer block"
             >
               AGENT STAKES
             </button>

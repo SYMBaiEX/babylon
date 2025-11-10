@@ -20,12 +20,14 @@ import { Agent0Client } from '@/agents/agent0/Agent0Client'
 import type { AgentCapabilities } from '@/a2a/types'
 import { syncAfterAgent0Registration } from '@/lib/reputation/agent0-reputation-sync'
 
-// Contract addresses
-const IDENTITY_REGISTRY = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA as Address
-const REPUTATION_SYSTEM = process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA as Address
-
-// Server wallet for paying gas (testnet only!)
-const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`
+// Helper to validate and get environment variables
+function getRequiredEnvVar(name: string): string {
+  const value = process.env[name]
+  if (!value) {
+    throw new InternalServerError(`${name} not configured`)
+  }
+  return value
+}
 
 // Identity Registry ABI (minimal for registration)
 const IDENTITY_REGISTRY_ABI = [
@@ -96,6 +98,12 @@ const REPUTATION_SYSTEM_ABI = [
  * Register an agent to the on-chain identity system
  */
 export const POST = withErrorHandling(async (request: NextRequest) => {
+  // Validate environment variables
+  const IDENTITY_REGISTRY = getRequiredEnvVar('NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA') as Address
+  const REPUTATION_SYSTEM = getRequiredEnvVar('NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA') as Address
+  const DEPLOYER_PRIVATE_KEY = getRequiredEnvVar('DEPLOYER_PRIVATE_KEY') as `0x${string}`
+  const RPC_URL = getRequiredEnvVar('NEXT_PUBLIC_RPC_URL')
+
   // Authenticate agent
   const user = await authenticate(request)
   if (!user.isAgent || !user.userId) {
@@ -143,14 +151,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     // Create clients
     const publicClient = createPublicClient({
       chain: baseSepolia,
-      transport: http(process.env.NEXT_PUBLIC_RPC_URL),
+      transport: http(RPC_URL),
     })
 
     const account = privateKeyToAccount(DEPLOYER_PRIVATE_KEY)
     const walletClient = createWalletClient({
       account,
       chain: baseSepolia,
-      transport: http(process.env.NEXT_PUBLIC_RPC_URL),
+      transport: http(RPC_URL),
     })
 
     // Prepare registration parameters
@@ -197,20 +205,39 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
     // Get the token ID from the event logs
     const agentRegisteredLog = receipt.logs.find(log => {
-      const decodedLog = decodeEventLog({
-        abi: IDENTITY_REGISTRY_ABI,
-        data: log.data,
-        topics: log.topics,
-      })
-      return decodedLog.eventName === 'AgentRegistered'
+      try {
+        const decodedLog = decodeEventLog({
+          abi: IDENTITY_REGISTRY_ABI,
+          data: log.data,
+          topics: log.topics,
+        })
+        return decodedLog.eventName === 'AgentRegistered'
+      } catch {
+        return false
+      }
     })
+
+    if (!agentRegisteredLog) {
+      throw new InternalServerError('AgentRegistered event not found in transaction receipt', { 
+        txHash, 
+        logCount: receipt.logs.length 
+      })
+    }
 
     const decodedLog = decodeEventLog({
       abi: IDENTITY_REGISTRY_ABI,
-      data: agentRegisteredLog!.data,
-      topics: agentRegisteredLog!.topics,
+      data: agentRegisteredLog.data,
+      topics: agentRegisteredLog.topics,
     })
+    
     const tokenId = Number(decodedLog.args.tokenId)
+    
+    if (!tokenId || isNaN(tokenId)) {
+      throw new InternalServerError('Invalid tokenId received from registration event', { 
+        txHash, 
+        tokenIdRaw: decodedLog.args.tokenId 
+      })
+    }
 
     logger.info('Agent registered with token ID', { tokenId }, 'AgentOnboard')
     logger.info('Setting initial reputation to 70 for agent', { tokenId }, 'AgentOnboard')
@@ -377,10 +404,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         }, 'AgentOnboard')
       } catch (syncError) {
         // Log error but don't fail registration
+        const errorMessage = syncError instanceof Error ? syncError.message : String(syncError)
+        const errorStack = syncError instanceof Error ? syncError.stack : undefined
         logger.error('Failed to sync Agent0 reputation after registration', {
           userId: dbUser.id,
           agent0TokenId: agent0Result.tokenId,
-          error: syncError
+          error: errorMessage,
+          stack: errorStack
         }, 'AgentOnboard')
       }
     } else {

@@ -6,7 +6,9 @@ import { TaggedText } from '@/components/shared/TaggedText'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal'
+import { OnChainBadge } from '@/components/profile/OnChainBadge'
 import { PostCard } from '@/components/posts/PostCard'
+import { BouncingLogo } from '@/components/shared/BouncingLogo'
 import { 
   AlertCircle, 
   Calendar, 
@@ -14,7 +16,6 @@ import {
   User, 
   Trophy, 
   Camera, 
-  Edit2,
   X as XIcon,
   ExternalLink,
   Eye,
@@ -33,23 +34,18 @@ interface ProfileFormData {
   coverImageUrl: string
 }
 
-interface EditingField {
-  field: keyof ProfileFormData | null
-  tempValue: string
-}
-
 interface SocialVisibility {
   twitter: boolean
   farcaster: boolean
   wallet: boolean
 }
 
-interface ImageUploadState {
+interface EditModalState {
   isOpen: boolean
-  type: 'profileImageUrl' | 'coverImageUrl' | null
-  preview: string | null
-  file: File | null
-  isUploading: boolean
+  formData: ProfileFormData
+  profileImage: { file: File | null; preview: string | null }
+  coverImage: { file: File | null; preview: string | null }
+  isSaving: boolean
   error: string | null
 }
 
@@ -66,11 +62,22 @@ export default function ProfilePage() {
     coverImageUrl: '',
   })
   
-  const [editing, setEditing] = useState<EditingField>({ field: null, tempValue: '' })
-  const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [editModal, setEditModal] = useState<EditModalState>({
+    isOpen: false,
+    formData: {
+      username: '',
+      displayName: '',
+      bio: '',
+      profileImageUrl: '',
+      coverImageUrl: '',
+    },
+    profileImage: { file: null, preview: null },
+    coverImage: { file: null, preview: null },
+    isSaving: false,
+    error: null,
+  })
   const [tab, setTab] = useState<'posts' | 'replies'>('posts')
   const [showLinkAccountsModal, setShowLinkAccountsModal] = useState(false)
   const [posts, setPosts] = useState<Array<{
@@ -116,18 +123,8 @@ export default function ProfilePage() {
     wallet: true,
   })
   
-  // Image upload state
-  const [imageUpload, setImageUpload] = useState<ImageUploadState>({
-    isOpen: false,
-    type: null,
-    preview: null,
-    file: null,
-    isUploading: false,
-    error: null,
-  })
-  
-  const editInputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const profileImageInputRef = useRef<HTMLInputElement>(null)
+  const coverImageInputRef = useRef<HTMLInputElement>(null)
 
   // Calculate time remaining until username can be changed again
   const getUsernameChangeTimeRemaining = (): { canChange: boolean; hours: number; minutes: number } | null => {
@@ -202,105 +199,186 @@ export default function ProfilePage() {
     loadContent()
   }, [user?.id, tab])
 
-  // Auto-focus when editing starts
-  useEffect(() => {
-    if (editing.field && editInputRef.current) {
-      editInputRef.current.focus()
-      if (editInputRef.current instanceof HTMLInputElement || editInputRef.current instanceof HTMLTextAreaElement) {
-        editInputRef.current.select()
+  const openEditModal = () => {
+    setEditModal({
+      isOpen: true,
+      formData: { ...formData },
+      profileImage: { file: null, preview: null },
+      coverImage: { file: null, preview: null },
+      isSaving: false,
+      error: null,
+    })
+  }
+
+  const closeEditModal = () => {
+    setEditModal({
+      isOpen: false,
+      formData: {
+        username: '',
+        displayName: '',
+        bio: '',
+        profileImageUrl: '',
+        coverImageUrl: '',
+      },
+      profileImage: { file: null, preview: null },
+      coverImage: { file: null, preview: null },
+      isSaving: false,
+      error: null,
+    })
+    if (profileImageInputRef.current) profileImageInputRef.current.value = ''
+    if (coverImageInputRef.current) coverImageInputRef.current.value = ''
+  }
+
+  const handleProfileImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
+    if (!allowedTypes.includes(file.type)) {
+      setEditModal(prev => ({ ...prev, error: 'Please select a valid image file' }))
+      return
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setEditModal(prev => ({ ...prev, error: 'File size must be less than 10MB' }))
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setEditModal(prev => ({
+        ...prev,
+        profileImage: { file, preview: reader.result as string },
+        error: null,
+      }))
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleCoverImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
+    if (!allowedTypes.includes(file.type)) {
+      setEditModal(prev => ({ ...prev, error: 'Please select a valid image file' }))
+      return
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setEditModal(prev => ({ ...prev, error: 'File size must be less than 10MB' }))
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setEditModal(prev => ({
+        ...prev,
+        coverImage: { file, preview: reader.result as string },
+        error: null,
+      }))
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const saveProfile = async () => {
+    if (!user?.id) return
+
+    setEditModal(prev => ({ ...prev, isSaving: true, error: null }))
+
+    try {
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {}
+
+      const updatedData = { ...editModal.formData }
+
+      // Upload profile image if changed
+      if (editModal.profileImage.file) {
+        const formData = new FormData()
+        formData.append('file', editModal.profileImage.file)
+        formData.append('type', 'profile')
+
+        const uploadResponse = await fetch('/api/upload/image', {
+          method: 'POST',
+          headers,
+          body: formData,
+        })
+
+        if (!uploadResponse.ok) throw new Error('Failed to upload profile image')
+        const uploadData = await uploadResponse.json()
+        updatedData.profileImageUrl = uploadData.url
       }
-    }
-  }, [editing.field])
 
-  const startEditing = (field: keyof ProfileFormData) => {
-    setEditing({ field, tempValue: formData[field] })
-    setSaveError(null)
-    setSaveSuccess(false)
-  }
+      // Upload cover image if changed
+      if (editModal.coverImage.file) {
+        const formData = new FormData()
+        formData.append('file', editModal.coverImage.file)
+        formData.append('type', 'cover')
 
-  const cancelEditing = () => {
-    setEditing({ field: null, tempValue: '' })
-  }
+        const uploadResponse = await fetch('/api/upload/image', {
+          method: 'POST',
+          headers,
+          body: formData,
+        })
 
-  const saveField = async () => {
-    if (!editing.field || !user?.id) return
+        if (!uploadResponse.ok) throw new Error('Failed to upload cover image')
+        const uploadData = await uploadResponse.json()
+        updatedData.coverImageUrl = uploadData.url
+      }
 
-    const updatedData = {
-      ...formData,
-      [editing.field]: editing.tempValue,
-    }
+      // Update profile
+      const updateResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/update-profile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(updatedData),
+      })
 
-    setIsSaving(true)
-    setSaveError(null)
-    setSaveSuccess(false)
+      if (!updateResponse.ok) throw new Error('Failed to update profile')
+      const data = await updateResponse.json()
 
-    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    }
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
+      setFormData({
+        username: data.user.username,
+        displayName: data.user.displayName,
+        bio: data.user.bio,
+        profileImageUrl: data.user.profileImageUrl,
+        coverImageUrl: data.user.coverImageUrl || '',
+      })
 
-    const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/update-profile`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(updatedData),
-    })
+      const oldUsername = user.username
+      const newUsername = data.user.username
+      const usernameChanged = oldUsername !== newUsername && newUsername
 
-    const data = await response.json()
-
-    setFormData({
-      username: data.user.username,
-      displayName: data.user.displayName,
-      bio: data.user.bio,
-      profileImageUrl: data.user.profileImageUrl,
-      coverImageUrl: data.user.coverImageUrl || '',
-    })
-
-    const oldUsername = user.username
-    const newUsername = data.user.username
-    const usernameChanged = oldUsername !== newUsername && newUsername
-    
-    setUser({
-      ...user,
-      username: data.user.username,
-      displayName: data.user.displayName,
-      bio: data.user.bio,
-      profileImageUrl: data.user.profileImageUrl,
-      coverImageUrl: data.user.coverImageUrl,
-      profileComplete: data.user.profileComplete,
-      usernameChangedAt: data.user.usernameChangedAt,
-      referralCode: data.user.referralCode, // Update referral code if username changed
-    })
-
-    // Redirect to username-based profile URL if username changed
-    if (usernameChanged && newUsername) {
-      const cleanUsername = newUsername.startsWith('@') ? newUsername.slice(1) : newUsername
-      router.replace(`/profile/${cleanUsername}`)
-    }
-
-    // Update user in store with all new data including reputation points
-    if (data.user.reputationPoints !== undefined) {
       setUser({
         ...user,
+        username: data.user.username,
+        displayName: data.user.displayName,
+        bio: data.user.bio,
+        profileImageUrl: data.user.profileImageUrl,
+        coverImageUrl: data.user.coverImageUrl,
+        profileComplete: data.user.profileComplete,
+        usernameChangedAt: data.user.usernameChangedAt,
+        referralCode: data.user.referralCode,
         reputationPoints: data.user.reputationPoints,
         referralCount: data.user.referralCount,
       })
-    }
 
-    setSaveSuccess(true)
-    setEditing({ field: null, tempValue: '' })
-    setTimeout(() => setSaveSuccess(false), 3000)
-    setIsSaving(false)
-  }
+      if (usernameChanged && newUsername) {
+        const cleanUsername = newUsername.startsWith('@') ? newUsername.slice(1) : newUsername
+        router.replace(`/profile/${cleanUsername}`)
+      }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey && editing.field !== 'bio') {
-      e.preventDefault()
-      saveField()
-    } else if (e.key === 'Escape') {
-      cancelEditing()
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 3000)
+      closeEditModal()
+    } catch (error) {
+      setEditModal(prev => ({
+        ...prev,
+        error: error instanceof Error ? error.message : 'Failed to save profile',
+        isSaving: false,
+      }))
     }
   }
 
@@ -345,123 +423,6 @@ export default function ProfilePage() {
     }
   }
 
-  const openImageUpload = (type: 'profileImageUrl' | 'coverImageUrl') => {
-    setImageUpload({
-      isOpen: true,
-      type,
-      preview: null,
-      file: null,
-      isUploading: false,
-      error: null,
-    })
-  }
-
-  const closeImageUpload = () => {
-    setImageUpload({
-      isOpen: false,
-      type: null,
-      preview: null,
-      file: null,
-      isUploading: false,
-      error: null,
-    })
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
-  }
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
-    if (!allowedTypes.includes(file.type)) {
-      setImageUpload(prev => ({
-        ...prev,
-        error: 'Please select a valid image file (JPEG, PNG, WebP, or GIF)',
-      }))
-      return
-    }
-
-    // Validate file size (10MB max)
-    const maxSize = 10 * 1024 * 1024
-    if (file.size > maxSize) {
-      setImageUpload(prev => ({
-        ...prev,
-        error: 'File size must be less than 10MB',
-      }))
-      return
-    }
-
-    // Create preview
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      setImageUpload(prev => ({
-        ...prev,
-        file,
-        preview: reader.result as string,
-        error: null,
-      }))
-    }
-    reader.readAsDataURL(file)
-  }
-
-  const confirmImageUpload = async () => {
-    setImageUpload(prev => ({ ...prev, isUploading: true, error: null }))
-
-    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-    
-    const formData = new FormData()
-    formData.append('file', imageUpload.file!)
-    formData.append('type', imageUpload.type === 'profileImageUrl' ? 'profile' : 'cover')
-
-    const headers: HeadersInit = {}
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
-
-    const uploadResponse = await fetch('/api/upload/image', {
-      method: 'POST',
-      headers,
-      body: formData,
-    })
-
-    const uploadData = await uploadResponse.json()
-
-    const updateResponse = await fetch(`/api/users/${encodeURIComponent(user!.id)}/update-profile`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        ...formData,
-        [imageUpload.type!]: uploadData.url,
-      }),
-    })
-
-    const profileData = await updateResponse.json()
-
-    const imageType = imageUpload.type!
-    setFormData(prev => ({
-      ...prev,
-      [imageType]: uploadData.url,
-    }))
-
-    setUser({
-      ...user!,
-      profileImageUrl: profileData.user.profileImageUrl,
-      coverImageUrl: profileData.user.coverImageUrl,
-    })
-
-    setSaveSuccess(true)
-    setTimeout(() => setSaveSuccess(false), 3000)
-
-    closeImageUpload()
-    setImageUpload(prev => ({...prev, isUploading: false}))
-  }
-
   return (
     <PageContainer noPadding className="flex flex-col">
       {/* Content area */}
@@ -484,7 +445,7 @@ export default function ProfilePage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
+            <BouncingLogo size={48} />
           </div>
         ) : authenticated && user ? (
           <>
@@ -492,7 +453,7 @@ export default function ProfilePage() {
             <div className="border-b border-border">
               <div className="max-w-[600px] mx-auto">
                 {/* Cover Image */}
-                <div className="relative h-48 bg-gradient-to-br from-primary/20 to-primary/5 group">
+                <div className="relative h-32 sm:h-48 bg-gradient-to-br from-primary/20 to-primary/5">
                   {formData.coverImageUrl ? (
                     <img
                       src={formData.coverImageUrl}
@@ -500,40 +461,31 @@ export default function ProfilePage() {
                       className="w-full h-full object-cover"
                     />
                   ) : null}
-                  <button
-                    onClick={() => openImageUpload('coverImageUrl')}
-                    className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <div className="flex items-center gap-2 px-4 py-2 bg-black/60 rounded-full text-white">
-                      <Camera className="w-4 h-4" />
-                      <span className="text-sm font-medium">Change cover</span>
-                    </div>
-                  </button>
                 </div>
 
                 {/* Profile Info */}
                 <div className="px-4 pb-4">
                   {/* Profile Picture & Edit Button Row */}
-                  <div className="flex items-start justify-between -mt-16 mb-4">
-                    <div className="relative group">
+                  <div className="flex items-start justify-between gap-3 -mt-12 sm:-mt-16 mb-4">
+                    <div className="relative flex-shrink-0">
                       {formData.profileImageUrl ? (
                         <img
                           src={formData.profileImageUrl}
                           alt={formData.displayName || 'Profile'}
-                          className="w-32 h-32 rounded-full object-cover"
+                          className="w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-background"
                         />
                       ) : (
-                        <div className="w-32 h-32 rounded-full bg-primary/20 flex items-center justify-center">
-                          <User className="w-16 h-16 text-primary" />
+                        <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-primary/20 flex items-center justify-center border-4 border-background">
+                          <User className="w-12 h-12 sm:w-16 sm:h-16 text-primary" />
                         </div>
                       )}
-                      <button
-                        onClick={() => openImageUpload('profileImageUrl')}
-                        className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Camera className="w-6 h-6 text-white" />
-                      </button>
                     </div>
+                    <button
+                      onClick={openEditModal}
+                      className="mt-3 sm:mt-4 px-4 sm:px-6 py-2 rounded-full border-2 border-border hover:bg-muted active:bg-muted transition-colors font-semibold text-sm whitespace-nowrap min-h-[44px]"
+                    >
+                      Edit Profile
+                    </button>
                   </div>
 
                   {/* Save Feedback */}
@@ -543,175 +495,30 @@ export default function ProfilePage() {
                       <span className="text-sm font-medium">Profile updated successfully!</span>
                     </div>
                   )}
-                  {saveError && (
-                    <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 mb-4">
-                      <AlertCircle className="w-5 h-5" />
-                      <span className="text-sm font-medium">{saveError}</span>
-                    </div>
+
+                  {/* Display Name */}
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h2 className="text-xl font-bold text-foreground">
+                      {formData.displayName || 'Your Name'}
+                    </h2>
+                    <OnChainBadge 
+                      isRegistered={user?.onChainRegistered ?? false}
+                      nftTokenId={user?.nftTokenId}
+                      size="md"
+                    />
+                  </div>
+
+                  {/* Username */}
+                  <p className="text-sm text-muted-foreground mb-3">
+                    @{formData.username || 'username'}
+                  </p>
+
+                  {/* Bio */}
+                  {formData.bio && (
+                    <p className="text-sm text-foreground mb-3 whitespace-pre-wrap">
+                      {formData.bio}
+                    </p>
                   )}
-
-                  {/* Display Name with Points - Editable */}
-                  <div className="mb-0.5 flex items-center justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      {editing.field === 'displayName' ? (
-                        <div className="flex items-center gap-2 mb-2">
-                          <input
-                            ref={editInputRef as React.RefObject<HTMLInputElement>}
-                            type="text"
-                            value={editing.tempValue}
-                            onChange={(e) => setEditing({ ...editing, tempValue: e.target.value })}
-                            onKeyDown={handleKeyDown}
-                            placeholder="Display Name"
-                            className="flex-1 text-xl font-bold bg-sidebar-accent/50 rounded-lg px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                            disabled={isSaving}
-                          />
-                          <button
-                            onClick={saveField}
-                            disabled={isSaving}
-                            className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={cancelEditing}
-                            disabled={isSaving}
-                            className="p-2 rounded-lg bg-muted hover:bg-muted/70 disabled:opacity-50"
-                          >
-                            <XIcon className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => startEditing('displayName')}
-                          className="group inline-flex items-center gap-2 hover:bg-muted/30 rounded px-2 py-0.5 -ml-2 transition-colors"
-                        >
-                          <h2 className="text-xl font-bold text-foreground">
-                            {formData.displayName || 'Add display name'}
-                          </h2>
-                          <Edit2 className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Username - Editable */}
-                  <div className="mb-3">
-                    {editing.field === 'username' ? (
-                      <div>
-                        {/* Rate limit warning */}
-                        {usernameChangeLimit && !usernameChangeLimit.canChange && (
-                          <div className="mb-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-start gap-2">
-                            <AlertCircle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
-                            <div className="flex-1">
-                              <p className="text-xs text-yellow-500 font-medium">
-                                Username can only be changed once every 24 hours
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                Please wait {usernameChangeLimit.hours}h {usernameChangeLimit.minutes}m before changing again
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-muted-foreground text-sm">@</span>
-                          <input
-                            ref={editInputRef as React.RefObject<HTMLInputElement>}
-                            type="text"
-                            value={editing.tempValue}
-                            onChange={(e) => setEditing({ ...editing, tempValue: e.target.value })}
-                            onKeyDown={handleKeyDown}
-                            placeholder="username"
-                            className="flex-1 text-sm bg-sidebar-accent/50 rounded-lg px-3 py-2 text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                            disabled={isSaving || Boolean(usernameChangeLimit && !usernameChangeLimit.canChange)}
-                          />
-                          <button
-                            onClick={saveField}
-                            disabled={isSaving || Boolean(usernameChangeLimit && !usernameChangeLimit.canChange)}
-                            className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={cancelEditing}
-                            disabled={isSaving}
-                            className="p-2 rounded-lg bg-muted hover:bg-muted/70 disabled:opacity-50"
-                          >
-                            <XIcon className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <button
-                          onClick={() => startEditing('username')}
-                          className="group inline-flex items-center gap-1.5 hover:bg-muted/30 rounded px-2 py-0.5 -ml-2 transition-colors"
-                        >
-                          <p className="text-sm text-muted-foreground">
-                            @{formData.username || 'add_username'}
-                          </p>
-                          <Edit2 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </button>
-                        {/* Show warning if rate limited */}
-                        {usernameChangeLimit && !usernameChangeLimit.canChange && (
-                          <p className="text-xs text-yellow-500 mt-1 ml-2">
-                            Can change again in {usernameChangeLimit.hours}h {usernameChangeLimit.minutes}m
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Bio - Editable */}
-                  <div className="mb-3">
-                    {editing.field === 'bio' ? (
-                      <div className="space-y-2">
-                        <textarea
-                          ref={editInputRef as React.RefObject<HTMLTextAreaElement>}
-                          value={editing.tempValue}
-                          onChange={(e) => setEditing({ ...editing, tempValue: e.target.value })}
-                          onKeyDown={handleKeyDown}
-                          placeholder="Tell us about yourself..."
-                          rows={3}
-                          maxLength={160}
-                          className="w-full bg-sidebar-accent/50 rounded-lg px-3 py-2 text-foreground text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-                          disabled={isSaving}
-                        />
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">
-                            {editing.tempValue.length}/160
-                          </span>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={saveField}
-                              disabled={isSaving}
-                              className="px-3 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 text-sm font-medium"
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={cancelEditing}
-                              disabled={isSaving}
-                              className="px-3 py-1 rounded-lg bg-muted hover:bg-muted/70 disabled:opacity-50 text-sm font-medium"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => startEditing('bio')}
-                        className="group w-full text-left hover:bg-muted/30 rounded px-2 py-1.5 -ml-2 transition-colors"
-                      >
-                        <div className="flex items-start gap-2">
-                          <p className="flex-1 text-sm text-foreground whitespace-pre-wrap">
-                            {formData.bio || 'Add a bio'}
-                          </p>
-                          <Edit2 className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
-                        </div>
-                      </button>
-                    )}
-                  </div>
 
                   {/* Social Links Section */}
                   <div className="mb-3 space-y-2">
@@ -841,25 +648,19 @@ export default function ProfilePage() {
                     onClick={() => setTab('posts')}
                     className={cn(
                       'flex-1 py-4 font-semibold transition-colors relative hover:bg-muted/30',
-                      tab === 'posts' ? 'text-foreground' : 'text-muted-foreground'
+                      tab === 'posts' ? 'text-foreground opacity-100' : 'text-foreground opacity-50'
                     )}
                   >
                     Posts
-                    {tab === 'posts' && (
-                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t" />
-                    )}
                   </button>
                   <button
                     onClick={() => setTab('replies')}
                     className={cn(
                       'flex-1 py-4 font-semibold transition-colors relative hover:bg-muted/30',
-                      tab === 'replies' ? 'text-foreground' : 'text-muted-foreground'
+                      tab === 'replies' ? 'text-foreground opacity-100' : 'text-foreground opacity-50'
                     )}
                   >
                     Replies
-                    {tab === 'replies' && (
-                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t" />
-                    )}
                   </button>
                 </div>
               </div>
@@ -869,7 +670,7 @@ export default function ProfilePage() {
             <div className="max-w-[600px] mx-auto">
               {loadingPosts ? (
                 <div className="flex items-center justify-center py-12">
-                  <div className="w-8 h-8 border-2 border-[#1c9cf0] border-t-transparent rounded-full animate-spin" />
+                  <BouncingLogo size={32} />
                 </div>
               ) : tab === 'posts' ? (
                 posts.length === 0 ? (
@@ -943,7 +744,7 @@ export default function ProfilePage() {
                         Replying to{' '}
                         <a
                           href={`/post/${reply.postId}`}
-                          className="text-[#1c9cf0] hover:underline"
+                          className="text-[#0066FF] hover:underline"
                         >
                           {reply.post.author?.displayName || reply.post.author?.username || 'a post'}
                         </a>
@@ -973,103 +774,208 @@ export default function ProfilePage() {
               onClose={() => setShowLinkAccountsModal(false)}
             />
 
-            {/* Modal for Image Upload with Preview */}
-            {imageUpload.isOpen && (
-              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="bg-background rounded-xl max-w-lg w-full p-6 border border-border">
-                  <h3 className="text-xl font-bold mb-4">
-                    {imageUpload.type === 'profileImageUrl' ? 'Upload Profile Picture' : 'Upload Cover Image'}
-                  </h3>
-                  
-                  <div className="space-y-4">
-                    {/* File Input */}
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
-                      onChange={handleFileSelect}
-                      className="hidden"
-                      disabled={imageUpload.isUploading}
-                    />
-
-                    {/* Preview or Upload Button */}
-                    {!imageUpload.preview ? (
+            {/* Edit Profile Modal */}
+            {editModal.isOpen && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-0 md:p-4">
+                <div className="bg-background w-full h-full md:h-auto md:max-w-2xl md:rounded-xl md:max-h-[90vh] border-0 md:border md:border-border flex flex-col">
+                  {/* Header */}
+                  <div className="sticky top-0 bg-background border-b border-border px-4 py-3 flex items-center justify-between z-10">
+                    <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                       <button
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={imageUpload.isUploading}
-                        className="w-full h-48 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-3 hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
+                        onClick={closeEditModal}
+                        disabled={editModal.isSaving}
+                        className="p-2 hover:bg-muted active:bg-muted rounded-full transition-colors disabled:opacity-50 flex-shrink-0"
+                        aria-label="Close"
                       >
-                        <Camera className="w-12 h-12 text-muted-foreground" />
-                        <div className="text-center">
-                          <p className="font-medium">Click to select image</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            JPEG, PNG, WebP, or GIF (max 10MB)
-                          </p>
-                        </div>
+                        <XIcon className="w-5 h-5" />
                       </button>
-                    ) : (
-                      <div className="space-y-3">
-                        {/* Image Preview */}
-                        <div className="relative rounded-lg overflow-hidden border border-border">
+                      <h2 className="text-lg sm:text-xl font-bold truncate">Edit Profile</h2>
+                    </div>
+                    <button
+                      onClick={saveProfile}
+                      disabled={editModal.isSaving}
+                      className="px-4 sm:px-6 py-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/90 disabled:opacity-50 font-semibold text-sm flex-shrink-0 min-h-[44px]"
+                    >
+                      {editModal.isSaving ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 overflow-y-auto overscroll-contain">
+                    {/* Cover Image Section */}
+                    <div className="relative h-32 sm:h-48 bg-gradient-to-br from-primary/20 to-primary/5">
+                      {editModal.coverImage.preview ? (
+                        <img
+                          src={editModal.coverImage.preview}
+                          alt="Cover preview"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : editModal.formData.coverImageUrl ? (
+                        <img
+                          src={editModal.formData.coverImageUrl}
+                          alt="Cover"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : null}
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                        <input
+                          ref={coverImageInputRef}
+                          type="file"
+                          accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                          onChange={handleCoverImageSelect}
+                          className="hidden"
+                          disabled={editModal.isSaving}
+                        />
+                        <button
+                          onClick={() => coverImageInputRef.current?.click()}
+                          disabled={editModal.isSaving}
+                          className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-black/60 hover:bg-black/80 active:bg-black/80 rounded-full text-white transition-colors disabled:opacity-50 min-h-[44px]"
+                          aria-label="Change cover photo"
+                        >
+                          <Camera className="w-4 h-4 flex-shrink-0" />
+                          <span className="text-xs sm:text-sm font-medium">
+                            {editModal.coverImage.preview || editModal.formData.coverImageUrl ? 'Change' : 'Add'} cover
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Profile Image Section */}
+                    <div className="px-4 -mt-12 sm:-mt-16 mb-6">
+                      <div className="relative w-24 h-24 sm:w-32 sm:h-32">
+                        {editModal.profileImage.preview ? (
                           <img
-                            src={imageUpload.preview}
-                            alt="Preview"
-                            className={cn(
-                              "w-full object-cover",
-                              imageUpload.type === 'profileImageUrl' ? 'h-64' : 'h-48'
-                            )}
+                            src={editModal.profileImage.preview}
+                            alt="Profile preview"
+                            className="w-full h-full rounded-full object-cover border-4 border-background"
                           />
-                          {imageUpload.isUploading && (
-                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                              <div className="flex flex-col items-center gap-3">
-                                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white" />
-                                <p className="text-white text-sm font-medium">Uploading...</p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Change Image Button */}
-                        {!imageUpload.isUploading && (
-                          <button
-                            onClick={() => fileInputRef.current?.click()}
-                            className="w-full py-2 rounded-lg border border-border hover:bg-muted/50 transition-colors text-sm font-medium"
-                          >
-                            Choose Different Image
-                          </button>
+                        ) : editModal.formData.profileImageUrl ? (
+                          <img
+                            src={editModal.formData.profileImageUrl}
+                            alt="Profile"
+                            className="w-full h-full rounded-full object-cover border-4 border-background"
+                          />
+                        ) : (
+                          <div className="w-full h-full rounded-full bg-primary/20 flex items-center justify-center border-4 border-background">
+                            <User className="w-12 h-12 sm:w-16 sm:h-16 text-primary" />
+                          </div>
                         )}
+                        <input
+                          ref={profileImageInputRef}
+                          type="file"
+                          accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                          onChange={handleProfileImageSelect}
+                          className="hidden"
+                          disabled={editModal.isSaving}
+                        />
+                        {/* Mobile: Always visible button, Desktop: Hover overlay */}
+                        <button
+                          onClick={() => profileImageInputRef.current?.click()}
+                          disabled={editModal.isSaving}
+                          className="absolute bottom-0 right-0 p-2 bg-primary text-primary-foreground rounded-full border-2 border-background hover:bg-primary/90 active:bg-primary/90 transition-colors disabled:opacity-50 sm:hidden"
+                          aria-label="Change profile picture"
+                        >
+                          <Camera className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => profileImageInputRef.current?.click()}
+                          disabled={editModal.isSaving}
+                          className="hidden sm:flex absolute inset-0 items-center justify-center bg-black/40 rounded-full opacity-0 hover:opacity-100 transition-opacity disabled:opacity-0"
+                          aria-label="Change profile picture"
+                        >
+                          <Camera className="w-6 h-6 text-white" />
+                        </button>
                       </div>
-                    )}
+                    </div>
 
-                    {/* Error Message */}
-                    {imageUpload.error && (
-                      <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400">
-                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                        <span className="text-sm">{imageUpload.error}</span>
+                    {/* Form Fields */}
+                    <div className="px-4 pb-6 space-y-5">
+                      {/* Error Message */}
+                      {editModal.error && (
+                        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400">
+                          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                          <span className="text-sm">{editModal.error}</span>
+                        </div>
+                      )}
+
+                      {/* Display Name */}
+                      <div>
+                        <label htmlFor="displayName" className="block text-sm font-medium text-muted-foreground mb-2">
+                          Display Name
+                        </label>
+                        <input
+                          id="displayName"
+                          type="text"
+                          value={editModal.formData.displayName}
+                          onChange={(e) => setEditModal(prev => ({
+                            ...prev,
+                            formData: { ...prev.formData, displayName: e.target.value }
+                          }))}
+                          placeholder="Your name"
+                          className="w-full bg-muted/50 border border-border rounded-lg px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent min-h-[44px] text-base"
+                          disabled={editModal.isSaving}
+                        />
                       </div>
-                    )}
 
-                    {/* Info Text */}
-                    <p className="text-xs text-muted-foreground">
-                      Your image will be automatically optimized and converted to WebP format for faster loading.
-                    </p>
+                      {/* Username */}
+                      <div>
+                        <label htmlFor="username" className="block text-sm font-medium text-muted-foreground mb-2">
+                          Username
+                        </label>
+                        {usernameChangeLimit && !usernameChangeLimit.canChange && (
+                          <div className="mb-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs sm:text-sm text-yellow-500 font-medium">
+                                Username can only be changed once every 24 hours
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                Please wait {usernameChangeLimit.hours}h {usernameChangeLimit.minutes}m
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 bg-muted/50 border border-border rounded-lg px-4 py-3 focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent min-h-[44px]">
+                          <span className="text-muted-foreground flex-shrink-0">@</span>
+                          <input
+                            id="username"
+                            type="text"
+                            value={editModal.formData.username}
+                            onChange={(e) => setEditModal(prev => ({
+                              ...prev,
+                              formData: { ...prev.formData, username: e.target.value }
+                            }))}
+                            placeholder="username"
+                            className="flex-1 bg-transparent text-foreground focus:outline-none text-base min-w-0"
+                            disabled={editModal.isSaving || Boolean(usernameChangeLimit && !usernameChangeLimit.canChange)}
+                          />
+                        </div>
+                      </div>
 
-                    {/* Action Buttons */}
-                    <div className="flex gap-3">
-                      <button
-                        onClick={confirmImageUpload}
-                        disabled={!imageUpload.preview || imageUpload.isUploading}
-                        className="flex-1 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                      >
-                        {imageUpload.isUploading ? 'Uploading...' : 'Confirm & Upload'}
-                      </button>
-                      <button
-                        onClick={closeImageUpload}
-                        disabled={imageUpload.isUploading}
-                        className="flex-1 px-4 py-2 rounded-lg bg-muted hover:bg-muted/70 disabled:opacity-50 font-medium"
-                      >
-                        Cancel
-                      </button>
+                      {/* Bio */}
+                      <div>
+                        <label htmlFor="bio" className="block text-sm font-medium text-muted-foreground mb-2">
+                          Bio
+                        </label>
+                        <textarea
+                          id="bio"
+                          value={editModal.formData.bio}
+                          onChange={(e) => setEditModal(prev => ({
+                            ...prev,
+                            formData: { ...prev.formData, bio: e.target.value }
+                          }))}
+                          placeholder="Tell us about yourself..."
+                          rows={4}
+                          maxLength={160}
+                          className="w-full bg-muted/50 border border-border rounded-lg px-4 py-3 text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-base"
+                          disabled={editModal.isSaving}
+                        />
+                        <div className="flex justify-end mt-1">
+                          <span className="text-xs text-muted-foreground">
+                            {editModal.formData.bio.length}/160
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

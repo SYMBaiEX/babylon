@@ -2,10 +2,11 @@
 
 import { logger } from '@/lib/logger'
 import { useState, useEffect } from 'react'
-import { UserPlus, UserMinus, Loader2 } from 'lucide-react'
+import { UserPlus, UserMinus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
+import { BouncingLogo } from '@/components/shared/BouncingLogo'
 
 interface FollowButtonProps {
   userId: string
@@ -165,6 +166,12 @@ export function FollowButton({
     lg: 'w-5 h-5',
   }
 
+  const iconPixelSizes = {
+    sm: 12,
+    md: 16,
+    lg: 20,
+  }
+
   if (variant === 'icon') {
     return (
       <button
@@ -181,7 +188,7 @@ export function FollowButton({
         aria-label={isFollowing ? 'Unfollow' : 'Follow'}
       >
         {isLoading ? (
-          <Loader2 className={cn('animate-spin', iconSizes[size])} />
+          <BouncingLogo size={iconPixelSizes[size]} />
         ) : isFollowing ? (
           <UserMinus className={iconSizes[size]} />
         ) : (
@@ -209,7 +216,7 @@ export function FollowButton({
     >
       {isLoading ? (
         <>
-          <Loader2 className={cn('animate-spin', iconSizes[size])} />
+          <BouncingLogo size={iconPixelSizes[size]} />
           <span>...</span>
         </>
       ) : isFollowing ? (

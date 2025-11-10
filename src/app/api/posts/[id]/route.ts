@@ -9,7 +9,7 @@ import { BusinessLogicError } from '@/lib/errors';
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { gameService } from '@/lib/game-service';
 import { logger } from '@/lib/logger';
-import { IdParamSchema } from '@/lib/validation/schemas';
+import { PostIdParamSchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
 
 /**
@@ -21,7 +21,7 @@ export const GET = withErrorHandling(async (
   context?: { params: Promise<{ id: string }> }
 ) => {
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
-  const { id: postId } = IdParamSchema.parse(params);
+  const { id: postId } = PostIdParamSchema.parse(params);
 
   // Optional authentication (to show liked status for logged-in users)
   const user = await optionalAuth(request).catch(() => null);
@@ -145,7 +145,8 @@ export const GET = withErrorHandling(async (
 
       // If found in game store, return it directly
       if (gamePost) {
-        const [likeCount, commentCount, shareCount, actor, userRecord] = await asUser(user, async (db) => {
+        // Get public data (counts and author info) - doesn't require user authentication
+        const [likeCount, commentCount, shareCount, actor, userRecord] = await asPublic(async (db) => {
           const [likes, comments, shares] = await Promise.all([
             db.reaction.count({ where: { postId, type: 'like' } }),
             db.comment.count({ where: { postId } }),
@@ -175,19 +176,18 @@ export const GET = withErrorHandling(async (
           authorUsername = userRecord.username;
         }
 
-        const [isLiked, isShared] = await asUser(user, async (db) => {
-          const liked = user
-            ? (await db.reaction.findFirst({
+        // Get user-specific interaction state (requires authentication)
+        const [isLiked, isShared] = user
+          ? await asUser(user, async (db) => {
+              const liked = (await db.reaction.findFirst({
                 where: { postId, userId: user.userId, type: 'like' },
-              })) !== null
-            : false;
-          const shared = user
-            ? (await db.share.findFirst({
+              })) !== null;
+              const shared = (await db.share.findFirst({
                 where: { postId, userId: user.userId },
-              })) !== null
-            : false;
-          return [liked, shared];
-        });
+              })) !== null;
+              return [liked, shared];
+            })
+          : [false, false];
 
         const timestampStr = gamePost.timestamp as string;
         const createdAtStr = (gamePost.createdAt || timestampStr) as string;
@@ -248,7 +248,7 @@ export const GET = withErrorHandling(async (
             timestamp = new Date(timestampNum);
             if (parts.length >= 4 && parts[2] && !parts[2].includes('.')) {
               const potentialActorId = parts[2];
-              const actor = await asUser(user, async (db) => {
+              const actor = await asPublic(async (db) => {
                 return await db.actor.findUnique({
                   where: { id: potentialActorId },
                   select: { id: true },
@@ -262,40 +262,75 @@ export const GET = withErrorHandling(async (
         }
       }
 
-      post = await asUser(user, async (db) => {
-        return await db.post.upsert({
-          where: { id: postId },
-          update: {},
-          create: {
-            id: postId,
-            content: '[Game-generated post]',
-            authorId,
-            gameId,
-            timestamp,
-          },
-          include: {
-            _count: {
-              select: {
+      // Upsert post - use appropriate context based on authentication
+      post = user
+        ? await asUser(user, async (db) => {
+            return await db.post.upsert({
+              where: { id: postId },
+              update: {},
+              create: {
+                id: postId,
+                content: '[Game-generated post]',
+                authorId,
+                gameId,
+                timestamp,
+              },
+              include: {
+                _count: {
+                  select: {
+                    reactions: {
+                      where: {
+                        type: 'like',
+                      },
+                    },
+                    comments: true,
+                    shares: true,
+                  },
+                },
                 reactions: {
                   where: {
+                    userId: user.userId,
                     type: 'like',
                   },
+                  select: {
+                    id: true,
+                  },
                 },
-                comments: true,
-                shares: true,
+                shares: {
+                  where: {
+                    userId: user.userId,
+                  },
+                  select: {
+                    id: true,
+                  },
+                },
               },
-            },
-            reactions: user
-              ? {
-                  where: {
-                    userId: user.userId,
-                    type: 'like',
-                  },
+            });
+          })
+        : await asPublic(async (db) => {
+            return await db.post.upsert({
+              where: { id: postId },
+              update: {},
+              create: {
+                id: postId,
+                content: '[Game-generated post]',
+                authorId,
+                gameId,
+                timestamp,
+              },
+              include: {
+                _count: {
                   select: {
-                    id: true,
+                    reactions: {
+                      where: {
+                        type: 'like',
+                      },
+                    },
+                    comments: true,
+                    shares: true,
                   },
-                }
-              : {
+                },
+                reactions: {
                   where: {
                     userId: 'never-match',
                     type: 'like',
@@ -304,16 +339,7 @@ export const GET = withErrorHandling(async (
                     id: true,
                   },
                 },
-            shares: user
-              ? {
-                  where: {
-                    userId: user.userId,
-                  },
-                  select: {
-                    id: true,
-                  },
-                }
-              : {
+                shares: {
                   where: {
                     userId: 'never-match',
                   },
@@ -321,36 +347,39 @@ export const GET = withErrorHandling(async (
                     id: true,
                   },
                 },
-          },
-        });
-      });
+              },
+            });
+          });
     }
 
     if (!post) {
       throw new BusinessLogicError('Post not found', 'POST_NOT_FOUND');
     }
 
-    const { authorName, authorUsername, authorProfileImageUrl } = await asUser(user, async (db) => {
+    // Get author info - public data, doesn't require user authentication
+    const { authorName, authorUsername, authorProfileImageUrl } = await asPublic(async (db) => {
       let name = post.authorId;
       let username: string | null = null;
       let profileImageUrl: string | null = null;
       
       const actor = await db.actor.findUnique({
         where: { id: post.authorId },
-        select: { name: true, profileImageUrl: true },
+        select: { id: true, name: true, profileImageUrl: true },
       });
       if (actor) {
         name = actor.name;
-        profileImageUrl = actor.profileImageUrl || null;
+        // Use database profileImageUrl or construct path from actor ID
+        profileImageUrl = actor.profileImageUrl || `/images/actors/${actor.id}.jpg`;
       } else {
         // Check if it's an organization (for articles)
         const org = await db.organization.findUnique({
           where: { id: post.authorId },
-          select: { name: true, imageUrl: true },
+          select: { id: true, name: true, imageUrl: true },
         });
         if (org) {
           name = org.name;
-          profileImageUrl = org.imageUrl || null;
+          // Use database imageUrl or construct path from organization ID
+          profileImageUrl = org.imageUrl || `/images/organizations/${org.id}.jpg`;
         } else {
           const usr = await db.user.findUnique({
             where: { id: post.authorId },

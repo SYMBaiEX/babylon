@@ -271,7 +271,7 @@ export function useAuth(): UseAuthReturn {
           },
           body: JSON.stringify({
             platform: 'wallet',
-            address: wallet.address,
+            address: wallet.address.toLowerCase(),
           }),
         })
         logger.info('Linked wallet during auth sync', { address: wallet.address }, 'useAuth')
@@ -307,6 +307,25 @@ export function useAuth(): UseAuthReturn {
       linkedSocialUsers.delete(privyUser?.id ?? '')
       lastSyncedWalletAddress = null
       clearAuth()
+      // Clear any stale localStorage cache
+      if (typeof window !== 'undefined') {
+        try {
+          const stored = localStorage.getItem('babylon-auth')
+          if (stored) {
+            const parsed = JSON.parse(stored)
+            // Clear if it's for a different user
+            if (parsed.state?.user?.id && privyUser && parsed.state.user.id !== privyUser.id) {
+              logger.info('Clearing stale auth cache for different user', { 
+                cachedUserId: parsed.state.user.id, 
+                currentUserId: privyUser?.id 
+              }, 'useAuth')
+              localStorage.removeItem('babylon-auth')
+            }
+          }
+        } catch (e) {
+          logger.warn('Failed to check localStorage cache', { error: e }, 'useAuth')
+        }
+      }
       return
     }
 

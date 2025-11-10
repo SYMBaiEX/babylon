@@ -72,17 +72,28 @@ export interface AuthenticatedUser {
 /**
  * Authenticate request and return user info
  * Supports both Privy user tokens and agent session tokens
+ * Checks both Authorization header and privy-token cookie
  */
 export async function authenticate(request: NextRequest): Promise<AuthenticatedUser> {
+  // Try Authorization header first
   const authHeader = request.headers.get('authorization');
+  let token: string | undefined;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    const error = new Error('Missing or invalid authorization header') as AuthenticationError;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  } else {
+    // Fallback to privy-token cookie
+    const cookieToken = request.cookies.get('privy-token')?.value;
+    if (cookieToken) {
+      token = cookieToken;
+    }
+  }
+
+  if (!token) {
+    const error = new Error('Missing or invalid authorization header or cookie') as AuthenticationError;
     error.code = 'AUTH_FAILED';
     throw error;
   }
-
-  const token = authHeader.substring(7);
 
   // Try agent session authentication first (faster)
   const agentSession = await verifyAgentSession(token);

@@ -1,353 +1,604 @@
 'use client'
 
+/**
+ * ERC8004 Registry Page
+ * 
+ * Comprehensive view of all entities in the Babylon ecosystem:
+ * - Users (with on-chain ERC8004 registration)
+ * - Agents (AI agents from Agent0 network)
+ * - Actors (NPCs from the game)
+ * - Apps (game platforms and services)
+ */
+
+import { useState, useEffect } from 'react'
+import { Search, Users, Bot, Building2, UserCircle, ExternalLink, Shield, Wallet, TrendingUp, Activity, X, AlertCircle } from 'lucide-react'
+import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
+import { SearchBar } from '@/components/shared/SearchBar'
 import { cn } from '@/lib/utils'
-import { ExternalLink, Filter, Search, Shield, TrendingUp, User } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { BouncingLogo } from '@/components/shared/BouncingLogo'
 
-interface RegistryUser {
+interface RegistryEntity {
+  type: 'user' | 'actor' | 'agent' | 'app'
   id: string
-  username: string | null
-  displayName: string | null
-  bio: string | null
-  profileImageUrl: string | null
-  walletAddress: string | null
-  isActor: boolean
-  onChainRegistered: boolean
-  nftTokenId: number | null
-  registrationTxHash: string | null
-  createdAt: string
-  virtualBalance: string
-  lifetimePnL: string
-  reputation: number | null
-  stats: {
-    positions: number
-    comments: number
-    reactions: number
+  name: string
+  username?: string
+  bio?: string
+  description?: string
+  imageUrl?: string
+  walletAddress?: string
+  onChainRegistered?: boolean
+  nftTokenId?: number | null
+  agent0TokenId?: number | null
+  tokenId?: number
+  metadataCID?: string
+  mcpEndpoint?: string
+  a2aEndpoint?: string
+  balance?: string
+  reputationPoints?: number
+  tier?: string
+  role?: string
+  domain?: string[]
+  hasPool?: boolean
+  capabilities?: Record<string, unknown>
+  reputation?: {
+    trustScore: number
+    accuracyScore: number
+    totalBets: number
+    winningBets: number
   }
+  stats?: {
+    positions?: number
+    comments?: number
+    reactions?: number
+    followers?: number
+    following?: number
+    pools?: number
+    trades?: number
+  }
+  createdAt?: string
+  registrationTxHash?: string
+  registrationTimestamp?: string
 }
 
-interface RegistryResponse {
-  users: RegistryUser[]
-  pagination: {
+interface RegistryData {
+  users: RegistryEntity[]
+  actors: RegistryEntity[]
+  agents: RegistryEntity[]
+  apps: RegistryEntity[]
+  totals: {
+    users: number
+    actors: number
+    agents: number
+    apps: number
     total: number
-    limit: number
-    offset: number
-    hasMore: boolean
   }
 }
-
-type SortBy = 'username' | 'createdAt' | 'nftTokenId'
-type SortOrder = 'asc' | 'desc'
 
 export default function RegistryPage() {
-  const [users, setUsers] = useState<RegistryUser[]>([])
+  const [data, setData] = useState<RegistryData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [onChainOnly, setOnChainOnly] = useState(true)
-  const [sortBy, setSortBy] = useState<SortBy>('createdAt')
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
-  const [totalCount, setTotalCount] = useState(0)
-
-  const fetchRegistry = async () => {
-    setLoading(true)
-    const params = new URLSearchParams({
-      onChainOnly: onChainOnly.toString(),
-      sortBy,
-      sortOrder,
-      limit: '100',
-      offset: '0',
-    })
-
-    const response = await fetch(`/api/registry?${params}`)
-    const data: RegistryResponse = await response.json()
-
-    if (data.users && data.pagination) {
-      setUsers(data.users)
-      setTotalCount(data.pagination.total)
-    }
-    setLoading(false)
-  }
+  const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [onChainOnly, setOnChainOnly] = useState(false)
+  const [activeTab, setActiveTab] = useState<'all' | 'users' | 'actors' | 'agents' | 'apps'>('all')
 
   useEffect(() => {
     fetchRegistry()
-  }, [onChainOnly, sortBy, sortOrder])
+  }, [onChainOnly])
 
-  const filteredUsers = users.filter(user => {
-    if (!searchQuery.trim()) return true
-    const query = searchQuery.toLowerCase()
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchRegistry()
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  const fetchRegistry = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const params = new URLSearchParams()
+      if (search) params.set('search', search)
+      if (onChainOnly) params.set('onChainOnly', 'true')
+      
+      const response = await fetch(`/api/registry/all?${params}`)
+      const result = await response.json()
+      
+      if (result.success && result.data) {
+        setData(result.data)
+      } else {
+        setError(result.error?.message || 'Failed to fetch registry data')
+      }
+    } catch (error) {
+      console.error('Failed to fetch registry:', error)
+      setError('Failed to connect to the registry')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const renderBadge = (_type: string, label: string, icon: React.ReactNode, color: string) => {
     return (
-      user.username?.toLowerCase().includes(query) ||
-      user.displayName?.toLowerCase().includes(query) ||
-      user.walletAddress?.toLowerCase().includes(query)
+      <span className={cn(
+        'inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold',
+        color
+      )}>
+        {icon}
+        {label}
+      </span>
     )
-  })
-
-  const getBaseScanUrl = (txHash: string) => {
-    return `https://sepolia.basescan.org/tx/${txHash}`
   }
 
-  const getProfileUrl = (userId: string) => {
-    return `/profile/${userId}`
+  const renderEntityCard = (entity: RegistryEntity) => {
+    const getBadgeColor = () => {
+      switch (entity.type) {
+        case 'user': return 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
+        case 'actor': return 'bg-purple-500/10 text-purple-500 border border-purple-500/20'
+        case 'agent': return 'bg-green-500/10 text-green-500 border border-green-500/20'
+        case 'app': return 'bg-orange-500/10 text-orange-500 border border-orange-500/20'
+        default: return 'bg-muted text-muted-foreground'
+      }
+    }
+
+    const getProfileUrl = () => {
+      if (entity.type === 'user' && entity.username) {
+        return `/profile/${entity.username}`
+      }
+      return null
+    }
+
+    const profileUrl = getProfileUrl()
+
+    const cardContent = (
+      <>
+        <div className="p-4 border-b border-border bg-muted/30">
+          <div className="flex items-start gap-3">
+            <Avatar
+              src={entity.imageUrl}
+              name={entity.name}
+              size="lg"
+              className="flex-shrink-0"
+            />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-lg truncate text-foreground">
+                    {entity.name}
+                  </h3>
+                  {entity.username && (
+                    <p className="text-sm text-muted-foreground">
+                      @{entity.username}
+                    </p>
+                  )}
+                </div>
+                <div className="flex-shrink-0">
+                  {entity.type === 'user' && renderBadge('user', 'User', <UserCircle className="h-3 w-3" />, getBadgeColor())}
+                  {entity.type === 'actor' && renderBadge('actor', 'Actor', <Users className="h-3 w-3" />, getBadgeColor())}
+                  {entity.type === 'agent' && renderBadge('agent', 'Agent', <Bot className="h-3 w-3" />, getBadgeColor())}
+                  {entity.type === 'app' && renderBadge('app', 'App', <Building2 className="h-3 w-3" />, getBadgeColor())}
+                </div>
+              </div>
+              
+              {(entity.bio || entity.description) && (
+                <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
+                  {entity.bio || entity.description}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-4 space-y-3">
+          {/* On-chain status */}
+          {entity.onChainRegistered && (
+            <div className="flex items-center gap-2 text-sm bg-green-500/5 border border-green-500/20 rounded-lg p-2">
+              <Shield className="h-4 w-4 text-green-500 flex-shrink-0" />
+              <span className="text-green-500 font-medium flex-1">On-chain registered</span>
+              {entity.nftTokenId && (
+                <span className="text-xs font-mono bg-green-500/10 px-2 py-0.5 rounded">
+                  #{entity.nftTokenId}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Agent0 registration */}
+          {entity.agent0TokenId && (
+            <div className="flex items-center gap-2 text-sm bg-blue-500/5 border border-blue-500/20 rounded-lg p-2">
+              <Bot className="h-4 w-4 text-blue-500 flex-shrink-0" />
+              <span className="text-blue-500 font-medium flex-1">Agent0 Token</span>
+              <span className="text-xs font-mono bg-blue-500/10 px-2 py-0.5 rounded">
+                #{entity.agent0TokenId}
+              </span>
+            </div>
+          )}
+
+          {/* Wallet address */}
+          {entity.walletAddress && (
+            <div className="flex items-center gap-2 text-sm">
+              <Wallet className="h-4 w-4 text-blue-400 flex-shrink-0" />
+              <code className="text-xs text-muted-foreground font-mono truncate flex-1">
+                {entity.walletAddress.slice(0, 6)}...{entity.walletAddress.slice(-4)}
+              </code>
+              <button
+                onClick={(e) => {
+                  e.preventDefault()
+                  navigator.clipboard.writeText(entity.walletAddress!)
+                }}
+                className="text-xs text-blue-500 hover:text-blue-400 transition-colors"
+              >
+                Copy
+              </button>
+            </div>
+          )}
+
+          {/* Balance & Reputation */}
+          <div className="grid grid-cols-2 gap-2">
+            {entity.balance && (
+              <div className="flex items-center gap-2 text-sm bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2">
+                <TrendingUp className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-muted-foreground">Balance</div>
+                  <div className="font-semibold truncate text-foreground">
+                    {parseFloat(entity.balance).toLocaleString()} BAB
+                  </div>
+                </div>
+              </div>
+            )}
+            {entity.reputationPoints !== undefined && (
+              <div className="flex items-center gap-2 text-sm bg-purple-500/5 border border-purple-500/20 rounded-lg p-2">
+                <Activity className="h-4 w-4 text-purple-500 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-muted-foreground">Reputation</div>
+                  <div className="font-semibold truncate text-foreground">
+                    {entity.reputationPoints.toLocaleString()} pts
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Agent0 reputation */}
+          {entity.reputation && (
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border">
+              <div className="text-sm">
+                <div className="text-xs text-muted-foreground mb-1">Trust Score</div>
+                <div className="font-semibold text-foreground">{entity.reputation.trustScore.toFixed(2)}</div>
+              </div>
+              <div className="text-sm">
+                <div className="text-xs text-muted-foreground mb-1">Accuracy</div>
+                <div className="font-semibold text-foreground">{entity.reputation.accuracyScore.toFixed(2)}%</div>
+              </div>
+            </div>
+          )}
+
+          {/* Stats */}
+          {entity.stats && Object.keys(entity.stats).length > 0 && (
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border text-sm">
+              {entity.stats.followers !== undefined && (
+                <div>
+                  <span className="text-muted-foreground">Followers:</span>{' '}
+                  <span className="font-semibold text-foreground">{entity.stats.followers}</span>
+                </div>
+              )}
+              {entity.stats.positions !== undefined && (
+                <div>
+                  <span className="text-muted-foreground">Positions:</span>{' '}
+                  <span className="font-semibold text-foreground">{entity.stats.positions}</span>
+                </div>
+              )}
+              {entity.stats.pools !== undefined && (
+                <div>
+                  <span className="text-muted-foreground">Pools:</span>{' '}
+                  <span className="font-semibold text-foreground">{entity.stats.pools}</span>
+                </div>
+              )}
+              {entity.stats.trades !== undefined && (
+                <div>
+                  <span className="text-muted-foreground">Trades:</span>{' '}
+                  <span className="font-semibold text-foreground">{entity.stats.trades}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tier for actors */}
+          {entity.tier && (
+            <div className="pt-2">
+              <span className="inline-block px-3 py-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-full text-xs font-bold">
+                {entity.tier}
+              </span>
+            </div>
+          )}
+
+          {/* Domain tags for actors */}
+          {entity.domain && entity.domain.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-2">
+              {entity.domain.slice(0, 3).map((d: string) => (
+                <span key={d} className="px-2 py-1 bg-muted text-muted-foreground rounded text-xs">
+                  {d}
+                </span>
+              ))}
+              {entity.domain.length > 3 && (
+                <span className="px-2 py-1 bg-muted text-muted-foreground rounded text-xs">
+                  +{entity.domain.length - 3} more
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Endpoints for agents/apps */}
+          {(entity.a2aEndpoint || entity.mcpEndpoint) && (
+            <div className="space-y-1 pt-2 border-t border-border text-xs">
+              {entity.a2aEndpoint && (
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground font-medium">A2A:</span>
+                  <a 
+                    href={entity.a2aEndpoint} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-blue-500 hover:text-blue-400 flex items-center gap-1 truncate transition-colors"
+                  >
+                    <span className="truncate">{entity.a2aEndpoint}</span>
+                    <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                  </a>
+                </div>
+              )}
+              {entity.mcpEndpoint && (
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground font-medium">MCP:</span>
+                  <a 
+                    href={entity.mcpEndpoint} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-blue-500 hover:text-blue-400 flex items-center gap-1 truncate transition-colors"
+                  >
+                    <span className="truncate">{entity.mcpEndpoint}</span>
+                    <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </>
+    )
+
+    if (profileUrl) {
+      return (
+        <Link
+          key={entity.id}
+          href={profileUrl}
+          className={cn(
+            'block bg-card border border-border rounded-xl overflow-hidden transition-all duration-200',
+            'hover:shadow-lg hover:border-[#0066FF]/50 cursor-pointer'
+          )}
+        >
+          {cardContent}
+        </Link>
+      )
+    }
+
+    return (
+      <div
+        key={entity.id}
+        className="block bg-card border border-border rounded-xl overflow-hidden transition-all duration-200"
+      >
+        {cardContent}
+      </div>
+    )
   }
 
-  const formatPnL = (pnl: string) => {
-    const value = parseFloat(pnl)
-    const formatted = Math.abs(value).toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })
-    return value >= 0 ? `+$${formatted}` : `-$${formatted}`
+  const allEntities = data ? [
+    ...data.users,
+    ...data.actors,
+    ...data.agents,
+    ...data.apps
+  ] : []
+
+  const getActiveEntities = () => {
+    if (!data) return []
+    switch (activeTab) {
+      case 'users': return data.users
+      case 'actors': return data.actors
+      case 'agents': return data.agents
+      case 'apps': return data.apps
+      default: return allEntities
+    }
   }
 
-  const formatBalance = (balance: string) => {
-    const value = parseFloat(balance)
-    return `$${value.toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`
-  }
+  const activeEntities = getActiveEntities()
 
   return (
     <PageContainer>
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-white">Agent Registry</h1>
-            <p className="text-gray-400 mt-1">
-              {totalCount} registered {totalCount === 1 ? 'agent' : 'agents'} on Base Sepolia
-            </p>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-2 bg-green-500/10 rounded-lg border border-green-500/20">
-            <Shield className="w-5 h-5 text-green-500" />
-            <span className="text-green-500 font-medium">ERC-8004 Identity</span>
-          </div>
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-2 text-foreground">ERC8004 Registry</h1>
+          <p className="text-muted-foreground text-lg">
+            Browse all registered entities in the Babylon ecosystem
+          </p>
         </div>
 
-        {/* Filters and Search */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-            <input
-              type="text"
-              placeholder="Search by username, name, or address..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+        {/* Search and filters */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="flex-1">
+            <SearchBar
+              value={search}
+              onChange={setSearch}
+              placeholder="Search by name, username, or description..."
             />
           </div>
-
-          {/* Filter Toggle */}
           <button
             onClick={() => setOnChainOnly(!onChainOnly)}
             className={cn(
-              'flex items-center gap-2 px-4 py-3 rounded-lg border font-medium transition-colors',
+              'flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-all duration-200 whitespace-nowrap',
               onChainOnly
-                ? 'bg-blue-500/10 border-blue-500/50 text-blue-400'
-                : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
+                ? 'bg-[#0066FF] text-white hover:bg-[#0052CC]'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-border'
             )}
           >
-            <Filter className="w-5 h-5" />
-            On-Chain Only
+            <Shield className="h-4 w-4" />
+            On-chain Only
+            {onChainOnly && <X className="h-4 w-4" />}
           </button>
-
-          {/* Sort Options */}
-          <select
-            value={`${sortBy}-${sortOrder}`}
-            onChange={(e) => {
-              const [newSortBy, newSortOrder] = e.target.value.split('-') as [SortBy, SortOrder]
-              setSortBy(newSortBy)
-              setSortOrder(newSortOrder)
-            }}
-            className="px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
-          >
-            <option value="createdAt-desc">Newest First</option>
-            <option value="createdAt-asc">Oldest First</option>
-            <option value="username-asc">Username A-Z</option>
-            <option value="username-desc">Username Z-A</option>
-            <option value="nftTokenId-asc">Token ID Low-High</option>
-            <option value="nftTokenId-desc">Token ID High-Low</option>
-          </select>
         </div>
 
-        {/* Registry Table */}
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-          </div>
-        ) : filteredUsers.length === 0 ? (
-          <div className="text-center py-12 bg-gray-800/50 rounded-lg border border-gray-700">
-            <User className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400">No agents found</p>
-          </div>
-        ) : (
-          <div className="bg-gray-800/50 rounded-lg border border-gray-700 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-900/50 border-b border-gray-700">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                      Agent
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                      NFT Token ID
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                      Reputation
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                      Balance
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                      P&L
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                      Activity
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                      Links
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-700">
-                  {filteredUsers.map((user) => (
-                    <tr key={user.id} className="hover:bg-gray-900/30 transition-colors">
-                      {/* Agent Info */}
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold">
-                            {((user.username || user.displayName || 'A')[0] || 'A').toUpperCase()}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-white">
-                                {user.username || user.displayName || 'Anonymous'}
-                              </span>
-                              {user.isActor && (
-                                <span className="px-2 py-0.5 text-xs bg-purple-500/10 text-purple-400 rounded border border-purple-500/20">
-                                  NPC
-                                </span>
-                              )}
-                            </div>
-                            {user.walletAddress && (
-                              <p className="text-xs text-gray-500 font-mono">
-                                {user.walletAddress.slice(0, 6)}...{user.walletAddress.slice(-4)}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* NFT Token ID */}
-                      <td className="px-6 py-4">
-                        {user.onChainRegistered && user.nftTokenId !== null ? (
-                          <div className="flex items-center gap-2">
-                            <Shield className="w-4 h-4 text-green-500" />
-                            <span className="text-white font-mono">#{user.nftTokenId}</span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-500">Not registered</span>
-                        )}
-                      </td>
-
-                      {/* Reputation */}
-                      <td className="px-6 py-4">
-                        {user.reputation !== null ? (
-                          <div className="flex items-center gap-2">
-                            <Shield className="w-4 h-4 text-yellow-500" />
-                            <span className="text-white font-medium">
-                              {user.reputation}/100
-                            </span>
-                            <div className="w-16 h-2 bg-gray-700 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-gradient-to-r from-yellow-500 to-yellow-400"
-                                style={{ width: `${Math.min(100, Math.max(0, user.reputation))}%` }}
-                              />
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-gray-500">—</span>
-                        )}
-                      </td>
-
-                      {/* Balance */}
-                      <td className="px-6 py-4">
-                        <span className="text-white font-medium">
-                          {formatBalance(user.virtualBalance)}
-                        </span>
-                      </td>
-
-                      {/* P&L */}
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1">
-                          {parseFloat(user.lifetimePnL) >= 0 ? (
-                            <TrendingUp className="w-4 h-4 text-green-500" />
-                          ) : (
-                            <TrendingUp className="w-4 h-4 text-red-500 rotate-180" />
-                          )}
-                          <span
-                            className={cn(
-                              'font-medium',
-                              parseFloat(user.lifetimePnL) >= 0 ? 'text-green-500' : 'text-red-500'
-                            )}
-                          >
-                            {formatPnL(user.lifetimePnL)}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Activity Stats */}
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1 text-xs">
-                          <span className="text-gray-400">
-                            {user.stats.positions} positions
-                          </span>
-                          <span className="text-gray-400">
-                            {user.stats.comments} comments
-                          </span>
-                          <span className="text-gray-400">
-                            {user.stats.reactions} reactions
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Links */}
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <a
-                            href={getProfileUrl(user.id)}
-                            className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-colors"
-                            title="View Profile"
-                          >
-                            <User className="w-4 h-4" />
-                          </a>
-                          {user.registrationTxHash && (
-                            <a
-                              href={getBaseScanUrl(user.registrationTxHash)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-2 bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded-lg transition-colors"
-                              title="View on BaseScan"
-                            >
-                              <ExternalLink className="w-4 h-4" />
-                            </a>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* Stats overview */}
+        {data && (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            <div className="bg-card border border-border rounded-xl p-4">
+              <div className="text-sm text-muted-foreground mb-1">Total</div>
+              <div className="text-3xl font-bold text-foreground">{data.totals.total}</div>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-4">
+              <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
+                <UserCircle className="h-4 w-4" />
+                <span>Users</span>
+              </div>
+              <div className="text-3xl font-bold text-foreground">{data.totals.users}</div>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-4">
+              <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
+                <Users className="h-4 w-4" />
+                <span>Actors</span>
+              </div>
+              <div className="text-3xl font-bold text-foreground">{data.totals.actors}</div>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-4">
+              <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
+                <Bot className="h-4 w-4" />
+                <span>Agents</span>
+              </div>
+              <div className="text-3xl font-bold text-foreground">{data.totals.agents}</div>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-4">
+              <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
+                <Building2 className="h-4 w-4" />
+                <span>Apps</span>
+              </div>
+              <div className="text-3xl font-bold text-foreground">{data.totals.apps}</div>
             </div>
           </div>
         )}
 
-        {/* Footer Info */}
-        <div className="text-center text-sm text-gray-500">
-          Showing {filteredUsers.length} of {totalCount} registered agents
-        </div>
+        {/* Loading state */}
+        {loading && (
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center">
+              <div className="mx-auto mb-4 flex justify-center">
+                <BouncingLogo size={48} />
+              </div>
+              <p className="text-muted-foreground">Loading registry data...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Error state */}
+        {error && !loading && (
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center max-w-md">
+              <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">Failed to load registry</h3>
+              <p className="text-muted-foreground mb-4">{error}</p>
+              <button
+                onClick={fetchRegistry}
+                className="px-4 py-2 bg-[#0066FF] text-white rounded-lg hover:bg-[#0052CC] transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Tabs and content */}
+        {!loading && !error && data && (
+          <>
+            {/* Tabs */}
+            <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+              <button
+                onClick={() => setActiveTab('all')}
+                className={cn(
+                  'px-4 py-2 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                  activeTab === 'all'
+                    ? 'bg-[#0066FF] text-white'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                )}
+              >
+                All ({data.totals.total})
+              </button>
+              <button
+                onClick={() => setActiveTab('users')}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                  activeTab === 'users'
+                    ? 'bg-[#0066FF] text-white'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                )}
+              >
+                <UserCircle className="h-4 w-4" />
+                Users ({data.totals.users})
+              </button>
+              <button
+                onClick={() => setActiveTab('actors')}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                  activeTab === 'actors'
+                    ? 'bg-[#0066FF] text-white'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                )}
+              >
+                <Users className="h-4 w-4" />
+                Actors ({data.totals.actors})
+              </button>
+              <button
+                onClick={() => setActiveTab('agents')}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                  activeTab === 'agents'
+                    ? 'bg-[#0066FF] text-white'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                )}
+              >
+                <Bot className="h-4 w-4" />
+                Agents ({data.totals.agents})
+              </button>
+              <button
+                onClick={() => setActiveTab('apps')}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                  activeTab === 'apps'
+                    ? 'bg-[#0066FF] text-white'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                )}
+              >
+                <Building2 className="h-4 w-4" />
+                Apps ({data.totals.apps})
+              </button>
+            </div>
+
+            {/* Entity grid */}
+            {activeEntities.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {activeEntities.map(entity => renderEntityCard(entity))}
+              </div>
+            ) : (
+              <div className="text-center py-20">
+                <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">No entities found</h3>
+                <p className="text-muted-foreground">
+                  Try adjusting your search or filters
+                </p>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </PageContainer>
   )

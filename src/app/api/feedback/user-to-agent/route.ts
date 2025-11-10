@@ -119,12 +119,15 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     )
   } catch (error) {
-    logger.error('Failed to create user-to-agent feedback', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorStack = error instanceof Error ? error.stack : undefined
+    logger.error('Failed to create user-to-agent feedback', { 
+      error: errorMessage,
+      stack: errorStack 
+    }, 'UserToAgentFeedback')
 
-    if (error instanceof Error) {
-      if (error.message.includes('not found')) {
-        return NextResponse.json({ error: 'User or agent not found' }, { status: 404 })
-      }
+    if (error instanceof Error && error.message.includes('not found')) {
+      return NextResponse.json({ error: 'User or agent not found' }, { status: 404 })
     }
 
     return NextResponse.json({ error: 'Failed to create feedback' }, { status: 500 })
@@ -193,12 +196,15 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    logger.error('Failed to get user-to-agent feedback', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorStack = error instanceof Error ? error.stack : undefined
+    logger.error('Failed to get user-to-agent feedback', { 
+      error: errorMessage,
+      stack: errorStack 
+    }, 'UserToAgentFeedback')
 
-    if (error instanceof Error) {
-      if (error.message.includes('not found')) {
-        return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
-      }
+    if (error instanceof Error && error.message.includes('not found')) {
+      return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
     }
 
     return NextResponse.json({ error: 'Failed to get feedback' }, { status: 500 })

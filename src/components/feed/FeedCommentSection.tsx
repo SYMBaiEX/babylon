@@ -3,6 +3,7 @@
 import { CommentCard } from '@/components/interactions/CommentCard';
 import { CommentInput } from '@/components/interactions/CommentInput';
 import { PostCard } from '@/components/posts/PostCard';
+import { BouncingLogo } from '@/components/shared/BouncingLogo';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { cn } from '@/lib/utils';
 import { useInteractionStore } from '@/stores/interactionStore';
@@ -27,12 +28,14 @@ interface FeedCommentSectionProps {
     isShared: boolean;
   };
   onClose?: () => void;
+  onCommentAdded?: () => void;
 }
 
 export function FeedCommentSection({
   postId,
   postData,
   onClose,
+  onCommentAdded,
 }: FeedCommentSectionProps) {
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
   const [post, setPost] = useState<{
@@ -54,6 +57,25 @@ export function FeedCommentSection({
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'popular'>('newest');
 
   const { loadComments, editComment, deleteComment } = useInteractionStore();
+
+  // Handle escape key and body scroll lock for modal
+  useEffect(() => {
+    if (!onClose) return; // Only for modal mode
+    
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = '';
+    };
+  }, [onClose]);
 
   // Load comments data function - defined before useEffect that uses it
   const loadCommentsData = useCallback(async () => {
@@ -100,19 +122,19 @@ export function FeedCommentSection({
     }
   }, [postId, loadCommentsData]);
 
-  const handleEdit = async (commentId: string, content: string) => {
-    await editComment(commentId, content);
-    await loadCommentsData();
+  // Helper functions
+  const removeCommentById = (
+    commentList: CommentWithReplies[],
+    commentId: string
+  ): CommentWithReplies[] => {
+    return commentList
+      .filter((comment) => comment.id !== commentId)
+      .map((comment) => ({
+        ...comment,
+        replies: removeCommentById(comment.replies, commentId),
+      }));
   };
 
-  const handleDelete = async (commentId: string) => {
-    if (!postId) return;
-    
-    await deleteComment(commentId, postId);
-    setComments((prev) => removeCommentById(prev, commentId));
-  };
-
-  // Helper to add a reply to the nested comment structure
   const addReplyToComment = (
     commentList: CommentWithReplies[],
     parentCommentId: string,
@@ -120,13 +142,11 @@ export function FeedCommentSection({
   ): CommentWithReplies[] => {
     return commentList.map((comment) => {
       if (comment.id === parentCommentId) {
-        // Add reply to this comment's replies
         return {
           ...comment,
           replies: [newReply, ...comment.replies],
         };
       } else if (comment.replies.length > 0) {
-        // Recursively search in replies
         return {
           ...comment,
           replies: addReplyToComment(comment.replies, parentCommentId, newReply),
@@ -136,7 +156,6 @@ export function FeedCommentSection({
     });
   };
 
-  // Helper to find parent comment author name in the comment tree
   const findParentAuthorName = (
     commentList: CommentWithReplies[],
     parentCommentId: string
@@ -153,13 +172,22 @@ export function FeedCommentSection({
     return undefined;
   };
 
+  const handleEdit = async (commentId: string, content: string) => {
+    await editComment(commentId, content);
+    await loadCommentsData();
+  };
+
+  const handleDelete = async (commentId: string) => {
+    if (!postId) return;
+    await deleteComment(commentId, postId);
+    setComments((prev) => removeCommentById(prev, commentId));
+  };
+
   const handleReplySubmit = async (replyComment: CommentData, parentCommentId: string) => {
     if (!postId) return;
     
-    // Find parent comment author name
     const parentAuthorName = findParentAuthorName(comments, parentCommentId);
     
-    // Convert CommentData to CommentWithReplies format
     const optimisticReply: CommentWithReplies = {
       id: replyComment.id,
       content: replyComment.content,
@@ -176,24 +204,9 @@ export function FeedCommentSection({
       replies: [],
     };
 
-    // Optimistically add reply to nested structure
     setComments((prev) => addReplyToComment(prev, parentCommentId, optimisticReply));
-
-    // Small delay then reload to get full data
     await new Promise(resolve => setTimeout(resolve, 200));
     await loadCommentsData();
-  };
-
-  const removeCommentById = (
-    commentList: CommentWithReplies[],
-    commentId: string
-  ): CommentWithReplies[] => {
-    return commentList
-      .filter((comment) => comment.id !== commentId)
-      .map((comment) => ({
-        ...comment,
-        replies: removeCommentById(comment.replies, commentId),
-      }));
   };
 
   const sortedComments = [...comments].sort((a, b) => {
@@ -216,7 +229,7 @@ export function FeedCommentSection({
   if (isLoadingPost) {
     return (
       <div className="flex flex-col h-full w-full overflow-hidden bg-background items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[#1c9cf0] border-t-transparent rounded-full animate-spin"></div>
+        <BouncingLogo size={32} />
         <p className="text-sm text-muted-foreground mt-4">Loading post...</p>
       </div>
     );
@@ -234,148 +247,181 @@ export function FeedCommentSection({
       {/* Backdrop for modal only */}
       {isModal && (
         <div
-          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
           onClick={onClose}
         />
       )}
-      <div className={cn(
-        "flex flex-col w-full overflow-hidden bg-background",
-        isModal ? "fixed inset-0 z-50" : "relative"
-      )}>
-        {/* Header - only show close button in modal */}
-        {isModal && (
-          <div className="flex items-center justify-between gap-4 px-4 py-3 border-b-2 border-[#1c9cf0] flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <MessageCircle className="w-5 h-5 text-[#1c9cf0]" />
-              <h2 className="font-semibold text-lg text-foreground">Comments</h2>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              <X size={18} />
-            </button>
-          </div>
-        )}
-
-      {/* Original Post - Compact (only show in modal, post page shows post separately) */}
-      {isModal && (
-        <div className="flex-shrink-0 border-b-2 border-[#1c9cf0] bg-background">
-        <PostCard
-          post={{
-            id: post.id,
-            content: post.content,
-            authorId: post.authorId,
-            authorName: post.authorName,
-            authorUsername: post.authorUsername,
-            authorProfileImageUrl: post.authorProfileImageUrl,
-            timestamp: post.timestamp,
-            likeCount: post.likeCount,
-            commentCount: post.commentCount,
-            shareCount: post.shareCount,
-            isLiked: post.isLiked,
-            isShared: post.isShared,
-          }}
-          showInteractions={true}
-          isDetail
-          className="py-3"
-        />
-        </div>
-      )}
-
-      {/* Sort options */}
-      {comments.length > 1 && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-background flex-shrink-0">
-          <span className="text-xs text-muted-foreground">Sort:</span>
-          <div className="flex gap-1">
-            {(['newest', 'oldest', 'popular'] as const).map((option) => (
+      
+      {/* Modal Container - centered on desktop */}
+      {isModal ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] px-4 pointer-events-none">
+          <div
+            className={cn(
+              "relative w-full max-w-[700px] bg-background rounded-2xl shadow-2xl pointer-events-auto",
+              "animate-in fade-in-0 zoom-in-95 duration-200",
+              "max-h-[85vh] flex flex-col"
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-border flex-shrink-0">
               <button
-                key={option}
                 type="button"
-                onClick={() => setSortBy(option)}
-                className={cn(
-                  'px-2 py-0.5 rounded text-xs capitalize transition-colors',
-                  sortBy === option
-                    ? 'bg-[#1c9cf0] text-white'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                )}
+                onClick={onClose}
+                className="p-2 -ml-2 rounded-full hover:bg-muted transition-colors"
+                aria-label="Close"
               >
-                {option}
+                <X size={20} />
               </button>
-            ))}
+              <div className="flex items-center gap-2">
+                <MessageCircle className="w-5 h-5 text-[#0066FF]" />
+                <h2 className="font-semibold text-base">Reply</h2>
+              </div>
+              <div className="w-10" /> {/* Spacer for centering */}
+            </div>
+
+            {/* Content - scrollable */}
+            <div className="flex-1 overflow-y-auto">
+              {/* Original Post - Compact view without interactions */}
+              <div className="px-4 pt-3">
+                <PostCard
+                  post={{
+                    id: post.id,
+                    content: post.content,
+                    authorId: post.authorId,
+                    authorName: post.authorName,
+                    authorUsername: post.authorUsername,
+                    authorProfileImageUrl: post.authorProfileImageUrl,
+                    timestamp: post.timestamp,
+                    likeCount: post.likeCount,
+                    commentCount: post.commentCount,
+                    shareCount: post.shareCount,
+                    isLiked: post.isLiked,
+                    isShared: post.isShared,
+                  }}
+                  showInteractions={false}
+                  isDetail={false}
+                />
+              </div>
+
+              {/* Visual thread connector */}
+              <div className="px-4">
+                <div className="ml-6 border-l-2 border-border h-4" />
+              </div>
+
+              {/* Reply Input */}
+              <div className="px-4 pb-4">
+                <CommentInput
+                  postId={postId}
+                  placeholder="Post your reply..."
+                  onSubmit={async (_comment) => {
+                    // Call onCommentAdded callback if provided (closes modal)
+                    if (onCommentAdded) {
+                      onCommentAdded();
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Non-modal inline view (for post detail page) */
+        <div className="flex flex-col w-full overflow-hidden bg-background relative">
+          {/* Sort options */}
+          {comments.length > 1 && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-background flex-shrink-0">
+              <span className="text-xs text-muted-foreground">Sort:</span>
+              <div className="flex gap-1">
+                {(['newest', 'oldest', 'popular'] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setSortBy(option)}
+                    className={cn(
+                      'px-2 py-0.5 rounded text-xs capitalize transition-colors',
+                      sortBy === option
+                        ? 'bg-[#0066FF] text-white'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                    )}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Comment input */}
+          <div className="px-4 py-3 bg-background flex-shrink-0">
+            <CommentInput
+              postId={postId}
+              placeholder="Post your reply..."
+              onSubmit={async (comment) => {
+                if (comment) {
+                  // Optimistically add comment to the list immediately
+                  const optimisticComment: CommentWithReplies = {
+                    id: comment.id,
+                    content: comment.content,
+                    createdAt: comment.createdAt instanceof Date ? comment.createdAt : new Date(comment.createdAt),
+                    updatedAt: comment.updatedAt instanceof Date ? comment.updatedAt : new Date(comment.updatedAt),
+                    userId: comment.authorId,
+                    userName: comment.author?.displayName || comment.author?.username || 'Unknown',
+                    userUsername: comment.author?.username || null,
+                    userAvatar: comment.author?.profileImageUrl || undefined,
+                    parentCommentId: comment.parentCommentId,
+                    likeCount: comment._count?.reactions || 0,
+                    isLiked: false,
+                    replies: [],
+                  };
+                  setComments((prev) => [optimisticComment, ...prev]);
+                }
+                // Small delay to ensure API has processed, then reload to get full data
+                await new Promise(resolve => setTimeout(resolve, 200));
+                await loadCommentsData();
+                
+                // Call onCommentAdded callback if provided
+                if (onCommentAdded) {
+                  onCommentAdded();
+                }
+              }}
+            />
+          </div>
+
+          {/* Comments list */}
+          <div className="flex-1 overflow-y-auto px-4 py-3">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <BouncingLogo size={24} />
+              </div>
+            ) : sortedComments.length === 0 ? (
+              <EmptyState
+                icon={MessageCircle}
+                title="No comments yet"
+                description="Be the first to comment!"
+              />
+            ) : (
+              <div className="space-y-4">
+                {sortedComments.map((comment) => (
+                  <CommentCard
+                    key={comment.id}
+                    comment={comment}
+                    postId={postId || ''}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onReplySubmit={(replyComment) => {
+                      if (replyComment.parentCommentId) {
+                        handleReplySubmit(replyComment, replyComment.parentCommentId);
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
-
-      {/* Comment input */}
-      <div className="px-4 py-3 bg-background flex-shrink-0">
-        <CommentInput
-          postId={postId}
-          placeholder="Post your reply..."
-          onSubmit={async (comment) => {
-            if (comment) {
-              // Optimistically add comment to the list immediately
-              // Convert CommentData to CommentWithReplies format
-              const optimisticComment: CommentWithReplies = {
-                id: comment.id,
-                content: comment.content,
-                createdAt: comment.createdAt instanceof Date ? comment.createdAt : new Date(comment.createdAt),
-                updatedAt: comment.updatedAt instanceof Date ? comment.updatedAt : new Date(comment.updatedAt),
-                userId: comment.authorId,
-                userName: comment.author?.displayName || comment.author?.username || 'Unknown',
-                userUsername: comment.author?.username || null,
-                userAvatar: comment.author?.profileImageUrl || undefined,
-                parentCommentId: comment.parentCommentId,
-                likeCount: comment._count?.reactions || 0,
-                isLiked: false,
-                replies: [],
-              };
-              setComments((prev) => {
-                // Add to beginning for newest sort
-                const updated = [optimisticComment, ...prev];
-                return updated;
-              });
-            }
-            // Small delay to ensure API has processed, then reload to get full data
-            await new Promise(resolve => setTimeout(resolve, 200));
-            await loadCommentsData();
-          }}
-        />
-      </div>
-
-      {/* Comments list */}
-      <div className="flex-1 overflow-y-auto px-4 py-3">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="h-6 w-6 border-2 border-[#1c9cf0] border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : sortedComments.length === 0 ? (
-          <EmptyState
-            icon={MessageCircle}
-            title="No comments yet"
-            description="Be the first to comment!"
-          />
-        ) : (
-          <div className="space-y-4">
-            {sortedComments.map((comment) => (
-              <CommentCard
-                key={comment.id}
-                comment={comment}
-                postId={postId || ''}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                onReplySubmit={(replyComment) => {
-                  if (replyComment.parentCommentId) {
-                    handleReplySubmit(replyComment, replyComment.parentCommentId);
-                  }
-                }}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
     </>
   );
 }

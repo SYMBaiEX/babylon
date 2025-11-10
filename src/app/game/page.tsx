@@ -96,7 +96,7 @@ export default function GamePage() {
           <div className="space-y-2">
             <div>
               <div className="text-xs text-muted-foreground mb-1">Current Game Date</div>
-              <div className="text-2xl font-bold" style={{ color: '#1c9cf0' }}>
+              <div className="text-2xl font-bold" style={{ color: '#0066FF' }}>
                 {currentDate.toLocaleDateString('en-US', {
                   month: 'short',
                   day: 'numeric',
@@ -132,19 +132,19 @@ export default function GamePage() {
           <div className="grid grid-cols-3 gap-4">
             <div>
               <div className="text-xs text-muted-foreground mb-1">Total Posts</div>
-              <div className="text-2xl font-bold" style={{ color: '#1c9cf0' }}>
+              <div className="text-2xl font-bold" style={{ color: '#0066FF' }}>
                 {stats?.totalPosts?.toLocaleString() || '0'}
               </div>
             </div>
             <div>
               <div className="text-xs text-muted-foreground mb-1">Active Questions</div>
-              <div className="text-2xl font-bold" style={{ color: '#1c9cf0' }}>
+              <div className="text-2xl font-bold" style={{ color: '#0066FF' }}>
                 {stats?.activeQuestions || '0'}
               </div>
             </div>
             <div>
               <div className="text-xs text-muted-foreground mb-1">Companies</div>
-              <div className="text-2xl font-bold" style={{ color: '#1c9cf0' }}>
+              <div className="text-2xl font-bold" style={{ color: '#0066FF' }}>
                 {stats?.totalCompanies || '0'}
               </div>
             </div>

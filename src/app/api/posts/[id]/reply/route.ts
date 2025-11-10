@@ -8,7 +8,7 @@ import { prisma } from '@/lib/database-service';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError } from '@/lib/errors';
-import { IdParamSchema, ReplyToPostSchema } from '@/lib/validation/schemas';
+import { PostIdParamSchema, ReplyToPostSchema } from '@/lib/validation/schemas';
 import { ReplyRateLimiter } from '@/lib/services/reply-rate-limiter';
 import { MessageQualityChecker } from '@/lib/services/message-quality-checker';
 import { FollowingMechanics } from '@/lib/services/following-mechanics';
@@ -28,7 +28,7 @@ export const POST = withErrorHandling(async (
   // 1. Authenticate user
   const user = await authenticate(request);
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
-  const { id: postId } = IdParamSchema.parse(params);
+  const { id: postId } = PostIdParamSchema.parse(params);
 
   // 2. Parse and validate request body
   const body = await request.json();

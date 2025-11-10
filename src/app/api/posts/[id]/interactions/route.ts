@@ -8,7 +8,7 @@ import { optionalAuth } from '@/lib/api/auth-middleware';
 import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError } from '@/lib/errors';
-import { IdParamSchema, PostInteractionsQuerySchema } from '@/lib/validation/schemas';
+import { PostIdParamSchema, PostInteractionsQuerySchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 
 /**
@@ -22,7 +22,7 @@ export const GET = withErrorHandling(async (
   context?: { params: Promise<{ id: string }> }
 ) => {
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
-  const { id: postId } = IdParamSchema.parse(params);
+  const { id: postId } = PostIdParamSchema.parse(params);
   
   // Validate query parameters
   const { searchParams } = new URL(request.url);

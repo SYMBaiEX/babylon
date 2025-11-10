@@ -83,11 +83,11 @@ export function TaggedText({ text, onTagClick, className }: TaggedTextProps) {
                 }
               }}
               className={cn(
-                'text-[#1c9cf0] hover:text-[#1a8cd8] cursor-pointer font-medium',
+                'text-[#0066FF] hover:text-[#2952d9] cursor-pointer font-medium',
                 'transition-colors duration-150',
-                'underline decoration-[#1c9cf0]/30 hover:decoration-[#1c9cf0]/50'
+                'underline decoration-[#0066FF]/30 hover:decoration-[#0066FF]/50'
               )}
-              style={{ color: '#1c9cf0' }}
+              style={{ color: '#0066FF' }}
             >
               {part.text}
             </span>

@@ -54,7 +54,7 @@ export function TrendingPostsPanel() {
   return (
     <div className="bg-sidebar rounded-lg p-4 flex-1 flex flex-col">
       <div className="flex items-center gap-2 mb-3">
-        <TrendingUp className="w-5 h-5 text-[#1c9cf0]" />
+        <TrendingUp className="w-5 h-5 text-[#0066FF]" />
         <h2 className="text-xl font-bold text-foreground">Trending</h2>
       </div>
       {loading ? (

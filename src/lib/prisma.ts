@@ -88,16 +88,16 @@ function getPrismaClient(): PrismaClient {
 // Get base Prisma client
 const basePrismaClient = getPrismaClient();
 
-// Wrap with retry logic
-export const prisma = globalForPrisma.prismaWithRetry ?? createRetryProxy(basePrismaClient, {
+// Wrap with retry logic and explicitly type as PrismaClient to preserve types through proxy
+export const prisma: PrismaClient = (globalForPrisma.prismaWithRetry ?? createRetryProxy(basePrismaClient, {
   maxRetries: 5,
   initialDelayMs: 100,
   maxDelayMs: 5000,
   jitter: true,
-});
+})) as PrismaClient;
 
 if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prismaWithRetry = prisma;
+  globalForPrisma.prismaWithRetry = prisma as ReturnType<typeof createRetryProxy<PrismaClient>>;
 }
 
 /**

@@ -5,7 +5,7 @@ import { MessageCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { LikeButton } from './LikeButton';
 import { RepostButton } from './RepostButton';
-import { CommentSection } from './CommentSection';
+import { FeedCommentSection } from '@/components/feed/FeedCommentSection';
 import { useInteractionStore } from '@/stores/interactionStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoginModal } from '@/hooks/useLoginModal';
@@ -83,7 +83,7 @@ export function InteractionBar({
           className={cn(
             'flex items-center gap-1 h-8 px-2',
             'bg-transparent hover:opacity-70 transition-all duration-200',
-            'text-xs text-muted-foreground'
+            'text-xs text-muted-foreground cursor-pointer'
           )}
         >
           <MessageCircle size={18} />
@@ -116,24 +116,29 @@ export function InteractionBar({
         </div>
       </div>
 
-      {/* Comment section modal - only if custom onCommentClick is not provided */}
-      {!onCommentClick && (
-        <CommentSection
+      {/* Comment modal - only if custom onCommentClick is not provided */}
+      {!onCommentClick && showComments && postData && (
+        <FeedCommentSection
           postId={postId}
-          isOpen={showComments}
-          onClose={() => setShowComments(false)}
-          postData={postData ? {
+          postData={{
             id: postData.id,
             content: postData.content,
             authorId: postData.authorId,
             authorName: postData.authorName,
+            authorUsername: postData.authorUsername ?? null,
+            authorProfileImageUrl: postData.authorProfileImageUrl ?? null,
             timestamp: postData.timestamp,
             likeCount: postData.likeCount ?? 0,
             commentCount: postData.commentCount ?? 0,
             shareCount: postData.shareCount ?? 0,
             isLiked: postData.isLiked ?? false,
             isShared: postData.isShared ?? false,
-          } : undefined}
+          }}
+          onClose={() => setShowComments(false)}
+          onCommentAdded={() => {
+            setShowComments(false);
+            // Comment count is automatically updated by the store's addComment method
+          }}
         />
       )}
     </>

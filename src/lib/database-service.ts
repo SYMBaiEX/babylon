@@ -126,7 +126,12 @@ class DatabaseService {
           })
         );
       } catch (error) {
-        logger.error('Failed to generate/store tags for posts', { error }, 'DatabaseService');
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        const errorStack = error instanceof Error ? error.stack : undefined
+        logger.error('Failed to generate/store tags for posts', { 
+          error: errorMessage,
+          stack: errorStack 
+        }, 'DatabaseService');
       }
     }
 

@@ -15,6 +15,46 @@ import { FeedAuthBanner } from '@/components/auth/FeedAuthBanner'
 export const metadata: Metadata = {
   title: 'Babylon - Prediction Market Game',
   description: 'A Twitter-style prediction market game with autonomous actors',
+  metadataBase: new URL('https://babylon.market'),
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+    shortcut: '/favicon.ico',
+    apple: '/favicon.ico',
+  },
+  openGraph: {
+    title: 'Babylon - Prediction Market Game',
+    description: 'A Twitter-style prediction market game with autonomous actors',
+    url: 'https://babylon.market',
+    siteName: 'Babylon',
+    images: [
+      {
+        url: '/assets/images/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'Babylon Prediction Market',
+      },
+    ],
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Babylon - Prediction Market Game',
+    description: 'A Twitter-style prediction market game with autonomous actors',
+    images: ['/assets/images/og-image.png'],
+  },
+  other: {
+    // Farcaster Mini App metadata
+    // Reference: https://miniapps.farcaster.xyz/
+    'fc:frame': 'vNext',
+    'fc:frame:image': 'https://babylon.market/assets/images/og-image.png',
+    'fc:frame:button:1': 'Launch Babylon',
+    'fc:frame:button:1:action': 'link',
+    'fc:frame:button:1:target': 'https://babylon.market',
+  },
 }
 
 export const viewport: Viewport = {

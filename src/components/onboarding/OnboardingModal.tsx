@@ -7,15 +7,39 @@ import { cn } from '@/lib/utils'
 import { apiFetch } from '@/lib/api/fetch'
 import type { OnboardingProfilePayload } from '@/lib/onboarding/types'
 import { logger } from '@/lib/logger'
+import { SocialImportStep } from './SocialImportStep'
+import { BouncingLogo } from '@/components/shared/BouncingLogo'
+
+export interface ImportedProfileData {
+  platform: 'twitter' | 'farcaster'
+  username: string
+  displayName: string
+  bio?: string
+  profileImageUrl?: string | null
+  coverImageUrl?: string | null
+  // Platform-specific IDs
+  twitterId?: string
+  farcasterFid?: string
+}
 
 interface OnboardingModalProps {
   isOpen: boolean
-  stage: 'PROFILE' | 'ONCHAIN' | 'COMPLETED'
+  stage: 'SOCIAL_IMPORT' | 'PROFILE' | 'ONCHAIN' | 'COMPLETED'
   isSubmitting: boolean
   error?: string | null
   onSubmitProfile: (payload: OnboardingProfilePayload) => Promise<void>
   onRetryOnchain: () => Promise<void>
+  onSkipOnchain: () => void
+  onSocialImport: (platform: 'twitter' | 'farcaster') => Promise<void>
+  onSkipSocialImport: () => void
   onClose: () => void
+  user: {
+    id?: string
+    username?: string
+    walletAddress?: string
+    onChainRegistered?: boolean
+  } | null
+  importedData?: ImportedProfileData | null
 }
 
 interface GeneratedProfileResponse {
@@ -51,7 +75,12 @@ export function OnboardingModal({
   error,
   onSubmitProfile,
   onRetryOnchain,
+  onSkipOnchain,
+  onSocialImport,
+  onSkipSocialImport,
   onClose,
+  user,
+  importedData,
 }: OnboardingModalProps) {
   const [displayName, setDisplayName] = useState('')
   const [username, setUsername] = useState('')
@@ -74,8 +103,35 @@ export function OnboardingModal({
     return uploadedBanner || `/assets/user-banners/banner-${bannerIndex}.jpg`
   }, [uploadedBanner, bannerIndex])
 
+  // Pre-fill form with imported social data
   useEffect(() => {
-    if (!isOpen) return
+    if (!importedData || stage !== 'PROFILE') return
+
+    logger.info('Pre-filling profile with imported data', { platform: importedData.platform }, 'OnboardingModal')
+
+    setDisplayName(importedData.displayName)
+    setUsername(importedData.username)
+    setBio(importedData.bio || '')
+    
+    // If we have a profile image URL from social import, use it
+    if (importedData.profileImageUrl) {
+      setUploadedProfileImage(importedData.profileImageUrl)
+    }
+    
+    // If we have a cover/banner URL from social import, use it
+    if (importedData.coverImageUrl) {
+      setUploadedBanner(importedData.coverImageUrl)
+    }
+  }, [importedData, stage])
+
+  useEffect(() => {
+    if (!isOpen || stage === 'SOCIAL_IMPORT') return
+    
+    // Don't auto-generate if we have imported data
+    if (importedData) {
+      setIsLoadingDefaults(false)
+      return
+    }
 
     const initializeProfile = async () => {
       setIsLoadingDefaults(true)
@@ -120,7 +176,7 @@ export function OnboardingModal({
     }
 
     void initializeProfile()
-  }, [isOpen])
+  }, [isOpen, stage, importedData])
 
   useEffect(() => {
     if (stage !== 'PROFILE') return
@@ -197,6 +253,12 @@ export function OnboardingModal({
       bio: bio.trim() || undefined,
       profileImageUrl: resolveAssetUrl(uploadedProfileImage ?? `/assets/user-profiles/profile-${profilePictureIndex}.jpg`),
       coverImageUrl: resolveAssetUrl(uploadedBanner ?? `/assets/user-banners/banner-${bannerIndex}.jpg`),
+      // Include imported social account data if available
+      importedFrom: importedData?.platform || null,
+      twitterId: importedData?.platform === 'twitter' ? importedData.twitterId : null,
+      twitterUsername: importedData?.platform === 'twitter' ? importedData.username : null,
+      farcasterFid: importedData?.platform === 'farcaster' ? importedData.farcasterFid : null,
+      farcasterUsername: importedData?.platform === 'farcaster' ? importedData.username : null,
     }
 
     await onSubmitProfile(profilePayload)
@@ -272,7 +334,7 @@ export function OnboardingModal({
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
           placeholder="Your display name"
-          className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1c9cf0]"
+          className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
           maxLength={50}
         />
       </div>
@@ -289,7 +351,7 @@ export function OnboardingModal({
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             placeholder="Enter your handle"
-            className="w-full pl-8 pr-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1c9cf0]"
+            className="w-full pl-8 pr-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
             maxLength={20}
           />
           {isCheckingUsername && (
@@ -323,7 +385,7 @@ export function OnboardingModal({
           placeholder="Tell the world who you are"
           rows={3}
           maxLength={280}
-          className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1c9cf0]"
+          className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
         />
         <p className="text-xs text-muted-foreground text-right">{bio.length}/280</p>
       </div>
@@ -338,30 +400,23 @@ export function OnboardingModal({
       <div className="flex justify-between items-center">
         <button
           type="button"
-          className="text-sm text-muted-foreground hover:underline"
+          className="text-sm text-muted-foreground hover:text-foreground hover:underline"
           onClick={handleSkip}
           disabled={isSubmitting}
+          title="Use generated profile and continue"
         >
-          Skip for now
+          Use Generated Profile
         </button>
         <div className="flex gap-2">
           <button
-            type="button"
-            className="px-4 py-2 bg-muted rounded-lg"
-            onClick={onClose}
-            disabled={isSubmitting}
-          >
-            Cancel
-          </button>
-          <button
             type="submit"
             className={cn(
-              'px-4 py-2 bg-[#1c9cf0] text-white rounded-lg flex items-center gap-2',
+              'px-4 py-2 bg-[#0066FF] text-white rounded-lg flex items-center gap-2 hover:bg-[#0066FF]/90',
               isSubmitting && 'opacity-60'
             )}
             disabled={isSubmitting}
           >
-            {isSubmitting && <RefreshCw className="w-4 h-4 animate-spin" />}
+            {isSubmitting && <BouncingLogo size={16} />}
             {isSubmitting ? 'Saving...' : 'Continue'}
           </button>
         </div>
@@ -423,7 +478,15 @@ export function OnboardingModal({
     void onSubmitProfile(profilePayload)
   }
 
-  const canClose = stage === 'COMPLETED'
+  const canClose = stage === 'COMPLETED' || stage === 'ONCHAIN'
+  const canLogout = stage !== 'COMPLETED' && !isSubmitting
+
+  const handleLogout = () => {
+    // Use Privy's logout
+    if (typeof window !== 'undefined' && window.location) {
+      window.location.href = '/api/auth/logout'
+    }
+  }
 
   return (
     <>
@@ -435,84 +498,167 @@ export function OnboardingModal({
         <div className="bg-background border border-border rounded-lg shadow-xl w-full max-w-2xl my-8" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between p-6 border-b border-border">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-[#1c9cf0]/10 rounded-lg">
-                <Sparkles className="w-6 h-6 text-[#1c9cf0]" />
+              <div className="p-2 bg-[#0066FF]/10 rounded-lg">
+                <Sparkles className="w-6 h-6 text-[#0066FF]" />
               </div>
               <div>
                 <h2 className="text-2xl font-bold">Welcome to Babylon!</h2>
-                <p className="text-sm text-muted-foreground">Set up your AI-powered profile</p>
+                <p className="text-sm text-muted-foreground">
+                  {stage === 'SOCIAL_IMPORT' 
+                    ? 'Connect your account' 
+                    : stage === 'PROFILE' 
+                    ? 'Set up your profile' 
+                    : stage === 'ONCHAIN' 
+                    ? 'Complete registration' 
+                    : 'Setup complete!'}
+                </p>
+                {user?.username && stage !== 'PROFILE' && stage !== 'SOCIAL_IMPORT' && (
+                  <p className="text-xs text-muted-foreground mt-1">@{user.username}</p>
+                )}
               </div>
             </div>
             <button
               onClick={canClose ? onClose : undefined}
               className="p-2 hover:bg-muted rounded-lg disabled:opacity-50"
               disabled={!canClose}
+              title={canClose ? 'Close' : 'Complete onboarding to close'}
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          {stage === 'COMPLETED' ? (
+          {stage === 'SOCIAL_IMPORT' ? (
+            <SocialImportStep
+              onImport={onSocialImport}
+              onSkip={onSkipSocialImport}
+              isLoading={isSubmitting}
+            />
+          ) : stage === 'COMPLETED' ? (
             <div className="p-12 flex flex-col items-center gap-4">
-              <Check className="w-10 h-10 text-[#1c9cf0]" />
+              <Check className="w-10 h-10 text-[#0066FF]" />
               <p className="text-lg font-semibold">Onboarding complete! Enjoy Babylon 🎉</p>
               <button
                 type="button"
-                className="px-4 py-2 bg-[#1c9cf0] text-white rounded-lg"
+                className="px-4 py-2 bg-[#0066FF] text-white rounded-lg"
                 onClick={onClose}
               >
                 Close
               </button>
             </div>
           ) : stage === 'ONCHAIN' ? (
-            <div className="p-12 flex flex-col items-center gap-4 text-center">
+            <div className="p-8 flex flex-col items-center gap-4 text-center">
               {isSubmitting ? (
                 <>
-                  <RefreshCw className="w-8 h-8 text-[#1c9cf0] animate-spin" />
+                  <BouncingLogo size={32} />
                   <p className="text-lg font-semibold">Finalising on-chain registration...</p>
-                  <p className="text-sm text-muted-foreground">
-                    This may take a few moments. You can keep this window open or continue browsing.
+                  <p className="text-sm text-muted-foreground max-w-md">
+                    Waiting for blockchain confirmation. This may take 10-30 seconds.
+                  </p>
+                  <p className="text-xs text-muted-foreground/70 mt-2">
+                    You can close this window and return later - your registration will continue in the background.
                   </p>
                 </>
               ) : error ? (
                 <>
                   <AlertCircle className="w-8 h-8 text-red-500" />
-                  <p className="text-sm text-red-500">{error}</p>
-                  <button
-                    type="button"
-                    className="px-4 py-2 bg-[#1c9cf0] text-white rounded-lg disabled:opacity-50"
-                    onClick={onRetryOnchain}
-                    disabled={isSubmitting}
-                  >
-                    Retry on-chain step
-                  </button>
+                  <p className="text-lg font-semibold">Registration Error</p>
+                  <p className="text-sm text-red-500 max-w-md">{error}</p>
+                  <div className="flex flex-col gap-2 mt-4">
+                    <div className="text-xs text-muted-foreground max-w-md">
+                      <p className="font-medium mb-2">Common issues:</p>
+                      <ul className="text-left list-disc list-inside space-y-1">
+                        <li>Transaction rejected in wallet</li>
+                        <li>Insufficient gas on Base Sepolia</li>
+                        <li>Network connectivity issues</li>
+                      </ul>
+                    </div>
+                    <div className="flex gap-2 mt-4">
+                      <button
+                        type="button"
+                        className="px-4 py-2 bg-[#0066FF] text-white rounded-lg disabled:opacity-50"
+                        onClick={onRetryOnchain}
+                        disabled={isSubmitting}
+                      >
+                        Retry Registration
+                      </button>
+                      <button
+                        type="button"
+                        className="px-4 py-2 bg-muted text-foreground rounded-lg"
+                        onClick={onSkipOnchain}
+                      >
+                        Skip for Now
+                      </button>
+                    </div>
+                  </div>
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-8 h-8 text-[#1c9cf0]" />
-                  <p className="text-lg font-semibold">Finalise your on-chain identity</p>
-                  <p className="text-sm text-muted-foreground">
-                    We’ll register your wallet on Base Sepolia. Keep MetaMask (or your selected wallet) handy
-                    to approve the transaction.
-                  </p>
-                  <button
-                    type="button"
-                    className="px-4 py-2 bg-[#1c9cf0] text-white rounded-lg disabled:opacity-50"
-                    onClick={onRetryOnchain}
-                    disabled={isSubmitting}
-                  >
-                    Start on-chain registration
-                  </button>
+                  <Sparkles className="w-8 h-8 text-[#0066FF]" />
+                  <p className="text-lg font-semibold">Complete On-Chain Registration</p>
+                  <div className="text-sm text-muted-foreground max-w-md space-y-2">
+                    <p>
+                      Register your identity on Base Sepolia blockchain to unlock full features:
+                    </p>
+                    <ul className="text-left list-disc list-inside space-y-1">
+                      <li>On-chain reputation tracking</li>
+                      <li>Verifiable trading history</li>
+                      <li>NFT-based identity</li>
+                    </ul>
+                  </div>
+                  {user?.walletAddress && (
+                    <p className="text-xs text-muted-foreground/70">
+                      Wallet: {user.walletAddress.slice(0, 6)}...{user.walletAddress.slice(-4)}
+                    </p>
+                  )}
+                  <div className="flex flex-col gap-2 mt-4 w-full max-w-xs">
+                    <button
+                      type="button"
+                      className="w-full px-4 py-2 bg-[#0066FF] text-white rounded-lg disabled:opacity-50 hover:bg-[#0066FF]/90"
+                      onClick={onRetryOnchain}
+                      disabled={isSubmitting}
+                    >
+                      Register On-Chain
+                    </button>
+                    <button
+                      type="button"
+                      className="w-full px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:underline"
+                      onClick={onSkipOnchain}
+                    >
+                      Skip & Continue Exploring
+                    </button>
+                  </div>
                 </>
               )}
             </div>
           ) : isLoadingDefaults ? (
             <div className="p-12 flex flex-col items-center gap-4">
-              <RefreshCw className="w-8 h-8 text-[#1c9cf0] animate-spin" />
+              <BouncingLogo size={32} />
               <p className="text-muted-foreground">Generating your profile...</p>
             </div>
           ) : (
             renderProfileForm()
+          )}
+          
+          {/* Footer with logout option */}
+          {canLogout && (
+            <div className="border-t border-border p-4 flex justify-center gap-4 text-xs text-muted-foreground">
+              <button
+                onClick={handleLogout}
+                className="hover:text-foreground hover:underline"
+                disabled={isSubmitting}
+              >
+                Logout & Switch Account
+              </button>
+              {stage === 'ONCHAIN' && (
+                <button
+                  onClick={onSkipOnchain}
+                  className="hover:text-foreground hover:underline"
+                  disabled={isSubmitting}
+                >
+                  Skip On-Chain Registration
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>

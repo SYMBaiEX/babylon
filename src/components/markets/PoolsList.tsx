@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { TrendingUp, TrendingDown, Users, DollarSign, Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import { BouncingLogo } from '@/components/shared/BouncingLogo'
 
 interface Pool {
   id: string
@@ -99,7 +100,7 @@ export function PoolsList({ onPoolClick }: PoolsListProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <BouncingLogo size={32} />
       </div>
     )
   }
@@ -113,7 +114,7 @@ export function PoolsList({ onPoolClick }: PoolsListProps) {
           className={cn(
             'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0',
             sortBy === 'performance'
-              ? 'bg-[#1da1f2] text-white'
+              ? 'bg-[#0066FF] text-white'
               : 'bg-muted/50 text-muted-foreground hover:bg-muted'
           )}
         >
@@ -125,7 +126,7 @@ export function PoolsList({ onPoolClick }: PoolsListProps) {
           className={cn(
             'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0',
             sortBy === 'tvl'
-              ? 'bg-[#1da1f2] text-white'
+              ? 'bg-[#0066FF] text-white'
               : 'bg-muted/50 text-muted-foreground hover:bg-muted'
           )}
         >
@@ -137,7 +138,7 @@ export function PoolsList({ onPoolClick }: PoolsListProps) {
           className={cn(
             'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0',
             sortBy === 'volume'
-              ? 'bg-[#1da1f2] text-white'
+              ? 'bg-[#0066FF] text-white'
               : 'bg-muted/50 text-muted-foreground hover:bg-muted'
           )}
         >
@@ -149,7 +150,7 @@ export function PoolsList({ onPoolClick }: PoolsListProps) {
           className={cn(
             'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0',
             sortBy === 'newest'
-              ? 'bg-[#1da1f2] text-white'
+              ? 'bg-[#0066FF] text-white'
               : 'bg-muted/50 text-muted-foreground hover:bg-muted'
           )}
         >
@@ -160,7 +161,7 @@ export function PoolsList({ onPoolClick }: PoolsListProps) {
           className={cn(
             'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0',
             sortBy === 'oldest'
-              ? 'bg-[#1da1f2] text-white'
+              ? 'bg-[#0066FF] text-white'
               : 'bg-muted/50 text-muted-foreground hover:bg-muted'
           )}
         >

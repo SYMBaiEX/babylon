@@ -15,7 +15,7 @@ import { logger } from '@/lib/logger'
  * Query params:
  *  - page: number (default 1)
  *  - pageSize: number (default 100, max 100)
- *  - minPoints: number (default 10000)
+ *  - minPoints: number (default 500)
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url)

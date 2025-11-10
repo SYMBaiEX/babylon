@@ -1,41 +1,132 @@
 /**
- * Retry utility for failed API requests with exponential backoff
+ * Retry Utility for Network Calls
+ * 
+ * Provides retry logic for fetch calls and other async operations
+ * with exponential backoff
  */
 
-import type { ErrorLike } from '@/types/common';
+import { logger } from './logger'
 
-export interface RetryOptions {
-  maxAttempts?: number;
-  initialDelay?: number;
-  maxDelay?: number;
-  backoffFactor?: number;
-  onRetry?: (attempt: number, error: Error) => void;
+interface RetryOptions {
+  maxAttempts?: number
+  initialDelayMs?: number
+  maxDelayMs?: number
+  backoffMultiplier?: number
+}
+
+const DEFAULT_OPTIONS: Required<RetryOptions> = {
+  maxAttempts: 3,
+  initialDelayMs: 100,
+  maxDelayMs: 2000,
+  backoffMultiplier: 2,
 }
 
 /**
- * Retry a function with exponential backoff
+ * Check if error is retryable (network errors, 5xx, rate limits)
  */
-export async function retryWithBackoff<T>(
-  fn: () => Promise<T>,
-  _options: RetryOptions = {}
-): Promise<T> {
-  return fn();
+function isRetryableError(error: unknown): boolean {
+  if (error instanceof TypeError && error.message.includes('fetch')) {
+    return true // Network errors
+  }
+  
+  if (error && typeof error === 'object' && 'status' in error) {
+    const status = (error as { status: number }).status
+    // Retry on 5xx errors and 429 (rate limit)
+    return status >= 500 || status === 429
+  }
+  
+  return false
 }
 
 /**
- * Check if an error is retryable (network errors, 5xx status codes)
+ * Sleep for specified milliseconds
  */
-export function isRetryableError(_error: Error | ErrorLike): boolean {
-  return false;
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 /**
- * Retry only if error is retryable
+ * Retry an async operation if it fails with a retryable error
  */
 export async function retryIfRetryable<T>(
-  fn: () => Promise<T>,
-  _options: RetryOptions = {}
+  operation: () => Promise<T>,
+  options: RetryOptions = {}
 ): Promise<T> {
-  return fn();
+  const opts = { ...DEFAULT_OPTIONS, ...options }
+  let lastError: Error | undefined
+
+  for (let attempt = 0; attempt < opts.maxAttempts; attempt++) {
+    try {
+      return await operation()
+    } catch (error) {
+      lastError = error as Error
+
+      // Check if we should retry
+      if (!isRetryableError(error)) {
+        throw error // Not retryable, throw immediately
+      }
+
+      // Don't retry if we've exhausted attempts
+      if (attempt === opts.maxAttempts - 1) {
+        throw error
+      }
+
+      // Calculate delay with exponential backoff
+      const delay = Math.min(
+        opts.initialDelayMs * Math.pow(opts.backoffMultiplier, attempt),
+        opts.maxDelayMs
+      )
+
+      logger.debug('Retrying operation', {
+        attempt: attempt + 1,
+        maxAttempts: opts.maxAttempts,
+        delayMs: delay,
+        error: error instanceof Error ? error.message : String(error),
+      }, 'retry')
+
+      await sleep(delay)
+    }
+  }
+
+  throw lastError || new Error('Operation failed with unknown error')
 }
+
+/**
+ * Retry with custom retry condition
+ */
+export async function retryWithCondition<T>(
+  operation: () => Promise<T>,
+  shouldRetry: (error: unknown) => boolean,
+  options: RetryOptions = {}
+): Promise<T> {
+  const opts = { ...DEFAULT_OPTIONS, ...options }
+  let lastError: Error | undefined
+
+  for (let attempt = 0; attempt < opts.maxAttempts; attempt++) {
+    try {
+      return await operation()
+    } catch (error) {
+      lastError = error as Error
+
+      if (!shouldRetry(error)) {
+        throw error
+      }
+
+      if (attempt === opts.maxAttempts - 1) {
+        throw error
+      }
+
+      const delay = Math.min(
+        opts.initialDelayMs * Math.pow(opts.backoffMultiplier, attempt),
+        opts.maxDelayMs
+      )
+
+      await sleep(delay)
+    }
+  }
+
+  throw lastError || new Error('Operation failed with unknown error')
+}
+
+
 

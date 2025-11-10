@@ -47,6 +47,7 @@ export type ProfileInfo = (UserProfile | ActorProfile) & {
   name?: string;
   username?: string;
   description?: string;
+  profileDescription?: string;
   tier?: string;
   domain?: string[];
   personality?: string;
@@ -55,6 +56,8 @@ export type ProfileInfo = (UserProfile | ActorProfile) & {
   isUser?: boolean;
   profileImageUrl?: string;
   coverImageUrl?: string;
+  onChainRegistered?: boolean;
+  nftTokenId?: number | null;
   stats?: {
     posts?: number;
     followers?: number;

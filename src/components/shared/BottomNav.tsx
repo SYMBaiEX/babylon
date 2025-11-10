@@ -13,28 +13,28 @@ export function BottomNav() {
       name: 'Feed',
       href: '/feed',
       icon: Home,
-      color: '#1c9cf0',
+      color: '#0066FF',
       active: pathname === '/feed' || pathname === '/',
     },
     {
       name: 'Markets',
       href: '/markets',
       icon: TrendingUp,
-      color: '#1c9cf0',
+      color: '#0066FF',
       active: pathname === '/markets',
     },
     {
       name: 'Chats',
       href: '/chats',
       icon: MessageCircle,
-      color: '#1c9cf0',
+      color: '#0066FF',
       active: pathname === '/chats',
     },
     {
       name: 'Notifications',
       href: '/notifications',
       icon: Bell,
-      color: '#1c9cf0',
+      color: '#0066FF',
       active: pathname === '/notifications',
     }
   ]

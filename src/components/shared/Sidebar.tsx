@@ -1,57 +1,77 @@
 'use client'
 
-import { useState } from 'react'
-import Link from 'next/link'
-import Image from 'next/image'
-import { usePathname, useRouter } from 'next/navigation'
-import { Home, TrendingUp, MessageCircle, Bell, Trophy, Gift, Plus, User } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useAuth } from '@/hooks/useAuth'
 import { LoginButton } from '@/components/auth/LoginButton'
 import { UserMenu } from '@/components/auth/UserMenu'
-import { Separator } from '@/components/shared/Separator'
 import { CreatePostModal } from '@/components/posts/CreatePostModal'
+import { Separator } from '@/components/shared/Separator'
+import { useAuth } from '@/hooks/useAuth'
+import { cn } from '@/lib/utils'
+import { Bell, Gift, Home, MessageCircle, Plus, Shield, TrendingUp, Trophy, User } from 'lucide-react'
+import Image from 'next/image'
+import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 
 export function Sidebar() {
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
-  const { ready, authenticated } = useAuth()
+  const { ready, authenticated, user } = useAuth()
+
+  // Check if user is admin
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (!authenticated) {
+        setIsAdmin(false)
+        return
+      }
+
+      try {
+        const response = await fetch('/api/admin/stats')
+        setIsAdmin(response.ok)
+      } catch {
+        setIsAdmin(false)
+      }
+    }
+
+    checkAdmin()
+  }, [authenticated, user])
 
   const navItems = [
     {
       name: 'Home',
       href: '/feed',
       icon: Home,
-      color: '#1c9cf0',
+      color: '#0066FF',
       active: pathname === '/feed' || pathname === '/',
     },
     {
       name: 'Notifications',
       href: '/notifications',
       icon: Bell,
-      color: '#1c9cf0',
+      color: '#0066FF',
       active: pathname === '/notifications',
     },
     {
       name: 'Leaderboard',
       href: '/leaderboard',
       icon: Trophy,
-      color: '#1c9cf0',
+      color: '#0066FF',
       active: pathname === '/leaderboard',
     },
     {
       name: 'Markets',
       href: '/markets',
       icon: TrendingUp,
-      color: '#1c9cf0',
+      color: '#0066FF',
       active: pathname === '/markets',
     },
     {
       name: 'Chats',
       href: '/chats',
       icon: MessageCircle,
-      color: '#1c9cf0',
+      color: '#0066FF',
       active: pathname === '/chats',
     },
     {
@@ -65,9 +85,17 @@ export function Sidebar() {
       name: 'Profile',
       href: '/profile',
       icon: User,
-      color: '#1c9cf0',
+      color: '#0066FF',
       active: pathname === '/profile',
     },
+    // Admin link (only shown for admins)
+    ...(isAdmin ? [{
+      name: 'Admin',
+      href: '/admin',
+      icon: Shield,
+      color: '#f97316',
+      active: pathname === '/admin',
+    }] : []),
   ]
 
   return (
@@ -87,12 +115,21 @@ export function Sidebar() {
           href="/feed"
           className="hover:scale-105 transition-transform duration-300"
         >
+          {/* Icon-only logo for md (tablet) */}
           <Image
             src="/assets/logos/logo.svg"
             alt="Babylon Logo"
             width={32}
             height={32}
-            className="w-8 h-8"
+            className="w-8 h-8 lg:hidden"
+          />
+          {/* Full logo with text for lg+ (desktop) */}
+          <Image
+            src="/assets/logos/logo_full.svg"
+            alt="Babylon"
+            width={160}
+            height={38}
+            className="hidden lg:block h-8 w-auto"
           />
         </Link>
       </div>
@@ -185,7 +222,7 @@ export function Sidebar() {
             onClick={() => setShowCreateModal(true)}
             className={cn(
               'flex items-center justify-center gap-2',
-              'bg-[#1c9cf0] hover:bg-[#1a8cd8]',
+              'bg-[#0066FF] hover:bg-[#2952d9]',
               'text-white font-semibold',
               'rounded-full',
               'transition-all duration-200',
@@ -199,19 +236,28 @@ export function Sidebar() {
         </div>
       )}
 
-      {/* Separator - only shown on desktop when auth section is visible */}
-      {ready && (
-        <div className="hidden lg:block px-4 py-2">
-          <Separator />
-        </div>
-      )}
+      {/* Separator - only shown on desktop */}
+      <div className="hidden lg:block px-4 py-2">
+        <Separator />
+      </div>
 
       {/* Bottom Section - Authentication */}
-      {ready && (
-        <div className="hidden lg:block p-4">
-          {authenticated ? <UserMenu /> : <LoginButton />}
-        </div>
-      )}
+      <div className="hidden lg:block p-4">
+        {!ready ? (
+          // Skeleton loader while authentication is initializing
+          <div className="flex items-center gap-3 p-3 animate-pulse">
+            <div className="w-10 h-10 rounded-full bg-sidebar-accent/50" />
+            <div className="flex-1 min-w-0 space-y-2">
+              <div className="h-4 bg-sidebar-accent/50 rounded w-24" />
+              <div className="h-3 bg-sidebar-accent/30 rounded w-16" />
+            </div>
+          </div>
+        ) : authenticated ? (
+          <UserMenu />
+        ) : (
+          <LoginButton />
+        )}
+      </div>
     </aside>
 
     {/* Create Post Modal */}

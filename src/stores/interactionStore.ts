@@ -14,7 +14,6 @@ import type {
   PendingInteraction,
   InteractionError,
 } from '@/types/interactions';
-import { logger } from '@/lib/logger';
 import { retryIfRetryable } from '@/lib/retry';
 
 interface InteractionStoreState {
@@ -100,10 +99,7 @@ async function apiCall<T>(url: string, options: RequestInit = {}): Promise<T> {
     return response.json();
   }, {
     maxAttempts: 3,
-    initialDelay: 1000,
-    onRetry: (attempt, error) => {
-      logger.debug(`Retrying API call to ${url}`, { attempt, error: error.message }, 'InteractionStore');
-    },
+    initialDelayMs: 1000,
   });
 }
 

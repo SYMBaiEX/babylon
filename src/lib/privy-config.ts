@@ -62,17 +62,20 @@ export const privyConfig: {
   config: {
     appearance: {
       theme: 'dark' as const,
-      accentColor: '#1c9cf0',
+      accentColor: '#0066FF',
       logo: '/assets/logos/logo.svg',
       showWalletLoginFirst: false, // Changed to false to prioritize Farcaster
       walletList: ['metamask', 'rabby_wallet', 'detected_wallets', 'rainbow', 'coinbase_wallet', 'wallet_connect'],
       walletChainType: 'ethereum-only' as const,
     } satisfies ExtendedAppearance,
-    // Prioritize Farcaster login, then wallet, then email
+    // Prioritize Farcaster login for Mini Apps
+    // Reference: https://docs.privy.io/recipes/farcaster/mini-apps
     loginMethods: ['farcaster', 'wallet', 'email'],
     embeddedWallets: {
+      // Note: Automatic embedded wallet creation is not supported for Farcaster Mini Apps
+      // Wallets are created manually or use the injected Farcaster/Base App wallet
       ethereum: {
-        createOnLogin: 'users-without-wallets' as const,
+        createOnLogin: 'off' as const, // Changed from 'users-without-wallets' for Mini Apps
       },
     },
     defaultChain: selectedChain,

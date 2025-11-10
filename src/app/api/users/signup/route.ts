@@ -89,6 +89,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const identityFarcasterUsername =
     identityUser?.farcaster?.username ?? identityUser?.farcaster?.displayName ?? null
   const identityTwitterUsername = identityUser?.twitter?.username ?? null
+  
+  // Check for imported social data from onboarding flow
+  const importedTwitter = parsedProfile.importedFrom === 'twitter'
+  const importedFarcaster = parsedProfile.importedFrom === 'farcaster'
 
   const result = await prisma.$transaction(async (tx) => {
     // Guard username uniqueness
@@ -99,6 +103,18 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
     if (existingUsername && existingUsername.id !== canonicalUserId) {
       throw new ConflictError('Username already taken', 'User.username')
+    }
+
+    // Guard wallet address uniqueness (if provided)
+    if (walletAddress) {
+      const existingWallet = await tx.user.findUnique({
+        where: { walletAddress: walletAddress },
+        select: { id: true },
+      })
+
+      if (existingWallet && existingWallet.id !== canonicalUserId) {
+        throw new ConflictError('Wallet address already linked to another account', 'User.walletAddress')
+      }
     }
 
     // Resolve referral (if provided)
@@ -167,16 +183,20 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       update: {
         ...baseUserData,
         referredBy: resolvedReferrerId ?? undefined,
-        ...(identityFarcasterUsername
+        // Handle Farcaster from Privy identity or onboarding import
+        ...(identityFarcasterUsername || importedFarcaster
           ? {
               hasFarcaster: true,
-              farcasterUsername: identityFarcasterUsername,
+              farcasterUsername: parsedProfile.farcasterUsername ?? identityFarcasterUsername,
+              farcasterFid: parsedProfile.farcasterFid ?? undefined,
             }
           : {}),
-        ...(identityTwitterUsername
+        // Handle Twitter from Privy identity or onboarding import
+        ...(identityTwitterUsername || importedTwitter
           ? {
               hasTwitter: true,
-              twitterUsername: identityTwitterUsername,
+              twitterUsername: parsedProfile.twitterUsername ?? identityTwitterUsername,
+              twitterId: parsedProfile.twitterId ?? undefined,
             }
           : {}),
       },
@@ -185,16 +205,20 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         privyId,
         ...baseUserData,
         referredBy: resolvedReferrerId,
-        ...(identityFarcasterUsername
+        // Handle Farcaster from Privy identity or onboarding import
+        ...(identityFarcasterUsername || importedFarcaster
           ? {
               hasFarcaster: true,
-              farcasterUsername: identityFarcasterUsername,
+              farcasterUsername: parsedProfile.farcasterUsername ?? identityFarcasterUsername,
+              farcasterFid: parsedProfile.farcasterFid ?? undefined,
             }
           : {}),
-        ...(identityTwitterUsername
+        // Handle Twitter from Privy identity or onboarding import
+        ...(identityTwitterUsername || importedTwitter
           ? {
               hasTwitter: true,
-              twitterUsername: identityTwitterUsername,
+              twitterUsername: parsedProfile.twitterUsername ?? identityTwitterUsername,
+              twitterId: parsedProfile.twitterId ?? undefined,
             }
           : {}),
       },
@@ -218,11 +242,18 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     }
   })
 
-  if (identityFarcasterUsername) {
-    await PointsService.awardFarcasterLink(result.user.id, identityFarcasterUsername)
+  // Award points for social account linking
+  if (identityFarcasterUsername || importedFarcaster) {
+    const farcasterUsername = parsedProfile.farcasterUsername ?? identityFarcasterUsername
+    if (farcasterUsername) {
+      await PointsService.awardFarcasterLink(result.user.id, farcasterUsername)
+    }
   }
-  if (identityTwitterUsername) {
-    await PointsService.awardTwitterLink(result.user.id, identityTwitterUsername)
+  if (identityTwitterUsername || importedTwitter) {
+    const twitterUsername = parsedProfile.twitterUsername ?? identityTwitterUsername
+    if (twitterUsername) {
+      await PointsService.awardTwitterLink(result.user.id, twitterUsername)
+    }
   }
   if (walletAddress) {
     await PointsService.awardWalletConnect(result.user.id, walletAddress)

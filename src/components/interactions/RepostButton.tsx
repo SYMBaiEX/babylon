@@ -7,6 +7,7 @@ import { useInteractionStore } from '@/stores/interactionStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoginModal } from '@/hooks/useLoginModal';
 import type { RepostButtonProps } from '@/types/interactions';
+import { BouncingLogo } from '@/components/shared/BouncingLogo';
 
 const sizeClasses = {
   sm: 'h-8 px-2 text-xs gap-1',
@@ -88,10 +89,7 @@ export function RepostButton({
         )}
       >
         {isLoading ? (
-          <div 
-            className={cn('border-2 border-current border-t-transparent rounded-full animate-spin')} 
-            style={{ width: iconSizes[size], height: iconSizes[size] }} 
-          />
+          <BouncingLogo size={iconSizes[size]} />
         ) : (
           <Repeat2
             size={iconSizes[size]}

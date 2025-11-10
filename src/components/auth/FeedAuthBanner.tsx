@@ -4,7 +4,12 @@ import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 
 export function FeedAuthBanner() {
-  const { login, authenticated } = useAuth()
+  const { login, authenticated, ready } = useAuth()
+
+  // Don't show until auth state is ready (prevents flash on load)
+  if (!ready) {
+    return null
+  }
 
   // Don't show if user is authenticated
   if (authenticated) {
@@ -15,8 +20,8 @@ export function FeedAuthBanner() {
     <div
       className={cn(
         'fixed bottom-0 left-0 right-0 z-50',
-        'bg-white text-black',
-        'border-t-2'
+        'bg-background text-foreground',
+        'border-t-2 border-border'
       )}
     >
       <div className="max-w-7xl mx-auto px-4 py-4">

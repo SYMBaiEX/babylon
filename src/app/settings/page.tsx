@@ -2,6 +2,7 @@
 
 import { LoginButton } from '@/components/auth/LoginButton'
 import { PageContainer } from '@/components/shared/PageContainer'
+import { Skeleton } from '@/components/shared/Skeleton'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
@@ -13,6 +14,7 @@ import { encodeFunctionData, parseAbi, type EIP1193Provider } from 'viem'
 import { baseSepolia } from 'viem/chains'
 import { IDENTITY_REGISTRY_ABI } from '@/lib/web3/abis'
 import { logger } from '@/lib/logger'
+import { BouncingLogo } from '@/components/shared/BouncingLogo'
 
 
 const CAPABILITIES_HASH =
@@ -209,8 +211,25 @@ export default function SettingsPage() {
   if (!ready) {
     return (
       <PageContainer>
-        <div className="flex items-center justify-center h-64">
-          <p className="text-muted-foreground">Loading...</p>
+        <div className="w-full max-w-2xl mx-auto space-y-6 px-4 sm:px-0">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-32 max-w-full" />
+            <Skeleton className="h-4 w-64 max-w-full" />
+          </div>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="bg-card/50 backdrop-blur rounded-lg p-4 sm:p-6 border border-border space-y-4">
+              <Skeleton className="h-6 w-40 max-w-full mb-4" />
+              {Array.from({ length: 2 }).map((_, j) => (
+                <div key={j} className="flex items-center justify-between gap-3 py-3 border-b border-border/5 last:border-0">
+                  <div className="space-y-2 flex-1 min-w-0">
+                    <Skeleton className="h-4 w-32 max-w-full" />
+                    <Skeleton className="h-3 w-48 max-w-full" />
+                  </div>
+                  <Skeleton className="h-8 w-16 flex-shrink-0 rounded-full" />
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       </PageContainer>
     )
@@ -263,7 +282,7 @@ export default function SettingsPage() {
                 className={cn(
                   'flex items-center gap-2 px-4 py-3 border-b-2 transition-all',
                   activeTab === tab.id
-                    ? 'border-[#1c9cf0] text-[#1c9cf0]'
+                    ? 'border-[#0066FF] text-[#0066FF]'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
                 )}
               >
@@ -287,7 +306,7 @@ export default function SettingsPage() {
                   type="text"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1c9cf0]"
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
                   placeholder="Enter your display name"
                 />
               </div>
@@ -302,7 +321,7 @@ export default function SettingsPage() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   disabled={Boolean(usernameChangeLimit && !usernameChangeLimit.canChange)}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1c9cf0] disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="Enter your username"
                 />
                 {usernameChangeLimit && !usernameChangeLimit.canChange ? (
@@ -325,7 +344,7 @@ export default function SettingsPage() {
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
                   rows={4}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1c9cf0] resize-none"
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] resize-none"
                   placeholder="Tell us about yourself..."
                 />
               </div>
@@ -348,7 +367,7 @@ export default function SettingsPage() {
                     onChange={(e) => setEmailNotifications(e.target.checked)}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#1c9cf0] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1c9cf0]"></div>
+                  <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#0066FF] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#0066FF]"></div>
                 </label>
               </div>
 
@@ -366,7 +385,7 @@ export default function SettingsPage() {
                     onChange={(e) => setPushNotifications(e.target.checked)}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#1c9cf0] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1c9cf0]"></div>
+                  <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#0066FF] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#0066FF]"></div>
                 </label>
               </div>
 
@@ -384,7 +403,7 @@ export default function SettingsPage() {
                     onChange={(e) => setPostNotifications(e.target.checked)}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#1c9cf0] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1c9cf0]"></div>
+                  <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#0066FF] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#0066FF]"></div>
                 </label>
               </div>
 
@@ -402,7 +421,7 @@ export default function SettingsPage() {
                     onChange={(e) => setMarketNotifications(e.target.checked)}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#1c9cf0] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1c9cf0]"></div>
+                  <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#0066FF] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#0066FF]"></div>
                 </label>
               </div>
             </div>
@@ -414,7 +433,7 @@ export default function SettingsPage() {
                 <h3 className="font-medium mb-4">Theme Preference</h3>
                 {!mounted ? (
                   <div className="flex items-center justify-center py-8">
-                    <div className="w-6 h-6 border-2 border-[#1c9cf0] border-t-transparent rounded-full animate-spin" />
+                    <BouncingLogo size={24} />
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -429,7 +448,7 @@ export default function SettingsPage() {
                           value={themeOption}
                           checked={theme === themeOption}
                           onChange={() => setTheme(themeOption)}
-                          className="w-4 h-4 text-[#1c9cf0]"
+                          className="w-4 h-4 text-[#0066FF]"
                         />
                         <div>
                           <p className="font-medium capitalize">{themeOption}</p>
@@ -454,7 +473,7 @@ export default function SettingsPage() {
                 <p className="text-sm text-muted-foreground mb-4">
                   Your account is secured with Privy authentication.
                 </p>
-                <button className="text-[#1c9cf0] hover:text-[#1a8cd8] text-sm font-medium">
+                <button className="text-[#0066FF] hover:text-[#2952d9] text-sm font-medium">
                   View Security Details →
                 </button>
               </div>
@@ -464,7 +483,7 @@ export default function SettingsPage() {
                 <p className="text-sm text-muted-foreground mb-4">
                   Manage your connected blockchain wallets.
                 </p>
-                <button className="text-[#1c9cf0] hover:text-[#1a8cd8] text-sm font-medium">
+                <button className="text-[#0066FF] hover:text-[#2952d9] text-sm font-medium">
                   Manage Wallets →
                 </button>
               </div>
@@ -497,7 +516,7 @@ export default function SettingsPage() {
                 disabled={saving || user?.onChainRegistered !== true}
                 className={cn(
                   'flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all',
-                  'bg-[#1c9cf0] text-white hover:bg-[#1a8cd8]',
+                  'bg-[#0066FF] text-white hover:bg-[#2952d9]',
                   'disabled:opacity-50 disabled:cursor-not-allowed'
                 )}
               >

@@ -109,7 +109,7 @@ export function BreakingNewsPanel() {
                 onClick={() => handleItemClick(item)}
                 className="flex items-start gap-2.5 cursor-pointer hover:bg-muted/50 rounded-lg p-1.5 -ml-1.5 transition-colors duration-200"
               >
-                <div className="text-[#1c9cf0] mt-0.5 flex-shrink-0">
+                <div className="text-[#0066FF] mt-0.5 flex-shrink-0">
                   {getIcon(item.icon)}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -119,7 +119,7 @@ export function BreakingNewsPanel() {
                   <p className="text-base sm:text-lg text-muted-foreground mt-1">
                     {item.description}
                     {item.trending && (
-                      <span className="ml-2 text-[#1c9cf0] font-semibold">• Trending</span>
+                      <span className="ml-2 text-[#0066FF] font-semibold">• Trending</span>
                     )}
                   </p>
                 </div>

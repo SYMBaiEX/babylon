@@ -128,7 +128,7 @@ export function LatestNewsPanel() {
       case 'negative':
         return <AlertCircle className="w-6 h-6 sm:w-7 sm:h-7 text-red-500" />
       default:
-        return <Newspaper className="w-6 h-6 sm:w-7 sm:h-7 text-[#1c9cf0]" />
+        return <Newspaper className="w-6 h-6 sm:w-7 sm:h-7 text-[#0066FF]" />
     }
   }
 
@@ -200,7 +200,7 @@ export function LatestNewsPanel() {
                   <p className="text-sm text-muted-foreground/80 mt-1">
                     {getTimeAgo(article.publishedAt)}
                     {article.category && (
-                      <span className="ml-2 text-[#1c9cf0] font-semibold">
+                      <span className="ml-2 text-[#0066FF] font-semibold">
                         {article.category}
                       </span>
                     )}

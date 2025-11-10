@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
 import { PredictionPricing, calculateExpectedPayout } from '@/lib/prediction-pricing'
+import { BouncingLogo } from '@/components/shared/BouncingLogo'
 
 interface PredictionMarket {
   id: number | string
@@ -235,7 +236,7 @@ export function PredictionTradingModal({
               onChange={(e) => setAmount(e.target.value)}
               min="1"
               step="1"
-              className="w-full px-4 py-3 rounded bg-muted/50 text-foreground text-base sm:text-lg font-medium focus:outline-none focus:bg-muted focus:ring-2 focus:ring-[#1da1f2]/30"
+              className="w-full px-4 py-3 rounded bg-muted/50 text-foreground text-base sm:text-lg font-medium focus:outline-none focus:bg-muted focus:ring-2 focus:ring-[#0066FF]/30"
               placeholder="Min: $1"
             />
           </div>
@@ -301,7 +302,7 @@ export function PredictionTradingModal({
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <BouncingLogo size={20} />
                 Buying Shares...
               </span>
             ) : (

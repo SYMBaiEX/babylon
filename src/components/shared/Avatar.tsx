@@ -44,9 +44,9 @@ export function Avatar({ id, name, type = 'actor', src, alt, size = 'md', classN
     if (type === 'business') {
       imagePath = `/images/organizations/${sanitizedId}.jpg`
     } else if (type === 'user') {
-      // User avatars are typically from profileImageUrl, handled above via imageUrl prop
-      // Fallback to actor path if no imageUrl provided
-      imagePath = `/images/actors/${sanitizedId}.jpg`
+      // User avatars should only use src/imageUrl props
+      // Don't try to load static images for users
+      imagePath = undefined
     } else {
       imagePath = `/images/actors/${sanitizedId}.jpg`
     }
@@ -71,14 +71,21 @@ export function Avatar({ id, name, type = 'actor', src, alt, size = 'md', classN
   const scaledSize = baseSizes[size] * scaleFactor
   const hasImage = Boolean(imagePath && !imageError)
 
+  // Check if className includes w-full h-full (for containers that should fill parent)
+  const shouldFillParent = className?.includes('w-full') && className?.includes('h-full')
+
   return (
     <div
       className={cn(
         'flex items-center justify-center overflow-hidden rounded-full bg-sidebar/40',
         hasImage ? '' : 'bg-primary/20 text-primary font-bold',
+        // Don't add size classes if shouldFillParent
+        !shouldFillParent && sizeClasses[size],
         className
       )}
-      style={{
+      style={shouldFillParent ? {
+        fontSize: `${scaleFactor}rem`
+      } : {
         width: `${scaledSize}rem`,
         height: `${scaledSize}rem`,
         fontSize: `${scaleFactor}rem`

@@ -3,6 +3,8 @@
  * Translates numeric mood values to emotional states (madlibs style)
  */
 
+import type { ActorRelationship, ActorConnection } from '@/shared/types';
+
 export interface EmotionalState {
   emotion: string;
   intensity: string;
@@ -95,12 +97,13 @@ export function luckToDescription(luck: 'low' | 'medium' | 'high'): string {
 
 /**
  * Generate context string for LLM prompts including mood, luck, and relationships
+ * Supports both ActorRelationship (new) and ActorConnection (legacy) formats
  */
 export function generateActorContext(
   mood: number,
   luck: 'low' | 'medium' | 'high',
   targetActorId?: string,
-  relationships?: Array<{ actor1: string; actor2: string; relationship: string; context: string }>,
+  relationships?: ActorRelationship[] | ActorConnection[],
   actorId?: string
 ): string {
   const emotional = moodToEmotion(mood);
@@ -110,17 +113,41 @@ export function generateActorContext(
 Current luck: ${luckDesc}`;
   
   // Add relationship context if responding to specific actor
-  if (targetActorId && actorId && relationships) {
-    const relationship = relationships.find(
-      r => (r.actor1 === actorId && r.actor2 === targetActorId) ||
-           (r.actor2 === actorId && r.actor1 === targetActorId)
-    );
+  if (targetActorId && actorId && relationships && relationships.length > 0) {
+    // Check if it's the new ActorRelationship format or legacy ActorConnection format
+    const firstItem = relationships[0];
+    if (!firstItem) {
+      return context;
+    }
     
-    if (relationship) {
-      const relMod = getRelationshipModifier(relationship.relationship);
-      context += `
+    const isNewFormat = 'actor1Id' in firstItem;
+    
+    if (isNewFormat) {
+      // New format: ActorRelationship
+      const relationship = (relationships as ActorRelationship[]).find(
+        r => (r.actor1Id === actorId && r.actor2Id === targetActorId) ||
+             (r.actor2Id === actorId && r.actor1Id === targetActorId)
+      );
+      
+      if (relationship) {
+        const relMod = getRelationshipModifier(relationship.relationshipType);
+        context += `
+Relationship with ${targetActorId}: ${relationship.relationshipType} - be ${relMod.modifier}
+Context: ${relationship.history || 'No additional context'}`;
+      }
+    } else {
+      // Legacy format: ActorConnection
+      const relationship = (relationships as ActorConnection[]).find(
+        r => (r.actor1 === actorId && r.actor2 === targetActorId) ||
+             (r.actor2 === actorId && r.actor1 === targetActorId)
+      );
+      
+      if (relationship) {
+        const relMod = getRelationshipModifier(relationship.relationship);
+        context += `
 Relationship with ${targetActorId}: ${relationship.relationship} - be ${relMod.modifier}
 Context: ${relationship.context}`;
+      }
     }
   }
   

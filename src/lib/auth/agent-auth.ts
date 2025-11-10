@@ -85,7 +85,8 @@ export async function createAgentSession(agentId: string, sessionToken: string):
         agentSessions.set(sessionToken, session);
       }
     } catch (error) {
-      logger.error('Failed to persist agent session in Redis', { error }, 'AgentAuth');
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error('Failed to persist agent session in Redis', { error: errorMessage }, 'AgentAuth');
       agentSessions.set(sessionToken, session);
     }
   } else {
@@ -128,7 +129,8 @@ export async function verifyAgentSession(sessionToken: string): Promise<{ agentI
         return null;
       }
     } catch (error) {
-      logger.error('Failed to read agent session from Redis', { error }, 'AgentAuth');
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error('Failed to read agent session from Redis', { error: errorMessage }, 'AgentAuth');
       // Fallback en mémoire
     }
   }

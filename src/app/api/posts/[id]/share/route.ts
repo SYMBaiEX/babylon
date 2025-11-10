@@ -8,7 +8,7 @@ import { prisma } from '@/lib/database-service';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
-import { IdParamSchema, SharePostSchema } from '@/lib/validation/schemas';
+import { PostIdParamSchema, SharePostSchema } from '@/lib/validation/schemas';
 import { notifyShare } from '@/lib/services/notification-service';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
@@ -25,7 +25,7 @@ export const POST = withErrorHandling(async (
   // Authenticate user
   const user = await authenticate(request);
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
-  const { id: postId } = IdParamSchema.parse(params);
+  const { id: postId } = PostIdParamSchema.parse(params);
   
   // Parse and validate request body (optional comment)
   const body = await request.json().catch(() => ({}));
@@ -181,7 +181,7 @@ export const DELETE = withErrorHandling(async (
   // Authenticate user
   const user = await authenticate(request);
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
-  const { id: postId } = IdParamSchema.parse(params);
+  const { id: postId } = PostIdParamSchema.parse(params);
 
   const fallbackDisplayName = user.walletAddress
     ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`

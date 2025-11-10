@@ -33,6 +33,7 @@ export type PointsReason =
   | 'referral_signup'
   | 'admin_award'
   | 'admin_deduction'
+  | 'purchase' // x402 payment purchase
 
 interface AwardPointsResult {
   success: boolean
@@ -164,7 +165,7 @@ export class PointsService {
   /**
    * Award points for Twitter link
    */
-  static async awardTwitterLink(userId: string, twitterUsername?: string): Promise<AwardPointsResult> {
+  static async awardTwitterLink(userId: string, twitterUsername?: string | undefined): Promise<AwardPointsResult> {
     return this.awardPoints(
       userId,
       POINTS.TWITTER_LINK,
@@ -230,6 +231,77 @@ export class PointsService {
   }
 
   /**
+   * Purchase points via x402 payment (100 points = $1)
+   */
+  static async purchasePoints(
+    userId: string,
+    amountUSD: number,
+    paymentRequestId: string,
+    paymentTxHash?: string
+  ): Promise<AwardPointsResult> {
+    // Calculate points: 100 points per $1
+    const pointsAmount = Math.floor(amountUSD * 100)
+
+    // Get current user state
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { reputationPoints: true },
+    })
+
+    if (!user) {
+      return {
+        success: false,
+        pointsAwarded: 0,
+        newTotal: 0,
+        error: 'User not found',
+      }
+    }
+
+    const pointsBefore = user.reputationPoints
+    const pointsAfter = pointsBefore + pointsAmount
+
+    // Execute in transaction
+    await prisma.$transaction([
+      // Update user points
+      prisma.user.update({
+        where: { id: userId },
+        data: { reputationPoints: pointsAfter },
+      }),
+      // Create transaction record with payment details
+      prisma.pointsTransaction.create({
+        data: {
+          userId,
+          amount: pointsAmount,
+          pointsBefore,
+          pointsAfter,
+          reason: 'purchase',
+          metadata: JSON.stringify({ 
+            amountUSD,
+            pointsPerDollar: 100,
+            purchasedAt: new Date().toISOString()
+          }),
+          paymentRequestId,
+          paymentTxHash,
+          paymentAmount: amountUSD.toFixed(2),
+          paymentVerified: true,
+        },
+      }),
+    ])
+
+    logger.info(
+      `User ${userId} purchased ${pointsAmount} points for $${amountUSD}`,
+      { userId, pointsAmount, amountUSD, paymentRequestId },
+      'PointsService'
+    )
+
+    return {
+      success: true,
+      pointsAwarded: pointsAmount,
+      newTotal: pointsAfter,
+    }
+  }
+
+  /**
    * Check if points were already awarded for a specific reason
    */
   private static checkAlreadyAwarded(
@@ -288,7 +360,7 @@ export class PointsService {
   static async getLeaderboard(
     page: number = 1,
     pageSize: number = 100,
-    minPoints: number = 10000
+    minPoints: number = 500
   ) {
     const skip = (page - 1) * pageSize
 

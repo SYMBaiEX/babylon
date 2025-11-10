@@ -31,44 +31,45 @@
 
 import { logger } from '@/lib/logger';
 
+import {
+  ambientPosts,
+  analystReaction,
+  commentary,
+  conspiracy,
+  dayTransition,
+  journalistPost,
+  minuteAmbient,
+  newsPosts,
+  priceAnnouncement,
+  questionResolvedFeed,
+  reactions,
+  renderPrompt,
+  replies,
+  stockTicker
+} from '@/prompts';
+import type {
+  Actor,
+  ActorConnection,
+  ActorRelationship,
+  ActorState,
+  FeedEvent,
+  FeedPost,
+  Organization,
+  PriceUpdate,
+  Question,
+} from '@/shared/types';
+import {
+  buildPhaseContext,
+  formatActorVoiceContext,
+  shuffleArray,
+} from '@/shared/utils';
 import { EventEmitter } from 'events';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
 import { generateActorContext } from './EmotionSystem';
 import type { WorldEvent } from './GameWorld';
-import {
-  formatActorVoiceContext,
-  shuffleArray,
-  buildPhaseContext,
-} from '@/shared/utils';
-import { 
-  renderPrompt,
-  newsPosts,
-  reactions,
-  commentary,
-  conspiracy,
-  journalistPost,
-  ambientPosts,
-  replies,
-  priceAnnouncement,
-  stockTicker,
-  analystReaction,
-  dayTransition,
-  questionResolvedFeed,
-  minuteAmbient
-} from '@/prompts';
-import type {
-  Actor,
-  ActorState,
-  ActorRelationship,
-  FeedPost,
-  FeedEvent,
-  Organization,
-  Question,
-  PriceUpdate,
-} from '@/shared/types';
 
 // Re-export types for backwards compatibility with external consumers
-export type { FeedPost, FeedEvent, Actor, Organization, ActorState, ActorRelationship };
+export type { Actor, ActorRelationship, ActorState, FeedEvent, FeedPost, Organization };
 
 /**
  * Commentary post from LLM
@@ -126,7 +127,7 @@ type ConspiracyResponse = ConspiracyResponseFormat1 | ConspiracyResponseFormat2;
 export class FeedGenerator extends EventEmitter {
   private llm?: BabylonLLMClient;
   private actorStates: Map<string, ActorState> = new Map();
-  private relationships: ActorRelationship[] = [];
+  private relationships: ActorRelationship[] | ActorConnection[] = [];
   private organizations: Organization[] = [];
   private actorGroupContexts: Map<string, string> = new Map();
 
@@ -134,7 +135,6 @@ export class FeedGenerator extends EventEmitter {
     super();
     this.llm = llm;
   }
-  
   /**
    * Set actor group contexts (all groups they're in + recent messages)
    */
@@ -158,8 +158,9 @@ export class FeedGenerator extends EventEmitter {
   
   /**
    * Set relationships between actors
+   * Supports both ActorRelationship (new) and ActorConnection (legacy) formats
    */
-  setRelationships(relationships: ActorRelationship[]) {
+  setRelationships(relationships: ActorRelationship[] | ActorConnection[]) {
     this.relationships = relationships;
   }
   /**

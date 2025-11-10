@@ -82,6 +82,19 @@ model User {
   pointsAwardedForTwitter      Boolean  @default(false)
   pointsAwardedForWallet       Boolean  @default(false)
   
+  // Twitter OAuth
+  twitterId            String?  @unique // Twitter user ID
+  twitterAccessToken   String?  // OAuth access token (encrypt in production)
+  twitterRefreshToken  String?  // OAuth refresh token
+  twitterTokenExpiresAt DateTime? // Token expiration
+  twitterVerifiedAt    DateTime? // When Twitter was verified
+  
+  // Farcaster Auth
+  farcasterFid         String?  @unique // Farcaster ID
+  farcasterDisplayName String?  // Farcaster display name
+  farcasterPfpUrl      String?  // Profile picture URL
+  farcasterVerifiedAt  DateTime? // When Farcaster was verified
+  
   // Social visibility preferences
   showTwitterPublic    Boolean  @default(true)
   showFarcasterPublic  Boolean  @default(true)
@@ -94,10 +107,21 @@ model User {
   bannerLastShown      DateTime? // Track when invite banner was last shown
   bannerDismissCount   Int      @default(0) // Track how many times user dismissed banner
   
+  // Fee earnings tracking
+  totalFeesEarned      Decimal  @default(0) @db.Decimal(18, 2) // Lifetime referral fees earned
+  totalFeesPaid        Decimal  @default(0) @db.Decimal(18, 2) // Lifetime trading fees paid
+  
   // Agent0 legacy fields (preserved for existing data)
   agent0FeedbackCount  Int?     // Legacy: Agent0 feedback count
   agent0TrustScore     Float?   // Legacy: Agent0 trust score
   role                 String?  // Legacy: User role
+
+  // Admin and moderation
+  isAdmin              Boolean  @default(false) // Admin users with dashboard access
+  isBanned             Boolean  @default(false) // Banned users
+  bannedAt             DateTime? // When user was banned
+  bannedReason         String?  // Reason for ban
+  bannedBy             String?  // Admin who banned the user
 
   // Relationships
   comments        Comment[]
@@ -119,6 +143,8 @@ model User {
   feedbackGiven   Feedback[] @relation("FeedbackGiven")
   feedbackReceived Feedback[] @relation("FeedbackReceived")
   performanceMetrics AgentPerformanceMetrics?
+  tradingFees          TradingFee[] @relation("TraderFees")
+  referralFeesEarned   TradingFee[] @relation("ReferrerFees")
 
   @@index([walletAddress])
   @@index([username])
@@ -591,6 +617,10 @@ model Actor {
   // Relationships
   pools      Pool[]
   npcTrades  NPCTrade[]
+  followedBy       ActorFollow[] @relation("ActorFollowing")
+  following        ActorFollow[] @relation("ActorFollower")
+  relationshipsAs1 ActorRelationship[] @relation("Actor1Relationships")
+  relationshipsAs2 ActorRelationship[] @relation("Actor2Relationships")
   // Posts authored by actors (no FK constraint - handled at application level)
   // Query with: prisma.post.findMany({ where: { authorId: actorId } })
 
@@ -598,6 +628,50 @@ model Actor {
   @@index([role])
   @@index([hasPool])
   @@index([reputationPoints(sort: Desc)])
+}
+
+// ActorFollow model - NPC-to-NPC follower relationships
+model ActorFollow {
+  id          String   @id @default(uuid())
+  followerId  String   // Actor ID who is following
+  followingId String   // Actor ID being followed
+  createdAt   DateTime @default(now())
+  isMutual    Boolean  @default(false) // Quick lookup for mutual follows
+
+  // Relationships
+  follower  Actor @relation("ActorFollower", fields: [followerId], references: [id], onDelete: Cascade)
+  following Actor @relation("ActorFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+  @@index([isMutual])
+}
+
+// ActorRelationship model - Rich relationship metadata between actors
+model ActorRelationship {
+  id               String   @id @default(uuid())
+  actor1Id         String   // First actor
+  actor2Id         String   // Second actor
+  relationshipType String   // "rivals", "allies", "mentor-student", "collaborators", etc.
+  strength         Float    // 0.0 to 1.0 (how strong the relationship is)
+  sentiment        Float    // -1.0 to 1.0 (negative = beef, positive = respect)
+  isPublic         Boolean  @default(true) // Whether this relationship is known publicly
+  history          String?  // Backstory/context (e.g., "Competed for same VC funding in 2020")
+  affects          Json?    // How this relationship affects behavior
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relationships
+  actor1 Actor @relation("Actor1Relationships", fields: [actor1Id], references: [id], onDelete: Cascade)
+  actor2 Actor @relation("Actor2Relationships", fields: [actor2Id], references: [id], onDelete: Cascade)
+
+  @@unique([actor1Id, actor2Id])
+  @@index([actor1Id])
+  @@index([actor2Id])
+  @@index([relationshipType])
+  @@index([strength])
+  @@index([sentiment])
 }
 
 // Notification model - user notifications
@@ -632,7 +706,7 @@ model Pool {
   totalDeposits       Decimal  @default(0) @db.Decimal(18, 2) // Total user deposits
   availableBalance    Decimal  @default(0) @db.Decimal(18, 2) // Cash available for trading
   lifetimePnL         Decimal  @default(0) @db.Decimal(18, 2)
-  performanceFeeRate  Float    @default(0.08) // 8% of profits
+  performanceFeeRate  Float    @default(0.05) // 5% of profits (0% on losses)
   totalFeesCollected  Decimal  @default(0) @db.Decimal(18, 2)
   isActive            Boolean  @default(true)
   openedAt            DateTime @default(now())
@@ -742,9 +816,15 @@ model PointsTransaction {
   amount          Int      // Positive for awards, negative for deductions
   pointsBefore    Int
   pointsAfter     Int
-  reason          String   // 'profile_completion', 'social_link', 'referral', 'share', etc.
+  reason          String   // 'profile_completion', 'social_link', 'referral', 'share', 'purchase', etc.
   metadata        String?  // JSON string with additional context
   createdAt       DateTime @default(now())
+  
+  // x402 Payment tracking (for purchases)
+  paymentRequestId String?  @unique // x402 payment request ID
+  paymentTxHash    String?  // Blockchain transaction hash
+  paymentAmount    String?  // Payment amount in USD (e.g., "1.00")
+  paymentVerified  Boolean  @default(false) // Whether payment was verified
 
   // Relationships
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -752,6 +832,7 @@ model PointsTransaction {
   @@index([userId, createdAt(sort: Desc)])
   @@index([reason])
   @@index([createdAt(sort: Desc)])
+  @@index([paymentRequestId])
 }
 
 // Referral model - tracks referral relationships
@@ -761,7 +842,6 @@ model Referral {
   referredUserId  String?  // User who signed up (null until signup)
   referralCode    String   @unique
   status          String   @default("pending") // 'pending', 'completed', 'expired'
-  pointsAwarded   Boolean  @default(false)
   createdAt       DateTime @default(now())
   completedAt     DateTime?
 
@@ -784,6 +864,9 @@ model ShareAction {
   contentId   String?  // ID of shared content
   url         String?  // URL that was shared
   pointsAwarded Boolean @default(false)
+  verified    Boolean @default(false) // Whether the share was verified (user actually posted)
+  verifiedAt  DateTime? // When the share was verified
+  verificationDetails String? // JSON with verification details (tweet ID, cast hash, etc.)
   createdAt   DateTime @default(now())
 
   // Relationships
@@ -792,6 +875,30 @@ model ShareAction {
   @@index([userId, createdAt(sort: Desc)])
   @@index([platform])
   @@index([contentType])
+  @@index([verified])
+}
+
+// TradingFee model - tracks all fees collected and distributed
+model TradingFee {
+  id              String   @id @default(uuid())
+  userId          String   // Trader who paid the fee
+  tradeType       String   // 'pred_buy', 'pred_sell', 'perp_open', 'perp_close'
+  tradeId         String?  // Related position/trade ID
+  marketId        String?  // Market/ticker
+  feeAmount       Decimal  @db.Decimal(18, 2) // Total fee charged
+  platformFee     Decimal  @db.Decimal(18, 2) // Platform's share (50%)
+  referrerFee     Decimal  @db.Decimal(18, 2) // Referrer's share (50%)
+  referrerId      String?  // Who gets the referrer fee
+  createdAt       DateTime @default(now())
+  
+  // Relationships
+  user     User  @relation("TraderFees", fields: [userId], references: [id], onDelete: Cascade)
+  referrer User? @relation("ReferrerFees", fields: [referrerId], references: [id], onDelete: SetNull)
+  
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([referrerId, createdAt(sort: Desc)])
+  @@index([tradeType])
+  @@index([createdAt(sort: Desc)])
 }
 
 // Tag model - stores unique tags extracted from posts

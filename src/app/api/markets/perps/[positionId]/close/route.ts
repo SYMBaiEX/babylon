@@ -12,6 +12,8 @@ import { PositionIdParamSchema, ClosePerpPositionSchema } from '@/lib/validation
 import { getPerpsEngine } from '@/lib/perps-service';
 import { WalletService } from '@/lib/services/wallet-service';
 import { logger } from '@/lib/logger';
+import { FeeService } from '@/lib/services/fee-service';
+import { FEE_CONFIG } from '@/lib/config/fees';
 
 /**
  * POST /api/markets/perps/[positionId]/close
@@ -58,26 +60,32 @@ export const POST = withErrorHandling(async (
 
   // Calculate final settlement
   const marginPaid = position.size / position.leverage;
-  const settlement = marginPaid + realizedPnL; // Margin + PnL
+  const grossSettlement = marginPaid + realizedPnL; // Margin + PnL before fee
+  
+  // Calculate fee on position size
+  const feeCalc = FeeService.calculateFee(position.size);
+  
+  // Deduct fee from settlement
+  const netSettlement = Math.max(0, grossSettlement - feeCalc.feeAmount);
 
-  // If loss exceeds margin (liquidation scenario), settlement is 0
-  const finalSettlement = Math.max(0, settlement);
-
-  // Credit settlement to balance
-  if (finalSettlement > 0) {
+  // Credit net settlement to balance
+  if (netSettlement > 0) {
     await WalletService.credit(
       user.userId,
-      finalSettlement,
+      netSettlement,
       'perp_close',
-      `Closed ${position.leverage}x ${position.side} ${position.ticker} - PnL: ${realizedPnL >= 0 ? '+' : ''}$${realizedPnL.toFixed(2)}`,
+      `Closed ${position.leverage}x ${position.side} ${position.ticker} - PnL: ${realizedPnL >= 0 ? '+' : ''}$${realizedPnL.toFixed(2)} (fee: $${feeCalc.feeAmount.toFixed(2)})`,
       position.id
     );
   } else {
-    // Margin was completely lost (liquidation)
-    logger.info('Position closed with total loss', {
+    // Margin was completely lost or consumed by fees (liquidation)
+    logger.info('Position closed with total loss or fees exceeded settlement', {
       positionId,
       marginPaid,
       realizedPnL,
+      grossSettlement,
+      fee: feeCalc.feeAmount,
+      netSettlement,
       userId: user.userId
     }, 'POST /api/markets/perps/[positionId]/close');
   }
@@ -99,14 +107,29 @@ export const POST = withErrorHandling(async (
     });
   });
 
+  // Process trading fee and distribute to referrer if applicable (only if there's settlement to charge from)
+  let feeResult = { feeCharged: 0, referrerPaid: 0, platformReceived: 0, referrerId: null as string | null };
+  if (grossSettlement > 0) {
+    feeResult = await FeeService.processTradingFee(
+      user.userId,
+      FEE_CONFIG.FEE_TYPES.PERP_CLOSE,
+      position.size,
+      position.id,
+      position.ticker
+    );
+  }
+
   const newBalance = await WalletService.getBalance(user.userId);
 
-  logger.info('Position closed successfully', {
+  logger.info('Position closed with fee', {
     userId: user.userId,
     positionId,
     realizedPnL,
-    finalSettlement,
-    wasLiquidated: finalSettlement === 0
+    grossSettlement,
+    netSettlement,
+    fee: feeResult.feeCharged,
+    referrerPaid: feeResult.referrerPaid,
+    wasLiquidated: netSettlement === 0
   }, 'POST /api/markets/perps/[positionId]/close');
 
   return successResponse({
@@ -121,10 +144,15 @@ export const POST = withErrorHandling(async (
       realizedPnL,
       fundingPaid: position.fundingPaid,
     },
-    settlement: finalSettlement,
+    grossSettlement,
+    netSettlement,
     marginReturned: marginPaid,
     pnl: realizedPnL,
-    wasLiquidated: finalSettlement === 0,
+    fee: {
+      amount: feeResult.feeCharged,
+      referrerPaid: feeResult.referrerPaid,
+    },
+    wasLiquidated: netSettlement === 0,
     newBalance: newBalance.balance,
     newLifetimePnL: newBalance.lifetimePnL,
   });

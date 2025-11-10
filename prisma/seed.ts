@@ -19,6 +19,7 @@ import { logger } from '../src/lib/logger';
 const prisma = new PrismaClient();
 
 import type { SeedActorsDatabase } from '../src/shared/types';
+import { FollowInitializer } from '../src/lib/services/FollowInitializer';
 
 async function main() {
   logger.info('SEEDING DATABASE', undefined, 'Script');
@@ -179,6 +180,20 @@ async function main() {
   
   logger.info(`Initialized ${poolsCreated} pools for ${poolActors.length} pool actors`, undefined, 'Script');
 
+  // Seed relationships from actors.json
+  logger.info('Seeding actor relationships...', undefined, 'Script');
+  
+  if (actorsData.relationships && actorsData.relationships.length > 0) {
+    logger.info(`Found ${actorsData.relationships.length} relationships in actors.json`, { count: actorsData.relationships.length }, 'Script');
+    await FollowInitializer.importRelationships(actorsData.relationships);
+    await FollowInitializer.createFollows(actorsData.relationships);
+    logger.info('Relationships loaded successfully', undefined, 'Script');
+  } else {
+    logger.warn('No relationships in actors.json', undefined, 'Script');
+    logger.warn('Generate: npx tsx scripts/init-actor-relationships.ts', undefined, 'Script');
+    logger.warn('This updates actors.json with relationship data', undefined, 'Script');
+  }
+
   // Stats
   const stats = {
     actors: await prisma.actor.count(),
@@ -186,6 +201,8 @@ async function main() {
     pools: await prisma.pool.count(),
     organizations: await prisma.organization.count(),
     companies: await prisma.organization.count({ where: { type: 'company' } }),
+    relationships: await prisma.actorRelationship.count(),
+    follows: await prisma.actorFollow.count(),
     posts: await prisma.post.count(),
   };
 
@@ -193,6 +210,8 @@ async function main() {
     actors: `${stats.actors} (${stats.poolActors} traders with pools)`,
     pools: stats.pools,
     organizations: `${stats.organizations} (${stats.companies} companies)`,
+    relationships: stats.relationships,
+    follows: stats.follows,
     posts: stats.posts
   }, 'Script');
 

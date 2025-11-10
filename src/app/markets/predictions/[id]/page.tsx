@@ -9,6 +9,7 @@ import { ArrowLeft, CheckCircle, Clock, Info, TrendingUp, Users, XCircle } from 
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { BouncingLogo } from '@/components/shared/BouncingLogo'
 
 interface PredictionMarket {
   id: number | string
@@ -183,7 +184,9 @@ export default function PredictionDetailPage() {
       <PageContainer>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
+            <div className="mx-auto mb-4 flex justify-center">
+              <BouncingLogo size={48} />
+            </div>
             <p className="text-muted-foreground">Loading market...</p>
           </div>
         </div>
@@ -371,7 +374,7 @@ export default function PredictionDetailPage() {
                 onChange={(e) => setAmount(e.target.value)}
                 min="1"
                 step="1"
-                className="w-full px-4 py-3 rounded bg-background text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-[#1da1f2]/30"
+                className="w-full px-4 py-3 rounded bg-background text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30"
                 placeholder="Min: $1"
               />
             </div>
@@ -434,7 +437,7 @@ export default function PredictionDetailPage() {
             >
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <BouncingLogo size={20} />
                   Buying Shares...
                 </span>
               ) : authenticated ? (

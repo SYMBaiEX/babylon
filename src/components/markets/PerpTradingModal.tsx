@@ -5,6 +5,7 @@ import { X, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
+import { BouncingLogo } from '@/components/shared/BouncingLogo'
 
 interface PerpMarket {
   ticker: string
@@ -200,7 +201,7 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
                 onChange={(e) => setSize(e.target.value)}
                 min={market.minOrderSize}
                 step="10"
-                className="w-32 px-3 py-1.5 rounded bg-background/50 text-foreground text-right font-medium focus:outline-none focus:bg-background focus:ring-2 focus:ring-[#1da1f2]/30"
+                className="w-32 px-3 py-1.5 rounded bg-background/50 text-foreground text-right font-medium focus:outline-none focus:bg-background focus:ring-2 focus:ring-[#0066FF]/30"
                 placeholder={`Min: $${market.minOrderSize}`}
               />
             </div>
@@ -286,7 +287,7 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <BouncingLogo size={20} />
                 Opening Position...
               </span>
             ) : (

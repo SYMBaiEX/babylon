@@ -8,5 +8,4 @@ export { RepostButton } from './RepostButton';
 export { FollowButton } from './FollowButton';
 export { CommentInput } from './CommentInput';
 export { CommentCard } from './CommentCard';
-export { CommentSection } from './CommentSection';
 export { InteractionBar } from './InteractionBar';

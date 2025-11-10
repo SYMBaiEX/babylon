@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
-import { X as XIcon, Check, Loader2, ExternalLink } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X as XIcon, Check, ExternalLink, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
+import { BouncingLogo } from '@/components/shared/BouncingLogo'
 
 interface LinkSocialAccountsModalProps {
   isOpen: boolean
@@ -14,71 +15,134 @@ interface LinkSocialAccountsModalProps {
 export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsModalProps) {
   const { user, setUser } = useAuthStore()
   const [linking, setLinking] = useState<string | null>(null)
-  const [inputValues, setInputValues] = useState({
-    twitter: '',
-    farcaster: '',
-  })
+
+  // Handle OAuth callback messages (for Farcaster)
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleMessage = async (event: MessageEvent) => {
+      // Verify origin
+      if (event.origin !== window.location.origin) return
+
+      if (event.data.type === 'FARCASTER_AUTH_SUCCESS') {
+        const { fid, username, displayName, pfpUrl } = event.data
+        
+        setLinking('farcaster')
+        
+        try {
+          const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+          const state = `${user?.id}:${Date.now()}:${Math.random().toString(36).substring(7)}`
+          
+          const response = await fetch('/api/auth/farcaster/callback', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              message: event.data.message,
+              signature: event.data.signature,
+              fid,
+              username,
+              displayName,
+              pfpUrl,
+              state,
+            }),
+          })
+
+          const data = await response.json()
+
+          if (response.ok && data.success) {
+            if (user) {
+              setUser({
+                ...user,
+                hasFarcaster: true,
+                farcasterUsername: username,
+                reputationPoints: data.newTotal || user.reputationPoints,
+              })
+            }
+
+            if (data.pointsAwarded > 0) {
+              toast.success(`Farcaster linked! +${data.pointsAwarded} points awarded`)
+            } else {
+              toast.success('Farcaster account linked successfully!')
+            }
+
+            onClose()
+          } else {
+            throw new Error(data.error || 'Failed to link account')
+          }
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : 'Failed to link Farcaster')
+        } finally {
+          setLinking(null)
+        }
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [isOpen, user, setUser, onClose])
 
   if (!isOpen) return null
 
-  const handleLinkAccount = async (platform: 'twitter' | 'farcaster') => {
+  const handleTwitterOAuth = async () => {
     if (!user?.id) return
     
-    const username = inputValues[platform].trim()
-    if (!username) {
-      toast.error('Please enter a username')
-      return
-    }
+    setLinking('twitter')
 
-    setLinking(platform)
-
-    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    }
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
-
-    const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/link-social`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        platform,
-        username,
-      }),
-    })
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Failed to link account' }))
+    try {
+      // Redirect to OAuth initiation endpoint
+      const initiateUrl = `/api/auth/twitter/initiate`
+      
+      // Store current URL to return to
+      sessionStorage.setItem('oauth_return_url', window.location.pathname)
+      
+      window.location.href = initiateUrl
+    } catch {
+      toast.error('Failed to initiate Twitter authentication')
       setLinking(null)
-      throw new Error(error.error || 'Failed to link account')
     }
+  }
 
-    const data = await response.json()
+  const handleFarcasterAuth = () => {
+    if (!user?.id) return
+    
+    setLinking('farcaster')
 
-    // Update user in store
-    const updates = {
-      ...user,
-      ...(platform === 'twitter' 
-        ? { hasTwitter: true, twitterUsername: username }
-        : { hasFarcaster: true, farcasterUsername: username }
-      ),
-      // Add points if awarded
-      ...(data.points?.awarded ? { reputationPoints: data.points.newTotal } : {}),
+    try {
+      // Open Farcaster Auth in popup
+      const state = `${user.id}:${Date.now()}:${Math.random().toString(36).substring(7)}`
+      const authUrl = `https://warpcast.com/~/sign-in-with-farcaster?channelToken=${state}`
+      
+      const width = 600
+      const height = 700
+      const left = (window.screen.width - width) / 2
+      const top = (window.screen.height - height) / 2
+      
+      const popup = window.open(
+        authUrl,
+        'farcaster-auth',
+        `width=${width},height=${height},left=${left},top=${top}`
+      )
+
+      if (!popup) {
+        toast.error('Please allow popups to connect Farcaster')
+        setLinking(null)
+        return
+      }
+
+      // Monitor popup
+      const checkPopup = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(checkPopup)
+          setLinking(null)
+        }
+      }, 1000)
+    } catch {
+      toast.error('Failed to initiate Farcaster authentication')
+      setLinking(null)
     }
-
-    if (data.points?.awarded) {
-      toast.success(`Account linked! +${data.points.awarded} points awarded`)
-    } else {
-      toast.success('Account linked successfully!')
-    }
-
-    setUser(updates)
-
-    // Clear input
-    setInputValues(prev => ({ ...prev, [platform]: '' }))
-    setLinking(null)
   }
 
   return (
@@ -86,7 +150,10 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
       <div className="bg-background rounded-xl max-w-md w-full border border-border">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border">
-          <h2 className="text-xl font-bold">Link Social Accounts</h2>
+          <div className="flex items-center gap-2">
+            <Shield className="w-5 h-5 text-primary" />
+            <h2 className="text-xl font-bold">Link Social Accounts</h2>
+          </div>
           <button
             onClick={onClose}
             className="p-2 hover:bg-muted rounded-lg transition-colors"
@@ -107,14 +174,15 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
               {user?.hasTwitter && (
                 <span className="ml-auto flex items-center gap-1 text-sm text-green-500">
                   <Check className="w-4 h-4" />
-                  Linked
+                  Verified
                 </span>
               )}
             </div>
 
             {user?.hasTwitter ? (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
-                <span className="text-sm">@{user.twitterUsername}</span>
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                <Check className="w-4 h-4 text-green-500" />
+                <span className="text-sm font-medium">@{user.twitterUsername}</span>
                 <a
                   href={`https://twitter.com/${user.twitterUsername}`}
                   target="_blank"
@@ -126,34 +194,32 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
               </div>
             ) : (
               <div className="space-y-2">
-                <input
-                  type="text"
-                  placeholder="Enter your Twitter username"
-                  value={inputValues.twitter}
-                  onChange={(e) => setInputValues(prev => ({ ...prev, twitter: e.target.value }))}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleLinkAccount('twitter')
-                  }}
-                  className="w-full px-4 py-2 rounded-lg bg-sidebar-accent/50 focus:outline-none focus:ring-2 focus:ring-primary"
-                  disabled={linking === 'twitter'}
-                />
+                <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-start gap-2">
+                  <Shield className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-muted-foreground">
+                    You'll be redirected to Twitter to authorize access. We'll verify your account ownership.
+                  </p>
+                </div>
                 <button
-                  onClick={() => handleLinkAccount('twitter')}
-                  disabled={linking === 'twitter' || !inputValues.twitter.trim()}
+                  onClick={handleTwitterOAuth}
+                  disabled={linking === 'twitter'}
                   className={cn(
                     'w-full px-4 py-2 rounded-lg font-semibold transition-colors',
-                    'bg-primary text-primary-foreground hover:bg-primary/90',
+                    'bg-[#0066FF] text-white hover:bg-[#2952d9]',
                     'disabled:opacity-50 disabled:cursor-not-allowed',
                     'flex items-center justify-center gap-2'
                   )}
                 >
                   {linking === 'twitter' ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Linking...</span>
+                      <BouncingLogo size={16} />
+                      <span>Connecting...</span>
                     </>
                   ) : (
-                    'Link Twitter Account'
+                    <>
+                      <Shield className="w-4 h-4" />
+                      <span>Connect with Twitter</span>
+                    </>
                   )}
                 </button>
               </div>
@@ -172,14 +238,15 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
               {user?.hasFarcaster && (
                 <span className="ml-auto flex items-center gap-1 text-sm text-green-500">
                   <Check className="w-4 h-4" />
-                  Linked
+                  Verified
                 </span>
               )}
             </div>
 
             {user?.hasFarcaster ? (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
-                <span className="text-sm">@{user.farcasterUsername}</span>
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                <Check className="w-4 h-4 text-green-500" />
+                <span className="text-sm font-medium">@{user.farcasterUsername}</span>
                 <a
                   href={`https://warpcast.com/${user.farcasterUsername}`}
                   target="_blank"
@@ -191,34 +258,32 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
               </div>
             ) : (
               <div className="space-y-2">
-                <input
-                  type="text"
-                  placeholder="Enter your Farcaster username"
-                  value={inputValues.farcaster}
-                  onChange={(e) => setInputValues(prev => ({ ...prev, farcaster: e.target.value }))}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleLinkAccount('farcaster')
-                  }}
-                  className="w-full px-4 py-2 rounded-lg bg-sidebar-accent/50 focus:outline-none focus:ring-2 focus:ring-primary"
-                  disabled={linking === 'farcaster'}
-                />
+                <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-start gap-2">
+                  <Shield className="w-4 h-4 text-purple-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-muted-foreground">
+                    Sign in with Farcaster to verify your account. A popup will open for authentication.
+                  </p>
+                </div>
                 <button
-                  onClick={() => handleLinkAccount('farcaster')}
-                  disabled={linking === 'farcaster' || !inputValues.farcaster.trim()}
+                  onClick={handleFarcasterAuth}
+                  disabled={linking === 'farcaster'}
                   className={cn(
                     'w-full px-4 py-2 rounded-lg font-semibold transition-colors',
-                    'bg-primary text-primary-foreground hover:bg-primary/90',
+                    'bg-[#8A63D2] text-white hover:bg-[#7952c4]',
                     'disabled:opacity-50 disabled:cursor-not-allowed',
                     'flex items-center justify-center gap-2'
                   )}
                 >
                   {linking === 'farcaster' ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Linking...</span>
+                      <BouncingLogo size={16} />
+                      <span>Connecting...</span>
                     </>
                   ) : (
-                    'Link Farcaster Account'
+                    <>
+                      <Shield className="w-4 h-4" />
+                      <span>Sign in with Farcaster</span>
+                    </>
                   )}
                 </button>
               </div>
@@ -227,9 +292,12 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
 
           {/* Info */}
           <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
-            <p className="text-sm text-muted-foreground">
-              Linking your social accounts helps verify your identity and may earn you reputation points!
-            </p>
+            <div className="flex items-start gap-2">
+              <Shield className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-muted-foreground">
+                OAuth authentication verifies your account ownership and earns you reputation points!
+              </p>
+            </div>
           </div>
         </div>
 

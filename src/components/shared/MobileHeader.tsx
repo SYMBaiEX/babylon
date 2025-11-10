@@ -224,7 +224,7 @@ export function MobileHeader() {
                 }}
                 className="p-2 hover:bg-muted transition-colors flex-shrink-0"
               >
-                <X size={20} style={{ color: '#1c9cf0' }} />
+                <X size={20} style={{ color: '#0066FF' }} />
               </button>
             </Link>
 
@@ -232,7 +232,7 @@ export function MobileHeader() {
             {pointsData && (
               <div className="px-4 py-4 bg-muted/30">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#1c9cf0' }}>
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#0066FF' }}>
                     <Coins className="w-5 h-5 text-white" />
                   </div>
                   <div className="flex-1">
@@ -260,7 +260,7 @@ export function MobileHeader() {
                     className={cn(
                       'flex items-center gap-4 px-4 py-3 transition-colors',
                       item.active 
-                        ? 'bg-[#1c9cf0] text-white font-bold' 
+                        ? 'bg-[#0066FF] text-white font-bold' 
                         : 'text-sidebar-foreground hover:bg-sidebar-accent font-semibold'
                     )}
                   >

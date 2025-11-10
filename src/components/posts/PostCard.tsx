@@ -170,7 +170,7 @@ export const PostCard = memo(function PostCard({
             {post.category && (
               <>
                 {post.byline && <span>·</span>}
-                <span className="px-2 py-0.5 bg-[#1c9cf0]/20 text-[#1c9cf0] rounded text-xs font-semibold uppercase">
+                <span className="px-2 py-0.5 bg-[#0066FF]/20 text-[#0066FF] rounded text-xs font-semibold uppercase">
                   {post.category}
                 </span>
               </>
@@ -196,7 +196,7 @@ export const PostCard = memo(function PostCard({
           {/* Read more button */}
           {!isDetail && (
             <button
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#1c9cf0] hover:bg-[#1a8cd8] text-white font-semibold rounded-lg transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#0066FF] hover:bg-[#2952d9] text-white font-semibold rounded-lg transition-colors"
               onClick={handleClick}
             >
               Read Full Article →

@@ -75,6 +75,9 @@ export { npcConversation } from './world/npc-conversation';
 export { daySummary } from './world/day-summary';
 export { newsReport } from './world/news-report';
 
+// Trading prompts
+export { npcMarketDecisions } from './trading/npc-market-decisions';
+
 /**
  * Usage examples:
  * 

@@ -9,6 +9,7 @@ import { AlertTriangle, ArrowLeft, Info, TrendingDown, TrendingUp } from 'lucide
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { BouncingLogo } from '@/components/shared/BouncingLogo'
 
 interface PerpMarket {
   ticker: string
@@ -160,7 +161,9 @@ export default function PerpDetailPage() {
       <PageContainer>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
+            <div className="mx-auto mb-4 flex justify-center">
+              <BouncingLogo size={48} />
+            </div>
             <p className="text-muted-foreground">Loading market...</p>
           </div>
         </div>
@@ -321,7 +324,7 @@ export default function PerpDetailPage() {
                   onChange={(e) => setSize(e.target.value)}
                   min={market.minOrderSize}
                   step="10"
-                  className="w-full px-4 py-3 rounded bg-background text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-[#1da1f2]/30"
+                  className="w-full px-4 py-3 rounded bg-background text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-[#0066FF]/30"
                   placeholder={`Min: $${market.minOrderSize}`}
                 />
               </div>
@@ -409,7 +412,7 @@ export default function PerpDetailPage() {
             >
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <BouncingLogo size={20} />
                   Opening Position...
                 </span>
               ) : authenticated ? (
@@ -519,14 +522,14 @@ function PriceChart({ data, currentPrice }: { data: PricePoint[], currentPrice: 
             y1={scaleY(currentPrice)}
             x2={width - 40}
             y2={scaleY(currentPrice)}
-            stroke="#1da1f2"
+            stroke="#0066FF"
             strokeWidth={1}
             strokeDasharray="4 4"
           />
           <text
             x={45}
             y={scaleY(currentPrice) - 5}
-            fill="#1da1f2"
+            fill="#0066FF"
             fontSize="12"
             fontWeight="bold"
           >

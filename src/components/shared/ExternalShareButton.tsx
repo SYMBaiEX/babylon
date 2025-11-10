@@ -8,6 +8,18 @@ import { useState } from 'react'
 import { Share2, Twitter, Link as LinkIcon, Check } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { logger } from '@/lib/logger'
+import { ShareVerificationModal } from './ShareVerificationModal'
+
+// Farcaster icon component
+function FarcasterIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 1000 1000" fill="currentColor">
+      <path d="M257.778 155.556H742.222V844.444H671.111V528.889H670.414C662.554 441.677 589.258 373.333 500 373.333C410.742 373.333 337.446 441.677 329.586 528.889H328.889V844.444H257.778V155.556Z"/>
+      <path d="M128.889 253.333L157.778 351.111H182.222V844.444H128.889V253.333Z"/>
+      <path d="M871.111 253.333L842.222 351.111H817.778V844.444H871.111V253.333Z"/>
+    </svg>
+  )
+}
 
 interface ExternalShareButtonProps {
   contentType: 'post' | 'profile' | 'market' | 'referral' | 'leaderboard'
@@ -27,57 +39,96 @@ export function ExternalShareButton({
   const { authenticated, user } = useAuth()
   const [showMenu, setShowMenu] = useState(false)
   const [shared, setShared] = useState(false)
+  const [showVerification, setShowVerification] = useState(false)
+  const [pendingVerification, setPendingVerification] = useState<{
+    shareId: string
+    platform: 'twitter' | 'farcaster'
+  } | null>(null)
 
   const shareUrl = url || (typeof window !== 'undefined' ? window.location.href : '')
   const shareText = text || 'Check this out!'
 
-  const trackShare = async (platform: string) => {
+  const trackShare = async (platform: string): Promise<string | null> => {
     if (!authenticated || !user) {
       logger.warn('User not authenticated, cannot track share', undefined, 'ExternalShareButton')
-      return
+      return null
     }
 
     const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
     if (!token) {
       logger.warn('No access token available', undefined, 'ExternalShareButton')
-      return
+      return null
     }
 
-    const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/share`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        platform,
-        contentType,
-        contentId,
-        url: shareUrl,
-      }),
-    })
+    try {
+      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/share`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          platform,
+          contentType,
+          contentId,
+          url: shareUrl,
+        }),
+      })
 
-    if (response.ok) {
-      const data = await response.json()
-      if (data.points?.awarded > 0) {
-        logger.info(
-          `Earned ${data.points.awarded} points for sharing to ${platform}`,
-          { platform, points: data.points.awarded },
-          'ExternalShareButton'
-        )
-        
-        // Show success feedback
-        setShared(true)
-        setTimeout(() => setShared(false), 2000)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.points?.awarded > 0) {
+          logger.info(
+            `Earned ${data.points.awarded} points for sharing to ${platform}`,
+            { platform, points: data.points.awarded },
+            'ExternalShareButton'
+          )
+          
+          // Show success feedback
+          setShared(true)
+          setTimeout(() => setShared(false), 2000)
+        }
+        return data.shareAction?.id || null
       }
+    } catch (error) {
+      logger.error('Failed to track share', { error, platform }, 'ExternalShareButton')
+    }
+    
+    return null
+  }
+
+  const handleShareToTwitter = async () => {
+    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`
+    window.open(twitterUrl, '_blank', 'width=550,height=420')
+    
+    const shareId = await trackShare('twitter')
+    setShowMenu(false)
+    
+    // Show verification modal after a short delay (gives user time to post)
+    if (shareId && user) {
+      setTimeout(() => {
+        setPendingVerification({ shareId, platform: 'twitter' })
+        setShowVerification(true)
+      }, 3000) // 3 second delay
     }
   }
 
-  const handleShareToTwitter = () => {
-    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`
-    window.open(twitterUrl, '_blank', 'width=550,height=420')
-    trackShare('twitter')
+  const handleShareToFarcaster = async () => {
+    // Warpcast compose URL format
+    const castText = `${shareText}\n\n${shareUrl}`
+    const warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}`
+    window.open(warpcastUrl, '_blank', 'width=550,height=600')
+    
+    const shareId = await trackShare('farcaster')
     setShowMenu(false)
+    
+    // Show verification modal after a short delay (gives user time to post)
+    if (shareId && user) {
+      setTimeout(() => {
+        setPendingVerification({ shareId, platform: 'farcaster' })
+        setShowVerification(true)
+      }, 3000) // 3 second delay
+    }
   }
 
   const handleCopyLink = async () => {
@@ -86,17 +137,6 @@ export function ExternalShareButton({
     setShared(true)
     setTimeout(() => setShared(false), 2000)
     setShowMenu(false)
-  }
-
-  const handleNativeShare = async () => {
-    if (navigator.share) {
-      await navigator.share({
-        title: shareText,
-        url: shareUrl,
-      })
-      trackShare('native')
-      setShowMenu(false)
-    }
   }
 
   return (
@@ -136,7 +176,14 @@ export function ExternalShareButton({
             >
               <Twitter className="w-4 h-4 text-blue-400" />
               <span className="text-sm text-gray-200">Share to X</span>
-              <span className="ml-auto text-xs text-yellow-500">+1000</span>
+            </button>
+
+            <button
+              onClick={handleShareToFarcaster}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-700 text-left transition-colors"
+            >
+              <FarcasterIcon className="w-4 h-4 text-purple-400" />
+              <span className="text-sm text-gray-200">Share to Farcaster</span>
             </button>
 
             <button
@@ -145,20 +192,23 @@ export function ExternalShareButton({
             >
               <LinkIcon className="w-4 h-4 text-gray-400" />
               <span className="text-sm text-gray-200">Copy Link</span>
-              <span className="ml-auto text-xs text-yellow-500">+1000</span>
             </button>
-
-            {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
-              <button
-                onClick={handleNativeShare}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-700 text-left transition-colors"
-              >
-                <Share2 className="w-4 h-4 text-gray-400" />
-                <span className="text-sm text-gray-200">Share...</span>
-              </button>
-            )}
           </div>
         </>
+      )}
+
+      {/* Verification Modal */}
+      {showVerification && pendingVerification && user && (
+        <ShareVerificationModal
+          isOpen={showVerification}
+          onClose={() => {
+            setShowVerification(false)
+            setPendingVerification(null)
+          }}
+          shareId={pendingVerification.shareId}
+          platform={pendingVerification.platform}
+          userId={user.id}
+        />
       )}
     </div>
   )

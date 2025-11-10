@@ -12,10 +12,11 @@ export const UUIDSchema = z.string().uuid({
 });
 
 /**
- * User ID schema - accepts both UUID and Privy DID formats
+ * User ID schema - accepts UUID, Privy DID, or username formats
  * Examples:
  * - UUID: "550e8400-e29b-41d4-a716-446655440000"
  * - Privy DID: "did:privy:cm6sqq4og01qw9l70rbmyjn20"
+ * - Username: "eddy-snowjob" or "john_doe"
  */
 export const UserIdSchema = z.string().refine(
   (val) => {
@@ -23,11 +24,13 @@ export const UserIdSchema = z.string().refine(
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
     // Check if it's a valid Privy DID
     const privyDidRegex = /^did:privy:[a-z0-9]+$/;
+    // Check if it's a valid username (3-30 chars, letters, numbers, underscores, hyphens)
+    const usernameRegex = /^[a-zA-Z0-9_-]{3,30}$/;
 
-    return uuidRegex.test(val) || privyDidRegex.test(val);
+    return uuidRegex.test(val) || privyDidRegex.test(val) || usernameRegex.test(val);
   },
   {
-    message: 'Invalid user ID format. Must be a UUID or Privy DID (did:privy:...)'
+    message: 'Invalid user identifier. Must be a UUID, Privy DID (did:privy:...), or username'
   }
 );
 
@@ -325,5 +328,5 @@ export function createBatchSchema<T extends z.ZodType>(itemSchema: T, maxItems: 
 export const LeaderboardQuerySchema = z.object({
   page: z.coerce.number().positive().default(1),
   pageSize: z.coerce.number().positive().max(100).default(100),
-  minPoints: z.coerce.number().nonnegative().default(10000)
+  minPoints: z.coerce.number().nonnegative().default(500) // Show all with >500 reputation
 });

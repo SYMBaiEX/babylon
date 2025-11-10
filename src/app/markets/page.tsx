@@ -8,10 +8,12 @@ import { PredictionPositionsList } from '@/components/markets/PredictionPosition
 import { UserPoolPositions } from '@/components/markets/UserPoolPositions'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { WalletBalance } from '@/components/shared/WalletBalance'
+import { Skeleton, WidgetPanelSkeleton } from '@/components/shared/Skeleton'
+import { BuyPointsModal } from '@/components/points/BuyPointsModal'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 import type { PerpPosition } from '@/shared/perps-types'
-import { ArrowUpDown, Clock, Flame, Search, TrendingDown, TrendingUp } from 'lucide-react'
+import { ArrowUpDown, Clock, Flame, Search, TrendingDown, TrendingUp, Sparkles } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -91,6 +93,7 @@ export default function MarketsPage() {
   const [activeTab, setActiveTab] = useState<MarketTab>('dashboard')
   const [searchQuery, setSearchQuery] = useState('')
   const [predictionSort, setPredictionSort] = useState<PredictionSort>('trending')
+  const [showBuyPointsModal, setShowBuyPointsModal] = useState(false)
   
   // Data
   const [perpMarkets, setPerpMarkets] = useState<PerpMarket[]>([])
@@ -135,8 +138,8 @@ export default function MarketsPage() {
     // Get top 6 pools by return percentage
     const pools = poolsData.pools || []
     const sortedPools = [...pools]
-      .filter((p: Pool) => p.totalDeposits > 0) // Only pools with deposits
-      .sort((a: Pool, b: Pool) => b.returnPercent - a.returnPercent)
+      .filter((p: Pool) => (p.totalValue ?? 0) > 0) // Only pools with value (includes NPC-funded pools)
+      .sort((a: Pool, b: Pool) => (b.returnPercent ?? 0) - (a.returnPercent ?? 0))
       .slice(0, 6)
     setTopPools(sortedPools)
 
@@ -292,12 +295,23 @@ export default function MarketsPage() {
 
   if (loading) {
     return (
-      <PageContainer>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
-            <p className="text-muted-foreground">Loading markets...</p>
+      <PageContainer noPadding className="flex flex-col">
+        <div className="p-4 space-y-6">
+          {/* Tabs skeleton */}
+          <div className="flex gap-0">
+            {['Dashboard', 'Perps', 'Predictions', 'Pools'].map((tab) => (
+              <div key={tab} className="flex-1 px-4 py-2.5">
+                <Skeleton className="h-5 w-20 mx-auto" />
+              </div>
+            ))}
           </div>
+          
+          {/* Content skeletons */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <WidgetPanelSkeleton />
+            <WidgetPanelSkeleton />
+          </div>
+          <WidgetPanelSkeleton />
         </div>
       </PageContainer>
     )
@@ -372,8 +386,19 @@ export default function MarketsPage() {
             </button>
           </div>
 
-          {/* Wallet Balance */}
-          {authenticated && <WalletBalance refreshTrigger={balanceRefreshTrigger} />}
+          {/* Wallet Balance and Buy Points */}
+          {authenticated && (
+            <div className="flex items-center gap-3">
+              <WalletBalance refreshTrigger={balanceRefreshTrigger} />
+              <button
+                onClick={() => setShowBuyPointsModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-medium rounded-lg hover:from-yellow-600 hover:to-amber-700 transition-all shadow-md hover:shadow-lg"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span className="hidden sm:inline">Buy Points</span>
+              </button>
+            </div>
+          )}
 
           {/* Search - hide on dashboard */}
           {activeTab !== 'dashboard' && (
@@ -385,7 +410,7 @@ export default function MarketsPage() {
                 placeholder={activeTab === 'futures' ? "Search tickers..." : activeTab === 'predictions' ? "Search questions..." : "Search pools..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 rounded bg-muted/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:bg-muted focus:ring-2 focus:ring-[#1da1f2]/30"
+                className="w-full pl-10 pr-4 py-3 rounded bg-muted/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:bg-muted focus:ring-2 focus:ring-[#0066FF]/30"
               />
             </div>
           )}
@@ -398,9 +423,9 @@ export default function MarketsPage() {
           <div id="dashboard-panel" role="tabpanel" aria-labelledby="dashboard-tab" className="p-4 space-y-6">
             {/* Positions Overview - Only show if authenticated and has positions */}
             {authenticated && (perpPositions.length > 0 || predictionPositions.length > 0) && (
-              <div className="bg-gradient-to-br from-[#1da1f2]/10 to-purple-500/10 rounded-lg p-4 border border-[#1da1f2]/20">
+              <div className="bg-gradient-to-br from-[#0066FF]/10 to-purple-500/10 rounded-lg p-4 border border-[#0066FF]/20">
                 <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
-                  <div className="w-1 h-5 bg-[#1da1f2] rounded-full" />
+                  <div className="w-1 h-5 bg-[#0066FF] rounded-full" />
                   Your Positions
                 </h2>
                 
@@ -436,7 +461,7 @@ export default function MarketsPage() {
                       <button
                         key={`trending-${market.ticker}-${idx}`}
                         onClick={() => handleMarketClick(market)}
-                        className="w-full p-3 rounded-lg text-left bg-muted/30 hover:bg-muted transition-all cursor-pointer border border-transparent hover:border-[#1da1f2]/30"
+                        className="w-full p-3 rounded-lg text-left bg-muted/30 hover:bg-muted transition-all cursor-pointer border border-transparent hover:border-[#0066FF]/30"
                       >
                         <div className="flex justify-between items-center">
                           <div className="flex-1">
@@ -530,9 +555,9 @@ export default function MarketsPage() {
                         </div>
                         <div className={cn(
                           "text-lg font-bold",
-                          pool.returnPercent >= 0 ? "text-green-600" : "text-red-600"
+                          (pool.returnPercent ?? 0) >= 0 ? "text-green-600" : "text-red-600"
                         )}>
-                          {pool.returnPercent >= 0 ? '+' : ''}{pool.returnPercent.toFixed(1)}%
+                          {(pool.returnPercent ?? 0) >= 0 ? '+' : ''}{(pool.returnPercent ?? 0).toFixed(1)}%
                         </div>
                       </div>
                       <div className="flex gap-3 text-xs text-muted-foreground">
@@ -548,14 +573,14 @@ export default function MarketsPage() {
 
             {/* CTA for non-authenticated users */}
             {!authenticated && (
-              <div className="flex flex-col items-center justify-center py-16 px-4 bg-gradient-to-br from-[#1da1f2]/10 to-purple-500/10 rounded-lg border border-[#1da1f2]/20">
+              <div className="flex flex-col items-center justify-center py-16 px-4 bg-gradient-to-br from-[#0066FF]/10 to-purple-500/10 rounded-lg border border-[#0066FF]/20">
                 <h3 className="text-2xl font-bold mb-2">Start Trading Today</h3>
                 <p className="text-sm text-muted-foreground mb-6 text-center max-w-md">
                   Connect your wallet to trade perpetual futures, prediction markets, and invest in trader pools
                 </p>
                 <button
                   onClick={login}
-                  className="px-8 py-3 bg-[#1da1f2] text-white rounded-lg font-medium hover:bg-[#1a8cd8] transition-colors cursor-pointer shadow-lg shadow-[#1da1f2]/20"
+                  className="px-8 py-3 bg-[#0066FF] text-white rounded-lg font-medium hover:bg-[#2952d9] transition-colors cursor-pointer shadow-lg shadow-[#0066FF]/20"
                 >
                   Connect Wallet
                 </button>
@@ -647,7 +672,7 @@ export default function MarketsPage() {
                   className={cn(
                     "px-3 py-1.5 rounded-full text-xs font-medium transition-all",
                     predictionSort === 'trending'
-                      ? "bg-[#1da1f2] text-white"
+                      ? "bg-[#0066FF] text-white"
                       : "bg-muted/50 text-muted-foreground hover:bg-muted"
                   )}
                 >
@@ -659,7 +684,7 @@ export default function MarketsPage() {
                   className={cn(
                     "px-3 py-1.5 rounded-full text-xs font-medium transition-all",
                     predictionSort === 'volume'
-                      ? "bg-[#1da1f2] text-white"
+                      ? "bg-[#0066FF] text-white"
                       : "bg-muted/50 text-muted-foreground hover:bg-muted"
                   )}
                 >
@@ -671,7 +696,7 @@ export default function MarketsPage() {
                   className={cn(
                     "px-3 py-1.5 rounded-full text-xs font-medium transition-all",
                     predictionSort === 'newest'
-                      ? "bg-[#1da1f2] text-white"
+                      ? "bg-[#0066FF] text-white"
                       : "bg-muted/50 text-muted-foreground hover:bg-muted"
                   )}
                 >
@@ -682,7 +707,7 @@ export default function MarketsPage() {
                   className={cn(
                     "px-3 py-1.5 rounded-full text-xs font-medium transition-all",
                     predictionSort === 'ending-soon'
-                      ? "bg-[#1da1f2] text-white"
+                      ? "bg-[#0066FF] text-white"
                       : "bg-muted/50 text-muted-foreground hover:bg-muted"
                   )}
                 >
@@ -706,7 +731,7 @@ export default function MarketsPage() {
                     onClick={() => handlePredictionClick(prediction)}
                     className={cn(
                       "w-full p-3 rounded text-left transition-all cursor-pointer",
-                      hasPosition ? "bg-[#1da1f2]/5 hover:bg-[#1da1f2]/20" : "bg-muted/30 hover:bg-muted"
+                      hasPosition ? "bg-[#0066FF]/5 hover:bg-[#0066FF]/20" : "bg-muted/30 hover:bg-muted"
                     )}
                   >
                     <div className="font-medium mb-2">{prediction.text}</div>
@@ -778,7 +803,7 @@ export default function MarketsPage() {
               <p className="text-sm text-muted-foreground mb-3">Connect your wallet to trade</p>
               <button
                 onClick={login}
-                className="px-6 py-3 bg-[#1da1f2] text-white rounded font-medium hover:bg-[#1a8cd8] transition-colors cursor-pointer"
+                className="px-6 py-3 bg-[#0066FF] text-white rounded font-medium hover:bg-[#2952d9] transition-colors cursor-pointer"
               >
                 Connect Wallet
               </button>
@@ -879,8 +904,19 @@ export default function MarketsPage() {
               </button>
             </div>
 
-            {/* Wallet Balance */}
-            {authenticated && <WalletBalance refreshTrigger={balanceRefreshTrigger} />}
+            {/* Wallet Balance and Buy Points */}
+            {authenticated && (
+              <div className="flex items-center gap-3">
+                <WalletBalance refreshTrigger={balanceRefreshTrigger} />
+                <button
+                  onClick={() => setShowBuyPointsModal(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-medium rounded-lg hover:from-yellow-600 hover:to-amber-700 transition-all shadow-md hover:shadow-lg"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span className="hidden sm:inline">Buy Points</span>
+                </button>
+              </div>
+            )}
 
             {/* Search - hide on dashboard */}
             {activeTab !== 'dashboard' && (
@@ -892,7 +928,7 @@ export default function MarketsPage() {
                   placeholder={activeTab === 'futures' ? "Search tickers..." : activeTab === 'predictions' ? "Search questions..." : "Search pools..."}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded bg-muted/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:bg-muted focus:ring-2 focus:ring-[#1da1f2]/30"
+                  className="w-full pl-10 pr-4 py-3 rounded bg-muted/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:bg-muted focus:ring-2 focus:ring-[#0066FF]/30"
                 />
               </div>
             )}
@@ -905,9 +941,9 @@ export default function MarketsPage() {
             <div id="dashboard-panel" role="tabpanel" aria-labelledby="dashboard-tab" className="p-4 space-y-6">
               {/* Positions Overview - Only show if authenticated and has positions */}
               {authenticated && (perpPositions.length > 0 || predictionPositions.length > 0) && (
-                <div className="bg-gradient-to-br from-[#1da1f2]/10 to-purple-500/10 rounded-lg p-4 border border-[#1da1f2]/20">
+                <div className="bg-gradient-to-br from-[#0066FF]/10 to-purple-500/10 rounded-lg p-4 border border-[#0066FF]/20">
                   <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
-                    <div className="w-1 h-5 bg-[#1da1f2] rounded-full" />
+                    <div className="w-1 h-5 bg-[#0066FF] rounded-full" />
                     Your Positions
                   </h2>
                   
@@ -941,7 +977,7 @@ export default function MarketsPage() {
                       <button
                         key={`trending-mobile-${market.ticker}-${idx}`}
                         onClick={() => handleMarketClick(market)}
-                        className="w-full p-3 rounded-lg text-left bg-muted/30 hover:bg-muted transition-all cursor-pointer border border-transparent hover:border-[#1da1f2]/30"
+                        className="w-full p-3 rounded-lg text-left bg-muted/30 hover:bg-muted transition-all cursor-pointer border border-transparent hover:border-[#0066FF]/30"
                       >
                         <div className="flex justify-between items-center">
                           <div className="flex-1">
@@ -1034,9 +1070,9 @@ export default function MarketsPage() {
                           </div>
                           <div className={cn(
                             "text-lg font-bold",
-                            pool.returnPercent >= 0 ? "text-green-600" : "text-red-600"
+                            (pool.returnPercent ?? 0) >= 0 ? "text-green-600" : "text-red-600"
                           )}>
-                            {pool.returnPercent >= 0 ? '+' : ''}{pool.returnPercent.toFixed(1)}%
+                            {(pool.returnPercent ?? 0) >= 0 ? '+' : ''}{(pool.returnPercent ?? 0).toFixed(1)}%
                           </div>
                         </div>
                         <div className="flex gap-3 text-xs text-muted-foreground">
@@ -1052,14 +1088,14 @@ export default function MarketsPage() {
 
               {/* CTA for non-authenticated users */}
               {!authenticated && (
-                <div className="flex flex-col items-center justify-center py-16 px-4 bg-gradient-to-br from-[#1da1f2]/10 to-purple-500/10 rounded-lg border border-[#1da1f2]/20">
+                <div className="flex flex-col items-center justify-center py-16 px-4 bg-gradient-to-br from-[#0066FF]/10 to-purple-500/10 rounded-lg border border-[#0066FF]/20">
                   <h3 className="text-2xl font-bold mb-2">Start Trading Today</h3>
                   <p className="text-sm text-muted-foreground mb-6 text-center max-w-md">
                     Connect your wallet to trade perpetual futures, prediction markets, and invest in trader pools
                   </p>
                   <button
                     onClick={login}
-                    className="px-8 py-3 bg-[#1da1f2] text-white rounded-lg font-medium hover:bg-[#1a8cd8] transition-colors cursor-pointer shadow-lg shadow-[#1da1f2]/20"
+                    className="px-8 py-3 bg-[#0066FF] text-white rounded-lg font-medium hover:bg-[#2952d9] transition-colors cursor-pointer shadow-lg shadow-[#0066FF]/20"
                   >
                     Connect Wallet
                   </button>
@@ -1151,7 +1187,7 @@ export default function MarketsPage() {
                     className={cn(
                       "px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0",
                       predictionSort === 'trending'
-                        ? "bg-[#1da1f2] text-white"
+                        ? "bg-[#0066FF] text-white"
                         : "bg-muted/50 text-muted-foreground hover:bg-muted"
                     )}
                   >
@@ -1163,7 +1199,7 @@ export default function MarketsPage() {
                     className={cn(
                       "px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0",
                       predictionSort === 'volume'
-                        ? "bg-[#1da1f2] text-white"
+                        ? "bg-[#0066FF] text-white"
                         : "bg-muted/50 text-muted-foreground hover:bg-muted"
                     )}
                   >
@@ -1175,7 +1211,7 @@ export default function MarketsPage() {
                     className={cn(
                       "px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0",
                       predictionSort === 'newest'
-                        ? "bg-[#1da1f2] text-white"
+                        ? "bg-[#0066FF] text-white"
                         : "bg-muted/50 text-muted-foreground hover:bg-muted"
                     )}
                   >
@@ -1186,7 +1222,7 @@ export default function MarketsPage() {
                     className={cn(
                       "px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0",
                       predictionSort === 'ending-soon'
-                        ? "bg-[#1da1f2] text-white"
+                        ? "bg-[#0066FF] text-white"
                         : "bg-muted/50 text-muted-foreground hover:bg-muted"
                     )}
                   >
@@ -1210,7 +1246,7 @@ export default function MarketsPage() {
                       onClick={() => handlePredictionClick(prediction)}
                       className={cn(
                         "w-full p-3 rounded text-left transition-all cursor-pointer",
-                        hasPosition ? "bg-[#1da1f2]/5 hover:bg-[#1da1f2]/20" : "bg-muted/30 hover:bg-muted"
+                        hasPosition ? "bg-[#0066FF]/5 hover:bg-[#0066FF]/20" : "bg-muted/30 hover:bg-muted"
                       )}
                     >
                       <div className="font-medium mb-2">{prediction.text}</div>
@@ -1282,7 +1318,7 @@ export default function MarketsPage() {
             <p className="text-sm text-muted-foreground mb-3">Connect your wallet to trade</p>
             <button
               onClick={login}
-              className="px-6 py-3 bg-[#1da1f2] text-white rounded font-medium hover:bg-[#1a8cd8] transition-colors cursor-pointer"
+              className="px-6 py-3 bg-[#0066FF] text-white rounded font-medium hover:bg-[#2952d9] transition-colors cursor-pointer"
             >
               Connect Wallet
             </button>
@@ -1290,6 +1326,15 @@ export default function MarketsPage() {
         )}
       </div>
 
+      {/* Buy Points Modal */}
+      <BuyPointsModal
+        isOpen={showBuyPointsModal}
+        onClose={() => setShowBuyPointsModal(false)}
+        onSuccess={() => {
+          setBalanceRefreshTrigger(Date.now())
+          fetchData()
+        }}
+      />
     </PageContainer>
   )
 }

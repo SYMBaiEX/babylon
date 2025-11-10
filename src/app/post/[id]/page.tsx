@@ -9,6 +9,7 @@ import { useInteractionStore } from '@/stores/interactionStore';
 import { ArrowLeft, MessageCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { use, useEffect, useState } from 'react';
+import { BouncingLogo } from '@/components/shared/BouncingLogo';
 
 interface PostPageProps {
   params: Promise<{ id: string }>;
@@ -17,6 +18,32 @@ interface PostPageProps {
 export default function PostPage({ params }: PostPageProps) {
   const { id: postId } = use(params);
   const router = useRouter();
+  const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
+  
+  // Function to open comment modal when comment button is clicked
+  const handleCommentClick = () => {
+    setIsCommentModalOpen(true);
+  };
+
+  // Function to update post interactions from store
+  const updatePostInteractions = () => {
+    if (post) {
+      const { postInteractions } = useInteractionStore.getState();
+      const storeData = postInteractions.get(postId);
+      
+      if (storeData) {
+        setPost((prev) => prev ? {
+          ...prev,
+          likeCount: storeData.likeCount,
+          commentCount: storeData.commentCount,
+          shareCount: storeData.shareCount,
+          isLiked: storeData.isLiked,
+          isShared: storeData.isShared,
+        } : null);
+      }
+    }
+  };
+
   const [post, setPost] = useState<{
     id: string;
     type?: string;
@@ -84,7 +111,7 @@ export default function PostPage({ params }: PostPageProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <BouncingLogo size={32} />
       </div>
     );
   }
@@ -123,7 +150,7 @@ export default function PostPage({ params }: PostPageProps) {
                   <ArrowLeft size={20} />
                 </button>
                 <div className="flex items-center gap-2">
-                  <MessageCircle className="w-5 h-5 text-[#1c9cf0]" />
+                  <MessageCircle className="w-5 h-5 text-[#0066FF]" />
                   <h1 className="font-semibold text-lg">Post</h1>
                 </div>
               </div>
@@ -141,7 +168,7 @@ export default function PostPage({ params }: PostPageProps) {
                     {/* Category badge */}
                     {post.category && (
                       <div className="mb-4">
-                        <span className="px-3 py-1 bg-[#1c9cf0]/20 text-[#1c9cf0] rounded text-sm font-semibold uppercase">
+                        <span className="px-3 py-1 bg-[#0066FF]/20 text-[#0066FF] rounded text-sm font-semibold uppercase">
                           {post.category}
                         </span>
                       </div>
@@ -154,7 +181,7 @@ export default function PostPage({ params }: PostPageProps) {
                     
                     {/* Article metadata */}
                     <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mb-6">
-                      <span className="font-semibold text-[#1c9cf0]">{post.authorName}</span>
+                      <span className="font-semibold text-[#0066FF]">{post.authorName}</span>
                       {post.byline && (
                         <>
                           <span>·</span>
@@ -207,6 +234,7 @@ export default function PostPage({ params }: PostPageProps) {
                           isShared: post.isShared,
                         }}
                         postData={post}
+                        onCommentClick={handleCommentClick}
                       />
                     </div>
                   </article>
@@ -216,16 +244,10 @@ export default function PostPage({ params }: PostPageProps) {
                     post={post}
                     showInteractions={true}
                     isDetail
+                    onCommentClick={handleCommentClick}
                   />
                 )}
               </div>
-
-              {/* Comments Section */}
-              <FeedCommentSection
-                postId={postId}
-                postData={post}
-                onClose={undefined}
-              />
             </div>
           </div>
         </div>
@@ -246,7 +268,7 @@ export default function PostPage({ params }: PostPageProps) {
               <ArrowLeft size={20} />
             </button>
             <div className="flex items-center gap-2">
-              <MessageCircle className="w-5 h-5 text-[#1c9cf0]" />
+              <MessageCircle className="w-5 h-5 text-[#0066FF]" />
               <h1 className="font-semibold text-lg">Post</h1>
             </div>
           </div>
@@ -262,7 +284,7 @@ export default function PostPage({ params }: PostPageProps) {
                 {/* Category badge */}
                 {post.category && (
                   <div className="mb-4">
-                    <span className="px-3 py-1 bg-[#1c9cf0]/20 text-[#1c9cf0] rounded text-sm font-semibold uppercase">
+                    <span className="px-3 py-1 bg-[#0066FF]/20 text-[#0066FF] rounded text-sm font-semibold uppercase">
                       {post.category}
                     </span>
                   </div>
@@ -275,7 +297,7 @@ export default function PostPage({ params }: PostPageProps) {
                 
                 {/* Article metadata */}
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mb-4">
-                  <span className="font-semibold text-[#1c9cf0]">{post.authorName}</span>
+                  <span className="font-semibold text-[#0066FF]">{post.authorName}</span>
                   {post.byline && (
                     <>
                       <span>·</span>
@@ -327,6 +349,7 @@ export default function PostPage({ params }: PostPageProps) {
                       isShared: post.isShared,
                     }}
                     postData={post}
+                    onCommentClick={handleCommentClick}
                   />
                 </div>
               </article>
@@ -336,18 +359,28 @@ export default function PostPage({ params }: PostPageProps) {
                 post={post}
                 showInteractions={true}
                 isDetail
+                onCommentClick={handleCommentClick}
               />
             )}
           </div>
-
-          {/* Comments Section */}
-          <FeedCommentSection
-            postId={postId}
-            postData={post}
-            onClose={undefined}
-          />
         </div>
       </div>
+
+      {/* Comment Modal */}
+      {isCommentModalOpen && (
+        <FeedCommentSection
+          postId={postId}
+          postData={post}
+          onClose={() => setIsCommentModalOpen(false)}
+          onCommentAdded={() => {
+            setIsCommentModalOpen(false);
+            // Update post interactions after comment is added
+            setTimeout(() => {
+              updatePostInteractions();
+            }, 300);
+          }}
+        />
+      )}
     </PageContainer>
   );
 }

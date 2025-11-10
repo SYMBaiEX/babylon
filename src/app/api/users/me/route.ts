@@ -40,6 +40,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const authUser = await authenticate(request)
   const privyId = authUser.privyId ?? authUser.userId
 
+  logger.info(
+    'Fetching user profile',
+    { privyId, dbUserId: authUser.dbUserId },
+    'GET /api/users/me'
+  )
+
   const dbUser = await prisma.user.findUnique({
     where: { privyId },
     select: userSelect,
@@ -48,7 +54,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   if (!dbUser) {
     logger.info(
       'Authenticated user has no profile record yet',
-      { privyId },
+      { privyId, dbUserId: authUser.dbUserId },
       'GET /api/users/me'
     )
 
@@ -92,7 +98,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   logger.info(
     'Authenticated user profile fetched',
-    { userId: dbUser.id, needsOnboarding, needsOnchain },
+    { 
+      userId: dbUser.id, 
+      username: dbUser.username,
+      profileComplete: dbUser.profileComplete,
+      onChainRegistered: dbUser.onChainRegistered,
+      nftTokenId: dbUser.nftTokenId,
+      needsOnboarding, 
+      needsOnchain 
+    },
     'GET /api/users/me'
   )
 

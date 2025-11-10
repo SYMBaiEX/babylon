@@ -8,6 +8,9 @@ const nextConfig = {
     optimizePackageImports: ['lucide-react'],
     // instrumentationHook removed - available by default in Next.js 15+
   },
+  // Skip prerendering for feed page (client-side only)
+  skipTrailingSlashRedirect: true,
+  skipMiddlewareUrlNormalize: false,
   // Externalize packages with native Node.js dependencies for server-side
   serverExternalPackages: [
     'ipfs-http-client',

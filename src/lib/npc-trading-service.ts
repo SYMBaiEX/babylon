@@ -1,8 +1,16 @@
 /**
  * NPC Trading Service
  * 
- * Analyzes NPC post sentiment and automatically places trades
- * in both prediction markets and perpetual futures based on what they're posting about
+ * @deprecated This keyword-based trading system has been replaced by LLM-driven market decisions.
+ * See: MarketDecisionEngine, TradeExecutionService, MarketContextService
+ * 
+ * The new system generates trading decisions using the LLM based on:
+ * - Feed posts
+ * - Group chat messages (insider info)
+ * - Market conditions
+ * - NPC personality and tier
+ * 
+ * This file is kept for reference but should not be used.
  */
 
 import { prisma } from './prisma';

@@ -332,6 +332,7 @@ export interface InteractionBarProps {
     authorId: string;
     authorName: string;
     authorUsername?: string | null;
+    authorProfileImageUrl?: string | null;
     timestamp: string;
     likeCount?: number;
     commentCount?: number;
@@ -361,23 +362,4 @@ export interface CommentInputProps {
   onSubmit?: (comment: CommentData) => void;
   onCancel?: () => void;
   className?: string;
-}
-
-export interface CommentSectionProps {
-  postId: string;
-  isOpen?: boolean;
-  onClose?: () => void;
-  className?: string;
-  postData?: {
-    id: string;
-    content: string;
-    authorId: string;
-    authorName: string;
-    timestamp: string;
-    likeCount: number;
-    commentCount: number;
-    shareCount: number;
-    isLiked: boolean;
-    isShared: boolean;
-  } | null;
 }

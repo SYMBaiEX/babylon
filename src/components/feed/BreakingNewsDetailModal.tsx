@@ -98,7 +98,7 @@ export function BreakingNewsDetailModal({ isOpen, onClose, item }: BreakingNewsD
           {/* Header */}
           <div className="flex items-start justify-between mb-6">
             <div className="flex items-start gap-4 flex-1">
-              <div className="text-[#1c9cf0] mt-1 flex-shrink-0">
+              <div className="text-[#0066FF] mt-1 flex-shrink-0">
                 {getIcon(item.icon)}
               </div>
               <div className="flex-1 min-w-0">
@@ -108,7 +108,7 @@ export function BreakingNewsDetailModal({ isOpen, onClose, item }: BreakingNewsD
                 <div className="flex items-center gap-3 text-sm text-gray-400">
                   <span>{formatDate(item.timestamp)}</span>
                   {item.trending && (
-                    <span className="text-[#1c9cf0] font-semibold">• Trending</span>
+                    <span className="text-[#0066FF] font-semibold">• Trending</span>
                   )}
                 </div>
               </div>

@@ -29,6 +29,7 @@ export interface Actor {
   id: string;
   name: string;
   description?: string;
+  profileDescription?: string; // What the actor says about themselves on their profile
   domain?: string[];
   personality?: string;
   role?: string;
@@ -66,17 +67,65 @@ export interface ActorState {
 }
 
 /**
- * Relationship between two actors
+ * Relationship types between actors
+ */
+export const RELATIONSHIP_TYPES = {
+  // Hierarchical
+  MENTOR_STUDENT: 'mentor-student',
+  INDUSTRY_LEADER_FOLLOWER: 'industry-leader-follower',
+  INFLUENCER_FAN: 'influencer-fan',
+  // Collaborative
+  ALLIES: 'allies',
+  COLLABORATORS: 'collaborators',
+  CO_FOUNDERS: 'co-founders',
+  BUSINESS_PARTNERS: 'business-partners',
+  // Competitive
+  RIVALS: 'rivals',
+  COMPETITORS: 'competitors',
+  FRENEMIES: 'frenemies',
+  // Critical
+  CRITIC_SUBJECT: 'critic-subject',
+  WATCHDOG_TARGET: 'watchdog-target',
+  REGULATOR_REGULATED: 'regulator-regulated',
+  // Social
+  FRIENDS: 'friends',
+  ACQUAINTANCES: 'acquaintances',
+  FORMER_COLLEAGUES: 'former-colleagues',
+} as const;
+
+export type RelationshipType = typeof RELATIONSHIP_TYPES[keyof typeof RELATIONSHIP_TYPES];
+
+/**
+ * Rich relationship data between two actors
  */
 export interface ActorRelationship {
-  actor1: string;
-  actor2: string;
-  relationship: string;
-  context: string;
+  id: string;
+  actor1Id: string;
+  actor2Id: string;
+  relationshipType: RelationshipType;
+  strength: number; // 0.0 to 1.0
+  sentiment: number; // -1.0 to 1.0
+  isPublic: boolean;
+  history?: string;
+  affects?: Record<string, number>; // Behavioral modifiers
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /**
- * Connection between actors (used in game setup)
+ * Actor follow relationship
+ */
+export interface ActorFollow {
+  id: string;
+  followerId: string;
+  followingId: string;
+  isMutual: boolean;
+  createdAt: Date;
+}
+
+/**
+ * Legacy: Simple connection between actors (used in game setup)
+ * @deprecated Use ActorRelationship instead
  */
 export interface ActorConnection {
   actor1: string;
@@ -125,6 +174,7 @@ export interface Organization {
   id: string;
   name: string;
   description: string;
+  profileDescription?: string; // What the organization says about itself on its profile
   type: 'company' | 'media' | 'government';
   canBeInvolved: boolean;
   postStyle?: string;
@@ -280,6 +330,16 @@ export interface ActorData extends Actor {
 export interface SeedActorsDatabase {
   actors: ActorData[];
   organizations: Organization[];
+  relationships?: Array<{
+    actor1Id: string;
+    actor2Id: string;
+    relationshipType: string;
+    strength: number;
+    sentiment: number;
+    history: string;
+    actor1FollowsActor2: boolean;
+    actor2FollowsActor1: boolean;
+  }>;
 }
 
 /**

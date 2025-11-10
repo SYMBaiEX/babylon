@@ -49,6 +49,7 @@ A real-time prediction market game with autonomous NPCs, perpetual futures, and 
 - Multi-provider: Wallet, Email, Farcaster
 - Multi-chain: Ethereum, Base, Optimism, Polygon, Arbitrum
 - Profile setup wizard
+- **Farcaster Mini App**: Automatic login via Farcaster SDK
 
 ### 🤖 Agent Infrastructure (ERC-8004 + Agent0)
 - **Universal Registration**: All entities (game, users, agents) registered on-chain
@@ -122,3 +123,93 @@ The application uses **Server-Sent Events (SSE)** for real-time updates (Vercel-
 UPSTASH_REDIS_REST_URL=https://your-redis-url.upstash.io
 UPSTASH_REDIS_REST_TOKEN=your-token
 ```
+
+---
+
+## 📱 Farcaster Mini App Setup
+
+Babylon is configured as a **Farcaster Mini App** with automatic authentication. Users opening your app from Farcaster/Warpcast are logged in automatically!
+
+### Prerequisites
+
+- Privy account with Farcaster enabled
+- Production deployment at `https://babylon.market`
+
+### Configuration Steps
+
+#### 1. Configure Privy Dashboard (10 min)
+
+Visit https://dashboard.privy.io/ and configure:
+
+**Enable Farcaster:**
+- Navigate to: **User management → Authentication → Socials**
+- Enable **Farcaster**
+
+**⚠️ CRITICAL: Add Allowed Domains:**
+- Navigate to: **Configuration → App settings → Domains**
+- Add these domains:
+  - ✅ `https://babylon.market` (your production domain)
+  - ⚠️ **`https://farcaster.xyz`** ← **REQUIRED for Mini Apps!**
+  - ✅ `http://localhost:3000` (for development)
+
+> **Why `https://farcaster.xyz`?** Required for iframe-in-iframe support that Farcaster Mini Apps use.
+
+**Set Callback URL:**
+- Add: `https://babylon.market/api/auth/farcaster/callback`
+
+#### 2. Verify Environment Variables
+
+Ensure these are set in production:
+
+```bash
+NEXT_PUBLIC_PRIVY_APP_ID=your_privy_app_id
+PRIVY_APP_SECRET=your_privy_app_secret
+```
+
+#### 3. Deploy
+
+```bash
+vercel --prod
+```
+
+#### 4. Test in Farcaster
+
+Create a cast in Warpcast:
+```
+Check out Babylon! 🏛️
+
+https://babylon.market
+```
+
+Click to launch → Users are automatically logged in! ✨
+
+### How It Works
+
+1. **Mini App SDK** detects Farcaster context
+2. **Auto-login** triggers via Privy + `@farcaster/miniapp-sdk`
+3. User approves once
+4. **Instant authentication** - no forms or passwords!
+
+### Using Mini App Context in Code
+
+```typescript
+import { useFarcasterMiniApp } from '@/components/providers/FarcasterFrameProvider'
+
+function MyComponent() {
+  const { isMiniApp, fid, username } = useFarcasterMiniApp()
+
+  if (isMiniApp) {
+    return <div>Welcome from Farcaster, {username}!</div>
+  }
+
+  return <div>Welcome to Babylon!</div>
+}
+```
+
+### Key Resources
+
+- **Farcaster Mini Apps**: https://miniapps.farcaster.xyz/
+- **Privy Recipe**: https://docs.privy.io/recipes/farcaster/mini-apps
+- **Mini Apps SDK**: https://github.com/farcaster/miniapp-sdk
+
+---

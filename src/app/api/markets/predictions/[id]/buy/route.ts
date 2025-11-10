@@ -13,6 +13,8 @@ import { NotFoundError, BusinessLogicError, InsufficientFundsError } from '@/lib
 import { WalletService } from '@/lib/services/wallet-service';
 import { PredictionPricing } from '@/lib/prediction-pricing';
 import { logger } from '@/lib/logger';
+import { FeeService } from '@/lib/services/fee-service';
+import { FEE_CONFIG } from '@/lib/config/fees';
 /**
  * POST /api/markets/predictions/[id]/buy
  * Buy YES or NO shares in a prediction market
@@ -158,15 +160,15 @@ export const POST = withErrorHandling(async (
       throw new BusinessLogicError('Market has expired', 'MARKET_EXPIRED', { marketId, endDate: market.endDate });
     }
 
-    // Calculate shares using AMM
-    const calc = PredictionPricing.calculateBuy(
+    // Calculate shares using AMM with fees
+    const calc = PredictionPricing.calculateBuyWithFees(
       Number(market.yesShares),
       Number(market.noShares),
       side,
       amount
     );
 
-    // Debit cost from balance
+    // Debit total cost (includes fee) from balance
     await WalletService.debit(
       user.userId,
       amount,
@@ -175,14 +177,14 @@ export const POST = withErrorHandling(async (
       marketId
     );
 
-    // Update market shares
+    // Update market shares (use net amount, not total with fee)
     const updated = await db.market.update({
       where: { id: marketId },
       data: {
         yesShares: new Prisma.Decimal(calc.newYesPrice * (Number(market.yesShares) + Number(market.noShares))),
         noShares: new Prisma.Decimal(calc.newNoPrice * (Number(market.yesShares) + Number(market.noShares))),
         liquidity: {
-          increment: new Prisma.Decimal(amount),
+          increment: new Prisma.Decimal(calc.netAmount),
         },
       },
     });
@@ -225,6 +227,23 @@ export const POST = withErrorHandling(async (
     return { position: pos, market: updated, calculation: calc };
   });
 
+  // Process trading fee and distribute to referrer if applicable
+  const feeResult = await FeeService.processTradingFee(
+    user.userId,
+    FEE_CONFIG.FEE_TYPES.PRED_BUY,
+    amount,
+    position.id,
+    marketId
+  );
+
+  logger.info(`Trade completed with fee`, {
+    userId: user.userId,
+    marketId,
+    amount,
+    fee: feeResult.feeCharged,
+    referrerPaid: feeResult.referrerPaid,
+  }, 'POST /api/markets/predictions/[id]/buy');
+
   // Log agent activity (if agent)
   if (user.isAgent) {
     logger.info(`Agent ${user.userId} placed trade: ${side.toUpperCase()} $${amount} on market ${marketId}`, undefined, 'POST /api/markets/predictions/[id]/buy')
@@ -246,6 +265,10 @@ export const POST = withErrorHandling(async (
         yesPrice: calculation.newYesPrice,
         noPrice: calculation.newNoPrice,
         priceImpact: calculation.priceImpact,
+      },
+      fee: {
+        amount: feeResult.feeCharged,
+        referrerPaid: feeResult.referrerPaid,
       },
       newBalance: newBalance.balance,
     },

@@ -96,14 +96,14 @@ export function UpcomingEventsPanel() {
                 onClick={() => handleEventClick(event)}
                 className="flex items-start gap-2.5 cursor-pointer hover:bg-muted/50 rounded-lg p-1.5 -ml-1.5 transition-colors duration-200"
               >
-                <Calendar className="w-6 h-6 sm:w-7 sm:h-7 text-[#1c9cf0] mt-0.5 flex-shrink-0" />
+                <Calendar className="w-6 h-6 sm:w-7 sm:h-7 text-[#0066FF] mt-0.5 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-lg sm:text-xl font-semibold text-foreground leading-relaxed">
                       {event.title}
                     </p>
                     {event.isLive && (
-                      <span className="text-sm font-semibold text-[#1c9cf0] bg-[#1c9cf0]/10 px-2.5 py-1 rounded flex-shrink-0">
+                      <span className="text-sm font-semibold text-[#0066FF] bg-[#0066FF]/10 px-2.5 py-1 rounded flex-shrink-0">
                         LIVE
                       </span>
                     )}

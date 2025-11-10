@@ -276,7 +276,12 @@ export async function periodicReputationSync(userId?: string) {
       results,
     }
   } catch (error) {
-    logger.error('Failed to run periodic reputation sync', { error })
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+    logger.error('Failed to run periodic reputation sync', { 
+      error: errorMessage,
+      stack: errorStack 
+    }, 'PeriodicReputationSync')
     throw error
   }
 }

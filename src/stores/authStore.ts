@@ -14,6 +14,10 @@ export interface User {
   nftTokenId?: number | null
   createdAt?: string
   isActor?: boolean
+  isAdmin?: boolean
+  isBanned?: boolean
+  bannedAt?: string | null
+  bannedReason?: string | null
   reputationPoints?: number
   referralCount?: number
   referralCode?: string
@@ -84,6 +88,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'babylon-auth',
+      version: 1, // Increment this to invalidate old cached data
     }
   )
 )

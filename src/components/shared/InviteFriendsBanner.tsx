@@ -125,12 +125,12 @@ export function InviteFriendsBanner({ onDismiss }: InviteFriendsBannerProps) {
           <div className="flex items-center gap-2 mb-2">
             <Trophy className="w-5 h-5 text-purple-500" />
             <h3 className="font-semibold text-foreground">Invite Friends</h3>
-            <span className="ml-auto text-xs text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded">
-              +250 pts per signup
+            <span className="ml-auto text-xs text-green-500 bg-green-500/10 px-2 py-1 rounded">
+              50% of fees
             </span>
           </div>
           <p className="text-sm text-muted-foreground mb-3">
-            Share your unique referral link and earn points!
+            Earn 50% of all trading fees from your referrals!
           </p>
           <div className="flex items-center justify-between">
             <button

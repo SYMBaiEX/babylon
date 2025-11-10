@@ -8,7 +8,7 @@ import {
   successResponse
 } from '@/lib/api/auth-middleware'
 import { prisma } from '@/lib/database-service'
-import { AuthorizationError, BusinessLogicError, NotFoundError } from '@/lib/errors'
+import { AuthorizationError, BusinessLogicError, ConflictError, NotFoundError } from '@/lib/errors'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger'
 import { PointsService } from '@/lib/services/points-service'
@@ -76,6 +76,18 @@ export const POST = withErrorHandling(async (
       break;
   }
 
+  // Check if wallet address is already in use by another user
+  if (platform === 'wallet' && address) {
+    const existingWalletUser = await prisma.user.findUnique({
+      where: { walletAddress: address.toLowerCase() },
+      select: { id: true },
+    });
+
+    if (existingWalletUser && existingWalletUser.id !== canonicalUserId) {
+      throw new ConflictError('Wallet address already linked to another account', 'User.walletAddress');
+    }
+  }
+
   // Update user with social connection
   const updateData: Record<string, string | boolean> = {};
   switch (platform) {
@@ -88,7 +100,7 @@ export const POST = withErrorHandling(async (
       if (username) updateData.twitterUsername = username;
       break;
     case 'wallet':
-      if (address) updateData.walletAddress = address;
+      if (address) updateData.walletAddress = address.toLowerCase();
       break;
   }
 

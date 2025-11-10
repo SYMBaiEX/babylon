@@ -6,6 +6,9 @@ import { ExternalShareButton } from '@/components/shared/ExternalShareButton'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { Separator } from '@/components/shared/Separator'
 import { ShareButton } from '@/components/shared/ShareButton'
+import { ShareEarnModal } from '@/components/shared/ShareEarnModal'
+import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal'
+import { RewardsSkeleton } from '@/components/rewards/RewardsSkeleton'
 import { useAuth } from '@/hooks/useAuth'
 import { getProfileUrl } from '@/lib/profile-utils'
 import { POINTS } from '@/lib/services/points-service'
@@ -39,8 +42,10 @@ interface ReferredUser {
 
 interface ReferralStats {
   totalReferrals: number
-  totalPointsEarned: number
-  pointsPerReferral: number
+  totalPointsEarned?: number
+  totalFeesEarned?: number
+  pointsPerReferral?: number
+  feeShareRate?: number
   followingCount: number
 }
 
@@ -73,6 +78,8 @@ export default function RewardsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copiedUrl, setCopiedUrl] = useState(false)
+  const [showLinkSocialModal, setShowLinkSocialModal] = useState(false)
+  const [showShareModal, setShowShareModal] = useState(false)
 
   useEffect(() => {
     if (ready && authenticated && user?.id) {
@@ -121,11 +128,19 @@ export default function RewardsPage() {
   // Calculate total points earned from all sources
   const calculateTotalEarned = () => {
     if (!referralData) return 0
-    let total = referralData.stats.totalPointsEarned // From referrals
+    let total = 0
+    
+    // Add referral fees earned (new system)
+    if (referralData.stats.totalFeesEarned) {
+      total += referralData.stats.totalFeesEarned
+    }
+    
+    // Add profile completion points
     if (referralData.user.pointsAwardedForProfile) total += POINTS.PROFILE_COMPLETION
     if (referralData.user.pointsAwardedForFarcaster) total += POINTS.FARCASTER_LINK
     if (referralData.user.pointsAwardedForTwitter) total += POINTS.TWITTER_LINK
     if (referralData.user.pointsAwardedForWallet) total += POINTS.WALLET_CONNECT
+    
     return total
   }
 
@@ -145,7 +160,7 @@ export default function RewardsPage() {
       })(),
       points: POINTS.PROFILE_COMPLETION,
       completed: referralData.user.pointsAwardedForProfile,
-      action: '/settings',
+      action: 'profile-settings',
       icon: UserPlus,
       color: 'text-purple-500',
     },
@@ -155,7 +170,7 @@ export default function RewardsPage() {
       description: referralData.user.twitterUsername ? `@${referralData.user.twitterUsername}` : 'Connect your X account',
       points: POINTS.TWITTER_LINK,
       completed: referralData.user.pointsAwardedForTwitter,
-      action: '/settings',
+      action: 'link-social',
       icon: Twitter,
       color: 'text-blue-400',
     },
@@ -165,7 +180,7 @@ export default function RewardsPage() {
       description: referralData.user.farcasterUsername ? `@${referralData.user.farcasterUsername}` : 'Connect Farcaster account',
       points: POINTS.FARCASTER_LINK,
       completed: referralData.user.pointsAwardedForFarcaster,
-      action: '/settings',
+      action: 'link-social',
       icon: LinkIcon,
       color: 'text-purple-400',
     },
@@ -175,11 +190,22 @@ export default function RewardsPage() {
       description: referralData.user.walletAddress ? `${referralData.user.walletAddress.slice(0, 6)}...${referralData.user.walletAddress.slice(-4)}` : 'Link your wallet',
       points: POINTS.WALLET_CONNECT,
       completed: referralData.user.pointsAwardedForWallet,
-      action: '/settings',
+      action: 'wallet-connect',
       icon: Wallet,
       color: 'text-orange-500',
     },
   ] : []
+
+  const handleTaskClick = (_taskId: string, action: string) => {
+    if (action === 'link-social') {
+      setShowLinkSocialModal(true)
+    } else if (action === 'profile-settings') {
+      window.location.href = '/settings'
+    } else if (action === 'wallet-connect') {
+      // TODO: Implement wallet connect modal/action
+      window.location.href = '/settings'
+    }
+  }
 
   return (
     <PageContainer noPadding className="flex flex-col">
@@ -199,14 +225,7 @@ export default function RewardsPage() {
       )}
 
       {/* Loading State */}
-      {authenticated && loading && (
-        <div className="flex-1 flex items-center justify-center p-8">
-          <div className="text-center">
-            <div className="w-8 h-8 border-4 border-[#1c9cf0] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading rewards...</p>
-          </div>
-        </div>
-      )}
+      {authenticated && loading && <RewardsSkeleton />}
 
       {/* Error State */}
       {authenticated && error && !loading && (
@@ -233,7 +252,7 @@ export default function RewardsPage() {
             {/* Stats Row */}
             <div className="grid grid-cols-3 gap-4">
               {/* Total Earned */}
-              <div className="rounded-lg bg-gradient-to-r from-[#1c9cf0]/20 to-purple-500/20 p-4 border border-[#1c9cf0]/30">
+              <div className="rounded-lg bg-gradient-to-r from-[#0066FF]/20 to-purple-500/20 p-4 border border-[#0066FF]/30">
                 <div className="flex items-center gap-2 mb-2">
                   <Award className="w-5 h-5 text-yellow-500" />
                   <h2 className="text-sm font-medium text-muted-foreground">Total Earned</h2>
@@ -246,7 +265,7 @@ export default function RewardsPage() {
               {/* Current Balance */}
               <div className="rounded-lg bg-muted/30 border border-border p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <TrendingUp className="w-5 h-5 text-[#1c9cf0]" />
+                  <TrendingUp className="w-5 h-5 text-[#0066FF]" />
                   <h2 className="text-sm font-medium text-muted-foreground">Current Balance</h2>
                 </div>
                 <div className="text-3xl font-bold text-foreground">
@@ -257,7 +276,7 @@ export default function RewardsPage() {
               {/* Total Referrals */}
               <div className="rounded-lg bg-muted/30 border border-border p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <Users className="w-5 h-5 text-[#1c9cf0]" />
+                  <Users className="w-5 h-5 text-[#0066FF]" />
                   <h2 className="text-sm font-medium text-muted-foreground">Total Referrals</h2>
                 </div>
                 <div className="text-3xl font-bold text-foreground">
@@ -269,7 +288,7 @@ export default function RewardsPage() {
             {/* Reward Tasks */}
             <div className="rounded-lg bg-muted/30 border border-border p-4">
               <div className="flex items-center gap-2 mb-4">
-                <TrendingUp className="w-5 h-5 text-[#1c9cf0]" />
+                <TrendingUp className="w-5 h-5 text-[#0066FF]" />
                 <h2 className="text-base font-bold text-foreground">Earn Points</h2>
               </div>
 
@@ -277,13 +296,13 @@ export default function RewardsPage() {
                 {rewardTasks.map((task) => {
                   const Icon = task.icon
                   return (
-                    <a
+                    <button
                       key={task.id}
-                      href={task.action}
-                      className={`flex items-center gap-4 p-4 rounded-lg border transition-all ${
+                      onClick={() => handleTaskClick(task.id, task.action)}
+                      className={`flex items-center gap-4 p-4 rounded-lg border transition-all text-left w-full ${
                         task.completed
                           ? 'bg-green-500/10 border-green-500/30'
-                          : 'bg-sidebar-accent/50 border-border hover:bg-sidebar-accent'
+                          : 'bg-sidebar-accent/50 border-border hover:bg-sidebar-accent cursor-pointer'
                       }`}
                     >
                       <div className={`flex-shrink-0 ${task.color}`}>
@@ -305,7 +324,7 @@ export default function RewardsPage() {
                         </div>
                         <div className="text-xs text-muted-foreground">points</div>
                       </div>
-                    </a>
+                    </button>
                   )
                 })}
               </div>
@@ -313,24 +332,22 @@ export default function RewardsPage() {
 
             {/* Share Actions */}
             <div className="rounded-lg bg-muted/30 border border-border p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <Share2 className="w-5 h-5 text-[#1c9cf0]" />
-                <h2 className="text-base font-bold text-foreground">Share & Earn</h2>
-              </div>
-
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground mb-3">
-                  Share content to earn +{POINTS.SHARE_ACTION} points per share
-                </p>
-                
-                <div className="flex gap-3">
-                  <ShareButton
-                    contentType="profile"
-                    contentId={user?.id || ''}
-                    text="Check out my Babylon profile! 🎮"
-                    className="flex-1"
-                  />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Share2 className="w-5 h-5 text-[#0066FF]" />
+                  <div>
+                    <h2 className="text-base font-bold text-foreground">Share & Earn</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Share content to earn +{POINTS.SHARE_ACTION} points per share
+                    </p>
+                  </div>
                 </div>
+                <button
+                  onClick={() => setShowShareModal(true)}
+                  className="px-4 py-2 bg-[#0066FF] hover:bg-[#0066FF]/80 text-white rounded-lg transition-colors font-medium text-sm"
+                >
+                  Share
+                </button>
               </div>
             </div>
 
@@ -339,7 +356,7 @@ export default function RewardsPage() {
             {/* Referral Link */}
             <div className="rounded-lg bg-muted/30 border border-border p-4">
               <div className="flex items-center gap-2 mb-3">
-                <Gift className="w-5 h-5 text-[#1c9cf0]" />
+                <Gift className="w-5 h-5 text-[#0066FF]" />
                 <h2 className="text-base font-bold text-foreground">Referral Link</h2>
                 <span className="text-xs text-muted-foreground">+{POINTS.REFERRAL_SIGNUP} points per signup</span>
               </div>
@@ -391,7 +408,7 @@ export default function RewardsPage() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-base font-bold text-foreground flex items-center gap-1.5">
-                  <Users className="w-4 h-4 text-[#1c9cf0]" />
+                  <Users className="w-4 h-4 text-[#0066FF]" />
                   Your Referrals
                 </h2>
               </div>
@@ -469,7 +486,7 @@ export default function RewardsPage() {
             {/* Stats Row */}
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {/* Total Earned */}
-              <div className="rounded-lg bg-gradient-to-r from-[#1c9cf0]/20 to-purple-500/20 p-3 border border-[#1c9cf0]/30">
+              <div className="rounded-lg bg-gradient-to-r from-[#0066FF]/20 to-purple-500/20 p-3 border border-[#0066FF]/30">
                 <div className="flex items-center gap-1 mb-1">
                   <Award className="w-4 h-4 text-yellow-500" />
                   <h2 className="text-xs font-medium text-muted-foreground">Earned</h2>
@@ -482,7 +499,7 @@ export default function RewardsPage() {
               {/* Current Balance */}
               <div className="rounded-lg bg-muted/30 border border-border p-3">
                 <div className="flex items-center gap-1 mb-1">
-                  <TrendingUp className="w-4 h-4 text-[#1c9cf0]" />
+                  <TrendingUp className="w-4 h-4 text-[#0066FF]" />
                   <h2 className="text-xs font-medium text-muted-foreground">Balance</h2>
                 </div>
                 <div className="text-2xl font-bold text-foreground">
@@ -493,7 +510,7 @@ export default function RewardsPage() {
               {/* Total Referrals */}
               <div className="rounded-lg bg-muted/30 border border-border p-3">
                 <div className="flex items-center gap-1 mb-1">
-                  <Users className="w-4 h-4 text-[#1c9cf0]" />
+                  <Users className="w-4 h-4 text-[#0066FF]" />
                   <h2 className="text-xs font-medium text-muted-foreground">Referrals</h2>
                 </div>
                 <div className="text-2xl font-bold text-foreground">
@@ -505,7 +522,7 @@ export default function RewardsPage() {
             {/* Reward Tasks */}
             <div className="space-y-3">
               <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-[#1c9cf0]" />
+                <TrendingUp className="w-5 h-5 text-[#0066FF]" />
                 Earn Points
               </h2>
 
@@ -513,13 +530,13 @@ export default function RewardsPage() {
                 {rewardTasks.map((task) => {
                   const Icon = task.icon
                   return (
-                    <a
+                    <button
                       key={task.id}
-                      href={task.action}
-                      className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                      onClick={() => handleTaskClick(task.id, task.action)}
+                      className={`flex items-center gap-3 p-3 rounded-lg border transition-all text-left w-full ${
                         task.completed
                           ? 'bg-green-500/10 border-green-500/30'
-                          : 'bg-muted/30 border-border'
+                          : 'bg-muted/30 border-border cursor-pointer'
                       }`}
                     >
                       <div className={`flex-shrink-0 ${task.color}`}>
@@ -539,7 +556,7 @@ export default function RewardsPage() {
                           {task.completed ? '✓' : '+'}{task.points}
                         </span>
                       </div>
-                    </a>
+                    </button>
                   )
                 })}
               </div>
@@ -548,7 +565,7 @@ export default function RewardsPage() {
             {/* Share Actions */}
             <div className="space-y-3">
               <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Share2 className="w-5 h-5 text-[#1c9cf0]" />
+                <Share2 className="w-5 h-5 text-[#0066FF]" />
                 Share & Earn
               </h2>
               <p className="text-sm text-muted-foreground">
@@ -567,7 +584,7 @@ export default function RewardsPage() {
             {/* Referral Link */}
             <div className="rounded-lg bg-muted/30 border border-border p-4">
               <div className="flex items-center gap-2 mb-3">
-                <Gift className="w-5 h-5 text-[#1c9cf0]" />
+                <Gift className="w-5 h-5 text-[#0066FF]" />
                 <h2 className="text-base font-bold text-foreground">Referral Link</h2>
                 <span className="text-xs text-muted-foreground">+{POINTS.REFERRAL_SIGNUP} points</span>
               </div>
@@ -614,7 +631,7 @@ export default function RewardsPage() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-base font-bold text-foreground flex items-center gap-2">
-                  <Users className="w-5 h-5 text-[#1c9cf0]" />
+                  <Users className="w-5 h-5 text-[#0066FF]" />
                   Your Referrals
                 </h2>
               </div>
@@ -673,6 +690,27 @@ export default function RewardsPage() {
           </div>
         </div>
       )}
+
+      {/* Link Social Accounts Modal */}
+      <LinkSocialAccountsModal
+        isOpen={showLinkSocialModal}
+        onClose={() => {
+          setShowLinkSocialModal(false)
+          // Refresh data to update the UI
+          if (user?.id && authenticated) {
+            fetchReferralData()
+          }
+        }}
+      />
+      
+      {/* Share & Earn Modal */}
+      <ShareEarnModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        contentType="profile"
+        contentId={user?.id || ''}
+        text="Check out my Babylon profile! 🎮"
+      />
     </PageContainer>
   )
 }

@@ -6,7 +6,7 @@
 import { authenticate, optionalAuth } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
-import { CreateCommentSchema, IdParamSchema } from '@/lib/validation/schemas';
+import { CreateCommentSchema, PostIdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { notifyCommentOnPost, notifyReplyToComment } from '@/lib/services/notification-service';
 import { prisma } from '@/lib/database-service';
@@ -179,7 +179,7 @@ export const POST = withErrorHandling(async (
   // Authenticate user
   const user = await authenticate(request);
   const params = await (context?.params || Promise.reject(new BusinessLogicError('Missing route context', 'MISSING_CONTEXT')));
-  const { id: postId } = IdParamSchema.parse(params);
+  const { id: postId } = PostIdParamSchema.parse(params);
 
   // Parse and validate request body
   const body = await request.json();

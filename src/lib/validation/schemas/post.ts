@@ -6,6 +6,15 @@ import { z } from 'zod';
 import { UUIDSchema, UserIdSchema, createTrimmedStringSchema, PaginationSchema } from './common';
 
 /**
+ * Post ID parameter schema
+ * Accepts both UUID and game-generated post IDs
+ * Game post IDs have format: {gameId}-{authorId}-{timestamp}-{random}
+ */
+export const PostIdParamSchema = z.object({
+  id: z.string().min(1, 'Post ID is required')
+});
+
+/**
  * Create post schema
  */
 export const CreatePostSchema = z.object({
@@ -31,7 +40,7 @@ export const UpdatePostSchema = z.object({
  */
 export const CreateCommentSchema = z.object({
   content: createTrimmedStringSchema(1, 2000),
-  postId: UUIDSchema,
+  postId: z.string().min(1).optional(), // Optional since it comes from route params
   parentCommentId: UUIDSchema.optional()
 });
 
