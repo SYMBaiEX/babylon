@@ -137,6 +137,7 @@ export default function LeaderboardPage() {
                   <Link
                     key={player.id}
                     href={profileUrl}
+                    data-testid={player.isActor ? 'npc-entry' : 'leaderboard-entry'}
                     className={`block p-4 transition-colors ${
                       isCurrentUser
                         ? 'bg-[#0066FF]/20 border-l-4'
