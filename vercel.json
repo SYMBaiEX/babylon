@@ -1,5 +1,7 @@
 {
   "framework": "nextjs",
+  "buildCommand": "bun run build",
+  "outputDirectory": ".next",
   "regions": ["iad1"],
   "crons": [
     {
