@@ -5,7 +5,6 @@ import { X as XIcon, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { logger } from '@/lib/logger'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
 
 interface ShareVerificationModalProps {
   isOpen: boolean
@@ -138,7 +137,6 @@ export function ShareVerificationModal({
             >
               {verifying ? (
                 <>
-                  <BouncingLogo size={16} />
                   <span>Verifying...</span>
                 </>
               ) : (

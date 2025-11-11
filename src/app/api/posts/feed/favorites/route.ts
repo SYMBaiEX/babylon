@@ -66,6 +66,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         authorId: {
           in: favoritedUserIds,
         },
+        deletedAt: null, // Filter out deleted posts
       },
       orderBy: {
         createdAt: 'desc',

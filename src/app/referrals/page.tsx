@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { getProfileUrl } from '@/lib/profile-utils'
 import { useAuthStore } from '@/stores/authStore'
 import { usePrivy } from '@privy-io/react-auth'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { Skeleton } from '@/components/shared/Skeleton'
 import {
   Check,
   Copy,
@@ -141,11 +141,10 @@ export default function ReferralsPage() {
       {/* Loading State */}
       {authenticated && loading && (
         <div className="flex-1 flex items-center justify-center p-8">
-          <div className="text-center">
-            <div className="mx-auto mb-4 flex justify-center">
-              <BouncingLogo size={32} />
-            </div>
-            <p className="text-muted-foreground">Loading referral data...</p>
+          <div className="text-center space-y-4 w-full max-w-md">
+            <Skeleton className="h-8 w-48 mx-auto" />
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
           </div>
         </div>
       )}

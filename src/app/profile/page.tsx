@@ -3,7 +3,7 @@
 import { PostCard } from '@/components/posts/PostCard'
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal'
 import { OnChainBadge } from '@/components/profile/OnChainBadge'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { Skeleton } from '@/components/shared/Skeleton'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { TaggedText } from '@/components/shared/TaggedText'
 import { useAuth } from '@/hooks/useAuth'
@@ -11,7 +11,6 @@ import { useUpdateAgentProfileTx } from '@/hooks/useUpdateAgentProfileTx'
 import { cn } from '@/lib/utils'
 import { WALLET_ERROR_MESSAGES } from '@/lib/wallet-utils'
 import { useAuthStore } from '@/stores/authStore'
-import { ReputationCard } from '@/components/reputation/ReputationCard'
 import {
   AlertCircle,
   Calendar,
@@ -22,7 +21,6 @@ import {
   EyeOff,
   Trophy,
   User,
-  Wallet,
   X as XIcon
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -67,6 +65,7 @@ export default function ProfilePage() {
   
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [optimisticFollowingCount, setOptimisticFollowingCount] = useState<number | null>(null)
   const [editModal, setEditModal] = useState<EditModalState>({
     isOpen: false,
     formData: {
@@ -201,6 +200,35 @@ export default function ProfilePage() {
 
     loadContent()
   }, [user?.id, tab])
+  
+  // Listen for profile updates (when user follows/unfollows someone)
+  useEffect(() => {
+    const handleProfileUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent
+      const { type } = customEvent.detail || {}
+      
+      if (type === 'follow' || type === 'unfollow') {
+        // Update following count optimistically based on current displayed value
+        const delta = type === 'follow' ? 1 : -1
+        setOptimisticFollowingCount(prev => {
+          const currentCount = prev !== null ? prev : (user?.stats?.following || 0)
+          return Math.max(0, currentCount + delta) // Never go negative
+        })
+        
+        // Refetch user profile after a delay to get server values
+        setTimeout(() => {
+          setOptimisticFollowingCount(null)
+          // Force auth store to refetch user data
+          if (typeof window !== 'undefined') {
+            window.location.reload()
+          }
+        }, 2000)
+      }
+    }
+    
+    window.addEventListener('profile-updated', handleProfileUpdate)
+    return () => window.removeEventListener('profile-updated', handleProfileUpdate)
+  }, [user?.stats?.following])
 
   const openEditModal = () => {
     setEditModal({
@@ -477,7 +505,11 @@ export default function ProfilePage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <BouncingLogo size={48} />
+            <div className="space-y-4 w-full max-w-2xl">
+              <Skeleton className="h-48 w-full" />
+              <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
           </div>
         ) : authenticated && user ? (
           <>
@@ -613,32 +645,6 @@ export default function ProfilePage() {
                         </button>
                       </div>
                     )}
-
-                    {/* Wallet */}
-                    {user.walletAddress && (
-                      <div className="flex items-center justify-between group">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Wallet className="w-4 h-4" />
-                          <span className="font-mono text-xs">
-                            {socialVisibility.wallet 
-                              ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
-                              : '••••••••••••'
-                            }
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => toggleSocialVisibility('wallet')}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-muted rounded"
-                          title={socialVisibility.wallet ? 'Public' : 'Private'}
-                        >
-                          {socialVisibility.wallet ? (
-                            <Eye className="w-4 h-4 text-muted-foreground" />
-                          ) : (
-                            <EyeOff className="w-4 h-4 text-muted-foreground" />
-                          )}
-                        </button>
-                      </div>
-                    )}
                   </div>
 
                    {/* Metadata - Twitter Style */}
@@ -660,7 +666,9 @@ export default function ProfilePage() {
                   {/* Stats - Twitter Style */}
                   <div className="flex gap-4 text-sm mb-4">
                     <button className="hover:underline">
-                      <span className="font-bold text-foreground">{user.stats?.following || 0}</span>
+                      <span className="font-bold text-foreground">
+                        {optimisticFollowingCount !== null ? optimisticFollowingCount : (user.stats?.following || 0)}
+                      </span>
                       <span className="text-muted-foreground ml-1">Following</span>
                     </button>
                     <button className="hover:underline">
@@ -671,13 +679,6 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
-
-            {/* Reputation Card */}
-            {user && (
-              <div className="max-w-[600px] mx-auto px-4 py-6">
-                <ReputationCard userId={user.id} />
-              </div>
-            )}
 
             {/* Tabs: Posts vs Replies */}
             <div className="border-b border-border sticky top-0 bg-background/95 backdrop-blur-sm z-10">
@@ -709,7 +710,11 @@ export default function ProfilePage() {
             <div className="max-w-[600px] mx-auto">
               {loadingPosts ? (
                 <div className="flex items-center justify-center py-12">
-                  <BouncingLogo size={32} />
+                  <div className="space-y-3 w-full max-w-2xl">
+                    <Skeleton className="h-32 w-full" />
+                    <Skeleton className="h-32 w-full" />
+                    <Skeleton className="h-32 w-full" />
+                  </div>
                 </div>
               ) : tab === 'posts' ? (
                 posts.length === 0 ? (

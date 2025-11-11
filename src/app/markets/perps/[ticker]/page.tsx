@@ -9,7 +9,7 @@ import { AlertTriangle, ArrowLeft, Info, TrendingDown, TrendingUp } from 'lucide
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { Skeleton } from '@/components/shared/Skeleton'
 import { useMarketTracking } from '@/hooks/usePostHog'
 
 interface PerpMarket {
@@ -169,11 +169,10 @@ export default function PerpDetailPage() {
     return (
       <PageContainer>
         <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <div className="mx-auto mb-4 flex justify-center">
-              <BouncingLogo size={48} />
-            </div>
-            <p className="text-muted-foreground">Loading market...</p>
+          <div className="text-center space-y-4 w-full max-w-2xl">
+            <Skeleton className="h-8 w-48 mx-auto" />
+            <Skeleton className="h-64 w-full" />
+            <Skeleton className="h-32 w-full" />
           </div>
         </div>
       </PageContainer>
@@ -421,7 +420,6 @@ export default function PerpDetailPage() {
             >
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">
-                  <BouncingLogo size={20} />
                   Opening Position...
                 </span>
               ) : authenticated ? (

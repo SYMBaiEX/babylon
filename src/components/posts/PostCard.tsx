@@ -11,6 +11,7 @@ import { InteractionBar } from '@/components/interactions';
 import { useFontSize } from '@/contexts/FontSizeContext';
 import { getProfileUrl } from '@/lib/profile-utils';
 import type { PostInteraction } from '@/types/interactions';
+import { Repeat2 } from 'lucide-react';
 
 export interface PostCardProps {
   post: {
@@ -32,6 +33,15 @@ export interface PostCardProps {
     shareCount?: number;
     isLiked?: boolean;
     isShared?: boolean;
+    deletedAt?: string | null; // Soft delete timestamp
+    // Repost metadata
+    isRepost?: boolean;
+    originalPostId?: string | null;
+    originalAuthorId?: string | null;
+    originalAuthorName?: string | null;
+    originalAuthorUsername?: string | null;
+    originalAuthorProfileImageUrl?: string | null;
+    quoteComment?: string | null;
   };
   className?: string;
   onClick?: () => void;
@@ -86,13 +96,38 @@ export const PostCard = memo(function PostCard({
     isShared: post.isShared ?? false,
   };
 
-  const showVerifiedBadge = isNpcIdentifier(post.authorId);
+  // For reposts, we want to show the original author's info in the header
+  // and the reposter's info in the "Reposted by" line
+  const displayAuthorId = post.isRepost && post.originalAuthorId ? post.originalAuthorId : post.authorId;
+  const displayAuthorName = post.isRepost && post.originalAuthorName ? post.originalAuthorName : post.authorName;
+  const displayAuthorUsername = post.isRepost && post.originalAuthorUsername ? post.originalAuthorUsername : post.authorUsername;
+  const displayAuthorProfileImageUrl = post.isRepost && post.originalAuthorProfileImageUrl ? post.originalAuthorProfileImageUrl : post.authorProfileImageUrl;
+  
+  const showVerifiedBadge = isNpcIdentifier(displayAuthorId);
 
   const handleClick = () => {
     if (onClick) {
       onClick();
     }
   };
+
+  // If post is deleted, show a minimal placeholder
+  if (post.deletedAt) {
+    return (
+      <article
+        className={cn(
+          'px-4 sm:px-6 py-4 sm:py-5',
+          'w-full overflow-hidden',
+          'border-b border-border/5',
+          className
+        )}
+      >
+        <div className="flex items-center justify-center text-muted-foreground italic py-8">
+          (no post)
+        </div>
+      </article>
+    );
+  }
 
   return (
     <article
@@ -108,46 +143,63 @@ export const PostCard = memo(function PostCard({
       }}
       onClick={!isDetail ? handleClick : undefined}
     >
+      {/* Repost Indicator - Shows if this is a repost */}
+      {post.isRepost && (
+        <div className="flex items-center gap-2 mb-2 text-muted-foreground text-sm">
+          <Repeat2 size={14} className="text-green-600" />
+          <span>
+            Reposted by{' '}
+            <Link
+              href={getProfileUrl(post.authorId, post.authorUsername)}
+              className="font-semibold hover:underline text-foreground"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {post.authorName}
+            </Link>
+          </span>
+        </div>
+      )}
+
       {/* Row 1: Avatar + Name/Handle/Timestamp Header */}
       <div className="flex items-start gap-3 sm:gap-4 w-full mb-2">
-        {/* Avatar - Clickable, Round */}
+        {/* Avatar - Clickable, Round - Shows original author for reposts */}
         <Link
-          href={getProfileUrl(post.authorId, post.authorUsername)}
+          href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
           className="flex-shrink-0 hover:opacity-80 transition-opacity"
           onClick={(e) => e.stopPropagation()}
         >
           <Avatar
-            id={post.authorId}
-            name={post.authorName}
+            id={displayAuthorId}
+            name={displayAuthorName}
             type={post.type === 'article' ? 'business' : 'actor'}
             size="md"
-            src={post.authorProfileImageUrl || undefined}
+            src={displayAuthorProfileImageUrl || undefined}
             scaleFactor={isDetail ? fontSize : fontSize * (isDesktop ? 1.4 : isMobile ? 0.8 : 1)}
           />
         </Link>
 
         {/* Header: Name/Handle block on left, Timestamp on right */}
         <div className="flex items-start justify-between gap-2 flex-1 min-w-0">
-          {/* Name and Handle stacked vertically */}
+          {/* Name and Handle stacked vertically - Shows original author for reposts */}
           <div className="flex flex-col min-w-0">
             {/* Name row with verified badge */}
             <div className="flex items-center gap-1.5 min-w-0">
               <Link
-                href={getProfileUrl(post.authorId, post.authorUsername)}
+                href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
                 className="font-semibold text-lg sm:text-xl text-foreground hover:underline truncate"
                 onClick={(e) => e.stopPropagation()}
               >
-                {post.authorName}
+                {displayAuthorName}
               </Link>
               {showVerifiedBadge && <VerifiedBadge size="md" className="sm:w-6 sm:h-6" />}
             </div>
             {/* Handle row */}
             <Link
-              href={getProfileUrl(post.authorId, post.authorUsername)}
+              href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
               className="text-muted-foreground text-base hover:underline truncate"
               onClick={(e) => e.stopPropagation()}
             >
-              @{post.authorUsername || post.authorId}
+              @{displayAuthorUsername || displayAuthorId}
             </Link>
           </div>
           {/* Timestamp - Right aligned */}

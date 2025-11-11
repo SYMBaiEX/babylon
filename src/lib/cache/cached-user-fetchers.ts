@@ -176,6 +176,7 @@ export async function getCachedFollowingFeed(userId: string, limit: number = 100
     const posts = await prisma.post.findMany({
       where: {
         authorId: { in: allFollowedIds },
+        deletedAt: null, // Filter out deleted posts
       },
       orderBy: {
         timestamp: 'desc',

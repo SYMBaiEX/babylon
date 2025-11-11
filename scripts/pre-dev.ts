@@ -330,7 +330,7 @@ if (trendingCount < MIN_TRENDING || newsCount < MIN_NEWS) {
 logger.info('Checking post tagging...', undefined, 'Script');
 const totalPosts = await prisma.post.count();
 const postsWithTags = await prisma.post.count({
-  where: { postTags: { some: {} } }
+  where: { PostTag: { some: {} } }
 });
 const untaggedPosts = totalPosts - postsWithTags;
 

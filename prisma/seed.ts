@@ -193,6 +193,18 @@ async function main() {
     logger.warn('Generate: npx tsx scripts/init-actor-relationships.ts', undefined, 'Script');
     logger.warn('This updates actors.json with relationship data', undefined, 'Script');
   }
+  
+  // Initialize NPC-to-NPC follows if they don't exist
+  logger.info('Checking NPC-to-NPC follow relationships...', undefined, 'Script');
+  const existingFollows = await prisma.actorFollow.count();
+  
+  if (existingFollows === 0) {
+    logger.info('No NPC follows found, initializing...', undefined, 'Script');
+    await FollowInitializer.initializeActorFollows();
+    logger.info('NPC follow relationships initialized', undefined, 'Script');
+  } else {
+    logger.info(`Found ${existingFollows} existing NPC follow relationships`, { count: existingFollows }, 'Script');
+  }
 
   // Seed default real users for DM testing
   logger.info('Seeding default real users for DM testing...', undefined, 'Script');
@@ -262,7 +274,9 @@ async function main() {
     organizations: await prisma.organization.count(),
     companies: await prisma.organization.count({ where: { type: 'company' } }),
     relationships: await prisma.actorRelationship.count(),
-    follows: await prisma.actorFollow.count(),
+    actorFollows: await prisma.actorFollow.count(),
+    userActorFollows: await prisma.userActorFollow.count(),
+    userFollows: await prisma.follow.count(),
     posts: await prisma.post.count(),
     realUsers: await prisma.user.count({ where: { isActor: false } }),
   };
@@ -272,7 +286,9 @@ async function main() {
     pools: stats.pools,
     organizations: `${stats.organizations} (${stats.companies} companies)`,
     relationships: stats.relationships,
-    follows: stats.follows,
+    npcFollows: `${stats.actorFollows} (NPC-to-NPC)`,
+    userActorFollows: `${stats.userActorFollows} (User-to-NPC)`,
+    userFollows: `${stats.userFollows} (User-to-User)`,
     posts: stats.posts,
     realUsers: stats.realUsers,
   }, 'Script');

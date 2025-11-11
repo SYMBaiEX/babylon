@@ -75,6 +75,7 @@ class CachedDatabaseService {
         const posts = await db.prisma.post.findMany({
           where: {
             authorId: { in: followedIds },
+            deletedAt: null, // Filter out deleted posts
           },
           orderBy: {
             timestamp: 'desc',
@@ -142,6 +143,64 @@ class CachedDatabaseService {
       {
         namespace: CACHE_KEYS.USER_BALANCE,
         ttl: DEFAULT_TTLS.USER_BALANCE,
+      }
+    );
+  }
+
+  /**
+   * Get user profile stats with caching (followers, following, posts)
+   */
+  async getUserProfileStats(userId: string) {
+    const cacheKey = userId;
+    
+    return getCacheOrFetch(
+      cacheKey,
+      async () => {
+        const user = await db.prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            id: true,
+            _count: {
+              select: {
+                followedBy: true,
+                following: true,
+                userActorFollows: true,
+                positions: true,
+                comments: true,
+                reactions: true,
+              },
+            },
+          },
+        });
+
+        if (!user) return null;
+
+        // Also count legacy actor follows
+        const legacyActorFollowCount = await db.prisma.followStatus.count({
+          where: {
+            userId,
+            isActive: true,
+            followReason: 'user_followed',
+          },
+        });
+
+        // Count posts
+        const postCount = await db.prisma.post.count({
+          where: { authorId: userId },
+        });
+
+        return {
+          followers: user._count.followedBy,
+          following: user._count.following + user._count.userActorFollows + legacyActorFollowCount,
+          positions: user._count.positions,
+          comments: user._count.comments,
+          reactions: user._count.reactions,
+          posts: postCount,
+        };
+      },
+      {
+        namespace: 'user:profile:stats',
+        ttl: 60, // Cache for 1 minute
       }
     );
   }
@@ -323,7 +382,9 @@ class CachedDatabaseService {
     await Promise.all([
       invalidateCache(userId, { namespace: CACHE_KEYS.USER }),
       invalidateCache(userId, { namespace: CACHE_KEYS.USER_BALANCE }),
+      invalidateCache(userId, { namespace: 'user:profile:stats' }),
       invalidateCachePattern(`${userId}:*`, { namespace: CACHE_KEYS.POSTS_FOLLOWING }),
+      invalidateCachePattern('*', { namespace: 'user:follows' }), // Invalidate follows cache
     ]);
   }
 

@@ -16,6 +16,7 @@ import { getPrivyClient } from '@/lib/api/auth-middleware'
 import type { User as PrivyUser } from '@privy-io/server-auth'
 import type { OnboardingProfilePayload } from '@/lib/onboarding/types'
 import { trackServerEvent } from '@/lib/posthog/server'
+import { notifyNewAccount } from '@/lib/services/notification-service'
 
 interface SignupRequestBody {
   username: string
@@ -289,6 +290,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     },
     'POST /api/users/signup'
   )
+
+  // Send welcome notification
+  try {
+    await notifyNewAccount(result.user.id)
+  } catch (error) {
+    logger.warn('Failed to send welcome notification', { error, userId: result.user.id }, 'POST /api/users/signup')
+  }
 
   // Track signup with PostHog
   await trackServerEvent(result.user.id, 'signup_completed', {

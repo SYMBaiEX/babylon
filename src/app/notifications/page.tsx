@@ -201,22 +201,44 @@ export default function NotificationsPage() {
   }
 
   const getNotificationLink = (notification: Notification) => {
-    // System notifications redirect based on their content
-    if (notification.type === 'system') {
-      if (notification.message.includes('profile')) {
-        return '/settings'
-      }
-      return '/feed'
+    // Group chat invite - go to chat
+    if (notification.type === 'system' && notification.message.includes('invited you to')) {
+      // Extract chat ID from the message or notification data
+      // For now, go to chats page where they can see their invitations
+      return '/chats'
     }
-    if (notification.postId) {
-      return `/feed#post-${notification.postId}`
+    
+    // DM or group chat message - go to the specific chat
+    if (notification.type === 'system' && (notification.message.includes('Message') || notification.message.includes('message'))) {
+      return '/chats'
     }
-    if (notification.commentId) {
-      return `/feed#comment-${notification.commentId}`
+    
+    // Profile completion - go to settings
+    if (notification.type === 'system' && notification.message.includes('profile')) {
+      return '/settings'
     }
-    if (notification.actorId) {
+    
+    // Follow notification - go to the follower's profile
+    if (notification.type === 'follow' && notification.actorId) {
       return `/profile/${notification.actorId}`
     }
+    
+    // Comment or reaction on post - go to the post detail page
+    if ((notification.type === 'comment' || notification.type === 'reaction' || notification.type === 'reply') && notification.postId) {
+      return `/post/${notification.postId}`
+    }
+    
+    // Share notification - go to the post
+    if (notification.type === 'share' && notification.postId) {
+      return `/post/${notification.postId}`
+    }
+    
+    // Mention - go to the post if available
+    if (notification.type === 'mention' && notification.postId) {
+      return `/post/${notification.postId}`
+    }
+    
+    // Default: go to feed
     return '/feed'
   }
 
@@ -348,13 +370,22 @@ export default function NotificationsPage() {
                           </p>
                         ) : (
                           <p className="text-foreground leading-relaxed">
-                            <span className="font-semibold">
-                              {notification.actor?.displayName || 'Someone'}
-                            </span>
-                            {' '}
-                            <span className="text-muted-foreground">
-                              {getNotificationIcon(notification.type)} {notification.message}
-                            </span>
+                            {notification.type !== 'system' ? (
+                              <>
+                                <span className="font-semibold">
+                                  {notification.actor?.displayName || 'Someone'}
+                                </span>
+                                {' '}
+                                <span className="text-muted-foreground">
+                                  {getNotificationIcon(notification.type)}{' '}
+                                  {notification.message.replace(notification.actor?.displayName || '', '').replace(/^:\s*/, '')}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground">
+                                {getNotificationIcon(notification.type)} {notification.message}
+                              </span>
+                            )}
                           </p>
                         )}
                         <time className="text-sm text-muted-foreground mt-1 block">

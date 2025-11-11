@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import type { UserPoolDeposit, UserPoolSummary } from '@/types/pools'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { Skeleton } from '@/components/shared/Skeleton'
 
 interface UserPoolPositionsProps {
   onWithdraw?: () => void
@@ -79,7 +79,10 @@ export function UserPoolPositions({ onWithdraw }: UserPoolPositionsProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <BouncingLogo size={24} />
+        <div className="space-y-3 w-full">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
       </div>
     )
   }

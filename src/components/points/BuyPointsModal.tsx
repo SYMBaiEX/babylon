@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import type { Address } from 'viem';
 import { formatEther } from 'viem';
 
-import { BouncingLogo } from '@/components/shared/BouncingLogo';
+import { Skeleton } from '@/components/shared/Skeleton';
 
 import { cn } from '@/lib/utils';
 import { WALLET_ERROR_MESSAGES } from '@/lib/wallet-utils';
@@ -428,7 +428,7 @@ export function BuyPointsModal({
         return (
           <div className="text-center py-8">
             <div className="mx-auto mb-4 flex justify-center">
-              <BouncingLogo size={64} />
+              <Skeleton className="h-16 w-16 rounded-full" />
             </div>
             <h3 className="text-lg font-semibold mb-2">
               {step === 'payment'

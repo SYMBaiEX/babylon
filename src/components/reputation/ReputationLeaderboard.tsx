@@ -4,7 +4,6 @@
  * Displays ranked list of top-performing agents by reputation score
  * Shows rank, profile, reputation points, trust level, and performance metrics
  *
- * Pattern based on: ReputationCard.tsx, ReputationBreakdown.tsx
  */
 
 'use client'

@@ -294,6 +294,9 @@ export class MarketContextService {
    */
   private async getRecentFeed(): Promise<FeedPostContext[]> {
     const posts = await prisma.post.findMany({
+      where: {
+        deletedAt: null, // Filter out deleted posts
+      },
       orderBy: { createdAt: 'desc' },
       take: 100,
     });

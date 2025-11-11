@@ -9,7 +9,7 @@ import { optionalAuth } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { UserIdParamSchema, UserPostsQuerySchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
-import { requireUserByIdentifier } from '@/lib/users/user-lookup';
+import { findUserByIdentifier } from '@/lib/users/user-lookup';
 
 /**
  * GET /api/users/[userId]/posts
@@ -21,7 +21,18 @@ export const GET = withErrorHandling(async (
 ) => {
   const params = await context.params;
   const { userId } = UserIdParamSchema.parse(params);
-  const targetUser = await requireUserByIdentifier(userId, { id: true });
+  const targetUser = await findUserByIdentifier(userId, { id: true });
+  
+  // If user doesn't exist yet (new Privy user), return empty data
+  if (!targetUser) {
+    logger.info('User not found - returning empty data (may be new Privy user)', { userId }, 'GET /api/users/[userId]/posts');
+    return successResponse({
+      items: [],
+      total: 0,
+      type: 'posts',
+    });
+  }
+  
   const canonicalUserId = targetUser.id;
   
   // Validate query parameters
@@ -153,6 +164,7 @@ export const GET = withErrorHandling(async (
       const posts = await prisma.post.findMany({
         where: {
           authorId: canonicalUserId,
+          deletedAt: null, // Filter out deleted posts
           // Exclude reposts (posts with replyTo field will be handled separately)
         },
         include: {

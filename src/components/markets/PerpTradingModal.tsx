@@ -5,7 +5,6 @@ import { X, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
 
 interface PerpMarket {
   ticker: string
@@ -287,7 +286,6 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
-                <BouncingLogo size={20} />
                 Opening Position...
               </span>
             ) : (

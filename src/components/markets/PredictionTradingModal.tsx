@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
 import { PredictionPricing, calculateExpectedPayout } from '@/lib/prediction-pricing'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
 
 interface PredictionMarket {
   id: number | string
@@ -302,7 +301,6 @@ export function PredictionTradingModal({
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
-                <BouncingLogo size={20} />
                 Buying Shares...
               </span>
             ) : (

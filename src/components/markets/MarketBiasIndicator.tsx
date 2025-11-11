@@ -4,7 +4,6 @@
  * Displays active market biases and sentiment adjustments
  * Shows which markets are being influenced and by how much
  *
- * Pattern based on: ReputationCard.tsx
  */
 
 'use client'

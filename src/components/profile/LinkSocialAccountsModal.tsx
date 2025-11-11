@@ -5,7 +5,6 @@ import { X as XIcon, Check, ExternalLink, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
 
 interface LinkSocialAccountsModalProps {
   isOpen: boolean
@@ -212,7 +211,6 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
                 >
                   {linking === 'twitter' ? (
                     <>
-                      <BouncingLogo size={16} />
                       <span>Connecting...</span>
                     </>
                   ) : (
@@ -276,7 +274,6 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
                 >
                   {linking === 'farcaster' ? (
                     <>
-                      <BouncingLogo size={16} />
                       <span>Connecting...</span>
                     </>
                   ) : (
