@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '../../src/lib/database-service';
 import {
   notifyCommentOnPost,
   notifyReactionOnPost,
@@ -25,7 +25,7 @@ import {
   notifyGroupChatInvite,
   notifyDMMessage,
   notifyGroupChatMessage,
-} from '@/lib/services/notification-service';
+} from '../../src/lib/services/notification-service';
 
 describe('Notification System', () => {
   let testUser1: { id: string };
@@ -35,19 +35,22 @@ describe('Notification System', () => {
 
   beforeEach(async () => {
     // Create test users
+    const timestamp = Date.now();
     testUser1 = await prisma.user.create({
       data: {
-        id: 'test-user-1-' + Date.now(),
+        id: 'test-user-1-' + timestamp,
         displayName: 'Test User 1',
-        username: 'testuser1',
+        username: `testuser1-${timestamp}`,
+        updatedAt: new Date(),
       },
     });
 
     testUser2 = await prisma.user.create({
       data: {
-        id: 'test-user-2-' + Date.now(),
+        id: 'test-user-2-' + timestamp,
         displayName: 'Test User 2',
-        username: 'testuser2',
+        username: `testuser2-${timestamp}`,
+        updatedAt: new Date(),
       },
     });
 
@@ -68,6 +71,7 @@ describe('Notification System', () => {
         content: 'Test comment content',
         authorId: testUser1.id,
         postId: testPost.id,
+        updatedAt: new Date(),
       },
     });
   });
@@ -276,6 +280,7 @@ describe('Notification System', () => {
           authorId: testUser2.id,
           postId: testPost.id,
           parentCommentId: testComment.id,
+          updatedAt: new Date(),
         },
       });
 

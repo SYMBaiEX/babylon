@@ -17,8 +17,8 @@ export class PoolPerformanceService {
     const activePools = await prisma.pool.findMany({
       where: { isActive: true },
       include: {
-        positions: { where: { closedAt: null } },
-        deposits: { where: { withdrawnAt: null } },
+        PoolPosition: { where: { closedAt: null } },
+        PoolDeposit: { where: { withdrawnAt: null } },
       },
     });
 
@@ -37,14 +37,14 @@ export class PoolPerformanceService {
       const pool = await tx.pool.findUnique({
         where: { id: poolId },
         include: {
-          positions: { where: { closedAt: null } },
-          deposits: { where: { withdrawnAt: null } },
+          PoolPosition: { where: { closedAt: null } },
+          PoolDeposit: { where: { withdrawnAt: null } },
         },
       });
 
       if (!pool) throw new Error(`Pool not found: ${poolId}`);
 
-      for (const position of pool.positions) {
+      for (const position of pool.PoolPosition) {
         await this.updatePositionPnL(tx, position);
       }
 
@@ -66,11 +66,11 @@ export class PoolPerformanceService {
         },
       });
 
-      if (pool.deposits.length > 0 && totalDeposits > 0) {
-        const totalShares = pool.deposits.reduce((sum, d) => sum + parseFloat(d.shares.toString()), 0);
+      if (pool.PoolDeposit.length > 0 && totalDeposits > 0) {
+        const totalShares = pool.PoolDeposit.reduce((sum, d) => sum + parseFloat(d.shares.toString()), 0);
         const sharePrice = totalShares > 0 ? newTotalValue / totalShares : 1;
 
-        for (const deposit of pool.deposits) {
+        for (const deposit of pool.PoolDeposit) {
           const shares = parseFloat(deposit.shares.toString());
           const originalAmount = parseFloat(deposit.amount.toString());
           const currentValue = shares * sharePrice;

@@ -326,14 +326,14 @@ describe('MessageRouter', () => {
       const request: JsonRpcRequest = {
         jsonrpc: '2.0',
         method: A2AMethod.PAYMENT_REQUEST,
-        params: null, // This will cause an error
+        params: null, // This will cause a validation error
         id: 1
       }
 
       const response = await router.route('agent-1', request, mockConnection)
 
       expect(response.error).toBeDefined()
-      expect(response.error!.code).toBe(ErrorCode.INTERNAL_ERROR)
+      expect(response.error!.code).toBe(ErrorCode.INVALID_PARAMS) // null params = invalid params
     })
   })
 })

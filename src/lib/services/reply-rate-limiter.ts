@@ -8,6 +8,7 @@
  */
 
 import { prisma } from '@/lib/database-service';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -154,6 +155,7 @@ export class ReplyRateLimiter {
   ): Promise<void> {
     await prisma.userInteraction.create({
       data: {
+        id: generateSnowflakeId(),
         userId,
         npcId,
         postId,

@@ -97,7 +97,7 @@ export class ReputationService {
         marketId: resolution.marketId,
       },
       include: {
-        user: {
+        User: {
           select: {
             id: true,
             nftTokenId: true,
@@ -130,7 +130,7 @@ export class ReputationService {
     // 3. Process each position
     for (const position of positions) {
       // Skip if user is not registered on-chain
-      if (!position.user.onChainRegistered || !position.user.nftTokenId) {
+      if (!position.User.onChainRegistered || !position.User.nftTokenId) {
         results.push({
           userId: position.userId,
           tokenId: 0,
@@ -140,7 +140,7 @@ export class ReputationService {
         continue
       }
 
-      const tokenId = position.user.nftTokenId
+      const tokenId = position.User.nftTokenId
       const isWinner = position.side === resolution.outcome
       const sharesAmount = Number(position.shares)
       const amount = parseEther(Math.abs(sharesAmount).toString())

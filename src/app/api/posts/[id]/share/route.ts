@@ -94,6 +94,7 @@ export const POST = withErrorHandling(async (
     // Create share record
     await prisma.share.create({
       data: {
+        id: generateSnowflakeId(),
         userId: canonicalUserId,
         postId,
       },

@@ -15,6 +15,7 @@ import { logger } from './logger';
 import { prisma } from './prisma';
 import { generateTagsForPosts } from './services/tag-generation-service';
 import { storeTagsForPost } from './services/tag-storage-service';
+import { generateSnowflakeId } from './snowflake';
 
 class DatabaseService {
   // Expose prisma for direct queries
@@ -36,10 +37,12 @@ class DatabaseService {
     // Create new game
     const game = await prisma.game.create({
       data: {
+        id: generateSnowflakeId(),
         isContinuous: true,
         isRunning: true,
         currentDate: new Date(),
         speed: 60000, // 1 minute ticks
+        updatedAt: new Date(),
       },
     });
 
@@ -277,6 +280,7 @@ class DatabaseService {
   async createQuestion(question: GameQuestion & { questionNumber: number }) {
     return await prisma.question.create({
       data: {
+        id: generateSnowflakeId(),
         questionNumber: question.questionNumber,
         text: question.text,
         scenarioId: question.scenario,
@@ -286,6 +290,7 @@ class DatabaseService {
         resolutionDate: new Date(question.resolutionDate!),
         status: question.status || 'active',
         resolvedOutcome: question.resolvedOutcome,
+        updatedAt: new Date(),
       },
     });
   }
@@ -507,6 +512,7 @@ class DatabaseService {
   async recordPriceUpdate(organizationId: string, price: number, change: number, changePercent: number) {
     return await prisma.stockPrice.create({
       data: {
+        id: generateSnowflakeId(),
         organizationId,
         price,
         change,
@@ -532,6 +538,7 @@ class DatabaseService {
   ) {
     return await prisma.stockPrice.create({
       data: {
+        id: generateSnowflakeId(),
         organizationId,
         price: data.closePrice,
         change: data.closePrice - data.openPrice,
@@ -641,6 +648,7 @@ class DatabaseService {
         tradingBalance: actor.tradingBalance ?? (actor.hasPool ? 10000 : 0),
         reputationPoints: actor.reputationPoints ?? (actor.hasPool ? 10000 : 0),
         profileImageUrl: actor.profileImageUrl,
+        updatedAt: new Date(),
       },
       update: {
         name: actor.name,

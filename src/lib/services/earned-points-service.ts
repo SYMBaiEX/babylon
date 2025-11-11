@@ -5,6 +5,7 @@
 
 import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 export class EarnedPointsService {
   /**
@@ -120,6 +121,7 @@ export class EarnedPointsService {
 
         await tx.pointsTransaction.create({
           data: {
+            id: generateSnowflakeId(),
             userId,
             amount: pointsFromThisTrade,
             pointsBefore: user.reputationPoints,

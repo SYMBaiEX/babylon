@@ -95,6 +95,7 @@ import { logger } from '@/lib/logger';
 import { findUserByIdentifier } from '@/lib/users/user-lookup';
 import { trackServerEvent } from '@/lib/posthog/server';
 import { cachedDb } from '@/lib/cached-database-service';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 /**
  * POST Handler - Follow User or Actor
@@ -153,11 +154,12 @@ export const POST = withErrorHandling(async (
     // Create follow relationship
     const follow = await prisma.follow.create({
       data: {
+        id: generateSnowflakeId(),
         followerId: user.userId,
         followingId: targetId,
       },
       include: {
-        following: {
+        User_Follow_followingIdToUser: {
           select: {
             id: true,
             displayName: true,
@@ -186,7 +188,7 @@ export const POST = withErrorHandling(async (
     trackServerEvent(user.userId, 'user_followed', {
       targetUserId: targetId,
       targetType: 'user',
-      targetUsername: follow.following.username,
+      targetUsername: follow.User_Follow_followingIdToUser.username,
     }).catch((error) => {
       logger.warn('Failed to track user_followed event', { error });
     });
@@ -194,7 +196,7 @@ export const POST = withErrorHandling(async (
     return successResponse(
       {
         id: follow.id,
-        following: follow.following,
+        following: follow.User_Follow_followingIdToUser,
         createdAt: follow.createdAt,
       },
       201
@@ -230,11 +232,12 @@ export const POST = withErrorHandling(async (
       ? prisma.$transaction(async (tx) => {
           const created = await tx.userActorFollow.create({
             data: {
+              id: generateSnowflakeId(),
               userId: user.userId,
               actorId: targetId,
             },
             include: {
-              actor: {
+              Actor: {
                 select: {
                   id: true,
                   name: true,
@@ -258,11 +261,12 @@ export const POST = withErrorHandling(async (
         })
       : prisma.userActorFollow.create({
           data: {
+            id: generateSnowflakeId(),
             userId: user.userId,
             actorId: targetId,
           },
           include: {
-            actor: {
+            Actor: {
               select: {
                 id: true,
                 name: true,
@@ -285,8 +289,8 @@ export const POST = withErrorHandling(async (
     trackServerEvent(user.userId, 'user_followed', {
       targetUserId: targetId,
       targetType: 'actor',
-      actorName: follow.actor.name,
-      actorTier: follow.actor.tier,
+      actorName: follow.Actor.name,
+      actorTier: follow.Actor.tier,
     }).catch((error) => {
       logger.warn('Failed to track user_followed event', { error });
     });
@@ -294,7 +298,7 @@ export const POST = withErrorHandling(async (
     return successResponse(
       {
         id: follow.id,
-        actor: follow.actor,
+        actor: follow.Actor,
         createdAt: follow.createdAt,
       },
       201

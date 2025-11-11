@@ -16,6 +16,7 @@ import { GroupChatInvite } from '@/lib/services/group-chat-invite';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
 import { ensureUserForAuth } from '@/lib/users/ensure-user';
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 /**
  * POST /api/posts/[id]/reply
@@ -84,14 +85,18 @@ export const POST = withErrorHandling(async (
     });
 
     // 8. Create comment
+    const now = new Date();
     const comment = await prisma.comment.create({
       data: {
+        id: generateSnowflakeId(),
         content: content.trim(),
         postId,
         authorId: canonicalUserId,
+        createdAt: now,
+        updatedAt: now,
       },
       include: {
-        author: {
+        User: {
           select: {
             id: true,
             displayName: true,
@@ -171,7 +176,7 @@ export const POST = withErrorHandling(async (
         postId: comment.postId,
         authorId: comment.authorId,
         createdAt: comment.createdAt,
-        author: comment.author,
+        author: comment.User,
       },
       quality: {
         score: qualityResult.score,

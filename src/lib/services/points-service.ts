@@ -6,6 +6,7 @@
  */
 import { prisma } from '@/lib/database-service';
 import { logger } from '@/lib/logger';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 import type { JsonValue } from '@/types/common';
 
@@ -128,6 +129,7 @@ export class PointsService {
 
       await tx.pointsTransaction.create({
         data: {
+          id: generateSnowflakeId(),
           userId,
           amount,
           pointsBefore,
@@ -295,9 +297,8 @@ export class PointsService {
       // Create transaction record with payment details
       prisma.pointsTransaction.create({
         data: {
-          user: {
-            connect: { id: userId },
-          },
+          id: generateSnowflakeId(),
+          userId,
           amount: pointsAmount,
           pointsBefore,
           pointsAfter,
@@ -363,7 +364,7 @@ export class PointsService {
       select: {
         reputationPoints: true,
         referralCount: true,
-        pointsTransactions: {
+        PointsTransaction: {
           orderBy: { createdAt: 'desc' },
           take: 50,
         },
@@ -377,7 +378,7 @@ export class PointsService {
     return {
       points: user.reputationPoints,
       referralCount: user.referralCount,
-      transactions: user.pointsTransactions,
+      transactions: user.PointsTransaction,
     };
   }
 

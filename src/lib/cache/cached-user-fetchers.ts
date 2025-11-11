@@ -41,7 +41,7 @@ export async function getCachedUserPositions(userId: string) {
         userId,
       },
       include: {
-        market: {
+        Market: {
           select: {
             id: true,
             question: true,
@@ -87,17 +87,17 @@ export async function getCachedUserPositions(userId: string) {
         positions: predictionPositions.map((p) => ({
           id: p.id,
           marketId: p.marketId,
-          question: p.market.question,
+          question: p.Market.question,
           side: p.side ? 'YES' : 'NO',
           shares: Number(p.shares),
           avgPrice: Number(p.avgPrice),
           currentPrice: p.side
-            ? Number(p.market.yesShares) /
-              (Number(p.market.yesShares) + Number(p.market.noShares))
-            : Number(p.market.noShares) /
-              (Number(p.market.yesShares) + Number(p.market.noShares)),
-          resolved: p.market.resolved,
-          resolution: p.market.resolution,
+            ? Number(p.Market.yesShares) /
+              (Number(p.Market.yesShares) + Number(p.Market.noShares))
+            : Number(p.Market.noShares) /
+              (Number(p.Market.yesShares) + Number(p.Market.noShares)),
+          resolved: p.Market.resolved,
+          resolution: p.Market.resolution,
         })),
         stats: {
           totalPositions: predictionPositions.length,
@@ -333,11 +333,11 @@ export async function getCachedUserProfile(userId: string) {
         createdAt: true,
         _count: {
           select: {
-            positions: true,
-            comments: true,
-            reactions: true,
-            followedBy: true,
-            following: true,
+            Position: true,
+            Comment: true,
+            Reaction: true,
+            Follow_Follow_followingIdToUser: true, // followers
+            Follow_Follow_followerIdToUser: true, // following
           },
         },
       },
@@ -373,11 +373,11 @@ export async function getCachedUserProfile(userId: string) {
         lifetimePnL: Number(dbUser.lifetimePnL),
         createdAt: dbUser.createdAt.toISOString(),
         stats: {
-          positions: dbUser._count.positions,
-          comments: dbUser._count.comments,
-          reactions: dbUser._count.reactions,
-          followers: dbUser._count.followedBy,
-          following: dbUser._count.following,
+          positions: dbUser._count.Position,
+          comments: dbUser._count.Comment,
+          reactions: dbUser._count.Reaction,
+          followers: dbUser._count.Follow_Follow_followingIdToUser,
+          following: dbUser._count.Follow_Follow_followerIdToUser,
         },
       },
     }
@@ -433,7 +433,7 @@ export async function getCachedUserChats(userId: string) {
         id: { in: groupChatIds },
       },
       include: {
-        messages: {
+        Message: {
           orderBy: { createdAt: 'desc' },
           take: 1,
         },
@@ -456,8 +456,8 @@ export async function getCachedUserChats(userId: string) {
         isGroup: false,
       },
       include: {
-        participants: true,
-        messages: {
+        ChatParticipant: true,
+        Message: {
           orderBy: { createdAt: 'desc' },
           take: 1,
         },
@@ -473,7 +473,7 @@ export async function getCachedUserChats(userId: string) {
           id: membership.chatId,
           name: chat.name || 'Unnamed Group',
           isGroup: true,
-          lastMessage: chat.messages[0] || null,
+          lastMessage: chat.Message[0] || null,
           messageCount: membership.messageCount,
           qualityScore: membership.qualityScore,
           lastMessageAt: membership.lastMessageAt,
@@ -487,8 +487,8 @@ export async function getCachedUserChats(userId: string) {
       id: chat.id,
       name: chat.name || 'Direct Message',
       isGroup: false,
-      lastMessage: chat.messages[0] || null,
-      participants: chat.participants.length,
+      lastMessage: chat.Message[0] || null,
+      participants: chat.ChatParticipant.length,
       updatedAt: chat.updatedAt,
     }))
     
@@ -576,7 +576,7 @@ export async function getCachedUserReputation(userId: string) {
     const userPositions = await prisma.position.findMany({
       where: { userId },
       include: {
-        market: {
+        Market: {
           select: {
             id: true,
             question: true,
@@ -587,9 +587,9 @@ export async function getCachedUserReputation(userId: string) {
       },
     })
     
-    const resolvedPositions = userPositions.filter((p) => p.market.resolved)
+    const resolvedPositions = userPositions.filter((p) => p.Market.resolved)
     const wins = resolvedPositions.filter(
-      (p) => p.market.resolution === p.side
+      (p) => p.Market.resolution === p.side
     ).length
     const losses = resolvedPositions.length - wins
     const winRate = resolvedPositions.length > 0 ? (wins / resolvedPositions.length) * 100 : 0

@@ -31,11 +31,11 @@ export class MarketContextService {
     const npcs = await prisma.actor.findMany({
       where: { hasPool: true },
       include: {
-        pools: {
+        Pool: {
           where: { isActive: true },
           take: 1,
           include: {
-            positions: {
+            PoolPosition: {
               where: { closedAt: null },
             },
           },
@@ -54,7 +54,7 @@ export class MarketContextService {
     const groupChats = await prisma.chat.findMany({
       where: { isGroup: true },
       include: {
-        messages: {
+        Message: {
           orderBy: { createdAt: 'desc' },
           take: 50,
         },
@@ -75,19 +75,19 @@ export class MarketContextService {
     const contexts = new Map<string, NPCMarketContext>();
     
     for (const npc of npcs) {
-      const pool = npc.pools[0];
+      const pool = npc.Pool[0];
       const availableBalance = pool 
         ? parseFloat(pool.availableBalance.toString())
         : parseFloat(npc.tradingBalance.toString());
       
       // Filter group chats this NPC is a member of (based on chat participants)
       const npcGroupChats = groupChats.filter(chat =>
-        chat.messages.some(msg => msg.senderId === npc.id) ||
+        chat.Message.some(msg => msg.senderId === npc.id) ||
         chat.name?.toLowerCase().includes(npc.name.toLowerCase().split(' ')[0] || '')
       );
       
       const groupChatMessages: GroupChatContext[] = npcGroupChats.flatMap(chat => 
-        chat.messages.map(msg => ({
+        chat.Message.map(msg => ({
           chatId: chat.id,
           chatName: chat.name || 'Group Chat',
           from: msg.senderId,
@@ -98,7 +98,7 @@ export class MarketContextService {
       );
       
       // Convert pool positions to NPCPosition format
-      const currentPositions: NPCPosition[] = pool?.positions.map(pos => ({
+      const currentPositions: NPCPosition[] = pool?.PoolPosition.map(pos => ({
         id: pos.id,
         marketType: pos.marketType as 'perp' | 'prediction',
         ticker: pos.ticker || undefined,
@@ -161,11 +161,11 @@ export class MarketContextService {
     const npc = await prisma.actor.findUnique({
       where: { id: npcId },
       include: {
-        pools: {
+        Pool: {
           where: { isActive: true },
           take: 1,
           include: {
-            positions: {
+            PoolPosition: {
               where: { closedAt: null },
             },
           },
@@ -187,12 +187,12 @@ export class MarketContextService {
     // Get relationships for this NPC
     const relationships = await this.getRelationshipsForNPC(npcId);
     
-    const pool = npc.pools[0];
+    const pool = npc.Pool[0];
     const availableBalance = pool 
       ? parseFloat(pool.availableBalance.toString())
       : parseFloat(npc.tradingBalance.toString());
     
-    const currentPositions: NPCPosition[] = pool?.positions.map(pos => ({
+    const currentPositions: NPCPosition[] = pool?.PoolPosition.map(pos => ({
       id: pos.id,
       marketType: pos.marketType as 'perp' | 'prediction',
       ticker: pos.ticker || undefined,
@@ -260,11 +260,11 @@ export class MarketContextService {
         isGroup: true,
       },
       include: {
-        messages: {
+        Message: {
           orderBy: { createdAt: 'desc' },
           take: 50,
         },
-        participants: {
+        ChatParticipant: {
           select: {
             userId: true,
           },
@@ -274,11 +274,11 @@ export class MarketContextService {
     
     // Filter chats where this NPC is a member
     const npcChats = groupChats.filter(chat =>
-      chat.participants.some(p => p.userId === npcId)
+      chat.ChatParticipant.some(p => p.userId === npcId)
     );
     
     return npcChats.flatMap(chat =>
-      chat.messages.map(msg => ({
+      chat.Message.map(msg => ({
         chatId: chat.id,
         chatName: chat.name || 'Group Chat',
         from: msg.senderId,

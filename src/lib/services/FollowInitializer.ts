@@ -9,6 +9,7 @@ import { prisma } from '@/lib/database-service';
 import { logger } from '@/lib/logger';
 import { readFileSync, existsSync } from 'fs';
 import { RelationshipManager } from './RelationshipManager';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 export interface RelationshipData {
   actor1Id: string;
@@ -116,6 +117,7 @@ export class FollowInitializer {
         },
         update: {},
         create: {
+          id: generateSnowflakeId(),
           actor1Id: rel.actor1Id,
           actor2Id: rel.actor2Id,
           relationshipType: rel.relationshipType,
@@ -123,6 +125,7 @@ export class FollowInitializer {
           sentiment: rel.sentiment,
           history: rel.history,
           isPublic: true,
+          updatedAt: new Date(),
         },
       });
     }
@@ -180,6 +183,7 @@ export class FollowInitializer {
         isMutual,
       },
       create: {
+        id: generateSnowflakeId(),
         followerId,
         followingId,
         isMutual,
@@ -193,11 +197,11 @@ export class FollowInitializer {
   static async verifyFollowerCounts(): Promise<VerificationReport> {
     const actors = await prisma.actor.findMany({
       include: {
-        followedBy: true,
+        ActorFollow_ActorFollow_followingIdToActor: true,
       },
     });
 
-    const actorsWithoutFollowers = actors.filter(a => a.followedBy.length === 0);
+    const actorsWithoutFollowers = actors.filter(a => a.ActorFollow_ActorFollow_followingIdToActor.length === 0);
 
     // Calculate stats by tier
     const tierStats: Record<string, { counts: number[]; min: number; max: number; avg: number }> = {};
@@ -207,7 +211,7 @@ export class FollowInitializer {
       if (!tierStats[tier]) {
         tierStats[tier] = { counts: [], min: 0, max: 0, avg: 0 };
       }
-      tierStats[tier].counts.push(actor.followedBy.length);
+      tierStats[tier].counts.push(actor.ActorFollow_ActorFollow_followingIdToActor.length);
     });
 
     Object.keys(tierStats).forEach(tier => {

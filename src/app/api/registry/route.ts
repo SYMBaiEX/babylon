@@ -65,9 +65,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         // Include relationship counts
         _count: {
           select: {
-            positions: true,
-            comments: true,
-            reactions: true,
+            Position: true,
+            Comment: true,
+            Reaction: true,
           },
         },
       },
@@ -106,9 +106,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         lifetimePnL: user.lifetimePnL.toString(),
         reputation,
         stats: {
-          positions: user._count.positions,
-          comments: user._count.comments,
-          reactions: user._count.reactions,
+          positions: user._count.Position,
+          comments: user._count.Comment,
+          reactions: user._count.Reaction,
         },
       }
     })

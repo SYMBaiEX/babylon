@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 import { WaitlistService } from '../../src/lib/services/waitlist-service'
 import { prisma } from '../../src/lib/database-service'
+import { generateSnowflakeId } from '../../src/lib/snowflake'
 
 describe('WaitlistService', () => {
   // Test data cleanup
@@ -39,11 +40,13 @@ describe('WaitlistService', () => {
       // Create a test user first
       const user = await prisma.user.create({
         data: {
+          id: generateSnowflakeId(),
           privyId: `test-privy-${Date.now()}`,
           username: `testuser${Date.now()}`,
           displayName: 'Test User',
           reputationPoints: 100,
           profileComplete: true,
+          updatedAt: new Date(),
         },
       })
       testUserIds.push(user.id)
@@ -74,12 +77,14 @@ describe('WaitlistService', () => {
     it('should prevent self-referral', async () => {
       const user = await prisma.user.create({
         data: {
+          id: generateSnowflakeId(),
           privyId: `test-privy-${Date.now()}`,
           username: `testuser${Date.now()}`,
           displayName: 'Test User',
           reputationPoints: 100,
           profileComplete: true,
           referralCode: 'SELFREF1',
+          updatedAt: new Date(),
         },
       })
       testUserIds.push(user.id)
@@ -103,12 +108,14 @@ describe('WaitlistService', () => {
       // Create referrer
       const referrer = await prisma.user.create({
         data: {
+          id: generateSnowflakeId(),
           privyId: `test-privy-ref-${Date.now()}`,
           username: `referrer${Date.now()}`,
           displayName: 'Referrer',
           reputationPoints: 100,
           profileComplete: true,
           referralCode: 'REF12345',
+          updatedAt: new Date(),
         },
       })
       testUserIds.push(referrer.id)
@@ -116,12 +123,14 @@ describe('WaitlistService', () => {
       // Create user already referred by someone else
       const user = await prisma.user.create({
         data: {
+          id: generateSnowflakeId(),
           privyId: `test-privy-${Date.now()}`,
           username: `testuser${Date.now()}`,
           displayName: 'Test User',
           reputationPoints: 100,
           profileComplete: true,
           referredBy: 'someone-else-id',
+          updatedAt: new Date(),
         },
       })
       testUserIds.push(user.id)
@@ -146,12 +155,14 @@ describe('WaitlistService', () => {
       // Create referrer
       const referrer = await prisma.user.create({
         data: {
+          id: generateSnowflakeId(),
           privyId: `test-privy-ref-${Date.now()}`,
           username: `referrer${Date.now()}`,
           displayName: 'Referrer',
           reputationPoints: 100,
           profileComplete: true,
           referralCode: 'VALIDREF',
+          updatedAt: new Date(),
         },
       })
       testUserIds.push(referrer.id)
@@ -159,11 +170,13 @@ describe('WaitlistService', () => {
       // Create new user
       const user = await prisma.user.create({
         data: {
+          id: generateSnowflakeId(),
           privyId: `test-privy-${Date.now()}`,
           username: `testuser${Date.now()}`,
           displayName: 'Test User',
           reputationPoints: 100,
           profileComplete: true,
+          updatedAt: new Date(),
         },
       })
       testUserIds.push(user.id)
@@ -195,6 +208,7 @@ describe('WaitlistService', () => {
       // Create users with different invite points
       const userA = await prisma.user.create({
         data: {
+          id: generateSnowflakeId(),
           privyId: `test-a-${Date.now()}`,
           username: `usera${Date.now()}`,
           displayName: 'User A',
@@ -203,12 +217,14 @@ describe('WaitlistService', () => {
           isWaitlistActive: true,
           waitlistPosition: 1, // Signed up first
           waitlistJoinedAt: new Date(Date.now() - 10000),
+          updatedAt: new Date(),
         },
       })
       testUserIds.push(userA.id)
 
       const userB = await prisma.user.create({
         data: {
+          id: generateSnowflakeId(),
           privyId: `test-b-${Date.now()}`,
           username: `userb${Date.now()}`,
           displayName: 'User B',
@@ -217,6 +233,7 @@ describe('WaitlistService', () => {
           isWaitlistActive: true,
           waitlistPosition: 2, // Signed up second
           waitlistJoinedAt: new Date(Date.now() - 5000),
+          updatedAt: new Date(),
         },
       })
       testUserIds.push(userB.id)
@@ -243,6 +260,7 @@ describe('WaitlistService', () => {
       // Create two users with same invite points
       const user1 = await prisma.user.create({
         data: {
+          id: generateSnowflakeId(),
           privyId: `test-1-${now}`,
           username: `user1${now}`,
           displayName: 'User 1',
@@ -250,12 +268,14 @@ describe('WaitlistService', () => {
           isWaitlistActive: true,
           waitlistPosition: 1,
           waitlistJoinedAt: new Date(now - 10000), // Earlier
+          updatedAt: new Date(),
         },
       })
       testUserIds.push(user1.id)
 
       const user2 = await prisma.user.create({
         data: {
+          id: generateSnowflakeId(),
           privyId: `test-2-${now}`,
           username: `user2${now}`,
           displayName: 'User 2',
@@ -263,6 +283,7 @@ describe('WaitlistService', () => {
           isWaitlistActive: true,
           waitlistPosition: 2,
           waitlistJoinedAt: new Date(now - 5000), // Later
+          updatedAt: new Date(),
         },
       })
       testUserIds.push(user2.id)
@@ -280,12 +301,14 @@ describe('WaitlistService', () => {
     it('should calculate percentile correctly', async () => {
       const user = await prisma.user.create({
         data: {
+          id: generateSnowflakeId(),
           privyId: `test-perc-${Date.now()}`,
           username: `userperc${Date.now()}`,
           displayName: 'User Percentile',
           invitePoints: 100,
           isWaitlistActive: true,
           waitlistPosition: 1,
+          updatedAt: new Date(),
         },
       })
       testUserIds.push(user.id)
@@ -304,11 +327,13 @@ describe('WaitlistService', () => {
     it('should award email bonus only once', async () => {
       const user = await prisma.user.create({
         data: {
+          id: generateSnowflakeId(),
           privyId: `test-email-${Date.now()}`,
           username: `useremail${Date.now()}`,
           displayName: 'Test Email User',
           reputationPoints: 100,
           bonusPoints: 0,
+          updatedAt: new Date(),
         },
       })
       testUserIds.push(user.id)
@@ -334,11 +359,13 @@ describe('WaitlistService', () => {
     it('should award wallet bonus only once', async () => {
       const user = await prisma.user.create({
         data: {
+          id: generateSnowflakeId(),
           privyId: `test-wallet-${Date.now()}`,
           username: `userwallet${Date.now()}`,
           displayName: 'Test Wallet User',
           reputationPoints: 100,
           bonusPoints: 0,
+          updatedAt: new Date(),
         },
       })
       testUserIds.push(user.id)
@@ -368,29 +395,35 @@ describe('WaitlistService', () => {
       const users = await Promise.all([
         prisma.user.create({
           data: {
+            id: generateSnowflakeId(),
             privyId: `test-top1-${Date.now()}`,
             username: `top1${Date.now()}`,
             displayName: 'Top 1',
             invitePoints: 150, // Most invites
             isWaitlistActive: true,
+            updatedAt: new Date(),
           },
         }),
         prisma.user.create({
           data: {
+            id: generateSnowflakeId(),
             privyId: `test-top2-${Date.now()}`,
             username: `top2${Date.now()}`,
             displayName: 'Top 2',
             invitePoints: 100,
             isWaitlistActive: true,
+            updatedAt: new Date(),
           },
         }),
         prisma.user.create({
           data: {
+            id: generateSnowflakeId(),
             privyId: `test-top3-${Date.now()}`,
             username: `top3${Date.now()}`,
             displayName: 'Top 3',
             invitePoints: 50,
             isWaitlistActive: true,
+            updatedAt: new Date(),
           },
         }),
       ])

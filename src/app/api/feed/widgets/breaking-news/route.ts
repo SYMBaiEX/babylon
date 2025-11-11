@@ -124,7 +124,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       take: FEED_WIDGET_CONFIG.MAX_PRICE_UPDATES_QUERY,
       orderBy: { timestamp: 'desc' },
       include: {
-        organization: {
+        Organization: {
           select: {
             id: true,
             name: true,
@@ -138,7 +138,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     // Find any price changes using configurable thresholds
     const significantPriceUpdates = priceUpdates
       .filter((update) => {
-        if (!update.organization) return false
+        if (!update.Organization) return false
         const changePercent = update.changePercent || 0
         // Use configurable thresholds
         return Math.abs(changePercent) >= FEED_WIDGET_CONFIG.SIGNIFICANT_PRICE_CHANGE_PERCENT || 
@@ -147,9 +147,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .slice(0, 3)
 
     for (const update of significantPriceUpdates) {
-      if (!update.organization) continue
+      if (!update.Organization) continue
 
-      const org = update.organization
+      const org = update.Organization
       const price = org.currentPrice || update.price || 0
       const changePercent = update.changePercent || 0
       const isATH = changePercent >= FEED_WIDGET_CONFIG.ATH_THRESHOLD_PERCENT && update.changePercent && update.changePercent > 0
@@ -434,7 +434,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       take: FEED_WIDGET_CONFIG.MAX_PRICE_UPDATES_QUERY,
       orderBy: { timestamp: 'desc' },
       include: {
-        organization: {
+        Organization: {
           select: {
             id: true,
             name: true,
@@ -448,7 +448,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     // Find any price changes using configurable thresholds
     const significantPriceUpdates = priceUpdates
       .filter((update) => {
-        if (!update.organization) return false
+        if (!update.Organization) return false
         const changePercent = update.changePercent || 0
         // Use configurable thresholds
         return Math.abs(changePercent) >= FEED_WIDGET_CONFIG.SIGNIFICANT_PRICE_CHANGE_PERCENT || 
@@ -457,9 +457,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       .slice(0, 3)
 
     for (const update of significantPriceUpdates) {
-      if (!update.organization) continue
+      if (!update.Organization) continue
 
-      const org = update.organization
+      const org = update.Organization
       const price = org.currentPrice || update.price || 0
       const changePercent = update.changePercent || 0
       const isATH = changePercent >= FEED_WIDGET_CONFIG.ATH_THRESHOLD_PERCENT && update.changePercent && update.changePercent > 0

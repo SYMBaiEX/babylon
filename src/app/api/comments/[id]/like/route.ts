@@ -12,6 +12,7 @@ import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { IdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { notifyReactionOnComment } from '@/lib/services/notification-service';
+import { generateSnowflakeId } from '@/lib/snowflake';
 /**
  * POST /api/comments/[id]/like
  * Like a comment
@@ -59,6 +60,7 @@ export const POST = withErrorHandling(async (
   // Create like reaction
   const reaction = await prisma.reaction.create({
     data: {
+      id: generateSnowflakeId(),
       commentId,
       userId: canonicalUserId,
       type: 'like',

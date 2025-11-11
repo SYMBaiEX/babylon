@@ -16,7 +16,8 @@ import { join } from 'path'
 config({ path: join(process.cwd(), '.env') })
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
-import { prisma } from '@/lib/database-service'
+import { prisma } from '../../src/lib/database-service'
+import { generateSnowflakeId } from '../../src/lib/snowflake'
 
 console.log('[TEST] Using configured database for integration tests')
 
@@ -53,6 +54,7 @@ describe('Complete User Social Features Integration', () => {
       // Create test users
       testUser1 = await prisma.user.create({
         data: {
+          id: generateSnowflakeId(),
           privyId: `did:privy:test-social-1-${Date.now()}`,
           username: `socialtest1_${Date.now()}`,
           displayName: 'Social Test User 1',
@@ -60,6 +62,7 @@ describe('Complete User Social Features Integration', () => {
           isActor: false,
           profileComplete: true,
           hasUsername: true,
+          updatedAt: new Date(),
         },
         select: {
           id: true,
@@ -70,6 +73,7 @@ describe('Complete User Social Features Integration', () => {
 
       testUser2 = await prisma.user.create({
         data: {
+          id: generateSnowflakeId(),
           privyId: `did:privy:test-social-2-${Date.now()}`,
           username: `socialtest2_${Date.now()}`,
           displayName: 'Social Test User 2',
@@ -77,6 +81,7 @@ describe('Complete User Social Features Integration', () => {
           isActor: false,
           profileComplete: true,
           hasUsername: true,
+          updatedAt: new Date(),
         },
         select: {
           id: true,
@@ -113,6 +118,7 @@ describe('Complete User Social Features Integration', () => {
       // Create the follow
       const follow = await prisma.follow.create({
         data: {
+          id: generateSnowflakeId(),
           followerId: testUser1.id,
           followingId: testUser2.id,
         },
@@ -136,6 +142,7 @@ describe('Complete User Social Features Integration', () => {
       // Create the follow
       const follow = await prisma.follow.create({
         data: {
+          id: generateSnowflakeId(),
           followerId: testUser2.id,
           followingId: testUser1.id,
         },
@@ -235,6 +242,7 @@ describe('Complete User Social Features Integration', () => {
             id: dmChatId,
             name: null,
             isGroup: false,
+            updatedAt: new Date(),
           },
         })
 
@@ -242,12 +250,14 @@ describe('Complete User Social Features Integration', () => {
         await Promise.all([
           prisma.chatParticipant.create({
             data: {
+              id: generateSnowflakeId(),
               chatId: dmChatId,
               userId: testUser1.id,
             },
           }),
           prisma.chatParticipant.create({
             data: {
+              id: generateSnowflakeId(),
               chatId: dmChatId,
               userId: testUser2.id,
             },
@@ -262,6 +272,7 @@ describe('Complete User Social Features Integration', () => {
       // Now send the message
       const message = await prisma.message.create({
         data: {
+          id: generateSnowflakeId(),
           chatId: dmChatId,
           senderId: testUser1.id,
           content: 'Hello from User 1! This is a test message.',
@@ -291,6 +302,7 @@ describe('Complete User Social Features Integration', () => {
     it('should allow User 2 to send reply message', async () => {
       const message = await prisma.message.create({
         data: {
+          id: generateSnowflakeId(),
           chatId: dmChatId,
           senderId: testUser2.id,
           content: 'Hi User 1! Got your message, replying now.',
@@ -318,9 +330,9 @@ describe('Complete User Social Features Integration', () => {
       const userChats = await prisma.chatParticipant.findMany({
         where: { userId: testUser1.id },
         include: {
-          chat: {
+          Chat: {
             include: {
-              messages: {
+              Message: {
                 orderBy: { createdAt: 'desc' },
                 take: 1,
               },
@@ -331,7 +343,7 @@ describe('Complete User Social Features Integration', () => {
 
       const dmChat = userChats.find(c => c.chatId === dmChatId)
       expect(dmChat).toBeTruthy()
-      expect(dmChat?.chat.isGroup).toBe(false)
+      expect(dmChat?.Chat.isGroup).toBe(false)
       console.log(`✅ DM appears in User 1's chat list`)
     })
 
@@ -339,9 +351,9 @@ describe('Complete User Social Features Integration', () => {
       const userChats = await prisma.chatParticipant.findMany({
         where: { userId: testUser2.id },
         include: {
-          chat: {
+          Chat: {
             include: {
-              messages: {
+              Message: {
                 orderBy: { createdAt: 'desc' },
                 take: 1,
               },
@@ -352,7 +364,7 @@ describe('Complete User Social Features Integration', () => {
 
       const dmChat = userChats.find(c => c.chatId === dmChatId)
       expect(dmChat).toBeTruthy()
-      expect(dmChat?.chat.isGroup).toBe(false)
+      expect(dmChat?.Chat.isGroup).toBe(false)
       console.log(`✅ DM appears in User 2's chat list`)
     })
   })
@@ -365,6 +377,7 @@ describe('Complete User Social Features Integration', () => {
           id: `test-group-${Date.now()}`,
           name: `Test Group Chat ${Date.now()}`,
           isGroup: true,
+          updatedAt: new Date(),
         },
       })
 
@@ -378,6 +391,7 @@ describe('Complete User Social Features Integration', () => {
     it('should add User 1 as initial participant', async () => {
       const participant = await prisma.chatParticipant.create({
         data: {
+          id: generateSnowflakeId(),
           chatId: groupChatId,
           userId: testUser1.id,
         },
@@ -393,6 +407,7 @@ describe('Complete User Social Features Integration', () => {
     it('should add User 2 to the group chat', async () => {
       const participant = await prisma.chatParticipant.create({
         data: {
+          id: generateSnowflakeId(),
           chatId: groupChatId,
           userId: testUser2.id,
         },
@@ -420,7 +435,7 @@ describe('Complete User Social Features Integration', () => {
           userId: testUser1.id,
         },
         include: {
-          chat: true,
+          Chat: true,
         },
       })
 
@@ -435,7 +450,7 @@ describe('Complete User Social Features Integration', () => {
           userId: testUser2.id,
         },
         include: {
-          chat: true,
+          Chat: true,
         },
       })
 
@@ -449,6 +464,7 @@ describe('Complete User Social Features Integration', () => {
     it('should allow User 1 to send message to group', async () => {
       const message = await prisma.message.create({
         data: {
+          id: generateSnowflakeId(),
           chatId: groupChatId,
           senderId: testUser1.id,
           content: 'Hello everyone! This is User 1 posting to the group.',
@@ -464,6 +480,7 @@ describe('Complete User Social Features Integration', () => {
     it('should allow User 2 to send message to group', async () => {
       const message = await prisma.message.create({
         data: {
+          id: generateSnowflakeId(),
           chatId: groupChatId,
           senderId: testUser2.id,
           content: 'Hey User 1! I can see your message. Replying from User 2.',
@@ -500,22 +517,22 @@ describe('Complete User Social Features Integration', () => {
       const chat = await prisma.chat.findUnique({
         where: { id: groupChatId },
         include: {
-          messages: {
+          Message: {
             orderBy: { createdAt: 'asc' },
           },
-          participants: true,
+          ChatParticipant: true,
         },
       })
 
       expect(chat).toBeTruthy()
       expect(chat?.isGroup).toBe(true)
-      expect(chat?.participants.length).toBe(2)
-      expect(chat?.messages.length).toBeGreaterThanOrEqual(2)
+      expect(chat?.ChatParticipant.length).toBe(2)
+      expect(chat?.Message.length).toBeGreaterThanOrEqual(2)
       
       console.log(`✅ Group chat details complete:`)
       console.log(`   - Name: ${chat?.name}`)
-      console.log(`   - Participants: ${chat?.participants.length}`)
-      console.log(`   - Messages: ${chat?.messages.length}`)
+      console.log(`   - Participants: ${chat?.ChatParticipant.length}`)
+      console.log(`   - Messages: ${chat?.Message.length}`)
     })
   })
 
@@ -526,8 +543,8 @@ describe('Complete User Social Features Integration', () => {
         select: {
           _count: {
             select: {
-              followedBy: true,
-              following: true,
+              Follow_Follow_followingIdToUser: true,
+              Follow_Follow_followerIdToUser: true,
             },
           },
         },
@@ -538,8 +555,8 @@ describe('Complete User Social Features Integration', () => {
         select: {
           _count: {
             select: {
-              followedBy: true,
-              following: true,
+              Follow_Follow_followingIdToUser: true,
+              Follow_Follow_followerIdToUser: true,
             },
           },
         },
@@ -547,16 +564,16 @@ describe('Complete User Social Features Integration', () => {
 
       console.log(`\n📊 Final Social Graph:`)
       console.log(`   User 1:`)
-      console.log(`     - Followers: ${user1Data?._count.followedBy}`)
-      console.log(`     - Following: ${user1Data?._count.following}`)
+      console.log(`     - Followers: ${user1Data?._count.Follow_Follow_followingIdToUser}`)
+      console.log(`     - Following: ${user1Data?._count.Follow_Follow_followerIdToUser}`)
       console.log(`   User 2:`)
-      console.log(`     - Followers: ${user2Data?._count.followedBy}`)
-      console.log(`     - Following: ${user2Data?._count.following}`)
+      console.log(`     - Followers: ${user2Data?._count.Follow_Follow_followingIdToUser}`)
+      console.log(`     - Following: ${user2Data?._count.Follow_Follow_followerIdToUser}`)
 
-      expect(user1Data?._count.followedBy).toBeGreaterThanOrEqual(1)
-      expect(user1Data?._count.following).toBeGreaterThanOrEqual(1)
-      expect(user2Data?._count.followedBy).toBeGreaterThanOrEqual(1)
-      expect(user2Data?._count.following).toBeGreaterThanOrEqual(1)
+      expect(user1Data?._count.Follow_Follow_followingIdToUser).toBeGreaterThanOrEqual(1)
+      expect(user1Data?._count.Follow_Follow_followerIdToUser).toBeGreaterThanOrEqual(1)
+      expect(user2Data?._count.Follow_Follow_followingIdToUser).toBeGreaterThanOrEqual(1)
+      expect(user2Data?._count.Follow_Follow_followerIdToUser).toBeGreaterThanOrEqual(1)
     })
 
     it('should have complete chat history', async () => {

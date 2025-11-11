@@ -162,12 +162,12 @@ class CachedDatabaseService {
             id: true,
             _count: {
               select: {
-                followedBy: true,
-                following: true,
-                userActorFollows: true,
-                positions: true,
-                comments: true,
-                reactions: true,
+                Follow_Follow_followingIdToUser: true, // users following this user (followers)
+                Follow_Follow_followerIdToUser: true, // users this user follows (following)
+                UserActorFollow: true,
+                Position: true,
+                Comment: true,
+                Reaction: true,
               },
             },
           },
@@ -190,11 +190,11 @@ class CachedDatabaseService {
         });
 
         return {
-          followers: user._count.followedBy,
-          following: user._count.following + user._count.userActorFollows + legacyActorFollowCount,
-          positions: user._count.positions,
-          comments: user._count.comments,
-          reactions: user._count.reactions,
+          followers: user._count.Follow_Follow_followingIdToUser,
+          following: user._count.Follow_Follow_followerIdToUser + user._count.UserActorFollow + legacyActorFollowCount,
+          positions: user._count.Position,
+          comments: user._count.Comment,
+          reactions: user._count.Reaction,
           posts: postCount,
         };
       },
@@ -282,7 +282,7 @@ class CachedDatabaseService {
       () => db.prisma.pool.findMany({
         where: { isActive: true },
         include: {
-          npcActor: {
+          Actor: {
             select: {
               id: true,
               name: true,
@@ -291,7 +291,7 @@ class CachedDatabaseService {
               personality: true,
             },
           },
-          deposits: {
+          PoolDeposit: {
             where: {
               withdrawnAt: null,
             },
@@ -300,7 +300,7 @@ class CachedDatabaseService {
               currentValue: true,
             },
           },
-          positions: {
+          PoolPosition: {
             where: {
               closedAt: null,
             },
@@ -315,12 +315,12 @@ class CachedDatabaseService {
           },
           _count: {
             select: {
-              deposits: {
+              PoolDeposit: {
                 where: {
                   withdrawnAt: null,
                 },
               },
-              trades: true,
+              NPCTrade: true,
             },
           },
         },
@@ -345,7 +345,7 @@ class CachedDatabaseService {
         take: limit,
         orderBy: { rank: 'asc' },
         include: {
-          tag: true,
+          Tag: true,
         },
       }),
       {

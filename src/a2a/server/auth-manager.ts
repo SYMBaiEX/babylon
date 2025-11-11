@@ -37,7 +37,13 @@ export class AuthManager {
     }
 
     const message = this.createAuthMessage(credentials.address, credentials.tokenId, credentials.timestamp)
-    const recoveredAddress = verifyMessage(message, credentials.signature)
+    
+    let recoveredAddress: string
+    try {
+      recoveredAddress = verifyMessage(message, credentials.signature)
+    } catch {
+      return { success: false, error: 'Invalid signature' }
+    }
 
     if (recoveredAddress.toLowerCase() !== credentials.address.toLowerCase()) {
       return { success: false, error: 'Invalid signature' }

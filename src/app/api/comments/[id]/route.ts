@@ -49,7 +49,7 @@ export const PATCH = withErrorHandling(async (
         content: content.trim(),
       },
       include: {
-        author: {
+        User: {
           select: {
             id: true,
             displayName: true,
@@ -59,8 +59,8 @@ export const PATCH = withErrorHandling(async (
         },
         _count: {
           select: {
-            reactions: true,
-            replies: true,
+            Reaction: true,
+            other_Comment: true,
           },
         },
       },
@@ -79,9 +79,9 @@ export const PATCH = withErrorHandling(async (
     parentCommentId: updatedComment.parentCommentId,
     createdAt: updatedComment.createdAt,
     updatedAt: updatedComment.updatedAt,
-    author: updatedComment.author,
-    likeCount: updatedComment._count.reactions,
-    replyCount: updatedComment._count.replies,
+    author: updatedComment.User,
+    likeCount: updatedComment._count.Reaction,
+    replyCount: updatedComment._count.other_Comment,
   });
 });
 
@@ -105,7 +105,7 @@ export const DELETE = withErrorHandling(async (
       include: {
         _count: {
           select: {
-            replies: true,
+            other_Comment: true,
           },
         },
       },
@@ -120,7 +120,7 @@ export const DELETE = withErrorHandling(async (
       throw new AuthorizationError('You can only delete your own comments', 'comment', 'delete');
     }
 
-    const repliesCount = comment._count.replies;
+    const repliesCount = comment._count.other_Comment;
 
     // Delete comment (cascade will delete reactions and replies)
     await db.comment.delete({

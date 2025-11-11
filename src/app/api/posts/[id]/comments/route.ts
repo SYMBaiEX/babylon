@@ -12,6 +12,7 @@ import { notifyCommentOnPost, notifyReplyToComment } from '@/lib/services/notifi
 import { prisma } from '@/lib/database-service';
 import { ensureUserForAuth, getCanonicalUserId } from '@/lib/users/ensure-user';
 import type { NextRequest } from 'next/server';
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 /**
  * Build threaded comment structure recursively
@@ -32,25 +33,27 @@ type CommentTreeItem = {
   replies: CommentTreeItem[];
 };
 
-function buildCommentTree(
-  comments: Array<{
+interface CommentInput {
+  id: string;
+  content: string;
+  authorId: string;
+  parentCommentId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+  User: {
     id: string;
-    content: string;
-    createdAt: Date;
-    updatedAt: Date;
-    parentCommentId: string | null;
-    author: {
-      id: string;
-      displayName: string | null;
-      username: string | null;
-      profileImageUrl: string | null;
-    };
-    _count: {
-      reactions: number;
-      replies: number;
-    };
-    reactions: Array<{ id: string }>;
-  }>,
+    username: string | null;
+    displayName: string | null;
+    profileImageUrl: string | null;
+    isActor: boolean;
+  };
+  Reaction: Array<{ id: string; userId: string; type: string }>;
+  _count: { Reaction: number };
+}
+
+function buildCommentTree(
+  comments: CommentInput[],
   parentId: string | null = null
 ): CommentTreeItem[] {
   // Helper to find parent comment author name
@@ -58,7 +61,7 @@ function buildCommentTree(
     if (!parentCommentId) return undefined;
     const parentComment = comments.find(c => c.id === parentCommentId);
     if (parentComment) {
-      return parentComment.author.displayName || parentComment.author.username || 'Anonymous';
+      return parentComment.User.displayName || parentComment.User.username || 'Anonymous';
     }
     return undefined;
   };
@@ -70,14 +73,14 @@ function buildCommentTree(
       content: comment.content,
       createdAt: comment.createdAt,
       updatedAt: comment.updatedAt,
-      userId: comment.author.id,
-      userName: comment.author.displayName || comment.author.username || 'Anonymous',
-      userUsername: comment.author.username || null,
-      userAvatar: comment.author.profileImageUrl,
+      userId: comment.User.id,
+      userName: comment.User.displayName || comment.User.username || 'Anonymous',
+      userUsername: comment.User.username || null,
+      userAvatar: comment.User.profileImageUrl,
       parentCommentId: comment.parentCommentId,
       parentCommentAuthorName: findParentAuthorName(comment.parentCommentId),
-      likeCount: comment._count.reactions,
-      isLiked: comment.reactions.length > 0,
+      likeCount: comment._count.Reaction,
+      isLiked: comment.Reaction.length > 0,
       replies: buildCommentTree(comments, comment.id),
     }));
 }
@@ -105,7 +108,6 @@ export const GET = withErrorHandling(async (
   // Check if post exists
   const post = await prisma.post.findUnique({
     where: { id: postId },
-    select: { id: true, deletedAt: true },
   });
 
   if (!post) {
@@ -122,25 +124,26 @@ export const GET = withErrorHandling(async (
         postId,
       },
       include: {
-        author: {
+        User: {
           select: {
             id: true,
             displayName: true,
             username: true,
             profileImageUrl: true,
+            isActor: true,
           },
         },
         _count: {
           select: {
-            reactions: {
+            Reaction: {
               where: {
                 type: 'like',
               },
             },
-            replies: true,
+            other_Comment: true,
           },
         },
-        reactions: canonicalUserId
+        Reaction: canonicalUserId
           ? {
               where: {
                 userId: canonicalUserId,
@@ -158,7 +161,7 @@ export const GET = withErrorHandling(async (
     });
 
     // Build threaded structure
-    const threadedComments = buildCommentTree(comments);
+    const threadedComments = buildCommentTree(comments as CommentInput[]);
 
     // Get total comment count (including replies)
     const totalComments = comments.length;
@@ -204,7 +207,6 @@ export const POST = withErrorHandling(async (
     // Check if post exists first
     const post = await prisma.post.findUnique({
       where: { id: postId },
-      select: { id: true, deletedAt: true, authorId: true },
     });
 
     // If post doesn't exist, try to auto-create it based on format
@@ -267,7 +269,7 @@ export const POST = withErrorHandling(async (
       }
 
       // Ensure post exists (upsert pattern)
-      await prisma.post.upsert({
+      const upsertedPost = await prisma.post.upsert({
         where: { id: postId },
         update: {},  // Don't update if exists
         create: {
@@ -278,6 +280,11 @@ export const POST = withErrorHandling(async (
           timestamp,
         },
       });
+      
+      // Check if the upserted/existing post is deleted
+      if (upsertedPost.deletedAt) {
+        throw new BusinessLogicError('Cannot comment on deleted post', 'POST_DELETED');
+      }
     } else if (post.deletedAt) {
       // Post exists but is deleted - cannot comment
       throw new BusinessLogicError('Cannot comment on deleted post', 'POST_DELETED');
@@ -309,26 +316,31 @@ export const POST = withErrorHandling(async (
     });
 
     // Create comment
+    const now = new Date();
     const comment = await prisma.comment.create({
       data: {
+        id: generateSnowflakeId(),
         content: content.trim(),
         postId,
         authorId: canonicalUserId,
         parentCommentId: parentCommentId || null,
+        createdAt: now,
+        updatedAt: now,
       },
       include: {
-        author: {
+        User: {
           select: {
             id: true,
             displayName: true,
             username: true,
             profileImageUrl: true,
+            isActor: true,
           },
         },
         _count: {
           select: {
-            reactions: true,
-            replies: true,
+            Reaction: true,
+            other_Comment: true,
           },
         },
       },
@@ -387,9 +399,9 @@ export const POST = withErrorHandling(async (
       parentCommentId: comment.parentCommentId,
       createdAt: comment.createdAt,
       updatedAt: comment.updatedAt,
-      author: comment.author,
-      likeCount: comment._count.reactions,
-      replyCount: comment._count.replies,
+      author: comment.User,
+      likeCount: comment._count.Reaction,
+      replyCount: comment._count.other_Comment,
     },
     201
   );

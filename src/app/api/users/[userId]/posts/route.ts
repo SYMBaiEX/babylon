@@ -54,7 +54,7 @@ export const GET = withErrorHandling(async (
           authorId: canonicalUserId,
         },
         include: {
-          post: {
+          Post: {
             select: {
               id: true,
               content: true,
@@ -64,13 +64,13 @@ export const GET = withErrorHandling(async (
           },
           _count: {
             select: {
-              reactions: {
+              Reaction: {
                 where: { type: 'like' },
               },
-              replies: true,
+              other_Comment: true,
             },
           },
-          reactions: user
+          Reaction: user
             ? {
                 where: {
                   userId: user.userId,
@@ -87,7 +87,7 @@ export const GET = withErrorHandling(async (
       });
 
       // Get unique post author IDs to fetch author info
-      const postAuthorIds = [...new Set(comments.map(c => c.post.authorId))];
+      const postAuthorIds = [...new Set(comments.map(c => c.Post.authorId))];
       
       // Fetch User and Actor info for post authors
       const [postAuthorsUsers, postAuthorsActors] = await Promise.all([
@@ -116,8 +116,8 @@ export const GET = withErrorHandling(async (
       
       // Format comments as replies
       const replies = comments.map((comment) => {
-        const authorUser = userAuthorsMap.get(comment.post.authorId);
-        const authorActor = actorAuthorsMap.get(comment.post.authorId);
+        const authorUser = userAuthorsMap.get(comment.Post.authorId);
+        const authorActor = actorAuthorsMap.get(comment.Post.authorId);
         
         return {
           id: comment.id,
@@ -125,14 +125,14 @@ export const GET = withErrorHandling(async (
           postId: comment.postId,
           createdAt: comment.createdAt.toISOString(),
           updatedAt: comment.updatedAt.toISOString(),
-          likeCount: comment._count.reactions,
-          replyCount: comment._count.replies,
-          isLiked: comment.reactions.length > 0,
+          likeCount: comment._count.Reaction,
+          replyCount: comment._count.other_Comment,
+          isLiked: comment.Reaction.length > 0,
           post: {
-            id: comment.post.id,
-            content: comment.post.content,
-            authorId: comment.post.authorId,
-            timestamp: comment.post.timestamp.toISOString(),
+            id: comment.Post.id,
+            content: comment.Post.content,
+            authorId: comment.Post.authorId,
+            timestamp: comment.Post.timestamp.toISOString(),
             author: authorUser
               ? {
                   id: authorUser.id,
@@ -170,14 +170,14 @@ export const GET = withErrorHandling(async (
         include: {
           _count: {
             select: {
-              reactions: {
+              Reaction: {
                 where: { type: 'like' },
               },
-              comments: true,
-              shares: true,
+              Comment: true,
+              Share: true,
             },
           },
-          reactions: user
+          Reaction: user
             ? {
                 where: {
                   userId: user.userId,
@@ -186,7 +186,7 @@ export const GET = withErrorHandling(async (
                 select: { id: true },
               }
             : false,
-          shares: user
+          Share: user
             ? {
                 where: {
                   userId: user.userId,
@@ -207,7 +207,7 @@ export const GET = withErrorHandling(async (
           userId: canonicalUserId,
         },
         include: {
-          post: {
+          Post: {
             select: {
               id: true,
               content: true,
@@ -215,11 +215,11 @@ export const GET = withErrorHandling(async (
               timestamp: true,
               _count: {
                 select: {
-                  reactions: {
+                  Reaction: {
                     where: { type: 'like' },
                   },
-                  comments: true,
-                  shares: true,
+                  Comment: true,
+                  Share: true,
                 },
               },
             },
@@ -243,7 +243,7 @@ export const GET = withErrorHandling(async (
       });
       
       // Get unique author IDs from shared posts
-      const sharedPostAuthorIds = [...new Set(shares.map(s => s.post.authorId))];
+      const sharedPostAuthorIds = [...new Set(shares.map(s => s.Post.authorId))];
       
       // Fetch User, Actor, and Organization info for shared post authors
       const [sharedAuthorsUsers, sharedAuthorsActors, sharedAuthorsOrgs] = await Promise.all([
@@ -286,11 +286,11 @@ export const GET = withErrorHandling(async (
         authorId: post.authorId,
         timestamp: post.timestamp.toISOString(),
         createdAt: post.createdAt.toISOString(),
-        likeCount: post._count.reactions,
-        commentCount: post._count.comments,
-        shareCount: post._count.shares,
-        isLiked: post.reactions.length > 0,
-        isShared: post.shares.length > 0,
+        likeCount: post._count.Reaction,
+        commentCount: post._count.Comment,
+        shareCount: post._count.Share,
+        isLiked: post.Reaction.length > 0,
+        isShared: post.Share.length > 0,
         author: postAuthor
           ? {
               id: postAuthor.id,
@@ -303,23 +303,23 @@ export const GET = withErrorHandling(async (
 
       // Format shares as reposts
       const reposts = shares.map((share) => {
-        const authorUser = userAuthorsMap.get(share.post.authorId);
-        const authorActor = actorAuthorsMap.get(share.post.authorId);
-        const authorOrg = orgAuthorsMap.get(share.post.authorId);
+        const authorUser = userAuthorsMap.get(share.Post.authorId);
+        const authorActor = actorAuthorsMap.get(share.Post.authorId);
+        const authorOrg = orgAuthorsMap.get(share.Post.authorId);
         
         return {
           id: `share-${share.id}`,
-          content: share.post.content,
-          authorId: share.post.authorId,
+          content: share.Post.content,
+          authorId: share.Post.authorId,
           timestamp: share.createdAt.toISOString(),
           createdAt: share.createdAt.toISOString(),
-          likeCount: share.post._count.reactions,
-          commentCount: share.post._count.comments,
-          shareCount: share.post._count.shares,
+          likeCount: share.Post._count.Reaction,
+          commentCount: share.Post._count.Comment,
+          shareCount: share.Post._count.Share,
           isLiked: false, // Could check if user liked original post
           isShared: true,
           isRepost: true,
-          originalPostId: share.post.id,
+          originalPostId: share.Post.id,
           author: authorUser
             ? {
                 id: authorUser.id,

@@ -60,7 +60,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       },
       take: validatedLimit,
       include: {
-        actor: {
+        User_Notification_actorIdToUser: {
           select: {
             id: true,
             displayName: true,
@@ -88,11 +88,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       id: n.id,
       type: n.type,
       actorId: n.actorId,
-      actor: n.actor ? {
-        id: n.actor.id,
-        displayName: n.actor.displayName,
-        username: n.actor.username,
-        profileImageUrl: n.actor.profileImageUrl,
+      actor: n.User_Notification_actorIdToUser ? {
+        id: n.User_Notification_actorIdToUser.id,
+        displayName: n.User_Notification_actorIdToUser.displayName,
+        username: n.User_Notification_actorIdToUser.username,
+        profileImageUrl: n.User_Notification_actorIdToUser.profileImageUrl,
       } : null,
       postId: n.postId,
       commentId: n.commentId,

@@ -17,6 +17,7 @@ import type { User as PrivyUser } from '@privy-io/server-auth'
 import type { OnboardingProfilePayload } from '@/lib/onboarding/types'
 import { trackServerEvent } from '@/lib/posthog/server'
 import { notifyNewAccount } from '@/lib/services/notification-service'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 interface SignupRequestBody {
   username: string
@@ -145,6 +146,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
             status: 'pending',
           },
           create: {
+            id: generateSnowflakeId(),
             referrerId: referrerByUsername.id,
             referralCode: normalizedCode,
             referredUserId: canonicalUserId,
@@ -222,6 +224,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       create: {
         id: canonicalUserId,
         privyId,
+        updatedAt: new Date(),
         ...baseUserData,
         referredBy: resolvedReferrerId,
         // Handle Farcaster from Privy identity or onboarding import

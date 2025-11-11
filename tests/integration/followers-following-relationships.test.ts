@@ -13,20 +13,9 @@ import { config } from 'dotenv';
 import { join } from 'path';
 config({ path: join(process.cwd(), '.env') });
 
-import { PrismaClient } from '@prisma/client';
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
-
-// For tests, always use the local database (ignore remote Prisma Accelerate)
-const LOCAL_DATABASE_URL = 'postgresql://babylon:babylon_dev_password@localhost:5432/babylon';
-console.log('[TEST] Using local database for integration tests');
-
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: LOCAL_DATABASE_URL,
-    },
-  },
-});
+import { generateSnowflakeId } from '../../src/lib/snowflake';
+import { prisma } from '../../src/lib/database-service';
 
 describe('Followers/Following and Relationships Integration Tests', () => {
   let testUser: { id: string; username: string | null; displayName: string | null };
@@ -55,10 +44,12 @@ describe('Followers/Following and Relationships Integration Tests', () => {
       // Create a test user if none exists
       const createdUser = await prisma.user.create({
         data: {
+          id: generateSnowflakeId(),
           privyId: `test-privy-${Date.now()}`,
           username: `testuser${Date.now()}`,
           displayName: 'Test User',
           isActor: false,
+          updatedAt: new Date(),
         },
         select: {
           id: true,
@@ -119,7 +110,7 @@ describe('Followers/Following and Relationships Integration Tests', () => {
     it('should have actors with followers', async () => {
       const actorsWithFollowers = await prisma.actor.findMany({
         where: {
-          followedBy: {
+          ActorFollow_ActorFollow_followingIdToActor: {
             some: {},
           },
         },
@@ -128,7 +119,7 @@ describe('Followers/Following and Relationships Integration Tests', () => {
           name: true,
           _count: {
             select: {
-              followedBy: true,
+              ActorFollow_ActorFollow_followingIdToActor: true,
             },
           },
         },
@@ -139,14 +130,14 @@ describe('Followers/Following and Relationships Integration Tests', () => {
       
       console.log(`✅ Sample actors with followers:`);
       actorsWithFollowers.forEach(actor => {
-        console.log(`   - ${actor.name}: ${actor._count.followedBy} NPC followers`);
+        console.log(`   - ${actor.name}: ${actor._count.ActorFollow_ActorFollow_followingIdToActor} NPC followers`);
       });
     });
 
     it('should have actors with following', async () => {
       const actorsWithFollowing = await prisma.actor.findMany({
         where: {
-          following: {
+          ActorFollow_ActorFollow_followerIdToActor: {
             some: {},
           },
         },
@@ -155,7 +146,7 @@ describe('Followers/Following and Relationships Integration Tests', () => {
           name: true,
           _count: {
             select: {
-              following: true,
+              ActorFollow_ActorFollow_followerIdToActor: true,
             },
           },
         },
@@ -166,7 +157,7 @@ describe('Followers/Following and Relationships Integration Tests', () => {
       
       console.log(`✅ Sample actors with following:`);
       actorsWithFollowing.forEach(actor => {
-        console.log(`   - ${actor.name}: following ${actor._count.following} NPCs`);
+        console.log(`   - ${actor.name}: following ${actor._count.ActorFollow_ActorFollow_followerIdToActor} NPCs`);
       });
     });
 
@@ -188,15 +179,15 @@ describe('Followers/Following and Relationships Integration Tests', () => {
           name: true,
           _count: {
             select: {
-              followedBy: true,
-              following: true,
+              ActorFollow_ActorFollow_followingIdToActor: true,
+              ActorFollow_ActorFollow_followerIdToActor: true,
             },
           },
         },
       });
 
       const isolatedActors = allActors.filter(
-        actor => actor._count.followedBy === 0 && actor._count.following === 0
+        actor => actor._count.ActorFollow_ActorFollow_followingIdToActor === 0 && actor._count.ActorFollow_ActorFollow_followerIdToActor === 0
       );
 
       if (isolatedActors.length > 0) {
@@ -255,8 +246,8 @@ describe('Followers/Following and Relationships Integration Tests', () => {
       // Pick a specific follow relationship
       const sampleFollow = await prisma.actorFollow.findFirst({
         include: {
-          follower: { select: { id: true, name: true } },
-          following: { select: { id: true, name: true } },
+          Actor_ActorFollow_followerIdToActor: { select: { id: true, name: true } },
+          Actor_ActorFollow_followingIdToActor: { select: { id: true, name: true } },
         },
       });
 
@@ -272,7 +263,7 @@ describe('Followers/Following and Relationships Integration Tests', () => {
         });
 
         expect(followExists).toBeTruthy();
-        console.log(`✅ Bidirectional relationship verified: ${sampleFollow.follower.name} → ${sampleFollow.following.name}`);
+        console.log(`✅ Bidirectional relationship verified: ${sampleFollow.Actor_ActorFollow_followerIdToActor.name} → ${sampleFollow.Actor_ActorFollow_followingIdToActor.name}`);
       }
     });
   });
@@ -328,6 +319,7 @@ describe('Followers/Following and Relationships Integration Tests', () => {
         // Create the follow
         createdFollow = await prisma.userActorFollow.create({
           data: {
+            id: generateSnowflakeId(),
             userId: testUser.id,
             actorId: testActor.id,
           },
@@ -396,22 +388,22 @@ describe('Followers/Following and Relationships Integration Tests', () => {
         select: {
           _count: {
             select: {
-              followedBy: true,
-              following: true,
-              userActorFollows: true,
+              Follow_Follow_followingIdToUser: true,
+              Follow_Follow_followerIdToUser: true,
+              UserActorFollow: true,
             },
           },
         },
       });
 
       if (user) {
-        const totalFollowing = user._count.following + user._count.userActorFollows;
+        const totalFollowing = user._count.Follow_Follow_followerIdToUser + user._count.UserActorFollow;
 
         console.log(`✅ ${testUser.displayName || testUser.username} stats from _count:`);
-        console.log(`   - Followers: ${user._count.followedBy}`);
-        console.log(`   - Following: ${totalFollowing} (${user._count.following} users + ${user._count.userActorFollows} NPCs)`);
+        console.log(`   - Followers: ${user._count.Follow_Follow_followingIdToUser}`);
+        console.log(`   - Following: ${totalFollowing} (${user._count.Follow_Follow_followerIdToUser} users + ${user._count.UserActorFollow} NPCs)`);
 
-        expect(user._count.followedBy).toBeGreaterThanOrEqual(0);
+        expect(user._count.Follow_Follow_followingIdToUser).toBeGreaterThanOrEqual(0);
         expect(totalFollowing).toBeGreaterThanOrEqual(0);
       }
     });

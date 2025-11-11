@@ -339,6 +339,7 @@ export default function ActorProfilePage() {
       }, 2000)
       return () => clearTimeout(timer)
     }
+    return undefined
   }, [actorInfo, optimisticFollowerCount])
 
   useEffect(() => {

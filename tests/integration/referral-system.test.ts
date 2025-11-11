@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
 import { PrismaClient } from '@prisma/client'
-import { WaitlistService } from '@/lib/services/waitlist-service'
+import { WaitlistService } from '../../src/lib/services/waitlist-service'
+import { generateSnowflakeId } from '../../src/lib/snowflake'
 
 const prisma = new PrismaClient()
 
@@ -33,6 +34,7 @@ describe('Referral System', () => {
     // Create User 1 (will be the inviter)
     const user1 = await prisma.user.create({
       data: {
+        id: generateSnowflakeId(),
         username: 'referral_test_user1',
         displayName: 'Test User 1',
         bio: 'Test user for referral system',
@@ -41,6 +43,7 @@ describe('Referral System', () => {
         invitePoints: 0,
         earnedPoints: 0,
         bonusPoints: 0,
+        updatedAt: new Date(),
       }
     })
     user1Id = user1.id
@@ -48,6 +51,7 @@ describe('Referral System', () => {
     // Create User 2 (will be invited by User 1)
     const user2 = await prisma.user.create({
       data: {
+        id: generateSnowflakeId(),
         username: 'referral_test_user2',
         displayName: 'Test User 2',
         bio: 'Test user for referral system',
@@ -56,6 +60,7 @@ describe('Referral System', () => {
         invitePoints: 0,
         earnedPoints: 0,
         bonusPoints: 0,
+        updatedAt: new Date(),
       }
     })
     user2Id = user2.id
@@ -63,6 +68,7 @@ describe('Referral System', () => {
     // Create User 3 (no referral)
     const user3 = await prisma.user.create({
       data: {
+        id: generateSnowflakeId(),
         username: 'referral_test_user3',
         displayName: 'Test User 3',
         bio: 'Test user for referral system',
@@ -71,6 +77,7 @@ describe('Referral System', () => {
         invitePoints: 0,
         earnedPoints: 0,
         bonusPoints: 0,
+        updatedAt: new Date(),
       }
     })
     user3Id = user3.id
@@ -279,11 +286,13 @@ describe('Referral System', () => {
     // Create a temp user
     const tempUser = await prisma.user.create({
       data: {
+        id: generateSnowflakeId(),
         username: 'temp_self_ref_test',
         displayName: 'Temp User',
         bio: 'Test',
         privyId: 'test-privy-id-temp',
         reputationPoints: 1000,
+        updatedAt: new Date(),
       }
     })
 
@@ -398,11 +407,13 @@ describe('Referral System', () => {
     // Create a new temp user and have them referred by User 3
     const tempUser = await prisma.user.create({
       data: {
+        id: generateSnowflakeId(),
         username: 'temp_double_ref_test',
         displayName: 'Temp User 2',
         bio: 'Test',
         privyId: 'test-privy-id-temp2',
         reputationPoints: 1000,
+        updatedAt: new Date(),
       }
     })
 

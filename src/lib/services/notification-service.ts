@@ -6,6 +6,7 @@
 
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 
 export type NotificationType = 'comment' | 'reaction' | 'follow' | 'mention' | 'reply' | 'share' | 'system';
@@ -42,6 +43,7 @@ export async function createNotification(params: CreateNotificationParams): Prom
 
   await prisma.notification.create({
     data: {
+      id: generateSnowflakeId(),
       userId: params.userId,
       type: params.type,
       actorId: params.actorId,

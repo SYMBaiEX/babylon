@@ -11,6 +11,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/database-service'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 import { logger } from '@/lib/logger'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 interface AgentToUserFeedbackRequest {
   agentId: string
@@ -60,8 +61,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Create feedback record
+    const now = new Date();
     const feedback = await prisma.feedback.create({
       data: {
+        id: generateSnowflakeId(),
         fromUserId: fromAgent.id,
         toUserId: toUser.id,
         score: body.score,
@@ -70,6 +73,8 @@ export async function POST(request: NextRequest) {
         category: body.category,
         interactionType: body.interactionType || 'agent_to_user',
         metadata: body.metadata ? (body.metadata as unknown as Prisma.InputJsonValue) : undefined,
+        createdAt: now,
+        updatedAt: now,
       },
     })
 
@@ -138,7 +143,7 @@ export async function GET(request: NextRequest) {
         },
       },
       include: {
-        fromUser: {
+        User_Feedback_fromUserIdToUser: {
           select: {
             id: true,
             username: true,

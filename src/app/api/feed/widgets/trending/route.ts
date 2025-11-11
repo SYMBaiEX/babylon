@@ -10,12 +10,14 @@ import { asUser, asPublic } from '@/lib/db/context'
 import { getCurrentTrendingTags } from '@/lib/services/tag-storage-service'
 import { generateTrendingSummary } from '@/lib/services/trending-summary-service'
 import { NextResponse } from 'next/server'
+import { withErrorHandling } from '@/lib/errors/error-handler'
+import { prisma } from '@/lib/database-service'
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  // Get trending tags from cache
   const trending = await getCurrentTrendingTags(5)
 
-  // If no trending data exists yet (first load), return placeholder
-  if (trending.length === 0) {
+  if (!trending || trending.length === 0) {
     return NextResponse.json({
       success: true,
       trending: [],
@@ -31,9 +33,9 @@ export async function GET(request: NextRequest) {
       const recentPosts = (authUser && authUser.userId)
         ? await asUser(authUser, async (db) => {
           return await db.postTag.findMany({
-            where: { tagId: item.tag.id },
+            where: { tagId: item.tagId },
             include: {
-              post: {
+              Post: {
                 select: {
                   content: true,
                 },
@@ -47,9 +49,9 @@ export async function GET(request: NextRequest) {
         })
         : await asPublic(async (db) => {
           return await db.postTag.findMany({
-            where: { tagId: item.tag.id },
+            where: { tagId: item.tagId },
             include: {
-              post: {
+              Post: {
                 select: {
                   content: true,
                 },
@@ -62,19 +64,34 @@ export async function GET(request: NextRequest) {
           })
         })
 
-      const postContents = recentPosts.map(pt => pt.post.content)
+      const postContents = recentPosts.map(pt => pt.Post.content)
+      
+      // Fetch Tag separately to get display information
+      const tag = await prisma.tag.findUnique({
+        where: { id: item.tagId },
+        select: {
+          id: true,
+          name: true,
+          displayName: true,
+          category: true,
+        },
+      })
+
+      if (!tag) {
+        return null
+      }
       
       const summary = await generateTrendingSummary(
-        item.tag.displayName,
-        item.tag.category,
+        tag.displayName,
+        tag.category,
         postContents
       )
 
       return {
         id: item.id,
-        tag: item.tag.displayName,
-        tagSlug: item.tag.name,
-        category: item.tag.category,
+        tag: tag.displayName,
+        tagSlug: tag.name,
+        category: tag.category,
         postCount: item.postCount,
         summary,
         rank: item.rank,
@@ -82,9 +99,11 @@ export async function GET(request: NextRequest) {
     })
   )
 
+  // Filter out null values
+  const validItems = trendingItems.filter((item): item is NonNullable<typeof item> => item !== null)
+
   return NextResponse.json({
     success: true,
-    trending: trendingItems,
+    trending: validItems,
   })
-}
-
+})

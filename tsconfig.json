@@ -93,8 +93,6 @@
   "exclude": [
     "node_modules",
     "dist",
-    "plugin-babylon",
-    "src/eliza",
     "**/*.test.ts",
     "**/*.test.tsx",
     "**/__tests__/**"
