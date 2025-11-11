@@ -1,7 +1,6 @@
 /**
  * Wallet utility functions for embedded wallet detection and validation
  */
-
 import type { ConnectedWallet } from '@privy-io/react-auth';
 
 /**
@@ -48,15 +47,15 @@ export function findExternalWallet(
  */
 export const WALLET_ERROR_MESSAGES = {
   NO_EMBEDDED_WALLET:
-    'Gasless registration requires your Babylon embedded wallet. Please ensure your embedded wallet is created.',
+    'Your Babylon smart wallet is required for this action. Please wait for it to finish preparing.',
   EXTERNAL_WALLET_ONLY:
-    'You are using an external wallet. Gas sponsorship is only available with your Babylon embedded wallet.',
+    'You are connected with an external wallet. Please switch to your Babylon smart wallet to continue.',
   NO_WALLET: 'Please connect a wallet to continue.',
   SPONSOR_FAILED:
-    'Unable to sponsor this transaction. Please ensure your Babylon embedded wallet is active.',
+    'Unable to sponsor this transaction. Make sure your Babylon smart wallet is active.',
   USER_REJECTED: 'Transaction was cancelled in your wallet.',
   INSUFFICIENT_FUNDS:
-    'Insufficient funds to cover gas fees. Please use your Babylon embedded wallet for gasless transactions.',
+    'Insufficient funds to cover gas. Use your Babylon smart wallet for sponsored transactions.',
 } as const;
 
 /**
@@ -78,10 +77,7 @@ export function getWalletErrorMessage(error: unknown): string {
     return WALLET_ERROR_MESSAGES.SPONSOR_FAILED;
   }
 
-  if (
-    message.includes('no wallet') ||
-    message.includes('wallet not found')
-  ) {
+  if (message.includes('no wallet') || message.includes('wallet not found')) {
     return WALLET_ERROR_MESSAGES.NO_WALLET;
   }
 
@@ -89,4 +85,3 @@ export function getWalletErrorMessage(error: unknown): string {
     ? error.message
     : 'An unknown error occurred with your wallet.';
 }
-

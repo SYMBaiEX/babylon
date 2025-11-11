@@ -8,6 +8,7 @@ import {
   usePrivy,
   useWallets,
 } from '@privy-io/react-auth';
+import { useSmartWallets } from '@privy-io/react-auth/smart-wallets';
 
 import { apiFetch } from '@/lib/api/fetch';
 import { logger } from '@/lib/logger';
@@ -20,6 +21,8 @@ interface UseAuthReturn {
   loadingProfile: boolean;
   user: User | null;
   wallet: ConnectedWallet | undefined;
+  smartWalletAddress?: string;
+  smartWalletReady: boolean;
   needsOnboarding: boolean;
   needsOnchain: boolean;
   login: () => void;
@@ -47,6 +50,7 @@ export function useAuth(): UseAuthReturn {
     getAccessToken,
   } = usePrivy();
   const { wallets } = useWallets();
+  const { client } = useSmartWallets();
   const {
     user,
     isLoadingProfile,
@@ -74,6 +78,9 @@ export function useAuth(): UseAuthReturn {
     // If no embedded wallet, fall back to external wallet (user pays gas)
     return wallets[0];
   }, [wallets]);
+
+  const smartWalletAddress = client?.account?.address;
+  const smartWalletReady = Boolean(smartWalletAddress);
 
   const persistAccessToken = async (): Promise<string | null> => {
     if (!authenticated) {
@@ -154,7 +161,8 @@ export function useAuth(): UseAuthReturn {
         if (me.user) {
           const hydratedUser: User = {
             id: me.user.id,
-            walletAddress: me.user.walletAddress ?? wallet?.address,
+            walletAddress:
+              me.user.walletAddress ?? smartWalletAddress ?? wallet?.address,
             displayName:
               me.user.displayName ||
               privyUser.email?.address ||
@@ -440,6 +448,8 @@ export function useAuth(): UseAuthReturn {
     loadingProfile: isLoadingProfile,
     user,
     wallet,
+    smartWalletAddress: smartWalletAddress ?? undefined,
+    smartWalletReady,
     needsOnboarding,
     needsOnchain,
     login,
@@ -448,4 +458,3 @@ export function useAuth(): UseAuthReturn {
     getAccessToken,
   };
 }
-

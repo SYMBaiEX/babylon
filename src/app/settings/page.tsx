@@ -5,33 +5,31 @@ import { useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { useRouter } from 'next/navigation';
 
-import { useSendTransaction } from '@privy-io/react-auth';
 import { ArrowLeft, Bell, Palette, Save, Shield, User } from 'lucide-react';
-import { encodeFunctionData, parseAbi } from 'viem';
 
 import { LoginButton } from '@/components/auth/LoginButton';
 import { BouncingLogo } from '@/components/shared/BouncingLogo';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { CHAIN_ID } from '@/constants/chains';
-import { useAuth } from '@/hooks/useAuth';
+
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
-import { IDENTITY_REGISTRY_ABI } from '@/lib/web3/abis';
-import {
-  isEmbeddedPrivyWallet,
-  getWalletErrorMessage,
-  WALLET_ERROR_MESSAGES,
-} from '@/lib/wallet-utils';
-import { useAuthStore } from '@/stores/authStore';
+import { WALLET_ERROR_MESSAGES } from '@/lib/wallet-utils';
 
-const CAPABILITIES_HASH =
-  '0x0000000000000000000000000000000000000000000000000000000000000001' as const;
-const identityRegistryAbi = parseAbi(IDENTITY_REGISTRY_ABI);
+import { useAuth } from '@/hooks/useAuth';
+import { useUpdateAgentProfileTx } from '@/hooks/useUpdateAgentProfileTx';
+
+import { useAuthStore } from '@/stores/authStore';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { ready, authenticated, wallet, refresh } = useAuth();
+  const {
+    ready,
+    authenticated,
+    smartWalletAddress,
+    smartWalletReady,
+    refresh,
+  } = useAuth();
   const { user, setUser } = useAuthStore();
   const [activeTab, setActiveTab] = useState('profile');
   const [saving, setSaving] = useState(false);
@@ -48,7 +46,7 @@ export default function SettingsPage() {
   const [pushNotifications, setPushNotifications] = useState(true);
   const [postNotifications, setPostNotifications] = useState(true);
   const [marketNotifications, setMarketNotifications] = useState(true);
-  const { sendTransaction: privySendTransaction } = useSendTransaction();
+  const { updateAgentProfile } = useUpdateAgentProfileTx();
 
   // Theme settings - connected to next-themes
   const { theme, setTheme } = useTheme();
@@ -97,7 +95,7 @@ export default function SettingsPage() {
     if (!user?.id) return;
     if (user.onChainRegistered !== true) {
       setErrorMessage(
-        'Complétez votre enregistrement on-chain avant de modifier votre profil.'
+        'Complete your on-chain registration before editing your profile.'
       );
       return;
     }
@@ -107,34 +105,16 @@ export default function SettingsPage() {
     setErrorMessage(null);
 
     try {
-      if (!wallet?.address) {
-        throw new Error(WALLET_ERROR_MESSAGES.NO_WALLET);
-      }
-
-      const registryAddress =
-        process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA;
-      if (!registryAddress) {
-        throw new Error(
-          "L'adresse du contrat d'identité n'est pas configurée."
-        );
-      }
-
-      // Check if using embedded wallet for gas sponsorship
-      if (!isEmbeddedPrivyWallet(wallet)) {
-        logger.warn(
-          'User attempting to update profile with external wallet',
-          { walletType: wallet.walletClientType, address: wallet.address },
-          'SettingsPage'
-        );
-        throw new Error(WALLET_ERROR_MESSAGES.EXTERNAL_WALLET_ONLY);
+      if (!smartWalletReady || !smartWalletAddress) {
+        throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
       }
 
       const trimmedDisplayName = (displayName ?? '').trim();
       const trimmedUsername = (username ?? '').trim();
       const trimmedBio = (bio ?? '').trim();
 
-      const endpoint = `https://babylon.game/agent/${wallet.address.toLowerCase()}`;
-      const metadata = JSON.stringify({
+      const endpoint = `https://babylon.game/agent/${smartWalletAddress.toLowerCase()}`;
+      const metadata = {
         name:
           trimmedDisplayName ||
           trimmedUsername ||
@@ -145,39 +125,12 @@ export default function SettingsPage() {
         bio: trimmedBio || null,
         profileImageUrl: user.profileImageUrl ?? null,
         coverImageUrl: user.coverImageUrl ?? null,
-        type: 'user',
-        updated: new Date().toISOString(),
-      });
+      };
 
-      const data = encodeFunctionData({
-        abi: identityRegistryAbi,
-        functionName: 'updateAgent',
-        args: [endpoint, CAPABILITIES_HASH, metadata],
+      const txHash = await updateAgentProfile({
+        endpoint,
+        metadata,
       });
-
-      let txHash: string;
-      try {
-        const txRequest = {
-          to: registryAddress as `0x${string}`,
-          data,
-          value: '0x0' as `0x${string}`,
-          chainId: CHAIN_ID,
-        };
-        const { hash } = await privySendTransaction(txRequest, {
-          sponsor: true,
-          address: wallet.address as `0x${string}`,
-        });
-        txHash = hash;
-      } catch (error) {
-        // Use wallet error utility for consistent error messages
-        const userFriendlyMessage = getWalletErrorMessage(error);
-        logger.error(
-          'Failed to submit on-chain profile update transaction',
-          { error, walletAddress: wallet.address },
-          'SettingsPage'
-        );
-        throw new Error(userFriendlyMessage);
-      }
 
       const token =
         typeof window !== 'undefined' ? window.__privyAccessToken : null;
@@ -204,8 +157,7 @@ export default function SettingsPage() {
 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const message =
-          payload?.error || 'Impossible de sauvegarder vos modifications.';
+        const message = payload?.error || 'Unable to save your changes.';
         throw new Error(message);
       }
 
@@ -229,7 +181,7 @@ export default function SettingsPage() {
       const message =
         error instanceof Error
           ? error.message
-          : 'Une erreur est survenue lors de la mise à jour du profil.';
+          : 'An error occurred while updating the profile.';
       setErrorMessage(message);
       logger.error(
         'Failed to save profile settings',
@@ -250,10 +202,16 @@ export default function SettingsPage() {
             <Skeleton className="h-4 w-64 max-w-full" />
           </div>
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="bg-card/50 backdrop-blur rounded-lg p-4 sm:p-6 border border-border space-y-4">
+            <div
+              key={i}
+              className="bg-card/50 backdrop-blur rounded-lg p-4 sm:p-6 border border-border space-y-4"
+            >
               <Skeleton className="h-6 w-40 max-w-full mb-4" />
               {Array.from({ length: 2 }).map((_, j) => (
-                <div key={j} className="flex items-center justify-between gap-3 py-3 border-b border-border/5 last:border-0">
+                <div
+                  key={j}
+                  className="flex items-center justify-between gap-3 py-3 border-b border-border/5 last:border-0"
+                >
                   <div className="space-y-2 flex-1 min-w-0">
                     <Skeleton className="h-4 w-32 max-w-full" />
                     <Skeleton className="h-3 w-48 max-w-full" />
@@ -558,8 +516,8 @@ export default function SettingsPage() {
               )}
               {user?.onChainRegistered !== true && !errorMessage && (
                 <p className="mb-4 text-sm text-yellow-500">
-                  Complétez d’abord votre enregistrement on-chain pour pouvoir
-                  modifier votre profil.
+                  Complete your on-chain registration before editing your
+                  profile.
                 </p>
               )}
               <button
