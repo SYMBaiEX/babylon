@@ -128,13 +128,7 @@ export class EarnedPointsService {
             pointsAfter: newReputationPoints,
             reason: 'trading_pnl',
             metadata: JSON.stringify({
-<<<<<<< HEAD
               pnlAmount,
-=======
-              tradeId: generateSnowflakeId(),
-              pnl: pnlAmount,
-              points: pointsFromThisTrade,
->>>>>>> origin/staging
               tradeType,
               relatedId,
               pointsFromTrade: pointsFromThisTrade,

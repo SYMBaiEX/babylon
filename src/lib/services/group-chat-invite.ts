@@ -11,10 +11,6 @@
  * - NPC-member chats (lower chance, 30%)
  */
 
-<<<<<<< HEAD
-import type { GroupChat } from '@/shared/types';
-=======
->>>>>>> origin/staging
 import { prisma } from '@/lib/prisma';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import type { GroupChat } from '@/shared/types';

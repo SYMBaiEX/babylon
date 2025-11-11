@@ -5,11 +5,6 @@
  * Provides bidirectional sync between local database and blockchain.
  */
 
-<<<<<<< HEAD
-import { prisma } from '@/lib/database-service'
-import { getOnChainReputation, syncOnChainReputation } from './blockchain-reputation'
-=======
->>>>>>> origin/staging
 import { getAgent0Client } from '@/agents/agent0/Agent0Client'
 import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'

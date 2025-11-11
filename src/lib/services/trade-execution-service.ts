@@ -5,11 +5,7 @@
  * Creates positions, updates balances, records trades.
  */
 
-<<<<<<< HEAD
 import { prisma } from '@/lib/prisma';
-=======
-import { prisma } from '@/lib/database-service';
->>>>>>> origin/staging
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import type { ExecutedTrade, ExecutionResult, TradingDecision } from '@/types/market-decisions';

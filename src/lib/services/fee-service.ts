@@ -4,10 +4,7 @@
  * Manages trading fees and referral fee distribution
  */
 
-<<<<<<< HEAD
-=======
 import { FEE_CONFIG, type FeeType } from '@/lib/config/fees'
->>>>>>> origin/staging
 import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
@@ -264,7 +261,6 @@ export class FeeService {
       where: whereClause,
       select: {
         userId: true,
-<<<<<<< HEAD
         User_TradingFee_userIdToUser: {
           select: {
             id: true,
@@ -273,8 +269,6 @@ export class FeeService {
             profileImageUrl: true,
           },
         },
-=======
->>>>>>> origin/staging
       },
       distinct: ['userId'],
     })

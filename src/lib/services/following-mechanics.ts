@@ -12,10 +12,6 @@
  * - More total interactions (10+ quality replies)
  */
 
-<<<<<<< HEAD
-import { notifyFollow } from './notification-service';
-=======
->>>>>>> origin/staging
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { generateSnowflakeId } from '@/lib/snowflake';

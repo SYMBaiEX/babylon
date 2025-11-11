@@ -9,10 +9,7 @@
  * ✅ Vercel-compatible: No filesystem access, completes in <60s
  */
 
-<<<<<<< HEAD
-=======
 import { ArticleGenerator } from '@/engine/ArticleGenerator';
->>>>>>> origin/staging
 import { MarketDecisionEngine } from '@/engine/MarketDecisionEngine';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
 import type { ActorTier, WorldEvent } from '@/shared/types';
