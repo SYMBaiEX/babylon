@@ -8,13 +8,13 @@
  * - Apps (game platforms and services)
  */
 
-import type { NextRequest } from 'next/server'
+import { SubgraphClient } from '@/agents/agent0/SubgraphClient'
 import { optionalAuth } from '@/lib/api/auth-middleware'
 import { asPublic } from '@/lib/db/context'
-import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
+import { successResponse, withErrorHandling } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger'
 import type { PrismaClient } from '@prisma/client'
-import { SubgraphClient } from '@/agents/agent0/SubgraphClient'
+import type { NextRequest } from 'next/server'
 
 /**
  * GET /api/registry/all

@@ -181,6 +181,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       Actor: pool.Actor,
       totalValue,
       totalDeposits,
+      totalUnrealizedPnL,
+      activeDepositsValue,
+      openedAt,
+      updatedAt,
       availableBalance,
       lifetimePnL,
       totalReturn,
@@ -189,10 +193,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       activeInvestors: pool._count.PoolDeposit,
       totalTrades: pool._count.NPCTrade,
       openPositions: pool.PoolPosition.length,
-      totalUnrealizedPnL,
-      activeDepositsValue,
-      openedAt,
-      updatedAt,
     };
   });
 

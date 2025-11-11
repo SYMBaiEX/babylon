@@ -4,13 +4,13 @@
  * GET /api/feed/widgets/trending - Get current trending tags
  */
 
-import type { NextRequest } from 'next/server'
 import { optionalAuth, type AuthenticatedUser } from '@/lib/api/auth-middleware'
-import { asUser, asPublic } from '@/lib/db/context'
+import { asPublic, asUser } from '@/lib/db/context'
+import { withErrorHandling } from '@/lib/errors/error-handler'
 import { getCurrentTrendingTags } from '@/lib/services/tag-storage-service'
 import { generateTrendingSummary } from '@/lib/services/trending-summary-service'
+import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { withErrorHandling } from '@/lib/errors/error-handler'
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Get trending tags from cache
