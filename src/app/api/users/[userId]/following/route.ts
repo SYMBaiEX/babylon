@@ -78,7 +78,7 @@ export const GET = withErrorHandling(async (
     const actorFollows = await prisma.actorFollow.findMany({
       where: { followerId: targetId },
       include: {
-        following: {
+        Actor_ActorFollow_followingIdToActor: {
           select: {
             id: true,
             name: true,
@@ -92,14 +92,14 @@ export const GET = withErrorHandling(async (
     });
 
     following = actorFollows.map(f => ({
-      id: f.following.id,
-      displayName: f.following.name,
-      username: f.following.id,
-      profileImageUrl: f.following.profileImageUrl || null,
-      bio: f.following.description || '',
+      id: f.Actor_ActorFollow_followingIdToActor.id,
+      displayName: f.Actor_ActorFollow_followingIdToActor.name,
+      username: f.Actor_ActorFollow_followingIdToActor.id,
+      profileImageUrl: f.Actor_ActorFollow_followingIdToActor.profileImageUrl || null,
+      bio: f.Actor_ActorFollow_followingIdToActor.description || '',
       followedAt: f.createdAt.toISOString(),
       isActor: true,
-      tier: f.following.tier || null,
+      tier: f.Actor_ActorFollow_followingIdToActor.tier || null,
     }));
   } else {
     // Target is a regular user
@@ -109,7 +109,7 @@ export const GET = withErrorHandling(async (
         followerId: targetId,
       },
       include: {
-        following: {
+        User_Follow_followingIdToUser: {
           select: {
             id: true,
             displayName: true,
@@ -131,7 +131,7 @@ export const GET = withErrorHandling(async (
         userId: targetId,
       },
       include: {
-        actor: {
+        Actor: {
           select: {
             id: true,
             name: true,
@@ -185,12 +185,12 @@ export const GET = withErrorHandling(async (
             const mutualFollow = await prisma.follow.findUnique({
               where: {
                 followerId_followingId: {
-                  followerId: f.following.id,
+                  followerId: f.User_Follow_followingIdToUser.id,
                   followingId: authUser.userId,
                 },
               },
             });
-            return { userId: f.following.id, isMutual: !!mutualFollow };
+            return { userId: f.User_Follow_followingIdToUser.id, isMutual: !!mutualFollow };
           })
         )
       : [];
@@ -201,19 +201,19 @@ export const GET = withErrorHandling(async (
 
     following = [
       ...userFollows.map((f) => ({
-        id: f.following.id,
-        displayName: f.following.displayName || '',
-        username: f.following.username || null,
-        profileImageUrl: f.following.profileImageUrl || null,
-        bio: f.following.bio || null,
-        isActor: f.following.isActor,
+        id: f.User_Follow_followingIdToUser.id,
+        displayName: f.User_Follow_followingIdToUser.displayName || '',
+        username: f.User_Follow_followingIdToUser.username || null,
+        profileImageUrl: f.User_Follow_followingIdToUser.profileImageUrl || null,
+        bio: f.User_Follow_followingIdToUser.bio || null,
+        isActor: f.User_Follow_followingIdToUser.isActor,
         followedAt: f.createdAt.toISOString(),
         type: 'user' as const,
         tier: null,
-        isMutualFollow: mutualFollowMap.get(f.following.id) || false,
+        isMutualFollow: mutualFollowMap.get(f.User_Follow_followingIdToUser.id) || false,
       })),
       ...actorFollows.map((f) => {
-        if (!f.actor) {
+        if (!f.Actor) {
           return {
             id: f.actorId,
             displayName: f.actorId,
@@ -228,15 +228,15 @@ export const GET = withErrorHandling(async (
         }
 
         return {
-          id: f.actor.id,
-          displayName: f.actor.name || f.actor.id,
+          id: f.Actor.id,
+          displayName: f.Actor.name || f.Actor.id,
           username: null,
-          profileImageUrl: f.actor.profileImageUrl || null,
-          bio: f.actor.description || null,
+          profileImageUrl: f.Actor.profileImageUrl || null,
+          bio: f.Actor.description || null,
           isActor: true,
           followedAt: f.createdAt.toISOString(),
           type: 'actor' as const,
-          tier: f.actor.tier || null,
+          tier: f.Actor.tier || null,
         };
       }),
       ...legacyActorFollows

@@ -34,16 +34,16 @@ export const GET = withErrorHandling(async (
       include: {
         _count: {
           select: {
-            reactions: {
+            Reaction: {
               where: {
                 type: 'like',
               },
             },
-            comments: true,
-            shares: true,
+            Comment: true,
+            Share: true,
           },
         },
-        reactions: user
+        Reaction: user
           ? {
               where: {
                 userId: user.userId,
@@ -62,7 +62,7 @@ export const GET = withErrorHandling(async (
                 id: true,
               },
             },
-        shares: user
+        Share: user
           ? {
               where: {
                 userId: user.userId,
@@ -89,17 +89,17 @@ export const GET = withErrorHandling(async (
       include: {
         _count: {
           select: {
-            reactions: {
+            Reaction: {
               where: {
                 type: 'like',
               },
             },
-            comments: true,
-            shares: true,
+            Comment: true,
+            Share: true,
           },
         },
         // Empty arrays for unauthenticated users
-        reactions: {
+        Reaction: {
           where: {
             userId: 'never-match', // Won't match any user
             type: 'like',
@@ -108,7 +108,7 @@ export const GET = withErrorHandling(async (
             id: true,
           },
         },
-        shares: {
+        Share: {
           where: {
             userId: 'never-match', // Won't match any user
           },
@@ -277,16 +277,16 @@ export const GET = withErrorHandling(async (
               include: {
                 _count: {
                   select: {
-                    reactions: {
+                    Reaction: {
                       where: {
                         type: 'like',
                       },
                     },
-                    comments: true,
-                    shares: true,
+                    Comment: true,
+                    Share: true,
                   },
                 },
-                reactions: {
+                Reaction: {
                   where: {
                     userId: user.userId,
                     type: 'like',
@@ -295,7 +295,7 @@ export const GET = withErrorHandling(async (
                     id: true,
                   },
                 },
-                shares: {
+                Share: {
                   where: {
                     userId: user.userId,
                   },
@@ -320,16 +320,16 @@ export const GET = withErrorHandling(async (
               include: {
                 _count: {
                   select: {
-                    reactions: {
+                    Reaction: {
                       where: {
                         type: 'like',
                       },
                     },
-                    comments: true,
-                    shares: true,
+                    Comment: true,
+                    Share: true,
                   },
                 },
-                reactions: {
+                Reaction: {
                   where: {
                     userId: 'never-match',
                     type: 'like',
@@ -338,7 +338,7 @@ export const GET = withErrorHandling(async (
                     id: true,
                   },
                 },
-                shares: {
+                Share: {
                   where: {
                     userId: 'never-match',
                   },
@@ -401,8 +401,8 @@ export const GET = withErrorHandling(async (
 
     // Return database post
     // Safely check reactions and shares - Prisma may return undefined even when included
-    const reactionsArray = post.reactions && Array.isArray(post.reactions) ? post.reactions : [];
-    const sharesArray = post.shares && Array.isArray(post.shares) ? post.shares : [];
+    const reactionsArray = post.Reaction && Array.isArray(post.Reaction) ? post.Reaction : [];
+    const sharesArray = post.Share && Array.isArray(post.Share) ? post.Share : [];
 
     logger.info('Post fetched successfully', { postId, source: 'database' }, 'GET /api/posts/[id]');
 
@@ -426,9 +426,9 @@ export const GET = withErrorHandling(async (
         isActorPost: true, // Posts are from game actors
         timestamp: post.timestamp ? post.timestamp.toISOString() : post.createdAt.toISOString(),
         createdAt: post.createdAt.toISOString(),
-        likeCount: post._count?.reactions ?? 0,
-        commentCount: post._count?.comments ?? 0,
-        shareCount: post._count?.shares ?? 0,
+        likeCount: post._count?.Reaction ?? 0,
+        commentCount: post._count?.Comment ?? 0,
+        shareCount: post._count?.Share ?? 0,
         isLiked: reactionsArray.length > 0,
         isShared: sharesArray.length > 0,
         source: 'database',

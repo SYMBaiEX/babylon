@@ -12,6 +12,7 @@ import { prisma } from '@/lib/database-service'
 import { updateGameMetrics, updateFeedbackMetrics } from '@/lib/reputation/reputation-service'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 import { logger } from '@/lib/logger'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 interface GameFeedbackRequest {
   agentId: string
@@ -74,12 +75,14 @@ export async function POST(request: NextRequest) {
     // Create feedback record
     const feedback = await prisma.feedback.create({
       data: {
+        id: generateSnowflakeId(),
         toUserId: agent.id,
         score: body.score,
         comment: body.comment,
         gameId: body.gameId,
         interactionType: 'game_to_agent',
         metadata: body.metadata ? (body.metadata as unknown as Prisma.InputJsonValue) : undefined,
+        updatedAt: new Date(),
       },
     })
 

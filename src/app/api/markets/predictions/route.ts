@@ -71,13 +71,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           marketId: { in: marketIds },
         },
         include: {
-          market: true,
+          Market: true,
         },
       });
 
       // Create map of marketId -> position data
       positions.forEach(p => {
-        const market = p.market;
+        const market = p.Market;
         const totalShares = Number(market.yesShares) + Number(market.noShares);
         const currentYesPrice = totalShares > 0 ? Number(market.yesShares) / totalShares : 0.5;
         const currentNoPrice = totalShares > 0 ? Number(market.noShares) / totalShares : 0.5;
@@ -116,13 +116,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             marketId: { in: marketIds },
           },
           include: {
-            market: true,
+            Market: true,
           },
         });
 
         // Create map of marketId -> position data
         positions.forEach(p => {
-          const market = p.market;
+          const market = p.Market;
           const totalShares = Number(market.yesShares) + Number(market.noShares);
           const currentYesPrice = totalShares > 0 ? Number(market.yesShares) / totalShares : 0.5;
           const currentNoPrice = totalShares > 0 ? Number(market.noShares) / totalShares : 0.5;

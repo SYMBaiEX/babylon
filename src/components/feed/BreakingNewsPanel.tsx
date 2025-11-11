@@ -113,9 +113,9 @@ export function BreakingNewsPanel() {
               <div
                 key={item.id}
                 onClick={() => handleItemClick(item)}
-                className="flex items-start gap-2.5 cursor-pointer hover:bg-muted/50 rounded-lg p-1.5 -ml-1.5 transition-colors duration-200"
+                className="flex items-start gap-3 cursor-pointer hover:bg-muted/50 rounded-lg p-1.5 -ml-1.5 transition-colors duration-200"
               >
-                <div className="text-[#0066FF] mt-0.5 flex-shrink-0">
+                <div className="text-[#0066FF] mt-0.5 shrink-0">
                   {getIcon(item.icon)}
                 </div>
                 <div className="flex-1 min-w-0">

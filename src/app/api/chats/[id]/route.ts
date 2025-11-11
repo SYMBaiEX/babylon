@@ -81,22 +81,22 @@ export const GET = withErrorHandling(async (
     return await db.chat.findUnique({
       where: { id: chatId },
       include: {
-        messages: {
+        Message: {
           orderBy: { createdAt: 'asc' },
           take: 100, // Limit to last 100 messages
         },
-        participants: true,
+        ChatParticipant: true,
       },
     })
   }) : asSystem(async (db) => {
     return await db.chat.findUnique({
       where: { id: chatId },
       include: {
-        messages: {
+        Message: {
           orderBy: { createdAt: 'asc' },
           take: 100,
         },
-        participants: true,
+        ChatParticipant: true,
       },
     })
   }))
@@ -108,7 +108,7 @@ export const GET = withErrorHandling(async (
   // Get participant details with RLS (use system for debug mode)
   const { users, actors } = await (authUser ? asUser(authUser, async (db) => {
     // Get participant details - need to check both users and actors
-    const participantUserIds = fullChat.participants.map((p) => p.userId);
+    const participantUserIds = fullChat.ChatParticipant.map((p) => p.userId);
     const users = await db.user.findMany({
       where: {
         id: { in: participantUserIds },
@@ -122,7 +122,7 @@ export const GET = withErrorHandling(async (
     });
 
     // Get unique sender IDs from messages (for game chats, these are often actors)
-    const senderIds = [...new Set(fullChat.messages.map(m => m.senderId))];
+    const senderIds = [...new Set(fullChat.Message.map(m => m.senderId))];
     const actors = await db.actor.findMany({
       where: {
         id: { in: senderIds },
@@ -136,7 +136,7 @@ export const GET = withErrorHandling(async (
 
     return { users, actors };
   }) : asSystem(async (db) => {
-    const participantUserIds = fullChat.participants.map((p) => p.userId);
+    const participantUserIds = fullChat.ChatParticipant.map((p) => p.userId);
     const users = await db.user.findMany({
       where: {
         id: { in: participantUserIds },
@@ -149,7 +149,7 @@ export const GET = withErrorHandling(async (
       },
     });
 
-    const senderIds = [...new Set(fullChat.messages.map(m => m.senderId))];
+    const senderIds = [...new Set(fullChat.Message.map(m => m.senderId))];
     const actors = await db.actor.findMany({
       where: {
         id: { in: senderIds },
@@ -168,11 +168,11 @@ export const GET = withErrorHandling(async (
     const actorsMap = new Map(actors.map((a) => [a.id, a]));
 
     // Get unique sender IDs from messages (for debug mode)
-    const senderIds = [...new Set(fullChat.messages.map(m => m.senderId))];
+    const senderIds = [...new Set(fullChat.Message.map(m => m.senderId))];
 
     // Build participants list from ChatParticipants or message senders (for debug mode)
-    const participantsInfo = fullChat.participants.length > 0
-      ? fullChat.participants.map((p) => {
+    const participantsInfo = fullChat.ChatParticipant.length > 0
+      ? fullChat.ChatParticipant.map((p) => {
           const user = usersMap.get(p.userId);
           const actor = actorsMap.get(p.userId);
           return {
@@ -198,7 +198,7 @@ export const GET = withErrorHandling(async (
     let displayName = fullChat.name;
     let otherUser = null;
     if (!fullChat.isGroup && !fullChat.name && userId) {
-      const otherParticipant = fullChat.participants.find((p) => p.userId !== userId);
+      const otherParticipant = fullChat.ChatParticipant.find((p) => p.userId !== userId);
       if (otherParticipant) {
         const otherUserData = usersMap.get(otherParticipant.userId);
         if (otherUserData) {
@@ -229,7 +229,7 @@ export const GET = withErrorHandling(async (
       updatedAt: fullChat.updatedAt,
       otherUser: otherUser,
     },
-    messages: fullChat.messages.map((msg) => ({
+    messages: fullChat.Message.map((msg) => ({
       id: msg.id,
       content: msg.content,
       senderId: msg.senderId,

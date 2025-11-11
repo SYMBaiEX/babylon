@@ -18,6 +18,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/database-service'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 import { logger } from '@/lib/logger'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 interface FeedbackSubmitRequest {
   fromUserId: string
@@ -85,12 +86,14 @@ export async function POST(request: NextRequest) {
     // Create feedback record
     const feedback = await prisma.feedback.create({
       data: {
+        id: generateSnowflakeId(),
         fromUserId: fromUser.id,
         toUserId: toUser.id,
         score,
         comment: body.comment || null,
         category: body.category || 'general',
         interactionType: 'user_to_agent', // Manual user feedback
+        updatedAt: new Date(),
       },
     })
 

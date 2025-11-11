@@ -26,9 +26,9 @@ export const GET = withErrorHandling(async (
         userId,
       },
       include: {
-        pool: {
+        Pool: {
           include: {
-            npcActor: {
+            Actor: {
               select: {
                 id: true,
                 name: true,
@@ -50,9 +50,9 @@ export const GET = withErrorHandling(async (
           userId,
         },
         include: {
-          pool: {
+          Pool: {
             include: {
-              npcActor: {
+              Actor: {
                 select: {
                   id: true,
                   name: true,
@@ -81,8 +81,8 @@ export const GET = withErrorHandling(async (
     return {
       id: d.id,
       poolId: d.poolId,
-      poolName: d.pool.name,
-      npcActor: d.pool.npcActor,
+      poolName: d.Pool.name,
+      npcActor: d.Pool.Actor,
       amount,
       shares,
       currentValue,

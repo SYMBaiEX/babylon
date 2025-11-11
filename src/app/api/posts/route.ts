@@ -420,9 +420,9 @@ export async function POST(request: NextRequest) {
         timestamp: new Date(),
       },
       include: {
-        comments: false,
-        reactions: false,
-        shares: false,
+        Comment: false,
+        Reaction: false,
+        Share: false,
       },
     });
 

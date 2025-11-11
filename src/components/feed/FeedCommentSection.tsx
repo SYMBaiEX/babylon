@@ -278,7 +278,7 @@ export function FeedCommentSection({
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-border flex-shrink-0">
+            <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-border shrink-0">
               <button
                 type="button"
                 onClick={onClose}
@@ -353,7 +353,7 @@ export function FeedCommentSection({
         <div className="flex flex-col w-full overflow-hidden bg-background relative">
           {/* Sort options */}
           {comments.length > 1 && (
-            <div className="flex items-center gap-2 px-4 py-2 bg-background flex-shrink-0">
+            <div className="flex items-center gap-2 px-4 py-2 bg-background shrink-0">
               <span className="text-xs text-muted-foreground">Sort:</span>
               <div className="flex gap-1">
                 {(['newest', 'oldest', 'popular'] as const).map((option) => (
@@ -376,7 +376,7 @@ export function FeedCommentSection({
           )}
 
           {/* Comment input */}
-          <div className="px-4 py-3 bg-background flex-shrink-0">
+          <div className="px-4 py-3 bg-background shrink-0">
             <CommentInput
               postId={postId}
               placeholder="Post your reply..."

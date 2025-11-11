@@ -4,6 +4,7 @@
  */
 
 import type { NextRequest } from 'next/server';
+import { randomUUID } from 'crypto';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
@@ -63,7 +64,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     let existingChat = await db.chat.findUnique({
       where: { id: chatId },
       include: {
-        participants: {
+        ChatParticipant: {
           select: {
             userId: true,
           },
@@ -78,9 +79,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           id: chatId,
           name: null, // DMs don't have names
           isGroup: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
         },
         include: {
-          participants: {
+          ChatParticipant: {
             select: {
               userId: true,
             },
@@ -92,12 +95,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       await Promise.all([
         db.chatParticipant.create({
           data: {
+            id: randomUUID(),
             chatId,
             userId: user.userId,
           },
         }),
         db.chatParticipant.create({
           data: {
+            id: randomUUID(),
             chatId,
             userId: targetUserId,
           },
@@ -105,11 +110,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       ]);
     } else {
       // Chat exists, ensure both participants are added
-      const participantIds = existingChat.participants.map(p => p.userId);
+      const participantIds = existingChat.ChatParticipant.map(p => p.userId);
       
       if (!participantIds.includes(user.userId)) {
         await db.chatParticipant.create({
           data: {
+            id: randomUUID(),
             chatId,
             userId: user.userId,
           },
@@ -119,6 +125,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       if (!participantIds.includes(targetUserId)) {
         await db.chatParticipant.create({
           data: {
+            id: randomUUID(),
             chatId,
             userId: targetUserId,
           },
@@ -135,7 +142,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   trackServerEvent(user.userId, 'dm_opened', {
     chatId: chat.chat.id,
     recipientId: targetUserId,
-    isNewChat: !chat.chat.participants || chat.chat.participants.length === 0,
+    isNewChat: !chat.chat.ChatParticipant || chat.chat.ChatParticipant.length === 0,
   }).catch((error) => {
     logger.warn('Failed to track dm_opened event', { error });
   });

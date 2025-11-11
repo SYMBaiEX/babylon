@@ -234,7 +234,7 @@ export function RewardsWidget({ userId }: RewardsWidgetProps) {
                     </p>
                   )}
                 </div>
-                <div className="flex-shrink-0 flex items-center gap-1">
+                <div className="shrink-0 flex items-center gap-1">
                   <span className="text-xs font-semibold text-yellow-500">+250</span>
                   {referredUser.isFollowing && (
                     <UserPlus className="w-3 h-3 text-[#0066FF]" />

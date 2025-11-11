@@ -454,7 +454,7 @@ export function ComingSoon() {
                 </div>
                 <button
                   onClick={handleCopyInviteCode}
-                  className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors flex items-center gap-2 flex-shrink-0"
+                  className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors flex items-center gap-2 shrink-0"
                 >
                   {copiedCode ? (
                     <>

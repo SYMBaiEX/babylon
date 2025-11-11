@@ -68,7 +68,7 @@ export function UserPoolPositions({ onWithdraw }: UserPoolPositionsProps) {
 
   if (!authenticated) {
     return (
-      <div className="p-4 rounded-lg bg-muted/50 text-center">
+      <div className="px-4 py-3 rounded-lg bg-muted/50 text-center">
         <p className="text-sm text-muted-foreground">
           Log in to see your pool positions
         </p>
@@ -95,7 +95,7 @@ export function UserPoolPositions({ onWithdraw }: UserPoolPositionsProps) {
     <div className="space-y-4">
       {/* Summary */}
       {summary && (
-        <div className="p-4 bg-muted rounded-lg">
+        <div className="px-4 py-3 bg-muted rounded-lg">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <div className="text-sm text-muted-foreground mb-1">Total Invested</div>

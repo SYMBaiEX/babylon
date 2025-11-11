@@ -15,6 +15,7 @@ import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
 import { ensureUserForAuth } from '@/lib/users/ensure-user';
 import { trackServerEvent } from '@/lib/posthog/server';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 /**
  * POST /api/posts/[id]/like
@@ -97,6 +98,7 @@ export const POST = withErrorHandling(async (
     // Create like reaction
     await prisma.reaction.create({
       data: {
+        id: generateSnowflakeId(),
         postId,
         userId: canonicalUserId,
         type: 'like',

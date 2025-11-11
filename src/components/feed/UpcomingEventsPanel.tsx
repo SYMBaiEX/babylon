@@ -84,7 +84,7 @@ export function UpcomingEventsPanel() {
 
   return (
     <>
-      <div className="bg-sidebar rounded-lg p-4 flex-1 flex flex-col">
+      <div className="bg-sidebar rounded-lg px-4 py-3 flex-1 flex flex-col">
         <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-3 text-left">Upcoming Events</h2>
         {loading ? (
           <div className="space-y-3 pl-3 flex-1">
@@ -100,16 +100,16 @@ export function UpcomingEventsPanel() {
               <div
                 key={event.id}
                 onClick={() => handleEventClick(event)}
-                className="flex items-start gap-2.5 cursor-pointer hover:bg-muted/50 rounded-lg p-1.5 -ml-1.5 transition-colors duration-200"
+                className="flex items-start gap-3 cursor-pointer hover:bg-muted/50 rounded-lg p-1.5 -ml-1.5 transition-colors duration-200"
               >
-                <Calendar className="w-6 h-6 sm:w-7 sm:h-7 text-[#0066FF] mt-0.5 flex-shrink-0" />
+                <Calendar className="w-6 h-6 sm:w-7 sm:h-7 text-[#0066FF] mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start justify-between gap-3">
                     <p className="text-lg sm:text-xl font-semibold text-foreground leading-relaxed">
                       {event.title}
                     </p>
                     {event.isLive && (
-                      <span className="text-sm font-semibold text-[#0066FF] bg-[#0066FF]/10 px-2.5 py-1 rounded flex-shrink-0">
+                      <span className="text-sm font-semibold text-[#0066FF] bg-[#0066FF]/10 px-2.5 py-1 rounded shrink-0">
                         LIVE
                       </span>
                     )}

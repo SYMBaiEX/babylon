@@ -1,4 +1,5 @@
 import type { NextRequest } from 'next/server';
+import { generateSnowflakeId } from '@/lib/snowflake';
 import { Prisma } from '@prisma/client';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { asUser } from '@/lib/db/context';
@@ -37,7 +38,7 @@ export const POST = withErrorHandling(async (
     const pool = await tx.pool.findUnique({
       where: { id: poolId },
       include: {
-        deposits: {
+        PoolDeposit: {
           where: { withdrawnAt: null },
         },
       },
@@ -72,12 +73,12 @@ export const POST = withErrorHandling(async (
     const currentTotalDeposits = parseFloat(pool.totalDeposits.toString());
 
     let shares: number;
-    if (currentTotalValue === 0 || pool.deposits.length === 0) {
+    if (currentTotalValue === 0 || pool.PoolDeposit.length === 0) {
       // First deposit
       shares = amount;
     } else {
       // Calculate proportional shares based on current pool value
-      const totalShares = pool.deposits.reduce(
+      const totalShares = pool.PoolDeposit.reduce(
         (sum, d) => sum + parseFloat(d.shares.toString()),
         0
       );
@@ -87,6 +88,7 @@ export const POST = withErrorHandling(async (
     // 4. Create deposit record
     const deposit = await tx.poolDeposit.create({
       data: {
+        id: generateSnowflakeId(),
         poolId,
         userId,
         amount: new Prisma.Decimal(amount),
@@ -122,6 +124,7 @@ export const POST = withErrorHandling(async (
     // 7. Create balance transaction
     await tx.balanceTransaction.create({
       data: {
+        id: generateSnowflakeId(),
         userId,
         type: 'pool_deposit',
         amount: new Prisma.Decimal(-amount),
@@ -147,6 +150,7 @@ export const POST = withErrorHandling(async (
 
       await tx.pointsTransaction.create({
         data: {
+          id: generateSnowflakeId(),
           userId,
           amount: reputationBonus,
           pointsBefore: currentReputation,

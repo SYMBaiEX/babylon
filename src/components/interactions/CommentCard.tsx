@@ -77,7 +77,7 @@ export function CommentCard({
       )}
     >
       {/* Avatar - Round */}
-      <div className="flex-shrink-0">
+      <div className="shrink-0">
         <Avatar
           id={comment.userId}
           name={comment.userName}
@@ -98,7 +98,7 @@ export function CommentCard({
               @{comment.userUsername || comment.userName}
             </span>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Timestamp - Right aligned */}
             <span className="text-xs text-muted-foreground">
               {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}

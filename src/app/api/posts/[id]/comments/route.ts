@@ -12,6 +12,7 @@ import { notifyCommentOnPost, notifyReplyToComment } from '@/lib/services/notifi
 import { prisma } from '@/lib/database-service';
 import { ensureUserForAuth, getCanonicalUserId } from '@/lib/users/ensure-user';
 import type { NextRequest } from 'next/server';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 /**
  * Build threaded comment structure recursively
@@ -39,17 +40,17 @@ function buildCommentTree(
     createdAt: Date;
     updatedAt: Date;
     parentCommentId: string | null;
-    author: {
+    User: {
       id: string;
       displayName: string | null;
       username: string | null;
       profileImageUrl: string | null;
     };
     _count: {
-      reactions: number;
-      replies: number;
+      Reaction: number;
+      other_Comment: number;
     };
-    reactions: Array<{ id: string }>;
+    Reaction: Array<{ id: string }>;
   }>,
   parentId: string | null = null
 ): CommentTreeItem[] {
@@ -58,7 +59,7 @@ function buildCommentTree(
     if (!parentCommentId) return undefined;
     const parentComment = comments.find(c => c.id === parentCommentId);
     if (parentComment) {
-      return parentComment.author.displayName || parentComment.author.username || 'Anonymous';
+      return parentComment.User.displayName || parentComment.User.username || 'Anonymous';
     }
     return undefined;
   };
@@ -70,14 +71,14 @@ function buildCommentTree(
       content: comment.content,
       createdAt: comment.createdAt,
       updatedAt: comment.updatedAt,
-      userId: comment.author.id,
-      userName: comment.author.displayName || comment.author.username || 'Anonymous',
-      userUsername: comment.author.username || null,
-      userAvatar: comment.author.profileImageUrl,
+      userId: comment.User.id,
+      userName: comment.User.displayName || comment.User.username || 'Anonymous',
+      userUsername: comment.User.username || null,
+      userAvatar: comment.User.profileImageUrl,
       parentCommentId: comment.parentCommentId,
       parentCommentAuthorName: findParentAuthorName(comment.parentCommentId),
-      likeCount: comment._count.reactions,
-      isLiked: comment.reactions.length > 0,
+      likeCount: comment._count.Reaction,
+      isLiked: comment.Reaction.length > 0,
       replies: buildCommentTree(comments, comment.id),
     }));
 }
@@ -122,7 +123,7 @@ export const GET = withErrorHandling(async (
         postId,
       },
       include: {
-        author: {
+        User: {
           select: {
             id: true,
             displayName: true,
@@ -132,15 +133,15 @@ export const GET = withErrorHandling(async (
         },
         _count: {
           select: {
-            reactions: {
+            Reaction: {
               where: {
                 type: 'like',
               },
             },
-            replies: true,
+            other_Comment: true,
           },
         },
-        reactions: canonicalUserId
+        Reaction: canonicalUserId
           ? {
               where: {
                 userId: canonicalUserId,
@@ -311,13 +312,15 @@ export const POST = withErrorHandling(async (
     // Create comment
     const comment = await prisma.comment.create({
       data: {
+        id: generateSnowflakeId(),
         content: content.trim(),
         postId,
         authorId: canonicalUserId,
         parentCommentId: parentCommentId || null,
+        updatedAt: new Date(),
       },
       include: {
-        author: {
+        User: {
           select: {
             id: true,
             displayName: true,
@@ -327,8 +330,8 @@ export const POST = withErrorHandling(async (
         },
         _count: {
           select: {
-            reactions: true,
-            replies: true,
+            Reaction: true,
+            other_Comment: true,
           },
         },
       },
@@ -387,9 +390,9 @@ export const POST = withErrorHandling(async (
       parentCommentId: comment.parentCommentId,
       createdAt: comment.createdAt,
       updatedAt: comment.updatedAt,
-      author: comment.author,
-      likeCount: comment._count.reactions,
-      replyCount: comment._count.replies,
+      User: comment.User,
+      likeCount: comment._count.Reaction,
+      replyCount: comment._count.other_Comment,
     },
     201
   );

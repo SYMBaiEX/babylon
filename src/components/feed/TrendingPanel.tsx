@@ -77,27 +77,27 @@ export function TrendingPanel() {
   }
 
   return (
-    <div className="bg-sidebar rounded-lg p-3 md:p-4 flex-1 flex flex-col">
-      <h2 className="text-lg font-bold text-foreground mb-2 md:mb-3 text-left">
+    <div className="bg-sidebar rounded-lg p-4 flex-1 flex flex-col">
+      <h2 className="text-lg font-bold text-foreground mb-3 text-left">
         Trending
       </h2>
       {loading ? (
-        <div className="space-y-3 pl-2 md:pl-3 flex-1">
+        <div className="space-y-3 pl-3 flex-1">
           <Skeleton className="h-14 w-full" />
           <Skeleton className="h-14 w-full" />
           <Skeleton className="h-14 w-full" />
         </div>
       ) : trending.length === 0 ? (
-        <div className="text-sm text-muted-foreground pl-2 md:pl-3 flex-1">
+        <div className="text-sm text-muted-foreground pl-3 flex-1">
           No trending topics at the moment.
         </div>
       ) : (
-        <div className="space-y-2 md:space-y-2.5 pl-2 md:pl-3 flex-1">
+        <div className="space-y-2 pl-3 flex-1">
           {trending.map((item) => (
             <div
               key={item.id}
               onClick={() => handleTrendingClick(item)}
-              className="flex items-start gap-2 md:gap-2.5 cursor-pointer hover:bg-muted/50 rounded-lg p-1.5 -ml-1.5 transition-colors duration-200"
+              className="flex items-start gap-3 cursor-pointer hover:bg-muted/50 rounded-lg p-1.5 -ml-1.5 transition-colors duration-200"
             >
               <div className="flex-1 min-w-0">
                 {/* Category and status */}

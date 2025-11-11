@@ -111,7 +111,7 @@ export default function PostPage({ params }: PostPageProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="space-y-4 w-full max-w-2xl p-4">
+        <div className="space-y-4 w-full max-w-2xl px-4 py-3">
           <Skeleton className="h-8 w-3/4" />
           <Skeleton className="h-64 w-full" />
           <Skeleton className="h-32 w-full" />
@@ -122,7 +122,7 @@ export default function PostPage({ params }: PostPageProps) {
 
   if (error || !post) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+      <div className="flex flex-col items-center justify-center min-h-screen px-4 py-3">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-2">Post Not Found</h1>
           <p className="text-muted-foreground mb-4">{error || 'The post you are looking for does not exist.'}</p>
@@ -144,7 +144,7 @@ export default function PostPage({ params }: PostPageProps) {
         {/* Left: Post content area */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Desktop: Top bar with back button */}
-          <div className="sticky top-0 z-10 bg-background shadow-sm flex-shrink-0 border-b border-border">
+          <div className="sticky top-0 z-10 bg-background shadow-sm shrink-0 border-b border-border">
             <div className="px-6 py-4">
               <div className="flex items-center gap-4">
                 <button
@@ -202,8 +202,8 @@ export default function PostPage({ params }: PostPageProps) {
                     
                     {/* Bias warning */}
                     {post.biasScore !== null && post.biasScore !== undefined && Math.abs(post.biasScore) >= 0.3 && (
-                      <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg mb-6">
-                        <div className="flex items-start gap-2">
+                      <div className="px-4 py-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg mb-6">
+                        <div className="flex items-start gap-3">
                           <span className="text-yellow-500 text-lg">⚠️</span>
                           <div>
                             <p className="text-sm font-semibold text-yellow-500 mb-1">Biased Coverage</p>
@@ -277,7 +277,7 @@ export default function PostPage({ params }: PostPageProps) {
       {/* Mobile/Tablet: Single column layout */}
       <div className="lg:hidden flex flex-col flex-1 overflow-hidden">
         {/* Mobile header */}
-        <div className="sticky top-0 z-10 bg-background border-b border-border flex-shrink-0">
+        <div className="sticky top-0 z-10 bg-background border-b border-border shrink-0">
           <div className="flex items-center gap-4 px-4 py-3">
             <button
               onClick={() => router.back()}

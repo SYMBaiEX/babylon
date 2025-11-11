@@ -9,6 +9,7 @@ import { asSystem } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BadRequestError, AuthorizationError } from '@/lib/errors';
 import { logger } from '@/lib/logger';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 interface ControlRequest {
   action: 'start' | 'pause';
@@ -42,10 +43,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       // Create the game if it doesn't exist
       gameState = await db.game.create({
         data: {
+          id: generateSnowflakeId(),
           isContinuous: true,
           isRunning: action === 'start',
           currentDay: 1,
           startedAt: action === 'start' ? new Date() : null,
+          updatedAt: new Date(),
         },
       });
       logger.info(`Game created and ${action === 'start' ? 'started' : 'paused'}`, { gameId: gameState.id }, 'Game Control');

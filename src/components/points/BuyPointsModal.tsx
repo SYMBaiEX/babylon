@@ -385,7 +385,7 @@ export function BuyPointsModal({
               {/* Info Box */}
               <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
                 <div className="flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                  <AlertCircle className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
                   <div className="text-xs text-blue-700 dark:text-blue-300">
                     <p className="font-medium mb-1">
                       Points are non-transferable

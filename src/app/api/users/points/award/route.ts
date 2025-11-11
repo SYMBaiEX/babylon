@@ -14,6 +14,7 @@ import { AwardPointsSchema, UserIdParamSchema } from '@/lib/validation/schemas'
 import { Prisma } from '@prisma/client'
 import type { NextRequest } from 'next/server'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 /**
  * POST /api/users/points/award
@@ -39,6 +40,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Award points by creating a deposit transaction
   const transaction = await prisma.balanceTransaction.create({
     data: {
+      id: generateSnowflakeId(),
       userId: user.id,
       type: 'deposit',
       amount: amountDecimal,

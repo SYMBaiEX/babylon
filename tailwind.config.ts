@@ -62,6 +62,19 @@ const config: Config = {
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
       },
+      maxWidth: {
+        'feed': '600px',      // Main feed content
+        'modal': '600px',     // Modals and dialogs
+        'sidebar': '350px',   // Widget sidebar
+        'nav-sidebar': '280px', // Navigation sidebar
+      },
+      fontSize: {
+        'base-text': '0.9375rem', // 15px - standard body text
+      },
+      spacing: {
+        'safe-bottom': 'env(safe-area-inset-bottom)',
+        'safe-top': 'env(safe-area-inset-top)',
+      },
       keyframes: {
         'accordion-down': {
           from: { height: '0' },

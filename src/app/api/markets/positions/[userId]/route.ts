@@ -46,7 +46,7 @@ export const GET = withErrorHandling(async (
             userId,
           },
           include: {
-            market: {
+            Market: {
               select: {
                 id: true,
                 question: true,
@@ -66,7 +66,7 @@ export const GET = withErrorHandling(async (
             userId,
           },
           include: {
-            market: {
+            Market: {
               select: {
                 id: true,
                 question: true,
@@ -114,8 +114,8 @@ export const GET = withErrorHandling(async (
     },
     predictions: {
       positions: predictionPositions.map((p) => {
-        const yesShares = Number(p.market.yesShares);
-        const noShares = Number(p.market.noShares);
+        const yesShares = Number(p.Market.yesShares);
+        const noShares = Number(p.Market.noShares);
         const totalShares = yesShares + noShares;
         const fallbackPrice = 0.5;
         const yesPrice = totalShares > 0 ? yesShares / totalShares : fallbackPrice;
@@ -130,7 +130,7 @@ export const GET = withErrorHandling(async (
         return {
           id: p.id,
           marketId: p.marketId,
-          question: p.market.question,
+          question: p.Market.question,
           side: p.side ? 'YES' : 'NO',
           shares,
           avgPrice,
@@ -138,8 +138,8 @@ export const GET = withErrorHandling(async (
           currentValue,
           costBasis,
           unrealizedPnL,
-          resolved: p.market.resolved,
-          resolution: p.market.resolution,
+          resolved: p.Market.resolved,
+          resolution: p.Market.resolution,
         }
       }),
       stats: {

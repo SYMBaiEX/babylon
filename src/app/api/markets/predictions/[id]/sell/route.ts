@@ -100,6 +100,7 @@ export const POST = withErrorHandling(async (
           resolved: false,
           resolution: null,
           endDate: endDate,
+          updatedAt: new Date(),
         },
         update: {},
       });

@@ -4,6 +4,7 @@
  */
 
 import type { NextRequest } from 'next/server';
+import { randomUUID } from 'crypto';
 import { prisma } from '@/lib/database-service';
 import { ensureUserForAuth } from '@/lib/users/ensure-user';
 import { authenticate } from '@/lib/api/auth-middleware';
@@ -59,6 +60,7 @@ export const POST = withErrorHandling(async (
   // Create like reaction
   const reaction = await prisma.reaction.create({
     data: {
+      id: randomUUID(),
       commentId,
       userId: canonicalUserId,
       type: 'like',

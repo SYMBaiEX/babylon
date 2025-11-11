@@ -43,7 +43,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         isActive: true,
       },
       include: {
-        npcActor: {
+        Actor: {
           select: {
             id: true,
             name: true,
@@ -52,7 +52,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             personality: true,
           },
         },
-        deposits: {
+        PoolDeposit: {
           where: {
             withdrawnAt: null,
           },
@@ -61,7 +61,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             currentValue: true,
           },
         },
-        positions: {
+        PoolPosition: {
           where: {
             closedAt: null,
           },
@@ -76,12 +76,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         },
         _count: {
           select: {
-            deposits: {
+            PoolDeposit: {
               where: {
                 withdrawnAt: null,
               },
             },
-            trades: true,
+            NPCTrade: true,
           },
         },
       },
@@ -100,7 +100,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         isActive: true,
       },
       include: {
-        npcActor: {
+        Actor: {
           select: {
             id: true,
             name: true,
@@ -109,7 +109,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             personality: true,
           },
         },
-        deposits: {
+        PoolDeposit: {
           where: {
             withdrawnAt: null,
           },
@@ -118,7 +118,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             currentValue: true,
           },
         },
-        positions: {
+        PoolPosition: {
           where: {
             closedAt: null,
           },
@@ -133,12 +133,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         },
         _count: {
           select: {
-            deposits: {
+            PoolDeposit: {
               where: {
                 withdrawnAt: null,
               },
             },
-            trades: true,
+            NPCTrade: true,
           },
         },
       },
@@ -156,7 +156,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const availableBalance = parseFloat(pool.availableBalance.toString());
 
     // Calculate total unrealized P&L across all positions
-    const totalUnrealizedPnL = pool.positions.reduce(
+    const totalUnrealizedPnL = pool.PoolPosition.reduce(
       (sum, pos) => sum + pos.unrealizedPnL,
       0
     );
@@ -165,7 +165,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const totalReturn = totalDeposits > 0 ? ((totalValue - totalDeposits) / totalDeposits) * 100 : 0;
 
     // Calculate active deposits value
-    const activeDepositsValue = pool.deposits.reduce(
+    const activeDepositsValue = pool.PoolDeposit.reduce(
       (sum, dep) => sum + parseFloat(dep.currentValue.toString()),
       0
     );
@@ -178,7 +178,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       id: pool.id,
       name: pool.name,
       description: pool.description,
-      npcActor: pool.npcActor,
+      Actor: pool.Actor,
       totalValue,
       totalDeposits,
       availableBalance,
@@ -186,9 +186,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       totalReturn,
       performanceFeeRate: pool.performanceFeeRate,
       totalFeesCollected: parseFloat(pool.totalFeesCollected.toString()),
-      activeInvestors: pool._count.deposits,
-      totalTrades: pool._count.trades,
-      openPositions: pool.positions.length,
+      activeInvestors: pool._count.PoolDeposit,
+      totalTrades: pool._count.NPCTrade,
+      openPositions: pool.PoolPosition.length,
       totalUnrealizedPnL,
       activeDepositsValue,
       openedAt,

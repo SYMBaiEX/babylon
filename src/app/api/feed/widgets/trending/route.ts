@@ -31,9 +31,9 @@ export async function GET(request: NextRequest) {
       const recentPosts = (authUser && authUser.userId)
         ? await asUser(authUser, async (db) => {
           return await db.postTag.findMany({
-            where: { tagId: item.tag.id },
+            where: { tagId: item.Tag.id },
             include: {
-              post: {
+              Post: {
                 select: {
                   content: true,
                 },
@@ -47,9 +47,9 @@ export async function GET(request: NextRequest) {
         })
         : await asPublic(async (db) => {
           return await db.postTag.findMany({
-            where: { tagId: item.tag.id },
+            where: { tagId: item.Tag.id },
             include: {
-              post: {
+              Post: {
                 select: {
                   content: true,
                 },
@@ -62,19 +62,19 @@ export async function GET(request: NextRequest) {
           })
         })
 
-      const postContents = recentPosts.map(pt => pt.post.content)
+      const postContents = recentPosts.map(pt => pt.Post.content)
       
       const summary = await generateTrendingSummary(
-        item.tag.displayName,
-        item.tag.category,
+        item.Tag.displayName,
+        item.Tag.category,
         postContents
       )
 
       return {
         id: item.id,
-        tag: item.tag.displayName,
-        tagSlug: item.tag.name,
-        category: item.tag.category,
+        tag: item.Tag.displayName,
+        tagSlug: item.Tag.name,
+        category: item.Tag.category,
         postCount: item.postCount,
         summary,
         rank: item.rank,

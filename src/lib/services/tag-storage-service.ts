@@ -308,7 +308,7 @@ export async function getCurrentTrendingTags(limit = 10) {
       },
     },
     include: {
-      tag: true,
+      Tag: true,
     },
     orderBy: {
       rank: 'asc',

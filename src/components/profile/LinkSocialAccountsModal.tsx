@@ -194,7 +194,7 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
             ) : (
               <div className="space-y-2">
                 <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-start gap-2">
-                  <Shield className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <Shield className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
                   <p className="text-xs text-muted-foreground">
                     You&apos;ll be redirected to Twitter to authorize access. We&apos;ll verify your account ownership.
                   </p>
@@ -257,7 +257,7 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
             ) : (
               <div className="space-y-2">
                 <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-start gap-2">
-                  <Shield className="w-4 h-4 text-purple-500 flex-shrink-0 mt-0.5" />
+                  <Shield className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
                   <p className="text-xs text-muted-foreground">
                     Sign in with Farcaster to verify your account. A popup will open for authentication.
                   </p>
@@ -290,7 +290,7 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
           {/* Info */}
           <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
             <div className="flex items-start gap-2">
-              <Shield className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+              <Shield className="w-4 h-4 text-primary shrink-0 mt-0.5" />
               <p className="text-sm text-muted-foreground">
                 OAuth authentication verifies your account ownership and earns you reputation points!
               </p>

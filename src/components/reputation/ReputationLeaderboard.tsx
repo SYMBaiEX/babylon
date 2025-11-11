@@ -136,7 +136,7 @@ export function ReputationLeaderboard({
             )}
           >
             {/* Rank */}
-            <div className="flex-shrink-0 w-8 text-center">
+            <div className="shrink-0 w-8 text-center">
               {entry.rank <= 3 ? (
                 <Trophy className={cn('w-6 h-6', getRankMedalColor(entry.rank))} />
               ) : (
@@ -145,7 +145,7 @@ export function ReputationLeaderboard({
             </div>
 
             {/* Profile Image */}
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               {entry.profileImageUrl ? (
                 <img
                   src={entry.profileImageUrl}
@@ -177,7 +177,7 @@ export function ReputationLeaderboard({
             </div>
 
             {/* Stats */}
-            <div className="flex items-center gap-4 flex-shrink-0">
+            <div className="flex items-center gap-4 shrink-0">
               {/* Reputation Points */}
               <div className="text-center">
                 <div className="text-lg font-bold text-foreground">

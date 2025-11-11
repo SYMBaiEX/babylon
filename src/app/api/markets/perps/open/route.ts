@@ -15,6 +15,7 @@ import { logger } from '@/lib/logger';
 import { FeeService } from '@/lib/services/fee-service';
 import { FEE_CONFIG } from '@/lib/config/fees';
 import { trackServerEvent } from '@/lib/posthog/server';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 /**
  * POST /api/markets/perps/open
@@ -117,6 +118,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         // Create balance transaction with position ID (includes fee)
         await tx.balanceTransaction.create({
           data: {
+            id: generateSnowflakeId(),
             userId: user.userId,
             type: 'perp_open',
             amount: -totalCost,
@@ -143,6 +145,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
             unrealizedPnL: position.unrealizedPnL,
             unrealizedPnLPercent: position.unrealizedPnLPercent,
             fundingPaid: position.fundingPaid,
+            lastUpdated: new Date(),
           },
         });
       });

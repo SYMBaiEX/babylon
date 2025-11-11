@@ -282,7 +282,7 @@ class CachedDatabaseService {
       () => db.prisma.pool.findMany({
         where: { isActive: true },
         include: {
-          npcActor: {
+          Actor: {
             select: {
               id: true,
               name: true,
@@ -291,7 +291,7 @@ class CachedDatabaseService {
               personality: true,
             },
           },
-          deposits: {
+          PoolDeposit: {
             where: {
               withdrawnAt: null,
             },
@@ -300,7 +300,7 @@ class CachedDatabaseService {
               currentValue: true,
             },
           },
-          positions: {
+          PoolPosition: {
             where: {
               closedAt: null,
             },
@@ -315,12 +315,12 @@ class CachedDatabaseService {
           },
           _count: {
             select: {
-              deposits: {
+              PoolDeposit: {
                 where: {
                   withdrawnAt: null,
                 },
               },
-              trades: true,
+              NPCTrade: true,
             },
           },
         },

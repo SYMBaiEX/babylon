@@ -37,11 +37,11 @@ export function WidgetSidebar() {
   return (
     <div
       ref={sidebarRef}
-      className="hidden xl:flex flex-col w-96 flex-shrink-0 bg-sidebar sidebar"
+      className="hidden xl:flex flex-col w-96 shrink-0 bg-sidebar sidebar"
     >
-      <div className="sidebar__inner flex flex-col px-4 py-6 gap-6">
+      <div className="sidebar__inner flex flex-col px-4 py-4 gap-4">
         {/* Search Bar at the top */}
-        <div className="flex-shrink-0">
+        <div className="shrink-0">
           <EntitySearchAutocomplete
             value={searchQuery}
             onChange={setSearchQuery}
@@ -49,15 +49,15 @@ export function WidgetSidebar() {
           />
         </div>
 
-        <div className="flex-shrink-0">
+        <div className="shrink-0">
           <LatestNewsPanel />
         </div>
 
-        <div className="flex-shrink-0">
+        <div className="shrink-0">
           <TrendingPanel />
         </div>
 
-        <div className="flex-shrink-0">
+        <div className="shrink-0">
           <MarketsPanel />
         </div>
       </div>

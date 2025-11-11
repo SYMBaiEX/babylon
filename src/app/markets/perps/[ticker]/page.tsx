@@ -226,19 +226,19 @@ export default function PerpDetailPage() {
 
         {/* Market Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-          <div className="bg-muted/30 rounded-lg p-3">
+          <div className="bg-muted/30 rounded-lg px-3 py-3">
             <div className="text-xs text-muted-foreground mb-1">24h High</div>
             <div className="text-lg font-bold">{formatPrice(market.high24h)}</div>
           </div>
-          <div className="bg-muted/30 rounded-lg p-3">
+          <div className="bg-muted/30 rounded-lg px-3 py-3">
             <div className="text-xs text-muted-foreground mb-1">24h Low</div>
             <div className="text-lg font-bold">{formatPrice(market.low24h)}</div>
           </div>
-          <div className="bg-muted/30 rounded-lg p-3">
+          <div className="bg-muted/30 rounded-lg px-3 py-3">
             <div className="text-xs text-muted-foreground mb-1">24h Volume</div>
             <div className="text-lg font-bold">{formatVolume(market.volume24h)}</div>
           </div>
-          <div className="bg-muted/30 rounded-lg p-3">
+          <div className="bg-muted/30 rounded-lg px-3 py-3">
             <div className="text-xs text-muted-foreground mb-1">Open Interest</div>
             <div className="text-lg font-bold">{formatVolume(market.openInterest)}</div>
           </div>
@@ -257,15 +257,15 @@ export default function PerpDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chart */}
         <div className="lg:col-span-2">
-          <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border">
+          <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
             <h2 className="text-lg font-bold mb-4">Price Chart</h2>
             <PriceChart data={priceHistory} currentPrice={market.currentPrice} />
           </div>
 
           {/* Funding Rate Info */}
-          <div className="bg-muted/30 rounded-lg p-4 mt-4">
-            <div className="flex items-start gap-2">
-              <Info className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+          <div className="bg-muted/30 rounded-lg px-4 py-3 mt-4">
+            <div className="flex items-start gap-3">
+              <Info className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-medium">Funding Rate</span>
@@ -289,15 +289,15 @@ export default function PerpDetailPage() {
 
         {/* Trading Panel */}
         <div className="lg:col-span-1">
-          <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border sticky top-4">
+          <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border sticky top-4">
             <h2 className="text-lg font-bold mb-4">Trade</h2>
 
             {/* Long/Short Tabs */}
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-3 mb-4">
               <button
                 onClick={() => setSide('long')}
                 className={cn(
-                  'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2 cursor-pointer',
+                  'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-3 cursor-pointer',
                   side === 'long'
                     ? 'bg-green-600 text-white'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -309,7 +309,7 @@ export default function PerpDetailPage() {
               <button
                 onClick={() => setSide('short')}
                 className={cn(
-                  'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2 cursor-pointer',
+                  'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-3 cursor-pointer',
                   side === 'short'
                     ? 'bg-red-600 text-white'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -321,7 +321,7 @@ export default function PerpDetailPage() {
             </div>
 
             {/* Size & Leverage */}
-            <div className="bg-muted/30 rounded-lg p-4 mb-4 space-y-4">
+            <div className="bg-muted/30 rounded-lg px-4 py-3 mb-4 space-y-4">
               <div>
                 <label className="text-sm font-medium text-muted-foreground mb-2 block">
                   Position Size (USD)
@@ -360,7 +360,7 @@ export default function PerpDetailPage() {
             </div>
 
             {/* Position Preview */}
-            <div className="bg-muted/20 rounded-lg p-4 mb-4">
+            <div className="bg-muted/20 rounded-lg px-4 py-3 mb-4">
               <h3 className="text-sm font-bold mb-3 text-muted-foreground">Position Preview</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -393,8 +393,8 @@ export default function PerpDetailPage() {
 
             {/* High Risk Warning */}
             {isHighRisk && (
-              <div className="flex items-start gap-2 p-3 bg-yellow-500/15 rounded-lg mb-4">
-                <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 px-3 py-3 bg-yellow-500/15 rounded-lg mb-4">
+                <AlertTriangle className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" />
                 <div className="text-sm">
                   <div className="font-bold text-yellow-600 mb-1">High Risk Position</div>
                   <p className="text-muted-foreground">

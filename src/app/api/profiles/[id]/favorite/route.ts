@@ -13,6 +13,7 @@ import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { IdParamSchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 /**
  * POST /api/profiles/[id]/favorite
@@ -69,11 +70,12 @@ export const POST = withErrorHandling(async (
     // Create favorite
     const fav = await db.favorite.create({
       data: {
+        id: generateSnowflakeId(),
         userId: user.userId,
         targetUserId,
       },
       include: {
-        targetUser: {
+        User_Favorite_targetUserIdToUser: {
           select: {
             id: true,
             displayName: true,
@@ -93,7 +95,7 @@ export const POST = withErrorHandling(async (
   return successResponse(
     {
       id: favorite.id,
-      targetUser: favorite.targetUser,
+      targetUser: favorite.User_Favorite_targetUserIdToUser,
       createdAt: favorite.createdAt,
     },
     201

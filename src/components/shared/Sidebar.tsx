@@ -179,6 +179,7 @@ function SidebarContent() {
                 'group relative flex items-center px-4 py-3',
                 'transition-colors duration-200',
                 'md:justify-center lg:justify-start',
+                'gap-3',
                 !item.active && 'bg-transparent hover:bg-sidebar-accent'
               )}
               title={item.name}
@@ -199,7 +200,7 @@ function SidebarContent() {
               {/* Icon */}
               <Icon
                 className={cn(
-                  'w-6 h-6 flex-shrink-0',
+                  'w-6 h-6 shrink-0',
                   'transition-all duration-300',
                   'group-hover:scale-110',
                   'lg:mr-3',
@@ -303,9 +304,9 @@ function SidebarContent() {
                   aria-label={copiedReferral ? "Copied!" : "Copy Referral Link"}
                 >
                   {copiedReferral ? (
-                    <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
+                    <Check className="w-5 h-5 text-green-500 shrink-0" />
                   ) : (
-                    <Copy className="w-5 h-5 text-sidebar-foreground flex-shrink-0" />
+                    <Copy className="w-5 h-5 text-sidebar-foreground shrink-0" />
                   )}
                 </button>
               )}
@@ -323,7 +324,7 @@ function SidebarContent() {
                 title="Logout"
                 aria-label="Logout"
               >
-                <LogOut className="w-5 h-5 flex-shrink-0" />
+                <LogOut className="w-5 h-5 shrink-0" />
               </button>
             </div>
           )}

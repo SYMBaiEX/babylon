@@ -133,7 +133,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
             onChange={(e) => setContent(e.target.value)}
             placeholder="What's happening in Babylon?"
             className={cn(
-              'flex-1 w-full p-4 rounded-xl',
+              'flex-1 w-full px-4 py-3 rounded-xl',
               'border border-white/10 bg-white/5',
               'text-white placeholder:text-white/40',
               'resize-none focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20',
@@ -163,7 +163,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
               'hover:bg-white/90',
               'disabled:opacity-50 disabled:cursor-not-allowed',
               'transition-all duration-200',
-              'flex items-center justify-center gap-2'
+              'flex items-center justify-center gap-3'
             )}
           >
             {isSubmitting ? (
@@ -206,7 +206,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
               onChange={(e) => setContent(e.target.value)}
               placeholder="What's happening in Babylon?"
               className={cn(
-                'flex-1 w-full p-4 rounded-xl',
+                'flex-1 w-full px-4 py-3 rounded-xl',
                 'border border-white/10 bg-white/5',
                 'text-white placeholder:text-white/40',
                 'resize-none focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20',
@@ -236,7 +236,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
                 'hover:bg-white/90',
                 'disabled:opacity-50 disabled:cursor-not-allowed',
                 'transition-all duration-200',
-                'flex items-center justify-center gap-2'
+                'flex items-center justify-center gap-3'
               )}
             >
               {isSubmitting ? (

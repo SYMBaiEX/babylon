@@ -14,7 +14,7 @@ import type { Prisma } from '@prisma/client'
 // Type for pool with included relations
 type PoolWithRelations = Prisma.PoolGetPayload<{
   include: {
-    npcActor: {
+    Actor: {
       select: {
         id: true
         name: true
@@ -22,7 +22,7 @@ type PoolWithRelations = Prisma.PoolGetPayload<{
         personality: true
       }
     }
-    positions: {
+    PoolPosition: {
       select: {
         unrealizedPnL: true
       }
@@ -63,7 +63,7 @@ export async function GET(request: Request) {
         totalValue: { gte: minValue },
       },
       include: {
-        npcActor: {
+        Actor: {
           select: {
             id: true,
             name: true,
@@ -71,7 +71,7 @@ export async function GET(request: Request) {
             personality: true,
           },
         },
-        positions: {
+        PoolPosition: {
           where: { closedAt: null },
           select: {
             unrealizedPnL: true,
@@ -91,7 +91,7 @@ export async function GET(request: Request) {
       const initialValue = parseFloat(pool.totalDeposits?.toString() || '1000') // Use total deposits as initial value
 
       // Calculate unrealized PnL from open positions
-      const unrealizedPnL = pool.positions.reduce((sum: number, pos) => {
+      const unrealizedPnL = pool.PoolPosition.reduce((sum: number, pos) => {
         return sum + parseFloat(pos.unrealizedPnL?.toString() || '0')
       }, 0)
 
@@ -104,16 +104,16 @@ export async function GET(request: Request) {
 
       return {
         rank: index + 1,
-        actorId: pool.npcActor?.id || '',
-        actorName: pool.npcActor?.name || 'Unknown',
-        personality: pool.npcActor?.personality || null,
-        profileImageUrl: pool.npcActor?.profileImageUrl || null,
+        actorId: pool.Actor?.id || '',
+        actorName: pool.Actor?.name || 'Unknown',
+        personality: pool.Actor?.personality || null,
+        profileImageUrl: pool.Actor?.profileImageUrl || null,
         poolId: pool.id,
         performance: {
           totalValue: Math.round(totalValue),
           roi: parseFloat(roi.toFixed(2)),
           unrealizedPnL: Math.round(unrealizedPnL),
-          positionCount: pool.positions.length,
+          positionCount: pool.PoolPosition.length,
           utilization: parseFloat(utilization.toFixed(1)),
         },
       }

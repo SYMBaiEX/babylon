@@ -70,11 +70,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           reputationPoints: true,
           _count: {
             select: {
-              positions: true,
-              comments: true,
-              reactions: true,
-              following: true,
-              followedBy: true,
+              Position: true,
+              Comment: true,
+              Reaction: true,
+              Follow_Follow_followerIdToUser: true,
+              Follow_Follow_followingIdToUser: true,
             },
           },
         },
@@ -99,11 +99,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         balance: user.virtualBalance.toString(),
         reputationPoints: user.reputationPoints,
         stats: {
-          positions: user._count.positions,
-          comments: user._count.comments,
-          reactions: user._count.reactions,
-          followers: user._count.followedBy,
-          following: user._count.following,
+          positions: user._count.Position,
+          comments: user._count.Comment,
+          reactions: user._count.Reaction,
+          followers: user._count.Follow_Follow_followingIdToUser,
+          following: user._count.Follow_Follow_followerIdToUser,
         },
       }))
     }
@@ -142,10 +142,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           createdAt: true,
           _count: {
             select: {
-              pools: true,
-              npcTrades: true,
-              followedBy: true,
-              following: true,
+              Pool: true,
+              NPCTrade: true,
+              ActorFollow_ActorFollow_followingIdToActor: true,
+              ActorFollow_ActorFollow_followerIdToActor: true,
             },
           },
         },
@@ -166,10 +166,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         hasPool: actor.hasPool,
         createdAt: actor.createdAt,
         stats: {
-          pools: actor._count.pools,
-          trades: actor._count.npcTrades,
-          followers: actor._count.followedBy,
-          following: actor._count.following,
+          pools: actor._count.Pool,
+          trades: actor._count.NPCTrade,
+          followers: actor._count.ActorFollow_ActorFollow_followingIdToActor,
+          following: actor._count.ActorFollow_ActorFollow_followerIdToActor,
         },
       }))
     }

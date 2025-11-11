@@ -4,6 +4,7 @@
  */
 
 import type { NextRequest } from 'next/server'
+import { randomUUID } from 'crypto'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { asUser } from '@/lib/db/context'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
@@ -89,21 +90,14 @@ export const POST = withErrorHandling(async (
       }
       
       // Create the chat
+      const now = new Date()
       await db.chat.create({
         data: {
           id: chatId,
           name: null,
           isGroup: false,
-        },
-        select: {
-          id: true,
-          isGroup: true,
-          gameId: true,
-          participants: {
-            select: {
-              userId: true,
-            },
-          },
+          createdAt: now,
+          updatedAt: now,
         },
       })
       
@@ -111,12 +105,14 @@ export const POST = withErrorHandling(async (
       await Promise.all([
         db.chatParticipant.create({
           data: {
+            id: randomUUID(),
             chatId,
             userId: user.userId,
           },
         }),
         db.chatParticipant.create({
           data: {
+            id: randomUUID(),
             chatId,
             userId: otherUserId,
           },
@@ -130,7 +126,7 @@ export const POST = withErrorHandling(async (
           id: true,
           isGroup: true,
           gameId: true,
-          participants: {
+          ChatParticipant: {
             select: {
               userId: true,
             },
@@ -211,6 +207,7 @@ export const POST = withErrorHandling(async (
       const result = await asUser(user, async (db) => {
         const msg = await db.message.create({
           data: {
+            id: randomUUID(),
             content: content.trim(),
             chatId,
             senderId: user.userId,

@@ -154,13 +154,13 @@ export default function RegistryPage() {
 
     const cardContent = (
       <>
-        <div className="p-4 border-b border-border bg-muted/30">
+        <div className="px-4 py-3 border-b border-border bg-muted/30">
           <div className="flex items-start gap-3">
             <Avatar
               src={entity.imageUrl}
               name={entity.name}
               size="lg"
-              className="flex-shrink-0"
+              className="shrink-0"
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2">
@@ -174,7 +174,7 @@ export default function RegistryPage() {
                     </p>
                   )}
                 </div>
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                   {entity.type === 'user' && renderBadge('user', 'User', <UserCircle className="h-3 w-3" />, getBadgeColor())}
                   {entity.type === 'actor' && renderBadge('actor', 'Actor', <Users className="h-3 w-3" />, getBadgeColor())}
                   {entity.type === 'agent' && renderBadge('agent', 'Agent', <Bot className="h-3 w-3" />, getBadgeColor())}
@@ -192,11 +192,11 @@ export default function RegistryPage() {
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-3">
+        <div className="px-4 py-3 space-y-3">
           {/* On-chain status */}
           {entity.onChainRegistered && (
             <div className="flex items-center gap-2 text-sm bg-green-500/5 border border-green-500/20 rounded-lg p-2">
-              <Shield className="h-4 w-4 text-green-500 flex-shrink-0" />
+              <Shield className="h-4 w-4 text-green-500 shrink-0" />
               <span className="text-green-500 font-medium flex-1">On-chain registered</span>
               {entity.nftTokenId && (
                 <span className="text-xs font-mono bg-green-500/10 px-2 py-0.5 rounded">
@@ -209,7 +209,7 @@ export default function RegistryPage() {
           {/* Agent0 registration */}
           {entity.agent0TokenId && (
             <div className="flex items-center gap-2 text-sm bg-blue-500/5 border border-blue-500/20 rounded-lg p-2">
-              <Bot className="h-4 w-4 text-blue-500 flex-shrink-0" />
+              <Bot className="h-4 w-4 text-blue-500 shrink-0" />
               <span className="text-blue-500 font-medium flex-1">Agent0 Token</span>
               <span className="text-xs font-mono bg-blue-500/10 px-2 py-0.5 rounded">
                 #{entity.agent0TokenId}
@@ -220,7 +220,7 @@ export default function RegistryPage() {
           {/* Wallet address */}
           {entity.walletAddress && (
             <div className="flex items-center gap-2 text-sm">
-              <Wallet className="h-4 w-4 text-blue-400 flex-shrink-0" />
+              <Wallet className="h-4 w-4 text-blue-400 shrink-0" />
               <code className="text-xs text-muted-foreground font-mono truncate flex-1">
                 {entity.walletAddress.slice(0, 6)}...{entity.walletAddress.slice(-4)}
               </code>
@@ -240,7 +240,7 @@ export default function RegistryPage() {
           <div className="grid grid-cols-2 gap-2">
             {entity.balance && (
               <div className="flex items-center gap-2 text-sm bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2">
-                <TrendingUp className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                <TrendingUp className="h-4 w-4 text-emerald-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs text-muted-foreground">Balance</div>
                   <div className="font-semibold truncate text-foreground">
@@ -251,7 +251,7 @@ export default function RegistryPage() {
             )}
             {entity.reputationPoints !== undefined && (
               <div className="flex items-center gap-2 text-sm bg-purple-500/5 border border-purple-500/20 rounded-lg p-2">
-                <Activity className="h-4 w-4 text-purple-500 flex-shrink-0" />
+                <Activity className="h-4 w-4 text-purple-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs text-muted-foreground">Reputation</div>
                   <div className="font-semibold truncate text-foreground">
@@ -345,7 +345,7 @@ export default function RegistryPage() {
                     className="text-blue-500 hover:text-blue-400 flex items-center gap-1 truncate transition-colors"
                   >
                     <span className="truncate">{entity.a2aEndpoint}</span>
-                    <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                    <ExternalLink className="h-3 w-3 shrink-0" />
                   </a>
                 </div>
               )}
@@ -360,7 +360,7 @@ export default function RegistryPage() {
                     className="text-blue-500 hover:text-blue-400 flex items-center gap-1 truncate transition-colors"
                   >
                     <span className="truncate">{entity.mcpEndpoint}</span>
-                    <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                    <ExternalLink className="h-3 w-3 shrink-0" />
                   </a>
                 </div>
               )}
@@ -419,8 +419,8 @@ export default function RegistryPage() {
     <PageContainer>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2 text-foreground">ERC8004 Registry</h1>
+        <div className="mb-6">
+          <h1 className="text-4xl font-bold mb-3 text-foreground">ERC8004 Registry</h1>
           <p className="text-muted-foreground text-lg">
             Browse all registered entities in the Babylon ecosystem
           </p>
@@ -453,32 +453,32 @@ export default function RegistryPage() {
         {/* Stats overview */}
         {data && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-            <div className="bg-card border border-border rounded-xl p-4">
+            <div className="bg-card border border-border rounded-xl px-4 py-3">
               <div className="text-sm text-muted-foreground mb-1">Total</div>
               <div className="text-3xl font-bold text-foreground">{data.totals.total}</div>
             </div>
-            <div className="bg-card border border-border rounded-xl p-4">
+            <div className="bg-card border border-border rounded-xl px-4 py-3">
               <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
                 <UserCircle className="h-4 w-4" />
                 <span>Users</span>
               </div>
               <div className="text-3xl font-bold text-foreground">{data.totals.users}</div>
             </div>
-            <div className="bg-card border border-border rounded-xl p-4">
+            <div className="bg-card border border-border rounded-xl px-4 py-3">
               <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
                 <Users className="h-4 w-4" />
                 <span>Actors</span>
               </div>
               <div className="text-3xl font-bold text-foreground">{data.totals.actors}</div>
             </div>
-            <div className="bg-card border border-border rounded-xl p-4">
+            <div className="bg-card border border-border rounded-xl px-4 py-3">
               <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
                 <Bot className="h-4 w-4" />
                 <span>Agents</span>
               </div>
               <div className="text-3xl font-bold text-foreground">{data.totals.agents}</div>
             </div>
-            <div className="bg-card border border-border rounded-xl p-4">
+            <div className="bg-card border border-border rounded-xl px-4 py-3">
               <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
                 <Building2 className="h-4 w-4" />
                 <span>Apps</span>
@@ -527,7 +527,7 @@ export default function RegistryPage() {
               <button
                 onClick={() => setActiveTab('all')}
                 className={cn(
-                  'px-4 py-2 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                  'px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
                   activeTab === 'all'
                     ? 'bg-[#0066FF] text-white'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -538,7 +538,7 @@ export default function RegistryPage() {
               <button
                 onClick={() => setActiveTab('users')}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                  'flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
                   activeTab === 'users'
                     ? 'bg-[#0066FF] text-white'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -550,7 +550,7 @@ export default function RegistryPage() {
               <button
                 onClick={() => setActiveTab('actors')}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                  'flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
                   activeTab === 'actors'
                     ? 'bg-[#0066FF] text-white'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -562,7 +562,7 @@ export default function RegistryPage() {
               <button
                 onClick={() => setActiveTab('agents')}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                  'flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
                   activeTab === 'agents'
                     ? 'bg-[#0066FF] text-white'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -574,7 +574,7 @@ export default function RegistryPage() {
               <button
                 onClick={() => setActiveTab('apps')}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                  'flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
                   activeTab === 'apps'
                     ? 'bg-[#0066FF] text-white'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'

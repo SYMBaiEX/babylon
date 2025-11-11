@@ -16,6 +16,7 @@ import { logger } from '@/lib/logger';
 import { FeeService } from '@/lib/services/fee-service';
 import { FEE_CONFIG } from '@/lib/config/fees';
 import { trackServerEvent } from '@/lib/posthog/server';
+import { generateSnowflakeId } from '@/lib/snowflake';
 /**
  * POST /api/markets/predictions/[id]/buy
  * Buy YES or NO shares in a prediction market
@@ -139,6 +140,7 @@ export const POST = withErrorHandling(async (
           resolved: false,
           resolution: null,
           endDate: endDate,
+          updatedAt: new Date(),
         },
         update: {},
       });
@@ -216,11 +218,13 @@ export const POST = withErrorHandling(async (
     } else {
       pos = await db.position.create({
         data: {
+          id: generateSnowflakeId(),
           userId: user.userId,
           marketId,
           side: side === 'yes',
           shares: new Prisma.Decimal(calc.sharesBought),
           avgPrice: new Prisma.Decimal(calc.avgPrice),
+          updatedAt: new Date(),
         },
       });
     }

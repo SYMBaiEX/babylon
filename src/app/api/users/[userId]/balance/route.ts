@@ -114,6 +114,7 @@ export const GET = withErrorHandling(async (
         id: userId,
         privyId: userId,
         isActor: false,
+        updatedAt: new Date(),
       },
     });
   }

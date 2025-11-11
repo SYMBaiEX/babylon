@@ -126,7 +126,7 @@ export default function LeaderboardPage() {
       {!loading && !error && leaderboardData && leaderboardData.leaderboard.length > 0 && (
         <div className="flex-1 overflow-y-auto">
           <div className="w-full max-w-4xl mx-auto px-4 lg:px-6">
-            <div className="flex items-center gap-2 mb-4 px-4 pt-4">
+            <div className="flex items-center gap-3 mb-4 px-4 pt-4">
               <Users className="w-5 h-5 text-[#0066FF]" />
               <h2 className="text-lg font-semibold text-foreground">
                 {leaderboardData.leaderboard.length} {leaderboardData.leaderboard.length === 1 ? 'Player' : 'Players'}
@@ -143,7 +143,7 @@ export default function LeaderboardPage() {
                     key={player.id}
                     href={profileUrl}
                     data-testid={player.isActor ? 'npc-entry' : 'leaderboard-entry'}
-                    className={`block p-4 transition-colors ${
+                    className={`block px-4 py-3 transition-colors ${
                       isCurrentUser
                         ? 'bg-[#0066FF]/20 border-l-4'
                         : 'hover:bg-muted/30'
@@ -154,12 +154,12 @@ export default function LeaderboardPage() {
                   >
                     <div className="flex items-center gap-4">
                       {/* Rank */}
-                      <div className="flex-shrink-0">
+                      <div className="shrink-0">
                         <RankNumber rank={player.rank} size="md" />
                       </div>
 
                       {/* Avatar */}
-                      <div className="flex-shrink-0">
+                      <div className="shrink-0">
                         <Avatar
                           id={player.id}
                           name={player.displayName || player.username || 'User'}
@@ -171,7 +171,7 @@ export default function LeaderboardPage() {
 
                       {/* User Info */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-3 mb-1">
                           <h3 className="font-semibold text-foreground truncate">
                             {player.displayName || player.username || 'Anonymous'}
                           </h3>
@@ -189,7 +189,7 @@ export default function LeaderboardPage() {
                       </div>
 
                       {/* Points and Badge */}
-                      <div className="flex-shrink-0 text-right">
+                      <div className="shrink-0 text-right">
                         <div className="flex items-center gap-3">
                           <div>
                             <div className="text-lg font-bold text-foreground">
@@ -197,7 +197,7 @@ export default function LeaderboardPage() {
                             </div>
                             <div className="text-xs text-muted-foreground">All Points</div>
                           </div>
-                          <div className="flex-shrink-0">
+                          <div className="shrink-0">
                             <RankBadge rank={player.rank} size="md" showLabel={false} />
                           </div>
                         </div>
@@ -236,12 +236,12 @@ export default function LeaderboardPage() {
 
             {/* Pagination */}
             {leaderboardData.pagination.totalPages > 1 && (
-              <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm p-4">
+              <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm px-4 py-3">
                 <div className="flex items-center justify-between">
                   <button
                     onClick={handlePreviousPage}
                     disabled={currentPage === 1}
-                    className="flex items-center gap-2 px-4 py-2 bg-sidebar-accent text-foreground rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-sidebar-accent/80 transition-colors"
+                    className="flex items-center gap-3 px-4 py-3 bg-sidebar-accent text-foreground rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-sidebar-accent/80 transition-colors"
                   >
                     <ChevronLeft className="w-4 h-4" />
                     Previous
@@ -254,7 +254,7 @@ export default function LeaderboardPage() {
                   <button
                     onClick={handleNextPage}
                     disabled={currentPage === leaderboardData.pagination.totalPages}
-                    className="flex items-center gap-2 px-4 py-2 bg-sidebar-accent text-foreground rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-sidebar-accent/80 transition-colors"
+                    className="flex items-center gap-3 px-4 py-3 bg-sidebar-accent text-foreground rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-sidebar-accent/80 transition-colors"
                   >
                     Next
                     <ChevronRight className="w-4 h-4" />
@@ -309,7 +309,7 @@ export default function LeaderboardPage() {
           <div className="flex-1 overflow-y-auto">
             <div className="w-full px-4 sm:px-6">
               {/* Header */}
-              <div className="flex items-center gap-2 mb-4 pt-4 pb-2">
+              <div className="flex items-center gap-3 mb-4 pt-4 pb-2">
                 <Users className="w-5 h-5 text-[#0066FF]" />
                 <h2 className="text-lg font-semibold text-foreground">
                   {leaderboardData.leaderboard.length} {leaderboardData.leaderboard.length === 1 ? 'Player' : 'Players'}
@@ -326,7 +326,7 @@ export default function LeaderboardPage() {
                     <Link
                       key={player.id}
                       href={profileUrl}
-                      className={`block p-3 sm:p-4 transition-colors ${
+                      className={`block px-3 py-3 sm:px-4 sm:py-4 transition-colors ${
                         isCurrentUser
                           ? 'bg-[#0066FF]/20 border-l-4'
                           : 'hover:bg-muted/30'
@@ -337,12 +337,12 @@ export default function LeaderboardPage() {
                     >
                       <div className="flex items-center gap-2 sm:gap-4">
                         {/* Rank */}
-                        <div className="flex-shrink-0">
+                        <div className="shrink-0">
                           <RankNumber rank={player.rank} size="md" />
                         </div>
 
                         {/* Avatar */}
-                        <div className="flex-shrink-0">
+                        <div className="shrink-0">
                           <Avatar
                             id={player.id}
                             name={player.displayName || player.username || 'User'}
@@ -354,12 +354,12 @@ export default function LeaderboardPage() {
 
                         {/* User Info */}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-3 mb-1">
                             <h3 className="text-sm sm:text-base font-semibold text-foreground truncate">
                               {player.displayName || player.username || 'Anonymous'}
                             </h3>
                             {isCurrentUser && (
-                              <span className="text-xs px-2 py-0.5 rounded bg-[#0066FF]/20 text-[#0066FF] flex-shrink-0">
+                              <span className="text-xs px-2 py-0.5 rounded bg-[#0066FF]/20 text-[#0066FF] shrink-0">
                                 You
                               </span>
                             )}
@@ -384,7 +384,7 @@ export default function LeaderboardPage() {
 
               {/* Pagination */}
               {leaderboardData.pagination.totalPages > 1 && (
-                <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm p-4 mt-4 border-t border-border">
+                <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm px-4 py-3 mt-4 border-t border-border">
                   <div className="flex items-center justify-between gap-2">
                     <button
                       onClick={handlePreviousPage}
