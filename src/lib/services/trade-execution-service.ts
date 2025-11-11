@@ -5,7 +5,8 @@
  * Creates positions, updates balances, records trades.
  */
 
-import { prisma } from '@/lib/prisma';
+import { randomUUID } from 'crypto';
+import { prisma } from '@/lib/database-service';
 import { logger } from '@/lib/logger';
 import type { TradingDecision, ExecutedTrade, ExecutionResult } from '@/types/market-decisions';
 
@@ -76,7 +77,7 @@ export class TradeExecutionService {
     const actor = await prisma.actor.findUnique({
       where: { id: decision.npcId },
       include: {
-        pools: {
+        Pool: {
           where: { isActive: true },
           take: 1,
         },
@@ -87,7 +88,7 @@ export class TradeExecutionService {
       throw new Error(`Actor not found: ${decision.npcId}`);
     }
     
-    const pool = actor.pools[0];
+    const pool = actor.Pool[0];
     if (!pool) {
       throw new Error(`No active pool found for ${decision.npcName}`);
     }
@@ -164,6 +165,7 @@ export class TradeExecutionService {
       // Create position
       const pos = await tx.poolPosition.create({
         data: {
+          id: randomUUID(),
           poolId,
           marketType: 'perp',
           ticker: decision.ticker!,
@@ -174,12 +176,14 @@ export class TradeExecutionService {
           leverage,
           liquidationPrice,
           unrealizedPnL: 0,
+          updatedAt: new Date(),
         },
       });
       
       // Record trade
       await tx.nPCTrade.create({
         data: {
+          id: randomUUID(),
           npcActorId: decision.npcId,
           poolId,
           marketType: 'perp',
@@ -279,6 +283,7 @@ export class TradeExecutionService {
       // Create position
       const pos = await tx.poolPosition.create({
         data: {
+          id: randomUUID(),
           poolId,
           marketType: 'prediction',
           marketId: decision.marketId!.toString(),
@@ -288,12 +293,14 @@ export class TradeExecutionService {
           size: decision.amount,
           shares,
           unrealizedPnL: 0,
+          updatedAt: new Date(),
         },
       });
       
       // Record trade
       await tx.nPCTrade.create({
         data: {
+          id: randomUUID(),
           npcActorId: decision.npcId,
           poolId,
           marketType: 'prediction',
@@ -421,6 +428,7 @@ export class TradeExecutionService {
       // Record trade
       await tx.nPCTrade.create({
         data: {
+          id: randomUUID(),
           npcActorId: decision.npcId,
           poolId,
           marketType: position.marketType,

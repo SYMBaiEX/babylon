@@ -78,7 +78,7 @@ export function ReputationLeaderboard({
 
   if (loading) {
     return (
-      <div className={cn('bg-sidebar rounded-lg p-4', className)}>
+      <div className={cn('bg-sidebar rounded-2xl p-4', className)}>
         <div className="text-sm text-muted-foreground">Loading leaderboard...</div>
       </div>
     )
@@ -86,7 +86,7 @@ export function ReputationLeaderboard({
 
   if (!data || data.leaderboard.length === 0) {
     return (
-      <div className={cn('bg-sidebar rounded-lg p-4', className)}>
+      <div className={cn('bg-sidebar rounded-2xl p-4', className)}>
         <div className="text-sm text-muted-foreground">No leaderboard data available</div>
       </div>
     )
@@ -113,7 +113,7 @@ export function ReputationLeaderboard({
   }
 
   return (
-    <div className={cn('bg-sidebar rounded-lg p-4 space-y-4', className)}>
+    <div className={cn('bg-sidebar rounded-2xl p-4 space-y-4', className)}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-bold text-foreground flex items-center gap-2">

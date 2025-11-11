@@ -137,7 +137,7 @@ export function UserManagementTab() {
     const displayName = user.displayName || user.username || 'Anonymous'
 
     return (
-      <div className="bg-card border border-border rounded-lg p-4 hover:border-primary/50 transition-colors">
+      <div className="bg-card border border-border rounded-2xl p-4 hover:border-primary/50 transition-colors">
         <div className="flex items-start gap-4">
           {/* Avatar and Basic Info */}
           <Avatar
@@ -288,7 +288,7 @@ export function UserManagementTab() {
             placeholder="Search by username, display name, or wallet address..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-card border border-border rounded-lg focus:outline-none focus:border-primary"
+            className="w-full pl-10 pr-4 py-2 bg-card border border-border rounded-lg focus:outline-none focus:border-border"
           />
         </div>
 
@@ -316,7 +316,7 @@ export function UserManagementTab() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortByType)}
-              className="px-3 py-1.5 text-sm bg-card border border-border rounded-lg focus:outline-none focus:border-primary"
+              className="px-3 py-1.5 text-sm bg-card border border-border rounded-lg focus:outline-none focus:border-border"
             >
               <option value="created">Join Date</option>
               <option value="balance">Balance</option>
@@ -353,7 +353,7 @@ export function UserManagementTab() {
       {/* Ban Modal */}
       {showBanModal && selectedUser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-border rounded-lg p-6 max-w-md w-full">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full">
             <h2 className="text-xl font-bold mb-4">Ban User</h2>
             <p className="text-muted-foreground mb-4">
               Are you sure you want to ban <strong>{selectedUser.displayName || selectedUser.username}</strong>?
@@ -367,7 +367,7 @@ export function UserManagementTab() {
                 value={banReason}
                 onChange={(e) => setBanReason(e.target.value)}
                 placeholder="Explain why this user is being banned..."
-                className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-primary resize-none"
+                className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-border resize-none"
                 rows={3}
               />
             </div>

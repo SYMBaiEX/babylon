@@ -4,6 +4,7 @@
  * Helper functions for creating notifications when users interact
  */
 
+import { randomUUID } from 'crypto';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 
@@ -42,6 +43,7 @@ export async function createNotification(params: CreateNotificationParams): Prom
 
   await prisma.notification.create({
     data: {
+      id: randomUUID(),
       userId: params.userId,
       type: params.type,
       actorId: params.actorId,

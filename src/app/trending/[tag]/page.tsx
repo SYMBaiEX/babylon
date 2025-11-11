@@ -5,7 +5,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PostCard } from '@/components/posts/PostCard'
-import { WidgetSidebar } from '@/components/shared/WidgetSidebar'
 import { ArrowLeft } from 'lucide-react'
 interface PostData {
   id: string
@@ -218,9 +217,6 @@ export default function TrendingTagPage() {
             )}
           </div>
         </div>
-
-        {/* Right: Widget sidebar - only on desktop (xl+) */}
-        <WidgetSidebar />
       </div>
 
       {/* Mobile/Tablet: Content */}

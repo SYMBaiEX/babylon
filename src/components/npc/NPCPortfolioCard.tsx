@@ -85,7 +85,7 @@ export function NPCPortfolioCard({
 
   if (loading) {
     return (
-      <div className={cn('bg-sidebar rounded-lg px-4 py-3', className)}>
+      <div className={cn('bg-sidebar rounded-2xl px-4 py-3', className)}>
         <div className="text-sm text-muted-foreground">Loading portfolio...</div>
       </div>
     )
@@ -93,7 +93,7 @@ export function NPCPortfolioCard({
 
   if (!data) {
     return (
-      <div className={cn('bg-sidebar rounded-lg px-4 py-3', className)}>
+      <div className={cn('bg-sidebar rounded-2xl px-4 py-3', className)}>
         <div className="text-sm text-muted-foreground">Portfolio data unavailable</div>
       </div>
     )
@@ -114,7 +114,7 @@ export function NPCPortfolioCard({
   }
 
   return (
-    <div className={cn('bg-sidebar rounded-lg px-4 py-3 space-y-4', className)}>
+    <div className={cn('bg-sidebar rounded-2xl px-4 py-3 space-y-4', className)}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-bold text-foreground flex items-center gap-3">

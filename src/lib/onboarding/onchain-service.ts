@@ -177,7 +177,7 @@ export async function processOnchainRegistration({
     } else {
       const referral = await prisma.referral.findUnique({
         where: { referralCode },
-        include: { referrer: true },
+        include: { User_Referral_referrerIdToUser: true },
       })
 
       if (referral && referral.status === 'pending') {
@@ -212,6 +212,7 @@ export async function processOnchainRegistration({
     if (!dbUser) {
       dbUser = await prisma.user.create({
         data: {
+          id: user.userId,
           privyId: user.userId,
           username: user.userId,
           displayName: displayName || username || user.userId,
@@ -221,6 +222,7 @@ export async function processOnchainRegistration({
           isActor: false,
           virtualBalance: 10000,
           totalDeposited: 10000,
+          updatedAt: new Date(),
         },
         select: {
           id: true,
@@ -260,6 +262,7 @@ export async function processOnchainRegistration({
           virtualBalance: 0,
           totalDeposited: 0,
           referredBy: referrerId,
+          updatedAt: new Date(),
         },
         select: {
           id: true,
@@ -749,6 +752,7 @@ export async function processOnchainRegistration({
 
   await prisma.balanceTransaction.create({
     data: {
+      id: `tx-${dbUser.id}-${Date.now()}`,
       userId: dbUser.id,
       type: 'deposit',
       amount: amountDecimal,
@@ -783,6 +787,7 @@ export async function processOnchainRegistration({
           completedAt: new Date(),
         },
         create: {
+          id: `ref-${referrerId}-${Date.now()}`,
           referrerId,
           referralCode,
           referredUserId: dbUser.id,
@@ -801,6 +806,7 @@ export async function processOnchainRegistration({
       },
       update: {},
       create: {
+        id: `follow-${referrerId}-${dbUser.id}-${Date.now()}`,
         followerId: referrerId,
         followingId: dbUser.id,
       },

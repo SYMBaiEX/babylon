@@ -179,7 +179,7 @@ export default function PoolDetailPage() {
           Back to Markets
         </button>
 
-        <div className="bg-card/50 backdrop-blur rounded-lg p-6 border border-border">
+        <div className="bg-card/50 backdrop-blur rounded-2xl p-6 border border-border">
           <div className="flex items-start justify-between gap-4 mb-4">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
@@ -279,7 +279,7 @@ export default function PoolDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Performance Chart */}
         <div className="lg:col-span-2">
-          <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
+          <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
             <h2 className="text-lg font-bold mb-4">Performance History</h2>
             <PerformanceChart data={performanceHistory} />
           </div>
@@ -301,7 +301,7 @@ export default function PoolDetailPage() {
           </div>
 
           {/* Trader Stats */}
-          <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border mt-4">
+          <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border mt-4">
             <h3 className="font-medium mb-3 flex items-center gap-3">
               <Award className="w-4 h-4" />
               Trader Performance
@@ -337,7 +337,7 @@ export default function PoolDetailPage() {
 
         {/* Deposit Panel */}
         <div className="lg:col-span-1">
-          <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border sticky top-4">
+          <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border sticky top-4">
             <h2 className="text-lg font-bold mb-4">Deposit</h2>
 
             {/* Amount Input */}

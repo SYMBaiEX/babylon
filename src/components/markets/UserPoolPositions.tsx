@@ -130,7 +130,7 @@ export function UserPoolPositions({ onWithdraw }: UserPoolPositionsProps) {
       {/* Individual Deposits */}
       <div className="space-y-2">
         {deposits.map((deposit) => (
-          <div key={deposit.id} className="p-3 bg-card border border-border rounded-lg">
+          <div key={deposit.id} className="p-3 bg-card border border-border rounded-2xl">
             <div className="flex justify-between items-start mb-2">
               <div>
                 <div className="font-semibold">{deposit.poolName}</div>

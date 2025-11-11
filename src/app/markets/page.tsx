@@ -393,7 +393,7 @@ export default function MarketsPage() {
               {/* Two-column grid for trending sections */}
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 {/* Trending Perpetuals */}
-                <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
+                <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
                   <div className="flex items-center gap-3 mb-3">
                     <Skeleton className="h-5 w-5 rounded" />
                     <Skeleton className="h-6 w-40" />
@@ -417,7 +417,7 @@ export default function MarketsPage() {
                 </div>
 
                 {/* Hot Predictions */}
-                <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
+                <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
                   <div className="flex items-center gap-3 mb-3">
                     <Skeleton className="h-5 w-5 rounded" />
                     <Skeleton className="h-6 w-32" />
@@ -440,7 +440,7 @@ export default function MarketsPage() {
               </div>
               
               {/* Full-width section for pools */}
-                <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
+                <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
               <div className="flex items-center gap-3 mb-3">
                   <Skeleton className="h-5 w-5 rounded" />
                   <Skeleton className="h-6 w-48" />
@@ -469,7 +469,7 @@ export default function MarketsPage() {
           {/* Widget Sidebar */}
           <div className="w-96 shrink-0 bg-sidebar px-4 py-3 space-y-4">
             {/* Market Overview Panel */}
-                <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
+                <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
               <div className="flex items-center gap-3 mb-3">
                 <Skeleton className="h-5 w-5 rounded" />
                 <Skeleton className="h-6 w-32" />
@@ -501,7 +501,7 @@ export default function MarketsPage() {
             </div>
             
             {/* Top Movers Panel */}
-            <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
+            <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
               <Skeleton className="h-6 w-28 mb-3" />
               
               {/* Top Gainers */}
@@ -731,7 +731,7 @@ export default function MarketsPage() {
             {/* Market Sections Grid */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               {/* Trending Perps */}
-              <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
+              <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
                 <h2 className="text-lg font-bold mb-3 flex items-center gap-3">
                   <TrendingUp className="w-5 h-5 text-green-600" />
                   Trending Perpetuals
@@ -771,7 +771,7 @@ export default function MarketsPage() {
               </div>
 
               {/* Top Predictions */}
-              <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
+              <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
                 <h2 className="text-lg font-bold mb-3 flex items-center gap-3">
                   <TrendingUp className="w-5 h-5 text-purple-600" />
                   Hot Predictions
@@ -817,7 +817,7 @@ export default function MarketsPage() {
 
             {/* Top Performing Pools - Full width */}
             {topPools.length > 0 && (
-              <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
+              <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
                 <h2 className="text-lg font-bold mb-3 flex items-center gap-3">
                   <TrendingUp className="w-5 h-5 text-orange-600" />
                   Top Performing Pools
@@ -1303,7 +1303,7 @@ export default function MarketsPage() {
               )}
 
               {/* Trending Perps */}
-              <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
+              <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
                 <h2 className="text-lg font-bold mb-3 flex items-center gap-3">
                   <TrendingUp className="w-5 h-5 text-green-600" />
                   Trending Perpetuals
@@ -1343,7 +1343,7 @@ export default function MarketsPage() {
               </div>
 
               {/* Top Predictions */}
-              <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
+              <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
                 <h2 className="text-lg font-bold mb-3 flex items-center gap-3">
                   <TrendingUp className="w-5 h-5 text-purple-600" />
                   Hot Predictions
@@ -1388,7 +1388,7 @@ export default function MarketsPage() {
 
               {/* Top Performing Pools */}
               {topPools.length > 0 && (
-                <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
+                <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
                   <h2 className="text-lg font-bold mb-3 flex items-center gap-3">
                     <TrendingUp className="w-5 h-5 text-orange-600" />
                     Top Performing Pools

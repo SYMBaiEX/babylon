@@ -36,10 +36,12 @@ class DatabaseService {
     // Create new game
     const game = await prisma.game.create({
       data: {
+        id: 'game-continuous',
         isContinuous: true,
         isRunning: true,
         currentDate: new Date(),
         speed: 60000, // 1 minute ticks
+        updatedAt: new Date(),
       },
     });
 
@@ -277,6 +279,7 @@ class DatabaseService {
   async createQuestion(question: GameQuestion & { questionNumber: number }) {
     return await prisma.question.create({
       data: {
+        id: `question-${question.questionNumber}`,
         questionNumber: question.questionNumber,
         text: question.text,
         scenarioId: question.scenario,
@@ -286,6 +289,7 @@ class DatabaseService {
         resolutionDate: new Date(question.resolutionDate!),
         status: question.status || 'active',
         resolvedOutcome: question.resolvedOutcome,
+        updatedAt: new Date(),
       },
     });
   }
@@ -507,6 +511,7 @@ class DatabaseService {
   async recordPriceUpdate(organizationId: string, price: number, change: number, changePercent: number) {
     return await prisma.stockPrice.create({
       data: {
+        id: `price-${organizationId}-${Date.now()}`,
         organizationId,
         price,
         change,
@@ -532,6 +537,7 @@ class DatabaseService {
   ) {
     return await prisma.stockPrice.create({
       data: {
+        id: `snapshot-${organizationId}-${Date.now()}`,
         organizationId,
         price: data.closePrice,
         change: data.closePrice - data.openPrice,
@@ -641,6 +647,7 @@ class DatabaseService {
         tradingBalance: actor.tradingBalance ?? (actor.hasPool ? 10000 : 0),
         reputationPoints: actor.reputationPoints ?? (actor.hasPool ? 10000 : 0),
         profileImageUrl: actor.profileImageUrl,
+        updatedAt: new Date(),
       },
       update: {
         name: actor.name,
@@ -651,6 +658,7 @@ class DatabaseService {
         affiliations: actor.affiliations || [],
         postStyle: actor.postStyle,
         postExample: actor.postExample || [],
+        updatedAt: new Date(),
         role: actor.role,
         // Update database-specific fields if provided
         ...(actor.initialLuck !== undefined && { initialLuck: actor.initialLuck }),

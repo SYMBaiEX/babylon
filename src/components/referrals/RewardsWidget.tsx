@@ -119,7 +119,7 @@ export function RewardsWidget({ userId }: RewardsWidgetProps) {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-4 p-4 bg-sidebar-accent/30 rounded-lg border border-border">
+      <div className="flex flex-col gap-4 p-4 bg-sidebar-accent/30 rounded-2xl border border-border">
         <div className="flex items-center gap-2">
           <Award className="w-5 h-5 text-[#0066FF]" />
           <h3 className="font-semibold text-foreground">Rewards</h3>
@@ -136,7 +136,7 @@ export function RewardsWidget({ userId }: RewardsWidgetProps) {
 
   if (!data) {
     return (
-      <div className="flex flex-col gap-4 p-4 bg-sidebar-accent/30 rounded-lg border border-border">
+      <div className="flex flex-col gap-4 p-4 bg-sidebar-accent/30 rounded-2xl border border-border">
         <div className="flex items-center gap-2">
           <Award className="w-5 h-5 text-[#0066FF]" />
           <h3 className="font-semibold text-foreground">Rewards</h3>
@@ -152,7 +152,7 @@ export function RewardsWidget({ userId }: RewardsWidgetProps) {
   return (
     <div className="flex flex-col gap-4">
       {/* Stats Summary */}
-      <div className="flex flex-col gap-3 p-4 bg-sidebar-accent/30 rounded-lg border border-border">
+      <div className="flex flex-col gap-3 p-4 bg-sidebar-accent/30 rounded-2xl border border-border">
         <div className="flex items-center gap-2">
           <Award className="w-5 h-5 text-[#0066FF]" />
           <h3 className="font-semibold text-foreground">Rewards</h3>
@@ -189,7 +189,7 @@ export function RewardsWidget({ userId }: RewardsWidgetProps) {
       </div>
 
       {/* Recent Referrals */}
-      <div className="flex flex-col gap-3 p-4 bg-sidebar-accent/30 rounded-lg border border-border">
+      <div className="flex flex-col gap-3 p-4 bg-sidebar-accent/30 rounded-2xl border border-border">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-foreground text-sm">Recent Referrals</h3>
           {data.stats.totalReferrals > 5 && (

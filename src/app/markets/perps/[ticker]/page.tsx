@@ -257,7 +257,7 @@ export default function PerpDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chart */}
         <div className="lg:col-span-2">
-          <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
+          <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
             <h2 className="text-lg font-bold mb-4">Price Chart</h2>
             <PriceChart data={priceHistory} currentPrice={market.currentPrice} />
           </div>
@@ -289,7 +289,7 @@ export default function PerpDetailPage() {
 
         {/* Trading Panel */}
         <div className="lg:col-span-1">
-          <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border sticky top-4">
+          <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border sticky top-4">
             <h2 className="text-lg font-bold mb-4">Trade</h2>
 
             {/* Long/Short Tabs */}

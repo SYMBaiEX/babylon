@@ -236,7 +236,7 @@ export default function PredictionDetailPage() {
           Back to Markets
         </button>
 
-        <div className="bg-card/50 backdrop-blur rounded-lg p-6 border border-border">
+        <div className="bg-card/50 backdrop-blur rounded-2xl p-6 border border-border">
           <div className="flex items-start justify-between gap-4 mb-4">
             <h1 className="text-2xl font-bold flex-1">{market.text}</h1>
             {daysLeft !== null && (
@@ -300,7 +300,7 @@ export default function PredictionDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chart */}
         <div className="lg:col-span-2">
-          <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
+          <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
             <h2 className="text-lg font-bold mb-4">Probability Over Time</h2>
             <ProbabilityChart data={priceHistory} />
           </div>
@@ -340,7 +340,7 @@ export default function PredictionDetailPage() {
 
         {/* Trading Panel */}
         <div className="lg:col-span-1">
-          <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border sticky top-4">
+          <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border sticky top-4">
             <h2 className="text-lg font-bold mb-4">Trade</h2>
 
             {/* YES/NO Tabs */}

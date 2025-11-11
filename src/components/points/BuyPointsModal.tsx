@@ -332,7 +332,7 @@ export function BuyPointsModal({
                     step="1"
                     value={amountUSD}
                     onChange={(e) => setAmountUSD(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-sidebar border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full pl-10 pr-4 py-3 bg-sidebar border border-border rounded-lg focus:outline-none focus:border-border"
                     placeholder="10"
                     disabled={loading}
                   />
@@ -362,7 +362,7 @@ export function BuyPointsModal({
               </div>
 
               {/* Points Calculation */}
-              <div className="bg-sidebar border border-border rounded-lg p-4">
+              <div className="bg-sidebar border border-border rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-muted-foreground">
                     You'll receive:
@@ -458,7 +458,7 @@ export function BuyPointsModal({
           <div className="text-center py-8">
             <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Purchase Successful!</h3>
-            <div className="bg-sidebar border border-border rounded-lg p-4 mb-6">
+            <div className="bg-sidebar border border-border rounded-2xl p-4 mb-6">
               <div className="flex items-center justify-center gap-2 mb-2">
                 <Sparkles className="h-6 w-6 text-yellow-500" />
                 <span className="text-2xl font-bold">

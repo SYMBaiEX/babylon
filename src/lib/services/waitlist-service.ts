@@ -3,9 +3,13 @@
  * Manages waitlist signups, positions, and invite codes
  */
 
-import { prisma } from '@/lib/database-service'
-import { logger } from '@/lib/logger'
+import { randomUUID } from 'crypto';
+import { prisma } from '@/lib/database-service';
+import { logger } from '@/lib/logger';
 import { nanoid } from 'nanoid'
+
+const REFERRAL_BONUS_POINTS = 50;
+const NEW_USER_BONUS_POINTS = 500;
 
 export interface WaitlistMarkResult {
   success: boolean
@@ -122,8 +126,8 @@ export class WaitlistService {
           // Valid referral - award points!
           else {
             // Award +50 points to referrer
-            const newInvitePoints = referrer.invitePoints + 50
-            const newReputationPoints = referrer.reputationPoints + 50
+            const newInvitePoints = referrer.invitePoints + REFERRAL_BONUS_POINTS
+            const newReputationPoints = referrer.reputationPoints + REFERRAL_BONUS_POINTS
             
             await prisma.user.update({
               where: { id: referrer.id },
@@ -137,8 +141,9 @@ export class WaitlistService {
             // Create points transaction for referrer
             await prisma.pointsTransaction.create({
               data: {
+                id: randomUUID(),
                 userId: referrer.id,
-                amount: 50,
+                amount: REFERRAL_BONUS_POINTS,
                 pointsBefore: referrer.reputationPoints,
                 pointsAfter: newReputationPoints,
                 reason: 'referral',
@@ -343,8 +348,9 @@ export class WaitlistService {
       // Create points transaction
       await prisma.pointsTransaction.create({
         data: {
+          id: randomUUID(),
           userId,
-          amount: bonusAmount,
+          amount: REFERRAL_BONUS_POINTS,
           pointsBefore: user.reputationPoints,
           pointsAfter: newReputationPoints,
           reason: 'email_verification',
@@ -389,7 +395,7 @@ export class WaitlistService {
 
       const bonusAmount = 25
       const newBonusPoints = user.bonusPoints + bonusAmount
-      const newReputationPoints = user.reputationPoints + bonusAmount
+      const newReputationPoints = user.reputationPoints + NEW_USER_BONUS_POINTS
 
       await prisma.user.update({
         where: { id: userId },
@@ -404,8 +410,9 @@ export class WaitlistService {
       // Create points transaction
       await prisma.pointsTransaction.create({
         data: {
+          id: randomUUID(),
           userId,
-          amount: bonusAmount,
+          amount: NEW_USER_BONUS_POINTS,
           pointsBefore: user.reputationPoints,
           pointsAfter: newReputationPoints,
           reason: 'wallet_connect',

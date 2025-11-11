@@ -47,7 +47,7 @@ export function PortfolioPnLCard({
   const pnlIsPositive = totalPnL >= 0
 
   return (
-    <section className="rounded-xl border border-[#0066FF]/20 bg-gradient-to-br from-[#0066FF]/10 via-purple-500/10 to-[#0066FF]/5 px-4 py-3 sm:px-5 sm:py-4 shadow-sm">
+    <section className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-purple-500/10 to-primary/5 px-4 py-3 sm:px-5 sm:py-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">

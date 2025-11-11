@@ -473,6 +473,7 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
   await prisma.gameConfig.upsert({
     where: { key: 'agent0_registration' },
     create: {
+      id: 'agent0_registration',
       key: 'agent0_registration',
       value: {
         registered: true,
@@ -480,7 +481,8 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
         metadataCID,
         txHash: result.txHash,
         registeredAt: new Date().toISOString()
-      }
+      },
+      updatedAt: new Date()
     },
     update: {
       value: {
@@ -489,7 +491,8 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
         metadataCID,
         txHash: result.txHash,
         registeredAt: new Date().toISOString()
-      }
+      },
+      updatedAt: new Date()
     }
   })
   

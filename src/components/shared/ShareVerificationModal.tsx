@@ -113,7 +113,7 @@ export function ShareVerificationModal({
                 if (e.key === 'Enter') handleVerify()
               }}
               placeholder={placeholderUrl}
-              className="w-full px-4 py-2 rounded-lg bg-sidebar-accent/50 focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full px-4 py-2 rounded-lg bg-sidebar-accent/50 focus:outline-none focus:border-border"
               disabled={verifying}
             />
           </div>

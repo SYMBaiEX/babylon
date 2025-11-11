@@ -5,6 +5,7 @@
  * Provides bidirectional sync between local database and blockchain.
  */
 
+import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/database-service'
 import { getOnChainReputation, syncOnChainReputation } from './blockchain-reputation'
 import { getAgent0Client } from '@/agents/agent0/Agent0Client'
@@ -34,13 +35,16 @@ export async function syncAfterAgent0Registration(userId: string, agent0TokenId:
       return await prisma.agentPerformanceMetrics.upsert({
         where: { userId },
         create: {
+          id: randomUUID(),
           userId,
           onChainReputationSync: true,
           lastSyncedAt: new Date(),
+          updatedAt: new Date(),
         },
         update: {
           onChainReputationSync: true,
           lastSyncedAt: new Date(),
+          updatedAt: new Date(),
         },
       })
     }
@@ -53,7 +57,9 @@ export async function syncAfterAgent0Registration(userId: string, agent0TokenId:
     if (!metrics) {
       metrics = await prisma.agentPerformanceMetrics.create({
         data: {
+          id: randomUUID(),
           userId,
+          updatedAt: new Date(),
         },
       })
     }
@@ -98,7 +104,7 @@ export async function submitFeedbackToAgent0(feedbackId: string, submitToBlockch
     const feedback = await prisma.feedback.findUnique({
       where: { id: feedbackId },
       include: {
-        toUser: {
+        User_Feedback_toUserIdToUser: {
           select: {
             id: true,
             agent0TokenId: true,
@@ -112,16 +118,18 @@ export async function submitFeedbackToAgent0(feedbackId: string, submitToBlockch
       throw new Error(`Feedback ${feedbackId} not found`)
     }
 
-    if (!feedback.toUser) {
+    const recipient = feedback.User_Feedback_toUserIdToUser
+
+    if (!recipient) {
       throw new Error('Feedback has no recipient user')
     }
 
-    const agent0TokenId = feedback.toUser.agent0TokenId
+    const agent0TokenId = recipient.agent0TokenId
 
     if (!agent0TokenId) {
       logger.warn('Agent has no Agent0 token ID, skipping submission', {
         feedbackId,
-        userId: feedback.toUser.id,
+        userId: recipient.id,
       })
       return null
     }
@@ -164,10 +172,10 @@ export async function submitFeedbackToAgent0(feedbackId: string, submitToBlockch
     })
 
     // If requested, also submit to blockchain (ERC-8004)
-    if (submitToBlockchain && feedback.toUser.nftTokenId) {
+    if (submitToBlockchain && recipient.nftTokenId) {
       logger.info('Submitting feedback to blockchain would require wallet client', {
         feedbackId,
-        nftTokenId: feedback.toUser.nftTokenId,
+        nftTokenId: recipient.nftTokenId,
       })
       // Note: Blockchain submission requires wallet client and gas
       // This would be called from a user-facing endpoint with wallet connection
@@ -207,7 +215,7 @@ export async function periodicReputationSync(userId?: string) {
         id: true,
         agent0TokenId: true,
         nftTokenId: true,
-        performanceMetrics: {
+        AgentPerformanceMetrics: {
           select: {
             lastSyncedAt: true,
           },
@@ -224,7 +232,7 @@ export async function periodicReputationSync(userId?: string) {
         if (!user.agent0TokenId) continue
 
         // Skip if synced recently (within last hour)
-        const lastSync = user.performanceMetrics?.lastSyncedAt
+        const lastSync = user.AgentPerformanceMetrics?.lastSyncedAt
         if (lastSync && Date.now() - lastSync.getTime() < 3600000) {
           logger.debug('Skipping recently synced user', {
             userId: user.id,

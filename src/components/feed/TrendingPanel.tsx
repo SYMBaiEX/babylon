@@ -77,7 +77,7 @@ export function TrendingPanel() {
   }
 
   return (
-    <div className="bg-sidebar rounded-lg p-4 flex-1 flex flex-col">
+    <div className="bg-sidebar rounded-2xl p-4 flex-1 flex flex-col">
       <h2 className="text-lg font-bold text-foreground mb-3 text-left">
         Trending
       </h2>

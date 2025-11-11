@@ -6,9 +6,7 @@ import { FeedToggle } from '@/components/shared/FeedToggle'
 import { InviteFriendsBanner } from '@/components/shared/InviteFriendsBanner'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PullToRefreshIndicator } from '@/components/shared/PullToRefreshIndicator'
-import { SearchBar } from '@/components/shared/SearchBar'
 import { FeedSkeleton } from '@/components/shared/Skeleton'
-import { WidgetSidebar } from '@/components/shared/WidgetSidebar'
 import { useWidgetRefresh } from '@/contexts/WidgetRefreshContext'
 import { useAuth } from '@/hooks/useAuth'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
@@ -364,42 +362,20 @@ function FeedPageContent() {
 
   return (
     <PageContainer noPadding className="flex flex-col min-h-screen w-full overflow-visible">
-      {/* Mobile/Tablet: Header with tabs and search */}
-      <div className="sticky top-0 z-10 bg-background shadow-sm shrink-0 lg:hidden">
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          {/* Tabs on left */}
-          <div className="shrink-0">
-            <FeedToggle activeTab={tab} onTabChange={setTab} />
-          </div>
-          {/* Search on right */}
-          <div className="flex-1 max-w-[200px]">
-            <SearchBar
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder="Search..."
-              compact
-            />
-          </div>
-        </div>
+      {/* Mobile/Tablet: Header with tabs */}
+      <div className="sticky top-0 z-10 bg-background shrink-0 lg:hidden">
+        {/* Tabs - Full width */}
+        <FeedToggle activeTab={tab} onTabChange={setTab} />
       </div>
 
       {/* Desktop: Multi-column layout with scrollable feed */}
       <div className="hidden lg:flex flex-1 min-h-0">
         {/* Left: Feed area - aligned with sidebar, full width */}
         <div className="flex-1 flex flex-col min-w-0 border-l border-r border-[rgba(120,120,120,0.5)]">
-          {/* Desktop: Top bar with tabs, search, and post button */}
-          <div className="sticky top-0 z-10 bg-background shadow-sm shrink-0">
-            <div className="px-4 py-3 md:px-6 md:py-4">
-              {/* Top row: Tabs and Post button */}
-              <div className="flex items-center justify-between gap-3">
-                <FeedToggle activeTab={tab} onTabChange={setTab} />
-                <SearchBar
-                  value={searchQuery}
-                  onChange={setSearchQuery}
-                  placeholder="Search..."
-                />
-              </div>
-            </div>
+          {/* Desktop: Top bar with tabs */}
+          <div className="sticky top-0 z-10 bg-background shrink-0">
+            {/* Tabs - Full width */}
+            <FeedToggle activeTab={tab} onTabChange={setTab} />
           </div>
 
           {/* Feed content - Scrollable container with pull-to-refresh */}
@@ -541,9 +517,6 @@ function FeedPageContent() {
             )}
           </div>
         </div>
-
-        {/* Right: Widget panels - only on desktop (xl+) */}
-        <WidgetSidebar />
       </div>
 
       {/* Mobile/Tablet: Feed area */}

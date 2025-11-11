@@ -11,6 +11,7 @@
  * - NPC-member chats (lower chance, 30%)
  */
 
+import { randomUUID } from 'crypto';
 import type { GroupChat } from '@/shared/types';
 import { prisma } from '@/lib/prisma';
 import { notifyGroupChatInvite } from './notification-service';
@@ -212,7 +213,8 @@ export class GroupChatInvite {
         id: chatId,
         name: chatName,
         isGroup: true,
-        gameId: 'realtime',
+        gameId: 'continuous',
+        updatedAt: new Date(),
       },
     });
 
@@ -226,6 +228,7 @@ export class GroupChatInvite {
       },
       update: {},
       create: {
+        id: randomUUID(),
         chatId,
         userId,
       },
@@ -234,6 +237,7 @@ export class GroupChatInvite {
     // Record membership
     await prisma.groupChatMembership.create({
       data: {
+        id: randomUUID(),
         userId,
         chatId,
         npcAdminId: npcId,

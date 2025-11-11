@@ -55,6 +55,7 @@ export async function ensureUserForAuth(
     id: user.dbUserId ?? user.userId,
     privyId,
     isActor: options.isActor ?? false,
+    updatedAt: new Date(),
   }
 
   if (user.walletAddress) {

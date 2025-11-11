@@ -97,7 +97,7 @@ export function BreakingNewsPanel() {
 
   return (
     <>
-      <div className="bg-sidebar rounded-lg p-4 flex-1 flex flex-col">
+      <div className="bg-sidebar rounded-2xl p-4 flex-1 flex flex-col">
         <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-3 text-left">Breaking News</h2>
         {loading ? (
           <div className="space-y-3 pl-3 flex-1">

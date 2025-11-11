@@ -7,6 +7,7 @@
  * - Just right: allows reply and tracks timing
  */
 
+import { randomUUID } from 'crypto';
 import { prisma } from '@/lib/database-service';
 
 export interface RateLimitResult {
@@ -154,6 +155,7 @@ export class ReplyRateLimiter {
   ): Promise<void> {
     await prisma.userInteraction.create({
       data: {
+        id: randomUUID(),
         userId,
         npcId,
         postId,

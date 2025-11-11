@@ -90,7 +90,7 @@ export function TopMoversPanel({ onMarketClick }: TopMoversPanelProps) {
   const formatPrice = (p: number) => `$${p.toFixed(2)}`
 
   return (
-    <div className="bg-sidebar rounded-lg px-4 py-3 flex-1 flex flex-col">
+    <div className="bg-sidebar rounded-2xl px-4 py-3 flex-1 flex flex-col">
       <h2 className="text-xl font-bold text-foreground mb-3">Top Movers</h2>
       {loading ? (
         <div className="space-y-3 flex-1">

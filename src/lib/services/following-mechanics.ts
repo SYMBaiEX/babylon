@@ -12,6 +12,7 @@
  * - More total interactions (10+ quality replies)
  */
 
+import { randomUUID } from 'crypto';
 import { notifyFollow } from './notification-service';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
@@ -165,6 +166,7 @@ export class FollowingMechanics {
         followReason: reason,
       },
       create: {
+        id: randomUUID(),
         userId,
         npcId,
         followReason: reason,

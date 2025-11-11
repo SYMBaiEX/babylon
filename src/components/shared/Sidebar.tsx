@@ -3,7 +3,6 @@
 import { LoginButton } from '@/components/auth/LoginButton'
 import { UserMenu } from '@/components/auth/UserMenu'
 import { Avatar } from '@/components/shared/Avatar'
-import { Separator } from '@/components/shared/Separator'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 import { Bell, Check, Copy, Gift, Home, LogOut, MessageCircle, Shield, TrendingUp, Trophy, User, Search } from 'lucide-react'
@@ -143,10 +142,10 @@ function SidebarContent() {
         )}
       >
       {/* Header - Logo */}
-      <div className="p-6 flex items-center justify-center lg:justify-start">
+      <div className="px-3 py-2 flex items-center justify-center lg:justify-start">
         <Link
           href="/feed"
-          className="hover:scale-105 transition-transform duration-300"
+          className="hover:opacity-80 transition-opacity"
         >
           {/* Icon-only logo for md (tablet) */}
           <Image
@@ -168,7 +167,7 @@ function SidebarContent() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1">
+      <nav className="flex-1 px-2 py-2">
         {navItems.map((item) => {
           const Icon = item.icon
           return (
@@ -176,71 +175,39 @@ function SidebarContent() {
               key={item.name}
               href={item.href}
               className={cn(
-                'group relative flex items-center px-4 py-3',
+                'group relative flex items-center',
+                'px-3 py-2.5',
+                'rounded-full',
                 'transition-colors duration-200',
                 'md:justify-center lg:justify-start',
                 'gap-3',
-                !item.active && 'bg-transparent hover:bg-sidebar-accent'
+                item.active 
+                  ? 'bg-sidebar-accent' 
+                  : 'hover:bg-sidebar-accent/50'
               )}
               title={item.name}
-              style={{
-                backgroundColor: item.active ? item.color : undefined,
-              }}
-              onMouseEnter={(e) => {
-                if (!item.active) {
-                  e.currentTarget.style.backgroundColor = item.color
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!item.active) {
-                  e.currentTarget.style.backgroundColor = ''
-                }
-              }}
             >
               {/* Icon */}
               <Icon
                 className={cn(
                   'w-6 h-6 shrink-0',
-                  'transition-all duration-300',
-                  'group-hover:scale-110',
-                  'lg:mr-3',
-                  !item.active && 'text-sidebar-foreground'
+                  'transition-colors duration-200',
+                  item.active 
+                    ? 'text-sidebar-accent-foreground' 
+                    : 'text-sidebar-foreground group-hover:text-sidebar-accent-foreground'
                 )}
-                style={{
-                  color: item.active ? '#e4e4e4' : undefined,
-                }}
-                onMouseEnter={(e) => {
-                  if (!item.active) {
-                    e.currentTarget.style.color = '#e4e4e4'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!item.active) {
-                    e.currentTarget.style.color = ''
-                  }
-                }}
               />
 
               {/* Label - hidden on tablet (md), shown on desktop (lg+) */}
               <span
                 className={cn(
                   'hidden lg:block',
-                  'text-lg transition-colors duration-300',
-                  item.active ? 'font-semibold' : 'text-sidebar-foreground'
+                  'text-[15px] leading-5',
+                  'transition-colors duration-200',
+                  item.active 
+                    ? 'font-semibold text-sidebar-accent-foreground' 
+                    : 'font-normal text-sidebar-foreground group-hover:text-sidebar-accent-foreground'
                 )}
-                style={{
-                  color: item.active ? '#e4e4e4' : undefined,
-                }}
-                onMouseEnter={(e) => {
-                  if (!item.active) {
-                    e.currentTarget.style.color = '#e4e4e4'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!item.active) {
-                    e.currentTarget.style.color = ''
-                  }
-                }}
               >
                 {item.name}
               </span>
@@ -249,16 +216,11 @@ function SidebarContent() {
         })}
       </nav>
 
-      {/* Separator - only shown on desktop */}
-      <div className="hidden lg:block px-4 py-2">
-        <Separator />
-      </div>
-
       {/* Bottom Section - Authentication (Desktop lg+) */}
-      <div className="hidden lg:block p-4">
+      <div className="hidden lg:block px-2 py-2">
         {!ready ? (
           // Skeleton loader while authentication is initializing
-          <div className="flex items-center gap-3 p-3 animate-pulse">
+          <div className="flex items-center gap-3 px-3 py-2 animate-pulse">
             <div className="w-10 h-10 rounded-full bg-sidebar-accent/50" />
             <div className="flex-1 min-w-0 space-y-2">
               <div className="h-4 bg-sidebar-accent/50 rounded w-24" />
@@ -275,10 +237,10 @@ function SidebarContent() {
       {/* Bottom Section - User Icon (Tablet md) */}
       {authenticated && user && (
         <div className="md:block lg:hidden relative" ref={mdMenuRef}>
-          <div className="p-4 flex justify-center">
+          <div className="px-2 py-2 flex justify-center">
             <button
               onClick={() => setShowMdMenu(!showMdMenu)}
-              className="hover:opacity-80 transition-opacity"
+              className="hover:opacity-80 transition-opacity rounded-full"
               aria-label="Open user menu"
             >
               <Avatar 
@@ -294,7 +256,7 @@ function SidebarContent() {
 
           {/* Dropdown Menu - Icon Only */}
           {showMdMenu && (
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-auto bg-sidebar border border-border rounded-lg shadow-lg overflow-hidden z-50">
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-auto bg-sidebar border border-sidebar-border rounded-lg shadow-lg overflow-hidden z-50">
               {/* Referral Code */}
               {user.referralCode && (
                 <button
@@ -312,7 +274,7 @@ function SidebarContent() {
               )}
               
               {/* Separator */}
-              {user.referralCode && <div className="border-t border-border" />}
+              {user.referralCode && <div className="border-t border-sidebar-border" />}
               
               {/* Logout */}
               <button

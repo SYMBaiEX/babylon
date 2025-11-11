@@ -33,7 +33,7 @@ export default function MarketsLoading() {
             {/* Two-column grid for trending sections */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               {/* Trending Perpetuals */}
-              <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
+              <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
                 <div className="flex items-center gap-2 mb-3">
                   <Skeleton className="h-5 w-5 rounded" />
                   <Skeleton className="h-6 w-40" />
@@ -57,7 +57,7 @@ export default function MarketsLoading() {
               </div>
 
               {/* Hot Predictions */}
-              <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
+              <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
                 <div className="flex items-center gap-2 mb-3">
                   <Skeleton className="h-5 w-5 rounded" />
                   <Skeleton className="h-6 w-32" />
@@ -80,7 +80,7 @@ export default function MarketsLoading() {
             </div>
             
             {/* Full-width section for pools */}
-            <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
+            <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
               <div className="flex items-center gap-2 mb-3">
                 <Skeleton className="h-5 w-5 rounded" />
                 <Skeleton className="h-6 w-48" />
@@ -109,7 +109,7 @@ export default function MarketsLoading() {
         {/* Widget Sidebar */}
         <div className="w-96 shrink-0 bg-sidebar px-4 py-3 space-y-4">
           {/* Market Overview Panel */}
-          <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
+          <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
             <div className="flex items-center gap-2 mb-3">
               <Skeleton className="h-5 w-5 rounded" />
               <Skeleton className="h-6 w-32" />
@@ -141,7 +141,7 @@ export default function MarketsLoading() {
           </div>
           
           {/* Top Movers Panel */}
-          <div className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 border border-border">
+          <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
             <Skeleton className="h-6 w-28 mb-3" />
             
             {/* Top Gainers */}

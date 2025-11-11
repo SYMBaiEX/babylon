@@ -228,7 +228,7 @@ export function LeaderboardSkeleton({ count = 10 }: { count?: number }) {
 // Widget Panel Skeleton
 export function WidgetPanelSkeleton() {
   return (
-    <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border">
+    <div className="bg-card/50 backdrop-blur rounded-2xl p-4 border border-border">
       <Skeleton className="h-5 w-32 max-w-full mb-3" />
       <div className="space-y-2">
         {Array.from({ length: 4 }).map((_, i) => (
@@ -284,7 +284,7 @@ export function PoolCardSkeleton() {
 // Stats Card Skeleton
 export function StatsCardSkeleton() {
   return (
-    <div className="bg-card/50 backdrop-blur rounded-lg p-4 sm:p-6 border border-border">
+    <div className="bg-card/50 backdrop-blur rounded-2xl p-4 sm:p-6 border border-border">
       <Skeleton className="h-4 w-24 max-w-full mb-2" />
       <Skeleton className="h-6 sm:h-8 w-28 sm:w-32 max-w-full mb-1" />
       <Skeleton className="h-3 w-20 max-w-full" />

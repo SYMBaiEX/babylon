@@ -956,7 +956,7 @@ export default function ProfilePage() {
                             formData: { ...prev.formData, displayName: e.target.value }
                           }))}
                           placeholder="Your name"
-                          className="w-full bg-muted/50 border border-border rounded-lg px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent min-h-[44px] text-base"
+                          className="w-full bg-muted/50 border border-border rounded-lg px-4 py-3 text-foreground focus:outline-none focus:border-border min-h-[44px] text-base"
                           disabled={editModal.isSaving}
                         />
                       </div>
@@ -979,7 +979,7 @@ export default function ProfilePage() {
                             </div>
                           </div>
                         )}
-                        <div className="flex items-center gap-2 bg-muted/50 border border-border rounded-lg px-4 py-3 focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent min-h-[44px]">
+                        <div className="flex items-center gap-2 bg-muted/50 border border-border rounded-lg px-4 py-3 focus-within:border-border min-h-[44px]">
                           <span className="text-muted-foreground shrink-0">@</span>
                           <input
                             id="username"
@@ -1011,7 +1011,7 @@ export default function ProfilePage() {
                           placeholder="Tell us about yourself..."
                           rows={4}
                           maxLength={160}
-                          className="w-full bg-muted/50 border border-border rounded-lg px-4 py-3 text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-base"
+                          className="w-full bg-muted/50 border border-border rounded-lg px-4 py-3 text-foreground resize-none focus:outline-none focus:border-border text-base"
                           disabled={editModal.isSaving}
                         />
                         <div className="flex justify-end mt-1">

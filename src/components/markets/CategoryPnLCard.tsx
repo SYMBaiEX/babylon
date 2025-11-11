@@ -85,7 +85,7 @@ export function CategoryPnLCard({
   return (
     <section
       className={cn(
-        'rounded-xl border bg-gradient-to-br px-4 py-3 sm:px-5 sm:py-4 shadow-sm',
+        'rounded-2xl border bg-gradient-to-br px-4 py-3 sm:px-5 sm:py-4 shadow-sm',
         config.border,
         config.color,
       )}

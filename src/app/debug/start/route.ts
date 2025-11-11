@@ -19,10 +19,12 @@ export async function GET(_request: NextRequest) {
       // Create the game if it doesn't exist
       game = await prisma.game.create({
         data: {
+          id: 'game-continuous',
           isContinuous: true,
           isRunning: true,
           currentDay: 1,
           startedAt: new Date(),
+          updatedAt: new Date(),
         },
       });
       logger.info('Game created and started', { gameId: game.id }, 'Debug');

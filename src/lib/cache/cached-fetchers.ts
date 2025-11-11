@@ -237,15 +237,15 @@ export async function getCachedPredictions(userId?: string, timeframe?: string) 
           marketId: { in: marketIds as string[] },
         },
         include: {
-          market: true,
+          Market: true,
         },
       })
       
       for (const p of positions) {
-        // Type assertion: Prisma include adds market property
-        const positionWithMarket = p as typeof p & { market: { yesShares: number | string; noShares: number | string } | null }
-        if (!positionWithMarket.market) continue; // Skip if market not loaded
-        const market = positionWithMarket.market
+        // Type assertion: Prisma include adds Market property
+        const positionWithMarket = p as typeof p & { Market: { yesShares: number | string; noShares: number | string } | null }
+        if (!positionWithMarket.Market) continue; // Skip if market not loaded
+        const market = positionWithMarket.Market
         const totalShares = Number(market.yesShares) + Number(market.noShares)
         const currentYesPrice = totalShares > 0 ? Number(market.yesShares) / totalShares : 0.5
         const currentNoPrice = totalShares > 0 ? Number(market.noShares) / totalShares : 0.5
@@ -418,9 +418,9 @@ export async function getCachedRegistry(filters: {
         lifetimePnL: true,
         _count: {
           select: {
-            positions: true,
-            comments: true,
-            reactions: true,
+            Position: true,
+            Comment: true,
+            Reaction: true,
           },
         },
       },
@@ -455,9 +455,9 @@ export async function getCachedRegistry(filters: {
           lifetimePnL: user.lifetimePnL.toString(),
           reputation,
           stats: {
-            positions: user._count.positions,
-            comments: user._count.comments,
-            reactions: user._count.reactions,
+            positions: user._count.Position,
+            comments: user._count.Comment,
+            reactions: user._count.Reaction,
           },
         }
       })
@@ -633,13 +633,13 @@ export async function getCachedMarketChats() {
         gameId: 'continuous',
       },
       include: {
-        messages: {
+        Message: {
           orderBy: { createdAt: 'desc' },
           take: 1,
         },
         _count: {
           select: {
-            messages: true,
+            Message: true,
           },
         },
       },
@@ -654,8 +654,8 @@ export async function getCachedMarketChats() {
         id: chat.id,
         name: chat.name,
         isGroup: chat.isGroup,
-        messageCount: chat._count.messages,
-        lastMessage: chat.messages[0] || null,
+        messageCount: chat._count.Message,
+        lastMessage: chat.Message[0] || null,
       })),
     }
     

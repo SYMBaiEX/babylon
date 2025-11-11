@@ -121,7 +121,7 @@ export function TradingFeedTab() {
     const displayName = trade.user.displayName || trade.user.username || 'Anonymous'
     
     return (
-      <div className="bg-card border border-border rounded-lg p-4 hover:border-primary/50 transition-colors">
+      <div className="bg-card border border-border rounded-2xl p-4 hover:border-primary/50 transition-colors">
         <div className="flex items-start gap-3">
           <Avatar
             src={trade.user.profileImageUrl || undefined}

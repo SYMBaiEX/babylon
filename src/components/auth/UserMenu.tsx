@@ -109,7 +109,7 @@ export function UserMenu() {
   const username = user.username || `user${user.id.slice(0, 8)}`
 
   const trigger = (
-    <div className="flex items-center gap-3 p-3 hover:bg-sidebar-accent cursor-pointer transition-colors">
+    <div className="flex items-center gap-3 px-3 py-2.5 rounded-full hover:bg-sidebar-accent cursor-pointer transition-colors">
       <Avatar
         id={user.id}
         name={displayName}
@@ -119,10 +119,10 @@ export function UserMenu() {
         imageUrl={user.profileImageUrl || undefined}
       />
       <div className="flex-1 min-w-0">
-        <p className="font-bold text-foreground truncate text-sm">
+        <p className="font-semibold text-sidebar-foreground truncate text-[15px] leading-5">
           {displayName}
         </p>
-        <p className="text-xs text-muted-foreground truncate">
+        <p className="text-[13px] leading-4 text-muted-foreground truncate">
           @{username}
         </p>
       </div>

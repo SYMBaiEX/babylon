@@ -4,6 +4,7 @@
  * Manages trading fees and referral fee distribution
  */
 
+import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
 import { Prisma } from '@prisma/client'
@@ -107,6 +108,7 @@ export class FeeService {
       // Create trading fee record
       await tx.tradingFee.create({
         data: {
+          id: randomUUID(),
           userId,
           tradeType,
           tradeId: tradeId || null,
@@ -201,6 +203,7 @@ export class FeeService {
     // Create balance transaction
     await tx.balanceTransaction.create({
       data: {
+        id: randomUUID(),
         userId: referrerId,
         type: FEE_CONFIG.TRANSACTION_TYPES.REFERRAL_FEE_EARNED,
         amount: new Prisma.Decimal(feeAmount),
@@ -258,14 +261,6 @@ export class FeeService {
       where: whereClause,
       select: {
         userId: true,
-        user: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            profileImageUrl: true,
-          },
-        },
       },
       distinct: ['userId'],
     })
@@ -318,7 +313,7 @@ export class FeeService {
         tradeType: true,
         referrerFee: true,
         userId: true,
-        user: {
+        User_TradingFee_userIdToUser: {
           select: {
             username: true,
           },
@@ -340,7 +335,7 @@ export class FeeService {
         tradeType: fee.tradeType,
         feeAmount: Number(fee.referrerFee),
         traderId: fee.userId,
-        traderUsername: fee.user.username,
+        traderUsername: fee.User_TradingFee_userIdToUser?.username ?? 'Unknown',
         createdAt: fee.createdAt,
       })),
     }

@@ -195,11 +195,11 @@ export default function RegistryPage() {
         <div className="px-4 py-3 space-y-3">
           {/* On-chain status */}
           {entity.onChainRegistered && (
-            <div className="flex items-center gap-2 text-sm bg-green-500/5 border border-green-500/20 rounded-lg p-2">
+            <div className="flex items-center gap-2 text-sm bg-green-500/5 border border-green-500/20 rounded-xl px-3 py-2">
               <Shield className="h-4 w-4 text-green-500 shrink-0" />
               <span className="text-green-500 font-medium flex-1">On-chain registered</span>
               {entity.nftTokenId && (
-                <span className="text-xs font-mono bg-green-500/10 px-2 py-0.5 rounded">
+                <span className="text-xs font-mono bg-green-500/10 px-2 py-0.5 rounded-lg">
                   #{entity.nftTokenId}
                 </span>
               )}
@@ -208,10 +208,10 @@ export default function RegistryPage() {
 
           {/* Agent0 registration */}
           {entity.agent0TokenId && (
-            <div className="flex items-center gap-2 text-sm bg-blue-500/5 border border-blue-500/20 rounded-lg p-2">
+            <div className="flex items-center gap-2 text-sm bg-blue-500/5 border border-blue-500/20 rounded-xl px-3 py-2">
               <Bot className="h-4 w-4 text-blue-500 shrink-0" />
               <span className="text-blue-500 font-medium flex-1">Agent0 Token</span>
-              <span className="text-xs font-mono bg-blue-500/10 px-2 py-0.5 rounded">
+              <span className="text-xs font-mono bg-blue-500/10 px-2 py-0.5 rounded-lg">
                 #{entity.agent0TokenId}
               </span>
             </div>
@@ -239,7 +239,7 @@ export default function RegistryPage() {
           {/* Balance & Reputation */}
           <div className="grid grid-cols-2 gap-2">
             {entity.balance && (
-              <div className="flex items-center gap-2 text-sm bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2">
+              <div className="flex items-center gap-2 text-sm bg-emerald-500/5 border border-emerald-500/20 rounded-xl px-3 py-2">
                 <TrendingUp className="h-4 w-4 text-emerald-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs text-muted-foreground">Balance</div>
@@ -250,7 +250,7 @@ export default function RegistryPage() {
               </div>
             )}
             {entity.reputationPoints !== undefined && (
-              <div className="flex items-center gap-2 text-sm bg-purple-500/5 border border-purple-500/20 rounded-lg p-2">
+              <div className="flex items-center gap-2 text-sm bg-purple-500/5 border border-purple-500/20 rounded-xl px-3 py-2">
                 <Activity className="h-4 w-4 text-purple-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs text-muted-foreground">Reputation</div>
@@ -319,12 +319,12 @@ export default function RegistryPage() {
           {entity.domain && entity.domain.length > 0 && (
             <div className="flex flex-wrap gap-1 pt-2">
               {entity.domain.slice(0, 3).map((d: string) => (
-                <span key={d} className="px-2 py-1 bg-muted text-muted-foreground rounded text-xs">
+                <span key={d} className="px-2 py-1 bg-muted text-muted-foreground rounded-lg text-xs">
                   {d}
                 </span>
               ))}
               {entity.domain.length > 3 && (
-                <span className="px-2 py-1 bg-muted text-muted-foreground rounded text-xs">
+                <span className="px-2 py-1 bg-muted text-muted-foreground rounded-lg text-xs">
                   +{entity.domain.length - 3} more
                 </span>
               )}
@@ -376,8 +376,8 @@ export default function RegistryPage() {
           key={entity.id}
           href={profileUrl}
           className={cn(
-            'block bg-card border border-border rounded-xl overflow-hidden transition-all duration-200',
-            'hover:shadow-lg hover:border-[#0066FF]/50 cursor-pointer'
+            'block bg-card border border-border rounded-2xl overflow-hidden transition-all duration-200',
+            'hover:shadow-lg hover:border-primary/50 cursor-pointer'
           )}
         >
           {cardContent}
@@ -388,7 +388,7 @@ export default function RegistryPage() {
     return (
       <div
         key={entity.id}
-        className="block bg-card border border-border rounded-xl overflow-hidden transition-all duration-200"
+        className="block bg-card border border-border rounded-2xl overflow-hidden transition-all duration-200"
       >
         {cardContent}
       </div>
@@ -440,7 +440,7 @@ export default function RegistryPage() {
             className={cn(
               'flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-all duration-200 whitespace-nowrap',
               onChainOnly
-                ? 'bg-[#0066FF] text-white hover:bg-[#0052CC]'
+                ? 'bg-primary text-primary-foreground hover:bg-primary/90'
                 : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-border'
             )}
           >
@@ -453,32 +453,32 @@ export default function RegistryPage() {
         {/* Stats overview */}
         {data && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-            <div className="bg-card border border-border rounded-xl px-4 py-3">
+            <div className="bg-card border border-border rounded-2xl px-4 py-3">
               <div className="text-sm text-muted-foreground mb-1">Total</div>
               <div className="text-3xl font-bold text-foreground">{data.totals.total}</div>
             </div>
-            <div className="bg-card border border-border rounded-xl px-4 py-3">
+            <div className="bg-card border border-border rounded-2xl px-4 py-3">
               <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
                 <UserCircle className="h-4 w-4" />
                 <span>Users</span>
               </div>
               <div className="text-3xl font-bold text-foreground">{data.totals.users}</div>
             </div>
-            <div className="bg-card border border-border rounded-xl px-4 py-3">
+            <div className="bg-card border border-border rounded-2xl px-4 py-3">
               <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
                 <Users className="h-4 w-4" />
                 <span>Actors</span>
               </div>
               <div className="text-3xl font-bold text-foreground">{data.totals.actors}</div>
             </div>
-            <div className="bg-card border border-border rounded-xl px-4 py-3">
+            <div className="bg-card border border-border rounded-2xl px-4 py-3">
               <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
                 <Bot className="h-4 w-4" />
                 <span>Agents</span>
               </div>
               <div className="text-3xl font-bold text-foreground">{data.totals.agents}</div>
             </div>
-            <div className="bg-card border border-border rounded-xl px-4 py-3">
+            <div className="bg-card border border-border rounded-2xl px-4 py-3">
               <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
                 <Building2 className="h-4 w-4" />
                 <span>Apps</span>
@@ -511,7 +511,7 @@ export default function RegistryPage() {
               <p className="text-muted-foreground mb-4">{error}</p>
               <button
                 onClick={fetchRegistry}
-                className="px-4 py-2 bg-[#0066FF] text-white rounded-lg hover:bg-[#0052CC] transition-colors"
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
               >
                 Try Again
               </button>
@@ -529,7 +529,7 @@ export default function RegistryPage() {
                 className={cn(
                   'px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
                   activeTab === 'all'
-                    ? 'bg-[#0066FF] text-white'
+                    ? 'bg-primary text-primary-foreground'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 )}
               >
@@ -540,7 +540,7 @@ export default function RegistryPage() {
                 className={cn(
                   'flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
                   activeTab === 'users'
-                    ? 'bg-[#0066FF] text-white'
+                    ? 'bg-primary text-primary-foreground'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 )}
               >
@@ -552,7 +552,7 @@ export default function RegistryPage() {
                 className={cn(
                   'flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
                   activeTab === 'actors'
-                    ? 'bg-[#0066FF] text-white'
+                    ? 'bg-primary text-primary-foreground'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 )}
               >
@@ -564,7 +564,7 @@ export default function RegistryPage() {
                 className={cn(
                   'flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
                   activeTab === 'agents'
-                    ? 'bg-[#0066FF] text-white'
+                    ? 'bg-primary text-primary-foreground'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 )}
               >
@@ -576,7 +576,7 @@ export default function RegistryPage() {
                 className={cn(
                   'flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
                   activeTab === 'apps'
-                    ? 'bg-[#0066FF] text-white'
+                    ? 'bg-primary text-primary-foreground'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 )}
               >

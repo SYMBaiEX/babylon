@@ -4,7 +4,6 @@ import { FeedCommentSection } from '@/components/feed/FeedCommentSection';
 import { InteractionBar } from '@/components/interactions';
 import { PostCard } from '@/components/posts/PostCard';
 import { PageContainer } from '@/components/shared/PageContainer';
-import { WidgetSidebar } from '@/components/shared/WidgetSidebar';
 import { useInteractionStore } from '@/stores/interactionStore';
 import { ArrowLeft, MessageCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -269,9 +268,6 @@ export default function PostPage({ params }: PostPageProps) {
             </div>
           </div>
         </div>
-
-        {/* Right: Widget sidebar */}
-        <WidgetSidebar />
       </div>
 
       {/* Mobile/Tablet: Single column layout */}

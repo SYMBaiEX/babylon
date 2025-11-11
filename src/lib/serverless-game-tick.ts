@@ -9,6 +9,7 @@
  * ✅ Vercel-compatible: No filesystem access, completes in <60s
  */
 
+import { randomUUID } from 'crypto';
 import { MarketDecisionEngine } from '@/engine/MarketDecisionEngine';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
 import type { Prisma } from '@prisma/client';
@@ -545,7 +546,7 @@ async function bootstrapTrending(): Promise<void> {
   // Check if we have enough posts and tags
   const postCount = await prisma.post.count();
   const taggedPostCount = await prisma.post.count({
-    where: { postTags: { some: {} } },
+    where: { PostTag: { some: {} } },
   });
   
   logger.info('Post/tag status for trending', {
@@ -589,8 +590,18 @@ async function bootstrapTrending(): Promise<void> {
     // Create tag
     const tag = await prisma.tag.upsert({
       where: { name: tagData.name },
-      update: {},
-      create: tagData,
+      update: {
+        displayName: tagData.displayName,
+        category: tagData.category,
+        updatedAt: new Date(),
+      },
+      create: {
+        id: randomUUID(),
+        name: tagData.name,
+        displayName: tagData.displayName,
+        category: tagData.category,
+        updatedAt: new Date(),
+      },
     });
     
     // Create trending entry
@@ -598,6 +609,7 @@ async function bootstrapTrending(): Promise<void> {
     
     await prisma.trendingTag.create({
       data: {
+        id: randomUUID(),
         tagId: tag.id,
         score,
         postCount: Math.floor(Math.random() * 10) + 5,
@@ -1089,6 +1101,7 @@ async function generateEvents(
 
       await prisma.worldEvent.create({
         data: {
+          id: randomUUID(),
           eventType: 'announcement',
           description: `Development regarding: ${question.text}`,
           actors: [],
@@ -1215,13 +1228,16 @@ Return your response as JSON in this exact format:
     try {
       const question = await prisma.question.create({
         data: {
+          id: randomUUID(),
           questionNumber: nextQuestionNumber,
           text: response.question,
           scenarioId,
           outcome: Math.random() > 0.5,
           rank: 1,
+          createdDate: new Date(),
           resolutionDate,
           status: 'active',
+          updatedAt: new Date(),
         },
       });
 
@@ -1233,6 +1249,7 @@ Return your response as JSON in this exact format:
           liquidity: 1000,
           endDate: resolutionDate,
           gameId: 'continuous',
+          updatedAt: new Date(),
         },
       });
 
@@ -1376,7 +1393,7 @@ async function updateWidgetCaches(): Promise<number> {
     const pools = await prisma.pool.findMany({
       where: { isActive: true },
       include: {
-        npcActor: {
+        Actor: {
           select: { name: true },
         },
       },
@@ -1393,15 +1410,15 @@ async function updateWidgetCaches(): Promise<number> {
             ? ((totalValue - totalDeposits) / totalDeposits) * 100
             : 0;
 
-        // Safely extract npcActor name with multiple fallbacks
+        // Safely extract npc actor name with multiple fallbacks
         let npcActorName = 'Unknown';
         try {
           if (
-            pool.npcActor &&
-            typeof pool.npcActor === 'object' &&
-            'name' in pool.npcActor
+            pool.Actor &&
+            typeof pool.Actor === 'object' &&
+            'name' in pool.Actor
           ) {
-            npcActorName = pool.npcActor.name || 'Unknown';
+            npcActorName = pool.Actor.name || 'Unknown';
           }
         } catch (e) {
           logger.warn(

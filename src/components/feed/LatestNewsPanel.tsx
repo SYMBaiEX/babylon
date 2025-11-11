@@ -173,7 +173,7 @@ export function LatestNewsPanel() {
 
   return (
     <>
-      <div className="bg-sidebar rounded-lg p-4 flex-1 flex flex-col">
+      <div className="bg-sidebar rounded-2xl p-4 flex-1 flex flex-col">
         <h2 className="text-lg font-bold text-foreground mb-3 text-left">Latest News</h2>
         {loading ? (
           <div className="space-y-3 pl-3 flex-1">

@@ -54,7 +54,7 @@ export class NPCTradingService {
     const actor = await prisma.actor.findUnique({
       where: { id: npcActorId },
       include: {
-        pools: {
+        Pool: {
           where: { isActive: true },
           take: 1,
         },
@@ -75,8 +75,8 @@ export class NPCTradingService {
     for (const signal of signals) {
       await this.executePersonalTrade(actor, signal, postId);
       
-      if (actor.pools.length > 0) {
-        await this.executePoolTrade(actor, signal, postId, actor.pools[0]!.id);
+      if (actor.Pool.length > 0) {
+        await this.executePoolTrade(actor, signal, postId, actor.Pool[0]!.id);
       }
     }
   }
@@ -260,6 +260,7 @@ export class NPCTradingService {
 
     await prisma.nPCTrade.create({
       data: {
+        id: `trade-${actor.id}-${Date.now()}`,
         npcActorId: actor.id,
         poolId,
         marketType: signal.type,
@@ -303,6 +304,7 @@ export class NPCTradingService {
 
       await tx.poolPosition.create({
         data: {
+          id: `position-${poolId}-${Date.now()}`,
           poolId,
           marketType: 'prediction',
           marketId,
@@ -312,6 +314,7 @@ export class NPCTradingService {
           size: amount,
           shares: amount,
           unrealizedPnL: 0,
+          updatedAt: new Date(),
         },
       });
     });
@@ -348,6 +351,7 @@ export class NPCTradingService {
 
       await tx.poolPosition.create({
         data: {
+          id: `position-${poolId}-${Date.now()}`,
           poolId,
           marketType: 'perp',
           ticker,
@@ -358,6 +362,7 @@ export class NPCTradingService {
           leverage,
           liquidationPrice,
           unrealizedPnL: 0,
+          updatedAt: new Date(),
         },
       });
     });

@@ -339,6 +339,8 @@ export default function ActorProfilePage() {
       }, 2000)
       return () => clearTimeout(timer)
     }
+    // Return undefined when condition is not met
+    return undefined
   }, [actorInfo, optimisticFollowerCount])
 
   useEffect(() => {
@@ -726,7 +728,7 @@ export default function ActorProfilePage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={`Search ${tab}...`}
-                className="w-full pl-10 pr-4 py-2 rounded-full bg-muted border-0 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                className="w-full pl-10 pr-4 py-2 rounded-full bg-muted border-0 text-sm focus:outline-none"
               />
             </div>
           </div>
@@ -977,7 +979,7 @@ export default function ActorProfilePage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={`Search ${tab}...`}
-                  className="w-full pl-10 pr-4 py-2 rounded-full bg-muted border-0 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                  className="w-full pl-10 pr-4 py-2 rounded-full bg-muted border-0 text-sm focus:outline-none"
                 />
               </div>
             </div>

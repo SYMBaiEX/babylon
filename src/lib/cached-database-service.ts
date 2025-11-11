@@ -162,12 +162,9 @@ class CachedDatabaseService {
             id: true,
             _count: {
               select: {
-                followedBy: true,
-                following: true,
-                userActorFollows: true,
-                positions: true,
-                comments: true,
-                reactions: true,
+                Position: true,
+                Comment: true,
+                Reaction: true,
               },
             },
           },
@@ -190,11 +187,11 @@ class CachedDatabaseService {
         });
 
         return {
-          followers: user._count.followedBy,
-          following: user._count.following + user._count.userActorFollows + legacyActorFollowCount,
-          positions: user._count.positions,
-          comments: user._count.comments,
-          reactions: user._count.reactions,
+          followers: 0,
+          following: legacyActorFollowCount,
+          positions: user._count.Position,
+          comments: user._count.Comment,
+          reactions: user._count.Reaction,
           posts: postCount,
         };
       },
@@ -345,7 +342,7 @@ class CachedDatabaseService {
         take: limit,
         orderBy: { rank: 'asc' },
         include: {
-          tag: true,
+          Tag: true,
         },
       }),
       {

@@ -55,7 +55,7 @@ export class NPCInvestmentManager {
     const pool = await prisma.pool.findUnique({
       where: { id: poolId },
       include: {
-        positions: {
+        PoolPosition: {
           where: { closedAt: null }, // Open positions have null closedAt
         },
       },
@@ -65,7 +65,7 @@ export class NPCInvestmentManager {
       throw new Error(`Pool not found: ${poolId}`);
     }
 
-    const positions = pool.positions as unknown as PortfolioPosition[];
+    const positions = pool.PoolPosition as unknown as PortfolioPosition[];
     const availableBalance = parseFloat(pool.availableBalance.toString());
 
     // Calculate total invested capital (sum of all open position entry values)
@@ -314,6 +314,7 @@ export class NPCInvestmentManager {
         // Record the rebalance trade
         await prisma.nPCTrade.create({
           data: {
+            id: `trade-${npcUserId}-${Date.now()}`,
             npcActorId: npcUserId,
             poolId,
             marketType: action.marketType,
@@ -347,7 +348,7 @@ export class NPCInvestmentManager {
     const activePools = await prisma.pool.findMany({
       where: { isActive: true },
       include: {
-        npcActor: {
+        Actor: {
           select: {
             id: true,
             name: true,
@@ -360,22 +361,22 @@ export class NPCInvestmentManager {
     logger.info(`Monitoring ${activePools.length} active NPC portfolios`, undefined, 'NPCInvestmentManager');
 
     for (const pool of activePools) {
-      if (!pool.npcActor) continue;
+      if (!pool.Actor) continue;
 
       try {
         // Determine strategy from actor personality
-        const strategy = this.determineStrategyFromPersonality(pool.npcActor.personality);
+        const strategy = this.determineStrategyFromPersonality(pool.Actor.personality);
 
-        const actions = await this.monitorPortfolio(pool.id, pool.npcActor.id, strategy);
+        const actions = await this.monitorPortfolio(pool.id, pool.Actor.id, strategy);
 
         // Execute rebalance actions
         for (const action of actions) {
-          await this.executeRebalanceAction(pool.npcActor.id, pool.id, action);
+          await this.executeRebalanceAction(pool.Actor.id, pool.id, action);
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(
-          `Error monitoring portfolio for ${pool.npcActor.name}: ${errorMessage}`,
+          `Error monitoring portfolio for ${pool.Actor.name}: ${errorMessage}`,
           { error, poolId: pool.id },
           'NPCInvestmentManager'
         );
