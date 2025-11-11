@@ -12,6 +12,10 @@ import { Toaster } from 'sonner'
 import { GlobalLoginModal } from '@/components/auth/GlobalLoginModal'
 import { FeedAuthBanner } from '@/components/auth/FeedAuthBanner'
 
+// Vercel Analytics
+import { Analytics } from '@vercel/analytics/react'
+import { SpeedInsights } from '@vercel/speed-insights/next'
+
 export const metadata: Metadata = {
   title: 'Babylon',
   description: 'In a world where everything is predicted, what really matters? ',
@@ -103,6 +107,8 @@ export default function RootLayout({
           {/* Auth Banner - shows on all pages when not authenticated */}
           <FeedAuthBanner />
         </Providers>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )
