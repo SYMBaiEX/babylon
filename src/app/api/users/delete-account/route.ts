@@ -20,7 +20,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const userId = authUser.dbUserId ?? authUser.userId
 
   const body = await request.json().catch(() => ({}))
-  const { confirmation, reason } = DeleteAccountSchema.parse(body)
+  const { reason } = DeleteAccountSchema.parse(body)
 
   logger.info(
     'User requested account deletion',

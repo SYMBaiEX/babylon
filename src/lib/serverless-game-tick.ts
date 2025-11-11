@@ -467,16 +467,21 @@ async function generateMixedPosts(
       break;
     }
 
-    const question = questions[i];
-    const actor = actors[i % actors.length];
-
-    // Defensive checks for question and actor validity
-    if (!question || !actor || !actor.name) {
+    const question = questions[i % questions.length]; // Use modulo to cycle through questions
+    
+    // Defensive check for question validity
+    if (!question || !question.text) {
       logger.warn(
-        'Missing question or actor data',
+        'Missing question data',
         { questionIndex: i },
         'GameTick'
       );
+      continue;
+    }
+
+    const creator = creators[i];
+    if (!creator) {
+      logger.warn('Missing creator data', { creatorIndex: i }, 'GameTick');
       continue;
     }
 
@@ -485,9 +490,6 @@ async function generateMixedPosts(
       const slotOffset = i * timeSlotMs;
       const randomJitter = Math.random() * timeSlotMs * 0.8; // 80% of slot for randomness
       const timestampWithOffset = new Date(timestamp.getTime() + slotOffset + randomJitter);
-
-      const creator = creators[i];
-      if (!creator) continue;
       if (creator.type === 'actor') {
         // Generate NPC post
         const prompt = `You are ${creator.name}. Write a brief social media post (max 200 chars) about this prediction market question: "${question.text}". Be opinionated and entertaining.
@@ -568,7 +570,7 @@ Return your response as JSON in this exact format:
     } catch (error) {
       logger.error(
         'Failed to generate post',
-        { error, questionIndex: i, actorId: actor.id, questionId: question.id },
+        { error, questionIndex: i, creatorId: creator?.id, creatorName: creator?.name, questionId: question?.id },
         'GameTick'
       );
       // Continue with next post instead of failing entire batch

@@ -65,8 +65,6 @@ export function PrivacyTab() {
       if (!response.ok) {
         throw new Error('Failed to delete account')
       }
-
-      const data = await response.json()
       
       toast.success('Account deleted successfully')
       logger.info('User deleted their account', undefined, 'PrivacyTab')
