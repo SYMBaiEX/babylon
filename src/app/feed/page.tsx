@@ -309,7 +309,7 @@ function FeedPageContent() {
   
   // Combine local posts (optimistic UI) with API posts, deduplicating by ID
   const basePosts = useMemo(() => {
-    if (tab !== 'latest') return apiPosts
+    if (tab !== 'latest') return displayedPosts
     
     // Efficient deduplication using Map (O(n) instead of O(n²))
     // Local posts come first to ensure they appear at the top
@@ -319,7 +319,7 @@ function FeedPageContent() {
     localPosts.forEach(post => postMap.set(post.id, post))
     
     // Add API posts (will not override local posts with same ID)
-    apiPosts.forEach(post => {
+    displayedPosts.forEach(post => {
       if (!postMap.has(post.id)) {
         postMap.set(post.id, post)
       }
@@ -331,22 +331,7 @@ function FeedPageContent() {
       const bTime = new Date(b.timestamp ?? 0).getTime()
       return bTime - aTime
     })
-  }, [tab, localPosts, apiPosts])
-
-  const filteredPosts = useMemo(() => {
-    if (!searchQuery.trim()) return basePosts
-    const query = searchQuery.toLowerCase()
-    return basePosts.filter((post) => {
-      const postContent = String(post.content)
-      const authorField = String(post.author || post.authorId || '')
-      const postAuthorName = String(post.authorName || '')
-      return (
-        postContent.toLowerCase().includes(query) ||
-        authorField.toLowerCase().includes(query) ||
-        postAuthorName.toLowerCase().includes(query)
-      )
-    })
-  }, [basePosts, searchQuery])
+  }, [tab, localPosts, displayedPosts])
 
   // Removed early loading return to prevent layout shifts - loading state is handled inline
 
