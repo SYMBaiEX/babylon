@@ -30,6 +30,7 @@ export default async function DocsLayout({
         title: 'On This Page',
       }}
       footer={footer}
+      gitTimestamp=""
     >
       {children}
     </Layout>
