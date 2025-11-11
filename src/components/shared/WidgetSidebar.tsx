@@ -40,7 +40,6 @@ export function WidgetSidebar() {
       className="hidden xl:flex flex-col w-96 flex-shrink-0 bg-sidebar sidebar"
     >
       <div className="sidebar__inner flex flex-col px-4 py-6 gap-6">
-        {/* Search Bar at the top */}
         <div className="flex-shrink-0">
           <EntitySearchAutocomplete
             value={searchQuery}

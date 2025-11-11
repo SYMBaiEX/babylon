@@ -203,7 +203,7 @@ export function EntitySearchAutocomplete({
       router.push(`/profile/${entity.username}`)
     } else {
       // For non-users or users without username, go to explore with search
-      // TODO: actor should probably also has profile page, so we can redirect to that?
+      // TODO: The actor/agents should probably also have a profile page, so we can redirect to it.
       router.push(`/explore?q=${encodeURIComponent(entity.name)}&tab=registry`)
     }
     onNavigate?.()
