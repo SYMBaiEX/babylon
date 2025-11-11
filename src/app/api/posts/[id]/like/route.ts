@@ -4,6 +4,7 @@
  */
 
 import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/database-service';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
@@ -37,7 +38,7 @@ export const POST = withErrorHandling(async (
     // Check if post exists first
     let post = await prisma.post.findUnique({
       where: { id: postId },
-      select: { id: true, authorId: true },
+      select: { id: true, authorId: true, deletedAt: true },
     });
 
     if (!post) {
@@ -53,6 +54,29 @@ export const POST = withErrorHandling(async (
           timestamp,
         },
       });
+    }
+
+    // Check if post is deleted - allow likes to be removed but not added
+    if (post.deletedAt) {
+      // Allow unlike but not like
+      const existingReaction = await prisma.reaction.findUnique({
+        where: {
+          postId_userId_type: {
+            postId,
+            userId: canonicalUserId,
+            type: 'like',
+          },
+        },
+      });
+      
+      if (!existingReaction) {
+        // Trying to add a new like to deleted post - reject
+        return NextResponse.json(
+          { success: false, error: 'Cannot like deleted post' },
+          { status: 400 }
+        );
+      }
+      // If reaction exists, allow the unlike action to proceed
     }
 
     // Check if already liked

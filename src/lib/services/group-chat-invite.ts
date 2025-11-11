@@ -13,6 +13,7 @@
 
 import type { GroupChat } from '@/shared/types';
 import { prisma } from '@/lib/prisma';
+import { notifyGroupChatInvite } from './notification-service';
 
 // Use GroupChat type for type-safe chat operations
 type GroupChatData = Omit<GroupChat, 'messages'> & {
@@ -249,6 +250,9 @@ export class GroupChatInvite {
         wasInvitedToChat: true,
       },
     });
+
+    // Send notification to user about the invite
+    await notifyGroupChatInvite(userId, npcId, chatId, chatName);
   }
 
   /**

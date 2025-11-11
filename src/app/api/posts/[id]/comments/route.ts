@@ -105,10 +105,15 @@ export const GET = withErrorHandling(async (
   // Check if post exists
   const post = await prisma.post.findUnique({
     where: { id: postId },
+    select: { id: true, deletedAt: true },
   });
 
   if (!post) {
     throw new NotFoundError('Post', postId);
+  }
+
+  if (post.deletedAt) {
+    throw new NotFoundError('Post (deleted)', postId);
   }
 
     // Get all comments for the post (including nested replies)
@@ -199,6 +204,7 @@ export const POST = withErrorHandling(async (
     // Check if post exists first
     const post = await prisma.post.findUnique({
       where: { id: postId },
+      select: { id: true, deletedAt: true, authorId: true },
     });
 
     // If post doesn't exist, try to auto-create it based on format
@@ -272,6 +278,9 @@ export const POST = withErrorHandling(async (
           timestamp,
         },
       });
+    } else if (post.deletedAt) {
+      // Post exists but is deleted - cannot comment
+      throw new BusinessLogicError('Cannot comment on deleted post', 'POST_DELETED');
     }
 
     // If parentCommentId provided, validate it exists and belongs to this post

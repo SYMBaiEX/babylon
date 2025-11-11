@@ -4,7 +4,6 @@
  * Displays NPC actor portfolio data including total value, positions, and metrics
  * Shows portfolio performance, utilization, and risk assessment
  *
- * Pattern based on: ReputationCard.tsx
  */
 
 'use client'

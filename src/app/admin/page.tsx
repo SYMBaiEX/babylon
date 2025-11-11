@@ -7,11 +7,12 @@ import { PageContainer } from '@/components/shared/PageContainer'
 import { StatsTab } from '@/components/admin/StatsTab'
 import { TradingFeedTab } from '@/components/admin/TradingFeedTab'
 import { UserManagementTab } from '@/components/admin/UserManagementTab'
-import { Shield, Activity, Users, BarChart } from 'lucide-react'
+import { NotificationsTab } from '@/components/admin/NotificationsTab'
+import { Shield, Activity, Users, BarChart, Bell } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { Skeleton } from '@/components/shared/Skeleton'
 
-type Tab = 'stats' | 'trades' | 'users'
+type Tab = 'stats' | 'trades' | 'users' | 'notifications'
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -22,7 +23,17 @@ export default function AdminDashboard() {
 
   const checkAdminAccess = useCallback(async () => {
     if (!authenticated) {
-      router.push('/')
+      // Don't redirect on localhost - let them see the login prompt
+      const isLocalhost = typeof window !== 'undefined' && 
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+      
+      if (!isLocalhost) {
+        router.push('/')
+        return
+      }
+      
+      setIsAuthorized(false)
+      setLoading(false)
       return
     }
 
@@ -51,7 +62,10 @@ export default function AdminDashboard() {
     return (
       <PageContainer>
         <div className="flex items-center justify-center h-full">
-          <BouncingLogo size={48} />
+          <div className="space-y-4 w-full max-w-md">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-64" />
+          </div>
         </div>
       </PageContainer>
     )
@@ -73,6 +87,7 @@ export default function AdminDashboard() {
     { id: 'stats' as const, label: 'Dashboard', icon: BarChart },
     { id: 'trades' as const, label: 'Trading Feed', icon: Activity },
     { id: 'users' as const, label: 'Users', icon: Users },
+    { id: 'notifications' as const, label: 'Notifications', icon: Bell },
   ]
 
   return (
@@ -114,6 +129,7 @@ export default function AdminDashboard() {
         {activeTab === 'stats' && <StatsTab />}
         {activeTab === 'trades' && <TradingFeedTab />}
         {activeTab === 'users' && <UserManagementTab />}
+        {activeTab === 'notifications' && <NotificationsTab />}
       </div>
     </PageContainer>
   )

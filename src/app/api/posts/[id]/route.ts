@@ -1,9 +1,9 @@
 /**
  * API Route: /api/posts/[id]
- * Methods: GET (get single post details)
+ * Methods: GET (get single post details), DELETE (soft delete post)
  */
 
-import { optionalAuth } from '@/lib/api/auth-middleware';
+import { optionalAuth, authenticate } from '@/lib/api/auth-middleware';
 import { asUser, asPublic } from '@/lib/db/context';
 import { BusinessLogicError } from '@/lib/errors';
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
@@ -355,6 +355,11 @@ export const GET = withErrorHandling(async (
       throw new BusinessLogicError('Post not found', 'POST_NOT_FOUND');
     }
 
+    // Check if post is deleted
+    if (post.deletedAt) {
+      throw new BusinessLogicError('This post has been deleted', 'POST_DELETED');
+    }
+
     // Get author info - public data, doesn't require user authentication
     const { authorName, authorUsername, authorProfileImageUrl } = await asPublic(async (db) => {
       let name = post.authorId;
@@ -429,5 +434,56 @@ export const GET = withErrorHandling(async (
         source: 'database',
       },
     });
+});
+
+/**
+ * DELETE /api/posts/[id]
+ * Soft delete a post (mark as deleted)
+ */
+export const DELETE = withErrorHandling(async (
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) => {
+  const { id: postId } = PostIdParamSchema.parse(await context.params);
+  
+  // Require authentication (throws error if not authenticated)
+  const user = await authenticate(request);
+  
+  // Get the post to check ownership
+  const post = await asUser(user, async (db) => {
+    return await db.post.findUnique({
+      where: { id: postId },
+      select: { id: true, authorId: true, deletedAt: true },
+    });
+  });
+  
+  if (!post) {
+    throw new BusinessLogicError('Post not found', 'POST_NOT_FOUND');
+  }
+  
+  // Check if post is already deleted
+  if (post.deletedAt) {
+    throw new BusinessLogicError('Post already deleted', 'POST_ALREADY_DELETED');
+  }
+  
+  // Check if user is the author of the post
+  if (post.authorId !== user.userId) {
+    throw new BusinessLogicError('Unauthorized to delete this post', 'UNAUTHORIZED');
+  }
+  
+  // Soft delete the post by setting deletedAt timestamp
+  await asUser(user, async (db) => {
+    await db.post.update({
+      where: { id: postId },
+      data: { deletedAt: new Date() },
+    });
+  });
+  
+  logger.info('Post soft deleted', { postId, userId: user.userId }, 'DELETE /api/posts/[id]');
+  
+  return successResponse({
+    message: 'Post deleted successfully',
+    data: { id: postId, deletedAt: new Date().toISOString() },
+  });
 });
 

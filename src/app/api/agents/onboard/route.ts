@@ -19,6 +19,7 @@ import { logger } from '@/lib/logger'
 import { Agent0Client } from '@/agents/agent0/Agent0Client'
 import type { AgentCapabilities } from '@/a2a/types'
 import { syncAfterAgent0Registration } from '@/lib/reputation/agent0-reputation-sync'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 // Helper to validate and get environment variables
 function getRequiredEnvVar(name: string): string {
@@ -129,12 +130,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         bio: `Autonomous AI agent: ${agentId}`,
       },
       create: {
+        id: generateSnowflakeId(),
         privyId: agentId,
         username: agentId,
         displayName: agentName || agentId,
         virtualBalance: 10000, // Start with 10k points
         totalDeposited: 10000,
         bio: `Autonomous AI agent: ${agentId}`,
+        updatedAt: new Date(),
       },
       select: {
         id: true,

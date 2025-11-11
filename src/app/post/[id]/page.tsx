@@ -9,7 +9,7 @@ import { useInteractionStore } from '@/stores/interactionStore';
 import { ArrowLeft, MessageCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { use, useEffect, useState } from 'react';
-import { BouncingLogo } from '@/components/shared/BouncingLogo';
+import { Skeleton } from '@/components/shared/Skeleton';
 
 interface PostPageProps {
   params: Promise<{ id: string }>;
@@ -111,7 +111,11 @@ export default function PostPage({ params }: PostPageProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <BouncingLogo size={32} />
+        <div className="space-y-4 w-full max-w-2xl p-4">
+          <Skeleton className="h-8 w-3/4" />
+          <Skeleton className="h-64 w-full" />
+          <Skeleton className="h-32 w-full" />
+        </div>
       </div>
     );
   }

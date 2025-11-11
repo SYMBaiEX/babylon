@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { TrendingUp, TrendingDown, Users, DollarSign, Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { Skeleton } from '@/components/shared/Skeleton'
 
 interface Pool {
   id: string
@@ -100,7 +100,11 @@ export function PoolsList({ onPoolClick }: PoolsListProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <BouncingLogo size={32} />
+        <div className="space-y-3 w-full">
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-32 w-full" />
+        </div>
       </div>
     )
   }

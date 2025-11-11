@@ -40,9 +40,10 @@ export const GET = withErrorHandling(async (
     // Check if post exists - if not, return zero counts
     const post = await db.post.findUnique({
       where: { id: postId },
+      select: { id: true, deletedAt: true },
     });
 
-    if (!post) {
+    if (!post || post.deletedAt) {
       return {
         likeCount: 0,
         commentCount: 0,

@@ -426,7 +426,10 @@ export class NPCTradingService {
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     
     const recentPosts = await prisma.post.findMany({
-      where: { createdAt: { gte: oneHourAgo } },
+      where: { 
+        createdAt: { gte: oneHourAgo },
+        deletedAt: null, // Filter out deleted posts
+      },
       orderBy: { createdAt: 'desc' },
       take: 100,
     });

@@ -181,7 +181,10 @@ export async function GET(request: Request) {
       // Filter by type (e.g., 'article')
       logger.info('Filtering posts by type', { type, limit, offset }, 'GET /api/posts');
       posts = await prisma.post.findMany({
-        where: { type },
+        where: { 
+          type,
+          deletedAt: null, // Filter out deleted posts
+        },
         orderBy: { timestamp: 'desc' },
         take: limit,
         skip: offset,

@@ -94,6 +94,7 @@ import { notifyFollow } from '@/lib/services/notification-service';
 import { logger } from '@/lib/logger';
 import { findUserByIdentifier } from '@/lib/users/user-lookup';
 import { trackServerEvent } from '@/lib/posthog/server';
+import { cachedDb } from '@/lib/cached-database-service';
 
 /**
  * POST Handler - Follow User or Actor
@@ -170,6 +171,14 @@ export const POST = withErrorHandling(async (
 
     // Create notification for the followed user
     await notifyFollow(targetId, user.userId);
+
+    // Invalidate caches for both users to update follower/following counts
+    await Promise.all([
+      cachedDb.invalidateUserCache(user.userId),  // Invalidate follower's cache
+      cachedDb.invalidateUserCache(targetId),     // Invalidate target's cache
+    ]).catch((error) => {
+      logger.warn('Failed to invalidate user cache after follow', { error });
+    });
 
     logger.info('User followed successfully', { userId: user.userId, targetId }, 'POST /api/users/[userId]/follow');
 
@@ -265,6 +274,11 @@ export const POST = withErrorHandling(async (
           },
         }));
 
+    // Invalidate cache for the user to update following count
+    await cachedDb.invalidateUserCache(user.userId).catch((error) => {
+      logger.warn('Failed to invalidate user cache after actor follow', { error });
+    });
+
     logger.info('Actor followed successfully', { userId: user.userId, npcId: targetId }, 'POST /api/users/[userId]/follow');
 
     // Track actor followed event
@@ -323,6 +337,14 @@ export const DELETE = withErrorHandling(async (
       where: {
         id: follow.id,
       },
+    });
+
+    // Invalidate caches for both users to update follower/following counts
+    await Promise.all([
+      cachedDb.invalidateUserCache(user.userId),  // Invalidate unfollower's cache
+      cachedDb.invalidateUserCache(targetId),     // Invalidate target's cache
+    ]).catch((error) => {
+      logger.warn('Failed to invalidate user cache after unfollow', { error });
     });
 
     logger.info('User unfollowed successfully', { userId: user.userId, targetId }, 'DELETE /api/users/[userId]/follow');
@@ -384,6 +406,11 @@ export const DELETE = withErrorHandling(async (
           },
         });
       }
+    });
+
+    // Invalidate cache for the user to update following count
+    await cachedDb.invalidateUserCache(user.userId).catch((error) => {
+      logger.warn('Failed to invalidate user cache after actor unfollow', { error });
     });
 
     logger.info('Actor unfollowed successfully', { userId: user.userId, npcId: targetId }, 'DELETE /api/users/[userId]/follow');

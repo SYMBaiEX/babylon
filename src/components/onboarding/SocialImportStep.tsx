@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Twitter, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/logger'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { Skeleton } from '@/components/shared/Skeleton'
 
 interface SocialImportStepProps {
   onImport: (platform: 'twitter' | 'farcaster') => Promise<void>
@@ -109,7 +109,7 @@ export function SocialImportStep({ onImport, onSkip, isLoading = false }: Social
                 credentials.twitter && "group-hover:bg-[#0066FF]/20"
               )}>
                 {importingPlatform === 'twitter' ? (
-                  <BouncingLogo size={24} />
+                  <Skeleton className="h-6 w-6 rounded" />
                 ) : (
                   <Twitter className="w-6 h-6 text-[#0066FF]" />
                 )}
@@ -152,7 +152,7 @@ export function SocialImportStep({ onImport, onSkip, isLoading = false }: Social
                 credentials.farcaster && "group-hover:bg-[#8A63D2]/20"
               )}>
                 {importingPlatform === 'farcaster' ? (
-                  <BouncingLogo size={24} />
+                  <Skeleton className="h-6 w-6 rounded" />
                 ) : (
                   <FarcasterIcon className="w-6 h-6 text-[#8A63D2]" />
                 )}
