@@ -70,7 +70,7 @@ export default function GamePage() {
 
   return (
     <PageContainer className="overflow-y-auto pb-24 md:pb-4">
-      <div className="max-w-[600px] mx-auto px-4 pt-4 space-y-4">
+      <div className="max-w-feed mx-auto px-4 pt-4 space-y-4">
         {/* Engine Status Card */}
         <div className={cn(
           'bg-card border border-border rounded-2xl p-6',

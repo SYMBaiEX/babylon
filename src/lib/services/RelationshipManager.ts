@@ -101,24 +101,6 @@ export class RelationshipManager {
           { actor1Id: actor2Id, actor2Id: actor1Id },
         ],
       },
-      include: {
-        Actor_ActorRelationship_actor1IdToActor: {
-          select: {
-            id: true,
-            name: true,
-            tier: true,
-            domain: true,
-          },
-        },
-        Actor_ActorRelationship_actor2IdToActor: {
-          select: {
-            id: true,
-            name: true,
-            tier: true,
-            domain: true,
-          },
-        },
-      },
     });
 
     if (!relationship) return null;
@@ -247,8 +229,8 @@ export class RelationshipManager {
       const otherActor = isActor1 ? rel.Actor_ActorRelationship_actor2IdToActor : rel.Actor_ActorRelationship_actor1IdToActor;
 
       return {
-        otherActorId: otherActor?.id ?? (isActor1 ? rel.actor2Id : rel.actor1Id),
-        otherActorName: otherActor?.name ?? 'Unknown',
+        otherActorId: otherActor.id,
+        otherActorName: otherActor.name,
         type: rel.relationshipType,
         strength: rel.strength,
         sentiment: rel.sentiment,

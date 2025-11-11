@@ -79,7 +79,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           id: chatId,
           name: null, // DMs don't have names
           isGroup: false,
-          createdAt: new Date(),
           updatedAt: new Date(),
         },
       });

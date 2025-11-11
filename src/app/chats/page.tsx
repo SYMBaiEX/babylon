@@ -531,45 +531,48 @@ export default function ChatsPage() {
           <div className="flex-1 overflow-hidden">
             <div className="flex h-full">
               {/* Left Column: Chat List with Filters */}
-              <div className="w-96 flex flex-col bg-background border-r border-border">
+              <div className="w-96 flex flex-col bg-background">
                 {/* Header with Filters */}
                 <div className="px-4 py-3">
                   <h2 className="text-xl font-bold mb-4 text-foreground">Messages</h2>
                   
                   {/* Filter Tabs */}
-                  <div className="flex gap-1 p-1 bg-sidebar-accent/30 rounded-lg mb-4">
+                  <div className="flex items-center border-b border-border mb-4">
                     <button
                       onClick={() => setActiveFilter('all')}
                       className={cn(
-                        'flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all',
-                        activeFilter === 'all'
-                          ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
+                        'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
+                        activeFilter === 'all' ? 'text-foreground' : 'text-muted-foreground'
                       )}
                     >
                       All
+                      {activeFilter === 'all' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
+                      )}
                     </button>
                     <button
                       onClick={() => setActiveFilter('dms')}
                       className={cn(
-                        'flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all',
-                        activeFilter === 'dms'
-                          ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
+                        'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
+                        activeFilter === 'dms' ? 'text-foreground' : 'text-muted-foreground'
                       )}
                     >
                       DMs
+                      {activeFilter === 'dms' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
+                      )}
                     </button>
                     <button
                       onClick={() => setActiveFilter('groups')}
                       className={cn(
-                        'flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all',
-                        activeFilter === 'groups'
-                          ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
+                        'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
+                        activeFilter === 'groups' ? 'text-foreground' : 'text-muted-foreground'
                       )}
                     >
                       Groups
+                      {activeFilter === 'groups' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
+                      )}
                     </button>
                   </div>
                   
@@ -599,8 +602,13 @@ export default function ChatsPage() {
                   </div>
                 </div>
 
+                {/* Section Separator */}
+                <div className="px-4">
+                  <Separator />
+                </div>
+
                 {/* Chat List */}
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto mt-2">
                   {_loading ? (
                     <ChatListSkeleton count={10} />
                   ) : filteredChats.length === 0 ? (
@@ -671,12 +679,15 @@ export default function ChatsPage() {
                 </div>
               </div>
 
+              {/* Vertical Separator */}
+              <Separator orientation="vertical" className="shrink-0" />
+
               {/* Right Column: Chat View */}
               <div className="flex-1 flex flex-col bg-background">
                 {selectedChatId && chatDetails ? (
                   <>
                     {/* Chat Header */}
-                    <div className="px-4 py-3 bg-background border-b border-border flex items-center justify-between">
+                    <div className="px-4 py-4 bg-background flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         {chatDetails.chat.isGroup ? (
                           <div className="w-10 h-10 rounded-full bg-sidebar-accent/50 flex items-center justify-center">
@@ -723,6 +734,11 @@ export default function ChatsPage() {
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
+                    </div>
+
+                    {/* Header Separator */}
+                    <div className="px-4">
+                      <Separator />
                     </div>
 
                     {/* Messages */}
@@ -869,9 +885,14 @@ export default function ChatsPage() {
                       </div>
                     )}
 
+                    {/* Input Separator */}
+                    <div className="px-4">
+                      <Separator />
+                    </div>
+
                     {/* Message Input */}
                     {authenticated ? (
-                      <div className="px-4 py-3 bg-background border-t border-border">
+                      <div className="px-4 py-3 bg-background">
                         <div className="flex gap-3">
                           <input
                             type="text"
@@ -908,7 +929,7 @@ export default function ChatsPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="px-4 py-3 bg-background border-t border-border">
+                      <div className="px-4 py-3 bg-background">
                         <div className="text-center">
                           <p className="text-sm text-muted-foreground mb-3">Log in to send messages</p>
                           <LoginButton />
@@ -942,7 +963,7 @@ export default function ChatsPage() {
               <div
                 className={cn(
                   'w-full flex-col bg-background',
-                  selectedChatId ? 'hidden lg:flex lg:w-96 lg:border-r lg:border-border' : 'flex',
+                  selectedChatId ? 'hidden lg:flex lg:w-96' : 'flex',
                 )}
               >
                 {/* Mobile Header with Tabs */}
@@ -950,39 +971,42 @@ export default function ChatsPage() {
                   <h2 className="text-xl font-bold mb-4 text-foreground">Messages</h2>
                   
                   {/* Filter Tabs */}
-                  <div className="flex gap-1 p-1 bg-sidebar-accent/30 rounded-lg mb-4">
+                  <div className="flex items-center border-b border-border mb-4">
                     <button
                       onClick={() => setActiveFilter('all')}
                       className={cn(
-                        'flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all',
-                        activeFilter === 'all'
-                          ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
+                        'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
+                        activeFilter === 'all' ? 'text-foreground' : 'text-muted-foreground'
                       )}
                     >
                       All
+                      {activeFilter === 'all' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
+                      )}
                     </button>
                     <button
                       onClick={() => setActiveFilter('dms')}
                       className={cn(
-                        'flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all',
-                        activeFilter === 'dms'
-                          ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
+                        'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
+                        activeFilter === 'dms' ? 'text-foreground' : 'text-muted-foreground'
                       )}
                     >
                       DMs
+                      {activeFilter === 'dms' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
+                      )}
                     </button>
                     <button
                       onClick={() => setActiveFilter('groups')}
                       className={cn(
-                        'flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all',
-                        activeFilter === 'groups'
-                          ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
+                        'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
+                        activeFilter === 'groups' ? 'text-foreground' : 'text-muted-foreground'
                       )}
                     >
                       Groups
+                      {activeFilter === 'groups' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
+                      )}
                     </button>
                   </div>
 
@@ -1030,10 +1054,14 @@ export default function ChatsPage() {
                     )}
                   </div>
                 </div>
-                <Separator />
+                
+                {/* Section Separator */}
+                <div className="px-4">
+                  <Separator />
+                </div>
 
                 {/* Chat List */}
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto mt-2">
                   {_loading ? (
                     <ChatListSkeleton count={10} />
                   ) : filteredChats.length === 0 ? (
@@ -1104,6 +1132,11 @@ export default function ChatsPage() {
                 </div>
               </div>
 
+              {/* Vertical Separator for Tablet */}
+              {selectedChatId && (
+                <Separator orientation="vertical" className="hidden lg:block shrink-0" />
+              )}
+
               {/* Chat View (full screen on mobile, shared on tablet) */}
               {selectedChatId && chatDetails && (
                 <div
@@ -1113,7 +1146,7 @@ export default function ChatsPage() {
                   )}
                 >
                   {/* Mobile/Tablet Header with Back Button */}
-                  <div className="px-4 py-3 bg-background border-b border-border">
+                  <div className="px-4 py-4 bg-background">
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => setSelectedChatId(null)}
@@ -1167,6 +1200,11 @@ export default function ChatsPage() {
                         </DropdownMenu>
                       )}
                     </div>
+                  </div>
+
+                  {/* Header Separator */}
+                  <div className="px-4">
+                    <Separator />
                   </div>
 
                   {/* Messages */}
@@ -1295,9 +1333,14 @@ export default function ChatsPage() {
                     </div>
                   )}
 
+                  {/* Input Separator */}
+                  <div className="px-4">
+                    <Separator />
+                  </div>
+
                   {/* Message Input */}
                   {authenticated ? (
-                    <div className="px-4 py-3 bg-background border-t border-border">
+                    <div className="px-4 py-3 bg-background">
                       <div className="flex gap-2">
                         <input
                           type="text"
@@ -1334,7 +1377,7 @@ export default function ChatsPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="px-4 py-3 bg-background border-t border-border">
+                    <div className="px-4 py-3 bg-background">
                       <div className="text-center">
                         <p className="text-sm text-muted-foreground mb-3">Log in to send messages</p>
                         <LoginButton />

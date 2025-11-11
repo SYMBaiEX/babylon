@@ -352,8 +352,8 @@ export function EntitySearchAutocomplete({
                 
                 const getEntityBadgeColor = () => {
                   switch (entity.type) {
-                    case 'user': return 'bg-blue-500/10 text-blue-500'
-                    case 'actor': return 'bg-purple-500/10 text-purple-500'
+                    case 'user': return 'bg-[#0066FF]/10 text-[#0066FF]'
+                    case 'actor': return 'bg-[#0066FF]/10 text-[#0066FF]'
                     case 'agent': return 'bg-green-500/10 text-green-500'
                     case 'app': return 'bg-orange-500/10 text-orange-500'
                   }

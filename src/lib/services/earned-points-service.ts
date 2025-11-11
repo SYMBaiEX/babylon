@@ -125,14 +125,16 @@ export class EarnedPointsService {
             userId,
             amount: pointsFromThisTrade,
             pointsBefore: user.reputationPoints,
-            pointsAfter: user.reputationPoints + pointsFromThisTrade,
-            reason: tradeType || 'trade_performance',
+            pointsAfter: newReputationPoints,
+            reason: 'trading_pnl',
             metadata: JSON.stringify({
               tradeId: generateSnowflakeId(),
               pnl: pnlAmount,
               points: pointsFromThisTrade,
+              pnlAmount,
               tradeType,
               relatedId,
+              pointsFromTrade: pointsFromThisTrade,
             }),
           },
         })

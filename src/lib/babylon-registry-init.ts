@@ -492,8 +492,7 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
         metadataCID,
         txHash: result.txHash,
         registeredAt: new Date().toISOString()
-      },
-      updatedAt: new Date()
+      }
     }
   })
   

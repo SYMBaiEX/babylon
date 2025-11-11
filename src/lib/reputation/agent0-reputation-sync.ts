@@ -44,7 +44,6 @@ export async function syncAfterAgent0Registration(userId: string, agent0TokenId:
         update: {
           onChainReputationSync: true,
           lastSyncedAt: new Date(),
-          updatedAt: new Date(),
         },
       })
     }

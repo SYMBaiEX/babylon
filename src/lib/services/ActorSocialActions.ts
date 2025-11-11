@@ -219,7 +219,7 @@ export class ActorSocialActions {
       where: { id: chatId },
       update: {},
       create: {
-        id: generateSnowflakeId(),
+        id: chatId,
         name: null, // DMs don't have names
         isGroup: false,
         updatedAt: new Date(),
