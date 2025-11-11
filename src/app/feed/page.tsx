@@ -7,6 +7,7 @@ import { InviteFriendsBanner } from '@/components/shared/InviteFriendsBanner'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PullToRefreshIndicator } from '@/components/shared/PullToRefreshIndicator'
 import { FeedSkeleton } from '@/components/shared/Skeleton'
+import { WidgetSidebar } from '@/components/shared/WidgetSidebar'
 import { useWidgetRefresh } from '@/contexts/WidgetRefreshContext'
 import { useAuth } from '@/hooks/useAuth'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
@@ -15,28 +16,17 @@ import { cn } from '@/lib/utils'
 import type { FeedPost } from '@/shared/types'
 import { useAuthStore } from '@/stores/authStore'
 import { useGameStore } from '@/stores/gameStore'
-import { Plus } from 'lucide-react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react'
 
 const PAGE_SIZE = 20
 
 function FeedPageContent() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { authenticated } = useAuth()
   const { user } = useAuthStore()
   const { refreshAll: refreshWidgets } = useWidgetRefresh()
   const [tab, setTab] = useState<'latest' | 'following'>('latest')
-  const [searchQuery, setSearchQuery] = useState('')
-  
-  // Read search query from URL params on mount
-  useEffect(() => {
-    const searchParam = searchParams.get('search')
-    if (searchParam) {
-      setSearchQuery(searchParam)
-    }
-  }, [searchParams])
   const [posts, setPosts] = useState<FeedPost[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -228,8 +218,7 @@ function FeedPageContent() {
           entry?.isIntersecting &&
           hasMore &&
           !loading &&
-          !loadingMore &&
-          !searchQuery.trim()
+          !loadingMore
         ) {
           void fetchLatestPosts(offset, true)
         }
@@ -241,7 +230,7 @@ function FeedPageContent() {
     return () => {
       observer.disconnect()
     }
-  }, [tab, hasMore, loading, loadingMore, searchQuery, offset, fetchLatestPosts])
+  }, [tab, hasMore, loading, loadingMore, offset, fetchLatestPosts])
 
   useEffect(() => {
     const fetchFollowingPosts = async () => {
@@ -343,28 +332,14 @@ function FeedPageContent() {
     })
   }, [tab, localPosts, apiPosts])
 
-  const filteredPosts = useMemo(() => {
-    if (!searchQuery.trim()) return basePosts
-    const query = searchQuery.toLowerCase()
-    return basePosts.filter((post) => {
-      const postContent = String(post.content)
-      const authorField = String(post.author || post.authorId || '')
-      const postAuthorName = String(post.authorName || '')
-      return (
-        postContent.toLowerCase().includes(query) ||
-        authorField.toLowerCase().includes(query) ||
-        postAuthorName.toLowerCase().includes(query)
-      )
-    })
-  }, [basePosts, searchQuery])
+  const filteredPosts = basePosts
 
   // Removed early loading return to prevent layout shifts - loading state is handled inline
 
   return (
     <PageContainer noPadding className="flex flex-col min-h-screen w-full overflow-visible">
       {/* Mobile/Tablet: Header with tabs */}
-      <div className="sticky top-0 z-10 bg-background shrink-0 lg:hidden">
-        {/* Tabs - Full width */}
+      <div className="sticky top-0 z-10 bg-background shadow-sm shrink-0 lg:hidden">
         <FeedToggle activeTab={tab} onTabChange={setTab} />
       </div>
 
@@ -373,9 +348,10 @@ function FeedPageContent() {
         {/* Left: Feed area - aligned with sidebar, full width */}
         <div className="flex-1 flex flex-col min-w-0 border-l border-r border-[rgba(120,120,120,0.5)]">
           {/* Desktop: Top bar with tabs */}
-          <div className="sticky top-0 z-10 bg-background shrink-0">
-            {/* Tabs - Full width */}
-            <FeedToggle activeTab={tab} onTabChange={setTab} />
+          <div className="sticky top-0 z-10 bg-background shadow-sm shrink-0">
+            <div className="px-4 py-3 md:px-6 md:py-4">
+              <FeedToggle activeTab={tab} onTabChange={setTab} />
+            </div>
           </div>
 
           {/* Feed content - Scrollable container with pull-to-refresh */}
@@ -395,7 +371,7 @@ function FeedPageContent() {
               <div className="w-full max-w-feed mx-auto px-4 md:px-6">
                 <FeedSkeleton count={6} />
               </div>
-            ) : filteredPosts.length === 0 && !searchQuery && tab === 'latest' ? (
+            ) : filteredPosts.length === 0 && tab === 'latest' ? (
                 // No posts yet
                 <div className="w-full px-4 py-3 sm:px-8 sm:py-6 text-center">
                   <div className="text-muted-foreground py-8 sm:py-12">
@@ -409,7 +385,7 @@ function FeedPageContent() {
                     </div>
                   </div>
                 </div>
-              ) : filteredPosts.length === 0 && !searchQuery && tab === 'following' ? (
+              ) : filteredPosts.length === 0 && tab === 'following' ? (
                 // Following tab with no followed profiles
                 <div className="w-full px-4 py-3 sm:px-8 sm:py-6 text-center">
                   <div className="text-muted-foreground py-8 sm:py-12">
@@ -421,7 +397,7 @@ function FeedPageContent() {
                     </p>
                   </div>
                 </div>
-              ) : filteredPosts.length === 0 && !searchQuery ? (
+              ) : filteredPosts.length === 0 ? (
                 // Game loaded but no visible posts yet
                 <div className="w-full px-4 py-3 sm:px-8 sm:py-6 text-center">
                 <div className="text-muted-foreground py-8 sm:py-12">
@@ -430,27 +406,6 @@ function FeedPageContent() {
                     Game is running in the background via realtime-daemon. Content will appear here as it&apos;s generated.
                   </p>
                 </div>
-                </div>
-              ) : filteredPosts.length === 0 && searchQuery ? (
-                // No search results
-                <div className="w-full px-4 py-3 sm:px-8 sm:py-6 text-center">
-                  <div className="text-muted-foreground py-8 sm:py-12">
-                    <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">No Results</h2>
-                    <p className="mb-4 text-sm sm:text-base break-words">
-                      No posts found matching &quot;{searchQuery}&quot;
-                    </p>
-                    <button
-                      onClick={() => setSearchQuery('')}
-                      className={cn(
-                        'inline-block px-4 sm:px-6 py-2 sm:py-3 font-semibold rounded text-sm sm:text-base cursor-pointer',
-                        'bg-[#3462f3] text-white',
-                        'hover:bg-[#2952d9]',
-                        'transition-all duration-300'
-                      )}
-                    >
-                      Clear Search
-                    </button>
-                  </div>
                 </div>
             ) : (
               // Show posts - centered container
@@ -517,6 +472,9 @@ function FeedPageContent() {
             )}
           </div>
         </div>
+
+        {/* Right: Widget panels - only on desktop (xl+) */}
+        <WidgetSidebar />
       </div>
 
       {/* Mobile/Tablet: Feed area */}
@@ -535,7 +493,7 @@ function FeedPageContent() {
             <div className="w-full px-4">
               <FeedSkeleton count={5} />
             </div>
-          ) : filteredPosts.length === 0 && !searchQuery && tab === 'latest' ? (
+          ) : filteredPosts.length === 0 && tab === 'latest' ? (
             // No posts yet
             <div className="w-full p-4 sm:p-8 text-center">
               <div className="text-muted-foreground py-8 sm:py-12">
@@ -549,7 +507,7 @@ function FeedPageContent() {
                 </div>
               </div>
             </div>
-          ) : filteredPosts.length === 0 && !searchQuery && tab === 'following' ? (
+          ) : filteredPosts.length === 0 && tab === 'following' ? (
             // Following tab with no followed profiles
             <div className="w-full p-4 sm:p-8 text-center">
               <div className="text-muted-foreground py-8 sm:py-12">
@@ -561,7 +519,7 @@ function FeedPageContent() {
                 </p>
               </div>
             </div>
-          ) : filteredPosts.length === 0 && !searchQuery ? (
+          ) : filteredPosts.length === 0 ? (
             // Game loaded but no visible posts yet
             <div className="w-full p-4 sm:p-8 text-center">
               <div className="text-muted-foreground py-8 sm:py-12">
@@ -569,27 +527,6 @@ function FeedPageContent() {
                 <p className="mb-4 text-sm sm:text-base">
                   Game is running in the background via realtime-daemon. Content will appear here as it&apos;s generated.
                 </p>
-              </div>
-            </div>
-          ) : filteredPosts.length === 0 && searchQuery ? (
-            // No search results
-            <div className="w-full p-4 sm:p-8 text-center">
-              <div className="text-muted-foreground py-8 sm:py-12">
-                <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">No Results</h2>
-                <p className="mb-4 text-sm sm:text-base break-words">
-                  No posts found matching &quot;{searchQuery}&quot;
-                </p>
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className={cn(
-                    'inline-block px-4 sm:px-6 py-2 sm:py-3 font-semibold rounded text-sm sm:text-base cursor-pointer',
-                    'bg-[#3462f3] text-white',
-                    'hover:bg-[#2952d9]',
-                    'transition-all duration-300'
-                  )}
-                >
-                  Clear Search
-                </button>
               </div>
             </div>
           ) : (
@@ -674,7 +611,19 @@ function FeedPageContent() {
           )}
           aria-label="Create Post"
         >
-          <Plus className="w-6 h-6 md:w-7 md:h-7" />
+          <svg 
+            className="w-6 h-6 md:w-7 md:h-7" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              strokeWidth={2} 
+              d="M12 4v16m8-8H4" 
+            />
+          </svg>
         </button>
       )}
 

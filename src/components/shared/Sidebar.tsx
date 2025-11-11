@@ -5,19 +5,22 @@ import { UserMenu } from '@/components/auth/UserMenu'
 import { Avatar } from '@/components/shared/Avatar'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
-import { Bell, Check, Copy, Gift, Home, LogOut, MessageCircle, Shield, TrendingUp, Trophy, User, Search } from 'lucide-react'
+import { Bell, Check, Copy, Gift, Home, LogOut, MessageCircle, Moon, Shield, Sun, TrendingUp, Trophy, User, Search } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
+import { useTheme } from 'next-themes'
 import { Suspense, useEffect, useRef, useState } from 'react'
 
 function SidebarContent() {
   const [showMdMenu, setShowMdMenu] = useState(false)
   const [copiedReferral, setCopiedReferral] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const mdMenuRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const { ready, authenticated, user, logout } = useAuth()
+  const { theme, setTheme, resolvedTheme } = useTheme()
 
   // Check if dev mode is enabled via URL parameter
   const isDevMode = searchParams.get('dev') === 'true'
@@ -31,6 +34,11 @@ function SidebarContent() {
   const isAdmin = user?.isAdmin ?? false
 
   // All hooks must be called before any conditional returns
+  // Wait for hydration to avoid SSR mismatch
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -45,6 +53,11 @@ function SidebarContent() {
     }
     return undefined
   }, [showMdMenu])
+
+  const toggleTheme = () => {
+    const currentTheme = resolvedTheme || theme
+    setTheme(currentTheme === 'dark' ? 'light' : 'dark')
+  }
 
   const copyReferralCode = async () => {
     if (!user?.referralCode) return
@@ -215,6 +228,36 @@ function SidebarContent() {
           )
         })}
       </nav>
+
+      {/* Theme Toggle Button */}
+      {mounted && (
+        <div className="px-2 py-2">
+          <button
+            onClick={toggleTheme}
+            className={cn(
+              'group relative flex items-center',
+              'px-3 py-2.5',
+              'rounded-full',
+              'transition-colors duration-200',
+              'md:justify-center lg:justify-start',
+              'gap-3',
+              'w-full',
+              'hover:bg-sidebar-accent/50'
+            )}
+            title={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {resolvedTheme === 'dark' ? (
+              <Sun className="w-6 h-6 shrink-0 text-sidebar-foreground group-hover:text-sidebar-accent-foreground transition-colors duration-200" />
+            ) : (
+              <Moon className="w-6 h-6 shrink-0 text-sidebar-foreground group-hover:text-sidebar-accent-foreground transition-colors duration-200" />
+            )}
+            <span className="hidden lg:block text-[15px] leading-5 font-normal text-sidebar-foreground group-hover:text-sidebar-accent-foreground transition-colors duration-200">
+              {resolvedTheme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* Bottom Section - Authentication (Desktop lg+) */}
       <div className="hidden lg:block px-2 py-2">

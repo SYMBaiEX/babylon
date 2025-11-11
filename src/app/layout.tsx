@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { Sidebar } from '@/components/shared/Sidebar'
-import { WidgetSidebar } from '@/components/shared/WidgetSidebar'
 import { MobileHeader } from '@/components/shared/MobileHeader'
 import { BottomNav } from '@/components/shared/BottomNav'
 import { Providers } from '@/components/providers/Providers'
@@ -106,11 +105,6 @@ export default function RootLayout({
                 {children}
               </div>
             </main>
-
-            {/* Right Sidebar - Always visible on desktop (xl+) */}
-            <Suspense fallback={null}>
-              <WidgetSidebar />
-            </Suspense>
 
             {/* Mobile Bottom Navigation - Fixed, not affected by pull-to-refresh */}
             <Suspense fallback={null}>

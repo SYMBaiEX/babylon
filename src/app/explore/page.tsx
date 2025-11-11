@@ -2,7 +2,6 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { PageContainer } from '@/components/shared/PageContainer'
-import { EntitySearchAutocomplete } from '@/components/explore/EntitySearchAutocomplete'
 import { cn } from '@/lib/utils'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { PostCard } from '@/components/posts/PostCard'
@@ -76,8 +75,6 @@ function ExplorePageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<'feed' | 'registry'>('feed')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [activeSearchQuery, setActiveSearchQuery] = useState('') // The actual query used for filtering
   
   // Feed state
   const [posts, setPosts] = useState<FeedPost[]>([])
@@ -93,16 +90,7 @@ function ExplorePageContent() {
 
   // Initialize from URL params
   useEffect(() => {
-    const q = searchParams.get('q')
     const tab = searchParams.get('tab')
-    if (q) {
-      setSearchQuery(q)
-      setActiveSearchQuery(q) // Set active query from URL
-    } else {
-      // Clear search queries when no query param
-      setSearchQuery('')
-      setActiveSearchQuery('')
-    }
     if (tab === 'registry' || tab === 'feed') setActiveTab(tab)
   }, [searchParams])
 
@@ -120,9 +108,9 @@ function ExplorePageContent() {
     loadActorNames()
   }, [])
 
-  // Fetch posts when active search query changes (for feed tab)
+  // Fetch posts when feed tab is active
   useEffect(() => {
-    if (activeTab !== 'feed' || !activeSearchQuery.trim()) {
+    if (activeTab !== 'feed') {
       setPosts([])
       return
     }
@@ -143,10 +131,9 @@ function ExplorePageContent() {
     }
 
     fetchPosts()
-  }, [activeSearchQuery, activeTab])
+  }, [activeTab])
 
-  // Fetch registry when active search query changes (for registry tab)
-  // Also triggers on initial load when activeTab is 'registry'
+  // Fetch registry when registry tab is active
   useEffect(() => {
     if (activeTab !== 'registry') return
 
@@ -155,7 +142,6 @@ function ExplorePageContent() {
       setRegistryError(null)
       try {
         const params = new URLSearchParams()
-        if (activeSearchQuery.trim()) params.set('search', activeSearchQuery)
         if (onChainOnly) params.set('onChainOnly', 'true')
         
         const response = await fetch(`/api/registry/all?${params}`)
@@ -173,29 +159,9 @@ function ExplorePageContent() {
       }
     }
 
-    // Fetch immediately if no search query, with debounce if there is
-    if (activeSearchQuery.trim()) {
-      const timer = setTimeout(fetchRegistry, 300)
-      return () => clearTimeout(timer)
-    } else {
-      fetchRegistry()
-      return undefined
-    }
-  }, [activeSearchQuery, activeTab, onChainOnly])
+    fetchRegistry()
+  }, [activeTab, onChainOnly])
 
-  // Filter posts based on active search query
-  const filteredPosts = posts.filter((post) => {
-    if (!activeSearchQuery.trim()) return true
-    const query = activeSearchQuery.toLowerCase()
-    const postContent = String(post.content)
-    const authorField = ('authorId' in post ? String(post.authorId) : ('author' in post ? String(post.author) : ''))
-    const postAuthorName = String(post.authorName)
-    return (
-      postContent.toLowerCase().includes(query) ||
-      authorField.toLowerCase().includes(query) ||
-      postAuthorName.toLowerCase().includes(query)
-    )
-  })
 
   const renderBadge = (_type: string, label: string, icon: React.ReactNode, color: string) => {
     return (
@@ -212,8 +178,8 @@ function ExplorePageContent() {
   const renderEntityCard = (entity: RegistryEntity) => {
     const getBadgeColor = () => {
       switch (entity.type) {
-        case 'user': return 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
-        case 'actor': return 'bg-purple-500/10 text-purple-500 border border-purple-500/20'
+        case 'user': return 'bg-[#0066FF]/10 text-[#0066FF] border border-[#0066FF]/20'
+        case 'actor': return 'bg-[#0066FF]/10 text-[#0066FF] border border-[#0066FF]/20'
         case 'agent': return 'bg-green-500/10 text-green-500 border border-green-500/20'
         case 'app': return 'bg-orange-500/10 text-orange-500 border border-orange-500/20'
         default: return 'bg-muted text-muted-foreground'
@@ -270,11 +236,11 @@ function ExplorePageContent() {
 
         <div className="px-4 py-3 space-y-3">
           {entity.onChainRegistered && (
-            <div className="flex items-center gap-2 text-sm bg-green-500/5 border border-green-500/20 rounded-xl px-3 py-2">
+            <div className="flex items-center gap-2 text-sm bg-green-500/5 border border-green-500/20 rounded-lg px-3 py-2">
               <Shield className="h-4 w-4 text-green-500 shrink-0" />
               <span className="text-green-500 font-medium flex-1">On-chain registered</span>
               {entity.nftTokenId && (
-                <span className="text-xs font-mono bg-green-500/10 px-2 py-0.5 rounded-lg">
+                <span className="text-xs font-mono bg-green-500/10 px-2 py-0.5 rounded">
                   #{entity.nftTokenId}
                 </span>
               )}
@@ -282,10 +248,10 @@ function ExplorePageContent() {
           )}
 
           {entity.agent0TokenId && (
-            <div className="flex items-center gap-2 text-sm bg-blue-500/5 border border-blue-500/20 rounded-xl px-3 py-2">
-              <Bot className="h-4 w-4 text-blue-500 shrink-0" />
-              <span className="text-blue-500 font-medium flex-1">Agent0 Token</span>
-              <span className="text-xs font-mono bg-blue-500/10 px-2 py-0.5 rounded-lg">
+            <div className="flex items-center gap-2 text-sm bg-[#0066FF]/5 border border-[#0066FF]/20 rounded-lg px-3 py-2">
+              <Bot className="h-4 w-4 text-[#0066FF] shrink-0" />
+              <span className="text-[#0066FF] font-medium flex-1">Agent0 Token</span>
+              <span className="text-xs font-mono bg-[#0066FF]/10 px-2 py-0.5 rounded">
                 #{entity.agent0TokenId}
               </span>
             </div>
@@ -293,7 +259,7 @@ function ExplorePageContent() {
 
           {entity.walletAddress && (
             <div className="flex items-center gap-2 text-sm">
-              <Wallet className="h-4 w-4 text-blue-400 shrink-0" />
+              <Wallet className="h-4 w-4 text-[#0066FF] shrink-0" />
               <code className="text-xs text-muted-foreground font-mono truncate flex-1">
                 {entity.walletAddress.slice(0, 6)}...{entity.walletAddress.slice(-4)}
               </code>
@@ -302,7 +268,7 @@ function ExplorePageContent() {
                   e.preventDefault()
                   navigator.clipboard.writeText(entity.walletAddress!)
                 }}
-                className="text-xs text-blue-500 hover:text-blue-400 transition-colors"
+                className="text-xs text-[#0066FF] hover:text-[#2952d9] transition-colors"
               >
                 Copy
               </button>
@@ -311,7 +277,7 @@ function ExplorePageContent() {
 
           <div className="grid grid-cols-2 gap-2">
             {entity.balance && (
-              <div className="flex items-center gap-2 text-sm bg-emerald-500/5 border border-emerald-500/20 rounded-xl px-3 py-2">
+              <div className="flex items-center gap-2 text-sm bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-3 py-2">
                 <TrendingUp className="h-4 w-4 text-emerald-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs text-muted-foreground">Balance</div>
@@ -322,8 +288,8 @@ function ExplorePageContent() {
               </div>
             )}
             {entity.reputationPoints !== undefined && (
-              <div className="flex items-center gap-2 text-sm bg-purple-500/5 border border-purple-500/20 rounded-xl px-3 py-2">
-                <Activity className="h-4 w-4 text-purple-500 shrink-0" />
+              <div className="flex items-center gap-2 text-sm bg-[#0066FF]/5 border border-[#0066FF]/20 rounded-lg px-3 py-2">
+                <Activity className="h-4 w-4 text-[#0066FF] shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs text-muted-foreground">Reputation</div>
                   <div className="font-semibold truncate text-foreground">
@@ -387,12 +353,12 @@ function ExplorePageContent() {
           {entity.domain && entity.domain.length > 0 && (
             <div className="flex flex-wrap gap-1 pt-2">
               {entity.domain.slice(0, 3).map((d: string) => (
-                <span key={d} className="px-2 py-1 bg-muted text-muted-foreground rounded-lg text-xs">
+                <span key={d} className="px-2 py-1 bg-muted text-muted-foreground rounded text-xs">
                   {d}
                 </span>
               ))}
               {entity.domain.length > 3 && (
-                <span className="px-2 py-1 bg-muted text-muted-foreground rounded-lg text-xs">
+                <span className="px-2 py-1 bg-muted text-muted-foreground rounded text-xs">
                   +{entity.domain.length - 3} more
                 </span>
               )}
@@ -409,7 +375,7 @@ function ExplorePageContent() {
                     target="_blank" 
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-blue-500 hover:text-blue-400 flex items-center gap-1 truncate transition-colors"
+                    className="text-[#0066FF] hover:text-[#2952d9] flex items-center gap-1 truncate transition-colors"
                   >
                     <span className="truncate">{entity.a2aEndpoint}</span>
                     <ExternalLink className="h-3 w-3 shrink-0" />
@@ -424,7 +390,7 @@ function ExplorePageContent() {
                     target="_blank" 
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-blue-500 hover:text-blue-400 flex items-center gap-1 truncate transition-colors"
+                    className="text-[#0066FF] hover:text-[#2952d9] flex items-center gap-1 truncate transition-colors"
                   >
                     <span className="truncate">{entity.mcpEndpoint}</span>
                     <ExternalLink className="h-3 w-3 shrink-0" />
@@ -443,8 +409,8 @@ function ExplorePageContent() {
           key={entity.id}
           href={profileUrl}
           className={cn(
-            'block bg-card border border-border rounded-2xl overflow-hidden transition-all duration-200',
-            'hover:shadow-lg hover:border-primary/50 cursor-pointer'
+            'block bg-card border border-border overflow-hidden transition-all duration-200',
+            'hover:bg-muted/30 cursor-pointer'
           )}
         >
           {cardContent}
@@ -455,7 +421,7 @@ function ExplorePageContent() {
     return (
       <div
         key={entity.id}
-        className="block bg-card border border-border rounded-2xl overflow-hidden transition-all duration-200"
+        className="block bg-card border border-border overflow-hidden transition-all duration-200"
       >
         {cardContent}
       </div>
@@ -484,22 +450,13 @@ function ExplorePageContent() {
 
   return (
     <PageContainer>
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-feed mx-auto px-4 md:px-6">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-4xl font-bold mb-2 text-foreground">Explore</h1>
-          <p className="text-muted-foreground text-lg">
-            Search for posts, users, agents, and more
+        <div className="py-6 mb-4 border-b border-border">
+          <h1 className="text-3xl md:text-4xl font-bold mb-2 text-foreground">Explore</h1>
+          <p className="text-muted-foreground">
+            Browse posts, users, agents, and more
           </p>
-        </div>
-
-        {/* Search bar */}
-        <div className="mb-6">
-          <EntitySearchAutocomplete
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Search..."
-          />
         </div>
 
         {/* Main tabs */}
@@ -507,10 +464,10 @@ function ExplorePageContent() {
           <button
             onClick={() => {
               setActiveTab('feed')
-              router.push(`/explore?q=${encodeURIComponent(searchQuery)}&tab=feed`, { scroll: false })
+              router.push(`/explore?tab=feed`, { scroll: false })
             }}
             className={cn(
-              'px-6 py-3 font-semibold transition-all duration-200 rounded-lg',
+              'px-6 py-2.5 font-semibold transition-all duration-200 rounded-lg',
               activeTab === 'feed'
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -521,10 +478,10 @@ function ExplorePageContent() {
           <button
             onClick={() => {
               setActiveTab('registry')
-              router.push(`/explore?q=${encodeURIComponent(searchQuery)}&tab=registry`, { scroll: false })
+              router.push(`/explore?tab=registry`, { scroll: false })
             }}
             className={cn(
-              'px-6 py-3 font-semibold transition-all duration-200 rounded-lg',
+              'px-6 py-2.5 font-semibold transition-all duration-200 rounded-lg',
               activeTab === 'registry'
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -537,27 +494,19 @@ function ExplorePageContent() {
         {/* Feed tab content */}
         {activeTab === 'feed' && (
           <div>
-            {!activeSearchQuery.trim() ? (
-              <div className="text-center py-20">
-                <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-foreground mb-2">Search for something</h3>
-                <p className="text-muted-foreground">
-                  Enter a search query to find posts
-                </p>
-              </div>
-            ) : loadingPosts ? (
+            {loadingPosts ? (
               <FeedSkeleton count={6} />
-            ) : filteredPosts.length === 0 ? (
+            ) : posts.length === 0 ? (
               <div className="text-center py-20">
                 <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-foreground mb-2">No posts found</h3>
                 <p className="text-muted-foreground">
-                  No posts match &quot;{activeSearchQuery}&quot;
+                  No posts available at the moment
                 </p>
               </div>
             ) : (
               <div className="space-y-0">
-                {filteredPosts.map((post) => {
+                {posts.map((post) => {
                   const authorId = ('authorId' in post ? post.authorId : post.author) || ''
                   const authorName = actorNames.get(authorId) || ('authorName' in post ? post.authorName : '') || authorId
 
@@ -745,7 +694,7 @@ function ExplorePageContent() {
                     <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <h3 className="text-lg font-semibold text-foreground mb-2">No entities found</h3>
                     <p className="text-muted-foreground">
-                      Try adjusting your search or filters
+                      Try adjusting your filters
                     </p>
                   </div>
                 )}

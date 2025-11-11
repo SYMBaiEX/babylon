@@ -14,7 +14,6 @@ import { useState, useEffect } from 'react'
 import { Search, Users, Bot, Building2, UserCircle, ExternalLink, Shield, Wallet, TrendingUp, Activity, X, AlertCircle } from 'lucide-react'
 import { Avatar } from '@/components/shared/Avatar'
 import { PageContainer } from '@/components/shared/PageContainer'
-import { SearchBar } from '@/components/shared/SearchBar'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { Skeleton } from '@/components/shared/Skeleton'
@@ -80,7 +79,6 @@ export default function RegistryPage() {
   const [data, setData] = useState<RegistryData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
   const [onChainOnly, setOnChainOnly] = useState(false)
   const [activeTab, setActiveTab] = useState<'all' | 'users' | 'actors' | 'agents' | 'apps'>('all')
 
@@ -88,20 +86,11 @@ export default function RegistryPage() {
     fetchRegistry()
   }, [onChainOnly])
 
-  // Debounced search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchRegistry()
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [search])
-
   const fetchRegistry = async () => {
     try {
       setLoading(true)
       setError(null)
       const params = new URLSearchParams()
-      if (search) params.set('search', search)
       if (onChainOnly) params.set('onChainOnly', 'true')
       
       const response = await fetch(`/api/registry/all?${params}`)
@@ -135,8 +124,8 @@ export default function RegistryPage() {
   const renderEntityCard = (entity: RegistryEntity) => {
     const getBadgeColor = () => {
       switch (entity.type) {
-        case 'user': return 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
-        case 'actor': return 'bg-purple-500/10 text-purple-500 border border-purple-500/20'
+        case 'user': return 'bg-[#0066FF]/10 text-[#0066FF] border border-[#0066FF]/20'
+        case 'actor': return 'bg-[#0066FF]/10 text-[#0066FF] border border-[#0066FF]/20'
         case 'agent': return 'bg-green-500/10 text-green-500 border border-green-500/20'
         case 'app': return 'bg-orange-500/10 text-orange-500 border border-orange-500/20'
         default: return 'bg-muted text-muted-foreground'
@@ -195,11 +184,11 @@ export default function RegistryPage() {
         <div className="px-4 py-3 space-y-3">
           {/* On-chain status */}
           {entity.onChainRegistered && (
-            <div className="flex items-center gap-2 text-sm bg-green-500/5 border border-green-500/20 rounded-xl px-3 py-2">
+            <div className="flex items-center gap-2 text-sm bg-green-500/5 border border-green-500/20 rounded-lg px-3 py-2">
               <Shield className="h-4 w-4 text-green-500 shrink-0" />
               <span className="text-green-500 font-medium flex-1">On-chain registered</span>
               {entity.nftTokenId && (
-                <span className="text-xs font-mono bg-green-500/10 px-2 py-0.5 rounded-lg">
+                <span className="text-xs font-mono bg-green-500/10 px-2 py-0.5 rounded">
                   #{entity.nftTokenId}
                 </span>
               )}
@@ -208,10 +197,10 @@ export default function RegistryPage() {
 
           {/* Agent0 registration */}
           {entity.agent0TokenId && (
-            <div className="flex items-center gap-2 text-sm bg-blue-500/5 border border-blue-500/20 rounded-xl px-3 py-2">
-              <Bot className="h-4 w-4 text-blue-500 shrink-0" />
-              <span className="text-blue-500 font-medium flex-1">Agent0 Token</span>
-              <span className="text-xs font-mono bg-blue-500/10 px-2 py-0.5 rounded-lg">
+            <div className="flex items-center gap-2 text-sm bg-[#0066FF]/5 border border-[#0066FF]/20 rounded-lg px-3 py-2">
+              <Bot className="h-4 w-4 text-[#0066FF] shrink-0" />
+              <span className="text-[#0066FF] font-medium flex-1">Agent0 Token</span>
+              <span className="text-xs font-mono bg-[#0066FF]/10 px-2 py-0.5 rounded">
                 #{entity.agent0TokenId}
               </span>
             </div>
@@ -220,7 +209,7 @@ export default function RegistryPage() {
           {/* Wallet address */}
           {entity.walletAddress && (
             <div className="flex items-center gap-2 text-sm">
-              <Wallet className="h-4 w-4 text-blue-400 shrink-0" />
+              <Wallet className="h-4 w-4 text-[#0066FF] shrink-0" />
               <code className="text-xs text-muted-foreground font-mono truncate flex-1">
                 {entity.walletAddress.slice(0, 6)}...{entity.walletAddress.slice(-4)}
               </code>
@@ -229,7 +218,7 @@ export default function RegistryPage() {
                   e.preventDefault()
                   navigator.clipboard.writeText(entity.walletAddress!)
                 }}
-                className="text-xs text-blue-500 hover:text-blue-400 transition-colors"
+                className="text-xs text-[#0066FF] hover:text-[#2952d9] transition-colors"
               >
                 Copy
               </button>
@@ -239,7 +228,7 @@ export default function RegistryPage() {
           {/* Balance & Reputation */}
           <div className="grid grid-cols-2 gap-2">
             {entity.balance && (
-              <div className="flex items-center gap-2 text-sm bg-emerald-500/5 border border-emerald-500/20 rounded-xl px-3 py-2">
+              <div className="flex items-center gap-2 text-sm bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-3 py-2">
                 <TrendingUp className="h-4 w-4 text-emerald-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs text-muted-foreground">Balance</div>
@@ -250,8 +239,8 @@ export default function RegistryPage() {
               </div>
             )}
             {entity.reputationPoints !== undefined && (
-              <div className="flex items-center gap-2 text-sm bg-purple-500/5 border border-purple-500/20 rounded-xl px-3 py-2">
-                <Activity className="h-4 w-4 text-purple-500 shrink-0" />
+              <div className="flex items-center gap-2 text-sm bg-[#0066FF]/5 border border-[#0066FF]/20 rounded-lg px-3 py-2">
+                <Activity className="h-4 w-4 text-[#0066FF] shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs text-muted-foreground">Reputation</div>
                   <div className="font-semibold truncate text-foreground">
@@ -319,12 +308,12 @@ export default function RegistryPage() {
           {entity.domain && entity.domain.length > 0 && (
             <div className="flex flex-wrap gap-1 pt-2">
               {entity.domain.slice(0, 3).map((d: string) => (
-                <span key={d} className="px-2 py-1 bg-muted text-muted-foreground rounded-lg text-xs">
+                <span key={d} className="px-2 py-1 bg-muted text-muted-foreground rounded text-xs">
                   {d}
                 </span>
               ))}
               {entity.domain.length > 3 && (
-                <span className="px-2 py-1 bg-muted text-muted-foreground rounded-lg text-xs">
+                <span className="px-2 py-1 bg-muted text-muted-foreground rounded text-xs">
                   +{entity.domain.length - 3} more
                 </span>
               )}
@@ -342,7 +331,7 @@ export default function RegistryPage() {
                     target="_blank" 
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-blue-500 hover:text-blue-400 flex items-center gap-1 truncate transition-colors"
+                    className="text-[#0066FF] hover:text-[#2952d9] flex items-center gap-1 truncate transition-colors"
                   >
                     <span className="truncate">{entity.a2aEndpoint}</span>
                     <ExternalLink className="h-3 w-3 shrink-0" />
@@ -357,7 +346,7 @@ export default function RegistryPage() {
                     target="_blank" 
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-blue-500 hover:text-blue-400 flex items-center gap-1 truncate transition-colors"
+                    className="text-[#0066FF] hover:text-[#2952d9] flex items-center gap-1 truncate transition-colors"
                   >
                     <span className="truncate">{entity.mcpEndpoint}</span>
                     <ExternalLink className="h-3 w-3 shrink-0" />
@@ -376,8 +365,8 @@ export default function RegistryPage() {
           key={entity.id}
           href={profileUrl}
           className={cn(
-            'block bg-card border border-border rounded-2xl overflow-hidden transition-all duration-200',
-            'hover:shadow-lg hover:border-primary/50 cursor-pointer'
+            'block bg-card border border-border overflow-hidden transition-all duration-200',
+            'hover:bg-muted/30 cursor-pointer'
           )}
         >
           {cardContent}
@@ -388,7 +377,7 @@ export default function RegistryPage() {
     return (
       <div
         key={entity.id}
-        className="block bg-card border border-border rounded-2xl overflow-hidden transition-all duration-200"
+        className="block bg-card border border-border overflow-hidden transition-all duration-200"
       >
         {cardContent}
       </div>
@@ -426,15 +415,8 @@ export default function RegistryPage() {
           </p>
         </div>
 
-        {/* Search and filters */}
+        {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="flex-1">
-            <SearchBar
-              value={search}
-              onChange={setSearch}
-              placeholder="Search by name, username, or description..."
-            />
-          </div>
           <button
             onClick={() => setOnChainOnly(!onChainOnly)}
             className={cn(
@@ -595,7 +577,7 @@ export default function RegistryPage() {
                 <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-foreground mb-2">No entities found</h3>
                 <p className="text-muted-foreground">
-                  Try adjusting your search or filters
+                  Try adjusting your filters
                 </p>
               </div>
             )}
