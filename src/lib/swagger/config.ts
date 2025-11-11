@@ -12,10 +12,10 @@ export const swaggerDefinition = {
   info: {
     title: 'Babylon API',
     version: '1.0.0',
-    description: 'API documentation for Babylon social prediction market platform',
+    description: 'API documentation for Babylon social conspiracy game',
     contact: {
       name: 'API Support',
-      url: 'https://github.com/your-org/babylon',
+      url: 'https://github.com/elizaos/babylon',
     },
   },
   servers: [

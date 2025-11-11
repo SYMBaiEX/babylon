@@ -1,7 +1,7 @@
 {
   "name": "babylon-docs",
   "version": "1.0.0",
-  "description": "Documentation for Babylon prediction market platform",
+  "description": "Documentation for Babylon",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3001",

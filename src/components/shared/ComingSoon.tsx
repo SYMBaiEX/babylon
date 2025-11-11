@@ -66,6 +66,13 @@ export function ComingSoon() {
 
         // Mark user as waitlisted (they completed onboarding)
         const referralCode = searchParams.get('ref') || undefined
+        
+        logger.info('Marking user as waitlisted', { 
+          userId, 
+          hasReferralCode: !!referralCode,
+          referralCode 
+        }, 'ComingSoon')
+
         const response = await fetch('/api/waitlist/mark', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -76,10 +83,18 @@ export function ComingSoon() {
         })
 
         if (!response.ok) {
+          const errorText = await response.text()
+          logger.error('Failed to mark as waitlisted', { errorText }, 'ComingSoon')
           throw new Error('Failed to mark as waitlisted')
         }
 
-        // Fetch position data
+        const result = await response.json()
+        logger.info('User marked as waitlisted', { 
+          position: result.waitlistPosition,
+          inviteCode: result.inviteCode 
+        }, 'ComingSoon')
+
+        // Fetch position data to get complete info
         await fetchWaitlistPosition(userId)
 
         // Award bonuses if available
@@ -99,7 +114,7 @@ export function ComingSoon() {
     }
 
     void setupWaitlist(dbUser.id)
-  }, [authenticated, dbUser?.id])
+  }, [authenticated, dbUser?.id, privyUser, searchParams])
 
   const fetchWaitlistPosition = async (userId: string): Promise<boolean> => {
     try {
@@ -114,6 +129,11 @@ export function ComingSoon() {
       }
 
       const data = await positionResponse.json()
+      
+      // Log if invite code is missing for debugging
+      if (!data.inviteCode) {
+        logger.warn('Invite code missing in waitlist data', { userId }, 'ComingSoon')
+      }
       
       // Check if rank improved
       if (previousRank !== null && data.leaderboardRank < previousRank) {
@@ -169,7 +189,7 @@ export function ComingSoon() {
 
   const handleCopyInviteCode = useCallback(() => {
     if (waitlistData?.inviteCode) {
-      const inviteUrl = `${window.location.origin}/?ref=${waitlistData.inviteCode}&comingsoon=true`
+      const inviteUrl = `${window.location.origin}/?ref=${waitlistData.inviteCode}`
       navigator.clipboard.writeText(inviteUrl)
       setCopiedCode(true)
       setTimeout(() => setCopiedCode(false), 2000)
@@ -427,27 +447,35 @@ export function ComingSoon() {
               <br />
               <span className="font-bold text-green-500">More invites = Better position in line!</span>
             </p>
-            <div className="flex items-center gap-3 bg-sidebar/50 rounded-lg p-4">
-              <div className="flex-1 text-left font-mono text-sm break-all">
-                {window.location.origin}/?ref={waitlistData.inviteCode}&comingsoon=true
+            {waitlistData.inviteCode ? (
+              <div className="flex items-center gap-3 bg-sidebar/50 rounded-lg p-4">
+                <div className="flex-1 text-left font-mono text-sm break-all">
+                  {window.location.origin}/?ref={waitlistData.inviteCode}
+                </div>
+                <button
+                  onClick={handleCopyInviteCode}
+                  className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors flex items-center gap-2 flex-shrink-0"
+                >
+                  {copiedCode ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      Copy
+                    </>
+                  )}
+                </button>
               </div>
-              <button
-                onClick={handleCopyInviteCode}
-                className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors flex items-center gap-2 flex-shrink-0"
-              >
-                {copiedCode ? (
-                  <>
-                    <Check className="w-4 h-4" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4" />
-                    Copy
-                  </>
-                )}
-              </button>
-            </div>
+            ) : (
+              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 text-center">
+                <div className="text-sm text-yellow-600">
+                  Generating your invite code...
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
