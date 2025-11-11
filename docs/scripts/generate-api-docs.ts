@@ -7,12 +7,23 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 
+interface ApiParameter {
+  name: string;
+  type: string;
+  description?: string;
+}
+
+interface ApiResponse {
+  status: string;
+  description: string;
+}
+
 interface ApiRoute {
   path: string;
   methods: string[];
   description: string;
-  parameters?: any[];
-  responses?: any;
+  parameters?: ApiParameter[];
+  responses?: Record<string, ApiResponse>;
   tags?: string[];
 }
 
@@ -78,8 +89,16 @@ async function extractApiInfo(filePath: string): Promise<ApiRoute | null> {
   };
 }
 
+interface OpenAPIPath {
+  [method: string]: {
+    summary: string;
+    tags: string[];
+    responses: Record<string, unknown>;
+  };
+}
+
 async function generateOpenAPISpec(routes: ApiRoute[]) {
-  const paths: any = {};
+  const paths: Record<string, OpenAPIPath> = {};
   
   for (const route of routes) {
     if (!paths[route.path]) {

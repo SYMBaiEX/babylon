@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.17",
+    "autoprefixer": "^10.4.22",
     "next": "15.1.0",
     "nextra": "^4.6.0",
     "nextra-theme-docs": "^4.6.0",
@@ -28,6 +29,8 @@
     "@types/node": "^24.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
     "eslint": "^9.39.1",
     "eslint-config-next": "15.1.0",
     "eslint-plugin-react-hooks": "^6.0.0",

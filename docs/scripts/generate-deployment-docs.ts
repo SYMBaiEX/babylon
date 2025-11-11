@@ -37,7 +37,7 @@ async function loadDeployments() {
             network: data.network || network,
             ...data,
           });
-        } catch (error) {
+        } catch {
           console.warn(`  ⚠ Could not read ${latestPath}`);
         }
       }

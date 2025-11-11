@@ -122,7 +122,7 @@ export async function executeGameTick(): Promise<GameTickResult> {
       }
     }
 
-    const questionsToResolve = activeQuestions.filter((q) => {
+    const questionsToResolve = activeQuestions.filter((q: { resolutionDate: Date | null }) => {
       if (!q.resolutionDate) return false;
       const resolutionDate = new Date(q.resolutionDate);
       return resolutionDate <= timestamp;
@@ -138,7 +138,7 @@ export async function executeGameTick(): Promise<GameTickResult> {
 
         await prisma.question.updateMany({
           where: {
-            id: { in: questionsToResolve.map((q) => q.id) },
+            id: { in: questionsToResolve.map((q: typeof questionsToResolve[number]) => q.id) },
           },
           data: { status: 'resolved' },
         });
@@ -432,13 +432,13 @@ async function generateMixedPosts(
   }
 
   const creators: ContentCreator[] = [
-    ...actors.map(actor => ({ 
+    ...actors.map((actor: typeof actors[number]) => ({ 
       id: actor.id, 
       name: actor.name, 
       type: 'actor' as const,
       data: actor 
     })),
-    ...organizations.map(org => ({ 
+    ...organizations.map((org: typeof organizations[number]) => ({ 
       id: org.id, 
       name: org.name || 'Unknown Org', 
       type: 'organization' as const,
@@ -753,7 +753,7 @@ async function generateArticles(
         day: event.dayNumber || 0,
       };
 
-      const organizations = newsOrgs.map((org) => ({
+      const organizations = newsOrgs.map((org: typeof newsOrgs[number]) => ({
         id: org.id,
         name: org.name || 'Unknown Organization',
         description: org.description || '',
@@ -764,8 +764,8 @@ async function generateArticles(
       }));
 
       const actorList = actors
-        .filter((a) => a && a.id && a.name) // Filter out invalid actors
-        .map((a) => ({
+        .filter((a: typeof actors[number]) => a && a.id && a.name) // Filter out invalid actors
+        .map((a: typeof actors[number]) => ({
           id: a.id,
           name: a.name,
           description: a.description || '',
@@ -1095,8 +1095,8 @@ async function updateWidgetCaches(): Promise<number> {
 
     const perpMarketsWithStats = await Promise.all(
       companies
-        .filter((company) => company && company.id && company.name) // Filter out invalid companies
-        .map(async (company) => {
+        .filter((company: typeof companies[number]) => company && company.id && company.name) // Filter out invalid companies
+        .map(async (company: typeof companies[number]) => {
           try {
             const currentPrice =
               company.currentPrice || company.initialPrice || 100;
@@ -1142,7 +1142,8 @@ async function updateWidgetCaches(): Promise<number> {
 
     const topPerpGainers = perpMarketsWithStats
       .sort(
-        (a, b) => Math.abs(b.changePercent24h) - Math.abs(a.changePercent24h)
+        (a: typeof perpMarketsWithStats[number], b: typeof perpMarketsWithStats[number]) => 
+          Math.abs(b.changePercent24h) - Math.abs(a.changePercent24h)
       )
       .slice(0, 3);
 
@@ -1158,8 +1159,8 @@ async function updateWidgetCaches(): Promise<number> {
     });
 
     const poolsWithReturn = pools
-      .filter((pool) => pool && pool.id && pool.name) // Filter out invalid pools
-      .map((pool) => {
+      .filter((pool: typeof pools[number]) => pool && pool.id && pool.name) // Filter out invalid pools
+      .map((pool: typeof pools[number]) => {
         const totalDeposits = parseFloat(pool.totalDeposits.toString());
         const totalValue = parseFloat(pool.totalValue.toString());
         const totalReturn =
@@ -1195,7 +1196,9 @@ async function updateWidgetCaches(): Promise<number> {
       });
 
     const topPoolGainers = poolsWithReturn
-      .sort((a, b) => b.totalReturn - a.totalReturn)
+      .sort((a: typeof poolsWithReturn[number], b: typeof poolsWithReturn[number]) => 
+        b.totalReturn - a.totalReturn
+      )
       .slice(0, 3);
 
     // 3. Get top 3 questions by time-weighted volume
@@ -1213,7 +1216,7 @@ async function updateWidgetCaches(): Promise<number> {
       },
     });
 
-    const marketsWithTimeWeightedVolume = activeMarkets.map((market) => {
+    const marketsWithTimeWeightedVolume = activeMarkets.map((market: typeof activeMarkets[number]) => {
       const yesShares = market.yesShares ? Number(market.yesShares) : 0;
       const noShares = market.noShares ? Number(market.noShares) : 0;
       const totalShares = yesShares + noShares;
@@ -1240,7 +1243,9 @@ async function updateWidgetCaches(): Promise<number> {
     });
 
     const topVolumeQuestions = marketsWithTimeWeightedVolume
-      .sort((a, b) => b.timeWeightedScore - a.timeWeightedScore)
+      .sort((a: typeof marketsWithTimeWeightedVolume[number], b: typeof marketsWithTimeWeightedVolume[number]) => 
+        b.timeWeightedScore - a.timeWeightedScore
+      )
       .slice(0, 3);
 
     // Update cache

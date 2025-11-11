@@ -1,8 +1,7 @@
 import { Footer, Layout, Navbar } from "nextra-theme-docs";
-import { Head } from "nextra/components";
+import "nextra-theme-docs/style.css";
 import { getPageMap } from "nextra/page-map";
 import type { ReactNode } from "react";
-import "nextra-theme-docs/style.css";
 
 const footer = <Footer>MIT {new Date().getFullYear()} © Babylon.</Footer>;
 

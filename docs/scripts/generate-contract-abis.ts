@@ -7,9 +7,30 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 
+interface ABIInput {
+  name: string;
+  type: string;
+  internalType?: string;
+  indexed?: boolean;
+}
+
+interface ABIOutput {
+  name?: string;
+  type: string;
+  internalType?: string;
+}
+
+interface ABIItem {
+  type: 'function' | 'constructor' | 'event' | 'error';
+  name?: string;
+  inputs?: ABIInput[];
+  outputs?: ABIOutput[];
+  stateMutability?: string;
+}
+
 interface ContractABI {
   name: string;
-  abi: any[];
+  abi: ABIItem[];
   bytecode?: string;
 }
 
@@ -24,7 +45,7 @@ async function* walkDirectory(dir: string, ext: string): AsyncGenerator<string> 
         yield fullPath;
       }
     }
-  } catch (error) {
+  } catch {
     // Directory doesn't exist, skip
   }
 }
@@ -48,11 +69,11 @@ async function loadCompiledContracts(): Promise<ContractABI[]> {
             bytecode: data.bytecode?.object,
           });
         }
-      } catch (error) {
+      } catch {
         // Skip invalid JSON files
       }
     }
-  } catch (error) {
+  } catch {
     console.warn('Could not read compiled contracts. Run `forge build` first.');
   }
   
@@ -72,7 +93,7 @@ function generateAbiMarkdown(contract: ContractABI): string {
   if (constructor) {
     md += `## Constructor\n\n`;
     md += `\`\`\`solidity\n`;
-    md += `constructor(${constructor.inputs?.map((i: any) => `${i.type} ${i.name}`).join(', ') || ''})\n`;
+    md += `constructor(${constructor.inputs?.map((i) => `${i.type} ${i.name}`).join(', ') || ''})\n`;
     md += `\`\`\`\n\n`;
   }
   
@@ -81,8 +102,8 @@ function generateAbiMarkdown(contract: ContractABI): string {
     md += `## Functions\n\n`;
     
     for (const func of functions) {
-      const inputs = func.inputs?.map((i: any) => `${i.type} ${i.name}`).join(', ') || '';
-      const outputs = func.outputs?.map((o: any) => o.type).join(', ') || 'void';
+      const inputs = func.inputs?.map((i) => `${i.type} ${i.name}`).join(', ') || '';
+      const outputs = func.outputs?.map((o) => o.type).join(', ') || 'void';
       const mutability = func.stateMutability || 'nonpayable';
       
       md += `### ${func.name}\n\n`;
@@ -126,7 +147,7 @@ function generateAbiMarkdown(contract: ContractABI): string {
     md += `## Events\n\n`;
     
     for (const event of events) {
-      const inputs = event.inputs?.map((i: any) => 
+      const inputs = event.inputs?.map((i) => 
         `${i.indexed ? 'indexed ' : ''}${i.type} ${i.name}`
       ).join(', ') || '';
       
@@ -154,7 +175,7 @@ function generateAbiMarkdown(contract: ContractABI): string {
     md += `## Errors\n\n`;
     
     for (const error of errors) {
-      const inputs = error.inputs?.map((i: any) => `${i.type} ${i.name}`).join(', ') || '';
+      const inputs = error.inputs?.map((i) => `${i.type} ${i.name}`).join(', ') || '';
       
       md += `### ${error.name}\n\n`;
       md += `\`\`\`solidity\n`;
@@ -220,7 +241,7 @@ async function main() {
     contracts.reduce((acc, c) => {
       acc[c.name] = c.abi;
       return acc;
-    }, {} as Record<string, any>),
+    }, {} as Record<string, ABIItem[]>),
     null,
     2
   ));
