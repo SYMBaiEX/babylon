@@ -13,7 +13,6 @@ import {
   Shield, Wallet, TrendingUp, Activity, X, AlertCircle 
 } from 'lucide-react'
 import { Avatar } from '@/components/shared/Avatar'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
 import Link from 'next/link'
 
 interface RegistryEntity {
@@ -718,9 +717,6 @@ function ExplorePageContent() {
             {loadingRegistry && (
               <div className="flex items-center justify-center py-20">
                 <div className="text-center">
-                  <div className="mx-auto mb-4 flex justify-center">
-                    <BouncingLogo size={48} />
-                  </div>
                   <p className="text-muted-foreground">Loading registry data...</p>
                 </div>
               </div>
