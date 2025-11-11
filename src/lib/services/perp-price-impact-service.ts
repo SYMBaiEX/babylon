@@ -16,7 +16,7 @@ interface OrganizationTicker {
   initialPrice: number | null;
 }
 
-async function buildTickerMap(): Promise {
+async function buildTickerMap(): Promise<Map<string, OrganizationTicker>> {
   const organizations = await prisma.organization.findMany({
     where: { type: 'company' },
     select: {
@@ -26,7 +26,7 @@ async function buildTickerMap(): Promise {
     },
   });
 
-  return new Map(
+  return new Map<string, OrganizationTicker>(
     organizations
       .map((org) => ({
         id: org.id,
@@ -44,7 +44,7 @@ async function buildTickerMap(): Promise {
  */
 export async function applyPerpTradeImpacts(
   trades: TradeImpactInput[]
-): Promise {
+): Promise<void> {
   if (trades.length === 0) return;
 
   const perpTrades = trades.filter(

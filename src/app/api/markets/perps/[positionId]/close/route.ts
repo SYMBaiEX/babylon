@@ -18,7 +18,10 @@ import {
  * Close an existing perpetual futures position
  */
 export const POST = withErrorHandling(
-  async (request: NextRequest, context: { params: Promise }) => {
+  async (
+    request: NextRequest,
+    context: { params: Promise<{ positionId: string }> }
+  ) => {
     const user = await authenticate(request);
     const { positionId } = PositionIdParamSchema.parse(await context.params);
 

@@ -11,7 +11,7 @@ import { logger } from './logger';
 import { prisma } from './prisma';
 
 let perpsEngineInstance: PerpetualsEngine | null = null;
-let initializationPromise: Promise | null = null;
+let initializationPromise: Promise<void> | null = null;
 
 export function getPerpsEngine(): PerpetualsEngine {
   // Only instantiate on server side
@@ -42,7 +42,7 @@ export function getPerpsEngine(): PerpetualsEngine {
   return perpsEngineInstance;
 }
 
-export async function ensurePerpsEngineReady(): Promise {
+export async function ensurePerpsEngineReady(): Promise<void> {
   if (!perpsEngineInstance) {
     getPerpsEngine();
   }
@@ -52,7 +52,7 @@ export async function ensurePerpsEngineReady(): Promise {
   }
 }
 
-async function initializePerpsEngine() {
+async function initializePerpsEngine(): Promise<void> {
   if (!perpsEngineInstance) return;
 
   const organizations = (await db.getAllOrganizations()) as Organization[];
@@ -69,7 +69,7 @@ async function initializePerpsEngine() {
         userId: position.userId,
         ticker: position.ticker,
         organizationId: position.organizationId,
-        side: position.side,
+        side: position.side as 'long' | 'short',
         entryPrice: Number(position.entryPrice),
         currentPrice: Number(position.currentPrice),
         size: Number(position.size),

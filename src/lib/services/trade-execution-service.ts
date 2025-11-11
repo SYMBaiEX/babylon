@@ -14,6 +14,7 @@ import type {
 } from '@/types/market-decisions';
 
 import {
+  type AggregatedImpact,
   type TradeImpactInput,
   aggregateTradeImpacts,
 } from './market-impact-service';
@@ -22,7 +23,9 @@ export class TradeExecutionService {
   /**
    * Execute a batch of trading decisions
    */
-  async executeDecisionBatch(decisions: TradingDecision[]): Promise {
+  async executeDecisionBatch(
+    decisions: TradingDecision[]
+  ): Promise<ExecutionResult> {
     const startTime = Date.now();
 
     const result: ExecutionResult = {
@@ -88,7 +91,9 @@ export class TradeExecutionService {
   /**
    * Execute a single trading decision
    */
-  async executeSingleDecision(decision: TradingDecision): Promise {
+  async executeSingleDecision(
+    decision: TradingDecision
+  ): Promise<ExecutedTrade> {
     // Get NPC's pool
     const actor = await prisma.actor.findUnique({
       where: { id: decision.npcId },
@@ -132,7 +137,7 @@ export class TradeExecutionService {
   private async openPerpPosition(
     decision: TradingDecision,
     poolId: string
-  ): Promise {
+  ): Promise<ExecutedTrade> {
     if (!decision.ticker) {
       throw new Error('Ticker required for perp position');
     }
@@ -239,7 +244,7 @@ export class TradeExecutionService {
   private async openPredictionPosition(
     decision: TradingDecision,
     poolId: string
-  ): Promise {
+  ): Promise<ExecutedTrade> {
     if (!decision.marketId) {
       throw new Error('MarketId required for prediction position');
     }
@@ -356,7 +361,7 @@ export class TradeExecutionService {
   private async closePosition(
     decision: TradingDecision,
     poolId: string
-  ): Promise {
+  ): Promise<ExecutedTrade> {
     if (!decision.positionId) {
       throw new Error('PositionId required to close position');
     }
@@ -481,7 +486,9 @@ export class TradeExecutionService {
   /**
    * Get total trade impact by ticker/market
    */
-  async getTradeImpacts(executedTrades: ExecutedTrade[]) {
+  async getTradeImpacts(
+    executedTrades: ExecutedTrade[]
+  ): Promise<Map<string, AggregatedImpact>> {
     const inputs: TradeImpactInput[] = executedTrades.map((trade) => ({
       marketType: trade.marketType,
       ticker: trade.ticker,

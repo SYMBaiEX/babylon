@@ -10,6 +10,7 @@ import {
   Info,
   TrendingDown,
   TrendingUp,
+  Wallet,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -17,12 +18,14 @@ import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
 import { BouncingLogo } from '@/components/shared/BouncingLogo';
 import { PageContainer } from '@/components/shared/PageContainer';
 
+import { FEE_CONFIG } from '@/lib/config/fees';
 import { cn } from '@/lib/utils';
 
 import { useAuth } from '@/hooks/useAuth';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
 import { useMarketTracking } from '@/hooks/usePostHog';
 import { useUserPositions } from '@/hooks/useUserPositions';
+import { useWalletBalance } from '@/hooks/useWalletBalance';
 
 interface PerpMarket {
   ticker: string;
@@ -76,6 +79,11 @@ export default function PerpDetailPage() {
   const { openPosition } = usePerpTrade({
     getAccessToken,
   });
+  const {
+    balance,
+    loading: balanceLoading,
+    refresh: refreshWalletBalance,
+  } = useWalletBalance(user?.id, { enabled: authenticated });
 
   // Track market view
   useEffect(() => {
@@ -124,9 +132,12 @@ export default function PerpDetailPage() {
   }, [fetchMarketData]);
 
   const handlePositionClosed = useCallback(async () => {
-    await refreshUserPositions();
-    await fetchMarketData();
-  }, [refreshUserPositions, fetchMarketData]);
+    await Promise.all([
+      refreshUserPositions(),
+      refreshWalletBalance(),
+      fetchMarketData(),
+    ]);
+  }, [refreshUserPositions, refreshWalletBalance, fetchMarketData]);
 
   const handleSubmit = async () => {
     if (!authenticated) {
@@ -139,6 +150,11 @@ export default function PerpDetailPage() {
     const sizeNum = parseFloat(size) || 0;
     if (sizeNum < market.minOrderSize) {
       toast.error(`Minimum order size is $${market.minOrderSize}`);
+      return;
+    }
+
+    if (authenticated && showBalanceWarning) {
+      toast.error('Insufficient balance for margin + fees');
       return;
     }
 
@@ -156,7 +172,11 @@ export default function PerpDetailPage() {
         description: `Opened ${leverage}x ${side} on ${market.ticker} at $${market.currentPrice.toFixed(2)}`,
       });
 
-      await Promise.all([fetchMarketData(), refreshUserPositions()]);
+      await Promise.all([
+        fetchMarketData(),
+        refreshUserPositions(),
+        refreshWalletBalance(),
+      ]);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Failed to open position';
@@ -199,7 +219,12 @@ export default function PerpDetailPage() {
   if (!market) return null;
 
   const sizeNum = parseFloat(size) || 0;
-  const marginRequired = sizeNum / leverage;
+  const baseMargin = sizeNum > 0 ? sizeNum / leverage : 0;
+  const estimatedFee = sizeNum > 0 ? sizeNum * FEE_CONFIG.TRADING_FEE_RATE : 0;
+  const totalRequired = sizeNum > 0 ? baseMargin + estimatedFee : 0;
+  const hasSufficientBalance = !authenticated || balance >= totalRequired;
+  const showBalanceWarning =
+    authenticated && sizeNum > 0 && !hasSufficientBalance;
   const liquidationPrice =
     side === 'long'
       ? market.currentPrice * (1 - 0.9 / leverage)
@@ -211,7 +236,7 @@ export default function PerpDetailPage() {
       ? ((market.currentPrice - liquidationPrice) / market.currentPrice) * 100
       : ((liquidationPrice - market.currentPrice) / market.currentPrice) * 100;
 
-  const isHighRisk = leverage > 50 || marginRequired > 1000;
+  const isHighRisk = leverage > 50 || baseMargin > 1000;
 
   return (
     <PageContainer className="max-w-7xl mx-auto">
@@ -339,6 +364,17 @@ export default function PerpDetailPage() {
           <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border sticky top-4">
             <h2 className="text-lg font-bold mb-4">Trade</h2>
 
+            {authenticated && (
+              <div className="flex items-center justify-between bg-muted/40 rounded-lg p-3 mb-4 text-sm">
+                <span className="text-muted-foreground flex items-center gap-2">
+                  <Wallet className="w-4 h-4" /> Balance
+                </span>
+                <span className="font-semibold text-foreground">
+                  {balanceLoading ? '...' : formatPrice(balance)}
+                </span>
+              </div>
+            )}
+
             {/* Long/Short Tabs */}
             <div className="flex gap-2 mb-4">
               <button
@@ -416,9 +452,7 @@ export default function PerpDetailPage() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Margin Required</span>
-                  <span className="font-bold">
-                    {formatPrice(marginRequired)}
-                  </span>
+                  <span className="font-bold">{formatPrice(baseMargin)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Position Value</span>
@@ -455,8 +489,43 @@ export default function PerpDetailPage() {
                     {liquidationDistance.toFixed(2)}%
                   </span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    Est. Trading Fee (
+                    {(FEE_CONFIG.TRADING_FEE_RATE * 100).toFixed(1)}%)
+                  </span>
+                  <span className="font-bold">{formatPrice(estimatedFee)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total Required</span>
+                  <span className="font-bold">
+                    {formatPrice(totalRequired)}
+                  </span>
+                </div>
               </div>
             </div>
+
+            {authenticated && (
+              <>
+                <div className="text-sm text-muted-foreground mb-2">
+                  Required (margin + est. fee):{' '}
+                  <span className="font-semibold text-foreground">
+                    {formatPrice(totalRequired)}
+                  </span>
+                  {estimatedFee > 0 && (
+                    <span className="ml-1">
+                      (fee ≈ {formatPrice(estimatedFee)})
+                    </span>
+                  )}
+                </div>
+                {showBalanceWarning && (
+                  <div className="text-xs text-red-500 mb-4">
+                    Insufficient balance to cover margin and fees for this
+                    trade.
+                  </div>
+                )}
+              </>
+            )}
 
             {/* High Risk Warning */}
             {isHighRisk && (
@@ -468,7 +537,7 @@ export default function PerpDetailPage() {
                   </div>
                   <p className="text-muted-foreground">
                     {leverage > 50 && `Leverage above 50x is extremely risky. `}
-                    {marginRequired > 1000 &&
+                    {baseMargin > 1000 &&
                       `This position requires significant margin. `}
                     Small price movements can lead to liquidation.
                   </p>
@@ -479,13 +548,21 @@ export default function PerpDetailPage() {
             {/* Submit Button */}
             <button
               onClick={handleSubmit}
-              disabled={submitting || sizeNum < market.minOrderSize}
+              disabled={
+                submitting ||
+                sizeNum < market.minOrderSize ||
+                (authenticated && showBalanceWarning) ||
+                balanceLoading
+              }
               className={cn(
                 'w-full py-4 rounded-lg font-bold text-white text-lg transition-all cursor-pointer',
                 side === 'long'
                   ? 'bg-green-600 hover:bg-green-700'
                   : 'bg-red-600 hover:bg-red-700',
-                (submitting || sizeNum < market.minOrderSize) &&
+                (submitting ||
+                  sizeNum < market.minOrderSize ||
+                  (authenticated && showBalanceWarning) ||
+                  balanceLoading) &&
                   'opacity-50 cursor-not-allowed'
               )}
             >

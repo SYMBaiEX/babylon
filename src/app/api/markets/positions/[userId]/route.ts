@@ -18,7 +18,10 @@ import {
  * Get user's positions in perpetuals and prediction markets
  */
 export const GET = withErrorHandling(
-  async (request: NextRequest, context: { params: Promise }) => {
+  async (
+    request: NextRequest,
+    context: { params: Promise<{ userId: string }> }
+  ) => {
     const { userId } = UserIdParamSchema.parse(await context.params);
 
     // Validate query parameters

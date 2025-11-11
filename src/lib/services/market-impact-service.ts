@@ -19,7 +19,9 @@ export interface AggregatedImpact {
 /**
  * Aggregate trades into per-market impact buckets that capture directional volume
  */
-export function aggregateTradeImpacts(trades: TradeImpactInput[]): Map {
+export function aggregateTradeImpacts(
+  trades: TradeImpactInput[]
+): Map<string, AggregatedImpact> {
   const impacts = new Map<string, AggregatedImpact>();
 
   for (const trade of trades) {
