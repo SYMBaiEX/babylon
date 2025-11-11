@@ -1,14 +1,16 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import StickySidebar from 'sticky-sidebar-v2'
 import { LatestNewsPanel } from '@/components/feed/LatestNewsPanel'
 import { TrendingPanel } from '@/components/feed/TrendingPanel'
 import { MarketsPanel } from '@/components/feed/MarketsPanel'
+import { EntitySearchAutocomplete } from '@/components/explore/EntitySearchAutocomplete'
 
 export function WidgetSidebar() {
   const sidebarRef = useRef<HTMLDivElement>(null)
   const stickyInstance = useRef<StickySidebar | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     if (!sidebarRef.current) return
@@ -38,6 +40,15 @@ export function WidgetSidebar() {
       className="hidden xl:flex flex-col w-96 flex-shrink-0 bg-sidebar sidebar"
     >
       <div className="sidebar__inner flex flex-col px-4 py-6 gap-6">
+        {/* Search Bar at the top */}
+        <div className="flex-shrink-0">
+          <EntitySearchAutocomplete
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search users, posts..."
+          />
+        </div>
+
         <div className="flex-shrink-0">
           <LatestNewsPanel />
         </div>

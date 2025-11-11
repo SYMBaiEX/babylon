@@ -6,7 +6,7 @@ import { Avatar } from '@/components/shared/Avatar'
 import { Separator } from '@/components/shared/Separator'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
-import { Bell, Check, Copy, Gift, Home, LogOut, MessageCircle, Shield, TrendingUp, Trophy, User } from 'lucide-react'
+import { Bell, Check, Copy, Gift, Home, LogOut, MessageCircle, Shield, TrendingUp, Trophy, User, Search } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
@@ -71,6 +71,13 @@ function SidebarContent() {
       icon: Home,
       color: '#0066FF',
       active: pathname === '/feed' || pathname === '/',
+    },
+    {
+      name: 'Explore',
+      href: '/explore',
+      icon: Search,
+      color: '#0066FF',
+      active: pathname === '/explore' || pathname?.startsWith('/explore'),
     },
     {
       name: 'Notifications',
