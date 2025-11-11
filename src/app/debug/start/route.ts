@@ -12,7 +12,7 @@ export async function GET(_request: NextRequest) {
   try {
     // Check database connection first
     try {
-      await prisma.$queryRawUnsafe('SELECT 1');
+      await prisma.$executeRawUnsafe('SELECT 1');
     } catch (dbError) {
       logger.error('Database connection failed:', dbError, 'Debug');
       return NextResponse.json(
