@@ -5,7 +5,7 @@ import { useCallback } from 'react';
 type TradeSide = 'long' | 'short';
 
 interface UsePerpTradeOptions {
-  getAccessToken?: () => Promise<string | null> | string | null;
+  getAccessToken?: () => Promise | string | null;
 }
 
 interface OpenPerpPayload {
@@ -15,49 +15,10 @@ interface OpenPerpPayload {
   leverage: number;
 }
 
-interface ApiPerpPosition {
-  id: string;
-  ticker: string;
-  side: TradeSide;
-  entryPrice: number;
-  currentPrice: number;
-  size: number;
-  leverage: number;
-  liquidationPrice?: number;
-  realizedPnL?: number;
-  fundingPaid: number;
-  openedAt?: string;
-  exitPrice?: number;
-}
+type ClosePerpResponse = Record;
+type OpenPerpResponse = Record;
 
-interface OpenPerpResponse {
-  position: ApiPerpPosition;
-  marginPaid: number;
-  fee: {
-    amount: number;
-    referrerPaid: number;
-  };
-  newBalance: number;
-}
-
-interface ClosePerpResponse {
-  position: ApiPerpPosition;
-  grossSettlement: number;
-  netSettlement: number;
-  marginReturned: number;
-  pnl: number;
-  realizedPnL?: number;
-  fee: {
-    amount: number;
-    referrerPaid: number;
-  };
-  wasLiquidated: boolean;
-  newBalance: number;
-}
-
-async function resolveToken(
-  resolver?: () => Promise<string | null> | string | null
-): Promise<string | null> {
+async function resolveToken(resolver?: () => Promise | string | null): Promise {
   if (!resolver) {
     if (typeof window === 'undefined') return null;
     return window.__privyAccessToken ?? null;
@@ -70,41 +31,9 @@ async function resolveToken(
   return window.__privyAccessToken ?? null;
 }
 
-function extractErrorMessage(payload: unknown, status: number): string {
-  if (
-    payload &&
-    typeof payload === 'object' &&
-    'error' in payload &&
-    payload.error !== undefined
-  ) {
-    const errorPayload = (payload as { error: unknown }).error;
-
-    if (typeof errorPayload === 'string') {
-      return errorPayload;
-    }
-
-    if (
-      errorPayload &&
-      typeof errorPayload === 'object' &&
-      'message' in errorPayload &&
-      typeof (errorPayload as { message?: unknown }).message === 'string'
-    ) {
-      return (errorPayload as { message: string }).message;
-    }
-
-    try {
-      return JSON.stringify(errorPayload);
-    } catch {
-      return `Request failed with status ${status}`;
-    }
-  }
-
-  return `Request failed with status ${status}`;
-}
-
 export function usePerpTrade(options: UsePerpTradeOptions = {}) {
   const callApi = useCallback(
-    async <T>(url: string, init: RequestInit = {}): Promise<T> => {
+    async (url: string, init: RequestInit = {}) => {
       const headers = new Headers(init.headers);
       headers.set('Content-Type', 'application/json');
 
@@ -118,19 +47,21 @@ export function usePerpTrade(options: UsePerpTradeOptions = {}) {
         headers,
       });
 
-      const data = (await response.json().catch(() => null)) as unknown;
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(extractErrorMessage(data, response.status));
+        const message =
+          data?.error || `Request failed with status ${response.status}`;
+        throw new Error(message);
       }
 
-      return data as T;
+      return data;
     },
     [options.getAccessToken]
   );
 
   const openPosition = useCallback(
-    async (payload: OpenPerpPayload): Promise<OpenPerpResponse> => {
+    async (payload: OpenPerpPayload): Promise => {
       return await callApi('/api/markets/perps/open', {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -140,7 +71,7 @@ export function usePerpTrade(options: UsePerpTradeOptions = {}) {
   );
 
   const closePosition = useCallback(
-    async (positionId: string): Promise<ClosePerpResponse> => {
+    async (positionId: string): Promise => {
       return await callApi(`/api/markets/perps/${positionId}/close`, {
         method: 'POST',
       });
