@@ -493,7 +493,7 @@ function ExplorePageContent() {
 
   return (
     <PageContainer>
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto p-4">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-4xl font-bold mb-2 text-foreground">Explore</h1>
