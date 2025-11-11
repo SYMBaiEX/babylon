@@ -6,7 +6,6 @@ export default {
   'agents': 'AI Agents',
   'contracts': 'Smart Contracts',
   'deployment': 'Deployment',
-  'deployments': 'Contract Deployments',
   'reference': 'Technical Reference',
   'legal': 'Legal'
 }
