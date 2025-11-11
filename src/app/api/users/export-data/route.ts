@@ -4,6 +4,7 @@
  */
 
 import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { prisma } from '@/lib/database-service'
@@ -318,7 +319,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Return as JSON download
-  return new Response(JSON.stringify(exportData, null, 2), {
+  return new NextResponse(JSON.stringify(exportData, null, 2), {
     status: 200,
     headers: {
       'Content-Type': 'application/json',

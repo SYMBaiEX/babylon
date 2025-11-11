@@ -11,6 +11,7 @@ import { useUpdateAgentProfileTx } from '@/hooks/useUpdateAgentProfileTx'
 import { cn } from '@/lib/utils'
 import { WALLET_ERROR_MESSAGES } from '@/lib/wallet-utils'
 import { useAuthStore } from '@/stores/authStore'
+import { ReputationCard } from '@/components/reputation/ReputationCard'
 import {
   AlertCircle,
   Calendar,
@@ -670,6 +671,13 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
+
+            {/* Reputation Card */}
+            {user && (
+              <div className="max-w-[600px] mx-auto px-4 py-6">
+                <ReputationCard userId={user.id} />
+              </div>
+            )}
 
             {/* Tabs: Posts vs Replies */}
             <div className="border-b border-border sticky top-0 bg-background/95 backdrop-blur-sm z-10">

@@ -20,6 +20,7 @@ plugin-babylon/.eliza/
 cache/
 claudedocs/
 package-lock.json
+test-results/
 
 # Uploaded user files - keep directory structure but ignore actual files
 /public/uploads/**/*

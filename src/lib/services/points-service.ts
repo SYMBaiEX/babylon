@@ -90,8 +90,15 @@ export class PointsService {
     const pointsBefore = user.reputationPoints;
     const pointsAfter = pointsBefore + amount;
 
-    // Update user points and tracking flags in a transaction
-    const updateData: Record<string, JsonValue> = {
+    // Build update data with proper typing for Prisma
+    const updateData: {
+      reputationPoints: number
+      bonusPoints?: number
+      pointsAwardedForProfile?: boolean
+      pointsAwardedForFarcaster?: boolean
+      pointsAwardedForTwitter?: boolean
+      pointsAwardedForWallet?: boolean
+    } = {
       reputationPoints: pointsAfter,
       bonusPoints: user.bonusPoints + amount, // Add to bonus points for social/profile completions
     };

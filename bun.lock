@@ -60,7 +60,11 @@
         "framer-motion": "^12.23.24",
         "geist": "^1.5.1",
         "graphql": "^16.12.0",
+<<<<<<< HEAD
         "graphql-request": "^7.3.3",
+=======
+        "graphql-request": "^7.3.1",
+>>>>>>> 448527b720d738479449e9b11e4f245abc674eeb
         "html-to-image": "^1.11.13",
         "ioredis": "^5.8.2",
         "lucide-react": "^0.553.0",

@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 export default function NotFound() {
   return (
     <div style={{
@@ -12,9 +14,9 @@ export default function NotFound() {
       <h1 style={{ fontSize: '4rem', marginBottom: '1rem' }}>404</h1>
       <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>Page Not Found</h2>
       <p style={{ marginBottom: '2rem', color: '#666' }}>
-        The page you're looking for doesn't exist.
+        The page you&apos;re looking for doesn&apos;t exist.
       </p>
-      <a 
+      <Link 
         href="/docs" 
         style={{
           padding: '0.75rem 1.5rem',
@@ -26,8 +28,7 @@ export default function NotFound() {
         }}
       >
         Go to Documentation
-      </a>
+      </Link>
     </div>
   )
 }
-

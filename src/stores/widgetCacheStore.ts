@@ -110,7 +110,8 @@ interface WidgetCacheState {
   stats: CacheEntry<BabylonStats> | null
   markets: CacheEntry<MarketsWidgetData> | null
   profileWidget: Map<string, CacheEntry<ProfileWidgetData>> // Keyed by userId
-  
+  reputationWidget: Map<string, CacheEntry<unknown>> // Keyed by userId
+
   // TTL in milliseconds (default: 30 seconds)
   ttl: number
   
@@ -122,7 +123,8 @@ interface WidgetCacheState {
   setStats: (data: BabylonStats) => void
   setMarkets: (data: MarketsWidgetData) => void
   setProfileWidget: (userId: string, data: ProfileWidgetData) => void
-  
+  setReputationWidget: (userId: string, data: unknown) => void
+
   // Get cache entry (returns null if stale or missing)
   getBreakingNews: () => BreakingNewsItem[] | null
   getLatestNews: () => ArticleItem[] | null
@@ -131,6 +133,7 @@ interface WidgetCacheState {
   getStats: () => BabylonStats | null
   getMarkets: () => MarketsWidgetData | null
   getProfileWidget: (userId: string) => ProfileWidgetData | null
+  getReputationWidget: (userId: string) => unknown | null
   
   // Check if cache is fresh
   isFresh: <T>(entry: CacheEntry<T> | null) => boolean
@@ -143,6 +146,7 @@ interface WidgetCacheState {
   clearStats: () => void
   clearMarkets: () => void
   clearProfileWidget: (userId: string) => void
+  clearReputationWidget: (userId: string) => void
   clearAll: () => void
 }
 
@@ -156,6 +160,7 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
   stats: null,
   markets: null,
   profileWidget: new Map(),
+  reputationWidget: new Map(),
   ttl: DEFAULT_TTL,
   
   isFresh: <T>(entry: CacheEntry<T> | null) => {
@@ -226,7 +231,16 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
     })
     set({ profileWidget })
   },
-  
+
+  setReputationWidget: (userId: string, data: unknown) => {
+    const reputationWidget = new Map(get().reputationWidget)
+    reputationWidget.set(userId, {
+      data,
+      timestamp: Date.now(),
+    })
+    set({ reputationWidget })
+  },
+
   getBreakingNews: () => {
     const entry = get().breakingNews
     return entry && get().isFresh(entry) ? entry.data : null
@@ -262,7 +276,13 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
     const entry = profileWidget.get(userId)
     return entry && get().isFresh(entry) ? entry.data : null
   },
-  
+
+  getReputationWidget: (userId: string) => {
+    const reputationWidget = get().reputationWidget
+    const entry = reputationWidget.get(userId)
+    return entry && get().isFresh(entry) ? entry.data : null
+  },
+
   clearBreakingNews: () => set({ breakingNews: null }),
   clearLatestNews: () => set({ latestNews: null }),
   clearUpcomingEvents: () => set({ upcomingEvents: null }),
@@ -274,6 +294,11 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
     profileWidget.delete(userId)
     set({ profileWidget })
   },
+  clearReputationWidget: (userId: string) => {
+    const reputationWidget = new Map(get().reputationWidget)
+    reputationWidget.delete(userId)
+    set({ reputationWidget })
+  },
   clearAll: () => set({
     breakingNews: null,
     latestNews: null,
@@ -282,6 +307,7 @@ export const useWidgetCacheStore = create<WidgetCacheState>((set, get) => ({
     stats: null,
     markets: null,
     profileWidget: new Map(),
+    reputationWidget: new Map(),
   }),
 }))
 

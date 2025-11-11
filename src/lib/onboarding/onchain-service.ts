@@ -305,7 +305,7 @@ export async function processOnchainRegistration({
 
   const publicClient = createPublicClient({
     chain: baseSepolia,
-    transport: http(process.env.NEXT_PUBLIC_RPC_URL),
+    transport: http(process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org'),
   })
 
   let isRegistered = false
@@ -315,20 +315,32 @@ export async function processOnchainRegistration({
     isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null
   } else {
     const address = walletAddress! as Address
-    isRegistered = await publicClient.readContract({
-      address: IDENTITY_REGISTRY,
-      abi: IDENTITY_REGISTRY_ABI,
-      functionName: 'isRegistered',
-      args: [address],
-    })
 
-    if (isRegistered && !tokenId) {
-      tokenId = Number(await publicClient.readContract({
+    // Try to check onchain status, but gracefully handle contract unavailability
+    try {
+      isRegistered = await publicClient.readContract({
         address: IDENTITY_REGISTRY,
         abi: IDENTITY_REGISTRY_ABI,
-        functionName: 'getTokenId',
+        functionName: 'isRegistered',
         args: [address],
-      }))
+      })
+
+      if (isRegistered && !tokenId) {
+        tokenId = Number(await publicClient.readContract({
+          address: IDENTITY_REGISTRY,
+          abi: IDENTITY_REGISTRY_ABI,
+          functionName: 'getTokenId',
+          args: [address],
+        }))
+      }
+    } catch (contractError) {
+      // Contract not available or not deployed - fall back to database state
+      logger.warn('Unable to check onchain registration status, using database state', {
+        error: extractErrorMessage(contractError),
+        address,
+        IDENTITY_REGISTRY
+      }, 'OnboardingOnchain')
+      isRegistered = dbUser.onChainRegistered && dbUser.nftTokenId !== null
     }
   }
 
@@ -382,15 +394,26 @@ export async function processOnchainRegistration({
     }
   }
 
-  const deployerConfigured = Boolean(DEPLOYER_PRIVATE_KEY)
-  const deployerAccount = deployerConfigured ? privateKeyToAccount(DEPLOYER_PRIVATE_KEY!) : null
-  const walletClient = deployerAccount
-    ? createWalletClient({
+  // Validate deployer private key format
+  const deployerConfigured = Boolean(DEPLOYER_PRIVATE_KEY) &&
+    typeof DEPLOYER_PRIVATE_KEY === 'string' &&
+    /^0x[0-9a-fA-F]{64}$/.test(DEPLOYER_PRIVATE_KEY)
+
+  let deployerAccount = null
+  let walletClient = null
+
+  if (deployerConfigured) {
+    try {
+      deployerAccount = privateKeyToAccount(DEPLOYER_PRIVATE_KEY!)
+      walletClient = createWalletClient({
         account: deployerAccount,
         chain: baseSepolia,
-        transport: http(process.env.NEXT_PUBLIC_RPC_URL),
+        transport: http(process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org'),
       })
-    : null
+    } catch (keyError) {
+      logger.error('Invalid deployer private key format', { error: extractErrorMessage(keyError) }, 'OnboardingOnchain')
+    }
+  }
 
   if (!submittedTxHash && !deployerConfigured) {
     throw new InternalServerError('Server wallet not configured for gas payments', { missing: 'DEPLOYER_PRIVATE_KEY' })
@@ -459,22 +482,23 @@ export async function processOnchainRegistration({
     } catch (registrationError) {
       const message = extractErrorMessage(registrationError).toLowerCase()
       if (message.includes('already registered')) {
-        const onChainStatus = await publicClient.readContract({
-          address: IDENTITY_REGISTRY,
-          abi: IDENTITY_REGISTRY_ABI,
-          functionName: 'isRegistered',
-          args: [registrationAddress],
-        })
+        try {
+          const onChainStatus = await publicClient.readContract({
+            address: IDENTITY_REGISTRY,
+            abi: IDENTITY_REGISTRY_ABI,
+            functionName: 'isRegistered',
+            args: [registrationAddress],
+          })
 
-        if (onChainStatus) {
-          const tokenOnChain = Number(
-            await publicClient.readContract({
-              address: IDENTITY_REGISTRY,
-              abi: IDENTITY_REGISTRY_ABI,
-              functionName: 'getTokenId',
-              args: [registrationAddress],
-            })
-          )
+          if (onChainStatus) {
+            const tokenOnChain = Number(
+              await publicClient.readContract({
+                address: IDENTITY_REGISTRY,
+                abi: IDENTITY_REGISTRY_ABI,
+                functionName: 'getTokenId',
+                args: [registrationAddress],
+              })
+            )
 
           await prisma.user.update({
             where: { id: dbUser.id },
@@ -504,6 +528,13 @@ export async function processOnchainRegistration({
             userId: dbUser.id,
             pointsAwarded: hasWelcomeBonus ? 1000 : 0,
           }
+        }
+        } catch (contractCheckError) {
+          logger.warn(
+            'Unable to verify onchain registration status, falling back to server signer unsupported error',
+            { error: extractErrorMessage(contractCheckError) },
+            'OnboardingOnchain'
+          )
         }
 
         logger.warn(
@@ -822,7 +853,7 @@ export async function confirmOnchainProfileUpdate({
   const lowerWallet = walletAddress.toLowerCase()
   const publicClient = createPublicClient({
     chain: baseSepolia,
-    transport: http(process.env.NEXT_PUBLIC_RPC_URL),
+    transport: http(process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org'),
   })
 
   const receipt = await publicClient.waitForTransactionReceipt({

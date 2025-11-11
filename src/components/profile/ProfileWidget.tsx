@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
 import { PositionDetailModal } from './PositionDetailModal'
 import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { ReputationCard } from '@/components/reputation/ReputationCard'
 import type {
   UserBalanceData,
   PredictionPosition,
@@ -178,6 +179,11 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto w-full">
+      {/* Reputation Card */}
+      <div className="mb-6">
+        <ReputationCard userId={userId} />
+      </div>
+
       {/* Points Section */}
       <div className="mb-6">
         <h3 className="text-lg font-bold text-foreground mb-3">Points</h3>

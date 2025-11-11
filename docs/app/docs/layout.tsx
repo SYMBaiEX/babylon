@@ -25,12 +25,12 @@ export default async function DocsLayout({
         defaultMenuCollapseLevel: 1, 
         autoCollapse: true 
       }}
+      copyPageButton={true}
       toc={{
         float: true,
         title: 'On This Page',
       }}
       footer={footer}
-      gitTimestamp=""
     >
       {children}
     </Layout>
