@@ -15,6 +15,8 @@ import type { TradeImpactInput } from '@/lib/services/market-impact-service';
 import { applyPerpTradeImpacts } from '@/lib/services/perp-price-impact-service';
 import { WalletService } from '@/lib/services/wallet-service';
 
+import type { PerpPosition } from '@/shared/perps-types';
+
 type TradeSide = 'long' | 'short';
 
 export interface OpenPerpPositionInput {
@@ -25,7 +27,7 @@ export interface OpenPerpPositionInput {
 }
 
 export interface OpenPerpPositionResult {
-  position: ReturnType;
+  position: PerpPosition;
   marginPaid: number;
   fee: {
     feeCharged: number;
@@ -37,7 +39,7 @@ export interface OpenPerpPositionResult {
 }
 
 export interface ClosePerpPositionResult {
-  position: ReturnType['position'];
+  position: PerpPosition;
   realizedPnL: number;
   marginReturned: number;
   grossSettlement: number;
@@ -56,7 +58,7 @@ export class PerpTradeService {
   static async openPosition(
     authUser: AuthenticatedUser,
     input: OpenPerpPositionInput
-  ): Promise {
+  ): Promise<OpenPerpPositionResult> {
     await ensurePerpsEngineReady();
     const perpsEngine = getPerpsEngine();
 
@@ -222,7 +224,7 @@ export class PerpTradeService {
   static async closePosition(
     authUser: AuthenticatedUser,
     positionId: string
-  ): Promise {
+  ): Promise<ClosePerpPositionResult> {
     await ensurePerpsEngineReady();
     const perpsEngine = getPerpsEngine();
 
@@ -254,7 +256,7 @@ export class PerpTradeService {
         userId: dbPosition.userId,
         ticker: dbPosition.ticker,
         organizationId: dbPosition.organizationId,
-        side: dbPosition.side,
+        side: dbPosition.side as 'long' | 'short',
         entryPrice: Number(dbPosition.entryPrice),
         currentPrice: Number(dbPosition.currentPrice),
         size: Number(dbPosition.size),

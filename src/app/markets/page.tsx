@@ -131,8 +131,8 @@ export default function MarketsPage() {
   } = useUserPositions(user?.id, { enabled: authenticated });
 
   // Use refs to store latest values to break dependency chains
-  const fetchDataRef = useRef<(() => Promise) | null>(null);
-  const refreshPositionsRef = useRef<(() => Promise) | null>(
+  const fetchDataRef = useRef<(() => Promise<void>) | null>(null);
+  const refreshPositionsRef = useRef<(() => Promise<void>) | null>(
     refreshUserPositions
   );
   const authenticatedRef = useRef(authenticated);
