@@ -98,15 +98,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         createdAt: user.createdAt,
         balance: user.virtualBalance.toString(),
         reputationPoints: user.reputationPoints,
-        stats: {
-          positions: user._count.Position,
-          comments: user._count.Comment,
-          reactions: user._count.Reaction,
-          followers: user._count.Follow_Follow_followerIdToUser,
-          following: user._count.Follow_Follow_followingIdToUser,
-        },
-      }))
-    }
+          stats: {
+            positions: user._count.Position,
+            comments: user._count.Comment,
+            reactions: user._count.Reaction,
+            followers: user._count.Follow_Follow_followingIdToUser,
+            following: user._count.Follow_Follow_followerIdToUser,
+          },
+        }))
+      }
 
     return await asPublic(dbOperation)
   }
@@ -144,8 +144,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             select: {
               Pool: true,
               NPCTrade: true,
-              ActorFollow_ActorFollow_followerIdToActor: true,
               ActorFollow_ActorFollow_followingIdToActor: true,
+              ActorFollow_ActorFollow_followerIdToActor: true,
             },
           },
         },
@@ -168,8 +168,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         stats: {
           pools: actor._count.Pool,
           trades: actor._count.NPCTrade,
-          followers: actor._count.ActorFollow_ActorFollow_followerIdToActor,
-          following: actor._count.ActorFollow_ActorFollow_followingIdToActor,
+          followers: actor._count.ActorFollow_ActorFollow_followingIdToActor,
+          following: actor._count.ActorFollow_ActorFollow_followerIdToActor,
         },
       }))
     }

@@ -531,7 +531,7 @@ export default function ProfilePage() {
                 <div className="px-4 pb-4">
                   {/* Profile Picture & Edit Button Row */}
                   <div className="flex items-start justify-between gap-3 -mt-12 sm:-mt-16 mb-4">
-                    <div className="relative flex-shrink-0">
+                    <div className="relative shrink-0">
                       {formData.profileImageUrl ? (
                         <img
                           src={formData.profileImageUrl}
@@ -820,7 +820,7 @@ export default function ProfilePage() {
 
             {/* Edit Profile Modal */}
             {editModal.isOpen && (
-              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-0 md:p-4">
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-0 md:px-4 md:py-3">
                 <div className="bg-background w-full h-full md:h-auto md:max-w-2xl md:rounded-xl md:max-h-[90vh] border-0 md:border md:border-border flex flex-col">
                   {/* Header */}
                   <div className="sticky top-0 bg-background border-b border-border px-4 py-3 flex items-center justify-between z-10">
@@ -828,7 +828,7 @@ export default function ProfilePage() {
                       <button
                         onClick={closeEditModal}
                         disabled={editModal.isSaving}
-                        className="p-2 hover:bg-muted active:bg-muted rounded-full transition-colors disabled:opacity-50 flex-shrink-0"
+                        className="p-2 hover:bg-muted active:bg-muted rounded-full transition-colors disabled:opacity-50 shrink-0"
                         aria-label="Close"
                       >
                         <XIcon className="w-5 h-5" />
@@ -838,7 +838,7 @@ export default function ProfilePage() {
                     <button
                       onClick={saveProfile}
                       disabled={editModal.isSaving}
-                      className="px-4 sm:px-6 py-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/90 disabled:opacity-50 font-semibold text-sm flex-shrink-0 min-h-[44px]"
+                      className="px-4 sm:px-6 py-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/90 disabled:opacity-50 font-semibold text-sm shrink-0 min-h-[44px]"
                     >
                       {editModal.isSaving ? 'Saving...' : 'Save'}
                     </button>
@@ -876,7 +876,7 @@ export default function ProfilePage() {
                           className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-black/60 hover:bg-black/80 active:bg-black/80 rounded-full text-white transition-colors disabled:opacity-50 min-h-[44px]"
                           aria-label="Change cover photo"
                         >
-                          <Camera className="w-4 h-4 flex-shrink-0" />
+                          <Camera className="w-4 h-4 shrink-0" />
                           <span className="text-xs sm:text-sm font-medium">
                             {editModal.coverImage.preview || editModal.formData.coverImageUrl ? 'Change' : 'Add'} cover
                           </span>
@@ -937,7 +937,7 @@ export default function ProfilePage() {
                       {/* Error Message */}
                       {editModal.error && (
                         <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400">
-                          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                          <AlertCircle className="w-4 h-4 shrink-0" />
                           <span className="text-sm">{editModal.error}</span>
                         </div>
                       )}
@@ -956,7 +956,7 @@ export default function ProfilePage() {
                             formData: { ...prev.formData, displayName: e.target.value }
                           }))}
                           placeholder="Your name"
-                          className="w-full bg-muted/50 border border-border rounded-lg px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent min-h-[44px] text-base"
+                          className="w-full bg-muted/50 border border-border rounded-lg px-4 py-3 text-foreground focus:outline-none focus:border-border min-h-[44px] text-base"
                           disabled={editModal.isSaving}
                         />
                       </div>
@@ -968,7 +968,7 @@ export default function ProfilePage() {
                         </label>
                         {usernameChangeLimit && !usernameChangeLimit.canChange && (
                           <div className="mb-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-start gap-2">
-                            <AlertCircle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
+                            <AlertCircle className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
                             <div className="flex-1 min-w-0">
                               <p className="text-xs sm:text-sm text-yellow-500 font-medium">
                                 Username can only be changed once every 24 hours
@@ -979,8 +979,8 @@ export default function ProfilePage() {
                             </div>
                           </div>
                         )}
-                        <div className="flex items-center gap-2 bg-muted/50 border border-border rounded-lg px-4 py-3 focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent min-h-[44px]">
-                          <span className="text-muted-foreground flex-shrink-0">@</span>
+                        <div className="flex items-center gap-2 bg-muted/50 border border-border rounded-lg px-4 py-3 focus-within:border-border min-h-[44px]">
+                          <span className="text-muted-foreground shrink-0">@</span>
                           <input
                             id="username"
                             type="text"
@@ -1011,7 +1011,7 @@ export default function ProfilePage() {
                           placeholder="Tell us about yourself..."
                           rows={4}
                           maxLength={160}
-                          className="w-full bg-muted/50 border border-border rounded-lg px-4 py-3 text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-base"
+                          className="w-full bg-muted/50 border border-border rounded-lg px-4 py-3 text-foreground resize-none focus:outline-none focus:border-border text-base"
                           disabled={editModal.isSaving}
                         />
                         <div className="flex justify-end mt-1">
@@ -1027,7 +1027,7 @@ export default function ProfilePage() {
             )}
           </>
         ) : (
-          <div className="max-w-[600px] mx-auto p-4">
+          <div className="max-w-[600px] mx-auto px-4 py-3">
             <div className="text-center text-muted-foreground py-12">
               <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p>Please log in to view your profile.</p>

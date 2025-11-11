@@ -3,13 +3,13 @@
  * Methods: GET (list user's chats), POST (create new chat)
  */
 
+import type { NextRequest } from 'next/server';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { asSystem, asUser } from '@/lib/db/context';
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { ChatCreateSchema, ChatQuerySchema } from '@/lib/validation/schemas';
-import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/chats
@@ -42,14 +42,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           isGroup: true,
           gameId: 'continuous',
         },
-        select: {
-          id: true,
-          name: true,
-          isGroup: true,
-          createdAt: true,
-          updatedAt: true,
-          gameId: true,
-          dayNumber: true,
+        include: {
           Message: {
             orderBy: { createdAt: 'desc' },
             take: 1,
@@ -100,10 +93,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       where: {
         id: { in: groupChatIds },
       },
-      select: {
-        id: true,
-        name: true,
-        updatedAt: true,
+      include: {
         Message: {
           orderBy: { createdAt: 'desc' },
           take: 1,
@@ -126,15 +116,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         id: { in: dmChatIds },
         isGroup: false,
       },
-      select: {
-        id: true,
-        name: true,
-        updatedAt: true,
-        ChatParticipant: {
-          select: {
-            userId: true,
-          },
-        },
+      include: {
+        ChatParticipant: true,
         Message: {
           orderBy: { createdAt: 'desc' },
           take: 1,
@@ -164,7 +147,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const directChats = await Promise.all(
       dmChatsDetails.map(async (chat) => {
         // Find the other participant (not the current user)
-        const otherParticipant = chat.ChatParticipant.find((p: { userId: string }) => p.userId !== user.userId);
+        const otherParticipant = chat.ChatParticipant.find((p) => p.userId !== user.userId);
         let chatName = chat.name || 'Direct Message';
         let otherUserDetails = null;
         

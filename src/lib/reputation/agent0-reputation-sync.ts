@@ -5,12 +5,12 @@
  * Provides bidirectional sync between local database and blockchain.
  */
 
-import { prisma } from '@/lib/database-service'
-import { getOnChainReputation, syncOnChainReputation } from './blockchain-reputation'
 import { getAgent0Client } from '@/agents/agent0/Agent0Client'
-import { recalculateReputation, getReputationBreakdown } from './reputation-service'
+import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
+import { getOnChainReputation, syncOnChainReputation } from './blockchain-reputation'
+import { getReputationBreakdown, recalculateReputation } from './reputation-service'
 
 /**
  * Sync Agent0 on-chain reputation to local database after registration
@@ -44,6 +44,7 @@ export async function syncAfterAgent0Registration(userId: string, agent0TokenId:
         update: {
           onChainReputationSync: true,
           lastSyncedAt: new Date(),
+          updatedAt: new Date(),
         },
       })
     }

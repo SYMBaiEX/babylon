@@ -81,7 +81,10 @@ export const GET = withErrorHandling(async (
     return await db.chat.findUnique({
       where: { id: chatId },
       include: {
-        Message: true,
+        Message: {
+          orderBy: { createdAt: 'asc' },
+          take: 100, // Limit to last 100 messages
+        },
         ChatParticipant: true,
       },
     })
@@ -89,7 +92,10 @@ export const GET = withErrorHandling(async (
     return await db.chat.findUnique({
       where: { id: chatId },
       include: {
-        Message: true,
+        Message: {
+          orderBy: { createdAt: 'asc' },
+          take: 100,
+        },
         ChatParticipant: true,
       },
     })
@@ -102,7 +108,7 @@ export const GET = withErrorHandling(async (
   // Get participant details with RLS (use system for debug mode)
   const { users, actors } = await (authUser ? asUser(authUser, async (db) => {
     // Get participant details - need to check both users and actors
-    const participantUserIds = fullChat.ChatParticipant.map((p: { userId: string }) => p.userId);
+    const participantUserIds = fullChat.ChatParticipant.map((p) => p.userId);
     const users = await db.user.findMany({
       where: {
         id: { in: participantUserIds },
@@ -130,7 +136,7 @@ export const GET = withErrorHandling(async (
 
     return { users, actors };
   }) : asSystem(async (db) => {
-    const participantUserIds = fullChat.ChatParticipant.map((p: { userId: string }) => p.userId);
+    const participantUserIds = fullChat.ChatParticipant.map((p) => p.userId);
     const users = await db.user.findMany({
       where: {
         id: { in: participantUserIds },
@@ -166,7 +172,7 @@ export const GET = withErrorHandling(async (
 
     // Build participants list from ChatParticipants or message senders (for debug mode)
     const participantsInfo = fullChat.ChatParticipant.length > 0
-      ? fullChat.ChatParticipant.map((p: { userId: string }) => {
+      ? fullChat.ChatParticipant.map((p) => {
           const user = usersMap.get(p.userId);
           const actor = actorsMap.get(p.userId);
           return {
@@ -192,7 +198,7 @@ export const GET = withErrorHandling(async (
     let displayName = fullChat.name;
     let otherUser = null;
     if (!fullChat.isGroup && !fullChat.name && userId) {
-      const otherParticipant = fullChat.ChatParticipant.find((p: { userId: string }) => p.userId !== userId);
+      const otherParticipant = fullChat.ChatParticipant.find((p) => p.userId !== userId);
       if (otherParticipant) {
         const otherUserData = usersMap.get(otherParticipant.userId);
         if (otherUserData) {

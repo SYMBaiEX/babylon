@@ -231,7 +231,7 @@ export function EntitySearchAutocomplete({
         'absolute top-1/2 -translate-y-1/2 pointer-events-none z-10',
         compact ? 'left-3' : 'left-4'
       )}>
-        <Search className={cn(compact ? 'w-3.5 h-3.5' : 'w-4 h-4')} style={{ color: '#0066FF' }} />
+        <Search className={cn(compact ? 'w-3.5 h-3.5' : 'w-4 h-4', 'text-primary')} />
       </div>
       <input
         ref={inputRef}
@@ -252,19 +252,15 @@ export function EntitySearchAutocomplete({
         }}
         className={cn(
           'w-full',
-          'bg-muted/50 border-2',
-          'focus:outline-none focus:ring-2 focus:ring-[#0066FF]',
+          'bg-muted/50 border border-border',
+          'focus:outline-none focus:border-border',
           'transition-all duration-200',
           'text-foreground',
           compact 
             ? 'pl-9 pr-9 py-1.5 text-sm' 
             : 'pl-11 pr-10 py-2.5',
-          'rounded-lg'
+          'rounded-full'
         )}
-        style={{
-          borderColor: '#0066FF',
-          borderRadius: '2em',
-        }}
       />
       {value && (
         <button
@@ -284,7 +280,7 @@ export function EntitySearchAutocomplete({
       
       {/* Autocomplete dropdown */}
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-card border-2 border-[#0066FF] rounded-xl shadow-xl z-50 overflow-hidden max-h-[400px] overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-2xl shadow-xl z-50 overflow-hidden max-h-[400px] overflow-y-auto">
           {/* Show "Browse All Registry" when field is empty */}
           {!value.trim() ? (
             <button
@@ -294,8 +290,8 @@ export function EntitySearchAutocomplete({
                 'bg-muted/20'
               )}
             >
-              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-[#0066FF]/10">
-                <Users className="w-5 h-5 text-[#0066FF]" />
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
+                <Users className="w-5 h-5 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-foreground">
@@ -305,7 +301,7 @@ export function EntitySearchAutocomplete({
                   View all users, agents, actors & apps
                 </p>
               </div>
-              <ArrowRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
             </button>
           ) : (
             <>
@@ -317,8 +313,8 @@ export function EntitySearchAutocomplete({
                   selectedIndex === -1 && 'bg-muted/50'
                 )}
               >
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-[#0066FF]/10">
-                  <Search className="w-5 h-5 text-[#0066FF]" />
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
+                  <Search className="w-5 h-5 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-foreground">
@@ -328,7 +324,7 @@ export function EntitySearchAutocomplete({
                     See all results
                   </p>
                 </div>
-                <ArrowRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
               </button>
 
               {/* Loading state */}
@@ -385,7 +381,7 @@ export function EntitySearchAutocomplete({
                       src={entity.imageUrl || undefined}
                       name={entity.name}
                       size="sm"
-                      className="flex-shrink-0"
+                      className="shrink-0"
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
@@ -393,7 +389,7 @@ export function EntitySearchAutocomplete({
                           {entity.name}
                         </p>
                         <span className={cn(
-                          'flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium flex-shrink-0',
+                          'flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-xs font-medium shrink-0',
                           getEntityBadgeColor()
                         )}>
                           {getEntityIcon()}
@@ -411,7 +407,7 @@ export function EntitySearchAutocomplete({
                         </p>
                       )}
                     </div>
-                    <ArrowRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
                   </button>
                 )
               })}
@@ -431,8 +427,8 @@ export function EntitySearchAutocomplete({
 
       <style jsx>{`
         input::placeholder {
-          color: #0066FF;
-          opacity: 0.8;
+          color: hsl(var(--muted-foreground));
+          opacity: 0.6;
         }
       `}</style>
     </div>

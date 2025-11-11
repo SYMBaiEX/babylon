@@ -173,7 +173,7 @@ export function LatestNewsPanel() {
 
   return (
     <>
-      <div className="bg-sidebar rounded-lg p-4 flex-1 flex flex-col">
+      <div className="bg-sidebar rounded-2xl p-4 flex-1 flex flex-col">
         <h2 className="text-lg font-bold text-foreground mb-3 text-left">Latest News</h2>
         {loading ? (
           <div className="space-y-3 pl-3 flex-1">
@@ -184,14 +184,14 @@ export function LatestNewsPanel() {
         ) : articles.length === 0 ? (
           <div className="text-sm text-muted-foreground pl-3 flex-1">No articles available yet.</div>
         ) : (
-          <div className="space-y-2.5 pl-3 flex-1">
+          <div className="space-y-2 pl-3 flex-1">
             {articles.map((article) => (
               <div
                 key={article.id}
                 onClick={() => handleArticleClick(article.id)}
-                className="flex items-start gap-2.5 cursor-pointer hover:bg-muted/50 rounded-lg p-1.5 -ml-1.5 transition-colors duration-200"
+                className="flex items-start gap-3 cursor-pointer hover:bg-muted/50 rounded-lg p-1.5 -ml-1.5 transition-colors duration-200"
               >
-                <div className="mt-0.5 flex-shrink-0">
+                <div className="mt-0.5 shrink-0">
                   {getSentimentIcon(article.sentiment)}
                 </div>
                 <div className="flex-1 min-w-0">

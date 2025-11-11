@@ -210,7 +210,7 @@ export default function SettingsPage() {
           {Array.from({ length: 3 }).map((_, i) => (
             <div
               key={i}
-              className="bg-card/50 backdrop-blur rounded-lg p-4 sm:p-6 border border-border space-y-4"
+              className="bg-card/50 backdrop-blur rounded-lg px-4 py-3 sm:px-6 sm:py-4 border border-border space-y-4"
             >
               <Skeleton className="h-6 w-40 max-w-full mb-4" />
               {Array.from({ length: 2 }).map((_, j) => (
@@ -222,7 +222,7 @@ export default function SettingsPage() {
                     <Skeleton className="h-4 w-32 max-w-full" />
                     <Skeleton className="h-3 w-48 max-w-full" />
                   </div>
-                  <Skeleton className="h-8 w-16 flex-shrink-0 rounded-full" />
+                  <Skeleton className="h-8 w-16 shrink-0 rounded-full" />
                 </div>
               ))}
             </div>
@@ -261,7 +261,7 @@ export default function SettingsPage() {
         <div className="mb-8">
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4"
+            className="flex items-center gap-3 text-muted-foreground hover:text-foreground transition-colors mb-4"
           >
             <ArrowLeft className="w-5 h-5" />
             <span>Back</span>
@@ -482,7 +482,7 @@ export default function SettingsPage() {
 
           {activeTab === 'security' && (
             <div className="space-y-6">
-              <div className="p-4 bg-muted rounded-lg">
+              <div className="px-4 py-3 bg-muted rounded-lg">
                 <h3 className="font-medium mb-2">Account Security</h3>
                 <p className="text-sm text-muted-foreground mb-4">
                   Your account is secured with Privy authentication.
@@ -492,7 +492,7 @@ export default function SettingsPage() {
                 </button>
               </div>
 
-              <div className="p-4 bg-muted rounded-lg">
+              <div className="px-4 py-3 bg-muted rounded-lg">
                 <h3 className="font-medium mb-2">Connected Wallets</h3>
                 <p className="text-sm text-muted-foreground mb-4">
                   Manage your connected blockchain wallets.
@@ -502,7 +502,7 @@ export default function SettingsPage() {
                 </button>
               </div>
 
-              <div className="p-4 border border-red-500/20 bg-red-500/5 rounded-lg">
+              <div className="px-4 py-3 border border-red-500/20 bg-red-500/5 rounded-lg">
                 <h3 className="font-medium text-red-500 mb-2">Danger Zone</h3>
                 <p className="text-sm text-muted-foreground mb-4">
                   Delete your account and all associated data. This action

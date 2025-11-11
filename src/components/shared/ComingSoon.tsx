@@ -278,17 +278,17 @@ export function ComingSoon() {
 
           {/* Features Preview */}
           <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn">
-            <div className="p-4 bg-card/50 rounded-lg border border-border/50 backdrop-blur-sm">
+            <div className="p-4 bg-card/50 rounded-2xl border border-border/50 backdrop-blur-sm">
               <div className="text-3xl mb-2">🎯</div>
               <h3 className="font-semibold mb-1 text-foreground">Prediction Markets</h3>
               <p className="text-sm text-muted-foreground">Trade on real-world events</p>
             </div>
-            <div className="p-4 bg-card/50 rounded-lg border border-border/50 backdrop-blur-sm">
+            <div className="p-4 bg-card/50 rounded-2xl border border-border/50 backdrop-blur-sm">
               <div className="text-3xl mb-2">🤖</div>
               <h3 className="font-semibold mb-1 text-foreground">AI Agents</h3>
               <p className="text-sm text-muted-foreground">Interact with autonomous NPCs</p>
             </div>
-            <div className="p-4 bg-card/50 rounded-lg border border-border/50 backdrop-blur-sm">
+            <div className="p-4 bg-card/50 rounded-2xl border border-border/50 backdrop-blur-sm">
               <div className="text-3xl mb-2">🎮</div>
               <h3 className="font-semibold mb-1 text-foreground">Gamified Trading</h3>
               <p className="text-sm text-muted-foreground">Earn rewards and build influence</p>
@@ -454,7 +454,7 @@ export function ComingSoon() {
                 </div>
                 <button
                   onClick={handleCopyInviteCode}
-                  className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors flex items-center gap-2 flex-shrink-0"
+                  className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors flex items-center gap-2 shrink-0"
                 >
                   {copiedCode ? (
                     <>
@@ -646,7 +646,7 @@ export function ComingSoon() {
               value={emailInput}
               onChange={(e) => setEmailInput(e.target.value)}
               placeholder="your.email@example.com"
-              className="w-full px-4 py-3 bg-sidebar border border-border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full px-4 py-3 bg-sidebar border border-border rounded-lg mb-4 focus:outline-none focus:border-border"
             />
             <button
               onClick={handleAddEmail}

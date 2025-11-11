@@ -138,7 +138,7 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
 
       {/* Modal */}
       <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg">
-        <div className="bg-popover rounded shadow-xl p-4 sm:p-6 m-4 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+        <div className="bg-popover rounded shadow-xl px-4 py-3 sm:px-6 sm:py-4 m-4 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -155,7 +155,7 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
           </div>
 
           {/* Current Price */}
-          <div className="mb-6 p-4 bg-muted rounded">
+          <div className="mb-6 px-4 py-3 bg-muted rounded">
             <div className="text-sm text-muted-foreground mb-1">Current Price</div>
             <div className="text-2xl sm:text-3xl font-bold text-foreground">
               {formatPrice(market.currentPrice)}
@@ -163,11 +163,11 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
           </div>
 
           {/* Long/Short Tabs */}
-          <div className="flex gap-2 mb-6">
+          <div className="flex gap-3 mb-6">
             <button
               onClick={() => setSide('long')}
               className={cn(
-                'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer',
+                'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-3 text-sm sm:text-base cursor-pointer',
                 side === 'long'
                   ? 'bg-green-600 text-white'
                   : 'bg-muted text-muted-foreground hover:bg-muted'
@@ -179,7 +179,7 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
             <button
               onClick={() => setSide('short')}
               className={cn(
-                'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer',
+                'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-3 text-sm sm:text-base cursor-pointer',
                 side === 'short'
                   ? 'bg-red-600 text-white'
                   : 'bg-muted text-muted-foreground hover:bg-muted'
@@ -191,7 +191,7 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
           </div>
 
           {/* Size & Leverage */}
-          <div className="bg-muted rounded p-4 mb-6 space-y-4">
+          <div className="bg-muted rounded px-4 py-3 mb-6 space-y-4">
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium text-muted-foreground">Position Size (USD)</label>
               <input
@@ -225,7 +225,7 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
           </div>
 
           {/* Position Preview */}
-          <div className="bg-muted/20 p-4 rounded mb-6">
+          <div className="bg-muted/20 px-4 py-3 rounded mb-6">
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
               <span className="text-muted-foreground">Margin Required</span>
               <span className="font-bold text-foreground text-right">{formatPrice(marginRequired)}</span>
@@ -260,7 +260,7 @@ export function PerpTradingModal({ market, isOpen, onClose, onSuccess }: PerpTra
           {/* High Risk Warning */}
           {isHighRisk && (
             <div className="flex items-start gap-3 p-3 bg-yellow-500/15 rounded mb-4">
-              <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+              <AlertTriangle className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" />
               <div className="text-sm">
                 <div className="font-bold text-yellow-600 mb-1">High Risk Position</div>
                 <p className="text-muted-foreground">

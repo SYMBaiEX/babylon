@@ -76,7 +76,7 @@ export function MarketOverviewPanel() {
   }
 
   return (
-    <div className="bg-sidebar rounded-lg p-4 flex-1 flex flex-col">
+    <div className="bg-sidebar rounded-2xl p-4 flex-1 flex flex-col">
       <div className="flex items-center gap-2 mb-3">
         <BarChart3 className="w-5 h-5 text-[#0066FF]" />
         <h2 className="text-xl font-bold text-foreground">Market Overview</h2>

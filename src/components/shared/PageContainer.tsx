@@ -11,12 +11,13 @@ export function PageContainer({ children, className, noPadding = false }: PageCo
   return (
     <div
       className={cn(
-        // Early 2000s: Sharp corners, simple boxy layout
+        // Sharp corners, simple boxy layout
         'bg-background overflow-hidden',
         'h-full min-h-full w-full',
-        // Desktop: Simple container - no wrapper padding, use full height
+        // Desktop: Simple container - use full height
         'md:h-full',
-        !noPadding && 'md:p-6',
+        // Consistent padding: 16px mobile, 24px desktop
+        !noPadding && 'px-4 md:px-6',
         className
       )}
     >

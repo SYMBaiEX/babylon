@@ -9,30 +9,38 @@ interface FeedToggleProps {
 
 export function FeedToggle({ activeTab, onTabChange }: FeedToggleProps) {
   return (
-    <div className="flex items-center gap-4 sm:gap-6">
+    <div className="flex items-center w-full border-b border-border">
       <button
         onClick={() => onTabChange('latest')}
         className={cn(
-          'px-2 sm:px-3 py-2 font-semibold text-sm sm:text-base transition-all duration-300',
-          'relative whitespace-nowrap',
+          'flex-1 px-4 py-3 text-sm sm:text-base font-semibold transition-all duration-200',
+          'relative whitespace-nowrap text-center',
+          'hover:bg-muted/30',
           activeTab === 'latest'
-            ? 'text-foreground opacity-100'
-            : 'text-foreground opacity-50 hover:opacity-75'
+            ? 'text-foreground'
+            : 'text-muted-foreground hover:text-foreground'
         )}
       >
         Latest
+        {activeTab === 'latest' && (
+          <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0066FF]" />
+        )}
       </button>
       <button
         onClick={() => onTabChange('following')}
         className={cn(
-          'px-2 sm:px-3 py-2 font-semibold text-sm sm:text-base transition-all duration-300',
-          'relative whitespace-nowrap',
+          'flex-1 px-4 py-3 text-sm sm:text-base font-semibold transition-all duration-200',
+          'relative whitespace-nowrap text-center',
+          'hover:bg-muted/30',
           activeTab === 'following'
-            ? 'text-foreground opacity-100'
-            : 'text-foreground opacity-50 hover:opacity-75'
+            ? 'text-foreground'
+            : 'text-muted-foreground hover:text-foreground'
         )}
       >
         Following
+        {activeTab === 'following' && (
+          <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0066FF]" />
+        )}
       </button>
     </div>
   )

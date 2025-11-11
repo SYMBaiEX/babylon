@@ -244,7 +244,7 @@ export function RepostButton({
                 )}>
                   {/* Original Post Author */}
                   <div className="flex items-start gap-3 mb-3">
-                    <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white text-sm font-semibold shrink-0">
                       {postData.authorName[0]?.toUpperCase() || '?'}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -359,7 +359,7 @@ export function RepostButton({
                   )}>
                     {/* Original Post Author */}
                     <div className="flex items-start gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white font-semibold flex-shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white font-semibold shrink-0">
                         {postData.authorName[0]?.toUpperCase() || '?'}
                       </div>
                       <div className="flex-1 min-w-0">

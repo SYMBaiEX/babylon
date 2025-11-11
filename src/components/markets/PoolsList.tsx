@@ -116,7 +116,7 @@ export function PoolsList({ onPoolClick }: PoolsListProps) {
         <button
           onClick={() => setSortBy('performance')}
           className={cn(
-            'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0',
+            'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap shrink-0',
             sortBy === 'performance'
               ? 'bg-[#0066FF] text-white'
               : 'bg-muted/50 text-muted-foreground hover:bg-muted'
@@ -128,7 +128,7 @@ export function PoolsList({ onPoolClick }: PoolsListProps) {
         <button
           onClick={() => setSortBy('tvl')}
           className={cn(
-            'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0',
+            'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap shrink-0',
             sortBy === 'tvl'
               ? 'bg-[#0066FF] text-white'
               : 'bg-muted/50 text-muted-foreground hover:bg-muted'
@@ -140,7 +140,7 @@ export function PoolsList({ onPoolClick }: PoolsListProps) {
         <button
           onClick={() => setSortBy('volume')}
           className={cn(
-            'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0',
+            'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap shrink-0',
             sortBy === 'volume'
               ? 'bg-[#0066FF] text-white'
               : 'bg-muted/50 text-muted-foreground hover:bg-muted'
@@ -152,7 +152,7 @@ export function PoolsList({ onPoolClick }: PoolsListProps) {
         <button
           onClick={() => setSortBy('newest')}
           className={cn(
-            'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0',
+            'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap shrink-0',
             sortBy === 'newest'
               ? 'bg-[#0066FF] text-white'
               : 'bg-muted/50 text-muted-foreground hover:bg-muted'
@@ -163,7 +163,7 @@ export function PoolsList({ onPoolClick }: PoolsListProps) {
         <button
           onClick={() => setSortBy('oldest')}
           className={cn(
-            'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0',
+            'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap shrink-0',
             sortBy === 'oldest'
               ? 'bg-[#0066FF] text-white'
               : 'bg-muted/50 text-muted-foreground hover:bg-muted'

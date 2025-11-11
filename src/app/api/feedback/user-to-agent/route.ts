@@ -165,7 +165,7 @@ export async function GET(request: NextRequest) {
         },
       },
       include: {
-        User_Feedback_toUserIdToUser: {
+        User_Feedback_fromUserIdToUser: {
           select: {
             id: true,
             username: true,

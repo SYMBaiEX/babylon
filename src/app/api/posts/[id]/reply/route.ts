@@ -16,7 +16,7 @@ import { GroupChatInvite } from '@/lib/services/group-chat-invite';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
 import { ensureUserForAuth } from '@/lib/users/ensure-user';
-import { generateSnowflakeId } from '@/lib/snowflake'
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 /**
  * POST /api/posts/[id]/reply

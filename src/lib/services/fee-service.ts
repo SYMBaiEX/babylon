@@ -4,11 +4,11 @@
  * Manages trading fees and referral fee distribution
  */
 
+import { FEE_CONFIG, type FeeType } from '@/lib/config/fees'
 import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
-import { Prisma } from '@prisma/client'
-import { FEE_CONFIG, type FeeType } from '@/lib/config/fees'
 import { generateSnowflakeId } from '@/lib/snowflake'
+import { Prisma } from '@prisma/client'
 
 // Force TypeScript server reload after Prisma regeneration
 
@@ -261,14 +261,6 @@ export class FeeService {
       where: whereClause,
       select: {
         userId: true,
-        User_TradingFee_userIdToUser: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            profileImageUrl: true,
-          },
-        },
       },
       distinct: ['userId'],
     })

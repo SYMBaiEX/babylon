@@ -376,7 +376,7 @@ export class PointsService {
     }
 
     return {
-      points: user.reputationPoints,
+      reputationPoints: user.reputationPoints,
       referralCount: user.referralCount,
       transactions: user.PointsTransaction,
     };

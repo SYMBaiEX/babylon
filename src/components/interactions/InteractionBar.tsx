@@ -71,7 +71,7 @@ export function InteractionBar({
       <div
         className={cn(
           className,
-          'flex items-center justify-between mt-2 w-full text-muted-foreground px-8',
+          'flex items-center justify-between mt-3 w-full text-muted-foreground gap-6',
         )}
       >
         {/* Comment button */}

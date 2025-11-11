@@ -12,7 +12,7 @@ import { notifyCommentOnPost, notifyReplyToComment } from '@/lib/services/notifi
 import { prisma } from '@/lib/database-service';
 import { ensureUserForAuth, getCanonicalUserId } from '@/lib/users/ensure-user';
 import type { NextRequest } from 'next/server';
-import { generateSnowflakeId } from '@/lib/snowflake'
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 /**
  * Build threaded comment structure recursively
@@ -40,7 +40,6 @@ interface CommentInput {
   parentCommentId: string | null;
   createdAt: Date;
   updatedAt: Date;
-  deletedAt: Date | null;
   User: {
     id: string;
     username: string | null;
@@ -48,8 +47,8 @@ interface CommentInput {
     profileImageUrl: string | null;
     isActor: boolean;
   };
-  Reaction: Array<{ id: string; userId: string; type: string }>;
-  _count: { Reaction: number };
+  Reaction: Array<{ id: string }>;
+  _count: { Reaction: number; other_Comment: number };
 }
 
 function buildCommentTree(

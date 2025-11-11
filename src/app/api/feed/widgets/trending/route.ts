@@ -11,7 +11,6 @@ import { getCurrentTrendingTags } from '@/lib/services/tag-storage-service'
 import { generateTrendingSummary } from '@/lib/services/trending-summary-service'
 import { NextResponse } from 'next/server'
 import { withErrorHandling } from '@/lib/errors/error-handler'
-import { prisma } from '@/lib/database-service'
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Get trending tags from cache
@@ -33,7 +32,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       const recentPosts = (authUser && authUser.userId)
         ? await asUser(authUser, async (db) => {
           return await db.postTag.findMany({
-            where: { tagId: item.tagId },
+            where: { tagId: item.Tag.id },
             include: {
               Post: {
                 select: {
@@ -49,7 +48,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         })
         : await asPublic(async (db) => {
           return await db.postTag.findMany({
-            where: { tagId: item.tagId },
+            where: { tagId: item.Tag.id },
             include: {
               Post: {
                 select: {
@@ -66,32 +65,17 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
       const postContents = recentPosts.map(pt => pt.Post.content)
       
-      // Fetch Tag separately to get display information
-      const tag = await prisma.tag.findUnique({
-        where: { id: item.tagId },
-        select: {
-          id: true,
-          name: true,
-          displayName: true,
-          category: true,
-        },
-      })
-
-      if (!tag) {
-        return null
-      }
-      
       const summary = await generateTrendingSummary(
-        tag.displayName,
-        tag.category,
+        item.Tag.displayName,
+        item.Tag.category,
         postContents
       )
 
       return {
         id: item.id,
-        tag: tag.displayName,
-        tagSlug: tag.name,
-        category: tag.category,
+        tag: item.Tag.displayName,
+        tagSlug: item.Tag.name,
+        category: item.Tag.category,
         postCount: item.postCount,
         summary,
         rank: item.rank,

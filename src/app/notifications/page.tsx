@@ -281,7 +281,7 @@ export default function NotificationsPage() {
               onClick={markAllAsRead}
               disabled={markingAsRead}
               className={cn(
-                'flex items-center gap-2 px-4 py-2 text-sm font-semibold',
+                'flex items-center gap-3 px-4 py-3 text-sm font-semibold',
                 'bg-transparent hover:bg-muted/50',
                 'disabled:opacity-50 disabled:cursor-not-allowed',
                 'transition-colors'
@@ -336,7 +336,7 @@ export default function NotificationsPage() {
                 <div className="flex items-start gap-3">
                   {/* Unread Indicator - moved to left */}
                   {!notification.read && (
-                    <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0 mt-2" />
+                    <div className="w-2 h-2 bg-primary rounded-full shrink-0 mt-2" />
                   )}
                   
                   {/* Actor Avatar */}
@@ -345,11 +345,11 @@ export default function NotificationsPage() {
                       id={notification.actor.id}
                       name={notification.actor.displayName}
                       size="md"
-                      className="flex-shrink-0"
+                      className="shrink-0"
                     />
                   ) : (
                     <div className={cn(
-                      "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
+                      "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
                       notification.type === 'system' ? "bg-primary/10" : "bg-muted"
                     )}>
                       {notification.type === 'system' ? (
@@ -362,7 +362,7 @@ export default function NotificationsPage() {
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start gap-2">
+                    <div className="flex items-start gap-3">
                       <div className="flex-1">
                         {notification.type === 'system' ? (
                           <p className="text-foreground leading-relaxed">

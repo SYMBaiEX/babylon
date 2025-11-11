@@ -116,7 +116,7 @@ export const PostCard = memo(function PostCard({
     return (
       <article
         className={cn(
-          'px-4 sm:px-6 py-4 sm:py-5',
+          'px-4 py-3',
           'w-full overflow-hidden',
           'border-b border-border/5',
           className
@@ -132,7 +132,7 @@ export const PostCard = memo(function PostCard({
   return (
     <article
       className={cn(
-        'px-4 sm:px-6 py-4 sm:py-5',
+        'px-4 py-3',
         !isDetail && 'hover:bg-muted/30 cursor-pointer transition-all duration-200',
         'w-full overflow-hidden',
         'border-b border-border/5',
@@ -145,7 +145,7 @@ export const PostCard = memo(function PostCard({
     >
       {/* Repost Indicator - Shows if this is a repost */}
       {post.isRepost && (
-        <div className="flex items-center gap-2 mb-2 text-muted-foreground text-sm">
+        <div className="flex items-center gap-3 mb-3 text-muted-foreground text-sm">
           <Repeat2 size={14} className="text-green-600" />
           <span>
             Reposted by{' '}
@@ -161,11 +161,11 @@ export const PostCard = memo(function PostCard({
       )}
 
       {/* Row 1: Avatar + Name/Handle/Timestamp Header */}
-      <div className="flex items-start gap-3 sm:gap-4 w-full mb-2">
+      <div className="flex items-start gap-3 w-full mb-3">
         {/* Avatar - Clickable, Round - Shows original author for reposts */}
         <Link
           href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
-          className="flex-shrink-0 hover:opacity-80 transition-opacity"
+          className="shrink-0 hover:opacity-80 transition-opacity"
           onClick={(e) => e.stopPropagation()}
         >
           <Avatar
@@ -179,7 +179,7 @@ export const PostCard = memo(function PostCard({
         </Link>
 
         {/* Header: Name/Handle block on left, Timestamp on right */}
-        <div className="flex items-start justify-between gap-2 flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-3 flex-1 min-w-0">
           {/* Name and Handle stacked vertically - Shows original author for reposts */}
           <div className="flex flex-col min-w-0">
             {/* Name row with verified badge */}
@@ -203,7 +203,7 @@ export const PostCard = memo(function PostCard({
             </Link>
           </div>
           {/* Timestamp - Right aligned */}
-          <time className="text-muted-foreground text-base flex-shrink-0 ml-2" title={postDate.toLocaleString()}>
+          <time className="text-muted-foreground text-base shrink-0 ml-2" title={postDate.toLocaleString()}>
             {timeAgo}
           </time>
         </div>
@@ -214,12 +214,12 @@ export const PostCard = memo(function PostCard({
         // Article card - Show title, summary, and "Read more" button
         <div className="w-full mb-3">
           {/* Article title */}
-          <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2 leading-tight">
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-3 leading-tight">
             {post.articleTitle || 'Untitled Article'}
           </h2>
           
           {/* Article metadata */}
-          <div className="flex flex-wrap items-center gap-2 mb-3 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-3 mb-4 text-sm text-muted-foreground">
             {post.byline && <span>{post.byline}</span>}
             {post.category && (
               <>
@@ -250,7 +250,7 @@ export const PostCard = memo(function PostCard({
           {/* Read more button */}
           {!isDetail && (
             <button
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#0066FF] hover:bg-[#2952d9] text-white font-semibold rounded-lg transition-colors"
+              className="inline-flex items-center gap-3 px-4 py-3 bg-[#0066FF] hover:bg-[#2952d9] text-white font-semibold rounded-lg transition-colors"
               onClick={handleClick}
             >
               Read Full Article →
@@ -259,7 +259,7 @@ export const PostCard = memo(function PostCard({
         </div>
       ) : (
         // Regular post - Show content as normal
-        <div className="text-foreground leading-relaxed whitespace-pre-wrap break-words w-full mb-3 post-content">
+        <div className="text-foreground leading-relaxed whitespace-pre-wrap break-words w-full mb-4 post-content">
           <TaggedText
             text={post.content || ''}
             onTagClick={(tag) => {

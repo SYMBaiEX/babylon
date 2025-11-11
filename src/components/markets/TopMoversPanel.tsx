@@ -90,7 +90,7 @@ export function TopMoversPanel({ onMarketClick }: TopMoversPanelProps) {
   const formatPrice = (p: number) => `$${p.toFixed(2)}`
 
   return (
-    <div className="bg-sidebar rounded-lg p-4 flex-1 flex flex-col">
+    <div className="bg-sidebar rounded-2xl px-4 py-3 flex-1 flex flex-col">
       <h2 className="text-xl font-bold text-foreground mb-3">Top Movers</h2>
       {loading ? (
         <div className="space-y-3 flex-1">
@@ -101,7 +101,7 @@ export function TopMoversPanel({ onMarketClick }: TopMoversPanelProps) {
         <div className="space-y-4 flex-1">
           {/* Top Gainers */}
           <div>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-3 mb-3">
               <TrendingUp className="w-4 h-4 text-green-600" />
               <h3 className="text-sm font-semibold text-foreground">Top Gainers</h3>
             </div>
@@ -119,7 +119,7 @@ export function TopMoversPanel({ onMarketClick }: TopMoversPanelProps) {
                       <div className="font-semibold text-foreground truncate">${mover.ticker}</div>
                       <div className="text-xs text-muted-foreground truncate">{mover.name}</div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <div className="flex items-center gap-3 shrink-0 ml-2">
                       <div className="text-right">
                         <div className="font-semibold text-foreground">{formatPrice(mover.currentPrice)}</div>
                         <div className="text-xs text-green-600 font-medium">
@@ -137,7 +137,7 @@ export function TopMoversPanel({ onMarketClick }: TopMoversPanelProps) {
 
           {/* Top Losers */}
           <div>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-3 mb-3">
               <TrendingDown className="w-4 h-4 text-red-600" />
               <h3 className="text-sm font-semibold text-foreground">Top Losers</h3>
             </div>
@@ -155,7 +155,7 @@ export function TopMoversPanel({ onMarketClick }: TopMoversPanelProps) {
                       <div className="font-semibold text-foreground truncate">${mover.ticker}</div>
                       <div className="text-xs text-muted-foreground truncate">{mover.name}</div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <div className="flex items-center gap-3 shrink-0 ml-2">
                       <div className="text-right">
                         <div className="font-semibold text-foreground">{formatPrice(mover.currentPrice)}</div>
                         <div className="text-xs text-red-600 font-medium">

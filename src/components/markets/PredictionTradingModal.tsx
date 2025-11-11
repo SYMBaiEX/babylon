@@ -156,10 +156,10 @@ export function PredictionTradingModal({
 
       {/* Modal */}
       <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg">
-        <div className="bg-popover rounded shadow-xl p-4 sm:p-6 m-4 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+        <div className="bg-popover rounded shadow-xl px-4 py-3 sm:px-6 sm:py-4 m-4 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <h2 className="text-xl font-bold text-foreground">Prediction Market</h2>
               {daysLeft !== null && (
                 <span className="flex items-center gap-1 text-sm text-muted-foreground bg-muted px-2 py-1 rounded">
@@ -178,7 +178,7 @@ export function PredictionTradingModal({
           </div>
 
           {/* Question */}
-          <div className="mb-6 p-4 bg-muted rounded">
+          <div className="mb-6 px-4 py-3 bg-muted rounded">
             <p className="text-foreground font-medium text-sm sm:text-base">{question.text}</p>
           </div>
 
@@ -199,11 +199,11 @@ export function PredictionTradingModal({
           </div>
 
           {/* YES/NO Tabs */}
-          <div className="flex gap-2 mb-6">
+          <div className="flex gap-3 mb-6">
             <button
               onClick={() => setSide('yes')}
               className={cn(
-                'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer',
+                'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-3 text-sm sm:text-base cursor-pointer',
                 side === 'yes'
                   ? 'bg-green-600 text-white'
                   : 'bg-muted text-muted-foreground hover:bg-muted'
@@ -215,7 +215,7 @@ export function PredictionTradingModal({
             <button
               onClick={() => setSide('no')}
               className={cn(
-                'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer',
+                'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-3 text-sm sm:text-base cursor-pointer',
                 side === 'no'
                   ? 'bg-red-600 text-white'
                   : 'bg-muted text-muted-foreground hover:bg-muted'

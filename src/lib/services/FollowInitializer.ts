@@ -7,9 +7,9 @@
 
 import { prisma } from '@/lib/database-service';
 import { logger } from '@/lib/logger';
-import { readFileSync, existsSync } from 'fs';
-import { RelationshipManager } from './RelationshipManager';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import { existsSync, readFileSync } from 'fs';
+import { RelationshipManager } from './RelationshipManager';
 
 export interface RelationshipData {
   actor1Id: string;
@@ -115,7 +115,7 @@ export class FollowInitializer {
             actor2Id: rel.actor2Id,
           },
         },
-        update: {},
+        update: {        },
         create: {
           id: generateSnowflakeId(),
           actor1Id: rel.actor1Id,

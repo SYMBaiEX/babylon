@@ -104,7 +104,7 @@ export function MarketsPanel() {
   }
 
   return (
-    <div className="bg-sidebar rounded-lg p-4 flex-1 flex flex-col">
+    <div className="bg-sidebar rounded-2xl px-4 py-3 flex-1 flex flex-col">
       <h2 className="text-lg font-bold text-foreground mb-3 text-left">
         Markets
       </h2>
@@ -132,7 +132,7 @@ export function MarketsPanel() {
                   <div
                     key={`mover-${market.id}`}
                     onClick={() => handleMarketClick(market.id)}
-                    className="flex items-start gap-2 cursor-pointer hover:bg-muted/50 rounded-lg -ml-1.5 p-2 transition-colors duration-200"
+                    className="flex items-start gap-3 cursor-pointer hover:bg-muted/50 rounded-lg -ml-1.5 px-2 py-2 transition-colors duration-200"
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground leading-snug line-clamp-1">
@@ -241,7 +241,7 @@ export function MarketsPanel() {
                 <div
                   key={market.id}
                   onClick={() => handleMarketClick(market.id)}
-                  className="flex items-start gap-2.5 cursor-pointer hover:bg-muted/50 rounded-lg -ml-1.5 p-2 transition-colors duration-200"
+                    className="flex items-start gap-3 cursor-pointer hover:bg-muted/50 rounded-lg -ml-1.5 px-2 py-2 transition-colors duration-200"
                 >
                   <div className="flex-1 min-w-0">
                     {/* Market question */}

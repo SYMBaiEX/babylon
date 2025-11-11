@@ -423,6 +423,7 @@ export async function getReputationLeaderboard(limit = 100, minGames = 5) {
     gamesPlayed: agent.gamesPlayed,
     winRate: agent.winRate,
     normalizedPnL: agent.normalizedPnL,
+    lastActivityAt: agent.lastActivityAt,
   }))
 }
 

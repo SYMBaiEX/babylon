@@ -166,7 +166,7 @@ function MobileHeaderContent() {
       >
         <div className="flex items-center justify-between h-14 px-4">
           {/* Left: Profile Picture (when authenticated) or Login button */}
-          <div className="flex-shrink-0 w-8">
+          <div className="shrink-0 w-8">
             {authenticated && user ? (
               <button
                 onClick={() => setShowSideMenu(true)}
@@ -208,7 +208,7 @@ function MobileHeaderContent() {
           </div>
 
           {/* Right: Empty space for balance */}
-          <div className="flex-shrink-0 w-8" />
+          <div className="shrink-0 w-8" />
         </div>
       </header>
 
@@ -227,7 +227,7 @@ function MobileHeaderContent() {
             <Link 
               href="/profile"
               onClick={() => setShowSideMenu(false)}
-              className="flex items-center justify-between p-4 hover:bg-sidebar-accent transition-colors flex-shrink-0"
+              className="flex items-center justify-between p-4 hover:bg-sidebar-accent transition-colors shrink-0"
             >
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <Avatar 
@@ -237,7 +237,7 @@ function MobileHeaderContent() {
                   size="md"
                   src={user?.profileImageUrl || undefined}
                   imageUrl={user?.profileImageUrl || undefined}
-                  className="flex-shrink-0"
+                  className="shrink-0"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-sm text-foreground truncate">
@@ -253,7 +253,7 @@ function MobileHeaderContent() {
                   e.preventDefault()
                   setShowSideMenu(false)
                 }}
-                className="p-2 hover:bg-muted transition-colors flex-shrink-0"
+                className="p-2 hover:bg-muted transition-colors shrink-0"
               >
                 <X size={20} style={{ color: '#0066FF' }} />
               </button>
@@ -261,9 +261,9 @@ function MobileHeaderContent() {
 
             {/* Points Display */}
             {pointsData && (
-              <div className="px-4 py-4 bg-muted/30 flex-shrink-0">
+              <div className="px-4 py-4 bg-muted/30 shrink-0">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#0066FF' }}>
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: '#0066FF' }}>
                     <Coins className="w-5 h-5 text-white" />
                   </div>
                   <div className="flex-1">
@@ -300,7 +300,7 @@ function MobileHeaderContent() {
             </nav>
 
             {/* Bottom Section - Referral & Logout */}
-            <div className="flex-shrink-0 border-t border-border bg-sidebar pb-20">
+            <div className="shrink-0 border-t border-border bg-sidebar pb-20">
               {/* Referral Code Button */}
               {user?.referralCode && (
                 <button

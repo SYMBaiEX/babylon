@@ -138,7 +138,7 @@ export function PerpPositionsList({ positions, onPositionClosed }: PerpPositions
             {/* Liquidation Warning */}
             {isNearLiquidation && (
               <div className="flex items-center gap-2 p-2 bg-red-600/20 rounded mb-3">
-                <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
                 <p className="text-xs text-red-600 font-medium">
                   Near liquidation! {liquidationDistance.toFixed(2)}% away
                 </p>

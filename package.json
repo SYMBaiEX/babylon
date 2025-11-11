@@ -11,6 +11,7 @@
     "build": "prisma generate && NODE_OPTIONS='--max-old-space-size=8192' next build --webpack",
     "start": "next start",
     "lint": "eslint 'src/**/*.{ts,tsx}' --max-warnings=0",
+    "typecheck": "tsc --noEmit",
     "test": "bun test tests/unit/ tests/integration/ tests/markets-pnl-sharing.test.ts src/a2a/tests/ && playwright test tests/e2e && playwright test --config=synpress.config.ts",
     "test:unit": "bun test tests/integration/",
     "test:e2e": "playwright test tests/e2e",

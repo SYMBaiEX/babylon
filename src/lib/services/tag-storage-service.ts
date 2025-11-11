@@ -231,10 +231,10 @@ export async function getTagStatistics(
   return Array.from(tagStats.values())
     .filter((stats) => stats.postCount >= 3)
     .map((stats) => ({
-      tagId: stats.tag.id,
-      tagName: stats.tag.name,
-      tagDisplayName: stats.tag.displayName,
-      tagCategory: stats.tag.category,
+      tagId: stats.tag?.id ?? '',
+      tagName: stats.tag?.name ?? '',
+      tagDisplayName: stats.tag?.displayName ?? '',
+      tagCategory: stats.tag?.category ?? null,
       postCount: stats.postCount,
       recentPostCount: stats.recentPostCount,
       oldestPostDate: stats.oldestPostDate,

@@ -693,7 +693,7 @@ export function PositionDetailModal({ isOpen, onClose, type, data, userId, onSuc
 
                   {leverage > 50 && (
                     <div className="flex items-start gap-3 p-3 bg-yellow-500/15 rounded">
-                      <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+                      <AlertTriangle className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" />
                       <div className="text-sm">
                         <div className="font-bold text-yellow-600 mb-1">High Risk Position</div>
                         <p className="text-muted-foreground">

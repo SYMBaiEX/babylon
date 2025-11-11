@@ -5,7 +5,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PostCard } from '@/components/posts/PostCard'
-import { WidgetSidebar } from '@/components/shared/WidgetSidebar'
 import { ArrowLeft } from 'lucide-react'
 interface PostData {
   id: string
@@ -108,7 +107,7 @@ export default function TrendingTagPage() {
   return (
     <PageContainer noPadding className="flex flex-col min-h-screen w-full overflow-visible">
       {/* Mobile/Tablet: Header */}
-      <div className="sticky top-0 z-10 bg-background border-b border-border px-4 py-3 flex-shrink-0 lg:hidden">
+      <div className="sticky top-0 z-10 bg-background border-b border-border px-4 py-3 shrink-0 lg:hidden">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.back()}
@@ -139,7 +138,7 @@ export default function TrendingTagPage() {
         {/* Left: Feed area */}
         <div className="flex-1 flex flex-col min-w-0 border-l border-r border-[rgba(120,120,120,0.5)]">
           {/* Desktop Header */}
-          <div className="sticky top-0 z-10 bg-background shadow-sm flex-shrink-0">
+          <div className="sticky top-0 z-10 bg-background shadow-sm shrink-0">
             <div className="px-6 py-4">
               <div className="flex items-center gap-4">
                 <button
@@ -218,9 +217,6 @@ export default function TrendingTagPage() {
             )}
           </div>
         </div>
-
-        {/* Right: Widget sidebar - only on desktop (xl+) */}
-        <WidgetSidebar />
       </div>
 
       {/* Mobile/Tablet: Content */}

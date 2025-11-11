@@ -63,14 +63,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     // Try to find existing DM chat
     let existingChat = await db.chat.findUnique({
       where: { id: chatId },
-      select: {
-        id: true,
-        name: true,
-        isGroup: true,
-        gameId: true,
-        dayNumber: true,
-        createdAt: true,
-        updatedAt: true,
+      include: {
         ChatParticipant: {
           select: {
             userId: true,
@@ -86,6 +79,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           id: chatId,
           name: null, // DMs don't have names
           isGroup: false,
+          createdAt: new Date(),
           updatedAt: new Date(),
         },
       });

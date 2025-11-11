@@ -369,12 +369,12 @@ export default function MarketsPage() {
           {/* Main content */}
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-background shadow-sm flex-shrink-0">
-              <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
+            <div className="sticky top-0 z-10 bg-background shadow-sm shrink-0">
+              <div className="px-4 py-3 space-y-3">
                 {/* Tabs */}
                 <div className="flex gap-0 overflow-x-auto scrollbar-hide">
                   {['Dashboard', 'Perps', 'Predictions', 'Pools'].map((tab) => (
-                    <div key={tab} className="flex-1 px-3 sm:px-4 py-2.5">
+                    <div key={tab} className="flex-1 px-3 sm:px-4 py-3">
                       <Skeleton className="h-5 w-20 mx-auto" />
                     </div>
                   ))}
@@ -389,12 +389,12 @@ export default function MarketsPage() {
             </div>
 
             {/* Content - Dashboard layout */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-6">
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-6">
               {/* Two-column grid for trending sections */}
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 {/* Trending Perpetuals */}
-                <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border">
-                  <div className="flex items-center gap-2 mb-3">
+                <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
+                  <div className="flex items-center gap-3 mb-3">
                     <Skeleton className="h-5 w-5 rounded" />
                     <Skeleton className="h-6 w-40" />
                   </div>
@@ -417,8 +417,8 @@ export default function MarketsPage() {
                 </div>
 
                 {/* Hot Predictions */}
-                <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border">
-                  <div className="flex items-center gap-2 mb-3">
+                <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
+                  <div className="flex items-center gap-3 mb-3">
                     <Skeleton className="h-5 w-5 rounded" />
                     <Skeleton className="h-6 w-32" />
                   </div>
@@ -440,14 +440,14 @@ export default function MarketsPage() {
               </div>
               
               {/* Full-width section for pools */}
-              <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border">
-                <div className="flex items-center gap-2 mb-3">
+                <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
+              <div className="flex items-center gap-3 mb-3">
                   <Skeleton className="h-5 w-5 rounded" />
                   <Skeleton className="h-6 w-48" />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                   {[1, 2, 3, 4, 5, 6].map((i) => (
-                    <div key={i} className="p-4 rounded-lg bg-muted/30">
+                    <div key={i} className="px-4 py-3 rounded-lg bg-muted/30">
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex-1">
                           <Skeleton className="h-4 w-32 mb-1" />
@@ -467,10 +467,10 @@ export default function MarketsPage() {
           </div>
 
           {/* Widget Sidebar */}
-          <div className="w-96 flex-shrink-0 bg-sidebar p-4 space-y-4">
+          <div className="w-96 shrink-0 bg-sidebar px-4 py-3 space-y-4">
             {/* Market Overview Panel */}
-            <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border">
-              <div className="flex items-center gap-2 mb-3">
+                <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
+              <div className="flex items-center gap-3 mb-3">
                 <Skeleton className="h-5 w-5 rounded" />
                 <Skeleton className="h-6 w-32" />
               </div>
@@ -501,12 +501,12 @@ export default function MarketsPage() {
             </div>
             
             {/* Top Movers Panel */}
-            <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border">
+            <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
               <Skeleton className="h-6 w-28 mb-3" />
               
               {/* Top Gainers */}
               <div className="mb-4">
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-3 mb-3">
                   <Skeleton className="h-4 w-4 rounded" />
                   <Skeleton className="h-4 w-24" />
                 </div>
@@ -528,7 +528,7 @@ export default function MarketsPage() {
 
               {/* Top Losers */}
               <div>
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-3 mb-3">
                   <Skeleton className="h-4 w-4 rounded" />
                   <Skeleton className="h-4 w-24" />
                 </div>
@@ -554,8 +554,8 @@ export default function MarketsPage() {
         {/* Mobile/Tablet: Full width content */}
         <div className="flex xl:hidden flex-col flex-1 overflow-hidden">
           {/* Header */}
-          <div className="sticky top-0 z-10 bg-background shadow-sm flex-shrink-0">
-            <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
+          <div className="sticky top-0 z-10 bg-background shadow-sm shrink-0">
+            <div className="px-3 py-3 sm:px-4 sm:py-4 space-y-3 sm:space-y-4">
               {/* Tabs */}
               <div className="flex gap-0 overflow-x-auto scrollbar-hide">
                 {['Dashboard', 'Perps', 'Predictions', 'Pools'].map((tab) => (
@@ -594,8 +594,8 @@ export default function MarketsPage() {
         {/* Main content */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Header */}
-          <div className="sticky top-0 z-10 bg-background shadow-sm flex-shrink-0">
-            <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
+          <div className="sticky top-0 z-10 bg-background shadow-sm shrink-0">
+            <div className="px-3 py-3 sm:px-4 sm:py-4 space-y-3 sm:space-y-4">
           {/* Tabs */}
           <div role="tablist" aria-label="Market sections" className="flex gap-0 overflow-x-auto scrollbar-hide">
             <button
@@ -604,7 +604,7 @@ export default function MarketsPage() {
               aria-controls="dashboard-panel"
               onClick={() => setActiveTab('dashboard')}
               className={cn(
-                'flex-1 px-3 sm:px-4 py-2.5 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
+                'flex-1 px-3 sm:px-4 py-3 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
                 activeTab === 'dashboard'
                   ? 'text-white font-bold'
                   : 'text-muted-foreground hover:text-foreground'
@@ -618,7 +618,7 @@ export default function MarketsPage() {
               aria-controls="futures-panel"
               onClick={() => setActiveTab('futures')}
               className={cn(
-                'flex-1 px-3 sm:px-4 py-2.5 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
+                'flex-1 px-3 sm:px-4 py-3 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
                 activeTab === 'futures'
                   ? 'text-white font-bold'
                   : 'text-muted-foreground hover:text-foreground'
@@ -632,7 +632,7 @@ export default function MarketsPage() {
               aria-controls="predictions-panel"
               onClick={() => setActiveTab('predictions')}
               className={cn(
-                'flex-1 px-3 sm:px-4 py-2.5 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
+                'flex-1 px-3 sm:px-4 py-3 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
                 activeTab === 'predictions'
                   ? 'text-white font-bold'
                   : 'text-muted-foreground hover:text-foreground'
@@ -646,7 +646,7 @@ export default function MarketsPage() {
               aria-controls="pools-panel"
               onClick={() => setActiveTab('pools')}
               className={cn(
-                'flex-1 px-3 sm:px-4 py-2.5 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
+                'flex-1 px-3 sm:px-4 py-3 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
                 activeTab === 'pools'
                   ? 'text-white font-bold'
                   : 'text-muted-foreground hover:text-foreground'
@@ -690,7 +690,7 @@ export default function MarketsPage() {
           {/* Content */}
           <div className="flex-1 overflow-y-auto">
         {activeTab === 'dashboard' ? (
-          <div id="dashboard-panel" role="tabpanel" aria-labelledby="dashboard-tab" className="p-4 space-y-6">
+          <div id="dashboard-panel" role="tabpanel" aria-labelledby="dashboard-tab" className="px-4 py-3 space-y-6">
             {authenticated && (
               <PortfolioPnLCard
                 data={portfolioPnL}
@@ -704,8 +704,8 @@ export default function MarketsPage() {
 
             {/* Positions Overview - Only show if authenticated and has positions */}
             {authenticated && (perpPositions.length > 0 || predictionPositions.length > 0) && (
-              <div className="bg-gradient-to-br from-[#0066FF]/10 to-purple-500/10 rounded-lg p-4 border border-[#0066FF]/20">
-                <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+              <div className="bg-gradient-to-br from-[#0066FF]/10 to-purple-500/10 rounded-lg px-4 py-3 border border-[#0066FF]/20">
+                <h2 className="text-lg font-bold mb-3 flex items-center gap-3">
                   <div className="w-1 h-5 bg-[#0066FF] rounded-full" />
                   Your Positions
                 </h2>
@@ -731,8 +731,8 @@ export default function MarketsPage() {
             {/* Market Sections Grid */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               {/* Trending Perps */}
-              <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border">
-                <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+              <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
+                <h2 className="text-lg font-bold mb-3 flex items-center gap-3">
                   <TrendingUp className="w-5 h-5 text-green-600" />
                   Trending Perpetuals
                 </h2>
@@ -771,8 +771,8 @@ export default function MarketsPage() {
               </div>
 
               {/* Top Predictions */}
-              <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border">
-                <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+              <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
+                <h2 className="text-lg font-bold mb-3 flex items-center gap-3">
                   <TrendingUp className="w-5 h-5 text-purple-600" />
                   Hot Predictions
                 </h2>
@@ -817,8 +817,8 @@ export default function MarketsPage() {
 
             {/* Top Performing Pools - Full width */}
             {topPools.length > 0 && (
-              <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border">
-                <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+              <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
+                <h2 className="text-lg font-bold mb-3 flex items-center gap-3">
                   <TrendingUp className="w-5 h-5 text-orange-600" />
                   Top Performing Pools
                 </h2>
@@ -827,7 +827,7 @@ export default function MarketsPage() {
                       <button
                         key={`top-pool-${pool.id}-${idx}`}
                         onClick={() => router.push(`/markets/pools/${pool.id}`)}
-                        className="p-4 rounded-lg text-left bg-muted/30 hover:bg-muted transition-all cursor-pointer border border-transparent hover:border-orange-500/30"
+                        className="px-4 py-3 rounded-lg text-left bg-muted/30 hover:bg-muted transition-all cursor-pointer border border-transparent hover:border-orange-500/30"
                       >
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex-1">
@@ -870,7 +870,7 @@ export default function MarketsPage() {
           </div>
         ) : activeTab === 'pools' ? (
           <PoolsErrorBoundary>
-            <div id="pools-panel" role="tabpanel" aria-labelledby="pools-tab" className="p-4">
+            <div id="pools-panel" role="tabpanel" aria-labelledby="pools-tab" className="px-4 py-3">
               {/* Category P&L Card */}
               {authenticated && poolPnLData && (
                 <div className="mb-6">
@@ -900,7 +900,7 @@ export default function MarketsPage() {
             </div>
           </PoolsErrorBoundary>
         ) : activeTab === 'futures' ? (
-          <div id="futures-panel" role="tabpanel" aria-labelledby="futures-tab" className="p-4">
+          <div id="futures-panel" role="tabpanel" aria-labelledby="futures-tab" className="px-4 py-3">
             {/* Category P&L Card */}
             {authenticated && perpPnLData && (
               <div className="mb-6">
@@ -962,7 +962,7 @@ export default function MarketsPage() {
             </div>
           </div>
         ) : (
-          <div id="predictions-panel" role="tabpanel" aria-labelledby="predictions-tab" className="p-4">
+          <div id="predictions-panel" role="tabpanel" aria-labelledby="predictions-tab" className="px-4 py-3">
             {/* Category P&L Card */}
             {authenticated && predictionPnLData && (
               <div className="mb-6">
@@ -1125,7 +1125,7 @@ export default function MarketsPage() {
           </div>
 
           {!authenticated && activeTab !== 'dashboard' && (
-            <div className="shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] bg-muted/30 p-4 text-center">
+            <div className="shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] bg-muted/30 px-4 py-3 text-center">
               <p className="text-sm text-muted-foreground mb-3">Log in to trade</p>
               <button
                 onClick={login}
@@ -1168,7 +1168,7 @@ export default function MarketsPage() {
       {/* Mobile/Tablet: Full width content */}
       <div className="flex xl:hidden flex-col flex-1 overflow-hidden">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-background shadow-sm flex-shrink-0">
+        <div className="sticky top-0 z-10 bg-background shadow-sm shrink-0">
           <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
             {/* Tabs */}
             <div role="tablist" aria-label="Market sections" className="flex gap-0 overflow-x-auto scrollbar-hide">
@@ -1178,7 +1178,7 @@ export default function MarketsPage() {
                 aria-controls="dashboard-panel"
                 onClick={() => setActiveTab('dashboard')}
                 className={cn(
-                  'flex-1 px-3 sm:px-4 py-2.5 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
+                  'flex-1 px-3 sm:px-4 py-3 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
                   activeTab === 'dashboard'
                     ? 'text-white font-bold'
                     : 'text-muted-foreground hover:text-foreground'
@@ -1192,7 +1192,7 @@ export default function MarketsPage() {
                 aria-controls="futures-panel"
                 onClick={() => setActiveTab('futures')}
                 className={cn(
-                  'flex-1 px-3 sm:px-4 py-2.5 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
+                  'flex-1 px-3 sm:px-4 py-3 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
                   activeTab === 'futures'
                     ? 'text-white font-bold'
                     : 'text-muted-foreground hover:text-foreground'
@@ -1206,7 +1206,7 @@ export default function MarketsPage() {
                 aria-controls="predictions-panel"
                 onClick={() => setActiveTab('predictions')}
                 className={cn(
-                  'flex-1 px-3 sm:px-4 py-2.5 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
+                  'flex-1 px-3 sm:px-4 py-3 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
                   activeTab === 'predictions'
                     ? 'text-white font-bold'
                     : 'text-muted-foreground hover:text-foreground'
@@ -1220,7 +1220,7 @@ export default function MarketsPage() {
                 aria-controls="pools-panel"
                 onClick={() => setActiveTab('pools')}
                 className={cn(
-                  'flex-1 px-3 sm:px-4 py-2.5 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
+                  'flex-1 px-3 sm:px-4 py-3 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
                   activeTab === 'pools'
                     ? 'text-white font-bold'
                     : 'text-muted-foreground hover:text-foreground'
@@ -1264,7 +1264,7 @@ export default function MarketsPage() {
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
           {activeTab === 'dashboard' ? (
-            <div id="dashboard-panel" role="tabpanel" aria-labelledby="dashboard-tab" className="p-4 space-y-6">
+            <div id="dashboard-panel" role="tabpanel" aria-labelledby="dashboard-tab" className="px-4 py-3 space-y-6">
               {authenticated && (
                 <PortfolioPnLCard
                   data={portfolioPnL}
@@ -1279,7 +1279,7 @@ export default function MarketsPage() {
               {/* Positions Overview - Only show if authenticated and has positions */}
               {authenticated && (perpPositions.length > 0 || predictionPositions.length > 0) && (
                 <div className="bg-gradient-to-br from-[#0066FF]/10 to-purple-500/10 rounded-lg p-4 border border-[#0066FF]/20">
-                  <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+                  <h2 className="text-lg font-bold mb-3 flex items-center gap-3">
                     <div className="w-1 h-5 bg-[#0066FF] rounded-full" />
                     Your Positions
                   </h2>
@@ -1303,8 +1303,8 @@ export default function MarketsPage() {
               )}
 
               {/* Trending Perps */}
-              <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border">
-                <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+              <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
+                <h2 className="text-lg font-bold mb-3 flex items-center gap-3">
                   <TrendingUp className="w-5 h-5 text-green-600" />
                   Trending Perpetuals
                 </h2>
@@ -1343,8 +1343,8 @@ export default function MarketsPage() {
               </div>
 
               {/* Top Predictions */}
-              <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border">
-                <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+              <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
+                <h2 className="text-lg font-bold mb-3 flex items-center gap-3">
                   <TrendingUp className="w-5 h-5 text-purple-600" />
                   Hot Predictions
                 </h2>
@@ -1388,8 +1388,8 @@ export default function MarketsPage() {
 
               {/* Top Performing Pools */}
               {topPools.length > 0 && (
-                <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border">
-                  <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+                <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
+                  <h2 className="text-lg font-bold mb-3 flex items-center gap-3">
                     <TrendingUp className="w-5 h-5 text-orange-600" />
                     Top Performing Pools
                   </h2>
@@ -1441,7 +1441,7 @@ export default function MarketsPage() {
             </div>
           ) : activeTab === 'pools' ? (
             <PoolsErrorBoundary>
-              <div id="pools-panel" role="tabpanel" aria-labelledby="pools-tab" className="p-4">
+              <div id="pools-panel" role="tabpanel" aria-labelledby="pools-tab" className="px-4 py-3">
                 {/* Category P&L Card */}
                 {authenticated && poolPnLData && (
                   <div className="mb-6">
@@ -1471,7 +1471,7 @@ export default function MarketsPage() {
               </div>
             </PoolsErrorBoundary>
           ) : activeTab === 'futures' ? (
-            <div id="futures-panel" role="tabpanel" aria-labelledby="futures-tab" className="p-4">
+            <div id="futures-panel" role="tabpanel" aria-labelledby="futures-tab" className="px-4 py-3">
               {/* Category P&L Card */}
               {authenticated && perpPnLData && (
                 <div className="mb-6">
@@ -1533,7 +1533,7 @@ export default function MarketsPage() {
               </div>
             </div>
           ) : (
-            <div id="predictions-panel" role="tabpanel" aria-labelledby="predictions-tab" className="p-4">
+            <div id="predictions-panel" role="tabpanel" aria-labelledby="predictions-tab" className="px-4 py-3">
               {/* Category P&L Card */}
               {authenticated && predictionPnLData && (
                 <div className="mb-6">
@@ -1567,7 +1567,7 @@ export default function MarketsPage() {
                   <button
                     onClick={() => setPredictionSort('trending')}
                     className={cn(
-                      "px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0",
+                      "px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap shrink-0",
                       predictionSort === 'trending'
                         ? "bg-[#0066FF] text-white"
                         : "bg-muted/50 text-muted-foreground hover:bg-muted"
@@ -1579,7 +1579,7 @@ export default function MarketsPage() {
                   <button
                     onClick={() => setPredictionSort('volume')}
                     className={cn(
-                      "px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0",
+                      "px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap shrink-0",
                       predictionSort === 'volume'
                         ? "bg-[#0066FF] text-white"
                         : "bg-muted/50 text-muted-foreground hover:bg-muted"
@@ -1591,7 +1591,7 @@ export default function MarketsPage() {
                   <button
                     onClick={() => setPredictionSort('newest')}
                     className={cn(
-                      "px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0",
+                      "px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap shrink-0",
                       predictionSort === 'newest'
                         ? "bg-[#0066FF] text-white"
                         : "bg-muted/50 text-muted-foreground hover:bg-muted"
@@ -1602,7 +1602,7 @@ export default function MarketsPage() {
                   <button
                     onClick={() => setPredictionSort('ending-soon')}
                     className={cn(
-                      "px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap flex-shrink-0",
+                      "px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap shrink-0",
                       predictionSort === 'ending-soon'
                         ? "bg-[#0066FF] text-white"
                         : "bg-muted/50 text-muted-foreground hover:bg-muted"
