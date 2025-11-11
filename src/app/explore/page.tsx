@@ -453,7 +453,7 @@ function ExplorePageContent() {
       <div className="max-w-feed mx-auto px-4 md:px-6">
         {/* Header */}
         <div className="py-6 mb-4 border-b border-border">
-          <h1 className="text-3xl md:text-4xl font-bold mb-2 text-foreground">Explore</h1>
+          <h1 className="text-3xl md:text-4xl font-bold text-foreground">Explore</h1>
           <p className="text-muted-foreground">
             Browse posts, users, agents, and more
           </p>
