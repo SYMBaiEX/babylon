@@ -303,13 +303,13 @@ function FeedPageContent() {
   // Choose data source: always use API posts for latest tab (GameEngine persists to database)
   // For following tab, use followingPosts
   // Only use timelinePosts if we have no API posts (fallback for viewer mode)
-  const displayedPosts = (tab === 'following') 
+  const apiPosts = (tab === 'following') 
     ? followingPosts 
     : (posts.length > 0 ? posts : (startTime && allGames.length > 0 ? timelinePosts : posts))
   
   // Combine local posts (optimistic UI) with API posts, deduplicating by ID
   const basePosts = useMemo(() => {
-    if (tab !== 'latest') return displayedPosts
+    if (tab !== 'latest') return apiPosts
     
     // Efficient deduplication using Map (O(n) instead of O(n²))
     // Local posts come first to ensure they appear at the top
@@ -319,7 +319,7 @@ function FeedPageContent() {
     localPosts.forEach(post => postMap.set(post.id, post))
     
     // Add API posts (will not override local posts with same ID)
-    displayedPosts.forEach(post => {
+    apiPosts.forEach(post => {
       if (!postMap.has(post.id)) {
         postMap.set(post.id, post)
       }
@@ -331,7 +331,7 @@ function FeedPageContent() {
       const bTime = new Date(b.timestamp ?? 0).getTime()
       return bTime - aTime
     })
-  }, [tab, localPosts, displayedPosts])
+  }, [tab, localPosts, apiPosts])
 
   // Removed early loading return to prevent layout shifts - loading state is handled inline
 
@@ -376,7 +376,7 @@ function FeedPageContent() {
               <div className="w-full max-w-[700px] mx-auto px-6">
                 <FeedSkeleton count={6} />
               </div>
-            ) : displayedPosts.length === 0 && tab === 'latest' ? (
+            ) : basePosts.length === 0 && tab === 'latest' ? (
                 // No posts yet
                 <div className="w-full p-4 sm:p-8 text-center">
                   <div className="text-muted-foreground py-8 sm:py-12">
@@ -390,7 +390,7 @@ function FeedPageContent() {
                     </div>
                   </div>
                 </div>
-              ) : displayedPosts.length === 0 && tab === 'following' ? (
+              ) : basePosts.length === 0 && tab === 'following' ? (
                 // Following tab with no followed profiles
                 <div className="w-full p-4 sm:p-8 text-center">
                   <div className="text-muted-foreground py-8 sm:py-12">
@@ -402,7 +402,7 @@ function FeedPageContent() {
                     </p>
                   </div>
                 </div>
-              ) : displayedPosts.length === 0 ? (
+              ) : basePosts.length === 0 ? (
                 // Game loaded but no visible posts yet
                 <div className="w-full p-4 sm:p-8 text-center">
                 <div className="text-muted-foreground py-8 sm:py-12">
@@ -415,7 +415,7 @@ function FeedPageContent() {
               ) : (
               // Show posts - centered container
               <div className="w-full px-6 space-y-0 max-w-[700px] mx-auto">
-                {displayedPosts.map((post, i: number) => {
+                {basePosts.map((post, i: number) => {
                     // Handle both FeedPost (from game store) and API post shapes
                     // API posts have authorId, FeedPost has author (both are author IDs)
                     const authorId = ('authorId' in post ? post.authorId : post.author) || ''
@@ -498,7 +498,7 @@ function FeedPageContent() {
             <div className="w-full px-4">
               <FeedSkeleton count={5} />
             </div>
-            ) : displayedPosts.length === 0 && tab === 'latest' ? (
+            ) : basePosts.length === 0 && tab === 'latest' ? (
             // No posts yet
             <div className="w-full p-4 sm:p-8 text-center">
               <div className="text-muted-foreground py-8 sm:py-12">
@@ -512,7 +512,7 @@ function FeedPageContent() {
                 </div>
               </div>
             </div>
-          ) : displayedPosts.length === 0 && tab === 'following' ? (
+          ) : basePosts.length === 0 && tab === 'following' ? (
             // Following tab with no followed profiles
             <div className="w-full p-4 sm:p-8 text-center">
               <div className="text-muted-foreground py-8 sm:py-12">
@@ -524,7 +524,7 @@ function FeedPageContent() {
                 </p>
               </div>
             </div>
-          ) : displayedPosts.length === 0 ? (
+          ) : basePosts.length === 0 ? (
             // Game loaded but no visible posts yet
             <div className="w-full p-4 sm:p-8 text-center">
               <div className="text-muted-foreground py-8 sm:py-12">
@@ -537,7 +537,7 @@ function FeedPageContent() {
           ) : (
             // Show posts
             <div className="w-full px-4">
-              {displayedPosts.map((post, i: number) => {
+              {basePosts.map((post, i: number) => {
               // Handle both FeedPost (from game store) and API post shapes
               // API posts have authorId, FeedPost has author (both are author IDs)
               const authorId = ('authorId' in post ? post.authorId : post.author) || ''
