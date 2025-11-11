@@ -56,7 +56,7 @@ plugin-babylon/
 bun add @elizaos/eliza @elizaos/adapter-sqlite better-sqlite3
 
 # Clone the Babylon repository
-git clone https://github.com/yourusername/babylon.git
+git clone https://github.com/elizaos/babylon.git
 cd babylon
 bun install
 ```
@@ -322,5 +322,5 @@ MIT
 ## Support
 
 For issues and questions:
-- GitHub Issues: [https://github.com/yourusername/babylon/issues](https://github.com/yourusername/babylon/issues)
-- Documentation: [https://github.com/yourusername/babylon/docs](https://github.com/yourusername/babylon/docs)
+- GitHub Issues: [https://github.com/elizaos/babylon/issues](https://github.com/elizaos/babylon/issues)
+- Documentation: [https://github.com/elizaos/babylon/docs](https://github.com/elizaos/babylon/docs)

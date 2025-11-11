@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "postinstall": "cd docs && bun install",
+    "docs:dev": "cd docs && bun run dev",
     "dev": "bun run scripts/pre-dev.ts && concurrently -n \"next,daemon\" -c \"cyan,magenta\" \"next dev\" \"bun run daemon\"",
     "dev:skip-check": "concurrently -n \"next,daemon\" -c \"cyan,magenta\" \"next dev\" \"bun run daemon\"",
     "dev:next-only": "bun run scripts/pre-dev.ts && next dev",

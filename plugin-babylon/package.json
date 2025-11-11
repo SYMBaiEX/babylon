@@ -21,12 +21,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/babylon.git",
+    "url": "https://github.com/elizaos/babylon.git",
     "directory": "plugin-babylon"
   },
-  "homepage": "https://github.com/yourusername/babylon/tree/main/plugin-babylon#readme",
+  "homepage": "https://github.com/elizaos/babylon/tree/main/plugin-babylon#readme",
   "bugs": {
-    "url": "https://github.com/yourusername/babylon/issues"
+    "url": "https://github.com/elizaos/babylon/issues"
   },
   "exports": {
     "./package.json": "./package.json",

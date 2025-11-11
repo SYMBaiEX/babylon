@@ -388,124 +388,6 @@ export async function executeGameTick(): Promise<GameTickResult> {
 }
 
 /**
- * Generate baseline introductory posts on first tick
- * Creates general commentary and news articles when no questions exist yet
- */
-async function generateBaselinePosts(
-  actors: Array<{ id: string; name: string; description: string | null }>,
-  organizations: Array<{ id: string; name: string | null; description: string | null }>,
-  timestamp: Date,
-  llm: BabylonLLMClient,
-  deadlineMs: number
-): Promise<{ posts: number; articles: number }> {
-  let postsCreated = 0;
-  let articlesCreated = 0;
-  
-  const baselineTopics = [
-    "the current state of prediction markets",
-    "upcoming trends in tech and politics",
-    "volatility in crypto markets",
-    "major developments to watch this week",
-    "the state of global markets"
-  ];
-  
-  // Calculate timestamp spread
-  const tickDurationMs = 60000; // 1 minute
-  const timeSlotMs = tickDurationMs / 10; // 10 posts total
-  
-  // Generate 5 NPC posts with general commentary
-  for (let i = 0; i < Math.min(5, actors.length); i++) {
-    if (Date.now() > deadlineMs) break;
-    
-    const actor = actors[i];
-    if (!actor || !actor.name) continue;
-    
-    const topic = baselineTopics[i % baselineTopics.length];
-    
-    try {
-      const slotOffset = i * timeSlotMs;
-      const randomJitter = Math.random() * timeSlotMs * 0.8;
-      const timestampWithOffset = new Date(timestamp.getTime() + slotOffset + randomJitter);
-      
-      const prompt = `You are ${actor.name}. Write a brief social media post (max 200 chars) sharing your thoughts about ${topic}. Be opinionated and entertaining. Return your response as JSON in this exact format:
-{
-  "post": "your post content here"
-}`;
-      
-      const response = await llm.generateJSON<{ post: string }>(
-        prompt,
-        { properties: { post: { type: 'string' } }, required: ['post'] },
-        { temperature: 0.9, maxTokens: 200 }
-      );
-      
-      if (!response.post) continue;
-      
-      await db.createPostWithAllFields({
-        id: generateSnowflakeId(),
-        content: response.post,
-        authorId: actor.id,
-        gameId: 'continuous',
-        dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
-        timestamp: timestampWithOffset,
-      });
-      postsCreated++;
-      logger.debug('Created baseline NPC post', { actor: actor.name }, 'GameTick');
-    } catch (error) {
-      logger.warn('Failed to generate baseline post', { error, actorId: actor.id }, 'GameTick');
-    }
-  }
-  
-  // Generate 5 org articles with general news
-  for (let i = 0; i < Math.min(5, organizations.length); i++) {
-    if (Date.now() > deadlineMs) break;
-    
-    const org = organizations[i];
-    if (!org || !org.name) continue;
-    
-    const topic = baselineTopics[i % baselineTopics.length];
-    
-    try {
-      const slotOffset = (i + 5) * timeSlotMs;
-      const randomJitter = Math.random() * timeSlotMs * 0.8;
-      const timestampWithOffset = new Date(timestamp.getTime() + slotOffset + randomJitter);
-      
-      const prompt = `You are ${org.name}, a news organization. Write a brief news headline and summary (max 300 chars total) about ${topic}. Be professional and informative. Return your response as JSON in this exact format:
-{
-  "title": "news headline here",
-  "summary": "brief summary here"
-}`;
-      
-      const response = await llm.generateJSON<{ title: string; summary: string }>(
-        prompt,
-        { properties: { title: { type: 'string' }, summary: { type: 'string' } }, required: ['title', 'summary'] },
-        { temperature: 0.7, maxTokens: 300 }
-      );
-      
-      if (!response.title || !response.summary) continue;
-      
-      await db.createPostWithAllFields({
-        id: generateSnowflakeId(),
-        type: 'article',
-        content: response.summary,
-        articleTitle: response.title,
-        authorId: org.id,
-        gameId: 'continuous',
-        dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
-        timestamp: timestampWithOffset,
-      });
-      postsCreated++;
-      articlesCreated++;
-      logger.debug('Created baseline org article', { org: org.name }, 'GameTick');
-    } catch (error) {
-      logger.warn('Failed to generate baseline article', { error, orgId: org.id }, 'GameTick');
-    }
-  }
-  
-  logger.info('Baseline content generation complete', { postsCreated, articlesCreated }, 'GameTick');
-  return { posts: postsCreated, articles: articlesCreated };
-}
-
-/**
  * Generate mixed posts from both NPCs and organizations
  * This ensures posts are interleaved rather than chunked by type
  */
@@ -515,12 +397,14 @@ async function generateMixedPosts(
   llm: BabylonLLMClient,
   deadlineMs: number
 ): Promise<{ posts: number; articles: number }> {
-  // On first tick with no questions, generate some baseline content
-  const isFirstTick = questions.length === 0;
-  
   const postsToGenerate = 8; // Mix of NPC posts and org articles
   let postsCreated = 0;
   let articlesCreated = 0;
+  
+  if (questions.length === 0) {
+    logger.warn('No questions available for post generation', {}, 'GameTick');
+    return { posts: 0, articles: 0 };
+  }
 
   // Get actors (NPCs) and organizations in parallel
   const [actors, organizations] = await Promise.all([
