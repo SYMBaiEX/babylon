@@ -310,12 +310,35 @@ export function OnboardingProvider({
           'OnboardingProvider'
         );
 
-        const txHash = await registerAgent(profile);
-        logger.info(
-          'Client-submitted on-chain registration transaction',
-          { txHash },
-          'OnboardingProvider'
-        );
+        // Check if wallet is already registered before submitting transaction
+        // If already registered, the server will handle syncing the state
+        let txHash: string | undefined;
+        try {
+          txHash = await registerAgent(profile);
+          logger.info(
+            'Client-submitted on-chain registration transaction',
+            { txHash },
+            'OnboardingProvider'
+          );
+        } catch (txError: unknown) {
+          const errorMessage = String(
+            txError instanceof Error ? txError.message : txError
+          ).toLowerCase();
+          // If the error is "already registered", don't throw - let the server handle it
+          if (errorMessage.includes('already registered')) {
+            logger.info(
+              'Wallet already registered on-chain, syncing with server',
+              { address: smartWalletAddress },
+              'OnboardingProvider'
+            );
+            // Call the endpoint without a txHash - server will detect existing registration
+            const data = await callEndpoint(body);
+            return data;
+          }
+          // For other errors, re-throw
+          throw txError;
+        }
+        
         const data = await callEndpoint({
           ...body,
           txHash,

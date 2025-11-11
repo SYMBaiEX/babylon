@@ -99,6 +99,9 @@ async function populateManual() {
     const now = new Date()
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
+    // Convert dates to ISO strings for Prisma Accelerate compatibility
+    const weekAgoStr = weekAgo.toISOString()
+
     // Get tag counts
     const tagCounts = await prisma.$queryRaw<Array<{
       tagId: string
@@ -109,7 +112,7 @@ async function populateManual() {
         COUNT(*) as count
       FROM "PostTag" pt
       INNER JOIN "Post" p ON p.id = pt."postId"
-      WHERE p.timestamp >= ${weekAgo}
+      WHERE p.timestamp >= ${weekAgoStr}::timestamp
       GROUP BY "tagId"
       ORDER BY count DESC
       LIMIT 10

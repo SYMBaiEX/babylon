@@ -5,7 +5,6 @@
  */
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
 
 import type { GeneratedTag } from './tag-generation-service';
 
@@ -178,42 +177,66 @@ export async function getTagStatistics(
   // Calculate 24 hours ago from window end
   const last24Hours = new Date(windowEnd.getTime() - 24 * 60 * 60 * 1000);
 
-  // Get tag counts within the window
-  const result = await prisma.$queryRaw<
-    Array<{
-      tagId: string;
-      tagName: string;
-      tagDisplayName: string;
-      tagCategory: string | null;
-      postCount: bigint;
-      recentPostCount: bigint;
-      oldestPostDate: Date;
-      newestPostDate: Date;
-    }>
-  >(Prisma.sql`
-    SELECT 
-      t.id as "tagId",
-      t.name as "tagName",
-      t."displayName" as "tagDisplayName",
-      t.category as "tagCategory",
-      COUNT(pt.id) as "postCount",
-      COUNT(CASE WHEN pt."createdAt" >= ${last24Hours} THEN 1 END) as "recentPostCount",
-      MIN(pt."createdAt") as "oldestPostDate",
-      MAX(pt."createdAt") as "newestPostDate"
-    FROM "Tag" t
-    INNER JOIN "PostTag" pt ON pt."tagId" = t.id
-    WHERE pt."createdAt" >= ${windowStart}
-      AND pt."createdAt" <= ${windowEnd}
-    GROUP BY t.id, t.name, t."displayName", t.category
-    HAVING COUNT(pt.id) >= 3
-    ORDER BY "postCount" DESC
-  `);
+  // Get all post tags within the window with their tag info
+  // Using Prisma queries instead of raw SQL for Prisma Accelerate compatibility
+  const postTags = await prisma.postTag.findMany({
+    where: {
+      createdAt: {
+        gte: windowStart,
+        lte: windowEnd,
+      },
+    },
+    include: {
+      tag: true,
+    },
+    orderBy: {
+      createdAt: 'asc',
+    },
+  });
 
-  return result.map((row) => ({
-    ...row,
-    postCount: Number(row.postCount),
-    recentPostCount: Number(row.recentPostCount),
-  }));
+  // Aggregate manually (Prisma Accelerate doesn't support complex raw SQL)
+  const tagStats = new Map<string, {
+    tag: { id: string; name: string; displayName: string; category: string | null };
+    postCount: number;
+    recentPostCount: number;
+    oldestPostDate: Date;
+    newestPostDate: Date;
+  }>();
+
+  postTags.forEach((pt) => {
+    const existing = tagStats.get(pt.tagId);
+    const isRecent = pt.createdAt >= last24Hours;
+
+    if (existing) {
+      existing.postCount++;
+      if (isRecent) existing.recentPostCount++;
+      if (pt.createdAt < existing.oldestPostDate) existing.oldestPostDate = pt.createdAt;
+      if (pt.createdAt > existing.newestPostDate) existing.newestPostDate = pt.createdAt;
+    } else {
+      tagStats.set(pt.tagId, {
+        tag: pt.tag,
+        postCount: 1,
+        recentPostCount: isRecent ? 1 : 0,
+        oldestPostDate: pt.createdAt,
+        newestPostDate: pt.createdAt,
+      });
+    }
+  });
+
+  // Filter tags with at least 3 posts and convert to result format
+  return Array.from(tagStats.values())
+    .filter((stats) => stats.postCount >= 3)
+    .map((stats) => ({
+      tagId: stats.tag.id,
+      tagName: stats.tag.name,
+      tagDisplayName: stats.tag.displayName,
+      tagCategory: stats.tag.category,
+      postCount: stats.postCount,
+      recentPostCount: stats.recentPostCount,
+      oldestPostDate: stats.oldestPostDate,
+      newestPostDate: stats.newestPostDate,
+    }))
+    .sort((a, b) => b.postCount - a.postCount);
 }
 
 /**

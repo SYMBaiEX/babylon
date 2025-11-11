@@ -10,23 +10,7 @@ import { logger } from '@/lib/logger';
 
 export async function GET(_request: NextRequest) {
   try {
-    // Check database connection first
-    try {
-      await prisma.$executeRawUnsafe('SELECT 1');
-    } catch (dbError) {
-      logger.error('Database connection failed:', dbError, 'Debug');
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Database connection failed',
-          message: 'Cannot connect to database. Check DATABASE_URL environment variable.',
-          details: dbError instanceof Error ? dbError.message : String(dbError),
-        },
-        { status: 503 }
-      );
-    }
-
-    // Get or create the continuous game
+    // Get or create the continuous game (this will also verify DB connection)
     let game = await prisma.game.findFirst({
       where: { isContinuous: true },
     });
@@ -71,13 +55,23 @@ export async function GET(_request: NextRequest) {
     });
   } catch (error) {
     logger.error('Error starting game:', error, 'Debug');
+    
+    // Check if it's a database connection error
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isDbError = errorMessage.includes('connect') || 
+                      errorMessage.includes('database') || 
+                      errorMessage.includes('ECONNREFUSED');
+    
     return NextResponse.json(
       {
         success: false,
-        error: 'Failed to start game',
-        message: error instanceof Error ? error.message : String(error),
+        error: isDbError ? 'Database connection failed' : 'Failed to start game',
+        message: isDbError 
+          ? 'Cannot connect to database. Check DATABASE_URL environment variable.' 
+          : errorMessage,
+        details: errorMessage,
       },
-      { status: 500 }
+      { status: isDbError ? 503 : 500 }
     );
   }
 }

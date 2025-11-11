@@ -40,24 +40,7 @@ if (!existsSync(envPath)) {
   let envContent = readFileSync(envPath, 'utf-8');
   let needsUpdate = false;
   
-  // Check if using Prisma Accelerate (prisma:// protocol)
-  const hasPrismaAccelerate = envContent.includes('DATABASE_URL="prisma://') || envContent.includes("DATABASE_URL='prisma://");
-  
-  if (hasPrismaAccelerate) {
-    logger.info('Detected Prisma Accelerate URL in .env', undefined, 'Script');
-    logger.info('For local development, we need to use direct database connection', undefined, 'Script');
-    
-    // Replace Prisma Accelerate URL with local connection for development
-    envContent = envContent.replace(
-      /DATABASE_URL="prisma:\/\/[^"]+"/g,
-      `DATABASE_URL="${LOCAL_DATABASE_URL}"`
-    );
-    envContent = envContent.replace(
-      /DATABASE_URL='prisma:\/\/[^']+'/g,
-      `DATABASE_URL='${LOCAL_DATABASE_URL}'`
-    );
-    needsUpdate = true;
-  } else if (!envContent.includes('DATABASE_URL=')) {
+  if (!envContent.includes('DATABASE_URL=')) {
     logger.info('Adding DATABASE_URL to .env...', undefined, 'Script');
     envContent += `\nDATABASE_URL="${LOCAL_DATABASE_URL}"\n`;
     needsUpdate = true;

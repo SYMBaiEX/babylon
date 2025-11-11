@@ -606,14 +606,26 @@ export function OnboardingModal({
                   <p className="text-lg font-semibold">Registration Error</p>
                   <p className="text-sm text-red-500 max-w-md">{error}</p>
                   <div className="flex flex-col gap-2 mt-4">
-                    <div className="text-xs text-muted-foreground max-w-md">
-                      <p className="font-medium mb-2">Common issues:</p>
-                      <ul className="text-left list-disc list-inside space-y-1">
-                        <li>Transaction rejected in wallet</li>
-                        <li>Insufficient gas on Base Sepolia</li>
-                        <li>Network connectivity issues</li>
-                      </ul>
-                    </div>
+                    {!error.toLowerCase().includes('already registered') && (
+                      <div className="text-xs text-muted-foreground max-w-md">
+                        <p className="font-medium mb-2">Common issues:</p>
+                        <ul className="text-left list-disc list-inside space-y-1">
+                          <li>Transaction rejected in wallet</li>
+                          <li>Insufficient gas on Base Sepolia</li>
+                          <li>Network connectivity issues</li>
+                        </ul>
+                      </div>
+                    )}
+                    {error.toLowerCase().includes('already registered') && (
+                      <div className="text-xs text-muted-foreground max-w-md text-left">
+                        <p className="mb-2">
+                          Your wallet is already registered on the blockchain. This can happen if you previously completed registration or if another account is using this wallet.
+                        </p>
+                        <p>
+                          You can skip this step and continue using the platform with your off-chain profile.
+                        </p>
+                      </div>
+                    )}
                     <div className="flex gap-2 mt-4">
                       <button
                         type="button"
