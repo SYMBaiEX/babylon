@@ -19,7 +19,7 @@
 import { daySummary, expertAnalysis, newsReport, npcConversation, renderPrompt, rumor } from '@/prompts';
 import type { JsonValue } from '@/types/common';
 import { EventEmitter } from 'events';
-import { v4 as uuid } from 'uuid';
+import { generateSnowflakeId } from '@/lib/snowflake';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
 import { FeedGenerator, type FeedEvent } from './FeedGenerator';
 
@@ -187,7 +187,7 @@ export class GameWorld extends EventEmitter {
    * they BET on what will happen.
    */
   async generate(): Promise<WorldState> {
-    const worldId = uuid();
+    const worldId = generateSnowflakeId();
     
     // 1. Create the scenario
     const question = this.generateQuestion();

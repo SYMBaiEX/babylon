@@ -8,7 +8,7 @@
  */
 
 import { EventEmitter } from 'events';
-import { v4 as uuid } from 'uuid';
+import { generateSnowflakeId } from '@/lib/snowflake';
 import type { JsonValue } from '@/types/common';
 
 /**
@@ -224,7 +224,7 @@ export class GameSimulator extends EventEmitter {
    */
   async runCompleteGame(): Promise<GameResult> {
     const startTime = Date.now();
-    const gameId = uuid();
+    const gameId = generateSnowflakeId();
 
     // 1. SETUP
     const question = this.generateQuestion();
