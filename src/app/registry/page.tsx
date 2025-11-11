@@ -105,13 +105,18 @@ export default function RegistryPage() {
       if (onChainOnly) params.set('onChainOnly', 'true')
       
       const response = await fetch(`/api/registry/all?${params}`)
-      const result = await response.json()
-      
-      if (result.success && result.data) {
-        setData(result.data)
-      } else {
-        setError(result.error?.message || 'Failed to fetch registry data')
+
+      if (!response.ok) {
+        // get HTML/text response if API fails
+        const text = await response.text()
+        console.error("❌ Fetch error:", response.status, response.statusText)
+        console.error("Response body (preview):", text.slice(0, 300))
+        throw new Error(`Request failed: ${response.status} ${response.statusText}`)
       }
+
+      // Try parsing JSON safely
+      const result = await response.json()
+      setData(result)
     } catch (error) {
       console.error('Failed to fetch registry:', error)
       setError('Failed to connect to the registry')
