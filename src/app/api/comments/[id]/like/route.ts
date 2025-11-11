@@ -11,6 +11,7 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { IdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
+import { notifyReactionOnComment } from '@/lib/services/notification-service';
 /**
  * POST /api/comments/[id]/like
  * Like a comment
@@ -63,6 +64,17 @@ export const POST = withErrorHandling(async (
       type: 'like',
     },
   });
+
+  // Create notification for comment author (if not self-like)
+  if (comment.authorId && comment.authorId !== canonicalUserId) {
+    await notifyReactionOnComment(
+      comment.authorId,
+      canonicalUserId,
+      commentId,
+      comment.postId,
+      'like'
+    );
+  }
 
   // Get updated like count
   const likeCount = await prisma.reaction.count({

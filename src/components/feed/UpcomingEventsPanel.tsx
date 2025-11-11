@@ -4,6 +4,7 @@ import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
 import { Calendar } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { UpcomingEventsDetailModal } from './UpcomingEventsDetailModal'
+import { Skeleton } from '@/components/shared/Skeleton'
 
 interface UpcomingEvent {
   id: string
@@ -42,7 +43,8 @@ export function UpcomingEventsPanel() {
     // Check cache first (unless explicitly skipping)
     if (!skipCache) {
       const cached = getUpcomingEvents()
-      if (cached) {
+      // Only use cache if it has data (don't cache empty arrays)
+      if (cached && Array.isArray(cached) && cached.length > 0) {
         setEvents(cached as UpcomingEvent[])
         setLoading(false)
         return
@@ -85,7 +87,11 @@ export function UpcomingEventsPanel() {
       <div className="bg-sidebar rounded-lg p-4 flex-1 flex flex-col">
         <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-3 text-left">Upcoming Events</h2>
         {loading ? (
-          <div className="text-base text-muted-foreground pl-3 flex-1">Loading...</div>
+          <div className="space-y-3 pl-3 flex-1">
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-20 w-full" />
+          </div>
         ) : events.length === 0 ? (
           <div className="text-base text-muted-foreground pl-3 flex-1">No upcoming events.</div>
         ) : (

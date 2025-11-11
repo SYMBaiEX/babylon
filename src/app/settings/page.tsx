@@ -8,9 +8,8 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Bell, Palette, Save, Shield, User } from 'lucide-react';
 
 import { LoginButton } from '@/components/auth/LoginButton';
-import { BouncingLogo } from '@/components/shared/BouncingLogo';
-import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { PageContainer } from '@/components/shared/PageContainer';
 import { PrivacyTab } from '@/components/settings/PrivacyTab';
 
 import { logger } from '@/lib/logger';
@@ -443,7 +442,7 @@ export default function SettingsPage() {
                 <h3 className="font-medium mb-4">Theme Preference</h3>
                 {!mounted ? (
                   <div className="flex items-center justify-center py-8">
-                    <BouncingLogo size={24} />
+                    <Skeleton className="h-32 w-full" />
                   </div>
                 ) : (
                   <div className="space-y-2">

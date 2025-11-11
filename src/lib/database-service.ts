@@ -219,6 +219,9 @@ class DatabaseService {
     logger.debug('DatabaseService.getRecentPosts called', { limit, offset }, 'DatabaseService');
     
     const posts = await prisma.post.findMany({
+      where: {
+        deletedAt: null, // Filter out deleted posts
+      },
       take: limit,
       skip: offset,
       orderBy: { timestamp: 'desc' },
@@ -242,7 +245,10 @@ class DatabaseService {
     logger.debug('DatabaseService.getPostsByActor called', { authorId, limit }, 'DatabaseService');
     
     const posts = await prisma.post.findMany({
-      where: { authorId },
+      where: { 
+        authorId,
+        deletedAt: null, // Filter out deleted posts
+      },
       take: limit,
       orderBy: { timestamp: 'desc' },
     });
@@ -431,9 +437,11 @@ class DatabaseService {
         canBeInvolved: org.canBeInvolved,
         initialPrice: org.initialPrice,
         currentPrice: org.currentPrice || org.initialPrice,
+        updatedAt: new Date(),
       },
       update: {
         currentPrice: org.currentPrice || org.initialPrice,
+        updatedAt: new Date(),
       },
     });
   }

@@ -2,7 +2,7 @@
 
 import { LoginButton } from '@/components/auth/LoginButton'
 import { Avatar } from '@/components/shared/Avatar'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { Skeleton } from '@/components/shared/Skeleton'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { Separator } from '@/components/shared/Separator'
 import { ChatListSkeleton } from '@/components/shared/Skeleton'
@@ -747,7 +747,11 @@ export default function ChatsPage() {
                       
                       {loadingChat ? (
                         <div className="flex items-center justify-center h-full">
-                          <BouncingLogo size={32} />
+                          <div className="space-y-3 w-full max-w-md">
+                            <Skeleton className="h-16 w-full" />
+                            <Skeleton className="h-16 w-full" />
+                            <Skeleton className="h-16 w-full" />
+                          </div>
                         </div>
                       ) : (
                         (chatDetails?.messages || []).map((msg, i) => {
@@ -895,11 +899,11 @@ export default function ChatsPage() {
                             )}
                             style={{ color: '#0066FF' }}
                           >
-                            {sending ? (
-                              <BouncingLogo size={20} />
-                            ) : (
-                              <Send className="w-5 h-5" />
-                            )}
+                          {sending ? (
+                            <Skeleton className="h-5 w-5 rounded" />
+                          ) : (
+                            <Send className="w-5 h-5" />
+                          )}
                           </button>
                         </div>
                       </div>
@@ -1169,7 +1173,11 @@ export default function ChatsPage() {
                   <div className="flex-1 overflow-y-auto p-4 space-y-4">
                     {loadingChat ? (
                       <div className="flex items-center justify-center h-full">
-                        <BouncingLogo size={32} />
+                        <div className="space-y-3 w-full max-w-md">
+                          <Skeleton className="h-16 w-full" />
+                          <Skeleton className="h-16 w-full" />
+                          <Skeleton className="h-16 w-full" />
+                        </div>
                       </div>
                     ) : (
                       (chatDetails?.messages || []).map((msg, i) => {
@@ -1318,7 +1326,7 @@ export default function ChatsPage() {
                           style={{ color: '#0066FF' }}
                         >
                           {sending ? (
-                            <BouncingLogo size={20} />
+                            <Skeleton className="h-5 w-5 rounded" />
                           ) : (
                             <Send className="w-5 h-5" />
                           )}

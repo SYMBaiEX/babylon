@@ -8,7 +8,7 @@ import { apiFetch } from '@/lib/api/fetch'
 import type { OnboardingProfilePayload } from '@/lib/onboarding/types'
 import { logger } from '@/lib/logger'
 import { SocialImportStep } from './SocialImportStep'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { Skeleton } from '@/components/shared/Skeleton'
 
 export interface ImportedProfileData {
   platform: 'twitter' | 'farcaster'
@@ -458,8 +458,7 @@ export function OnboardingModal({
             )}
             disabled={isSubmitting}
           >
-            {isSubmitting && <BouncingLogo size={16} />}
-            {isSubmitting ? 'Saving...' : 'Continue'}
+              {isSubmitting ? 'Saving...' : 'Continue'}
           </button>
         </div>
       </div>
@@ -530,14 +529,38 @@ export function OnboardingModal({
     }
   }
 
+  const [isVisible, setIsVisible] = useState(false)
+
+  // Trigger fade-in animation after mount
+  useEffect(() => {
+    if (isOpen) {
+      // Small delay to trigger CSS transition
+      const timer = setTimeout(() => setIsVisible(true), 50)
+      return () => clearTimeout(timer)
+    }
+    setIsVisible(false)
+    return undefined
+  }, [isOpen])
+
+  if (!isOpen) return null
+
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/70 z-[100] backdrop-blur-sm"
+        className={cn(
+          "fixed inset-0 bg-black/70 z-[100] backdrop-blur-sm transition-opacity duration-300",
+          isVisible ? "opacity-100" : "opacity-0"
+        )}
         onClick={canClose ? onClose : undefined}
       />
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-        <div className="bg-background border border-border rounded-lg shadow-xl w-full max-w-2xl my-8" onClick={(e) => e.stopPropagation()}>
+        <div 
+          className={cn(
+            "bg-background border border-border rounded-lg shadow-xl w-full max-w-2xl my-8 transition-all duration-300",
+            isVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"
+          )}
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="flex items-center justify-between p-6 border-b border-border">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-[#0066FF]/10 rounded-lg">
@@ -591,7 +614,10 @@ export function OnboardingModal({
             <div className="p-8 flex flex-col items-center gap-4 text-center">
               {isSubmitting ? (
                 <>
-                  <BouncingLogo size={32} />
+                  <div className="space-y-3 w-full max-w-md">
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-4 w-3/4 mx-auto" />
+                  </div>
                   <p className="text-lg font-semibold">Finalising on-chain registration...</p>
                   <p className="text-sm text-muted-foreground max-w-md">
                     Waiting for blockchain confirmation. This may take 10-30 seconds.
@@ -686,8 +712,12 @@ export function OnboardingModal({
             </div>
           ) : isLoadingDefaults ? (
             <div className="p-12 flex flex-col items-center gap-4">
-              <BouncingLogo size={32} />
-              <p className="text-muted-foreground">Generating your profile...</p>
+              <div className="space-y-3 w-full max-w-md">
+                <Skeleton className="h-40 w-full" />
+                <Skeleton className="h-24 w-24 rounded-full mx-auto" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
             </div>
           ) : (
             renderProfileForm()

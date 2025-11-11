@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { TrendingUp, TrendingDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Skeleton } from '@/components/shared/Skeleton'
 
 interface TopMover {
   ticker: string
@@ -92,7 +93,10 @@ export function TopMoversPanel({ onMarketClick }: TopMoversPanelProps) {
     <div className="bg-sidebar rounded-lg p-4 flex-1 flex flex-col">
       <h2 className="text-xl font-bold text-foreground mb-3">Top Movers</h2>
       {loading ? (
-        <div className="text-sm text-muted-foreground flex-1">Loading...</div>
+        <div className="space-y-3 flex-1">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
       ) : (
         <div className="space-y-4 flex-1">
           {/* Top Gainers */}

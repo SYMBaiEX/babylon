@@ -5,7 +5,7 @@ import { Award, Users, TrendingUp, UserPlus, ArrowRight } from 'lucide-react'
 import { Avatar } from '@/components/shared/Avatar'
 import Link from 'next/link'
 import { getProfileUrl } from '@/lib/profile-utils'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { Skeleton } from '@/components/shared/Skeleton'
 
 interface ReferredUser {
   id: string
@@ -125,7 +125,10 @@ export function RewardsWidget({ userId }: RewardsWidgetProps) {
           <h3 className="font-semibold text-foreground">Rewards</h3>
         </div>
         <div className="flex items-center justify-center py-8">
-          <BouncingLogo size={24} />
+          <div className="space-y-3 w-full">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
         </div>
       </div>
     )

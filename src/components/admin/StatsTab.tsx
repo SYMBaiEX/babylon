@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Users, Activity, TrendingUp, DollarSign, ShoppingCart, Award, UserCheck, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/shared/Avatar'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { Skeleton } from '@/components/shared/Skeleton'
 
 interface SystemStats {
   users: {
@@ -163,7 +163,14 @@ export function StatsTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <BouncingLogo size={48} />
+        <div className="space-y-4 w-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        </div>
       </div>
     )
   }

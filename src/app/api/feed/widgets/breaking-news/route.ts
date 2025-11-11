@@ -182,6 +182,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
     // Get recent posts and filter for actor posts
     const recentPosts = await db.post.findMany({
+      where: {
+        deletedAt: null, // Filter out deleted posts
+      },
       take: FEED_WIDGET_CONFIG.MAX_POSTS_QUERY,
       orderBy: { timestamp: 'desc' },
     })
@@ -271,6 +274,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           },
           // Only actor posts
           authorId: { in: Array.from(actorIds) },
+          deletedAt: null, // Filter out deleted posts
         },
       })
 
@@ -488,6 +492,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
     // Get recent posts and filter for actor posts
     const recentPosts = await db.post.findMany({
+      where: {
+        deletedAt: null, // Filter out deleted posts
+      },
       take: FEED_WIDGET_CONFIG.MAX_POSTS_QUERY,
       orderBy: { timestamp: 'desc' },
     })
@@ -577,6 +584,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           },
           // Only actor posts
           authorId: { in: Array.from(actorIds) },
+          deletedAt: null, // Filter out deleted posts
         },
       })
 

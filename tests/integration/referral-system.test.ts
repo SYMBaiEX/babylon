@@ -95,14 +95,37 @@ describe('Referral System', () => {
   })
 
   it('should have User 1 invite User 2 and reward User 1 with +50 points', async () => {
-    // Mark User 2 as waitlisted WITH User 1's referral code
+    // ==========================================
+    // STEP 1: Capture BEFORE state from database
+    // ==========================================
+    const user1Before = await prisma.user.findUnique({
+      where: { id: user1Id },
+      select: {
+        reputationPoints: true,
+        invitePoints: true,
+        referralCount: true,
+      }
+    })
+
+    console.log('\n📊 BEFORE referral:')
+    console.log(`  User 1 - reputation: ${user1Before!.reputationPoints}, invite: ${user1Before!.invitePoints}, count: ${user1Before!.referralCount}`)
+
+    expect(user1Before!.reputationPoints).toBe(1000)
+    expect(user1Before!.invitePoints).toBe(0)
+    expect(user1Before!.referralCount).toBe(0)
+
+    // ==========================================
+    // STEP 2: Mark User 2 as waitlisted WITH User 1's referral code
+    // ==========================================
     const result = await WaitlistService.markAsWaitlisted(user2Id, user1InviteCode)
     
     expect(result.success).toBe(true)
     expect(result.referrerRewarded).toBe(true)
     expect(result.inviteCode).toBeTruthy()
 
-    // Verify User 1 got the points
+    // ==========================================
+    // STEP 3: Query database AFTER to verify points were persisted
+    // ==========================================
     const user1After = await prisma.user.findUnique({
       where: { id: user1Id },
       select: {
@@ -112,23 +135,76 @@ describe('Referral System', () => {
       }
     })
 
+    console.log('\n📊 AFTER referral:')
+    console.log(`  User 1 - reputation: ${user1After!.reputationPoints}, invite: ${user1After!.invitePoints}, count: ${user1After!.referralCount}`)
+
     expect(user1After).toBeDefined()
     expect(user1After!.invitePoints).toBe(50) // +50 from referral
     expect(user1After!.reputationPoints).toBe(1050) // 1000 base + 50 from referral
     expect(user1After!.referralCount).toBe(1)
 
-    // Verify User 2 is marked as referred by User 1
+    // ==========================================
+    // STEP 4: Verify the change (delta)
+    // ==========================================
+    const reputationDelta = user1After!.reputationPoints - user1Before!.reputationPoints
+    const inviteDelta = user1After!.invitePoints - user1Before!.invitePoints
+    const countDelta = user1After!.referralCount - user1Before!.referralCount
+
+    console.log('\n📈 DELTAS (changes):')
+    console.log(`  Reputation: +${reputationDelta} (expected: +50)`)
+    console.log(`  Invite Points: +${inviteDelta} (expected: +50)`)
+    console.log(`  Referral Count: +${countDelta} (expected: +1)`)
+
+    expect(reputationDelta).toBe(50)
+    expect(inviteDelta).toBe(50)
+    expect(countDelta).toBe(1)
+
+    // ==========================================
+    // STEP 5: Verify User 2 is marked as referred by User 1
+    // ==========================================
     const user2After = await prisma.user.findUnique({
       where: { id: user2Id },
       select: {
         referredBy: true,
+        isWaitlistActive: true,
+        referralCode: true,
       }
     })
 
     expect(user2After!.referredBy).toBe(user1Id)
+    expect(user2After!.isWaitlistActive).toBe(true)
+    expect(user2After!.referralCode).toBeTruthy()
 
-    console.log(`✓ User 1 successfully referred User 2`)
-    console.log(`  User 1 points: ${user1After!.reputationPoints} (invite points: ${user1After!.invitePoints})`)
+    // ==========================================
+    // STEP 6: Verify PointsTransaction was created in database
+    // ==========================================
+    const pointsTransaction = await prisma.pointsTransaction.findFirst({
+      where: {
+        userId: user1Id,
+        reason: 'referral',
+        amount: 50,
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    })
+
+    console.log('\n💰 PointsTransaction record:')
+    console.log(`  Found: ${pointsTransaction ? 'YES' : 'NO'}`)
+    if (pointsTransaction) {
+      console.log(`  Amount: ${pointsTransaction.amount}`)
+      console.log(`  Reason: ${pointsTransaction.reason}`)
+      console.log(`  Points Before: ${pointsTransaction.pointsBefore}`)
+      console.log(`  Points After: ${pointsTransaction.pointsAfter}`)
+    }
+
+    expect(pointsTransaction).toBeDefined()
+    expect(pointsTransaction!.amount).toBe(50)
+    expect(pointsTransaction!.pointsBefore).toBe(1000)
+    expect(pointsTransaction!.pointsAfter).toBe(1050)
+    expect(pointsTransaction!.reason).toBe('referral')
+
+    console.log(`\n✅ User 1 successfully referred User 2 - DATABASE VERIFIED`)
   })
 
   it('should rank User 1 at the top of the leaderboard', async () => {
@@ -223,6 +299,89 @@ describe('Referral System', () => {
     await prisma.user.delete({ where: { id: tempUser.id } })
 
     console.log(`✓ Self-referral is correctly blocked`)
+  })
+
+  it('should verify database persistence with fresh connection', async () => {
+    // ==========================================
+    // Disconnect and reconnect to ensure no caching
+    // ==========================================
+    await prisma.$disconnect()
+    const freshPrisma = new PrismaClient()
+
+    try {
+      console.log('\n🔄 Testing with FRESH database connection...')
+
+      // Query User 1 with fresh connection
+      const user1Fresh = await freshPrisma.user.findUnique({
+        where: { id: user1Id },
+        select: {
+          reputationPoints: true,
+          invitePoints: true,
+          referralCount: true,
+          referralCode: true,
+        }
+      })
+
+      console.log(`\n📊 User 1 (fresh query):`)
+      console.log(`  Reputation Points: ${user1Fresh!.reputationPoints}`)
+      console.log(`  Invite Points: ${user1Fresh!.invitePoints}`)
+      console.log(`  Referral Count: ${user1Fresh!.referralCount}`)
+      console.log(`  Referral Code: ${user1Fresh!.referralCode}`)
+
+      // These should match what we saw before
+      expect(user1Fresh!.reputationPoints).toBe(1050)
+      expect(user1Fresh!.invitePoints).toBe(50)
+      expect(user1Fresh!.referralCount).toBe(1)
+      expect(user1Fresh!.referralCode).toBe(user1InviteCode)
+
+      // Query User 2 with fresh connection
+      const user2Fresh = await freshPrisma.user.findUnique({
+        where: { id: user2Id },
+        select: {
+          referredBy: true,
+          isWaitlistActive: true,
+          referralCode: true,
+        }
+      })
+
+      console.log(`\n📊 User 2 (fresh query):`)
+      console.log(`  Referred By: ${user2Fresh!.referredBy}`)
+      console.log(`  Is Waitlist Active: ${user2Fresh!.isWaitlistActive}`)
+      console.log(`  Has Referral Code: ${user2Fresh!.referralCode ? 'YES' : 'NO'}`)
+
+      expect(user2Fresh!.referredBy).toBe(user1Id)
+      expect(user2Fresh!.isWaitlistActive).toBe(true)
+      expect(user2Fresh!.referralCode).toBeTruthy()
+
+      // Query PointsTransaction with fresh connection
+      const transactionFresh = await freshPrisma.pointsTransaction.findFirst({
+        where: {
+          userId: user1Id,
+          reason: 'referral',
+          amount: 50,
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      })
+
+      console.log(`\n💰 PointsTransaction (fresh query):`)
+      console.log(`  Exists: ${transactionFresh ? 'YES' : 'NO'}`)
+      console.log(`  Amount: ${transactionFresh!.amount}`)
+      console.log(`  Before → After: ${transactionFresh!.pointsBefore} → ${transactionFresh!.pointsAfter}`)
+
+      expect(transactionFresh).toBeDefined()
+      expect(transactionFresh!.amount).toBe(50)
+      expect(transactionFresh!.pointsBefore).toBe(1000)
+      expect(transactionFresh!.pointsAfter).toBe(1050)
+
+      console.log(`\n✅ DATABASE PERSISTENCE CONFIRMED - Data survived connection restart!`)
+
+    } finally {
+      await freshPrisma.$disconnect()
+      // Reconnect the original prisma instance for other tests
+      await prisma.$connect()
+    }
   })
 
   it('should prevent double-referral', async () => {

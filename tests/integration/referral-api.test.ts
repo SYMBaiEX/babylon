@@ -1,190 +1,226 @@
-/**
- * Referral API Integration Tests
- * 
- * Tests for referral system API endpoints using Bun's built-in test runner.
- * These tests can be run with: bun test tests/integration/referral-api.test.ts
- */
-
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
+const API_BASE = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
-describe('Referral Code Generation', () => {
-  test('should generate unique referral code', () => {
-    const userId = 'test-user-12345'
-    const userPrefix = userId.slice(0, 8)
-    const random = Math.random().toString(36).substring(2, 6).toUpperCase()
-    const referralCode = `${userPrefix}-${random}`
-    
-    // Match 8 chars (or less for short IDs) - random 4 chars
-    expect(referralCode).toMatch(/^[a-z0-9-]{8,13}-[A-Z0-9]{4}$/i)
-    expect(referralCode).toContain(userPrefix)
-  })
-  
-  test('should create referral code format correctly', () => {
-    const userId = 'abcd1234-5678-90ab'
-    const code = generateTestReferralCode(userId)
-    
-    expect(code.length).toBeGreaterThanOrEqual(13) // 8 + 1 + 4
-    expect(code).toContain('-')
-    expect(code.split('-')).toHaveLength(2)
-  })
-})
+describe('Referral System - API Endpoints', () => {
+  let user1Id: string
+  let user2Id: string
+  let user1InviteCode: string
 
-describe('Referral Points Calculation', () => {
-  test('should calculate points correctly for multiple referrals', () => {
-    const POINTS_PER_REFERRAL = 250
-    
-    const testCases = [
-      { referrals: 0, expected: 0 },
-      { referrals: 1, expected: 250 },
-      { referrals: 5, expected: 1250 },
-      { referrals: 12, expected: 3000 },
-      { referrals: 50, expected: 12500 },
-    ]
-    
-    testCases.forEach(({ referrals, expected }) => {
-      const totalPoints = referrals * POINTS_PER_REFERRAL
-      expect(totalPoints).toBe(expected)
+  beforeAll(async () => {
+    // Clean up any existing test users
+    await prisma.user.deleteMany({
+      where: {
+        username: {
+          in: ['api_test_user1', 'api_test_user2']
+        }
+      }
     })
   })
-  
-  test('should reach leaderboard threshold with 12 referrals', () => {
-    const POINTS_PER_REFERRAL = 250
-    const PROFILE_POINTS = 7000
-    const LEADERBOARD_THRESHOLD = 10000
-    
-    const referrals = 12
-    const referralPoints = referrals * POINTS_PER_REFERRAL
-    const totalPoints = PROFILE_POINTS + referralPoints
-    
-    expect(totalPoints).toBeGreaterThanOrEqual(LEADERBOARD_THRESHOLD)
-  })
-})
 
-describe('Referral URL Generation', () => {
-  test('should generate valid referral URL', () => {
-    const baseUrl = 'https://babylon.game'
-    const referralCode = 'TEST1234-ABCD'
-    const referralUrl = `${baseUrl}?ref=${referralCode}`
-    
-    expect(referralUrl).toContain('?ref=')
-    expect(referralUrl).toContain(referralCode)
-    expect(referralUrl).toMatch(/^https?:\/\//)
-  })
-  
-  test('should parse referral code from URL', () => {
-    const url = 'https://babylon.game?ref=TEST1234-ABCD'
-    const params = new URLSearchParams(url.split('?')[1])
-    const referralCode = params.get('ref')
-    
-    expect(referralCode).toBe('TEST1234-ABCD')
-  })
-  
-  test('should handle URL with multiple query params', () => {
-    const url = 'https://babylon.game?utm_source=twitter&ref=TEST1234-ABCD&utm_campaign=growth'
-    const params = new URLSearchParams(url.split('?')[1])
-    const referralCode = params.get('ref')
-    
-    expect(referralCode).toBe('TEST1234-ABCD')
-  })
-})
-
-describe('Referral Status Management', () => {
-  test('should transition referral status correctly', () => {
-    const statuses = {
-      initial: 'pending',
-      completed: 'completed',
-      expired: 'expired',
-    }
-    
-    // Initial state
-    let currentStatus = statuses.initial
-    expect(currentStatus).toBe('pending')
-    
-    // After signup
-    currentStatus = statuses.completed
-    expect(currentStatus).toBe('completed')
-    
-    // Cannot go back to pending
-    expect(currentStatus).not.toBe('pending')
-  })
-})
-
-describe('Follow Relationship Validation', () => {
-  test('should create correct follow relationship', () => {
-    const referrerId = 'referrer-user-id'
-    const referredUserId = 'referred-user-id'
-    
-    // Auto-follow means: referred user follows referrer
-    const follow = {
-      followerId: referredUserId, // The new user
-      followingId: referrerId,    // The referrer
-    }
-    
-    expect(follow.followerId).toBe(referredUserId)
-    expect(follow.followingId).toBe(referrerId)
-  })
-  
-  test('should validate unique follow constraint', () => {
-    const follow1 = {
-      followerId: 'user-a',
-      followingId: 'user-b',
-    }
-    
-    const follow2 = {
-      followerId: 'user-a',
-      followingId: 'user-b',
-    }
-    
-    // Should be considered duplicate
-    const isDuplicate = 
-      follow1.followerId === follow2.followerId &&
-      follow1.followingId === follow2.followingId
-    
-    expect(isDuplicate).toBe(true)
-  })
-})
-
-// Helper function
-function generateTestReferralCode(userId: string): string {
-  const userPrefix = userId.slice(0, 8)
-  const random = Math.random().toString(36).substring(2, 6).toUpperCase()
-  return `${userPrefix}-${random}`
-}
-
-// Note: Database integration tests would go here
-// These require a test database and proper setup/teardown
-
-describe.skip('Referral Database Operations', () => {
-  beforeAll(async () => {
-    // Setup test database
-  })
-  
   afterAll(async () => {
-    // Cleanup test database
+    // Clean up test users
+    if (user1Id) await prisma.user.delete({ where: { id: user1Id } }).catch(() => {})
+    if (user2Id) await prisma.user.delete({ where: { id: user2Id } }).catch(() => {})
     await prisma.$disconnect()
   })
-  
-  test.skip('should create referral in database', async () => {
-    // Test creating a referral record
-    // TODO: Implement with test database
+
+  it('should create users and mark as waitlisted via API', async () => {
+    // Create User 1
+    const user1 = await prisma.user.create({
+      data: {
+        username: 'api_test_user1',
+        displayName: 'API Test User 1',
+        bio: 'Test user',
+        privyId: 'api-test-privy-1',
+        reputationPoints: 1000,
+      }
+    })
+    user1Id = user1.id
+
+    // Create User 2
+    const user2 = await prisma.user.create({
+      data: {
+        username: 'api_test_user2',
+        displayName: 'API Test User 2',
+        bio: 'Test user',
+        privyId: 'api-test-privy-2',
+        reputationPoints: 1000,
+      }
+    })
+    user2Id = user2.id
+
+    console.log('✓ Created test users')
+
+    // Mark User 1 as waitlisted via API
+    const response1 = await fetch(`${API_BASE}/api/waitlist/mark`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user1Id })
+    })
+
+    expect(response1.ok).toBe(true)
+    const data1 = await response1.json()
+    
+    console.log('\n📋 API Response (User 1):')
+    console.log(`  Success: ${data1.success !== false}`)
+    console.log(`  Invite Code: ${data1.inviteCode}`)
+    console.log(`  Waitlist Position: ${data1.waitlistPosition}`)
+
+    expect(data1.inviteCode).toBeTruthy()
+    user1InviteCode = data1.inviteCode
+
+    // Verify in database
+    const user1Check = await prisma.user.findUnique({
+      where: { id: user1Id },
+      select: {
+        referralCode: true,
+        isWaitlistActive: true,
+        waitlistPosition: true,
+      }
+    })
+
+    expect(user1Check!.referralCode).toBe(user1InviteCode)
+    expect(user1Check!.isWaitlistActive).toBe(true)
+    expect(user1Check!.waitlistPosition).toBeGreaterThan(0)
+
+    console.log('✅ User 1 waitlisted via API - verified in database')
   })
-  
-  test.skip('should update referral status to completed', async () => {
-    // Test updating referral when user signs up
-    // TODO: Implement with test database
+
+  it('should reward referrer when referred user joins via API', async () => {
+    // Get User 1's BEFORE state
+    const user1Before = await prisma.user.findUnique({
+      where: { id: user1Id },
+      select: {
+        reputationPoints: true,
+        invitePoints: true,
+        referralCount: true,
+      }
+    })
+
+    console.log('\n📊 BEFORE (User 1):')
+    console.log(`  Reputation: ${user1Before!.reputationPoints}`)
+    console.log(`  Invite Points: ${user1Before!.invitePoints}`)
+    console.log(`  Referral Count: ${user1Before!.referralCount}`)
+
+    // Mark User 2 as waitlisted WITH referral code via API
+    const response2 = await fetch(`${API_BASE}/api/waitlist/mark`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: user2Id,
+        referralCode: user1InviteCode
+      })
+    })
+
+    expect(response2.ok).toBe(true)
+    const data2 = await response2.json()
+
+    console.log('\n📋 API Response (User 2 with referral):')
+    console.log(`  Success: ${data2.success !== false}`)
+    console.log(`  Referrer Rewarded: ${data2.referrerRewarded}`)
+
+    expect(data2.referrerRewarded).toBe(true)
+
+    // Wait a moment for database to update
+    await new Promise(resolve => setTimeout(resolve, 100))
+
+    // Get User 1's AFTER state from database
+    const user1After = await prisma.user.findUnique({
+      where: { id: user1Id },
+      select: {
+        reputationPoints: true,
+        invitePoints: true,
+        referralCount: true,
+      }
+    })
+
+    console.log('\n📊 AFTER (User 1):')
+    console.log(`  Reputation: ${user1After!.reputationPoints}`)
+    console.log(`  Invite Points: ${user1After!.invitePoints}`)
+    console.log(`  Referral Count: ${user1After!.referralCount}`)
+
+    console.log('\n📈 CHANGES:')
+    console.log(`  Reputation: +${user1After!.reputationPoints - user1Before!.reputationPoints}`)
+    console.log(`  Invite Points: +${user1After!.invitePoints - user1Before!.invitePoints}`)
+    console.log(`  Referral Count: +${user1After!.referralCount - user1Before!.referralCount}`)
+
+    // Verify the points were added
+    expect(user1After!.reputationPoints).toBe(user1Before!.reputationPoints + 50)
+    expect(user1After!.invitePoints).toBe(user1Before!.invitePoints + 50)
+    expect(user1After!.referralCount).toBe(user1Before!.referralCount + 1)
+
+    // Verify PointsTransaction exists
+    const transaction = await prisma.pointsTransaction.findFirst({
+      where: {
+        userId: user1Id,
+        reason: 'referral',
+        amount: 50,
+      },
+      orderBy: { createdAt: 'desc' }
+    })
+
+    console.log('\n💰 PointsTransaction:')
+    console.log(`  Found: ${transaction ? 'YES' : 'NO'}`)
+    if (transaction) {
+      console.log(`  ${transaction.pointsBefore} → ${transaction.pointsAfter}`)
+    }
+
+    expect(transaction).toBeDefined()
+    expect(transaction!.pointsAfter).toBe(user1After!.reputationPoints)
+
+    console.log('\n✅ API-driven referral reward confirmed in database!')
   })
-  
-  test.skip('should query completed referrals for user', async () => {
-    // Test fetching user's completed referrals
-    // TODO: Implement with test database
+
+  it('should return correct leaderboard via API', async () => {
+    const response = await fetch(`${API_BASE}/api/waitlist/leaderboard?limit=10`)
+    
+    expect(response.ok).toBe(true)
+    const data = await response.json()
+
+    console.log('\n🏆 Leaderboard API Response:')
+    console.log(`  Total users returned: ${data.leaderboard?.length || 0}`)
+
+    expect(data.leaderboard).toBeDefined()
+    expect(Array.isArray(data.leaderboard)).toBe(true)
+
+    // Find our test users in the leaderboard
+    const user1InLeaderboard = data.leaderboard.find((u: any) => u.id === user1Id)
+    
+    if (user1InLeaderboard) {
+      console.log(`\n  User 1 in leaderboard:`)
+      console.log(`    Rank: #${user1InLeaderboard.rank}`)
+      console.log(`    Invite Points: ${user1InLeaderboard.invitePoints}`)
+      console.log(`    Referrals: ${user1InLeaderboard.referralCount}`)
+
+      expect(user1InLeaderboard.invitePoints).toBe(50)
+      expect(user1InLeaderboard.referralCount).toBe(1)
+    }
+
+    console.log('\n✅ Leaderboard API working correctly!')
   })
-  
-  test.skip('should check follow status for referred users', async () => {
-    // Test querying follow relationships
-    // TODO: Implement with test database
+
+  it('should return correct position via API', async () => {
+    const response = await fetch(`${API_BASE}/api/waitlist/position?userId=${user1Id}`)
+    
+    expect(response.ok).toBe(true)
+    const data = await response.json()
+
+    console.log('\n📍 Position API Response (User 1):')
+    console.log(`  Position: #${data.position}`)
+    console.log(`  Leaderboard Rank: #${data.leaderboardRank}`)
+    console.log(`  Invite Code: ${data.inviteCode}`)
+    console.log(`  Points: ${data.points}`)
+    console.log(`  Invite Points: ${data.pointsBreakdown?.invite}`)
+    console.log(`  Referral Count: ${data.referralCount}`)
+
+    expect(data.position).toBeDefined()
+    expect(data.inviteCode).toBe(user1InviteCode)
+    expect(data.pointsBreakdown?.invite).toBe(50)
+    expect(data.referralCount).toBe(1)
+
+    console.log('\n✅ Position API working correctly!')
   })
 })
-

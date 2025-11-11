@@ -387,7 +387,10 @@ async function executeQueryFeed(
     where: args.questionId ? {
       // Filter by question if provided
       // Note: questionId might need to be mapped from market/question
-    } : {},
+      deletedAt: null, // Filter out deleted posts
+    } : {
+      deletedAt: null, // Filter out deleted posts
+    },
     orderBy: { timestamp: 'desc' },
     take: args.limit || 20
   })

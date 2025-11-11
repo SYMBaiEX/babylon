@@ -219,6 +219,14 @@ export interface FeedPost {
   shareCount?: number;
   isLiked?: boolean;
   isShared?: boolean;
+  // Repost metadata
+  isRepost?: boolean;
+  originalPostId?: string | null;
+  originalAuthorId?: string | null;
+  originalAuthorName?: string | null;
+  originalAuthorUsername?: string | null;
+  originalAuthorProfileImageUrl?: string | null;
+  quoteComment?: string | null;
 }
 
 /**

@@ -5,7 +5,7 @@ import { Search, Users, Shield, RefreshCw, Ban, CheckCircle } from 'lucide-react
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/shared/Avatar'
 import { toast } from 'sonner'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { Skeleton } from '@/components/shared/Skeleton'
 
 interface User {
   id: string
@@ -267,7 +267,11 @@ export function UserManagementTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <BouncingLogo size={48} />
+        <div className="space-y-3 w-full">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
       </div>
     )
   }
@@ -387,7 +391,6 @@ export function UserManagementTab() {
               >
                 {banning ? (
                   <>
-                    <BouncingLogo size={16} />
                     Banning...
                   </>
                 ) : (

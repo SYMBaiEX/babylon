@@ -41,6 +41,9 @@ function FeedPageContent() {
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   
+  // Track locally created posts (optimistic UI)
+  const [localPosts, setLocalPosts] = useState<FeedPost[]>([])
+  
   // Smart banner frequency based on user referrals
   const calculateBannerInterval = () => {
     if (!user) return Math.floor(Math.random() * 51) + 50
@@ -133,6 +136,26 @@ function FeedPageContent() {
       setOffset(deduped.length)
       return deduped
     })
+    
+    // Clear local posts when refreshing (not appending) as they should now be in the API response
+    if (!append) {
+      setLocalPosts(prev => {
+        // Remove any local posts that are now in the API response
+        const newPostIds = new Set(newPosts.map(p => p.id))
+        const fiveMinutesAgo = Date.now() - 5 * 60 * 1000
+        
+        return prev.filter(localPost => {
+          // Remove if post is in API response
+          if (newPostIds.has(localPost.id)) return false
+          
+          // Remove if post is older than 5 minutes (likely failed to save)
+          const postTime = new Date(localPost.timestamp).getTime()
+          if (postTime < fiveMinutesAgo) return false
+          
+          return true
+        })
+      })
+    }
 
     if (append && uniqueAdded === 0) {
       setHasMore(false)
@@ -246,15 +269,9 @@ function FeedPageContent() {
 
   // Compute timeline-visible posts from game (mirrors viewer FeedView)
   const timelinePosts = useMemo(() => {
-    if (!startTime || !currentDate || allGames.length === 0) return [] as Array<{
-      id: string
-      content: string
-      authorId: string
-      authorName: string
-      timestamp: string
-    }>
+    if (!startTime || !currentDate || allGames.length === 0) return [] as FeedPost[]
 
-    const items: Array<{ id: string; content: string; authorId: string; authorName: string; timestamp: string; timestampMs: number }>= []
+    const items: Array<{ id: string; content: string; author: string; authorId: string; authorName: string; timestamp: string; timestampMs: number }>= []
 
     allGames.forEach((g) => {
       g.timeline?.forEach((day) => {
@@ -263,6 +280,7 @@ function FeedPageContent() {
           items.push({
             id: `game-${g.id}-${post.timestamp}`,
             content: post.content,
+            author: post.author, // Required by FeedPost interface
             authorId: post.author,
             authorName: post.authorName,
             timestamp: post.timestamp,
@@ -278,7 +296,7 @@ function FeedPageContent() {
       .sort((a, b) => b.timestampMs - a.timestampMs)
       .map(({ timestampMs: _timestampMs, ...rest }) => {
         // Explicitly exclude timestampMs from the result
-        return rest
+        return rest as FeedPost
       })
   }, [allGames, startTime, currentTimeMs])
 
@@ -288,24 +306,54 @@ function FeedPageContent() {
   const displayedPosts = (tab === 'following') 
     ? followingPosts 
     : (posts.length > 0 ? posts : (startTime && allGames.length > 0 ? timelinePosts : posts))
+  
+  // Combine local posts (optimistic UI) with API posts, deduplicating by ID
+  const basePosts = useMemo(() => {
+    if (tab !== 'latest') return apiPosts
+    
+    // Efficient deduplication using Map (O(n) instead of O(n²))
+    // Local posts come first to ensure they appear at the top
+    const postMap = new Map<string, FeedPost>()
+    
+    // Add local posts first (they take priority)
+    localPosts.forEach(post => postMap.set(post.id, post))
+    
+    // Add API posts (will not override local posts with same ID)
+    apiPosts.forEach(post => {
+      if (!postMap.has(post.id)) {
+        postMap.set(post.id, post)
+      }
+    })
+    
+    // Convert back to array and sort by timestamp
+    return Array.from(postMap.values()).sort((a, b) => {
+      const aTime = new Date(a.timestamp ?? 0).getTime()
+      const bTime = new Date(b.timestamp ?? 0).getTime()
+      return bTime - aTime
+    })
+  }, [tab, localPosts, apiPosts])
 
-  if (loading) {
-    return (
-      <PageContainer noPadding className="flex flex-col">
-        <FeedToggle activeTab={tab} onTabChange={setTab} />
-        <div className="flex-1 overflow-y-auto">
-          <div className="w-full px-4 sm:px-6">
-            <FeedSkeleton count={8} />
-          </div>
-        </div>
-      </PageContainer>
-    )
-  }
+  const filteredPosts = useMemo(() => {
+    if (!searchQuery.trim()) return basePosts
+    const query = searchQuery.toLowerCase()
+    return basePosts.filter((post) => {
+      const postContent = String(post.content)
+      const authorField = String(post.author || post.authorId || '')
+      const postAuthorName = String(post.authorName || '')
+      return (
+        postContent.toLowerCase().includes(query) ||
+        authorField.toLowerCase().includes(query) ||
+        postAuthorName.toLowerCase().includes(query)
+      )
+    })
+  }, [basePosts, searchQuery])
+
+  // Removed early loading return to prevent layout shifts - loading state is handled inline
 
   return (
     <PageContainer noPadding className="flex flex-col min-h-screen w-full overflow-visible">
-      {/* Mobile: Header with tabs and search */}
-      <div className="sticky top-0 z-10 bg-background shadow-sm flex-shrink-0 md:hidden">
+      {/* Mobile/Tablet: Header with tabs and search */}
+      <div className="sticky top-0 z-10 bg-background shadow-sm flex-shrink-0 lg:hidden">
         <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2">
           {/* Tabs */}
           <FeedToggle activeTab={tab} onTabChange={setTab} />
@@ -591,9 +639,25 @@ function FeedPageContent() {
       <CreatePostModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onPostCreated={() => {
-          // Don't reload - WebSocket will handle real-time update
-          // Just close the modal, the new post will appear automatically
+        onPostCreated={(newPost) => {
+          // Add post optimistically to the top of the feed
+          const optimisticPost: FeedPost = {
+            id: newPost.id,
+            content: newPost.content,
+            author: newPost.authorId,
+            authorId: newPost.authorId,
+            authorName: newPost.authorName,
+            authorUsername: newPost.authorUsername || undefined,
+            authorProfileImageUrl: newPost.authorProfileImageUrl || undefined,
+            timestamp: newPost.timestamp,
+            likeCount: 0,
+            commentCount: 0,
+            shareCount: 0,
+            isLiked: false,
+            isShared: false,
+          }
+          
+          setLocalPosts(prev => [optimisticPost, ...prev])
           setShowCreateModal(false)
 
           // If not on feed page, navigate to it

@@ -4,6 +4,7 @@ import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
 import { Activity, Calendar, DollarSign, TrendingUp } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { BreakingNewsDetailModal } from './BreakingNewsDetailModal'
+import { Skeleton } from '@/components/shared/Skeleton'
 
 interface BreakingNewsItem {
   id: string
@@ -42,7 +43,8 @@ export function BreakingNewsPanel() {
     // Check cache first (unless explicitly skipping)
     if (!skipCache) {
       const cached = getBreakingNews()
-      if (cached) {
+      // Only use cache if it has data (don't cache empty arrays)
+      if (cached && Array.isArray(cached) && cached.length > 0) {
         setNews(cached as BreakingNewsItem[])
         setLoading(false)
         return
@@ -98,7 +100,11 @@ export function BreakingNewsPanel() {
       <div className="bg-sidebar rounded-lg p-4 flex-1 flex flex-col">
         <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-3 text-left">Breaking News</h2>
         {loading ? (
-          <div className="text-base text-muted-foreground pl-3 flex-1">Loading...</div>
+          <div className="space-y-3 pl-3 flex-1">
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-20 w-full" />
+          </div>
         ) : news.length === 0 ? (
           <div className="text-base text-muted-foreground pl-3 flex-1">No breaking news at the moment.</div>
         ) : (

@@ -68,6 +68,34 @@ export function OnboardingProvider({
     useState<ImportedProfileData | null>(null);
   const [hasProgressedPastSocialImport, setHasProgressedPastSocialImport] =
     useState(false);
+  
+  // Delay modal display to prevent flickering
+  const [isReadyToShow, setIsReadyToShow] = useState(false);
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  // Wait for app to stabilize before showing modal
+  useEffect(() => {
+    if (!authenticated || loadingProfile) {
+      setIsReadyToShow(false);
+      setHasInitialized(false);
+      return;
+    }
+
+    // If already initialized and conditions change, show immediately
+    if (hasInitialized) {
+      setIsReadyToShow(true);
+      return;
+    }
+
+    // First time: wait 2-3 seconds for app to load
+    const delay = Math.random() * 1000 + 2000; // 2-3 seconds
+    const timer = setTimeout(() => {
+      setIsReadyToShow(true);
+      setHasInitialized(true);
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [authenticated, loadingProfile, hasInitialized]);
 
   const shouldShowModal = useMemo(() => {
     // Check if dev mode is enabled via URL parameter
@@ -81,6 +109,11 @@ export function OnboardingProvider({
       if (isProduction && isHomePage && !isDevMode) {
         return false;
       }
+    }
+
+    // Don't show until ready (prevents flickering)
+    if (!isReadyToShow) {
+      return false;
     }
 
     if (!authenticated || loadingProfile) {
@@ -110,6 +143,7 @@ export function OnboardingProvider({
         stage === 'PROFILE'
     );
   }, [
+    isReadyToShow,
     authenticated,
     loadingProfile,
     needsOnboarding,

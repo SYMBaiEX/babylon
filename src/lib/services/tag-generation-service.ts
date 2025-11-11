@@ -100,13 +100,50 @@ If no good tags can be extracted, return an empty array: []`
   }
 
   // Parse JSON response
-  // Remove markdown code blocks if present
-  const jsonContent = content_text
+  // Remove markdown code blocks and other formatting
+  let jsonContent = content_text
     .replace(/```json\n?/g, '')
     .replace(/```\n?/g, '')
     .trim()
   
-  const tags = JSON.parse(jsonContent) as Array<{ displayName: string; category?: string }>
+  // Try to extract JSON array if LLM added extra text
+  const arrayMatch = jsonContent.match(/\[[\s\S]*\]/)
+  if (arrayMatch) {
+    jsonContent = arrayMatch[0]
+  }
+  
+  let tags: Array<{ displayName: string; category?: string }>
+  try {
+    tags = JSON.parse(jsonContent)
+  } catch (parseError) {
+    // Try one more time with more aggressive cleaning
+    try {
+      // Remove any text before [ and after ]
+      const cleanedContent = jsonContent
+        .replace(/^[^[]*/, '') // Remove text before first [
+        .replace(/[^\]]*$/, '') // Remove text after last ]
+        .trim()
+      
+      tags = JSON.parse(cleanedContent)
+    } catch {
+      logger.warn('Failed to parse tag generation response as JSON after retry', { 
+        content: content.slice(0, 200),
+        response: content_text.slice(0, 500),
+        error: parseError instanceof Error ? parseError.message : String(parseError)
+      }, 'TagGenerationService')
+      return [] // Return empty tags on parse failure
+    }
+  }
+
+  // Ensure tags is an array
+  if (!Array.isArray(tags)) {
+    logger.warn('Tag generation response is not an array', { 
+      content: content.slice(0, 200),
+      response: content_text.slice(0, 500),
+      received: typeof tags
+    }, 'TagGenerationService')
+    return []
+  }
 
   // Validate and normalize tags
   const generatedTags: GeneratedTag[] = []
