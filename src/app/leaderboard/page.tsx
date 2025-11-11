@@ -91,7 +91,7 @@ export default function LeaderboardPage() {
       {/* Loading State */}
       {loading && (
         <div className="flex-1 overflow-y-auto">
-          <div className="w-full max-w-4xl mx-auto px-4 lg:px-6">
+          <div className="w-full max-w-feed mx-auto px-4 lg:px-6">
             <LeaderboardSkeleton count={15} />
           </div>
         </div>
@@ -125,7 +125,7 @@ export default function LeaderboardPage() {
 
       {!loading && !error && leaderboardData && leaderboardData.leaderboard.length > 0 && (
         <div className="flex-1 overflow-y-auto">
-          <div className="w-full max-w-4xl mx-auto px-4 lg:px-6">
+          <div className="w-full max-w-feed mx-auto px-4 lg:px-6">
             <div className="flex items-center gap-3 mb-4 px-4 pt-4">
               <Users className="w-5 h-5 text-[#0066FF]" />
               <h2 className="text-lg font-semibold text-foreground">

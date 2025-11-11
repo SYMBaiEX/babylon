@@ -19,7 +19,7 @@ export function FeedToggle({ activeTab, onTabChange }: FeedToggleProps) {
       >
         Latest
         {activeTab === 'latest' && (
-          <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
+          <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary" />
         )}
       </button>
       <button
@@ -31,7 +31,7 @@ export function FeedToggle({ activeTab, onTabChange }: FeedToggleProps) {
       >
         Following
         {activeTab === 'following' && (
-          <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
+          <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary" />
         )}
       </button>
     </div>

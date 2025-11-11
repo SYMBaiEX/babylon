@@ -484,7 +484,7 @@ export default function ActorProfilePage() {
     
     return (
       <PageContainer noPadding className="min-h-screen">
-        <div className="w-full max-w-[700px] mx-auto">
+        <div className="w-full max-w-feed mx-auto">
           <ProfileHeaderSkeleton />
           <div className="border-t border-border/5 mt-4">
             <FeedSkeleton count={5} />

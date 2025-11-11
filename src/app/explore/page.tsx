@@ -460,20 +460,21 @@ function ExplorePageContent() {
         </div>
 
         {/* Main tabs */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex items-center w-full border-b border-border mb-6">
           <button
             onClick={() => {
               setActiveTab('feed')
               router.push(`/explore?tab=feed`, { scroll: false })
             }}
             className={cn(
-              'px-6 py-2.5 font-semibold transition-all duration-200 rounded-lg',
-              activeTab === 'feed'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
+              activeTab === 'feed' ? 'text-foreground' : 'text-muted-foreground'
             )}
           >
             Feed
+            {activeTab === 'feed' && (
+              <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary" />
+            )}
           </button>
           <button
             onClick={() => {
@@ -481,13 +482,14 @@ function ExplorePageContent() {
               router.push(`/explore?tab=registry`, { scroll: false })
             }}
             className={cn(
-              'px-6 py-2.5 font-semibold transition-all duration-200 rounded-lg',
-              activeTab === 'registry'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
+              activeTab === 'registry' ? 'text-foreground' : 'text-muted-foreground'
             )}
           >
             Registry
+            {activeTab === 'registry' && (
+              <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary" />
+            )}
           </button>
         </div>
 
@@ -541,45 +543,9 @@ function ExplorePageContent() {
         {/* Registry tab content */}
         {activeTab === 'registry' && (
           <div>
-            {/* Registry stats and filters */}
+            {/* Registry filters */}
             {registryData && (
               <div className="mb-6">
-                {/* Stats overview */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
-                  <div className="bg-card border border-border rounded-2xl px-4 py-3">
-                    <div className="text-sm text-muted-foreground mb-1">Total</div>
-                    <div className="text-3xl font-bold text-foreground">{registryData.totals.total}</div>
-                  </div>
-                  <div className="bg-card border border-border rounded-2xl px-4 py-3">
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
-                      <UserCircle className="h-4 w-4" />
-                      <span>Users</span>
-                    </div>
-                    <div className="text-3xl font-bold text-foreground">{registryData.totals.users}</div>
-                  </div>
-                  <div className="bg-card border border-border rounded-2xl px-4 py-3">
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
-                      <Users className="h-4 w-4" />
-                      <span>Actors</span>
-                    </div>
-                    <div className="text-3xl font-bold text-foreground">{registryData.totals.actors}</div>
-                  </div>
-                  <div className="bg-card border border-border rounded-2xl px-4 py-3">
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
-                      <Bot className="h-4 w-4" />
-                      <span>Agents</span>
-                    </div>
-                    <div className="text-3xl font-bold text-foreground">{registryData.totals.agents}</div>
-                  </div>
-                  <div className="bg-card border border-border rounded-2xl px-4 py-3">
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
-                      <Building2 className="h-4 w-4" />
-                      <span>Apps</span>
-                    </div>
-                    <div className="text-3xl font-bold text-foreground">{registryData.totals.apps}</div>
-                  </div>
-                </div>
-
                 {/* Registry tabs and On-chain filter */}
                 <div className="flex flex-wrap items-center gap-2">
                   <button
