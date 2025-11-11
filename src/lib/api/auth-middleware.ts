@@ -139,8 +139,45 @@ export async function authenticate(request: NextRequest): Promise<AuthenticatedU
     // Handle specific authentication errors
     const errorMessage = extractErrorMessage(error);
     
-    // Check if it's a token expiration error
+    // Check if it's a token expiration error and try the cookie as a fallback
     if (errorMessage.includes('exp') || errorMessage.includes('expired') || errorMessage.includes('timestamp')) {
+      // If we used the Authorization header, try the cookie as a fallback
+      const cookieToken = request.cookies.get('privy-token')?.value;
+      if (authHeader && cookieToken && cookieToken !== token) {
+        try {
+          const privy = getPrivyClient();
+          const claims = await privy.verifyAuthToken(cookieToken);
+
+          let dbUserId: string | undefined;
+          let walletAddress: string | undefined;
+
+          try {
+            const dbUser = await prisma.user.findUnique({
+              where: { privyId: claims.userId },
+              select: { id: true, walletAddress: true },
+            });
+
+            if (dbUser) {
+              dbUserId = dbUser.id;
+              walletAddress = dbUser.walletAddress ?? undefined;
+            }
+          } catch (lookupError) {
+            logger.warn('Failed to resolve database user after Privy auth', { privyId: claims.userId, error: lookupError }, 'authenticate');
+          }
+
+          return {
+            userId: dbUserId ?? claims.userId,
+            dbUserId,
+            privyId: claims.userId,
+            walletAddress,
+            email: undefined,
+            isAgent: false,
+          };
+        } catch {
+          // Cookie token also failed, throw the original error
+        }
+      }
+      
       const authError = new Error('Authentication token has expired. Please refresh your session.') as AuthenticationError;
       authError.code = 'AUTH_FAILED';
       throw authError;

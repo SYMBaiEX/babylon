@@ -1,30 +1,29 @@
 'use client'
 
-import { LoginButton } from '@/components/auth/LoginButton'
+import { PostCard } from '@/components/posts/PostCard'
+import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal'
+import { OnChainBadge } from '@/components/profile/OnChainBadge'
+import { BouncingLogo } from '@/components/shared/BouncingLogo'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { TaggedText } from '@/components/shared/TaggedText'
 import { useAuth } from '@/hooks/useAuth'
+import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
-import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal'
-import { OnChainBadge } from '@/components/profile/OnChainBadge'
-import { PostCard } from '@/components/posts/PostCard'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
-import { 
-  AlertCircle, 
-  Calendar, 
-  Check, 
-  User, 
-  Trophy, 
-  Camera, 
-  X as XIcon,
+import {
+  AlertCircle,
+  Calendar,
+  Camera,
+  Check,
   ExternalLink,
   Eye,
   EyeOff,
-  Wallet
+  Trophy,
+  User,
+  Wallet,
+  X as XIcon
 } from 'lucide-react'
-import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { cn } from '@/lib/utils'
+import { useEffect, useRef, useState } from 'react'
 
 interface ProfileFormData {
   username: string
