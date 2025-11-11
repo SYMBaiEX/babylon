@@ -7,7 +7,7 @@
  *   bun run scripts/manage-admin.ts list
  */
 
-import { prisma } from '@/lib/database-service'
+import { prisma } from '../src/lib/database-service'
 
 const command = process.argv[2]
 const identifier = process.argv[3]

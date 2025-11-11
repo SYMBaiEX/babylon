@@ -1,0 +1,11 @@
+{
+  "overview": "Overview",
+  "vercel": "Deploy to Vercel",
+  "database": "Database Setup",
+  "environment": "Environment Variables",
+  "integrations": "Integrations",
+  "contracts": "Smart Contracts",
+  "monitoring": "Monitoring",
+  "troubleshooting": "Troubleshooting"
+}
+

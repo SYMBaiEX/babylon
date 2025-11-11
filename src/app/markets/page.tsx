@@ -656,7 +656,7 @@ export default function MarketsPage() {
               <div className="flex flex-col items-center justify-center py-16 px-4 bg-gradient-to-br from-[#0066FF]/10 to-purple-500/10 rounded-lg border border-[#0066FF]/20">
                 <h3 className="text-2xl font-bold mb-2">Start Trading Today</h3>
                 <p className="text-sm text-muted-foreground mb-6 text-center max-w-md">
-                  Connect your wallet to trade perpetual futures, prediction markets, and invest in trader pools
+                  Log in to trade perpetual futures, prediction markets, and invest in trader pools
                 </p>
                 <button
                   onClick={login}
@@ -925,7 +925,7 @@ export default function MarketsPage() {
 
           {!authenticated && activeTab !== 'dashboard' && (
             <div className="shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] bg-muted/30 p-4 text-center">
-              <p className="text-sm text-muted-foreground mb-3">Connect your wallet to trade</p>
+              <p className="text-sm text-muted-foreground mb-3">Log in to trade</p>
               <button
                 onClick={login}
                 className="px-6 py-3 bg-[#0066FF] text-white rounded font-medium hover:bg-[#2952d9] transition-colors cursor-pointer"
@@ -1227,7 +1227,7 @@ export default function MarketsPage() {
                 <div className="flex flex-col items-center justify-center py-16 px-4 bg-gradient-to-br from-[#0066FF]/10 to-purple-500/10 rounded-lg border border-[#0066FF]/20">
                   <h3 className="text-2xl font-bold mb-2">Start Trading Today</h3>
                   <p className="text-sm text-muted-foreground mb-6 text-center max-w-md">
-                    Connect your wallet to trade perpetual futures, prediction markets, and invest in trader pools
+                    Log in to trade perpetual futures, prediction markets, and invest in trader pools
                   </p>
                   <button
                     onClick={login}
@@ -1496,7 +1496,7 @@ export default function MarketsPage() {
 
         {!authenticated && activeTab !== 'dashboard' && (
           <div className="shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] bg-muted/30 p-4 text-center">
-            <p className="text-sm text-muted-foreground mb-3">Connect your wallet to trade</p>
+            <p className="text-sm text-muted-foreground mb-3">Log in to trade</p>
             <button
               onClick={login}
               className="px-6 py-3 bg-[#0066FF] text-white rounded font-medium hover:bg-[#2952d9] transition-colors cursor-pointer"

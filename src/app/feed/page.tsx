@@ -292,7 +292,7 @@ function FeedPageContent() {
         // Explicitly exclude timestampMs from the result
         return rest
       })
-  }, [allGames, startTime, currentDate, currentTimeMs])
+  }, [allGames, startTime, currentTimeMs])
 
   // Choose data source: always use API posts for latest tab (GameEngine persists to database)
   // For following tab, use followingPosts

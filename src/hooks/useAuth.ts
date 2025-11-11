@@ -156,10 +156,11 @@ export function useAuth(): UseAuthReturn {
             id: me.user.id,
             walletAddress: me.user.walletAddress ?? wallet?.address,
             displayName:
-              me.user.displayName ||
-              privyUser.email?.address ||
-              wallet?.address ||
-              'Anonymous',
+              me.user.displayName && me.user.displayName.trim() !== ''
+                ? me.user.displayName
+                : privyUser.email?.address ||
+                  wallet?.address ||
+                  'Anonymous',
             email: privyUser.email?.address,
             username: me.user.username ?? undefined,
             bio: me.user.bio ?? undefined,
@@ -175,6 +176,9 @@ export function useAuth(): UseAuthReturn {
             hasTwitter: me.user.hasTwitter ?? undefined,
             farcasterUsername: me.user.farcasterUsername ?? undefined,
             twitterUsername: me.user.twitterUsername ?? undefined,
+            showTwitterPublic: me.user.showTwitterPublic ?? undefined,
+            showFarcasterPublic: me.user.showFarcasterPublic ?? undefined,
+            showWalletPublic: me.user.showWalletPublic ?? undefined,
             stats: undefined,
             nftTokenId: me.user.nftTokenId ?? undefined,
             createdAt: me.user.createdAt,
@@ -192,7 +196,10 @@ export function useAuth(): UseAuthReturn {
             user.profileImageUrl !== hydratedUser.profileImageUrl ||
             user.coverImageUrl !== hydratedUser.coverImageUrl ||
             user.bio !== hydratedUser.bio ||
-            user.walletAddress !== hydratedUser.walletAddress;
+            user.walletAddress !== hydratedUser.walletAddress ||
+            user.showTwitterPublic !== hydratedUser.showTwitterPublic ||
+            user.showFarcasterPublic !== hydratedUser.showFarcasterPublic ||
+            user.showWalletPublic !== hydratedUser.showWalletPublic;
 
           if (hasChanged) {
             setUser(hydratedUser);
@@ -204,7 +211,7 @@ export function useAuth(): UseAuthReturn {
               id: privyUser.id,
               walletAddress: wallet?.address,
               displayName:
-                privyUser.email?.address || wallet?.address || 'Anonymous',
+                privyUser.email?.address ?? wallet?.address ?? 'Anonymous',
               email: privyUser.email?.address,
               onChainRegistered: false,
             });
@@ -225,7 +232,7 @@ export function useAuth(): UseAuthReturn {
             id: privyUser.id,
             walletAddress: wallet?.address,
             displayName:
-              privyUser.email?.address || wallet?.address || 'Anonymous',
+              privyUser.email?.address ?? wallet?.address ?? 'Anonymous',
             email: privyUser.email?.address,
             profileImageUrl: user?.profileImageUrl ?? undefined,
             coverImageUrl: user?.coverImageUrl ?? undefined,
@@ -360,6 +367,18 @@ export function useAuth(): UseAuthReturn {
       }
     };
   }, []);
+
+  // Expose getAccessToken to window for use by apiFetch
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as typeof window & { __privyGetAccessToken?: () => Promise<string | null> }).__privyGetAccessToken = getAccessToken;
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        (window as typeof window & { __privyGetAccessToken?: () => Promise<string | null> }).__privyGetAccessToken = undefined;
+      }
+    };
+  }, [getAccessToken]);
 
   // Sync wallet separately from fetching user
   useEffect(() => {

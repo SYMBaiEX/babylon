@@ -47,7 +47,7 @@ export function RepostButton({
     if (!authenticated) {
       showLoginModal({
         title: 'Login to Share',
-        message: 'Connect your wallet to share posts with your followers.',
+        message: 'Log in to share posts with your followers.',
       });
       return;
     }

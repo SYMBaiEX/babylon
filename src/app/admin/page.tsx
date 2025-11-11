@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { PageContainer } from '@/components/shared/PageContainer'
@@ -20,11 +20,7 @@ export default function AdminDashboard() {
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    checkAdminAccess()
-  }, [authenticated, user])
-
-  const checkAdminAccess = async () => {
+  const checkAdminAccess = useCallback(async () => {
     if (!authenticated) {
       router.push('/')
       return
@@ -45,7 +41,11 @@ export default function AdminDashboard() {
       setIsAuthorized(false)
       setLoading(false)
     }
-  }
+  }, [authenticated, router, user])
+
+  useEffect(() => {
+    checkAdminAccess()
+  }, [checkAdminAccess])
 
   if (loading) {
     return (

@@ -1,0 +1,13 @@
+{
+  "introduction": "Introduction",
+  "authentication": "Authentication",
+  "endpoints": "API Endpoints",
+  "markets": "Markets API",
+  "users": "Users API",
+  "agents": "Agents API",
+  "social": "Social API",
+  "errors": "Error Handling",
+  "rate-limits": "Rate Limits",
+  "webhooks": "Webhooks"
+}
+

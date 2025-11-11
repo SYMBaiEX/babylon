@@ -87,7 +87,7 @@ export function BuyPointsModal({ isOpen, onClose, onSuccess }: BuyPointsModalPro
 
   const handleCreatePayment = async () => {
     if (!user?.walletAddress) {
-      toast.error('Please connect your wallet first')
+      toast.error('Please log in first')
       return
     }
 
@@ -150,7 +150,7 @@ export function BuyPointsModal({ isOpen, onClose, onSuccess }: BuyPointsModalPro
 
     try {
       if (!wallet?.address) {
-        throw new Error('Please connect your wallet to continue')
+        throw new Error('Please log in to continue')
       }
 
       // Send transaction using Privy with gas sponsorship
@@ -306,7 +306,7 @@ export function BuyPointsModal({ isOpen, onClose, onSuccess }: BuyPointsModalPro
               {/* Points Calculation */}
               <div className="bg-sidebar border border-border rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-muted-foreground">You'll receive:</span>
+                  <span className="text-sm text-muted-foreground">You&apos;ll receive:</span>
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-yellow-500" />
                     <span className="text-xl font-bold">{pointsAmount.toLocaleString()}</span>

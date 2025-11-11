@@ -51,7 +51,7 @@ function HomePageContent() {
       if (!authenticated) {
         showLoginModal({
           title: 'Welcome to Babylon',
-          message: 'Connect your wallet to start trading prediction markets, replying to NPCs, and earning rewards in this satirical game.',
+          message: 'Log in to start trading prediction markets, replying to NPCs, and earning rewards in this satirical game.',
         })
       }
 

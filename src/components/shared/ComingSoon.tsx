@@ -99,7 +99,6 @@ export function ComingSoon() {
     }
 
     void setupWaitlist(dbUser.id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authenticated, dbUser?.id])
 
   const fetchWaitlistPosition = async (userId: string): Promise<boolean> => {

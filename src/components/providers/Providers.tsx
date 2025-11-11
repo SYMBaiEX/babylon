@@ -84,45 +84,47 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <div suppressHydrationWarning>
       <PostHogErrorBoundary>
-        <PostHogProvider>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange={false}
-          >
-            <FontSizeProvider>
-              <QueryClientProvider client={queryClient}>
-                <GamePlaybackManager />
-                <PrivyProvider
-                  appId={privyConfig.appId}
-                  config={privyConfig.config as PrivyClientConfig}
-                >
-                  <WagmiProvider config={wagmiConfig}>
-                    <FarcasterFrameProvider>
-                      {/* PostHog user identification */}
-                      <PostHogIdentifier />
-                      {/* Capture referral code from URL if present */}
-                      <Suspense fallback={null}>
-                        <ReferralCaptureProvider />
-                      </Suspense>
-                      {/* Onboarding provider for username setup */}
-                      <OnboardingProvider>
-                        <WidgetRefreshProvider>
-                          {mounted ? (
-                            <Fragment>{children}</Fragment>
-                          ) : (
-                            <div className="min-h-screen bg-sidebar" />
-                          )}
-                        </WidgetRefreshProvider>
-                      </OnboardingProvider>
-                    </FarcasterFrameProvider>
-                  </WagmiProvider>
-                </PrivyProvider>
-              </QueryClientProvider>
-            </FontSizeProvider>
-          </ThemeProvider>
-        </PostHogProvider>
+        <Suspense fallback={null}>
+          <PostHogProvider>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange={false}
+            >
+              <FontSizeProvider>
+                <QueryClientProvider client={queryClient}>
+                  <GamePlaybackManager />
+                  <PrivyProvider
+                    appId={privyConfig.appId}
+                    config={privyConfig.config as PrivyClientConfig}
+                  >
+                    <WagmiProvider config={wagmiConfig}>
+                      <FarcasterFrameProvider>
+                        {/* PostHog user identification */}
+                        <PostHogIdentifier />
+                        {/* Capture referral code from URL if present */}
+                        <Suspense fallback={null}>
+                          <ReferralCaptureProvider />
+                        </Suspense>
+                        {/* Onboarding provider for username setup */}
+                        <OnboardingProvider>
+                          <WidgetRefreshProvider>
+                            {mounted ? (
+                              <Fragment>{children}</Fragment>
+                            ) : (
+                              <div className="min-h-screen bg-sidebar" />
+                            )}
+                          </WidgetRefreshProvider>
+                        </OnboardingProvider>
+                      </FarcasterFrameProvider>
+                    </WagmiProvider>
+                  </PrivyProvider>
+                </QueryClientProvider>
+              </FontSizeProvider>
+            </ThemeProvider>
+          </PostHogProvider>
+        </Suspense>
       </PostHogErrorBoundary>
     </div>
   );

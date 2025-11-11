@@ -4,14 +4,15 @@ const nextConfig = {
   // Specify workspace root to silence lockfile warning
   outputFileTracingRoot: process.cwd(),
   // Use standalone output for dynamic routes and API endpoints
-  output: 'standalone',
+  // Temporarily disabled for Next.js 16 compatibility
+  // output: 'standalone',
   experimental: {
     optimizePackageImports: ['lucide-react'],
     // instrumentationHook removed - available by default in Next.js 15+
   },
   // Skip prerendering for feed page (client-side only)
   skipTrailingSlashRedirect: true,
-  skipMiddlewareUrlNormalize: false,
+  skipProxyUrlNormalize: false,
   // Externalize packages with native Node.js dependencies for server-side
   serverExternalPackages: [
     'ipfs-http-client',
@@ -30,6 +31,9 @@ const nextConfig = {
       },
     ],
   },
+  // Empty turbopack config to silence webpack/turbopack warning
+  turbopack: {},
+  // Webpack configuration for backward compatibility
   webpack: (config, { isServer }) => {
     // Fix for IPFS, electron-fetch, and React Native dependencies
     config.resolve.fallback = {

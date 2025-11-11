@@ -70,7 +70,7 @@ export function UserPoolPositions({ onWithdraw }: UserPoolPositionsProps) {
     return (
       <div className="p-4 rounded-lg bg-muted/50 text-center">
         <p className="text-sm text-muted-foreground">
-          Connect your wallet to see your pool positions
+          Log in to see your pool positions
         </p>
       </div>
     )

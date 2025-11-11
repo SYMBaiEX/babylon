@@ -169,7 +169,7 @@ export default function ChatsPage() {
     
     setAllChats(combined)
     setLoading(false)
-  }, [authenticated, getAccessToken, isDebugMode])
+  }, [getAccessToken, isDebugMode])
 
   const loadNewDMChat = useCallback(async (chatId: string, targetUserId: string) => {
     setLoadingChat(true)
@@ -906,7 +906,7 @@ export default function ChatsPage() {
                     ) : (
                       <div className="p-4 bg-background border-t border-border">
                         <div className="text-center">
-                          <p className="text-sm text-muted-foreground mb-3">Connect your wallet to send messages</p>
+                          <p className="text-sm text-muted-foreground mb-3">Log in to send messages</p>
                           <LoginButton />
                         </div>
                       </div>
@@ -1328,7 +1328,7 @@ export default function ChatsPage() {
                   ) : (
                     <div className="p-4 bg-background border-t border-border">
                       <div className="text-center">
-                        <p className="text-sm text-muted-foreground mb-3">Connect your wallet to send messages</p>
+                        <p className="text-sm text-muted-foreground mb-3">Log in to send messages</p>
                         <LoginButton />
                       </div>
                     </div>

@@ -326,6 +326,13 @@ export default function ProfilePage() {
         updatedData.coverImageUrl = uploadData.url
       }
 
+      // Remove empty strings from updatedData (API expects valid URLs or undefined)
+      Object.keys(updatedData).forEach(key => {
+        if (updatedData[key as keyof ProfileFormData] === '') {
+          delete updatedData[key as keyof ProfileFormData]
+        }
+      })
+
       // Update profile
       const updateResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/update-profile`, {
         method: 'POST',
@@ -427,21 +434,6 @@ export default function ProfilePage() {
     <PageContainer noPadding className="flex flex-col">
       {/* Content area */}
       <div className="flex-1 overflow-y-auto">
-        {ready && !authenticated && (
-          <div className="bg-muted/50 border-b border-border p-4">
-            <div className="max-w-[600px] mx-auto">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-sm mb-1 text-foreground">Connect Your Wallet</h3>
-                  <p className="text-xs text-muted-foreground">
-                    View and edit your profile
-                  </p>
-                </div>
-                <LoginButton />
-              </div>
-            </div>
-          </div>
-        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -482,7 +474,7 @@ export default function ProfilePage() {
                     </div>
                     <button
                       onClick={openEditModal}
-                      className="mt-3 sm:mt-4 px-4 sm:px-6 py-2 rounded-full border-2 border-border hover:bg-muted active:bg-muted transition-colors font-semibold text-sm whitespace-nowrap min-h-[44px]"
+                      className="mt-3 sm:mt-4 px-4 sm:px-6 py-2 rounded-full border-2 border-border hover:bg-muted active:bg-muted transition-colors font-semibold text-sm whitespace-nowrap min-h-[44px] z-1"
                     >
                       Edit Profile
                     </button>
@@ -986,7 +978,7 @@ export default function ProfilePage() {
           <div className="max-w-[600px] mx-auto p-4">
             <div className="text-center text-muted-foreground py-12">
               <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>Please connect your wallet to view your profile.</p>
+              <p>Please log in to view your profile.</p>
             </div>
           </div>
         )}

@@ -287,7 +287,7 @@ export function CategoryPnLShareModal({
               <p className="font-semibold text-white/80">Pro Tips</p>
               <ul className="mt-2 list-disc space-y-1 pl-4">
                 <li>Mention @Babylon to get featured in the daily recap.</li>
-                <li>Add specific positions or trades you're proud of.</li>
+                <li>Add specific positions or trades you&apos;re proud of.</li>
                 <li>Tag a friend to challenge their performance.</li>
               </ul>
             </div>
