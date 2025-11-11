@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create feedback record
+    const now = new Date();
     const feedback = await prisma.feedback.create({
       data: {
         id: generateSnowflakeId(),
@@ -93,7 +94,8 @@ export async function POST(request: NextRequest) {
         comment: body.comment || null,
         category: body.category || 'general',
         interactionType: 'user_to_agent', // Manual user feedback
-        updatedAt: new Date(),
+        createdAt: now,
+        updatedAt: now,
       },
     })
 

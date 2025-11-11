@@ -9,7 +9,6 @@
  * ✅ Vercel-compatible: No filesystem access, completes in <60s
  */
 
-import { randomUUID } from 'crypto';
 import { MarketDecisionEngine } from '@/engine/MarketDecisionEngine';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
 import type { Prisma } from '@prisma/client';
@@ -590,17 +589,11 @@ async function bootstrapTrending(): Promise<void> {
     // Create tag
     const tag = await prisma.tag.upsert({
       where: { name: tagData.name },
-      update: {
-        displayName: tagData.displayName,
-        category: tagData.category,
-        updatedAt: new Date(),
-      },
+      update: {},
       create: {
-        id: randomUUID(),
-        name: tagData.name,
-        displayName: tagData.displayName,
-        category: tagData.category,
-        updatedAt: new Date(),
+        id: generateSnowflakeId(),
+        ...tagData,
+        updatedAt: now,
       },
     });
     
@@ -609,7 +602,7 @@ async function bootstrapTrending(): Promise<void> {
     
     await prisma.trendingTag.create({
       data: {
-        id: randomUUID(),
+        id: generateSnowflakeId(),
         tagId: tag.id,
         score,
         postCount: Math.floor(Math.random() * 10) + 5,
@@ -1101,7 +1094,7 @@ async function generateEvents(
 
       await prisma.worldEvent.create({
         data: {
-          id: randomUUID(),
+          id: generateSnowflakeId(),
           eventType: 'announcement',
           description: `Development regarding: ${question.text}`,
           actors: [],
@@ -1226,18 +1219,18 @@ Return your response as JSON in this exact format:
     const scenarioId = 1; // TODO: replace with dynamic scenario selection when schema supports it
 
     try {
+      const now = new Date();
       const question = await prisma.question.create({
         data: {
-          id: randomUUID(),
+          id: generateSnowflakeId(),
           questionNumber: nextQuestionNumber,
           text: response.question,
           scenarioId,
           outcome: Math.random() > 0.5,
           rank: 1,
-          createdDate: new Date(),
           resolutionDate,
           status: 'active',
-          updatedAt: new Date(),
+          updatedAt: now,
         },
       });
 
@@ -1249,7 +1242,7 @@ Return your response as JSON in this exact format:
           liquidity: 1000,
           endDate: resolutionDate,
           gameId: 'continuous',
-          updatedAt: new Date(),
+          updatedAt: now,
         },
       });
 
@@ -1410,7 +1403,7 @@ async function updateWidgetCaches(): Promise<number> {
             ? ((totalValue - totalDeposits) / totalDeposits) * 100
             : 0;
 
-        // Safely extract npc actor name with multiple fallbacks
+        // Safely extract Actor name with multiple fallbacks
         let npcActorName = 'Unknown';
         try {
           if (
@@ -1422,7 +1415,7 @@ async function updateWidgetCaches(): Promise<number> {
           }
         } catch (e) {
           logger.warn(
-            'Failed to extract npcActor name',
+            'Failed to extract Actor name',
             { poolId: pool.id, error: e },
             'GameTick'
           );

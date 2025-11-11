@@ -336,6 +336,8 @@ export async function getCachedUserProfile(userId: string) {
             Position: true,
             Comment: true,
             Reaction: true,
+            Follow_Follow_followingIdToUser: true, // followers
+            Follow_Follow_followerIdToUser: true, // following
           },
         },
       },
@@ -374,8 +376,8 @@ export async function getCachedUserProfile(userId: string) {
           positions: dbUser._count.Position,
           comments: dbUser._count.Comment,
           reactions: dbUser._count.Reaction,
-          followers: 0,
-          following: 0,
+          followers: dbUser._count.Follow_Follow_followingIdToUser,
+          following: dbUser._count.Follow_Follow_followerIdToUser,
         },
       },
     }

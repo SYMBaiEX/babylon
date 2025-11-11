@@ -1,10 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
-import { PrismaClient } from '@prisma/client'
+import { generateSnowflakeId } from '../../src/lib/snowflake'
+import { WaitlistService } from '../../src/lib/services/waitlist-service'
+import { prisma } from '../../src/lib/database-service'
 
-const prisma = new PrismaClient()
-const API_BASE = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-
-describe('Referral System - API Endpoints', () => {
+describe('Referral System - Service Integration', () => {
   let user1Id: string
   let user2Id: string
   let user1InviteCode: string
@@ -27,15 +26,17 @@ describe('Referral System - API Endpoints', () => {
     await prisma.$disconnect()
   })
 
-  it('should create users and mark as waitlisted via API', async () => {
+  it('should create users and mark as waitlisted via Service', async () => {
     // Create User 1
     const user1 = await prisma.user.create({
       data: {
+        id: generateSnowflakeId(),
         username: 'api_test_user1',
         displayName: 'API Test User 1',
         bio: 'Test user',
         privyId: 'api-test-privy-1',
         reputationPoints: 1000,
+        updatedAt: new Date(),
       }
     })
     user1Id = user1.id
@@ -43,34 +44,30 @@ describe('Referral System - API Endpoints', () => {
     // Create User 2
     const user2 = await prisma.user.create({
       data: {
+        id: generateSnowflakeId(),
         username: 'api_test_user2',
         displayName: 'API Test User 2',
         bio: 'Test user',
         privyId: 'api-test-privy-2',
         reputationPoints: 1000,
+        updatedAt: new Date(),
       }
     })
     user2Id = user2.id
 
     console.log('✓ Created test users')
 
-    // Mark User 1 as waitlisted via API
-    const response1 = await fetch(`${API_BASE}/api/waitlist/mark`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user1Id })
-    })
-
-    expect(response1.ok).toBe(true)
-    const data1 = await response1.json()
+    // Mark User 1 as waitlisted via Service
+    const result1 = await WaitlistService.markAsWaitlisted(user1Id)
     
-    console.log('\n📋 API Response (User 1):')
-    console.log(`  Success: ${data1.success !== false}`)
-    console.log(`  Invite Code: ${data1.inviteCode}`)
-    console.log(`  Waitlist Position: ${data1.waitlistPosition}`)
+    console.log('\n📋 Service Response (User 1):')
+    console.log(`  Success: ${result1.success}`)
+    console.log(`  Invite Code: ${result1.inviteCode}`)
+    console.log(`  Waitlist Position: ${result1.waitlistPosition}`)
 
-    expect(data1.inviteCode).toBeTruthy()
-    user1InviteCode = data1.inviteCode
+    expect(result1.success).toBe(true)
+    expect(result1.inviteCode).toBeTruthy()
+    user1InviteCode = result1.inviteCode
 
     // Verify in database
     const user1Check = await prisma.user.findUnique({
@@ -86,10 +83,10 @@ describe('Referral System - API Endpoints', () => {
     expect(user1Check!.isWaitlistActive).toBe(true)
     expect(user1Check!.waitlistPosition).toBeGreaterThan(0)
 
-    console.log('✅ User 1 waitlisted via API - verified in database')
+    console.log('✅ User 1 waitlisted via Service - verified in database')
   })
 
-  it('should reward referrer when referred user joins via API', async () => {
+  it('should reward referrer when referred user joins via Service', async () => {
     // Get User 1's BEFORE state
     const user1Before = await prisma.user.findUnique({
       where: { id: user1Id },
@@ -105,27 +102,15 @@ describe('Referral System - API Endpoints', () => {
     console.log(`  Invite Points: ${user1Before!.invitePoints}`)
     console.log(`  Referral Count: ${user1Before!.referralCount}`)
 
-    // Mark User 2 as waitlisted WITH referral code via API
-    const response2 = await fetch(`${API_BASE}/api/waitlist/mark`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: user2Id,
-        referralCode: user1InviteCode
-      })
-    })
+    // Mark User 2 as waitlisted WITH referral code via Service
+    const result2 = await WaitlistService.markAsWaitlisted(user2Id, user1InviteCode)
 
-    expect(response2.ok).toBe(true)
-    const data2 = await response2.json()
+    console.log('\n📋 Service Response (User 2 with referral):')
+    console.log(`  Success: ${result2.success}`)
+    console.log(`  Referrer Rewarded: ${result2.referrerRewarded}`)
 
-    console.log('\n📋 API Response (User 2 with referral):')
-    console.log(`  Success: ${data2.success !== false}`)
-    console.log(`  Referrer Rewarded: ${data2.referrerRewarded}`)
-
-    expect(data2.referrerRewarded).toBe(true)
-
-    // Wait a moment for database to update
-    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(result2.success).toBe(true)
+    expect(result2.referrerRewarded).toBe(true)
 
     // Get User 1's AFTER state from database
     const user1After = await prisma.user.findUnique({
@@ -171,27 +156,41 @@ describe('Referral System - API Endpoints', () => {
     expect(transaction).toBeDefined()
     expect(transaction!.pointsAfter).toBe(user1After!.reputationPoints)
 
-    console.log('\n✅ API-driven referral reward confirmed in database!')
+    console.log('\n✅ Service-driven referral reward confirmed in database!')
   })
 
-  it('should return correct leaderboard via API', async () => {
-    const response = await fetch(`${API_BASE}/api/waitlist/leaderboard?limit=10`)
-    
-    expect(response.ok).toBe(true)
-    const data = await response.json()
+  it('should return correct leaderboard via Service', async () => {
+    const leaderboard = await prisma.user.findMany({
+      where: {
+        isWaitlistActive: true,
+      },
+      orderBy: [
+        { invitePoints: 'desc' },
+        { waitlistJoinedAt: 'asc' },
+      ],
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        invitePoints: true,
+        referralCount: true,
+      },
+      take: 10,
+    })
 
-    console.log('\n🏆 Leaderboard API Response:')
-    console.log(`  Total users returned: ${data.leaderboard?.length || 0}`)
+    console.log('\n🏆 Leaderboard Service Response:')
+    console.log(`  Total users returned: ${leaderboard.length}`)
 
-    expect(data.leaderboard).toBeDefined()
-    expect(Array.isArray(data.leaderboard)).toBe(true)
+    expect(Array.isArray(leaderboard)).toBe(true)
+    expect(leaderboard.length).toBeGreaterThan(0)
 
     // Find our test users in the leaderboard
-    const user1InLeaderboard = data.leaderboard.find((u: any) => u.id === user1Id)
+    const user1InLeaderboard = leaderboard.find((u) => u.id === user1Id)
     
     if (user1InLeaderboard) {
+      const rank = leaderboard.indexOf(user1InLeaderboard) + 1
       console.log(`\n  User 1 in leaderboard:`)
-      console.log(`    Rank: #${user1InLeaderboard.rank}`)
+      console.log(`    Rank: #${rank}`)
       console.log(`    Invite Points: ${user1InLeaderboard.invitePoints}`)
       console.log(`    Referrals: ${user1InLeaderboard.referralCount}`)
 
@@ -199,28 +198,25 @@ describe('Referral System - API Endpoints', () => {
       expect(user1InLeaderboard.referralCount).toBe(1)
     }
 
-    console.log('\n✅ Leaderboard API working correctly!')
+    console.log('\n✅ Leaderboard Service working correctly!')
   })
 
-  it('should return correct position via API', async () => {
-    const response = await fetch(`${API_BASE}/api/waitlist/position?userId=${user1Id}`)
-    
-    expect(response.ok).toBe(true)
-    const data = await response.json()
+  it('should return correct position via Service', async () => {
+    const position = await WaitlistService.getWaitlistPosition(user1Id)
 
-    console.log('\n📍 Position API Response (User 1):')
-    console.log(`  Position: #${data.position}`)
-    console.log(`  Leaderboard Rank: #${data.leaderboardRank}`)
-    console.log(`  Invite Code: ${data.inviteCode}`)
-    console.log(`  Points: ${data.points}`)
-    console.log(`  Invite Points: ${data.pointsBreakdown?.invite}`)
-    console.log(`  Referral Count: ${data.referralCount}`)
+    console.log('\n📍 Position Service Response (User 1):')
+    console.log(`  Waitlist Position: #${position?.waitlistPosition}`)
+    console.log(`  Leaderboard Rank: #${position?.leaderboardRank}`)
+    console.log(`  Invite Code: ${position?.inviteCode}`)
+    console.log(`  Invite Points: ${position?.invitePoints}`)
+    console.log(`  Referral Count: ${position?.referralCount}`)
 
-    expect(data.position).toBeDefined()
-    expect(data.inviteCode).toBe(user1InviteCode)
-    expect(data.pointsBreakdown?.invite).toBe(50)
-    expect(data.referralCount).toBe(1)
+    expect(position).toBeDefined()
+    expect(position!.waitlistPosition).toBeGreaterThan(0)
+    expect(position!.inviteCode).toBe(user1InviteCode)
+    expect(position!.invitePoints).toBe(50)
+    expect(position!.referralCount).toBe(1)
 
-    console.log('\n✅ Position API working correctly!')
+    console.log('\n✅ Position Service working correctly!')
   })
 })

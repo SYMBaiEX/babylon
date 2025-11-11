@@ -12,7 +12,7 @@ import { notifyCommentOnPost, notifyReplyToComment } from '@/lib/services/notifi
 import { prisma } from '@/lib/database-service';
 import { ensureUserForAuth, getCanonicalUserId } from '@/lib/users/ensure-user';
 import type { NextRequest } from 'next/server';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 /**
  * Build threaded comment structure recursively
@@ -33,25 +33,27 @@ type CommentTreeItem = {
   replies: CommentTreeItem[];
 };
 
-function buildCommentTree(
-  comments: Array<{
+interface CommentInput {
+  id: string;
+  content: string;
+  authorId: string;
+  parentCommentId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+  User: {
     id: string;
-    content: string;
-    createdAt: Date;
-    updatedAt: Date;
-    parentCommentId: string | null;
-    User: {
-      id: string;
-      displayName: string | null;
-      username: string | null;
-      profileImageUrl: string | null;
-    };
-    _count: {
-      Reaction: number;
-      other_Comment: number;
-    };
-    Reaction: Array<{ id: string }>;
-  }>,
+    username: string | null;
+    displayName: string | null;
+    profileImageUrl: string | null;
+    isActor: boolean;
+  };
+  Reaction: Array<{ id: string; userId: string; type: string }>;
+  _count: { Reaction: number };
+}
+
+function buildCommentTree(
+  comments: CommentInput[],
   parentId: string | null = null
 ): CommentTreeItem[] {
   // Helper to find parent comment author name
@@ -106,7 +108,6 @@ export const GET = withErrorHandling(async (
   // Check if post exists
   const post = await prisma.post.findUnique({
     where: { id: postId },
-    select: { id: true, deletedAt: true },
   });
 
   if (!post) {
@@ -129,6 +130,7 @@ export const GET = withErrorHandling(async (
             displayName: true,
             username: true,
             profileImageUrl: true,
+            isActor: true,
           },
         },
         _count: {
@@ -159,7 +161,7 @@ export const GET = withErrorHandling(async (
     });
 
     // Build threaded structure
-    const threadedComments = buildCommentTree(comments);
+    const threadedComments = buildCommentTree(comments as CommentInput[]);
 
     // Get total comment count (including replies)
     const totalComments = comments.length;
@@ -205,7 +207,6 @@ export const POST = withErrorHandling(async (
     // Check if post exists first
     const post = await prisma.post.findUnique({
       where: { id: postId },
-      select: { id: true, deletedAt: true, authorId: true },
     });
 
     // If post doesn't exist, try to auto-create it based on format
@@ -268,7 +269,7 @@ export const POST = withErrorHandling(async (
       }
 
       // Ensure post exists (upsert pattern)
-      await prisma.post.upsert({
+      const upsertedPost = await prisma.post.upsert({
         where: { id: postId },
         update: {},  // Don't update if exists
         create: {
@@ -279,6 +280,11 @@ export const POST = withErrorHandling(async (
           timestamp,
         },
       });
+      
+      // Check if the upserted/existing post is deleted
+      if (upsertedPost.deletedAt) {
+        throw new BusinessLogicError('Cannot comment on deleted post', 'POST_DELETED');
+      }
     } else if (post.deletedAt) {
       // Post exists but is deleted - cannot comment
       throw new BusinessLogicError('Cannot comment on deleted post', 'POST_DELETED');
@@ -310,6 +316,7 @@ export const POST = withErrorHandling(async (
     });
 
     // Create comment
+    const now = new Date();
     const comment = await prisma.comment.create({
       data: {
         id: generateSnowflakeId(),
@@ -317,7 +324,8 @@ export const POST = withErrorHandling(async (
         postId,
         authorId: canonicalUserId,
         parentCommentId: parentCommentId || null,
-        updatedAt: new Date(),
+        createdAt: now,
+        updatedAt: now,
       },
       include: {
         User: {
@@ -326,6 +334,7 @@ export const POST = withErrorHandling(async (
             displayName: true,
             username: true,
             profileImageUrl: true,
+            isActor: true,
           },
         },
         _count: {
@@ -390,7 +399,7 @@ export const POST = withErrorHandling(async (
       parentCommentId: comment.parentCommentId,
       createdAt: comment.createdAt,
       updatedAt: comment.updatedAt,
-      User: comment.User,
+      author: comment.User,
       likeCount: comment._count.Reaction,
       replyCount: comment._count.other_Comment,
     },

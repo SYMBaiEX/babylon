@@ -11,6 +11,7 @@ import { asUser } from '@/lib/db/context';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
+import { generateSnowflakeId } from '@/lib/snowflake';
 import { IdParamSchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
 import { generateSnowflakeId } from '@/lib/snowflake';

@@ -3,20 +3,20 @@
  * Methods: POST (buy YES or NO shares in prediction market)
  */
 
-import type { NextRequest } from 'next/server';
-import { Prisma } from '@prisma/client';
 import { authenticate } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
-import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { PredictionMarketTradeSchema } from '@/lib/validation/schemas/trade';
-import { NotFoundError, BusinessLogicError, InsufficientFundsError } from '@/lib/errors';
-import { WalletService } from '@/lib/services/wallet-service';
-import { PredictionPricing } from '@/lib/prediction-pricing';
-import { logger } from '@/lib/logger';
-import { FeeService } from '@/lib/services/fee-service';
 import { FEE_CONFIG } from '@/lib/config/fees';
+import { asUser } from '@/lib/db/context';
+import { BusinessLogicError, InsufficientFundsError, NotFoundError } from '@/lib/errors';
+import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
+import { logger } from '@/lib/logger';
 import { trackServerEvent } from '@/lib/posthog/server';
+import { PredictionPricing } from '@/lib/prediction-pricing';
+import { FeeService } from '@/lib/services/fee-service';
+import { WalletService } from '@/lib/services/wallet-service';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import { PredictionMarketTradeSchema } from '@/lib/validation/schemas/trade';
+import { Prisma } from '@prisma/client';
+import type { NextRequest } from 'next/server';
 /**
  * POST /api/markets/predictions/[id]/buy
  * Buy YES or NO shares in a prediction market
@@ -126,6 +126,7 @@ export const POST = withErrorHandling(async (
       const endDate = new Date(question.resolutionDate);
       const initialLiquidity = 1000;
       
+      const now = new Date();
       market = await db.market.upsert({
         where: { id: question.id },
         create: {
@@ -140,7 +141,8 @@ export const POST = withErrorHandling(async (
           resolved: false,
           resolution: null,
           endDate: endDate,
-          updatedAt: new Date(),
+          createdAt: now,
+          updatedAt: now,
         },
         update: {},
       });
@@ -216,6 +218,7 @@ export const POST = withErrorHandling(async (
         },
       });
     } else {
+      const now = new Date();
       pos = await db.position.create({
         data: {
           id: generateSnowflakeId(),
@@ -224,7 +227,7 @@ export const POST = withErrorHandling(async (
           side: side === 'yes',
           shares: new Prisma.Decimal(calc.sharesBought),
           avgPrice: new Prisma.Decimal(calc.avgPrice),
-          updatedAt: new Date(),
+          updatedAt: now,
         },
       });
     }

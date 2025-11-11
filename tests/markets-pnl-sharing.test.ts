@@ -2,7 +2,7 @@
  * Test suite for Markets P&L Sharing functionality
  */
 
-import { describe, it, expect, beforeEach } from '@jest/globals'
+import { describe, it, expect, beforeEach } from 'bun:test'
 
 describe('Markets P&L Sharing', () => {
   describe('Portfolio P&L Hook', () => {
@@ -82,7 +82,7 @@ describe('Markets P&L Sharing', () => {
 
     it('should format negative P&L correctly', () => {
       const pnl = -987.65
-      const formatted = `${pnl >= 0 ? '+' : ''}$${Math.abs(pnl).toFixed(2)}`
+      const formatted = `${pnl >= 0 ? '+' : '-'}$${Math.abs(pnl).toFixed(2)}`
       
       expect(formatted).toBe('-$987.65')
     })

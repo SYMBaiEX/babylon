@@ -4,9 +4,9 @@
  * Helper functions for creating notifications when users interact
  */
 
-import { randomUUID } from 'crypto';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 
 export type NotificationType = 'comment' | 'reaction' | 'follow' | 'mention' | 'reply' | 'share' | 'system';
@@ -43,7 +43,7 @@ export async function createNotification(params: CreateNotificationParams): Prom
 
   await prisma.notification.create({
     data: {
-      id: randomUUID(),
+      id: generateSnowflakeId(),
       userId: params.userId,
       type: params.type,
       actorId: params.actorId,

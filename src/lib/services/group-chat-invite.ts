@@ -11,10 +11,10 @@
  * - NPC-member chats (lower chance, 30%)
  */
 
-import { randomUUID } from 'crypto';
 import type { GroupChat } from '@/shared/types';
 import { prisma } from '@/lib/prisma';
 import { notifyGroupChatInvite } from './notification-service';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 // Use GroupChat type for type-safe chat operations
 type GroupChatData = Omit<GroupChat, 'messages'> & {
@@ -213,7 +213,7 @@ export class GroupChatInvite {
         id: chatId,
         name: chatName,
         isGroup: true,
-        gameId: 'continuous',
+        gameId: 'realtime',
         updatedAt: new Date(),
       },
     });
@@ -228,7 +228,7 @@ export class GroupChatInvite {
       },
       update: {},
       create: {
-        id: randomUUID(),
+        id: generateSnowflakeId(),
         chatId,
         userId,
       },
@@ -237,7 +237,7 @@ export class GroupChatInvite {
     // Record membership
     await prisma.groupChatMembership.create({
       data: {
-        id: randomUUID(),
+        id: generateSnowflakeId(),
         userId,
         chatId,
         npcAdminId: npcId,

@@ -5,10 +5,10 @@
  * based on interaction history and social relationships.
  */
 
-import { randomUUID } from 'crypto';
 import { GroupChatInvite } from './group-chat-invite';
 import { logger } from '@/lib/logger';
 import { db } from '@/lib/database-service';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 export interface SocialAction {
   type: 'group_chat_invite' | 'dm';
@@ -99,10 +99,13 @@ export class ActorSocialActions {
         const existingDMChat = userId && actor.id ? await db.prisma.chat.findFirst({
           where: {
             isGroup: false,
-            AND: [
-              { ChatParticipant: { some: { userId } } },
-              { ChatParticipant: { some: { userId: actor.id } } },
-            ],
+            ChatParticipant: {
+              every: {
+                userId: {
+                  in: [userId, actor.id],
+                },
+              },
+            },
           },
           include: {
             ChatParticipant: true,
@@ -216,7 +219,7 @@ export class ActorSocialActions {
       where: { id: chatId },
       update: {},
       create: {
-        id: randomUUID(),
+        id: chatId,
         name: null, // DMs don't have names
         isGroup: false,
         updatedAt: new Date(),
@@ -238,7 +241,7 @@ export class ActorSocialActions {
       },
       update: {},
       create: {
-        id: randomUUID(),
+        id: generateSnowflakeId(),
         chatId,
         userId: actorId,
       },
@@ -253,7 +256,7 @@ export class ActorSocialActions {
       },
       update: {},
       create: {
-        id: randomUUID(),
+        id: generateSnowflakeId(),
         chatId,
         userId,
       },
@@ -264,7 +267,7 @@ export class ActorSocialActions {
     // Create initial message from actor
     await db.prisma.message.create({
       data: {
-        id: randomUUID(),
+        id: generateSnowflakeId(),
         chatId,
         senderId: actorId,
         content: messageContent,

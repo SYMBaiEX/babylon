@@ -70,7 +70,7 @@ export const GET = withErrorHandling(async (
     });
 
   // Format deposits with calculated metrics
-  const formattedDeposits = deposits.map(d => {
+  const formattedDeposits = deposits.map((d) => {
     const amount = parseFloat(d.amount.toString());
     const currentValue = parseFloat(d.currentValue.toString());
     const unrealizedPnL = parseFloat(d.unrealizedPnL.toString());

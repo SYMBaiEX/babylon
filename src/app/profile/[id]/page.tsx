@@ -339,7 +339,6 @@ export default function ActorProfilePage() {
       }, 2000)
       return () => clearTimeout(timer)
     }
-    // Return undefined when condition is not met
     return undefined
   }, [actorInfo, optimisticFollowerCount])
 
@@ -484,7 +483,7 @@ export default function ActorProfilePage() {
     
     return (
       <PageContainer noPadding className="min-h-screen">
-        <div className="w-full max-w-feed mx-auto">
+        <div className="w-full max-w-[700px] mx-auto">
           <ProfileHeaderSkeleton />
           <div className="border-t border-border/5 mt-4">
             <FeedSkeleton count={5} />
@@ -609,7 +608,7 @@ export default function ActorProfilePage() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-3 pt-3">
+              <div className="flex items-center gap-2 pt-3">
                 {authenticated && user && user.id !== actorInfo.id && (
                   <>
                     {/* Only show message button for users, not actors/NPCs */}
@@ -640,7 +639,7 @@ export default function ActorProfilePage() {
                 {isOwnProfile && (
                   <Link
                     href="/settings"
-                    className="px-4 py-3 rounded-full font-bold border border-border hover:bg-muted/50 transition-colors"
+                    className="px-4 py-2 rounded-full font-bold border border-border hover:bg-muted/50 transition-colors"
                   >
                     Edit profile
                   </Link>
@@ -728,7 +727,7 @@ export default function ActorProfilePage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={`Search ${tab}...`}
-                className="w-full pl-10 pr-4 py-2 rounded-full bg-muted border-0 text-sm focus:outline-none"
+                className="w-full pl-10 pr-4 py-2 rounded-full bg-muted border-0 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
               />
             </div>
           </div>
@@ -777,7 +776,7 @@ export default function ActorProfilePage() {
 
         {/* Widget Sidebar - Show for all user profiles */}
         {actorInfo && actorInfo.isUser && (
-          <div className="hidden xl:flex flex-col w-96 shrink-0 overflow-y-auto bg-sidebar px-4 py-3">
+          <div className="hidden xl:flex flex-col w-96 flex-shrink-0 overflow-y-auto bg-sidebar p-4">
             <ProfileWidget userId={actorInfo.id} />
           </div>
         )}
@@ -867,7 +866,7 @@ export default function ActorProfilePage() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex items-center gap-3 pt-3">
+                <div className="flex items-center gap-2 pt-3">
                   {authenticated && user && user.id !== actorInfo.id && (
                     <>
                       {/* Only show message button for users, not actors/NPCs */}
@@ -898,7 +897,7 @@ export default function ActorProfilePage() {
                   {isOwnProfile && (
                     <Link
                       href="/settings"
-                      className="px-4 py-3 rounded-full font-bold border border-border hover:bg-muted/50 transition-colors"
+                      className="px-4 py-2 rounded-full font-bold border border-border hover:bg-muted/50 transition-colors"
                     >
                       Edit profile
                     </Link>
@@ -979,7 +978,7 @@ export default function ActorProfilePage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={`Search ${tab}...`}
-                  className="w-full pl-10 pr-4 py-2 rounded-full bg-muted border-0 text-sm focus:outline-none"
+                  className="w-full pl-10 pr-4 py-2 rounded-full bg-muted border-0 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
                 />
               </div>
             </div>

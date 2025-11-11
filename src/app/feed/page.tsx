@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 import type { FeedPost } from '@/shared/types'
 import { useAuthStore } from '@/stores/authStore'
 import { useGameStore } from '@/stores/gameStore'
+import { Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react'
 
@@ -332,25 +333,29 @@ function FeedPageContent() {
     })
   }, [tab, localPosts, apiPosts])
 
-  const filteredPosts = basePosts
-
   // Removed early loading return to prevent layout shifts - loading state is handled inline
 
   return (
     <PageContainer noPadding className="flex flex-col min-h-screen w-full overflow-visible">
-      {/* Mobile/Tablet: Header with tabs */}
-      <div className="sticky top-0 z-10 bg-background shadow-sm shrink-0 lg:hidden">
-        <FeedToggle activeTab={tab} onTabChange={setTab} />
+      {/* Mobile/Tablet: Header with tabs and search */}
+      <div className="sticky top-0 z-10 bg-background shadow-sm flex-shrink-0 lg:hidden">
+        <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2">
+          {/* Tabs */}
+          <FeedToggle activeTab={tab} onTabChange={setTab} />
+        </div>
       </div>
 
       {/* Desktop: Multi-column layout with scrollable feed */}
       <div className="hidden lg:flex flex-1 min-h-0">
         {/* Left: Feed area - aligned with sidebar, full width */}
         <div className="flex-1 flex flex-col min-w-0 border-l border-r border-[rgba(120,120,120,0.5)]">
-          {/* Desktop: Top bar with tabs */}
-          <div className="sticky top-0 z-10 bg-background shadow-sm shrink-0">
-            <div className="px-4 py-3 md:px-6 md:py-4">
-              <FeedToggle activeTab={tab} onTabChange={setTab} />
+          {/* Desktop: Top bar with tabs and post button */}
+          <div className="sticky top-0 z-10 bg-background shadow-sm flex-shrink-0">
+            <div className="px-6 py-4">
+              {/* Top row: Tabs */}
+              <div className="flex items-center justify-between mb-3">
+                <FeedToggle activeTab={tab} onTabChange={setTab} />
+              </div>
             </div>
           </div>
 
@@ -359,7 +364,7 @@ function FeedPageContent() {
             ref={scrollContainerRef}
             className="flex-1 bg-background overflow-y-auto overflow-x-hidden"
           >
-            <div className="w-full max-w-feed mx-auto">
+            <div className="w-full max-w-[700px] mx-auto">
               {/* Pull to refresh indicator (desktop) */}
               <PullToRefreshIndicator
                 pullDistance={pullDistance}
@@ -368,12 +373,12 @@ function FeedPageContent() {
             </div>
             
             {(loading || (tab === 'following' && loadingFollowing)) ? (
-              <div className="w-full max-w-feed mx-auto px-4 md:px-6">
+              <div className="w-full max-w-[700px] mx-auto px-6">
                 <FeedSkeleton count={6} />
               </div>
-            ) : filteredPosts.length === 0 && tab === 'latest' ? (
+            ) : basePosts.length === 0 && tab === 'latest' ? (
                 // No posts yet
-                <div className="w-full px-4 py-3 sm:px-8 sm:py-6 text-center">
+                <div className="w-full p-4 sm:p-8 text-center">
                   <div className="text-muted-foreground py-8 sm:py-12">
                     <h2 className="text-lg sm:text-2xl font-bold mb-2 text-foreground">No Posts Yet</h2>
                     <p className="mb-4 text-sm sm:text-base">
@@ -385,9 +390,9 @@ function FeedPageContent() {
                     </div>
                   </div>
                 </div>
-              ) : filteredPosts.length === 0 && tab === 'following' ? (
+              ) : basePosts.length === 0 && tab === 'following' ? (
                 // Following tab with no followed profiles
-                <div className="w-full px-4 py-3 sm:px-8 sm:py-6 text-center">
+                <div className="w-full p-4 sm:p-8 text-center">
                   <div className="text-muted-foreground py-8 sm:py-12">
                     <h2 className="font-semibold mb-2 text-foreground">👥 Not Following Anyone Yet</h2>
                     <p className="mb-4 text-sm sm:text-base">
@@ -397,9 +402,9 @@ function FeedPageContent() {
                     </p>
                   </div>
                 </div>
-              ) : filteredPosts.length === 0 ? (
+              ) : basePosts.length === 0 ? (
                 // Game loaded but no visible posts yet
-                <div className="w-full px-4 py-3 sm:px-8 sm:py-6 text-center">
+                <div className="w-full p-4 sm:p-8 text-center">
                 <div className="text-muted-foreground py-8 sm:py-12">
                   <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">⏱️ No Posts Yet</h2>
                   <p className="mb-4 text-sm sm:text-base">
@@ -407,10 +412,10 @@ function FeedPageContent() {
                   </p>
                 </div>
                 </div>
-            ) : (
+              ) : (
               // Show posts - centered container
-              <div className="w-full px-4 md:px-6 space-y-0 max-w-feed mx-auto">
-                {filteredPosts.map((post, i: number) => {
+              <div className="w-full px-6 space-y-0 max-w-[700px] mx-auto">
+                {basePosts.map((post, i: number) => {
                     // Handle both FeedPost (from game store) and API post shapes
                     // API posts have authorId, FeedPost has author (both are author IDs)
                     const authorId = ('authorId' in post ? post.authorId : post.author) || ''
@@ -493,7 +498,7 @@ function FeedPageContent() {
             <div className="w-full px-4">
               <FeedSkeleton count={5} />
             </div>
-          ) : filteredPosts.length === 0 && tab === 'latest' ? (
+            ) : basePosts.length === 0 && tab === 'latest' ? (
             // No posts yet
             <div className="w-full p-4 sm:p-8 text-center">
               <div className="text-muted-foreground py-8 sm:py-12">
@@ -507,7 +512,7 @@ function FeedPageContent() {
                 </div>
               </div>
             </div>
-          ) : filteredPosts.length === 0 && tab === 'following' ? (
+          ) : basePosts.length === 0 && tab === 'following' ? (
             // Following tab with no followed profiles
             <div className="w-full p-4 sm:p-8 text-center">
               <div className="text-muted-foreground py-8 sm:py-12">
@@ -519,7 +524,7 @@ function FeedPageContent() {
                 </p>
               </div>
             </div>
-          ) : filteredPosts.length === 0 ? (
+          ) : basePosts.length === 0 ? (
             // Game loaded but no visible posts yet
             <div className="w-full p-4 sm:p-8 text-center">
               <div className="text-muted-foreground py-8 sm:py-12">
@@ -532,7 +537,7 @@ function FeedPageContent() {
           ) : (
             // Show posts
             <div className="w-full px-4">
-              {filteredPosts.map((post, i: number) => {
+              {basePosts.map((post, i: number) => {
               // Handle both FeedPost (from game store) and API post shapes
               // API posts have authorId, FeedPost has author (both are author IDs)
               const authorId = ('authorId' in post ? post.authorId : post.author) || ''
@@ -611,19 +616,7 @@ function FeedPageContent() {
           )}
           aria-label="Create Post"
         >
-          <svg 
-            className="w-6 h-6 md:w-7 md:h-7" 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
-            <path 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
-              strokeWidth={2} 
-              d="M12 4v16m8-8H4" 
-            />
-          </svg>
+          <Plus className="w-6 h-6 md:w-7 md:h-7" />
         </button>
       )}
 

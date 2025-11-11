@@ -7,13 +7,13 @@
  * - Validates sufficient funds
  * - Calculates PnL
  */
-import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
 
 import { cachedDb } from '@/lib/cached-database-service';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { EarnedPointsService } from '@/lib/services/earned-points-service';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 export interface BalanceInfo {
   balance: number;
@@ -118,7 +118,7 @@ export class WalletService {
 
       await tx.balanceTransaction.create({
         data: {
-          id: randomUUID(),
+          id: generateSnowflakeId(),
           userId,
           type,
           amount: new Prisma.Decimal(-amount), // Negative for debit
@@ -172,7 +172,7 @@ export class WalletService {
 
       await tx.balanceTransaction.create({
         data: {
-          id: randomUUID(),
+          id: generateSnowflakeId(),
           userId,
           type,
           amount: new Prisma.Decimal(amount), // Positive for credit
@@ -276,7 +276,7 @@ export class WalletService {
 
         await tx.balanceTransaction.create({
           data: {
-            id: randomUUID(),
+            id: generateSnowflakeId(),
             userId,
             type: 'deposit',
             amount: new Prisma.Decimal(this.STARTING_BALANCE),

@@ -11,6 +11,7 @@
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { getReputationBreakdown } from '@/lib/reputation/reputation-service';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 export interface PortfolioPosition {
   id: string;
@@ -314,7 +315,7 @@ export class NPCInvestmentManager {
         // Record the rebalance trade
         await prisma.nPCTrade.create({
           data: {
-            id: `trade-${npcUserId}-${Date.now()}`,
+            id: generateSnowflakeId(),
             npcActorId: npcUserId,
             poolId,
             marketType: action.marketType,

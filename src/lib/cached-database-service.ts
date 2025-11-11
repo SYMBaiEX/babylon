@@ -162,6 +162,9 @@ class CachedDatabaseService {
             id: true,
             _count: {
               select: {
+                Follow_Follow_followingIdToUser: true, // users following this user (followers)
+                Follow_Follow_followerIdToUser: true, // users this user follows (following)
+                UserActorFollow: true,
                 Position: true,
                 Comment: true,
                 Reaction: true,
@@ -187,8 +190,8 @@ class CachedDatabaseService {
         });
 
         return {
-          followers: 0,
-          following: legacyActorFollowCount,
+          followers: user._count.Follow_Follow_followingIdToUser,
+          following: user._count.Follow_Follow_followerIdToUser + user._count.UserActorFollow + legacyActorFollowCount,
           positions: user._count.Position,
           comments: user._count.Comment,
           reactions: user._count.Reaction,

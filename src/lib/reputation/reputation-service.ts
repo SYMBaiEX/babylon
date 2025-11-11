@@ -5,7 +5,6 @@
  * Integrates PNL normalization, game scores, and user feedback into unified reputation.
  */
 
-import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/database-service'
 import {
   normalizePnL,
@@ -14,6 +13,7 @@ import {
   calculateConfidenceScore,
 } from './pnl-normalizer'
 import { logger } from '@/lib/logger'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 export interface ReputationScoreBreakdown {
   reputationScore: number
@@ -122,7 +122,7 @@ export async function updateGameMetrics(userId: string, gameScore: number, won: 
   if (!metrics) {
     metrics = await prisma.agentPerformanceMetrics.create({
       data: {
-        id: randomUUID(),
+        id: generateSnowflakeId(),
         userId,
         gamesPlayed: 0,
         gamesWon: 0,
@@ -196,7 +196,7 @@ export async function updateTradingMetrics(
   if (!metrics) {
     metrics = await prisma.agentPerformanceMetrics.create({
       data: {
-        id: randomUUID(),
+        id: generateSnowflakeId(),
         userId,
         normalizedPnL: normalized,
         totalTrades: 0,
@@ -253,7 +253,7 @@ export async function updateFeedbackMetrics(userId: string, score: number) {
   if (!metrics) {
     metrics = await prisma.agentPerformanceMetrics.create({
       data: {
-        id: randomUUID(),
+        id: generateSnowflakeId(),
         userId,
         totalFeedbackCount: 0,
         averageFeedbackScore: 50, // Start at neutral
@@ -423,7 +423,6 @@ export async function getReputationLeaderboard(limit = 100, minGames = 5) {
     gamesPlayed: agent.gamesPlayed,
     winRate: agent.winRate,
     normalizedPnL: agent.normalizedPnL,
-    lastActivityAt: agent.lastActivityAt,
   }))
 }
 
@@ -532,7 +531,7 @@ export async function generateGameCompletionFeedback(
   // Create feedback record
   const feedback = await prisma.feedback.create({
     data: {
-      id: randomUUID(),
+      id: generateSnowflakeId(),
       toUserId: agentId,
       score,
       comment,
@@ -592,7 +591,7 @@ export async function CompletionFormat(
   // Create feedback record
   const feedback = await prisma.feedback.create({
     data: {
-      id: randomUUID(),
+      id: generateSnowflakeId(),
       toUserId: agentId,
       score,
       comment,

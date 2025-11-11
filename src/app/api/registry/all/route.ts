@@ -102,8 +102,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           positions: user._count.Position,
           comments: user._count.Comment,
           reactions: user._count.Reaction,
-          followers: user._count.Follow_Follow_followingIdToUser,
-          following: user._count.Follow_Follow_followerIdToUser,
+          followers: user._count.Follow_Follow_followerIdToUser,
+          following: user._count.Follow_Follow_followingIdToUser,
         },
       }))
     }
@@ -144,8 +144,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             select: {
               Pool: true,
               NPCTrade: true,
-              ActorFollow_ActorFollow_followingIdToActor: true,
               ActorFollow_ActorFollow_followerIdToActor: true,
+              ActorFollow_ActorFollow_followingIdToActor: true,
             },
           },
         },
@@ -168,8 +168,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         stats: {
           pools: actor._count.Pool,
           trades: actor._count.NPCTrade,
-          followers: actor._count.ActorFollow_ActorFollow_followingIdToActor,
-          following: actor._count.ActorFollow_ActorFollow_followerIdToActor,
+          followers: actor._count.ActorFollow_ActorFollow_followerIdToActor,
+          following: actor._count.ActorFollow_ActorFollow_followingIdToActor,
         },
       }))
     }
@@ -195,12 +195,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         mcpEndpoint: agent.mcpEndpoint,
         a2aEndpoint: agent.a2aEndpoint,
         capabilities: agent.capabilities ? JSON.parse(agent.capabilities) : {},
-        reputation: agent.reputation || {
-          totalBets: 0,
-          winningBets: 0,
-          trustScore: 0,
-          accuracyScore: 0,
-        },
+        reputation: agent.reputation,
       }))
     } catch (error) {
       logger.warn('Failed to fetch agents from subgraph', { error }, 'GET /api/registry/all')

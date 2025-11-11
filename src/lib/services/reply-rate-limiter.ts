@@ -7,8 +7,8 @@
  * - Just right: allows reply and tracks timing
  */
 
-import { randomUUID } from 'crypto';
 import { prisma } from '@/lib/database-service';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -155,7 +155,7 @@ export class ReplyRateLimiter {
   ): Promise<void> {
     await prisma.userInteraction.create({
       data: {
-        id: randomUUID(),
+        id: generateSnowflakeId(),
         userId,
         npcId,
         postId,

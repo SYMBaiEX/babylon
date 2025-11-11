@@ -7,6 +7,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 export async function GET(_request: NextRequest) {
   try {
@@ -19,7 +20,7 @@ export async function GET(_request: NextRequest) {
       // Create the game if it doesn't exist
       game = await prisma.game.create({
         data: {
-          id: 'game-continuous',
+          id: generateSnowflakeId(),
           isContinuous: true,
           isRunning: true,
           currentDay: 1,

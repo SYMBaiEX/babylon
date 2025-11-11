@@ -128,7 +128,7 @@ export const GET = withErrorHandling(async (
           likeCount: comment._count.Reaction,
           replyCount: comment._count.other_Comment,
           isLiked: comment.Reaction.length > 0,
-          Post: {
+          post: {
             id: comment.Post.id,
             content: comment.Post.content,
             authorId: comment.Post.authorId,
@@ -318,7 +318,7 @@ export const GET = withErrorHandling(async (
           shareCount: share.Post._count.Share,
           isLiked: false, // Could check if user liked original post
           isShared: true,
-          isRePost: true,
+          isRepost: true,
           originalPostId: share.Post.id,
           author: authorUser
             ? {

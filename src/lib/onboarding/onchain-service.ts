@@ -4,6 +4,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
+import { generateSnowflakeId } from '@/lib/snowflake'
 import { BusinessLogicError, ValidationError, InternalServerError, ConflictError } from '@/lib/errors'
 import { PointsService } from '@/lib/services/points-service'
 import { notifyNewAccount } from '@/lib/services/notification-service'
@@ -212,7 +213,7 @@ export async function processOnchainRegistration({
     if (!dbUser) {
       dbUser = await prisma.user.create({
         data: {
-          id: user.userId,
+          id: generateSnowflakeId(),
           privyId: user.userId,
           username: user.userId,
           displayName: displayName || username || user.userId,
@@ -752,7 +753,7 @@ export async function processOnchainRegistration({
 
   await prisma.balanceTransaction.create({
     data: {
-      id: `tx-${dbUser.id}-${Date.now()}`,
+      id: generateSnowflakeId(),
       userId: dbUser.id,
       type: 'deposit',
       amount: amountDecimal,
@@ -787,7 +788,7 @@ export async function processOnchainRegistration({
           completedAt: new Date(),
         },
         create: {
-          id: `ref-${referrerId}-${Date.now()}`,
+          id: generateSnowflakeId(),
           referrerId,
           referralCode,
           referredUserId: dbUser.id,
@@ -806,7 +807,7 @@ export async function processOnchainRegistration({
       },
       update: {},
       create: {
-        id: `follow-${referrerId}-${dbUser.id}-${Date.now()}`,
+        id: generateSnowflakeId(),
         followerId: referrerId,
         followingId: dbUser.id,
       },

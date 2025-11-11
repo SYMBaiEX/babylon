@@ -1,14 +1,14 @@
-import type { NextRequest } from 'next/server';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import { Prisma } from '@prisma/client';
 import { authenticate } from '@/lib/api/auth-middleware';
-import { asUser } from '@/lib/db/context';
-import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { NotFoundError, BusinessLogicError, InsufficientFundsError } from '@/lib/errors';
-import { PoolDepositBodySchema } from '@/lib/validation/schemas/pool';
-import { logger } from '@/lib/logger';
 import { cachedDb } from '@/lib/cached-database-service';
+import { asUser } from '@/lib/db/context';
+import { BusinessLogicError, InsufficientFundsError, NotFoundError } from '@/lib/errors';
+import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
+import { logger } from '@/lib/logger';
 import { trackServerEvent } from '@/lib/posthog/server';
+import { generateSnowflakeId } from '@/lib/snowflake';
+import { PoolDepositBodySchema } from '@/lib/validation/schemas/pool';
+import { Prisma } from '@prisma/client';
+import type { NextRequest } from 'next/server';
 
 /**
  * POST /api/pools/[id]/deposit

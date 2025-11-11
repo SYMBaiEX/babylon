@@ -3,9 +3,9 @@
  *
  * Handles storage and retrieval of tags in the database
  */
-import { randomUUID } from 'crypto';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 import type { GeneratedTag } from './tag-generation-service';
 
@@ -37,7 +37,7 @@ export async function storeTagsForPost(
     try {
       await prisma.tag.createMany({
         data: tagsToCreate.map((tag) => ({
-          id: randomUUID(),
+          id: generateSnowflakeId(),
           name: tag.name,
           displayName: tag.displayName,
           category: tag.category || null,
@@ -74,7 +74,7 @@ export async function storeTagsForPost(
   const postTagData = tags.map((tag) => {
     const dbTag = existingTagMap.get(tag.name)!;
     return {
-      id: randomUUID(),
+      id: generateSnowflakeId(),
       postId,
       tagId: dbTag.id,
     };
@@ -231,10 +231,10 @@ export async function getTagStatistics(
   return Array.from(tagStats.values())
     .filter((stats) => stats.postCount >= 3)
     .map((stats) => ({
-      tagId: stats.tag?.id ?? '',
-      tagName: stats.tag?.name ?? '',
-      tagDisplayName: stats.tag?.displayName ?? '',
-      tagCategory: stats.tag?.category ?? null,
+      tagId: stats.tag.id,
+      tagName: stats.tag.name,
+      tagDisplayName: stats.tag.displayName,
+      tagCategory: stats.tag.category,
       postCount: stats.postCount,
       recentPostCount: stats.recentPostCount,
       oldestPostDate: stats.oldestPostDate,
@@ -263,7 +263,7 @@ export async function storeTrendingTags(
       tags.map((tag) =>
         tx.trendingTag.create({
           data: {
-            id: randomUUID(),
+            id: generateSnowflakeId(),
             tagId: tag.tagId,
             score: tag.score,
             postCount: tag.postCount,

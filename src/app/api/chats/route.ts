@@ -3,13 +3,13 @@
  * Methods: GET (list user's chats), POST (create new chat)
  */
 
-import type { NextRequest } from 'next/server';
-import { randomUUID } from 'crypto';
 import { authenticate } from '@/lib/api/auth-middleware';
-import { asUser, asSystem } from '@/lib/db/context';
-import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { asSystem, asUser } from '@/lib/db/context';
+import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
-import { ChatQuerySchema, ChatCreateSchema } from '@/lib/validation/schemas';
+import { generateSnowflakeId } from '@/lib/snowflake';
+import { ChatCreateSchema, ChatQuerySchema } from '@/lib/validation/schemas';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/chats
@@ -42,7 +42,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
           isGroup: true,
           gameId: 'continuous',
         },
-        include: {
+        select: {
+          id: true,
+          name: true,
+          isGroup: true,
+          createdAt: true,
+          updatedAt: true,
+          gameId: true,
+          dayNumber: true,
           Message: {
             orderBy: { createdAt: 'desc' },
             take: 1,
@@ -93,7 +100,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       where: {
         id: { in: groupChatIds },
       },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        updatedAt: true,
         Message: {
           orderBy: { createdAt: 'desc' },
           take: 1,
@@ -116,8 +126,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         id: { in: dmChatIds },
         isGroup: false,
       },
-      include: {
-        ChatParticipant: true,
+      select: {
+        id: true,
+        name: true,
+        updatedAt: true,
+        ChatParticipant: {
+          select: {
+            userId: true,
+          },
+        },
         Message: {
           orderBy: { createdAt: 'desc' },
           take: 1,
@@ -147,7 +164,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     const directChats = await Promise.all(
       dmChatsDetails.map(async (chat) => {
         // Find the other participant (not the current user)
-        const otherParticipant = chat.ChatParticipant.find((p) => p.userId !== user.userId);
+        const otherParticipant = chat.ChatParticipant.find((p: { userId: string }) => p.userId !== user.userId);
         let chatName = chat.name || 'Direct Message';
         let otherUserDetails = null;
         
@@ -221,7 +238,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     const now = new Date();
     const newChat = await db.chat.create({
       data: {
-        id: randomUUID(),
+        id: generateSnowflakeId(),
         name: name || null,
         isGroup: isGroup || false,
         createdAt: now,
@@ -232,7 +249,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     // Add creator as participant
     await db.chatParticipant.create({
       data: {
-        id: randomUUID(),
+        id: generateSnowflakeId(),
         chatId: newChat.id,
         userId: user.userId,
       },
@@ -244,7 +261,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         participantIds.map((participantId: string) =>
           db.chatParticipant.create({
             data: {
-              id: randomUUID(),
+              id: generateSnowflakeId(),
               chatId: newChat.id,
               userId: participantId,
             },

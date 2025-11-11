@@ -3,16 +3,16 @@
  * Methods: POST (withdraw funds from a pool)
  */
 
-import type { NextRequest } from 'next/server';
-import { Prisma } from '@prisma/client';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { asUser } from '@/lib/db/context';
-import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { NotFoundError, BusinessLogicError, AuthorizationError, InsufficientFundsError } from '@/lib/errors';
-import { PoolWithdrawBodySchema } from '@/lib/validation/schemas/pool';
+import { AuthorizationError, BusinessLogicError, InsufficientFundsError, NotFoundError } from '@/lib/errors';
+import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { trackServerEvent } from '@/lib/posthog/server';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import { PoolWithdrawBodySchema } from '@/lib/validation/schemas/pool';
+import { Prisma } from '@prisma/client';
+import type { NextRequest } from 'next/server';
 
 /**
  * POST /api/pools/[id]/withdraw

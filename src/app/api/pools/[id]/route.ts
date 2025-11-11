@@ -113,7 +113,7 @@ export const GET = withErrorHandling(async (
     const availableBalance = parseFloat(pool.availableBalance.toString());
     
     const totalUnrealizedPnL = pool.PoolPosition.reduce(
-      (sum, pos) => sum + pos.unrealizedPnL,
+      (sum: number, pos) => sum + pos.unrealizedPnL,
       0
     );
 
@@ -122,22 +122,22 @@ export const GET = withErrorHandling(async (
     // Calculate position breakdown
     const positionsByType = {
       perp: {
-        count: pool.PoolPosition.filter(p => p.marketType === 'perp').length,
+        count: pool.PoolPosition.filter((p) => p.marketType === 'perp').length,
         totalSize: pool.PoolPosition
-          .filter(p => p.marketType === 'perp')
-          .reduce((sum, p) => sum + p.size, 0),
+          .filter((p) => p.marketType === 'perp')
+          .reduce((sum: number, p) => sum + p.size, 0),
         unrealizedPnL: pool.PoolPosition
-          .filter(p => p.marketType === 'perp')
-          .reduce((sum, p) => sum + p.unrealizedPnL, 0),
+          .filter((p) => p.marketType === 'perp')
+          .reduce((sum: number, p) => sum + p.unrealizedPnL, 0),
       },
       prediction: {
-        count: pool.PoolPosition.filter(p => p.marketType === 'prediction').length,
+        count: pool.PoolPosition.filter((p) => p.marketType === 'prediction').length,
         totalSize: pool.PoolPosition
-          .filter(p => p.marketType === 'prediction')
-          .reduce((sum, p) => sum + p.size, 0),
+          .filter((p) => p.marketType === 'prediction')
+          .reduce((sum: number, p) => sum + p.size, 0),
         unrealizedPnL: pool.PoolPosition
-          .filter(p => p.marketType === 'prediction')
-          .reduce((sum, p) => sum + p.unrealizedPnL, 0),
+          .filter((p) => p.marketType === 'prediction')
+          .reduce((sum: number, p) => sum + p.unrealizedPnL, 0),
       },
     };
 
@@ -164,7 +164,7 @@ export const GET = withErrorHandling(async (
       openedAt: pool.openedAt.toISOString(),
       updatedAt: pool.updatedAt.toISOString(),
     },
-    deposits: pool.PoolDeposit.map(d => ({
+    deposits: pool.PoolDeposit.map((d) => ({
       id: d.id,
       userId: d.userId,
       amount: parseFloat(d.amount.toString()),
@@ -173,7 +173,7 @@ export const GET = withErrorHandling(async (
       unrealizedPnL: parseFloat(d.unrealizedPnL.toString()),
       depositedAt: d.depositedAt.toISOString(),
     })),
-    positions: pool.PoolPosition.map(p => ({
+    positions: pool.PoolPosition.map((p) => ({
       id: p.id,
       marketType: p.marketType,
       ticker: p.ticker,
@@ -188,7 +188,7 @@ export const GET = withErrorHandling(async (
       unrealizedPnL: p.unrealizedPnL,
       openedAt: p.openedAt.toISOString(),
     })),
-    recentTrades: pool.NPCTrade.map(t => ({
+    recentTrades: pool.NPCTrade.map((t) => ({
       id: t.id,
       marketType: t.marketType,
       ticker: t.ticker,

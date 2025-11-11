@@ -5,11 +5,11 @@
  * Ensures all actors have appropriate follower counts based on their tier.
  */
 
-import { randomUUID } from 'crypto';
 import { prisma } from '@/lib/database-service';
 import { logger } from '@/lib/logger';
 import { readFileSync, existsSync } from 'fs';
 import { RelationshipManager } from './RelationshipManager';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 export interface RelationshipData {
   actor1Id: string;
@@ -117,7 +117,7 @@ export class FollowInitializer {
         },
         update: {},
         create: {
-          id: randomUUID(),
+          id: generateSnowflakeId(),
           actor1Id: rel.actor1Id,
           actor2Id: rel.actor2Id,
           relationshipType: rel.relationshipType,
@@ -183,7 +183,7 @@ export class FollowInitializer {
         isMutual,
       },
       create: {
-        id: randomUUID(),
+        id: generateSnowflakeId(),
         followerId,
         followingId,
         isMutual,

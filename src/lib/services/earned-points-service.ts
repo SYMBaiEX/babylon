@@ -3,9 +3,9 @@
  * Converts P&L from trading into earned points
  */
 
-import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 export class EarnedPointsService {
   /**
@@ -121,18 +121,17 @@ export class EarnedPointsService {
 
         await tx.pointsTransaction.create({
           data: {
-            id: randomUUID(),
+            id: generateSnowflakeId(),
             userId,
             amount: pointsFromThisTrade,
             pointsBefore: user.reputationPoints,
-            pointsAfter: user.reputationPoints + pointsFromThisTrade,
-            reason: tradeType || 'trade_performance',
+            pointsAfter: newReputationPoints,
+            reason: 'trading_pnl',
             metadata: JSON.stringify({
-              tradeId: randomUUID(), // Assuming tradeId is a UUID
-              pnl: pnlAmount,
-              points: pointsFromThisTrade,
+              pnlAmount,
               tradeType,
               relatedId,
+              pointsFromTrade: pointsFromThisTrade,
             }),
           },
         })

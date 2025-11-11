@@ -5,12 +5,12 @@
  * Provides bidirectional sync between local database and blockchain.
  */
 
-import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/database-service'
 import { getOnChainReputation, syncOnChainReputation } from './blockchain-reputation'
 import { getAgent0Client } from '@/agents/agent0/Agent0Client'
 import { recalculateReputation, getReputationBreakdown } from './reputation-service'
 import { logger } from '@/lib/logger'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 /**
  * Sync Agent0 on-chain reputation to local database after registration
@@ -35,7 +35,7 @@ export async function syncAfterAgent0Registration(userId: string, agent0TokenId:
       return await prisma.agentPerformanceMetrics.upsert({
         where: { userId },
         create: {
-          id: randomUUID(),
+          id: generateSnowflakeId(),
           userId,
           onChainReputationSync: true,
           lastSyncedAt: new Date(),
@@ -44,7 +44,6 @@ export async function syncAfterAgent0Registration(userId: string, agent0TokenId:
         update: {
           onChainReputationSync: true,
           lastSyncedAt: new Date(),
-          updatedAt: new Date(),
         },
       })
     }
@@ -57,7 +56,7 @@ export async function syncAfterAgent0Registration(userId: string, agent0TokenId:
     if (!metrics) {
       metrics = await prisma.agentPerformanceMetrics.create({
         data: {
-          id: randomUUID(),
+          id: generateSnowflakeId(),
           userId,
           updatedAt: new Date(),
         },
@@ -118,18 +117,16 @@ export async function submitFeedbackToAgent0(feedbackId: string, submitToBlockch
       throw new Error(`Feedback ${feedbackId} not found`)
     }
 
-    const recipient = feedback.User_Feedback_toUserIdToUser
-
-    if (!recipient) {
+    if (!feedback.User_Feedback_toUserIdToUser) {
       throw new Error('Feedback has no recipient user')
     }
 
-    const agent0TokenId = recipient.agent0TokenId
+    const agent0TokenId = feedback.User_Feedback_toUserIdToUser.agent0TokenId
 
     if (!agent0TokenId) {
       logger.warn('Agent has no Agent0 token ID, skipping submission', {
         feedbackId,
-        userId: recipient.id,
+        userId: feedback.User_Feedback_toUserIdToUser.id,
       })
       return null
     }
@@ -172,10 +169,10 @@ export async function submitFeedbackToAgent0(feedbackId: string, submitToBlockch
     })
 
     // If requested, also submit to blockchain (ERC-8004)
-    if (submitToBlockchain && recipient.nftTokenId) {
+    if (submitToBlockchain && feedback.User_Feedback_toUserIdToUser.nftTokenId) {
       logger.info('Submitting feedback to blockchain would require wallet client', {
         feedbackId,
-        nftTokenId: recipient.nftTokenId,
+        nftTokenId: feedback.User_Feedback_toUserIdToUser.nftTokenId,
       })
       // Note: Blockchain submission requires wallet client and gas
       // This would be called from a user-facing endpoint with wallet connection

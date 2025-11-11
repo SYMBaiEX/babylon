@@ -4,7 +4,6 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { randomUUID } from 'crypto';
 import { prisma } from '@/lib/database-service';
 import { ensureUserForAuth } from '@/lib/users/ensure-user';
 import { authenticate } from '@/lib/api/auth-middleware';
@@ -13,6 +12,7 @@ import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { IdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { notifyReactionOnComment } from '@/lib/services/notification-service';
+import { generateSnowflakeId } from '@/lib/snowflake';
 /**
  * POST /api/comments/[id]/like
  * Like a comment
@@ -60,7 +60,7 @@ export const POST = withErrorHandling(async (
   // Create like reaction
   const reaction = await prisma.reaction.create({
     data: {
-      id: randomUUID(),
+      id: generateSnowflakeId(),
       commentId,
       userId: canonicalUserId,
       type: 'like',

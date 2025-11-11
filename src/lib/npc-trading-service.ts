@@ -15,6 +15,7 @@
 
 import { prisma } from './prisma';
 import { logger } from './logger';
+import { generateSnowflakeId } from './snowflake';
 
 interface MarketContext {
   perpMarkets: Array<{
@@ -260,7 +261,7 @@ export class NPCTradingService {
 
     await prisma.nPCTrade.create({
       data: {
-        id: `trade-${actor.id}-${Date.now()}`,
+        id: generateSnowflakeId(),
         npcActorId: actor.id,
         poolId,
         marketType: signal.type,
@@ -304,7 +305,7 @@ export class NPCTradingService {
 
       await tx.poolPosition.create({
         data: {
-          id: `position-${poolId}-${Date.now()}`,
+          id: generateSnowflakeId(),
           poolId,
           marketType: 'prediction',
           marketId,
@@ -351,7 +352,7 @@ export class NPCTradingService {
 
       await tx.poolPosition.create({
         data: {
-          id: `position-${poolId}-${Date.now()}`,
+          id: generateSnowflakeId(),
           poolId,
           marketType: 'perp',
           ticker,

@@ -3,19 +3,18 @@
  * Methods: POST (like), DELETE (unlike)
  */
 
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/database-service';
 import { authenticate } from '@/lib/api/auth-middleware';
-import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { prisma } from '@/lib/database-service';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
-import { PostIdParamSchema } from '@/lib/validation/schemas';
-import { notifyReactionOnPost } from '@/lib/services/notification-service';
+import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
-import { ensureUserForAuth } from '@/lib/users/ensure-user';
 import { trackServerEvent } from '@/lib/posthog/server';
+import { notifyReactionOnPost } from '@/lib/services/notification-service';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import { ensureUserForAuth } from '@/lib/users/ensure-user';
+import { PostIdParamSchema } from '@/lib/validation/schemas';
+import type { NextRequest } from 'next/server';
 
 /**
  * POST /api/posts/[id]/like
@@ -39,7 +38,6 @@ export const POST = withErrorHandling(async (
     // Check if post exists first
     let post = await prisma.post.findUnique({
       where: { id: postId },
-      select: { id: true, authorId: true, deletedAt: true },
     });
 
     if (!post) {
@@ -72,10 +70,7 @@ export const POST = withErrorHandling(async (
       
       if (!existingReaction) {
         // Trying to add a new like to deleted post - reject
-        return NextResponse.json(
-          { success: false, error: 'Cannot like deleted post' },
-          { status: 400 }
-        );
+        throw new BusinessLogicError('Cannot like deleted post', 'POST_DELETED');
       }
       // If reaction exists, allow the unlike action to proceed
     }

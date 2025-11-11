@@ -171,6 +171,7 @@ model Comment {
   parentCommentId String?
   createdAt       DateTime   @default(now())
   updatedAt       DateTime
+  deletedAt       DateTime?
   User            User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
   Comment         Comment?   @relation("CommentToComment", fields: [parentCommentId], references: [id], onDelete: Cascade)
   other_Comment   Comment[]  @relation("CommentToComment")
@@ -178,6 +179,7 @@ model Comment {
   Reaction        Reaction[]
 
   @@index([authorId])
+  @@index([deletedAt])
   @@index([parentCommentId])
   @@index([postId, createdAt(sort: Desc)])
 }
@@ -563,30 +565,38 @@ model Position {
 }
 
 model Post {
-  id           String     @id
-  content      String
-  authorId     String
-  gameId       String?
-  dayNumber    Int?
-  timestamp    DateTime   @default(now())
-  createdAt    DateTime   @default(now())
-  articleTitle String?
-  biasScore    Float?
-  byline       String?
-  category     String?
-  fullContent  String?
-  sentiment    String?
-  slant        String?
-  type         String     @default("post")
-  deletedAt    DateTime?
-  Comment      Comment[]
-  PostTag      PostTag[]
-  Reaction     Reaction[]
-  Share        Share[]
+  id                        String     @id
+  content                   String
+  authorId                  String
+  gameId                    String?
+  dayNumber                 Int?
+  timestamp                 DateTime   @default(now())
+  createdAt                 DateTime   @default(now())
+  articleTitle              String?
+  biasScore                 Float?
+  byline                    String?
+  category                  String?
+  fullContent               String?
+  sentiment                 String?
+  slant                     String?
+  type                      String     @default("post")
+  deletedAt                 DateTime?
+  commentOnPostId           String?
+  parentCommentId           String?
+  Comment                   Comment[]
+  PostTag                   PostTag[]
+  Reaction                  Reaction[]
+  Share                     Share[]
+  Post_Post_commentOnPostIdToPost      Post?      @relation("Post_commentOnPostIdToPost", fields: [commentOnPostId], references: [id], onDelete: Cascade)
+  other_Post_Post_commentOnPostIdToPost Post[]     @relation("Post_commentOnPostIdToPost")
+  Post_Post_parentCommentIdToPost      Post?      @relation("Post_parentCommentIdToPost", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  other_Post_Post_parentCommentIdToPost Post[]     @relation("Post_parentCommentIdToPost")
 
   @@index([authorId, timestamp(sort: Desc)])
+  @@index([commentOnPostId])
   @@index([deletedAt])
   @@index([gameId, dayNumber])
+  @@index([parentCommentId])
   @@index([timestamp(sort: Desc)])
   @@index([type, timestamp(sort: Desc)])
 }

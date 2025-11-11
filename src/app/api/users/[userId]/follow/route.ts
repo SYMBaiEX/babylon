@@ -96,6 +96,7 @@ import { generateSnowflakeId } from '@/lib/snowflake';
 import { findUserByIdentifier } from '@/lib/users/user-lookup';
 import { trackServerEvent } from '@/lib/posthog/server';
 import { cachedDb } from '@/lib/cached-database-service';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 /**
  * POST Handler - Follow User or Actor

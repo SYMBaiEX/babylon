@@ -130,7 +130,7 @@ export class ReputationService {
     // 3. Process each position
     for (const position of positions) {
       // Skip if user is not registered on-chain
-      if (!position.User?.onChainRegistered || !position.User.nftTokenId) {
+      if (!position.User.onChainRegistered || !position.User.nftTokenId) {
         results.push({
           userId: position.userId,
           tokenId: 0,

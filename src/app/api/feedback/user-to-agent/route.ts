@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create feedback record
+    const now = new Date();
     const feedback = await prisma.feedback.create({
       data: {
         id: generateSnowflakeId(),
@@ -74,7 +75,8 @@ export async function POST(request: NextRequest) {
         category: body.category,
         interactionType: body.interactionType || 'user_to_agent',
         metadata: body.metadata ? (body.metadata as unknown as Prisma.InputJsonValue) : undefined,
-        updatedAt: new Date(),
+        createdAt: now,
+        updatedAt: now,
       },
     })
 
@@ -163,7 +165,7 @@ export async function GET(request: NextRequest) {
         },
       },
       include: {
-        User_Feedback_fromUserIdToUser: {
+        User_Feedback_toUserIdToUser: {
           select: {
             id: true,
             username: true,

@@ -4,9 +4,9 @@
  * Centralized service for managing reputation points and rewards
  * Tracks all point transactions and ensures no duplicate awards
  */
-import { randomUUID } from 'crypto';
 import { prisma } from '@/lib/database-service';
 import { logger } from '@/lib/logger';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 import type { JsonValue } from '@/types/common';
 
@@ -129,10 +129,8 @@ export class PointsService {
 
       await tx.pointsTransaction.create({
         data: {
-          id: randomUUID(),
-          User: {
-            connect: { id: userId },
-          },
+          id: generateSnowflakeId(),
+          userId,
           amount,
           pointsBefore,
           pointsAfter,
@@ -299,10 +297,8 @@ export class PointsService {
       // Create transaction record with payment details
       prisma.pointsTransaction.create({
         data: {
-          id: randomUUID(),
-          User: {
-            connect: { id: userId },
-          },
+          id: generateSnowflakeId(),
+          userId,
           amount: pointsAmount,
           pointsBefore,
           pointsAfter,
@@ -380,7 +376,7 @@ export class PointsService {
     }
 
     return {
-      reputationPoints: user.reputationPoints,
+      points: user.reputationPoints,
       referralCount: user.referralCount,
       transactions: user.PointsTransaction,
     };

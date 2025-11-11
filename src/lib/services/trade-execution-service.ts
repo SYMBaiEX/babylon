@@ -5,10 +5,10 @@
  * Creates positions, updates balances, records trades.
  */
 
-import { randomUUID } from 'crypto';
-import { prisma } from '@/lib/database-service';
+import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import type { TradingDecision, ExecutedTrade, ExecutionResult } from '@/types/market-decisions';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 export class TradeExecutionService {
   /**
@@ -165,7 +165,7 @@ export class TradeExecutionService {
       // Create position
       const pos = await tx.poolPosition.create({
         data: {
-          id: randomUUID(),
+          id: generateSnowflakeId(),
           poolId,
           marketType: 'perp',
           ticker: decision.ticker!,
@@ -183,7 +183,7 @@ export class TradeExecutionService {
       // Record trade
       await tx.nPCTrade.create({
         data: {
-          id: randomUUID(),
+          id: generateSnowflakeId(),
           npcActorId: decision.npcId,
           poolId,
           marketType: 'perp',
@@ -283,7 +283,7 @@ export class TradeExecutionService {
       // Create position
       const pos = await tx.poolPosition.create({
         data: {
-          id: randomUUID(),
+          id: generateSnowflakeId(),
           poolId,
           marketType: 'prediction',
           marketId: decision.marketId!.toString(),
@@ -300,7 +300,7 @@ export class TradeExecutionService {
       // Record trade
       await tx.nPCTrade.create({
         data: {
-          id: randomUUID(),
+          id: generateSnowflakeId(),
           npcActorId: decision.npcId,
           poolId,
           marketType: 'prediction',
@@ -428,7 +428,7 @@ export class TradeExecutionService {
       // Record trade
       await tx.nPCTrade.create({
         data: {
-          id: randomUUID(),
+          id: generateSnowflakeId(),
           npcActorId: decision.npcId,
           poolId,
           marketType: position.marketType,

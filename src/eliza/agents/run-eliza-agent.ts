@@ -18,7 +18,7 @@ import sqlPlugin from '@elizaos/plugin-sql/node';
 import { predictionMarketsPlugin } from '../../../plugin-babylon/src';
 import * as fs from 'fs';
 import * as path from 'path';
-import type { JsonValue } from '@/types/common';
+import type { JsonValue } from '@prisma/client/runtime/library';
 
 interface CLIOptions {
   character?: string;

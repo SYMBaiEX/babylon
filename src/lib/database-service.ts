@@ -15,6 +15,7 @@ import { logger } from './logger';
 import { prisma } from './prisma';
 import { generateTagsForPosts } from './services/tag-generation-service';
 import { storeTagsForPost } from './services/tag-storage-service';
+import { generateSnowflakeId } from './snowflake';
 
 class DatabaseService {
   // Expose prisma for direct queries
@@ -36,7 +37,7 @@ class DatabaseService {
     // Create new game
     const game = await prisma.game.create({
       data: {
-        id: 'game-continuous',
+        id: generateSnowflakeId(),
         isContinuous: true,
         isRunning: true,
         currentDate: new Date(),
@@ -279,7 +280,7 @@ class DatabaseService {
   async createQuestion(question: GameQuestion & { questionNumber: number }) {
     return await prisma.question.create({
       data: {
-        id: `question-${question.questionNumber}`,
+        id: generateSnowflakeId(),
         questionNumber: question.questionNumber,
         text: question.text,
         scenarioId: question.scenario,
@@ -511,7 +512,7 @@ class DatabaseService {
   async recordPriceUpdate(organizationId: string, price: number, change: number, changePercent: number) {
     return await prisma.stockPrice.create({
       data: {
-        id: `price-${organizationId}-${Date.now()}`,
+        id: generateSnowflakeId(),
         organizationId,
         price,
         change,
@@ -537,7 +538,7 @@ class DatabaseService {
   ) {
     return await prisma.stockPrice.create({
       data: {
-        id: `snapshot-${organizationId}-${Date.now()}`,
+        id: generateSnowflakeId(),
         organizationId,
         price: data.closePrice,
         change: data.closePrice - data.openPrice,
@@ -658,7 +659,6 @@ class DatabaseService {
         affiliations: actor.affiliations || [],
         postStyle: actor.postStyle,
         postExample: actor.postExample || [],
-        updatedAt: new Date(),
         role: actor.role,
         // Update database-specific fields if provided
         ...(actor.initialLuck !== undefined && { initialLuck: actor.initialLuck }),
