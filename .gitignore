@@ -12,12 +12,11 @@ prisma/migrations/
 .vscode/
 .idea/
 .serena/
-cache/
+cache/*
 broadcast/
 data/
 bun.lock
 plugin-babylon/.eliza/
-cache/
 claudedocs/
 package-lock.json
 test-results/
