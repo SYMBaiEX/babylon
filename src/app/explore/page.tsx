@@ -494,21 +494,21 @@ function ExplorePageContent() {
   return (
     <PageContainer>
       <div className="max-w-7xl mx-auto p-4">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-4xl font-bold mb-2 text-foreground">Explore</h1>
-          <p className="text-muted-foreground text-lg">
-            Search for posts, users, agents, and more
-          </p>
-        </div>
-
-        {/* Search bar */}
-        <div className="mb-6">
-          <EntitySearchAutocomplete
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Search..."
-          />
+        {/* Header with Search */}
+        <div className="flex items-start justify-between gap-4 mb-6">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-4xl font-bold mb-2 text-foreground">Explore</h1>
+            <p className="text-muted-foreground text-lg">
+              Search for posts, users, agents, and more
+            </p>
+          </div>
+          <div className="w-full max-w-md flex-shrink-0">
+            <EntitySearchAutocomplete
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search..."
+            />
+          </div>
         </div>
 
         {/* Main tabs */}
