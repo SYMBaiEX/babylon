@@ -8,7 +8,7 @@
     "../plugin-babylon/src"
   ],
   "entryPointStrategy": "expand",
-  "out": "pages/reference/_generated/tsdoc",
+  "out": "app/reference/_generated/tsdoc",
   "plugin": ["typedoc-plugin-markdown"],
   "readme": "none",
   "exclude": [

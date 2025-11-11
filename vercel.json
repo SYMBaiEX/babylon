@@ -5,10 +5,6 @@
     {
       "path": "/api/cron/game-tick",
       "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/reputation/sync",
-      "schedule": "0 */3 * * *"
     }
   ],
   "functions": {
@@ -18,11 +14,7 @@
     },
     "src/app/api/cron/game-tick/route.ts": {
       "memory": 1024,
-      "maxDuration": 60
-    },
-    "src/app/api/reputation/sync/route.ts": {
-      "memory": 1024,
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "src/app/api/**/*.ts": {
       "memory": 1024,

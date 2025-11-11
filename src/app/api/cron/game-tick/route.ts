@@ -7,7 +7,8 @@
  * Configuration in vercel.json:
  * - Runs every minute
  * - Generates posts, events, updates markets
- * - Max execution time: 60s
+ * - Syncs reputation data every 3 hours (checked internally)
+ * - Max execution time: 300s
  * 
  * Security: Uses Vercel Cron secret for authentication
  */

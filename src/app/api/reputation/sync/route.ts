@@ -1,9 +1,12 @@
 /**
  * Reputation Synchronization API
  *
- * Endpoints for syncing local reputation with Agent0 network:
- * - POST /api/reputation/sync - Sync specific user or all users
+ * Endpoints for manual reputation sync with Agent0 network:
+ * - POST /api/reputation/sync - Sync specific user or all users (manual trigger)
  * - GET /api/reputation/sync/status - Get sync status for a user
+ * 
+ * Note: Automatic periodic sync runs every 3 hours via the game tick cron job.
+ * This endpoint is for manual/on-demand syncs only.
  */
 
 import type { NextRequest } from 'next/server'

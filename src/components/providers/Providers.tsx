@@ -1,36 +1,26 @@
 'use client';
 
-import { Suspense, useEffect, useState, Fragment } from 'react';
+import { Fragment, Suspense, useEffect, useState } from 'react';
 
 import { type PrivyClientConfig, PrivyProvider } from '@privy-io/react-auth';
-import { WagmiProvider } from '@privy-io/wagmi';
+import { SmartWalletsProvider } from '@privy-io/react-auth/smart-wallets';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { http } from 'viem';
-import { mainnet, sepolia, base, baseSepolia } from 'viem/chains';
-import { createConfig } from 'wagmi';
 
 import { ThemeProvider } from '@/components/shared/ThemeProvider';
+
 import { privyConfig } from '@/lib/privy-config';
+
 import { FontSizeProvider } from '@/contexts/FontSizeContext';
 import { WidgetRefreshProvider } from '@/contexts/WidgetRefreshContext';
 
+import { FarcasterFrameProvider } from './FarcasterFrameProvider';
 import { GamePlaybackManager } from './GamePlaybackManager';
 import { OnboardingProvider } from './OnboardingProvider';
-import { ReferralCaptureProvider } from './ReferralCaptureProvider';
-import { FarcasterFrameProvider } from './FarcasterFrameProvider';
-import { PostHogProvider } from './PostHogProvider';
-import { PostHogIdentifier } from '@/components/analytics/PostHogIdentifier';
 import { PostHogErrorBoundary } from '@/components/analytics/PostHogErrorBoundary';
+import { PostHogIdentifier } from '@/components/analytics/PostHogIdentifier';
+import { ReferralCaptureProvider } from './ReferralCaptureProvider';
 
-const wagmiConfig = createConfig({
-  chains: [mainnet, sepolia, base, baseSepolia],
-  transports: {
-    [mainnet.id]: http(),
-    [sepolia.id]: http(),
-    [base.id]: http(),
-    [baseSepolia.id]: http(),
-  },
-});
+import { PostHogProvider } from './PostHogProvider';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -99,7 +89,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                     appId={privyConfig.appId}
                     config={privyConfig.config as PrivyClientConfig}
                   >
-                    <WagmiProvider config={wagmiConfig}>
+                    <SmartWalletsProvider>
                       <FarcasterFrameProvider>
                         {/* PostHog user identification */}
                         <PostHogIdentifier />
@@ -118,7 +108,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                           </WidgetRefreshProvider>
                         </OnboardingProvider>
                       </FarcasterFrameProvider>
-                    </WagmiProvider>
+                    </SmartWalletsProvider>
                   </PrivyProvider>
                 </QueryClientProvider>
               </FontSizeProvider>

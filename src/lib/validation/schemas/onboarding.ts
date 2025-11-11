@@ -35,4 +35,7 @@ export const OnboardingProfileSchema = z.object({
   twitterUsername: z.string().optional().nullable(),
   farcasterFid: z.string().optional().nullable(),
   farcasterUsername: z.string().optional().nullable(),
+  // Legal acceptance (required for GDPR compliance)
+  tosAccepted: z.boolean().optional(),
+  privacyPolicyAccepted: z.boolean().optional(),
 })

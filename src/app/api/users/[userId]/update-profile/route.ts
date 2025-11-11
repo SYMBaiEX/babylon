@@ -117,7 +117,9 @@ export const POST = withErrorHandling(async (
     }
   }
 
-  const requiresOnchainUpdate = [
+  // Only require on-chain update if user is already registered on-chain
+  // This allows initial profile setup before on-chain registration
+  const hasProfileChanges = [
     normalizedUsername !== undefined && normalizedUsername !== (currentUser.username ?? ''),
     normalizedDisplayName !== undefined && normalizedDisplayName !== (currentUser.displayName ?? ''),
     normalizedBio !== undefined && normalizedBio !== (currentUser.bio ?? ''),
@@ -125,19 +127,14 @@ export const POST = withErrorHandling(async (
     normalizedCoverImageUrl !== undefined && normalizedCoverImageUrl !== (currentUser.coverImageUrl ?? ''),
   ].some(Boolean);
 
+  const requiresOnchainUpdate = hasProfileChanges && currentUser.onChainRegistered && currentUser.nftTokenId;
+
   let onchainMetadata: Record<string, unknown> | null = null;
   if (requiresOnchainUpdate) {
     if (!currentUser.walletAddress) {
       throw new BusinessLogicError(
         'Wallet address required to update on-chain profile',
         'WALLET_REQUIRED'
-      );
-    }
-
-    if (!currentUser.onChainRegistered || !currentUser.nftTokenId) {
-      throw new BusinessLogicError(
-        'Complete on-chain registration before updating your profile',
-        'ONCHAIN_UPDATE_UNAVAILABLE'
       );
     }
 

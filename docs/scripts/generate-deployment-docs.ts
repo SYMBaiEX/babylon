@@ -166,14 +166,14 @@ async function main() {
   
   // Generate main deployment docs
   const mainDocs = generateMarkdown(deployments);
-  const mainPath = path.join(process.cwd(), 'pages/deployments/_generated/addresses.mdx');
+  const mainPath = path.join(process.cwd(), 'app/deployments/_generated/addresses.mdx');
   await fs.mkdir(path.dirname(mainPath), { recursive: true });
   await fs.writeFile(mainPath, mainDocs);
   console.log('  ✓ Saved deployment addresses');
   
   // Generate contract reference
   const refDocs = generateContractReference(deployments);
-  const refPath = path.join(process.cwd(), 'pages/contracts/_generated/deployed-contracts.mdx');
+  const refPath = path.join(process.cwd(), 'app/contracts/_generated/deployed-contracts.mdx');
   await fs.mkdir(path.dirname(refPath), { recursive: true });
   await fs.writeFile(refPath, refDocs);
   console.log('  ✓ Saved contract reference');

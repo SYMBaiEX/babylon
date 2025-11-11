@@ -31,6 +31,12 @@ export interface GameTickResult {
   questionsCreated: number;
   widgetCachesUpdated: number;
   trendingCalculated: boolean;
+  reputationSynced: boolean;
+  reputationSyncStats?: {
+    total: number;
+    successful: number;
+    failed: number;
+  };
 }
 
 /**
@@ -59,6 +65,7 @@ export async function executeGameTick(): Promise<GameTickResult> {
     questionsCreated: 0,
     widgetCachesUpdated: 0,
     trendingCalculated: false,
+    reputationSynced: false,
   };
 
   try {
@@ -89,6 +96,31 @@ export async function executeGameTick(): Promise<GameTickResult> {
       { count: activeQuestions.length },
       'GameTick'
     );
+
+    // Generate initial questions FIRST if this is the first tick
+    if (activeQuestions.length === 0 && llmClient && Date.now() < deadline) {
+      logger.info('First tick detected - generating initial questions', {}, 'GameTick');
+      try {
+        const questionsGenerated = await generateNewQuestions(
+          5, // Generate 5 initial questions
+          llmClient,
+          deadline
+        );
+        result.questionsCreated = questionsGenerated;
+        
+        // Reload active questions after generation
+        const newActiveQuestions = await prisma.question.findMany({
+          where: { status: 'active' },
+        });
+        activeQuestions.length = 0;
+        activeQuestions.push(...newActiveQuestions);
+        
+        logger.info(`Initial questions created: ${questionsGenerated}`, { count: questionsGenerated }, 'GameTick');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error('Failed to generate initial questions', { error: errorMessage }, 'GameTick');
+      }
+    }
 
     const questionsToResolve = activeQuestions.filter((q) => {
       if (!q.resolutionDate) return false;
@@ -305,8 +337,12 @@ export async function executeGameTick(): Promise<GameTickResult> {
     }
 
     // Calculate trending tags if needed (checks 30-minute interval internally)
+    // Force calculation on first tick if we just generated baseline posts
+    const forceCalculation = result.postsCreated > 0 && result.articlesCreated > 0;
     try {
-      const trendingCalculated = await calculateTrendingIfNeeded();
+      const trendingCalculated = forceCalculation 
+        ? await forceTrendingCalculation()
+        : await calculateTrendingIfNeeded();
       result.trendingCalculated = trendingCalculated;
       if (trendingCalculated) {
         logger.info('Trending tags recalculated', {}, 'GameTick');
@@ -315,6 +351,25 @@ export async function executeGameTick(): Promise<GameTickResult> {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Failed to calculate trending tags', { error: errorMessage }, 'GameTick');
       // Don't fail the entire tick if trending calculation fails
+    }
+
+    // Sync reputation if needed (checks 3-hour interval internally)
+    try {
+      const { periodicReputationSyncIfNeeded } = await import('./reputation/agent0-reputation-sync');
+      const syncResult = await periodicReputationSyncIfNeeded();
+      result.reputationSynced = syncResult.synced;
+      if (syncResult.synced && syncResult.total !== undefined) {
+        result.reputationSyncStats = {
+          total: syncResult.total,
+          successful: syncResult.successful || 0,
+          failed: syncResult.failed || 0,
+        };
+        logger.info('Reputation sync completed', result.reputationSyncStats, 'GameTick');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error('Failed to sync reputation', { error: errorMessage }, 'GameTick');
+      // Don't fail the entire tick if reputation sync fails
     }
 
     const durationMs = Date.now() - startedAt;
@@ -333,6 +388,124 @@ export async function executeGameTick(): Promise<GameTickResult> {
 }
 
 /**
+ * Generate baseline introductory posts on first tick
+ * Creates general commentary and news articles when no questions exist yet
+ */
+async function generateBaselinePosts(
+  actors: Array<{ id: string; name: string; description: string | null }>,
+  organizations: Array<{ id: string; name: string | null; description: string | null }>,
+  timestamp: Date,
+  llm: BabylonLLMClient,
+  deadlineMs: number
+): Promise<{ posts: number; articles: number }> {
+  let postsCreated = 0;
+  let articlesCreated = 0;
+  
+  const baselineTopics = [
+    "the current state of prediction markets",
+    "upcoming trends in tech and politics",
+    "volatility in crypto markets",
+    "major developments to watch this week",
+    "the state of global markets"
+  ];
+  
+  // Calculate timestamp spread
+  const tickDurationMs = 60000; // 1 minute
+  const timeSlotMs = tickDurationMs / 10; // 10 posts total
+  
+  // Generate 5 NPC posts with general commentary
+  for (let i = 0; i < Math.min(5, actors.length); i++) {
+    if (Date.now() > deadlineMs) break;
+    
+    const actor = actors[i];
+    if (!actor || !actor.name) continue;
+    
+    const topic = baselineTopics[i % baselineTopics.length];
+    
+    try {
+      const slotOffset = i * timeSlotMs;
+      const randomJitter = Math.random() * timeSlotMs * 0.8;
+      const timestampWithOffset = new Date(timestamp.getTime() + slotOffset + randomJitter);
+      
+      const prompt = `You are ${actor.name}. Write a brief social media post (max 200 chars) sharing your thoughts about ${topic}. Be opinionated and entertaining. Return your response as JSON in this exact format:
+{
+  "post": "your post content here"
+}`;
+      
+      const response = await llm.generateJSON<{ post: string }>(
+        prompt,
+        { properties: { post: { type: 'string' } }, required: ['post'] },
+        { temperature: 0.9, maxTokens: 200 }
+      );
+      
+      if (!response.post) continue;
+      
+      await db.createPostWithAllFields({
+        id: generateSnowflakeId(),
+        content: response.post,
+        authorId: actor.id,
+        gameId: 'continuous',
+        dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+        timestamp: timestampWithOffset,
+      });
+      postsCreated++;
+      logger.debug('Created baseline NPC post', { actor: actor.name }, 'GameTick');
+    } catch (error) {
+      logger.warn('Failed to generate baseline post', { error, actorId: actor.id }, 'GameTick');
+    }
+  }
+  
+  // Generate 5 org articles with general news
+  for (let i = 0; i < Math.min(5, organizations.length); i++) {
+    if (Date.now() > deadlineMs) break;
+    
+    const org = organizations[i];
+    if (!org || !org.name) continue;
+    
+    const topic = baselineTopics[i % baselineTopics.length];
+    
+    try {
+      const slotOffset = (i + 5) * timeSlotMs;
+      const randomJitter = Math.random() * timeSlotMs * 0.8;
+      const timestampWithOffset = new Date(timestamp.getTime() + slotOffset + randomJitter);
+      
+      const prompt = `You are ${org.name}, a news organization. Write a brief news headline and summary (max 300 chars total) about ${topic}. Be professional and informative. Return your response as JSON in this exact format:
+{
+  "title": "news headline here",
+  "summary": "brief summary here"
+}`;
+      
+      const response = await llm.generateJSON<{ title: string; summary: string }>(
+        prompt,
+        { properties: { title: { type: 'string' }, summary: { type: 'string' } }, required: ['title', 'summary'] },
+        { temperature: 0.7, maxTokens: 300 }
+      );
+      
+      if (!response.title || !response.summary) continue;
+      
+      await db.createPostWithAllFields({
+        id: generateSnowflakeId(),
+        type: 'article',
+        content: response.summary,
+        articleTitle: response.title,
+        authorId: org.id,
+        gameId: 'continuous',
+        dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+        timestamp: timestampWithOffset,
+      });
+      postsCreated++;
+      articlesCreated++;
+      logger.debug('Created baseline org article', { org: org.name }, 'GameTick');
+    } catch (error) {
+      logger.warn('Failed to generate baseline article', { error, orgId: org.id }, 'GameTick');
+    }
+  }
+  
+  logger.info('Baseline content generation complete', { postsCreated, articlesCreated }, 'GameTick');
+  return { posts: postsCreated, articles: articlesCreated };
+}
+
+/**
  * Generate mixed posts from both NPCs and organizations
  * This ensures posts are interleaved rather than chunked by type
  */
@@ -342,8 +515,9 @@ async function generateMixedPosts(
   llm: BabylonLLMClient,
   deadlineMs: number
 ): Promise<{ posts: number; articles: number }> {
-  if (questions.length === 0) return { posts: 0, articles: 0 };
-
+  // On first tick with no questions, generate some baseline content
+  const isFirstTick = questions.length === 0;
+  
   const postsToGenerate = 8; // Mix of NPC posts and org articles
   let postsCreated = 0;
   let articlesCreated = 0;
@@ -528,6 +702,88 @@ Return your response as JSON in this exact format:
 }
 
 /**
+ * Generate baseline articles on first tick (when no events exist yet)
+ * Creates general news coverage to seed the Latest News panel
+ */
+async function generateBaselineArticles(
+  newsOrgs: Array<{ id: string; name: string | null; description: string | null }>,
+  timestamp: Date,
+  llm: BabylonLLMClient,
+  deadlineMs: number
+): Promise<number> {
+  let articlesCreated = 0;
+  
+  const baselineTopics = [
+    { topic: "the current state of prediction markets", category: "finance" },
+    { topic: "upcoming trends in tech and politics", category: "tech" },
+    { topic: "volatility in crypto markets", category: "finance" },
+    { topic: "major developments to watch this week", category: "business" },
+    { topic: "the state of global markets", category: "finance" },
+  ];
+  
+  // Calculate timestamp spread
+  const tickDurationMs = 60000; // 1 minute
+  const timeSlotMs = tickDurationMs / newsOrgs.length;
+  
+  for (let i = 0; i < Math.min(5, newsOrgs.length); i++) {
+    if (Date.now() > deadlineMs) break;
+    
+    const org = newsOrgs[i];
+    if (!org || !org.name) continue;
+    
+    const topicData = baselineTopics[i % baselineTopics.length];
+    if (!topicData) continue;
+    
+    try {
+      const slotOffset = i * timeSlotMs;
+      const randomJitter = Math.random() * timeSlotMs * 0.8;
+      const timestampWithOffset = new Date(timestamp.getTime() + slotOffset + randomJitter);
+      
+      const prompt = `You are ${org.name}, a news organization. Write a detailed news article about ${topicData.topic}.
+
+Your article should include:
+- A compelling headline (max 100 chars)
+- A 2-3 sentence summary for the article listing (max 200 chars)
+- Be professional and informative
+- Match the tone of a ${org.description || 'news organization'}
+
+Return your response as JSON in this exact format:
+{
+  "title": "compelling headline here",
+  "summary": "2-3 sentence summary here"
+}`;
+      
+      const response = await llm.generateJSON<{ title: string; summary: string }>(
+        prompt,
+        { properties: { title: { type: 'string' }, summary: { type: 'string' } }, required: ['title', 'summary'] },
+        { temperature: 0.7, maxTokens: 400 }
+      );
+      
+      if (!response.title || !response.summary) continue;
+      
+      await db.createPostWithAllFields({
+        id: generateSnowflakeId(),
+        type: 'article',
+        content: response.summary,
+        articleTitle: response.title,
+        category: topicData.category,
+        authorId: org.id,
+        gameId: 'continuous',
+        dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+        timestamp: timestampWithOffset,
+      });
+      articlesCreated++;
+      logger.debug('Created baseline article', { org: org.name, topic: topicData.topic }, 'GameTick');
+    } catch (error) {
+      logger.warn('Failed to generate baseline article', { error, orgId: org.id }, 'GameTick');
+    }
+  }
+  
+  logger.info('Baseline article generation complete', { articlesCreated }, 'GameTick');
+  return articlesCreated;
+}
+
+/**
  * Generate articles
  */
 async function generateArticles(
@@ -546,7 +802,21 @@ async function generateArticles(
     take: 10,
   });
 
-  if (recentEvents.length === 0) return 0;
+  // If no recent events, generate baseline articles about general topics
+  if (recentEvents.length === 0) {
+    logger.info('No recent events - generating baseline articles', {}, 'GameTick');
+    const newsOrgs = await prisma.organization.findMany({
+      where: { type: 'media' },
+      take: 5,
+    });
+    
+    if (newsOrgs.length === 0) {
+      logger.warn('No news organizations found for baseline articles', {}, 'GameTick');
+      return 0;
+    }
+    
+    return await generateBaselineArticles(newsOrgs, timestamp, llm, deadlineMs);
+  }
 
   // Get news organizations (media type)
   const newsOrgs = await prisma.organization.findMany({
@@ -1118,5 +1388,29 @@ async function updateWidgetCaches(): Promise<number> {
     const errorMessage = error instanceof Error ? error.message : String(error)
     logger.error('Failed to update widget caches', { error: errorMessage }, 'GameTick');
     return 0;
+  }
+}
+
+/**
+ * Force trending calculation (for first tick with baseline posts)
+ * Waits a few seconds for tags to be generated from posts, then calculates trending
+ */
+async function forceTrendingCalculation(): Promise<boolean> {
+  try {
+    logger.info('Forcing trending calculation (first tick)', {}, 'GameTick');
+    
+    // Wait 3 seconds for tag generation to complete (tags are generated async)
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Import and call trending calculation directly
+    const { calculateTrendingTags } = await import('./services/trending-calculation-service');
+    await calculateTrendingTags();
+    
+    logger.info('Forced trending calculation complete', {}, 'GameTick');
+    return true;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to force trending calculation', { error: errorMessage }, 'GameTick');
+    return false;
   }
 }

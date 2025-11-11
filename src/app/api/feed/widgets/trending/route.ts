@@ -14,6 +14,15 @@ import { NextResponse } from 'next/server'
 export async function GET(request: NextRequest) {
   const trending = await getCurrentTrendingTags(5)
 
+  // If no trending data exists yet (first load), return placeholder
+  if (trending.length === 0) {
+    return NextResponse.json({
+      success: true,
+      trending: [],
+      message: 'No trending data yet - check back after first game tick',
+    })
+  }
+
   // Optional auth - trending tags are public but RLS still applies
   const authUser: AuthenticatedUser | null = await optionalAuth(request).catch(() => null)
 

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "NODE_OPTIONS='--max-old-space-size=8192' next build",
+    "postbuild": "pagefind --site .next/server/app --output-path public/_pagefind",
     "start": "next start",
     "lint": "eslint .",
     "generate:api-docs": "tsx scripts/generate-api-docs.ts",
@@ -15,6 +16,7 @@
     "generate:all": "bun run generate:api-docs && bun run generate:tsdoc && bun run generate:deployment-docs && bun run generate:contract-abis"
   },
   "dependencies": {
+    "@tailwindcss/postcss": "^4.1.17",
     "next": "15.1.0",
     "nextra": "^4.6.0",
     "nextra-theme-docs": "^4.6.0",
@@ -29,6 +31,7 @@
     "eslint": "^9.39.1",
     "eslint-config-next": "15.1.0",
     "eslint-plugin-react-hooks": "^6.0.0",
+    "pagefind": "^1.4.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-react": "^5.30.2",
     "tsx": "^4.20.6",

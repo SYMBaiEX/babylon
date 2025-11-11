@@ -11,6 +11,7 @@ coverage
 out/
 dist/
 build/
+_pagefind/
 
 # Production
 build

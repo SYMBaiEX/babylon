@@ -94,6 +94,7 @@ export function OnboardingModal({
   const [usernameSuggestion, setUsernameSuggestion] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [isLoadingDefaults, setIsLoadingDefaults] = useState(true)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
 
   const currentProfileImage = useMemo(() => {
     return uploadedProfileImage || `/assets/user-profiles/profile-${profilePictureIndex}.jpg`
@@ -247,6 +248,11 @@ export function OnboardingModal({
       return
     }
 
+    if (!acceptedTerms) {
+      setFormError('Please accept the Terms of Service and Privacy Policy to continue')
+      return
+    }
+
     const profilePayload: OnboardingProfilePayload = {
       username: username.trim().toLowerCase(),
       displayName: displayName.trim(),
@@ -259,6 +265,9 @@ export function OnboardingModal({
       twitterUsername: importedData?.platform === 'twitter' ? importedData.username : null,
       farcasterFid: importedData?.platform === 'farcaster' ? importedData.farcasterFid : null,
       farcasterUsername: importedData?.platform === 'farcaster' ? importedData.username : null,
+      // Legal acceptance
+      tosAccepted: acceptedTerms,
+      privacyPolicyAccepted: acceptedTerms,
     }
 
     await onSubmitProfile(profilePayload)
@@ -388,6 +397,39 @@ export function OnboardingModal({
           className="w-full px-3 py-2 bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
         />
         <p className="text-xs text-muted-foreground text-right">{bio.length}/280</p>
+      </div>
+
+      <div className="space-y-3 border-t border-border pt-4">
+        <label className="flex items-start gap-3 cursor-pointer group">
+          <input
+            type="checkbox"
+            checked={acceptedTerms}
+            onChange={(e) => setAcceptedTerms(e.target.checked)}
+            className="mt-1 w-4 h-4 rounded border-border text-[#0066FF] focus:ring-2 focus:ring-[#0066FF] focus:ring-offset-0"
+          />
+          <span className="text-sm text-muted-foreground group-hover:text-foreground">
+            I accept the{' '}
+            <a
+              href="https://docs.babylon.market/legal/terms-of-service"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#0066FF] hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Terms of Service
+            </a>
+            {' '}and{' '}
+            <a
+              href="https://docs.babylon.market/legal/privacy-policy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#0066FF] hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Privacy Policy
+            </a>
+          </span>
+        </label>
       </div>
 
       {(formError || error) && (

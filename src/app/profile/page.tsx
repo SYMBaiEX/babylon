@@ -7,7 +7,9 @@ import { BouncingLogo } from '@/components/shared/BouncingLogo'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { TaggedText } from '@/components/shared/TaggedText'
 import { useAuth } from '@/hooks/useAuth'
+import { useUpdateAgentProfileTx } from '@/hooks/useUpdateAgentProfileTx'
 import { cn } from '@/lib/utils'
+import { WALLET_ERROR_MESSAGES } from '@/lib/wallet-utils'
 import { useAuthStore } from '@/stores/authStore'
 import {
   AlertCircle,
@@ -49,9 +51,10 @@ interface EditModalState {
 }
 
 export default function ProfilePage() {
-  const { ready, authenticated } = useAuth()
+  const { ready, authenticated, smartWalletAddress, smartWalletReady } = useAuth()
   const { user, setUser } = useAuthStore()
   const router = useRouter()
+  const { updateAgentProfile } = useUpdateAgentProfileTx()
   
   const [formData, setFormData] = useState<ProfileFormData>({
     username: '',
@@ -332,6 +335,37 @@ export default function ProfilePage() {
         }
       })
 
+      // If user is registered on-chain, perform on-chain profile update first
+      let onchainTxHash: string | undefined
+      if (user.onChainRegistered && user.nftTokenId) {
+        if (!smartWalletReady || !smartWalletAddress) {
+          throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET)
+        }
+
+        const trimmedDisplayName = (updatedData.displayName ?? '').trim()
+        const trimmedUsername = (updatedData.username ?? '').trim()
+        const trimmedBio = (updatedData.bio ?? '').trim()
+
+        const endpoint = `https://babylon.game/agent/${smartWalletAddress.toLowerCase()}`
+        const metadata = {
+          name:
+            trimmedDisplayName ||
+            trimmedUsername ||
+            user.displayName ||
+            user.username ||
+            'Babylon User',
+          username: trimmedUsername || null,
+          bio: trimmedBio || null,
+          profileImageUrl: updatedData.profileImageUrl || user.profileImageUrl || null,
+          coverImageUrl: updatedData.coverImageUrl || user.coverImageUrl || null,
+        }
+
+        onchainTxHash = await updateAgentProfile({
+          endpoint,
+          metadata,
+        })
+      }
+
       // Update profile
       const updateResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/update-profile`, {
         method: 'POST',
@@ -339,10 +373,16 @@ export default function ProfilePage() {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify(updatedData),
+        body: JSON.stringify({
+          ...updatedData,
+          ...(onchainTxHash && { onchainTxHash }),
+        }),
       })
 
-      if (!updateResponse.ok) throw new Error('Failed to update profile')
+      if (!updateResponse.ok) {
+        const errorData = await updateResponse.json().catch(() => ({}))
+        throw new Error(errorData?.error?.message || 'Failed to update profile')
+      }
       const data = await updateResponse.json()
 
       setFormData({

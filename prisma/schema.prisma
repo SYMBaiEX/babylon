@@ -121,6 +121,14 @@ model User {
   emailVerified         Boolean @default(false)
   email                 String? // Email address for waitlist
 
+  // Legal and compliance
+  tosAccepted           Boolean   @default(false) // Terms of Service acceptance
+  tosAcceptedAt         DateTime? // When TOS was accepted
+  tosAcceptedVersion    String?   @default("2025-11-11") // Version of TOS accepted
+  privacyPolicyAccepted Boolean   @default(false) // Privacy Policy acceptance
+  privacyPolicyAcceptedAt DateTime? // When Privacy Policy was accepted
+  privacyPolicyAcceptedVersion String? @default("2025-11-11") // Version of Privacy Policy accepted
+
   // Fee earnings tracking
   totalFeesEarned Decimal @default(0) @db.Decimal(18, 2) // Lifetime referral fees earned
   totalFeesPaid   Decimal @default(0) @db.Decimal(18, 2) // Lifetime trading fees paid

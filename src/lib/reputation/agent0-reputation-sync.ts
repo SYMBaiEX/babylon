@@ -379,3 +379,66 @@ export async function syncUserReputationNow(userId: string) {
     throw error
   }
 }
+
+// Reputation sync interval (3 hours in milliseconds)
+const REPUTATION_SYNC_INTERVAL_MS = 3 * 60 * 60 * 1000
+
+/**
+ * Check if we should run periodic reputation sync
+ * Uses the most recent lastSyncedAt timestamp from any user's performance metrics
+ */
+async function shouldSyncReputation(): Promise<boolean> {
+  const lastSync = await prisma.agentPerformanceMetrics.findFirst({
+    where: {
+      lastSyncedAt: { not: null },
+    },
+    orderBy: { lastSyncedAt: 'desc' },
+    select: { lastSyncedAt: true },
+  })
+
+  if (!lastSync || !lastSync.lastSyncedAt) {
+    return true // Never synced before
+  }
+
+  const timeSinceLastSync = Date.now() - lastSync.lastSyncedAt.getTime()
+  return timeSinceLastSync >= REPUTATION_SYNC_INTERVAL_MS
+}
+
+/**
+ * Periodic reputation sync if needed (called from game tick)
+ * Only syncs if it's been 3+ hours since the last sync
+ * 
+ * @returns Object with synced status and optional results
+ */
+export async function periodicReputationSyncIfNeeded() {
+  try {
+    const shouldSync = await shouldSyncReputation()
+
+    if (!shouldSync) {
+      logger.debug('Reputation sync not needed yet', undefined, 'ReputationSync')
+      return { synced: false }
+    }
+
+    logger.info('Starting periodic reputation sync from game tick', undefined, 'ReputationSync')
+    const results = await periodicReputationSync()
+
+    logger.info('Reputation sync completed', {
+      total: results.total,
+      successful: results.results.filter((r) => r.success).length,
+      failed: results.results.filter((r) => !r.success).length,
+    }, 'ReputationSync')
+
+    return {
+      synced: true,
+      total: results.total,
+      successful: results.results.filter((r) => r.success).length,
+      failed: results.results.filter((r) => !r.success).length,
+    }
+  } catch (error) {
+    logger.error('Failed to run periodic reputation sync', { error }, 'ReputationSync')
+    return {
+      synced: false,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}

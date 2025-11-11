@@ -10,4 +10,7 @@ export interface OnboardingProfilePayload {
   twitterUsername?: string | null
   farcasterFid?: string | null
   farcasterUsername?: string | null
+  // Legal acceptance (required for GDPR compliance)
+  tosAccepted?: boolean
+  privacyPolicyAccepted?: boolean
 }

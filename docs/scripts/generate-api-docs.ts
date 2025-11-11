@@ -223,10 +223,10 @@ async function main() {
   // Generate Markdown docs
   console.log('📝 Generating Markdown documentation...');
   const markdown = await generateMarkdownDocs(routes);
-  const mdPath = path.join(process.cwd(), 'pages/api-reference/_generated/endpoints.mdx');
+  const mdPath = path.join(process.cwd(), 'app/api-reference/_generated/endpoints.mdx');
   await fs.mkdir(path.dirname(mdPath), { recursive: true });
   await fs.writeFile(mdPath, markdown);
-  console.log(`  ✓ Saved to pages/api-reference/_generated/endpoints.mdx\n`);
+  console.log(`  ✓ Saved to app/api-reference/_generated/endpoints.mdx\n`);
   
   console.log('✅ API documentation generated successfully!');
 }

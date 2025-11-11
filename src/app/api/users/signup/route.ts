@@ -26,6 +26,8 @@ interface SignupRequestBody {
   referralCode?: string | null
   identityToken?: string | null
   isWaitlist?: boolean // Mark user as waitlist during signup
+  tosAccepted?: boolean
+  privacyPolicyAccepted?: boolean
 }
 
 const selectUserSummary = {
@@ -181,6 +183,17 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       hasProfileImage: Boolean(parsedProfile.profileImageUrl),
       // Waitlist users start with 100 points instead of 1000
       ...(isWaitlist ? { reputationPoints: 100 } : {}),
+      // Legal acceptance (GDPR compliance)
+      ...(parsedProfile.tosAccepted ? {
+        tosAccepted: true,
+        tosAcceptedAt: new Date(),
+        tosAcceptedVersion: '2025-11-11',
+      } : {}),
+      ...(parsedProfile.privacyPolicyAccepted ? {
+        privacyPolicyAccepted: true,
+        privacyPolicyAcceptedAt: new Date(),
+        privacyPolicyAcceptedVersion: '2025-11-11',
+      } : {}),
     }
 
     const user = await tx.user.upsert({

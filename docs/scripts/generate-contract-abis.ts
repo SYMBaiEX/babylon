@@ -192,7 +192,7 @@ async function main() {
   
   console.log('\n📄 Generating ABI documentation...\n');
   
-  const abiDir = path.join(process.cwd(), 'pages/contracts/_generated/abis');
+  const abiDir = path.join(process.cwd(), 'app/contracts/_generated/abis');
   await fs.mkdir(abiDir, { recursive: true });
   
   // Generate individual contract docs
@@ -211,7 +211,7 @@ async function main() {
     indexMd += `- [${contract.name}](./abis/${contract.name})\n`;
   }
   
-  const indexPath = path.join(process.cwd(), 'pages/contracts/_generated/index.mdx');
+  const indexPath = path.join(process.cwd(), 'app/contracts/_generated/index.mdx');
   await fs.writeFile(indexPath, indexMd);
   
   // Export ABIs as JSON
