@@ -224,7 +224,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       create: {
         id: canonicalUserId,
         privyId,
-        updatedAt: new Date(),
         ...baseUserData,
         referredBy: resolvedReferrerId,
         updatedAt: new Date(),

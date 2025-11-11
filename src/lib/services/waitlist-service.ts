@@ -3,10 +3,17 @@
  * Manages waitlist signups, positions, and invite codes
  */
 
+<<<<<<< HEAD
 import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
 import { nanoid } from 'nanoid'
 import { generateSnowflakeId } from '@/lib/snowflake'
+=======
+import { prisma } from '@/lib/database-service';
+import { logger } from '@/lib/logger';
+import { generateSnowflakeId } from '@/lib/snowflake';
+import { nanoid } from 'nanoid';
+>>>>>>> origin/staging
 
 export interface WaitlistMarkResult {
   success: boolean

@@ -9,8 +9,13 @@
  * ✅ Vercel-compatible: No filesystem access, completes in <60s
  */
 
+<<<<<<< HEAD
+=======
+import { ArticleGenerator } from '@/engine/ArticleGenerator';
+>>>>>>> origin/staging
 import { MarketDecisionEngine } from '@/engine/MarketDecisionEngine';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
+import type { ActorTier, WorldEvent } from '@/shared/types';
 import type { Prisma } from '@prisma/client';
 import { db } from './database-service';
 import { logger } from './logger';
@@ -19,8 +24,6 @@ import { MarketContextService } from './services/market-context-service';
 import { TradeExecutionService } from './services/trade-execution-service';
 import { calculateTrendingIfNeeded, calculateTrendingTags } from './services/trending-calculation-service';
 import { generateSnowflakeId } from './snowflake';
-import { ArticleGenerator } from '@/engine/ArticleGenerator';
-import type { ActorTier, WorldEvent } from '@/shared/types';
 
 export interface GameTickResult {
   postsCreated: number;

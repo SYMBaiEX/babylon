@@ -7,7 +7,7 @@ import type { NextRequest } from 'next/server';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import {  NotFoundError } from '@/lib/errors';
+import { NotFoundError } from '@/lib/errors';
 import { IdParamSchema, CreateCommentSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';

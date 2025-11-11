@@ -11,10 +11,14 @@
  * - NPC-member chats (lower chance, 30%)
  */
 
+<<<<<<< HEAD
 import type { GroupChat } from '@/shared/types';
+=======
+>>>>>>> origin/staging
 import { prisma } from '@/lib/prisma';
-import { notifyGroupChatInvite } from './notification-service';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import type { GroupChat } from '@/shared/types';
+import { notifyGroupChatInvite } from './notification-service';
 
 // Use GroupChat type for type-safe chat operations
 type GroupChatData = Omit<GroupChat, 'messages'> & {

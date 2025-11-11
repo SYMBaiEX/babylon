@@ -5,10 +5,15 @@
  * based on interaction history and social relationships.
  */
 
+<<<<<<< HEAD
 import { GroupChatInvite } from './group-chat-invite';
 import { logger } from '@/lib/logger';
+=======
+>>>>>>> origin/staging
 import { db } from '@/lib/database-service';
+import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import { GroupChatInvite } from './group-chat-invite';
 
 export interface SocialAction {
   type: 'group_chat_invite' | 'dm';
@@ -219,7 +224,11 @@ export class ActorSocialActions {
       where: { id: chatId },
       update: {},
       create: {
+<<<<<<< HEAD
         id: chatId,
+=======
+        id: generateSnowflakeId(),
+>>>>>>> origin/staging
         name: null, // DMs don't have names
         isGroup: false,
         updatedAt: new Date(),

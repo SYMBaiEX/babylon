@@ -84,19 +84,18 @@
  *                   description: Whether user is following the target
  */
 
-import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
-import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { NotFoundError, BusinessLogicError } from '@/lib/errors';
-import { UserIdParamSchema } from '@/lib/validation/schemas';
 import { authenticate } from '@/lib/api/auth-middleware';
-import { notifyFollow } from '@/lib/services/notification-service';
+import { cachedDb } from '@/lib/cached-database-service';
+import { prisma } from '@/lib/database-service';
+import { BusinessLogicError, NotFoundError } from '@/lib/errors';
+import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
+import { trackServerEvent } from '@/lib/posthog/server';
+import { notifyFollow } from '@/lib/services/notification-service';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { findUserByIdentifier } from '@/lib/users/user-lookup';
-import { trackServerEvent } from '@/lib/posthog/server';
-import { cachedDb } from '@/lib/cached-database-service';
-import { generateSnowflakeId } from '@/lib/snowflake';
+import { UserIdParamSchema } from '@/lib/validation/schemas';
+import type { NextRequest } from 'next/server';
 
 /**
  * POST Handler - Follow User or Actor

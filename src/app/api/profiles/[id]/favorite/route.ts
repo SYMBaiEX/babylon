@@ -14,7 +14,6 @@ import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { IdParamSchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
-import { generateSnowflakeId } from '@/lib/snowflake';
 
 /**
  * POST /api/profiles/[id]/favorite
