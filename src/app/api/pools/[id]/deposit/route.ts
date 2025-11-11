@@ -7,6 +7,7 @@ import { NotFoundError, BusinessLogicError, InsufficientFundsError } from '@/lib
 import { PoolDepositBodySchema } from '@/lib/validation/schemas/pool';
 import { logger } from '@/lib/logger';
 import { cachedDb } from '@/lib/cached-database-service';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 /**
  * POST /api/pools/[id]/deposit
@@ -191,6 +192,15 @@ export const POST = withErrorHandling(async (
   } catch (error) {
     logger.error('Failed to invalidate caches after pool deposit', { error }, 'POST /api/pools/[id]/deposit');
   }
+
+  // Track pool deposit event
+  trackServerEvent(userId, 'pool_deposit', {
+    poolId,
+    amount,
+    shares: result.deposit.shares,
+  }).catch((error) => {
+    logger.warn('Failed to track pool_deposit event', { error });
+  });
 
   return successResponse(
     {

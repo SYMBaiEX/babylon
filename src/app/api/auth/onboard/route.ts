@@ -11,6 +11,7 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { OnChainRegistrationSchema } from '@/lib/validation/schemas/user'
 import { processOnchainRegistration, getOnchainRegistrationStatus } from '@/lib/onboarding/onchain-service'
 import { logger } from '@/lib/logger'
+import { trackServerEvent } from '@/lib/posthog/server'
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request)
@@ -41,6 +42,17 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     alreadyRegistered: result.alreadyRegistered,
     isAgent: user.isAgent,
   }, 'POST /api/auth/onboard')
+
+  // Track onchain registration event
+  trackServerEvent(user.userId, 'onchain_registration_completed', {
+    username: payload.username,
+    tokenId: result.tokenId,
+    wasAlreadyRegistered: result.alreadyRegistered,
+    isAgent: user.isAgent,
+    hadReferral: Boolean(payload.referralCode),
+  }).catch((error) => {
+    logger.warn('Failed to track onchain_registration_completed event', { error });
+  });
 
   return successResponse(result)
 })

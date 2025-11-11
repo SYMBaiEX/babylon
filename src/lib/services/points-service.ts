@@ -57,6 +57,9 @@ export class PointsService {
       where: { id: userId },
       select: {
         reputationPoints: true,
+        invitePoints: true,
+        earnedPoints: true,
+        bonusPoints: true,
         pointsAwardedForProfile: true,
         pointsAwardedForFarcaster: true,
         pointsAwardedForTwitter: true,
@@ -90,6 +93,7 @@ export class PointsService {
     // Update user points and tracking flags in a transaction
     const updateData: Record<string, JsonValue> = {
       reputationPoints: pointsAfter,
+      bonusPoints: user.bonusPoints + amount, // Add to bonus points for social/profile completions
     };
 
     // Set the appropriate tracking flag
@@ -391,7 +395,12 @@ export class PointsService {
         displayName: true,
         profileImageUrl: true,
         reputationPoints: true,
+        invitePoints: true,
+        earnedPoints: true,
+        bonusPoints: true,
         referralCount: true,
+        virtualBalance: true,
+        lifetimePnL: true,
         createdAt: true,
       },
     });
@@ -418,8 +427,13 @@ export class PointsService {
         username: user.username,
         displayName: user.displayName,
         profileImageUrl: user.profileImageUrl,
-        reputationPoints: user.reputationPoints,
+        allPoints: user.reputationPoints, // All Points = total reputation
+        invitePoints: user.invitePoints,
+        earnedPoints: user.earnedPoints,
+        bonusPoints: user.bonusPoints,
         referralCount: user.referralCount,
+        balance: Number(user.virtualBalance),
+        lifetimePnL: Number(user.lifetimePnL),
         createdAt: user.createdAt,
         isActor: false,
         tier: null,
@@ -429,15 +443,20 @@ export class PointsService {
         username: actor.id,
         displayName: actor.name,
         profileImageUrl: actor.profileImageUrl,
-        reputationPoints: actor.reputationPoints,
+        allPoints: actor.reputationPoints,
+        invitePoints: 0,
+        earnedPoints: 0,
+        bonusPoints: 0,
         referralCount: 0,
+        balance: 0,
+        lifetimePnL: 0,
         createdAt: actor.createdAt,
         isActor: true,
         tier: actor.tier,
       })),
     ];
 
-    combined.sort((a, b) => b.reputationPoints - a.reputationPoints);
+    combined.sort((a, b) => b.allPoints - a.allPoints);
 
     const paginatedResults = combined.slice(skip, skip + pageSize);
 

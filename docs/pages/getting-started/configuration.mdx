@@ -1,0 +1,325 @@
+# Configuration
+
+Complete guide to configuring Babylon for development and production.
+
+## Environment Variables
+
+Babylon uses environment variables for configuration. Create a `.env.local` file in the root directory.
+
+### Required Variables
+
+These variables are **required** for the application to run:
+
+```env
+# Database
+DATABASE_URL="postgresql://user:password@localhost:5432/babylon"
+
+# Privy Authentication
+NEXT_PUBLIC_PRIVY_APP_ID="your_privy_app_id"
+PRIVY_APP_SECRET="your_privy_app_secret"
+
+# AI Provider (choose one or both)
+OPENAI_API_KEY="sk-..."
+GROQ_API_KEY="gsk_..."
+```
+
+### Authentication Setup
+
+#### Privy Configuration
+
+1. Sign up at [privy.io](https://privy.io)
+2. Create a new app
+3. Configure allowed domains:
+   - Add `http://localhost:3000` for development
+   - Add your production domain
+   - **Important**: Add `https://farcaster.xyz` for Farcaster Mini App support
+4. Enable authentication methods:
+   - Email
+   - Wallet (MetaMask, Rabby, etc.)
+   - Farcaster (optional)
+   - Twitter (optional)
+5. Copy your App ID and App Secret to `.env.local`
+
+### Optional Variables
+
+#### Redis (Production Recommended)
+
+For real-time event broadcasting across multiple instances:
+
+```env
+UPSTASH_REDIS_REST_URL="https://your-redis.upstash.io"
+UPSTASH_REDIS_REST_TOKEN="your_token"
+```
+
+Get free Redis from [Upstash](https://upstash.com).
+
+#### Blockchain Integration
+
+For on-chain features and Agent0 integration:
+
+```env
+# Enable Agent0 integration
+AGENT0_ENABLED="true"
+
+# RPC URLs
+BASE_SEPOLIA_RPC_URL="https://sepolia.base.org"
+BASE_RPC_URL="https://mainnet.base.org"
+ETHEREUM_RPC_URL="https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY"
+
+# Private keys (never commit these!)
+BABYLON_GAME_PRIVATE_KEY="0x..."
+DEPLOYER_PRIVATE_KEY="0x..."
+```
+
+#### Storage Configuration
+
+For user-uploaded images:
+
+```env
+# AWS S3
+AWS_ACCESS_KEY_ID="your_access_key"
+AWS_SECRET_ACCESS_KEY="your_secret_key"
+AWS_REGION="us-east-1"
+AWS_S3_BUCKET="babylon-uploads"
+
+# OR Vercel Blob Storage
+BLOB_READ_WRITE_TOKEN="vercel_blob_token"
+```
+
+#### Social Authentication
+
+For social login and sharing features:
+
+```env
+# Twitter OAuth
+TWITTER_CLIENT_ID="your_client_id"
+TWITTER_CLIENT_SECRET="your_client_secret"
+TWITTER_CALLBACK_URL="http://localhost:3000/api/auth/twitter/callback"
+
+# Farcaster
+FARCASTER_CLIENT_ID="your_client_id"
+FARCASTER_CLIENT_SECRET="your_client_secret"
+```
+
+#### Cron Security
+
+For protecting cron endpoints:
+
+```env
+CRON_SECRET="your_random_secret_here"
+```
+
+Generate with: `openssl rand -hex 32`
+
+#### Agent Configuration
+
+For autonomous agents:
+
+```env
+# Agent authentication
+BABYLON_AGENT_ID="babylon-agent-default"
+BABYLON_AGENT_SECRET="generate_with_openssl_rand_hex_32"
+
+# Trading limits
+BABYLON_MAX_TRADE_SIZE="100"
+BABYLON_MAX_POSITION_SIZE="500"
+BABYLON_MIN_CONFIDENCE="0.6"
+```
+
+## Complete .env.local Example
+
+```env
+# ============================================
+# DATABASE
+# ============================================
+DATABASE_URL="postgresql://babylon_user:password@localhost:5432/babylon"
+
+# ============================================
+# AUTHENTICATION (Required)
+# ============================================
+NEXT_PUBLIC_PRIVY_APP_ID="clp..."
+PRIVY_APP_SECRET="..."
+
+# ============================================
+# AI PROVIDERS (At least one required)
+# ============================================
+OPENAI_API_KEY="sk-..."
+GROQ_API_KEY="gsk_..."
+
+# ============================================
+# REDIS (Optional - Production Recommended)
+# ============================================
+UPSTASH_REDIS_REST_URL=""
+UPSTASH_REDIS_REST_TOKEN=""
+
+# ============================================
+# BLOCKCHAIN (Optional)
+# ============================================
+AGENT0_ENABLED="false"
+BASE_SEPOLIA_RPC_URL="https://sepolia.base.org"
+BABYLON_GAME_PRIVATE_KEY=""
+DEPLOYER_PRIVATE_KEY=""
+
+# ============================================
+# STORAGE (Optional)
+# ============================================
+AWS_ACCESS_KEY_ID=""
+AWS_SECRET_ACCESS_KEY=""
+AWS_REGION="us-east-1"
+AWS_S3_BUCKET="babylon-uploads"
+
+# OR use Vercel Blob
+BLOB_READ_WRITE_TOKEN=""
+
+# ============================================
+# SOCIAL AUTH (Optional)
+# ============================================
+TWITTER_CLIENT_ID=""
+TWITTER_CLIENT_SECRET=""
+FARCASTER_CLIENT_ID=""
+FARCASTER_CLIENT_SECRET=""
+
+# ============================================
+# SECURITY
+# ============================================
+CRON_SECRET="generate_with_openssl_rand_hex_32"
+NEXTAUTH_SECRET="generate_with_openssl_rand_hex_32"
+
+# ============================================
+# AGENT CONFIGURATION (Optional)
+# ============================================
+BABYLON_AGENT_ID="babylon-agent-default"
+BABYLON_AGENT_SECRET=""
+BABYLON_MAX_TRADE_SIZE="100"
+BABYLON_MAX_POSITION_SIZE="500"
+BABYLON_MIN_CONFIDENCE="0.6"
+
+# ============================================
+# DEVELOPMENT
+# ============================================
+NODE_ENV="development"
+NEXT_PUBLIC_API_URL="http://localhost:3000"
+```
+
+## Configuration by Environment
+
+### Development
+
+```env
+NODE_ENV="development"
+NEXT_PUBLIC_API_URL="http://localhost:3000"
+```
+
+### Staging
+
+```env
+NODE_ENV="production"
+NEXT_PUBLIC_API_URL="https://staging.babylon.market"
+```
+
+### Production
+
+```env
+NODE_ENV="production"
+NEXT_PUBLIC_API_URL="https://babylon.market"
+```
+
+## Vercel Environment Variables
+
+When deploying to Vercel, set environment variables in the dashboard:
+
+1. Go to your project settings
+2. Navigate to "Environment Variables"
+3. Add each variable
+4. Set the appropriate environment (Production, Preview, Development)
+
+### Environment-Specific Variables
+
+- **Production Only**: 
+  - `CRON_SECRET`
+  - Production RPC URLs
+  - Production API keys
+
+- **All Environments**:
+  - `DATABASE_URL` (different per environment)
+  - `NEXT_PUBLIC_PRIVY_APP_ID`
+  - `PRIVY_APP_SECRET`
+
+## Security Best Practices
+
+### Never Commit Secrets
+
+Add to `.gitignore`:
+
+```
+.env.local
+.env.*.local
+.env.production.local
+```
+
+### Rotate Secrets Regularly
+
+- API keys
+- Database passwords
+- Private keys
+- OAuth secrets
+
+### Use Vercel's Secret Management
+
+Store sensitive values in Vercel and reference them:
+
+```bash
+vercel secrets add database-url "postgresql://..."
+```
+
+### Restrict API Key Permissions
+
+- Create separate API keys for development/production
+- Use read-only keys where possible
+- Enable IP restrictions if available
+
+## Validating Configuration
+
+Check if all required variables are set:
+
+```bash
+bun run api:verify
+```
+
+This will:
+- ✅ Check if required variables exist
+- ✅ Validate API key formats
+- ✅ Test database connection
+- ✅ Verify external service connectivity
+
+## Troubleshooting
+
+### Database Connection Issues
+
+```env
+# Try with direct URL (no connection pooling)
+DATABASE_URL="postgresql://user:pass@localhost:5432/babylon"
+
+# For production, use connection pooling
+DATABASE_URL="postgresql://user:pass@host:5432/babylon?pgbouncer=true"
+DIRECT_DATABASE_URL="postgresql://user:pass@host:5432/babylon"
+```
+
+### Privy Authentication Fails
+
+- Verify App ID is correct (starts with `clp`)
+- Check that domains are whitelisted
+- Ensure callback URLs match exactly
+
+### Agent0 Registration Fails
+
+- Ensure you have testnet ETH in your wallet
+- Check RPC URL is accessible
+- Verify private key format (with or without `0x` prefix)
+
+## Next Steps
+
+- [Run Locally](/getting-started/local-development)
+- [Deploy to Vercel](/deployment/vercel)
+- [Set Up Agent0](/agents/agent0-integration)
+

@@ -19,7 +19,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useGameStore } from '@/stores/gameStore'
 import { Plus } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react'
 
 const PAGE_SIZE = 20
 
@@ -418,7 +418,7 @@ function FeedPageContent() {
                 <div className="text-muted-foreground py-8 sm:py-12">
                   <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">⏱️ No Posts Yet</h2>
                   <p className="mb-4 text-sm sm:text-base">
-                    Game is running in the background via realtime-daemon. Content will appear here as it's generated.
+                    Game is running in the background via realtime-daemon. Content will appear here as it&apos;s generated.
                   </p>
                 </div>
                 </div>
@@ -561,7 +561,7 @@ function FeedPageContent() {
               <div className="text-muted-foreground py-8 sm:py-12">
                 <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">⏱️ No Posts Yet</h2>
                 <p className="mb-4 text-sm sm:text-base">
-                  Game is running in the background via realtime-daemon. Content will appear here as it's generated.
+                  Game is running in the background via realtime-daemon. Content will appear here as it&apos;s generated.
                 </p>
               </div>
             </div>
@@ -693,5 +693,9 @@ function FeedPageContent() {
 
 // Export the feed page content directly (WidgetRefreshProvider is now in root Providers)
 export default function FeedPage() {
-  return <FeedPageContent />
+  return (
+    <Suspense fallback={<FeedSkeleton />}>
+      <FeedPageContent />
+    </Suspense>
+  )
 }

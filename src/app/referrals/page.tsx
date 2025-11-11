@@ -541,7 +541,7 @@ export default function ReferralsPage() {
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="w-2 h-2 bg-[#0066FF] rounded-full mt-1.5 flex-shrink-0"></span>
-                      <span><strong className="text-[#0066FF]">Auto-follow</strong> - they'll automatically follow you</span>
+                      <span><strong className="text-[#0066FF]">Auto-follow</strong> - they&apos;ll automatically follow you</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="w-2 h-2 bg-green-500 rounded-full mt-1.5 flex-shrink-0"></span>
@@ -662,7 +662,7 @@ export default function ReferralsPage() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-[#0066FF] mt-0.5 flex-shrink-0">•</span>
-                    <span>Share interesting markets or trades you've made</span>
+                    <span>Share interesting markets or trades you&apos;ve made</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-[#0066FF] mt-0.5 flex-shrink-0">•</span>

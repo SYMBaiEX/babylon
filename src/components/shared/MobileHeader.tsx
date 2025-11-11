@@ -30,11 +30,7 @@ function MobileHeaderContent() {
   const isHomePage = pathname === '/'
   const shouldHide = isProduction && isHomePage && !isDevMode
 
-  // If should be hidden, don't render anything
-  if (shouldHide) {
-    return null
-  }
-
+  // All hooks must be called before any conditional returns
   useEffect(() => {
     if (!authenticated || !user?.id || user.profileImageUrl) {
       return
@@ -113,6 +109,11 @@ function MobileHeaderContent() {
     } catch (err) {
       console.error('Failed to copy referral code:', err)
     }
+  }
+
+  // Render nothing if should be hidden (after all hooks)
+  if (shouldHide) {
+    return null
   }
 
   const menuItems = [

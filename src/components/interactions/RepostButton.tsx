@@ -130,7 +130,7 @@ export function RepostButton({
 
               {/* Content */}
               <p className="text-muted-foreground mb-6">
-                Share this post to your profile? It will appear in your followers' feeds.
+                Share this post to your profile? It will appear in your followers&apos; feeds.
               </p>
 
               {/* Actions */}

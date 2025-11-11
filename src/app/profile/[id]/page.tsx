@@ -480,7 +480,7 @@ export default function ActorProfilePage() {
           </div>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          <p className="text-muted-foreground">Actor "{actorId}" not found</p>
+          <p className="text-muted-foreground">Actor &quot;{actorId}&quot; not found</p>
           <Link
             href="/feed"
             className="px-6 py-3 rounded-lg font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all"

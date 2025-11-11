@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { X402Manager } from '@/a2a/payments/x402-manager'
 import { logger } from '@/lib/logger'
+import { trackServerEvent } from '@/lib/posthog/server'
 
 // Initialize x402 manager (you'll need to configure RPC URL)
 const x402Manager = new X402Manager({
@@ -91,6 +92,15 @@ export async function POST(req: NextRequest) {
       },
       'PointsPurchase'
     )
+
+    // Track points purchase initiated
+    trackServerEvent(userId, 'points_purchase_initiated', {
+      amountUSD,
+      pointsAmount,
+      requestId: paymentRequest.requestId,
+    }).catch((error) => {
+      logger.warn('Failed to track points_purchase_initiated event', { error });
+    });
 
     return NextResponse.json({
       success: true,

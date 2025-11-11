@@ -4,7 +4,7 @@
  */
 
 import { fal } from "@fal-ai/client";
-import { readFile, writeFile, exists } from "fs/promises";
+import { readFile, writeFile, access } from "fs/promises";
 import { join } from "path";
 import { config } from "dotenv";
 import { renderPrompt, actorPortrait, actorBanner, organizationLogo, organizationBanner } from "@/prompts";
@@ -56,7 +56,12 @@ interface FalResponse {
 }
 
 async function fileExists(path: string): Promise<boolean> {
-  return exists(path).catch(() => false);
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**

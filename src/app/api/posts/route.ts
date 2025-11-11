@@ -15,6 +15,7 @@ import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
 import { ensureUserForAuth } from '@/lib/users/ensure-user';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 /**
  * Safely convert a date value to ISO string
@@ -444,6 +445,15 @@ export async function POST(request: NextRequest) {
       logger.error('Failed to broadcast post to SSE:', error, 'POST /api/posts');
       // Don't fail the request if SSE broadcast fails
     }
+
+    // Track post creation with PostHog
+    trackServerEvent(canonicalUserId, 'post_created', {
+      postId: post.id,
+      contentLength: content.trim().length,
+      hasUsername: Boolean(canonicalUser.username),
+    }).catch((trackError) => {
+      logger.warn('Failed to track post creation with PostHog', { error: trackError });
+    });
 
     return successResponse({
       success: true,

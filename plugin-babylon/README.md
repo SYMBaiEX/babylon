@@ -53,7 +53,7 @@ plugin-babylon/
 
 ```bash
 # Install dependencies
-bun add @ai16z/eliza @elizaos/adapter-sqlite better-sqlite3
+bun add @elizaos/eliza @elizaos/adapter-sqlite better-sqlite3
 
 # Clone the Babylon repository
 git clone https://github.com/yourusername/babylon.git
@@ -129,7 +129,7 @@ Create a character file (e.g., `alice-trader.json`):
 ### Programmatic Usage
 
 ```typescript
-import { AgentRuntime, Character } from '@ai16z/eliza';
+import { AgentRuntime, Character } from '@elizaos/eliza';
 import { predictionMarketsPlugin, createBabylonClient } from '@babylonai/plugin-babylon';
 import { SqliteDatabaseAdapter } from '@elizaos/adapter-sqlite';
 

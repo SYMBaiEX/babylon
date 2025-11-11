@@ -1,6 +1,6 @@
 # Babylon ElizaOS Agents
 
-AI agents that play Babylon prediction markets as real users using the [ElizaOS](https://github.com/ai16z/eliza) framework.
+AI agents that play Babylon prediction markets as real users using the [ElizaOS](https://github.com/elizaos/eliza) framework.
 
 ## Quick Start
 

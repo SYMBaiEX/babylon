@@ -4,7 +4,7 @@ services:
     container_name: babylon-postgres
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       POSTGRES_USER: babylon
       POSTGRES_PASSWORD: babylon_dev_password

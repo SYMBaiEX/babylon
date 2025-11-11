@@ -5,6 +5,7 @@
  */
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 import type { GeneratedTag } from './tag-generation-service';
 
@@ -31,32 +32,34 @@ export async function storeTagsForPost(
   const tagsToCreate = tags.filter((t) => !existingTagMap.has(t.name));
 
   if (tagsToCreate.length > 0) {
-    // Use upsert to handle race conditions when multiple posts create the same tag simultaneously
-    const createdTags = await Promise.all(
-      tagsToCreate.map(async (tag) => {
-        try {
-          return await prisma.tag.upsert({
-            where: { name: tag.name },
-            update: {}, // Don't update if exists
-            create: {
-              name: tag.name,
-              displayName: tag.displayName,
-              category: tag.category || null,
-            },
-          });
-        } catch (error) {
-          // If upsert fails (shouldn't happen with proper unique constraints), fetch existing
-          logger.warn(
-            'Tag upsert failed, fetching existing',
-            { tagName: tag.name, error },
-            'TagStorageService'
-          );
-          return await prisma.tag.findUniqueOrThrow({
-            where: { name: tag.name },
-          });
-        }
-      })
-    );
+    // Try to create all tags at once with skipDuplicates to handle race conditions
+    // This is much more efficient than parallel upserts and avoids constraint violations
+    try {
+      await prisma.tag.createMany({
+        data: tagsToCreate.map((tag) => ({
+          name: tag.name,
+          displayName: tag.displayName,
+          category: tag.category || null,
+        })),
+        skipDuplicates: true, // Ignore duplicates without error
+      });
+    } catch (error) {
+      // Log error but continue - we'll fetch all tags next
+      logger.debug(
+        'Tag createMany had partial failure (expected with concurrent creates)',
+        { error },
+        'TagStorageService'
+      );
+    }
+
+    // Now fetch all tags that should exist (either just created or already existed)
+    const createdTags = await prisma.tag.findMany({
+      where: {
+        name: {
+          in: tagsToCreate.map((t) => t.name),
+        },
+      },
+    });
 
     createdTags.forEach((t) => existingTagMap.set(t.name, t));
     logger.debug(
@@ -187,7 +190,7 @@ export async function getTagStatistics(
       oldestPostDate: Date;
       newestPostDate: Date;
     }>
-  >`
+  >(Prisma.sql`
     SELECT 
       t.id as "tagId",
       t.name as "tagName",
@@ -204,7 +207,7 @@ export async function getTagStatistics(
     GROUP BY t.id, t.name, t."displayName", t.category
     HAVING COUNT(pt.id) >= 3
     ORDER BY "postCount" DESC
-  `;
+  `);
 
   return result.map((row) => ({
     ...row,

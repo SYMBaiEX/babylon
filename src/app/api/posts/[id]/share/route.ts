@@ -14,6 +14,7 @@ import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
 import { ensureUserForAuth, getCanonicalUserId } from '@/lib/users/ensure-user';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 /**
  * POST /api/posts/[id]/share
@@ -159,6 +160,16 @@ export const POST = withErrorHandling(async (
 
   logger.info('Post shared successfully', { postId, userId: canonicalUserId, shareCount }, 'POST /api/posts/[id]/share');
 
+  // Track post shared event
+  trackServerEvent(canonicalUserId, 'post_shared', {
+    postId,
+    originalAuthorId: postAuthor?.authorId,
+    shareCount,
+    repostId,
+  }).catch((error) => {
+    logger.warn('Failed to track post_shared event', { error });
+  });
+
   return successResponse(
     {
       data: {
@@ -242,6 +253,14 @@ export const DELETE = withErrorHandling(async (
     });
 
   logger.info('Post unshared successfully', { postId, userId: canonicalUserId, shareCount }, 'DELETE /api/posts/[id]/share');
+
+  // Track post unshared event
+  trackServerEvent(canonicalUserId, 'post_unshared', {
+    postId,
+    shareCount,
+  }).catch((error) => {
+    logger.warn('Failed to track post_unshared event', { error });
+  });
 
   return successResponse({
     data: {

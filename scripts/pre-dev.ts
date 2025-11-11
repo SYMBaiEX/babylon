@@ -3,12 +3,13 @@
 /**
  * Pre-Development Check
  * 
- * Runs before `bun run dev` to ensure database is ready
+ * Runs before `bun run dev` to ensure all services are ready
  * - Checks environment variables
  * - Checks Docker is installed and running
- * - Starts PostgreSQL if not running
+ * - Starts PostgreSQL, Redis, and MinIO if not running
  * - Validates database connection
- * - Fails fast if any issues
+ * - Checks database state and runs migrations/seed if needed
+ * - Fails fast if any critical issues
  * 
  * NO error handling - let it crash if something is wrong
  */
@@ -21,8 +22,9 @@ import { logger } from '../src/lib/logger';
 
 const POSTGRES_CONTAINER_NAME = 'babylon-postgres';
 const REDIS_CONTAINER_NAME = 'babylon-redis';
+const MINIO_CONTAINER_NAME = 'babylon-minio';
 const COMPOSE_FILE = 'docker-compose.yml';
-const LOCAL_DATABASE_URL = 'postgresql://babylon:babylon_dev_password@localhost:5432/babylon';
+const LOCAL_DATABASE_URL = 'postgresql://babylon:babylon_dev_password@localhost:5433/babylon';
 const REDIS_URL = 'redis://localhost:6380';
 
 logger.info('Pre-development checks...', undefined, 'Script');
@@ -99,14 +101,21 @@ if (postgresRunning.trim() !== POSTGRES_CONTAINER_NAME) {
   logger.info('Starting PostgreSQL...', undefined, 'Script');
   await $`docker-compose up -d postgres`;
   
+  // Wait a moment for container to be created
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  
   // Wait for health check
   let attempts = 0;
   while (attempts < 30) {
-    const health = await $`docker inspect --format='{{.State.Health.Status}}' ${POSTGRES_CONTAINER_NAME}`.quiet().text();
-    
-    if (health.trim() === 'healthy') {
-      logger.info('PostgreSQL ready', undefined, 'Script');
-      break;
+    try {
+      const health = await $`docker inspect --format='{{.State.Health.Status}}' ${POSTGRES_CONTAINER_NAME}`.quiet().text();
+      
+      if (health.trim() === 'healthy') {
+        logger.info('PostgreSQL ready', undefined, 'Script');
+        break;
+      }
+    } catch (error) {
+      // Container not ready yet, continue waiting
     }
     
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -130,6 +139,9 @@ if (redisRunning.trim() !== REDIS_CONTAINER_NAME) {
   
   try {
     await $`docker-compose up -d redis`;
+    
+    // Wait a moment for container to be created
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Wait for health check
     let attempts = 0;
@@ -161,6 +173,47 @@ if (redisRunning.trim() !== REDIS_CONTAINER_NAME) {
   }
 } else {
   logger.info('Redis running (localhost:6380)', undefined, 'Script');
+}
+
+// Check if MinIO is running
+const minioRunning = await $`docker ps --filter name=${MINIO_CONTAINER_NAME} --format "{{.Names}}"`.quiet().text();
+
+if (minioRunning.trim() !== MINIO_CONTAINER_NAME) {
+  // Not running, try to start it
+  logger.info('Starting MinIO (on ports 9000-9001)...', undefined, 'Script');
+  
+  try {
+    await $`docker-compose up -d minio`;
+    
+    // Wait for health check
+    let attempts = 0;
+    while (attempts < 30) {
+      try {
+        const health = await $`docker inspect --format='{{.State.Health.Status}}' ${MINIO_CONTAINER_NAME}`.quiet().text();
+        
+        if (health.trim() === 'healthy') {
+          logger.info('MinIO ready (localhost:9000-9001)', undefined, 'Script');
+          break;
+        }
+      } catch {
+        // Container might not be fully created yet
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      attempts++;
+    }
+    
+    if (attempts === 30) {
+      logger.warn('MinIO health check timeout (continuing anyway)', undefined, 'Script');
+      logger.info('MinIO is optional - you can use Vercel Blob or other storage', undefined, 'Script');
+    }
+  } catch (error) {
+    // MinIO failed to start (port conflict, etc.)
+    logger.warn('Could not start MinIO container (this is OK)', undefined, 'Script');
+    logger.info('MinIO is optional - you can use Vercel Blob or other storage', undefined, 'Script');
+  }
+} else {
+  logger.info('MinIO running (localhost:9000-9001)', undefined, 'Script');
 }
 
 // Test database connection with Prisma
@@ -274,7 +327,7 @@ if (actorCount === 0) {
   }
 }
 
-// Check and initialize trending and news
+// Check trending and news (informational only)
 logger.info('Checking trending and news...', undefined, 'Script');
 const trendingCount = await prisma.trendingTag.count();
 const newsCount = await prisma.post.count({ where: { type: 'article' } });
@@ -283,8 +336,9 @@ const MIN_TRENDING = 5;
 const MIN_NEWS = 10;
 
 if (trendingCount < MIN_TRENDING || newsCount < MIN_NEWS) {
-  logger.info(`Initializing trending (${trendingCount}/${MIN_TRENDING}) and news (${newsCount}/${MIN_NEWS})...`, undefined, 'Script');
-  await $`bun run scripts/init-trending-and-news.ts`;
+  logger.info(`Trending (${trendingCount}/${MIN_TRENDING}) and news (${newsCount}/${MIN_NEWS}) not populated`, undefined, 'Script');
+  logger.info('💡 To initialize: bun run scripts/init-trending-and-news.ts', undefined, 'Script');
+  logger.info('   (This is optional and can be done later)', undefined, 'Script');
 } else {
   logger.info(`Trending (${trendingCount}) and news (${newsCount}) already populated`, undefined, 'Script');
 }

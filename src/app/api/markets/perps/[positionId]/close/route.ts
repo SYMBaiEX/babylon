@@ -14,6 +14,7 @@ import { WalletService } from '@/lib/services/wallet-service';
 import { logger } from '@/lib/logger';
 import { FeeService } from '@/lib/services/fee-service';
 import { FEE_CONFIG } from '@/lib/config/fees';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 /**
  * POST /api/markets/perps/[positionId]/close
@@ -130,6 +131,29 @@ export const POST = withErrorHandling(async (
     referrerPaid: feeResult.referrerPaid,
     wasLiquidated: netSettlement === 0
   }, 'POST /api/markets/perps/[positionId]/close');
+
+  // Calculate hold time
+  const holdTimeMs = new Date().getTime() - new Date(position.openedAt).getTime();
+  const holdTimeMinutes = Math.round(holdTimeMs / 60000);
+
+  // Track trade closed event
+  trackServerEvent(user.userId, 'trade_closed', {
+    type: 'perp',
+    ticker: position.ticker,
+    side: position.side,
+    size: position.size,
+    leverage: position.leverage,
+    entryPrice: position.entryPrice,
+    exitPrice: position.currentPrice,
+    realizedPnL,
+    pnlPercent: (realizedPnL / marginPaid) * 100,
+    holdTimeMinutes,
+    feeCharged: feeResult.feeCharged,
+    wasLiquidated: netSettlement === 0,
+    positionId,
+  }).catch((error) => {
+    logger.warn('Failed to track trade_closed event', { error });
+  });
 
   return successResponse({
     position: {

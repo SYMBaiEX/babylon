@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
 import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { useSocialTracking } from '@/hooks/usePostHog'
 
 interface FollowButtonProps {
   userId: string
@@ -29,6 +30,7 @@ export function FollowButton({
   const [isFollowing, setIsFollowing] = useState(initialFollowing)
   const [isLoading, setIsLoading] = useState(false)
   const [isChecking, setIsChecking] = useState(true)
+  const { trackFollow } = useSocialTracking()
 
   // Check follow status on mount
   useEffect(() => {
@@ -121,6 +123,8 @@ export function FollowButton({
       setIsFollowing(newFollowingState)
       onFollowChange?.(newFollowingState)
       toast.success(newFollowingState ? 'Following' : 'Unfollowed')
+      // Track follow action (client-side for instant feedback)
+      trackFollow(userId, newFollowingState)
     } else {
       // Try to get error message, but don't show generic errors for 404s
       const errorData = await response.json().catch(() => ({ error: null }))

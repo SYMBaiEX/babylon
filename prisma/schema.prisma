@@ -23,150 +23,168 @@ datasource db {
 model User {
   id              String   @id @default(uuid())
   privyId         String   @unique
-  walletAddress   String?  @unique  // For real users with Web3 auth
+  walletAddress   String?  @unique // For real users with Web3 auth
   username        String?  @unique
   displayName     String?
   bio             String?
   profileImageUrl String?
   coverImageUrl   String?
-  isActor         Boolean  @default(false)  // true = game-generated NPC
+  isActor         Boolean  @default(false) // true = game-generated NPC
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   // Actor-specific fields (from actors.json)
-  personality     String?
-  postStyle       String?
-  postExample     String?
+  personality String?
+  postStyle   String?
+  postExample String?
 
   // Virtual wallet for trading
-  virtualBalance       Decimal  @default(1000) @db.Decimal(18, 2) // Start with 1k
-  totalDeposited       Decimal  @default(1000) @db.Decimal(18, 2)
-  totalWithdrawn       Decimal  @default(0) @db.Decimal(18, 2)
-  lifetimePnL          Decimal  @default(0) @db.Decimal(18, 2)
-  
+  virtualBalance Decimal @default(1000) @db.Decimal(18, 2) // Start with 1k
+  totalDeposited Decimal @default(1000) @db.Decimal(18, 2)
+  totalWithdrawn Decimal @default(0) @db.Decimal(18, 2)
+  lifetimePnL    Decimal @default(0) @db.Decimal(18, 2)
+
   // On-chain identity (ERC-8004)
-  onChainRegistered         Boolean  @default(false)
-  nftTokenId                Int?     @unique  // ERC-8004 NFT token ID
-  registrationTxHash        String?  // Transaction hash of on-chain registration
-  registrationBlockNumber   BigInt?  // Block number of registration
-  registrationGasUsed       BigInt?  // Gas used for registration
-  registrationTimestamp     DateTime? // Timestamp of registration
-  
+  onChainRegistered       Boolean   @default(false)
+  nftTokenId              Int?      @unique // ERC-8004 NFT token ID
+  registrationTxHash      String? // Transaction hash of on-chain registration
+  registrationBlockNumber BigInt? // Block number of registration
+  registrationGasUsed     BigInt? // Gas used for registration
+  registrationTimestamp   DateTime? // Timestamp of registration
+
   // Agent0 SDK registration (for internal knowledge)
-  agent0TokenId        Int?      // Agent0 registry token ID
-  agent0MetadataCID    String?   // IPFS CID of Agent0 metadata
-  agent0RegisteredAt   DateTime? // When registered with Agent0
+  agent0TokenId      Int? // Agent0 registry token ID
+  agent0MetadataCID  String? // IPFS CID of Agent0 metadata
+  agent0RegisteredAt DateTime? // When registered with Agent0
 
   // Reputation/Points System
-  reputationPoints     Int      @default(1000) // Start with 1000 points
-  
+  reputationPoints Int @default(1000) // Start with 1000 points (waitlist users set to 100 in app logic)
+  invitePoints     Int @default(0) // Points earned from referrals
+  earnedPoints     Int @default(0) // Points earned from trading P&L
+  bonusPoints      Int @default(0) // Bonus points (email, wallet, etc.)
+
   // Profile completion tracking
-  profileComplete      Boolean  @default(false)
-  hasProfileImage      Boolean  @default(false)
-  hasUsername          Boolean  @default(false)
-  hasBio               Boolean  @default(false)
+  profileComplete         Boolean   @default(false)
+  hasProfileImage         Boolean   @default(false)
+  hasUsername             Boolean   @default(false)
+  hasBio                  Boolean   @default(false)
   profileSetupCompletedAt DateTime?
-  usernameChangedAt    DateTime? // Track when username was last changed (for rate limiting)
-  
+  usernameChangedAt       DateTime? // Track when username was last changed (for rate limiting)
+
   // Points awarded tracking (to prevent duplicate awards)
-  pointsAwardedForProfile      Boolean  @default(false)
-  pointsAwardedForProfileImage Boolean  @default(false)
-  pointsAwardedForUsername     Boolean  @default(false)
-  
+  pointsAwardedForProfile      Boolean @default(false)
+  pointsAwardedForProfileImage Boolean @default(false)
+  pointsAwardedForUsername     Boolean @default(false)
+
   // Social connections tracking
-  hasFarcaster         Boolean  @default(false)
-  hasTwitter           Boolean  @default(false)
-  farcasterUsername    String?
-  twitterUsername      String?
-  pointsAwardedForFarcaster    Boolean  @default(false)
-  pointsAwardedForTwitter      Boolean  @default(false)
-  pointsAwardedForWallet       Boolean  @default(false)
-  
+  hasFarcaster              Boolean @default(false)
+  hasTwitter                Boolean @default(false)
+  farcasterUsername         String?
+  twitterUsername           String?
+  pointsAwardedForFarcaster Boolean @default(false)
+  pointsAwardedForTwitter   Boolean @default(false)
+  pointsAwardedForWallet    Boolean @default(false)
+
   // Twitter OAuth
-  twitterId            String?  @unique // Twitter user ID
-  twitterAccessToken   String?  // OAuth access token (encrypt in production)
-  twitterRefreshToken  String?  // OAuth refresh token
+  twitterId             String?   @unique // Twitter user ID
+  twitterAccessToken    String? // OAuth access token (encrypt in production)
+  twitterRefreshToken   String? // OAuth refresh token
   twitterTokenExpiresAt DateTime? // Token expiration
-  twitterVerifiedAt    DateTime? // When Twitter was verified
-  
+  twitterVerifiedAt     DateTime? // When Twitter was verified
+
   // Farcaster Auth
-  farcasterFid         String?  @unique // Farcaster ID
-  farcasterDisplayName String?  // Farcaster display name
-  farcasterPfpUrl      String?  // Profile picture URL
+  farcasterFid         String?   @unique // Farcaster ID
+  farcasterDisplayName String? // Farcaster display name
+  farcasterPfpUrl      String? // Profile picture URL
   farcasterVerifiedAt  DateTime? // When Farcaster was verified
-  
+
   // Social visibility preferences
-  showTwitterPublic    Boolean  @default(true)
-  showFarcasterPublic  Boolean  @default(true)
-  showWalletPublic     Boolean  @default(true)
-  
+  showTwitterPublic   Boolean @default(true)
+  showFarcasterPublic Boolean @default(true)
+  showWalletPublic    Boolean @default(true)
+
   // Referral tracking
-  referralCode         String?  @unique
-  referredBy           String?  // User ID who referred this user
-  referralCount        Int      @default(0) // Number of successful referrals
-  bannerLastShown      DateTime? // Track when invite banner was last shown
-  bannerDismissCount   Int      @default(0) // Track how many times user dismissed banner
-  
+  referralCode       String?   @unique
+  referredBy         String? // User ID who referred this user
+  referralCount      Int       @default(0) // Number of successful referrals
+  bannerLastShown    DateTime? // Track when invite banner was last shown
+  bannerDismissCount Int       @default(0) // Track how many times user dismissed banner
+
+  // Waitlist tracking
+  waitlistPosition    Int? // Position in waitlist (1 = first)
+  waitlistJoinedAt    DateTime? // When they joined the waitlist
+  isWaitlistActive    Boolean   @default(false) // Whether they're currently on waitlist
+  waitlistGraduatedAt DateTime? // When they graduated from waitlist to full access
+
+  // Bonus tracking for waitlist
+  pointsAwardedForEmail Boolean @default(false)
+  emailVerified         Boolean @default(false)
+  email                 String? // Email address for waitlist
+
   // Fee earnings tracking
-  totalFeesEarned      Decimal  @default(0) @db.Decimal(18, 2) // Lifetime referral fees earned
-  totalFeesPaid        Decimal  @default(0) @db.Decimal(18, 2) // Lifetime trading fees paid
-  
+  totalFeesEarned Decimal @default(0) @db.Decimal(18, 2) // Lifetime referral fees earned
+  totalFeesPaid   Decimal @default(0) @db.Decimal(18, 2) // Lifetime trading fees paid
+
   // Agent0 legacy fields (preserved for existing data)
-  agent0FeedbackCount  Int?     // Legacy: Agent0 feedback count
-  agent0TrustScore     Float?   // Legacy: Agent0 trust score
-  role                 String?  // Legacy: User role
+  agent0FeedbackCount Int? // Legacy: Agent0 feedback count
+  agent0TrustScore    Float? // Legacy: Agent0 trust score
+  role                String? // Legacy: User role
 
   // Admin and moderation
-  isAdmin              Boolean  @default(false) // Admin users with dashboard access
-  isBanned             Boolean  @default(false) // Banned users
-  bannedAt             DateTime? // When user was banned
-  bannedReason         String?  // Reason for ban
-  bannedBy             String?  // Admin who banned the user
+  isAdmin      Boolean   @default(false) // Admin users with dashboard access
+  isBanned     Boolean   @default(false) // Banned users
+  bannedAt     DateTime? // When user was banned
+  bannedReason String? // Reason for ban
+  bannedBy     String? // Admin who banned the user
 
   // Relationships
-  comments        Comment[]
-  reactions       Reaction[]
-  positions       Position[]
-  followedBy      Follow[]     @relation("following")
-  following       Follow[]     @relation("follower")
-  favorites       Favorite[]   @relation("UserFavorites")
-  favoritedBy     Favorite[]   @relation("UserFavoritedBy")
-  shares          Share[]
+  comments            Comment[]
+  reactions           Reaction[]
+  positions           Position[]
+  followedBy          Follow[]                 @relation("following")
+  following           Follow[]                 @relation("follower")
+  favorites           Favorite[]               @relation("UserFavorites")
+  favoritedBy         Favorite[]               @relation("UserFavoritedBy")
+  shares              Share[]
   balanceTransactions BalanceTransaction[]
-  notifications   Notification[] @relation("NotificationRecipient")
-  notificationsSent Notification[] @relation("NotificationActor")
+  notifications       Notification[]           @relation("NotificationRecipient")
+  notificationsSent   Notification[]           @relation("NotificationActor")
   pointsTransactions  PointsTransaction[]
-  shareActions    ShareAction[]
-  referrals       Referral[] @relation("Referrer")
-  referredUsers   Referral[] @relation("Referred")
-  onboardingIntent OnboardingIntent?
-  feedbackGiven   Feedback[] @relation("FeedbackGiven")
-  feedbackReceived Feedback[] @relation("FeedbackReceived")
-  performanceMetrics AgentPerformanceMetrics?
-  tradingFees          TradingFee[] @relation("TraderFees")
-  referralFeesEarned   TradingFee[] @relation("ReferrerFees")
-  userActorFollows     UserActorFollow[]
+  shareActions        ShareAction[]
+  referrals           Referral[]               @relation("Referrer")
+  referredUsers       Referral[]               @relation("Referred")
+  onboardingIntent    OnboardingIntent?
+  feedbackGiven       Feedback[]               @relation("FeedbackGiven")
+  feedbackReceived    Feedback[]               @relation("FeedbackReceived")
+  performanceMetrics  AgentPerformanceMetrics?
+  tradingFees         TradingFee[]             @relation("TraderFees")
+  referralFeesEarned  TradingFee[]             @relation("ReferrerFees")
+  userActorFollows    UserActorFollow[]
 
   @@index([walletAddress])
   @@index([username])
   @@index([isActor])
   @@index([reputationPoints(sort: Desc)])
   @@index([referralCode])
+  @@index([waitlistPosition])
+  @@index([waitlistJoinedAt])
+  @@index([invitePoints(sort: Desc)])
+  @@index([earnedPoints(sort: Desc)])
 }
 
 model OnboardingIntent {
-  id                 String            @id @default(uuid())
+  id                 String           @id @default(uuid())
   userId             String
-  status             OnboardingStatus  @default(PENDING_PROFILE)
+  status             OnboardingStatus @default(PENDING_PROFILE)
   referralCode       String?
   payload            Json?
-  profileApplied     Boolean           @default(false)
+  profileApplied     Boolean          @default(false)
   profileCompletedAt DateTime?
   onchainStartedAt   DateTime?
   onchainCompletedAt DateTime?
   lastError          Json?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -178,40 +196,40 @@ model OnboardingIntent {
 // Post model - social media posts (includes both regular posts and articles)
 // IDs are Snowflake IDs (numeric strings) generated by the application
 model Post {
-  id             String   @id // Snowflake ID generated by application
-  type           String   @default("post") // "post" | "article"
-  content        String   // For regular posts: full content. For articles: summary/preview
-  fullContent    String?  @db.Text // Only for articles: full long-form content (800-1500 words)
-  
+  id          String  @id // Snowflake ID generated by application
+  type        String  @default("post") // "post" | "article"
+  content     String // For regular posts: full content. For articles: summary/preview
+  fullContent String? @db.Text // Only for articles: full long-form content (800-1500 words)
+
   // Article-specific fields (null for regular posts)
-  articleTitle   String?  // Headline for articles
-  byline         String?  // Journalist byline (e.g., "By Tech Reporter")
-  biasScore      Float?   // -1 (critical) to 1 (favorable) - indicates article bias
-  sentiment      String?  // "positive" | "negative" | "neutral"
-  slant          String?  // Description of the article's angle/bias
-  category       String?  // "tech" | "politics" | "finance" | "scandal" | "business" | "general"
-  
-  authorId       String   // Can reference User.id or Actor.id (handled at application level)
-  gameId         String?
-  dayNumber      Int?
+  articleTitle String? // Headline for articles
+  byline       String? // Journalist byline (e.g., "By Tech Reporter")
+  biasScore    Float? // -1 (critical) to 1 (favorable) - indicates article bias
+  sentiment    String? // "positive" | "negative" | "neutral"
+  slant        String? // Description of the article's angle/bias
+  category     String? // "tech" | "politics" | "finance" | "scandal" | "business" | "general"
+
+  authorId  String // Can reference User.id or Actor.id (handled at application level)
+  gameId    String?
+  dayNumber Int?
   // originalPostId String?  // Reference to original post for reposts/shares - temporarily removed due to DB mismatch
-  timestamp      DateTime @default(now())
-  createdAt      DateTime @default(now())
+  timestamp DateTime @default(now())
+  createdAt DateTime @default(now())
 
   // Relationships
   // Note: authorId can reference either User.id or Actor.id
   // No database-level foreign key constraints (handled at application level)
   // This allows posts from both Users and Actors without constraint violations
-  comments    Comment[]
-  reactions   Reaction[]
-  shares      Share[]
-  postTags    PostTag[]  // Tags associated with this post
+  comments  Comment[]
+  reactions Reaction[]
+  shares    Share[]
+  postTags  PostTag[] // Tags associated with this post
+  // @@index([originalPostId])  // Temporarily removed due to DB mismatch
 
   @@index([authorId, timestamp(sort: Desc)])
   @@index([timestamp(sort: Desc)])
   @@index([type, timestamp(sort: Desc)]) // For filtering articles
   @@index([gameId, dayNumber])
-  // @@index([originalPostId])  // Temporarily removed due to DB mismatch
 }
 
 // Comment model - comments on posts
@@ -220,15 +238,15 @@ model Comment {
   content         String
   postId          String
   authorId        String
-  parentCommentId String?  // For threaded replies
+  parentCommentId String? // For threaded replies
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   // Relationships
-  post          Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
-  author        User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  parentComment Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
-  replies       Comment[] @relation("CommentReplies")
+  post          Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author        User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parentComment Comment?   @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies       Comment[]  @relation("CommentReplies")
   reactions     Reaction[]
 
   @@index([postId, createdAt(sort: Desc)])
@@ -239,10 +257,10 @@ model Comment {
 // Reaction model - likes on posts and comments
 model Reaction {
   id        String   @id @default(uuid())
-  postId    String?  // Nullable for comment reactions
-  commentId String?  // For comment reactions
+  postId    String? // Nullable for comment reactions
+  commentId String? // For comment reactions
   userId    String
-  type      String   @default("like")  // "like", "love", "laugh", etc.
+  type      String   @default("like") // "like", "love", "laugh", etc.
   createdAt DateTime @default(now())
 
   // Relationships
@@ -276,8 +294,8 @@ model Follow {
 // Favorite model - user favorites profiles
 model Favorite {
   id           String   @id @default(uuid())
-  userId       String   // Who favorited
-  targetUserId String   // Who was favorited
+  userId       String // Who favorited
+  targetUserId String // Who was favorited
   createdAt    DateTime @default(now())
 
   // Relationships
@@ -292,8 +310,8 @@ model Favorite {
 // Share model - reposts/shares of posts
 model Share {
   id        String   @id @default(uuid())
-  userId    String   // Who shared
-  postId    String   // Original post
+  userId    String // Who shared
+  postId    String // Original post
   createdAt DateTime @default(now())
 
   // Relationships
@@ -313,8 +331,8 @@ model Market {
   description String?
   gameId      String?
   dayNumber   Int?
-  yesShares   Decimal  @default(0)  @db.Decimal(18, 6)
-  noShares    Decimal  @default(0)  @db.Decimal(18, 6)
+  yesShares   Decimal  @default(0) @db.Decimal(18, 6)
+  noShares    Decimal  @default(0) @db.Decimal(18, 6)
   liquidity   Decimal  @db.Decimal(18, 6)
   resolved    Boolean  @default(false)
   resolution  Boolean? // true = YES won, false = NO won, null = not resolved
@@ -335,7 +353,7 @@ model Position {
   id        String   @id @default(uuid())
   userId    String
   marketId  String
-  side      Boolean  // true = YES, false = NO
+  side      Boolean // true = YES, false = NO
   shares    Decimal  @db.Decimal(18, 6)
   avgPrice  Decimal  @db.Decimal(18, 6)
   createdAt DateTime @default(now())
@@ -353,7 +371,7 @@ model Position {
 // Chat model - group chats and DMs
 model Chat {
   id        String   @id @default(uuid())
-  name      String?  // null for DMs
+  name      String? // null for DMs
   isGroup   Boolean  @default(false)
   gameId    String?
   dayNumber Int?
@@ -361,8 +379,8 @@ model Chat {
   updatedAt DateTime @updatedAt
 
   // Relationships
-  messages      Message[]
-  participants  ChatParticipant[]
+  messages     Message[]
+  participants ChatParticipant[]
 
   @@index([gameId, dayNumber])
   @@index([isGroup])
@@ -370,10 +388,10 @@ model Chat {
 
 // ChatParticipant model - users in chats
 model ChatParticipant {
-  id        String   @id @default(uuid())
-  chatId    String
-  userId    String
-  joinedAt  DateTime @default(now())
+  id       String   @id @default(uuid())
+  chatId   String
+  userId   String
+  joinedAt DateTime @default(now())
 
   // Relationships
   chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
@@ -400,20 +418,20 @@ model Message {
 
 // Game model - continuous game state tracking
 model Game {
-  id              String   @id @default(uuid())
-  currentDay      Int      @default(1)
-  currentDate     DateTime @default(now()) // Current in-game date
-  isRunning       Boolean  @default(false)
-  isContinuous    Boolean  @default(true)  // Continuous vs monthly batch
-  speed           Int      @default(60000) // milliseconds between ticks (60s default)
+  id              String    @id @default(uuid())
+  currentDay      Int       @default(1)
+  currentDate     DateTime  @default(now()) // Current in-game date
+  isRunning       Boolean   @default(false)
+  isContinuous    Boolean   @default(true) // Continuous vs monthly batch
+  speed           Int       @default(60000) // milliseconds between ticks (60s default)
   startedAt       DateTime?
   pausedAt        DateTime?
   completedAt     DateTime?
   lastTickAt      DateTime? // Last time generation ran
   lastSnapshotAt  DateTime? // Last daily snapshot
-  activeQuestions Int      @default(0) // Current active question count
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  activeQuestions Int       @default(0) // Current active question count
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([isRunning])
   @@index([isContinuous])
@@ -421,16 +439,16 @@ model Game {
 
 // UserInteraction model - tracks player replies to NPCs with rate limiting
 model UserInteraction {
-  id              String   @id @default(uuid())
-  userId          String   // Player who replied
-  npcId           String   // NPC actor ID they replied to
-  postId          String   // Post they replied to
-  commentId       String   // Their comment ID
-  timestamp       DateTime @default(now())
-  qualityScore    Float    @default(1.0) // 0-1 score based on length, uniqueness, etc.
-  wasFollowed     Boolean  @default(false) // Did NPC follow them after this?
+  id               String   @id @default(uuid())
+  userId           String // Player who replied
+  npcId            String // NPC actor ID they replied to
+  postId           String // Post they replied to
+  commentId        String // Their comment ID
+  timestamp        DateTime @default(now())
+  qualityScore     Float    @default(1.0) // 0-1 score based on length, uniqueness, etc.
+  wasFollowed      Boolean  @default(false) // Did NPC follow them after this?
   wasInvitedToChat Boolean  @default(false) // Were they invited to a group chat after this?
-  
+
   @@index([userId, npcId, timestamp(sort: Desc)])
   @@index([userId, timestamp(sort: Desc)])
   @@index([npcId, timestamp(sort: Desc)])
@@ -438,18 +456,18 @@ model UserInteraction {
 
 // GroupChatMembership model - tracks player membership in NPC group chats
 model GroupChatMembership {
-  id                  String   @id @default(uuid())
-  userId              String   // Player
-  chatId              String   // Group chat
-  npcAdminId          String   // NPC who owns/controls the chat
-  joinedAt            DateTime @default(now())
-  lastMessageAt       DateTime? // Last time user posted in chat
-  messageCount        Int      @default(0) // Total messages by user
-  qualityScore        Float    @default(1.0) // Average quality of messages
-  isActive            Boolean  @default(true) // False if swept/booted
-  sweepReason         String?  // Why they were removed (inactive, spam, low quality)
-  removedAt           DateTime?
-  
+  id            String    @id @default(uuid())
+  userId        String // Player
+  chatId        String // Group chat
+  npcAdminId    String // NPC who owns/controls the chat
+  joinedAt      DateTime  @default(now())
+  lastMessageAt DateTime? // Last time user posted in chat
+  messageCount  Int       @default(0) // Total messages by user
+  qualityScore  Float     @default(1.0) // Average quality of messages
+  isActive      Boolean   @default(true) // False if swept/booted
+  sweepReason   String? // Why they were removed (inactive, spam, low quality)
+  removedAt     DateTime?
+
   @@unique([userId, chatId])
   @@index([userId, isActive])
   @@index([chatId, isActive])
@@ -458,14 +476,14 @@ model GroupChatMembership {
 
 // FollowStatus model - tracks NPC follows of players
 model FollowStatus {
-  id              String   @id @default(uuid())
-  userId          String   // Player
-  npcId           String   // NPC actor ID
-  followedAt      DateTime @default(now())
-  unfollowedAt    DateTime? // If NPC unfollows
-  isActive        Boolean  @default(true)
-  followReason    String?  // "consistent_replies", "quality_content", etc.
-  
+  id           String    @id @default(uuid())
+  userId       String // Player
+  npcId        String // NPC actor ID
+  followedAt   DateTime  @default(now())
+  unfollowedAt DateTime? // If NPC unfollows
+  isActive     Boolean   @default(true)
+  followReason String? // "consistent_replies", "quality_content", etc.
+
   @@unique([userId, npcId])
   @@index([userId, isActive])
   @@index([npcId])
@@ -473,24 +491,24 @@ model FollowStatus {
 
 // PerpPosition model - perpetual futures positions
 model PerpPosition {
-  id                    String   @id @default(uuid())
-  userId                String
-  ticker                String   // Company ticker
-  organizationId        String
-  side                  String   // 'long' or 'short'
-  entryPrice            Float
-  currentPrice          Float
-  size                  Float    // Position size in USD
-  leverage              Int      // 1-100x
-  liquidationPrice      Float
-  unrealizedPnL         Float
-  unrealizedPnLPercent  Float
-  fundingPaid           Float    @default(0)
-  openedAt              DateTime @default(now())
-  lastUpdated           DateTime @updatedAt
-  closedAt              DateTime?
-  realizedPnL           Float?   // Set when closed
-  
+  id                   String    @id @default(uuid())
+  userId               String
+  ticker               String // Company ticker
+  organizationId       String
+  side                 String // 'long' or 'short'
+  entryPrice           Float
+  currentPrice         Float
+  size                 Float // Position size in USD
+  leverage             Int // 1-100x
+  liquidationPrice     Float
+  unrealizedPnL        Float
+  unrealizedPnLPercent Float
+  fundingPaid          Float     @default(0)
+  openedAt             DateTime  @default(now())
+  lastUpdated          DateTime  @updatedAt
+  closedAt             DateTime?
+  realizedPnL          Float? // Set when closed
+
   @@index([userId, closedAt])
   @@index([ticker])
   @@index([organizationId])
@@ -498,18 +516,18 @@ model PerpPosition {
 
 // BalanceTransaction model - tracks all balance changes
 model BalanceTransaction {
-  id              String   @id @default(uuid())
-  userId          String
-  type            String   // 'deposit', 'perp_open', 'perp_close', 'pred_buy', 'pred_sell', 'pred_payout', 'funding_paid'
-  amount          Decimal  @db.Decimal(18, 2) // Can be negative for debits
-  balanceBefore   Decimal  @db.Decimal(18, 2)
-  balanceAfter    Decimal  @db.Decimal(18, 2)
-  relatedId       String?  // positionId or other reference
-  description     String?
-  createdAt       DateTime @default(now())
-  
+  id            String   @id @default(uuid())
+  userId        String
+  type          String // 'deposit', 'perp_open', 'perp_close', 'pred_buy', 'pred_sell', 'pred_payout', 'funding_paid'
+  amount        Decimal  @db.Decimal(18, 2) // Can be negative for debits
+  balanceBefore Decimal  @db.Decimal(18, 2)
+  balanceAfter  Decimal  @db.Decimal(18, 2)
+  relatedId     String? // positionId or other reference
+  description   String?
+  createdAt     DateTime @default(now())
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@index([userId, createdAt(sort: Desc)])
   @@index([type])
 }
@@ -517,10 +535,10 @@ model BalanceTransaction {
 // Question model - prediction market questions
 model Question {
   id              String   @id @default(uuid())
-  questionNumber  Int      // Sequential number
+  questionNumber  Int // Sequential number
   text            String
   scenarioId      Int
-  outcome         Boolean  // Predetermined outcome
+  outcome         Boolean // Predetermined outcome
   rank            Int
   createdDate     DateTime @default(now())
   resolutionDate  DateTime // When question resolves (24h-7d from creation)
@@ -536,16 +554,16 @@ model Question {
 
 // Organization model - companies, media, government
 model Organization {
-  id              String   @id // From actors.json
-  name            String
-  description     String
-  type            String   // 'company', 'media', 'government'
-  canBeInvolved   Boolean  @default(true)
-  initialPrice    Float?   // For companies
-  currentPrice    Float?   // Current stock price
-  imageUrl        String?  // Organization logo/image
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id            String   @id // From actors.json
+  name          String
+  description   String
+  type          String // 'company', 'media', 'government'
+  canBeInvolved Boolean  @default(true)
+  initialPrice  Float? // For companies
+  currentPrice  Float? // Current stock price
+  imageUrl      String? // Organization logo/image
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Relationships
   stockPrices StockPrice[]
@@ -559,14 +577,14 @@ model StockPrice {
   id             String   @id @default(uuid())
   organizationId String
   price          Float
-  change         Float    // Change from previous
-  changePercent  Float    // Percentage change
+  change         Float // Change from previous
+  changePercent  Float // Percentage change
   timestamp      DateTime @default(now())
   isSnapshot     Boolean  @default(false) // true for EOD snapshots
-  openPrice      Float?   // For daily snapshots
-  highPrice      Float?   // For daily snapshots
-  lowPrice       Float?   // For daily snapshots
-  volume         Float?   // For daily snapshots
+  openPrice      Float? // For daily snapshots
+  highPrice      Float? // For daily snapshots
+  lowPrice       Float? // For daily snapshots
+  volume         Float? // For daily snapshots
 
   // Relationships
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -579,11 +597,11 @@ model StockPrice {
 // WorldEvent model - events that happen in the game
 model WorldEvent {
   id              String   @id @default(uuid())
-  eventType       String   // 'meeting', 'announcement', 'scandal', etc.
+  eventType       String // 'meeting', 'announcement', 'scandal', etc.
   description     String
   actors          String[] // Array of actor IDs
-  relatedQuestion Int?     // Question number
-  pointsToward    String?  // 'YES', 'NO', or null
+  relatedQuestion Int? // Question number
+  pointsToward    String? // 'YES', 'NO', or null
   visibility      String   @default("public") // 'public', 'private', 'group'
   gameId          String?
   dayNumber       Int?
@@ -597,33 +615,33 @@ model WorldEvent {
 
 // Actor model - NPCs from actors.json (cached in DB)
 model Actor {
-  id              String   @id // From actors.json
-  name            String
-  description     String?
-  domain          String[] // Array of domains
-  personality     String?
-  tier            String?  // S_TIER, A_TIER, etc.
-  affiliations    String[] // Organization IDs
-  postStyle       String?
-  postExample     String[]
-  role            String?  // 'main', 'supporting', 'extra'
-  initialLuck     String   @default("medium") // 'low', 'medium', 'high'
-  initialMood     Float    @default(0) // -1 to 1
-  hasPool         Boolean  @default(false) // Can run a trading pool
-  tradingBalance  Decimal  @default(10000) @db.Decimal(18, 2) // NPC's trading balance
-  reputationPoints Int     @default(10000) // Reputation points for leaderboard (traders start with 10k)
-  profileImageUrl String?  // Actor profile image
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id               String   @id // From actors.json
+  name             String
+  description      String?
+  domain           String[] // Array of domains
+  personality      String?
+  tier             String? // S_TIER, A_TIER, etc.
+  affiliations     String[] // Organization IDs
+  postStyle        String?
+  postExample      String[]
+  role             String? // 'main', 'supporting', 'extra'
+  initialLuck      String   @default("medium") // 'low', 'medium', 'high'
+  initialMood      Float    @default(0) // -1 to 1
+  hasPool          Boolean  @default(false) // Can run a trading pool
+  tradingBalance   Decimal  @default(10000) @db.Decimal(18, 2) // NPC's trading balance
+  reputationPoints Int      @default(10000) // Reputation points for leaderboard (traders start with 10k)
+  profileImageUrl  String? // Actor profile image
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   // Relationships
-  pools      Pool[]
-  npcTrades  NPCTrade[]
-  followedBy       ActorFollow[] @relation("ActorFollowing")
-  following        ActorFollow[] @relation("ActorFollower")
+  pools            Pool[]
+  npcTrades        NPCTrade[]
+  followedBy       ActorFollow[]       @relation("ActorFollowing")
+  following        ActorFollow[]       @relation("ActorFollower")
   relationshipsAs1 ActorRelationship[] @relation("Actor1Relationships")
   relationshipsAs2 ActorRelationship[] @relation("Actor2Relationships")
-  userActorFollows   UserActorFollow[]
+  userActorFollows UserActorFollow[]
   // Posts authored by actors (no FK constraint - handled at application level)
   // Query with: prisma.post.findMany({ where: { authorId: actorId } })
 
@@ -636,8 +654,8 @@ model Actor {
 // ActorFollow model - NPC-to-NPC follower relationships
 model ActorFollow {
   id          String   @id @default(uuid())
-  followerId  String   // Actor ID who is following
-  followingId String   // Actor ID being followed
+  followerId  String // Actor ID who is following
+  followingId String // Actor ID being followed
   createdAt   DateTime @default(now())
   isMutual    Boolean  @default(false) // Quick lookup for mutual follows
 
@@ -668,14 +686,14 @@ model UserActorFollow {
 // ActorRelationship model - Rich relationship metadata between actors
 model ActorRelationship {
   id               String   @id @default(uuid())
-  actor1Id         String   // First actor
-  actor2Id         String   // Second actor
-  relationshipType String   // "rivals", "allies", "mentor-student", "collaborators", etc.
-  strength         Float    // 0.0 to 1.0 (how strong the relationship is)
-  sentiment        Float    // -1.0 to 1.0 (negative = beef, positive = respect)
+  actor1Id         String // First actor
+  actor2Id         String // Second actor
+  relationshipType String // "rivals", "allies", "mentor-student", "collaborators", etc.
+  strength         Float // 0.0 to 1.0 (how strong the relationship is)
+  sentiment        Float // -1.0 to 1.0 (negative = beef, positive = respect)
   isPublic         Boolean  @default(true) // Whether this relationship is known publicly
-  history          String?  // Backstory/context (e.g., "Competed for same VC funding in 2020")
-  affects          Json?    // How this relationship affects behavior
+  history          String? // Backstory/context (e.g., "Competed for same VC funding in 2020")
+  affects          Json? // How this relationship affects behavior
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -693,19 +711,19 @@ model ActorRelationship {
 
 // Notification model - user notifications
 model Notification {
-  id          String   @id @default(uuid())
-  userId      String   // Who receives the notification
-  type        String   // 'comment', 'reaction', 'follow', 'mention', 'reply', 'share', 'system'
-  actorId     String?  // Who performed the action (user ID or actor ID)
-  postId      String?  // Related post (if applicable)
-  commentId   String?  // Related comment (if applicable)
-  title       String   // Notification title/summary
-  message     String   // Notification message
-  read        Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  id        String   @id @default(uuid())
+  userId    String // Who receives the notification
+  type      String // 'comment', 'reaction', 'follow', 'mention', 'reply', 'share', 'system'
+  actorId   String? // Who performed the action (user ID or actor ID)
+  postId    String? // Related post (if applicable)
+  commentId String? // Related comment (if applicable)
+  title     String // Notification title/summary
+  message   String // Notification message
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
 
   // Relationships
-  user User @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  user  User  @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
   actor User? @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([userId, read, createdAt(sort: Desc)])
@@ -715,30 +733,30 @@ model Notification {
 
 // Pool model - NPC-managed trading pools
 model Pool {
-  id                  String   @id @default(uuid())
-  npcActorId          String   // NPC who manages the pool
-  name                String
-  description         String?
-  totalValue          Decimal  @default(0) @db.Decimal(18, 2) // Current total value (deposits + P&L)
-  totalDeposits       Decimal  @default(0) @db.Decimal(18, 2) // Total user deposits
-  availableBalance    Decimal  @default(0) @db.Decimal(18, 2) // Cash available for trading
-  lifetimePnL         Decimal  @default(0) @db.Decimal(18, 2)
-  performanceFeeRate  Float    @default(0.05) // 5% of profits (0% on losses)
-  totalFeesCollected  Decimal  @default(0) @db.Decimal(18, 2)
-  isActive            Boolean  @default(true)
-  openedAt            DateTime @default(now())
-  closedAt            DateTime?
-  updatedAt           DateTime @updatedAt
-  
+  id                 String    @id @default(uuid())
+  npcActorId         String // NPC who manages the pool
+  name               String
+  description        String?
+  totalValue         Decimal   @default(0) @db.Decimal(18, 2) // Current total value (deposits + P&L)
+  totalDeposits      Decimal   @default(0) @db.Decimal(18, 2) // Total user deposits
+  availableBalance   Decimal   @default(0) @db.Decimal(18, 2) // Cash available for trading
+  lifetimePnL        Decimal   @default(0) @db.Decimal(18, 2)
+  performanceFeeRate Float     @default(0.05) // 5% of profits (0% on losses)
+  totalFeesCollected Decimal   @default(0) @db.Decimal(18, 2)
+  isActive           Boolean   @default(true)
+  openedAt           DateTime  @default(now())
+  closedAt           DateTime?
+  updatedAt          DateTime  @updatedAt
+
   // Market widget fields
-  status              String   @default("ACTIVE") // "ACTIVE", "CLOSED", "PAUSED"
-  currentPrice        Float?   // Current share/token price
-  priceChange24h      Float?   // 24h price change percentage
-  volume24h           Decimal? @db.Decimal(18, 2) // 24h trading volume
-  tvl                 Decimal? @db.Decimal(18, 2) // Total Value Locked (can differ from totalValue)
+  status         String   @default("ACTIVE") // "ACTIVE", "CLOSED", "PAUSED"
+  currentPrice   Float? // Current share/token price
+  priceChange24h Float? // 24h price change percentage
+  volume24h      Decimal? @db.Decimal(18, 2) // 24h trading volume
+  tvl            Decimal? @db.Decimal(18, 2) // Total Value Locked (can differ from totalValue)
 
   // Relationships
-  npcActor  Actor         @relation(fields: [npcActorId], references: [id], onDelete: Cascade)
+  npcActor  Actor          @relation(fields: [npcActorId], references: [id], onDelete: Cascade)
   deposits  PoolDeposit[]
   positions PoolPosition[]
   trades    NPCTrade[]
@@ -752,17 +770,17 @@ model Pool {
 
 // PoolDeposit model - User deposits into pools
 model PoolDeposit {
-  id              String   @id @default(uuid())
+  id              String    @id @default(uuid())
   poolId          String
   userId          String
-  amount          Decimal  @db.Decimal(18, 2) // Initial deposit amount
-  shares          Decimal  @db.Decimal(18, 6) // Proportional ownership shares
-  currentValue    Decimal  @db.Decimal(18, 2) // Current value of shares
-  unrealizedPnL   Decimal  @db.Decimal(18, 2) // P&L since deposit
-  depositedAt     DateTime @default(now())
+  amount          Decimal   @db.Decimal(18, 2) // Initial deposit amount
+  shares          Decimal   @db.Decimal(18, 6) // Proportional ownership shares
+  currentValue    Decimal   @db.Decimal(18, 2) // Current value of shares
+  unrealizedPnL   Decimal   @db.Decimal(18, 2) // P&L since deposit
+  depositedAt     DateTime  @default(now())
   withdrawnAt     DateTime? // null if still active
-  withdrawnAmount Decimal? @db.Decimal(18, 2) // Amount withdrawn (if withdrawn)
-  
+  withdrawnAmount Decimal?  @db.Decimal(18, 2) // Amount withdrawn (if withdrawn)
+
   // Relationships
   pool Pool @relation(fields: [poolId], references: [id], onDelete: Cascade)
 
@@ -773,23 +791,23 @@ model PoolDeposit {
 
 // PoolPosition model - Pool's positions in markets
 model PoolPosition {
-  id                String   @id @default(uuid())
-  poolId            String
-  marketType        String   // 'perp' or 'prediction'
-  ticker            String?  // For perps
-  marketId          String?  // For prediction markets
-  side              String   // 'long'/'short' for perps, 'YES'/'NO' for predictions
-  entryPrice        Float
-  currentPrice      Float
-  size              Float    // Position size in USD
-  shares            Float?   // For prediction markets
-  leverage          Int?     // For perps (1-100x)
-  liquidationPrice  Float?   // For perps
-  unrealizedPnL     Float
-  openedAt          DateTime @default(now())
-  closedAt          DateTime?
-  realizedPnL       Float?   // Set when closed
-  updatedAt         DateTime @updatedAt
+  id               String    @id @default(uuid())
+  poolId           String
+  marketType       String // 'perp' or 'prediction'
+  ticker           String? // For perps
+  marketId         String? // For prediction markets
+  side             String // 'long'/'short' for perps, 'YES'/'NO' for predictions
+  entryPrice       Float
+  currentPrice     Float
+  size             Float // Position size in USD
+  shares           Float? // For prediction markets
+  leverage         Int? // For perps (1-100x)
+  liquidationPrice Float? // For perps
+  unrealizedPnL    Float
+  openedAt         DateTime  @default(now())
+  closedAt         DateTime?
+  realizedPnL      Float? // Set when closed
+  updatedAt        DateTime  @updatedAt
 
   // Relationships
   pool Pool @relation(fields: [poolId], references: [id], onDelete: Cascade)
@@ -801,20 +819,20 @@ model PoolPosition {
 
 // NPCTrade model - All NPC trades (for transparency and analysis)
 model NPCTrade {
-  id          String   @id @default(uuid())
-  npcActorId  String
-  poolId      String?  // null if NPC's personal trade
-  marketType  String   // 'perp' or 'prediction'
-  ticker      String?  // For perps
-  marketId    String?  // For prediction markets
-  action      String   // 'buy', 'sell', 'open_long', 'open_short', 'close'
-  side        String?  // 'long'/'short' for perps, 'YES'/'NO' for predictions
-  amount      Float
-  price       Float
-  sentiment   Float?   // -1 to 1, sentiment that triggered the trade
-  reason      String?  // Why the trade was made (from post analysis)
-  postId      String?  // Related post that triggered trade
-  executedAt  DateTime @default(now())
+  id         String   @id @default(uuid())
+  npcActorId String
+  poolId     String? // null if NPC's personal trade
+  marketType String // 'perp' or 'prediction'
+  ticker     String? // For perps
+  marketId   String? // For prediction markets
+  action     String // 'buy', 'sell', 'open_long', 'open_short', 'close'
+  side       String? // 'long'/'short' for perps, 'YES'/'NO' for predictions
+  amount     Float
+  price      Float
+  sentiment  Float? // -1 to 1, sentiment that triggered the trade
+  reason     String? // Why the trade was made (from post analysis)
+  postId     String? // Related post that triggered trade
+  executedAt DateTime @default(now())
 
   // Relationships
   npcActor Actor @relation(fields: [npcActorId], references: [id], onDelete: Cascade)
@@ -828,20 +846,20 @@ model NPCTrade {
 
 // PointsTransaction model - tracks all point awards and deductions
 model PointsTransaction {
-  id              String   @id @default(uuid())
-  userId          String
-  amount          Int      // Positive for awards, negative for deductions
-  pointsBefore    Int
-  pointsAfter     Int
-  reason          String   // 'profile_completion', 'social_link', 'referral', 'share', 'purchase', etc.
-  metadata        String?  // JSON string with additional context
-  createdAt       DateTime @default(now())
-  
+  id           String   @id @default(uuid())
+  userId       String
+  amount       Int // Positive for awards, negative for deductions
+  pointsBefore Int
+  pointsAfter  Int
+  reason       String // 'profile_completion', 'social_link', 'referral', 'share', 'purchase', etc.
+  metadata     String? // JSON string with additional context
+  createdAt    DateTime @default(now())
+
   // x402 Payment tracking (for purchases)
-  paymentRequestId String?  @unique // x402 payment request ID
-  paymentTxHash    String?  // Blockchain transaction hash
-  paymentAmount    String?  // Payment amount in USD (e.g., "1.00")
-  paymentVerified  Boolean  @default(false) // Whether payment was verified
+  paymentRequestId String? @unique // x402 payment request ID
+  paymentTxHash    String? // Blockchain transaction hash
+  paymentAmount    String? // Payment amount in USD (e.g., "1.00")
+  paymentVerified  Boolean @default(false) // Whether payment was verified
 
   // Relationships
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -854,17 +872,17 @@ model PointsTransaction {
 
 // Referral model - tracks referral relationships
 model Referral {
-  id              String   @id @default(uuid())
-  referrerId      String   // User who created the referral
-  referredUserId  String?  // User who signed up (null until signup)
-  referralCode    String   @unique
-  status          String   @default("pending") // 'pending', 'completed', 'expired'
-  createdAt       DateTime @default(now())
-  completedAt     DateTime?
+  id             String    @id @default(uuid())
+  referrerId     String // User who created the referral
+  referredUserId String? // User who signed up (null until signup)
+  referralCode   String    @unique
+  status         String    @default("pending") // 'pending', 'completed', 'expired'
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
 
   // Relationships
-  referrer      User  @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
-  referredUser  User? @relation("Referred", fields: [referredUserId], references: [id], onDelete: SetNull)
+  referrer     User  @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredUser User? @relation("Referred", fields: [referredUserId], references: [id], onDelete: SetNull)
 
   @@index([referrerId])
   @@index([referredUserId])
@@ -874,17 +892,17 @@ model Referral {
 
 // ShareAction model - tracks shares to different platforms
 model ShareAction {
-  id          String   @id @default(uuid())
-  userId      String
-  platform    String   // 'twitter', 'farcaster', 'link', etc.
-  contentType String   // 'post', 'profile', 'market', 'referral'
-  contentId   String?  // ID of shared content
-  url         String?  // URL that was shared
-  pointsAwarded Boolean @default(false)
-  verified    Boolean @default(false) // Whether the share was verified (user actually posted)
-  verifiedAt  DateTime? // When the share was verified
+  id                  String    @id @default(uuid())
+  userId              String
+  platform            String // 'twitter', 'farcaster', 'link', etc.
+  contentType         String // 'post', 'profile', 'market', 'referral'
+  contentId           String? // ID of shared content
+  url                 String? // URL that was shared
+  pointsAwarded       Boolean   @default(false)
+  verified            Boolean   @default(false) // Whether the share was verified (user actually posted)
+  verifiedAt          DateTime? // When the share was verified
   verificationDetails String? // JSON with verification details (tweet ID, cast hash, etc.)
-  createdAt   DateTime @default(now())
+  createdAt           DateTime  @default(now())
 
   // Relationships
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -897,21 +915,21 @@ model ShareAction {
 
 // TradingFee model - tracks all fees collected and distributed
 model TradingFee {
-  id              String   @id @default(uuid())
-  userId          String   // Trader who paid the fee
-  tradeType       String   // 'pred_buy', 'pred_sell', 'perp_open', 'perp_close'
-  tradeId         String?  // Related position/trade ID
-  marketId        String?  // Market/ticker
-  feeAmount       Decimal  @db.Decimal(18, 2) // Total fee charged
-  platformFee     Decimal  @db.Decimal(18, 2) // Platform's share (50%)
-  referrerFee     Decimal  @db.Decimal(18, 2) // Referrer's share (50%)
-  referrerId      String?  // Who gets the referrer fee
-  createdAt       DateTime @default(now())
-  
+  id          String   @id @default(uuid())
+  userId      String // Trader who paid the fee
+  tradeType   String // 'pred_buy', 'pred_sell', 'perp_open', 'perp_close'
+  tradeId     String? // Related position/trade ID
+  marketId    String? // Market/ticker
+  feeAmount   Decimal  @db.Decimal(18, 2) // Total fee charged
+  platformFee Decimal  @db.Decimal(18, 2) // Platform's share (50%)
+  referrerFee Decimal  @db.Decimal(18, 2) // Referrer's share (50%)
+  referrerId  String? // Who gets the referrer fee
+  createdAt   DateTime @default(now())
+
   // Relationships
   user     User  @relation("TraderFees", fields: [userId], references: [id], onDelete: Cascade)
   referrer User? @relation("ReferrerFees", fields: [referrerId], references: [id], onDelete: SetNull)
-  
+
   @@index([userId, createdAt(sort: Desc)])
   @@index([referrerId, createdAt(sort: Desc)])
   @@index([tradeType])
@@ -921,15 +939,15 @@ model TradingFee {
 // Tag model - stores unique tags extracted from posts
 model Tag {
   id          String   @id @default(uuid())
-  name        String   @unique  // Tag name (lowercase, normalized)
-  displayName String   // Original display name
-  category    String?  // 'Sports', 'Politics', 'Tech', etc. (auto-categorized)
+  name        String   @unique // Tag name (lowercase, normalized)
+  displayName String // Original display name
+  category    String? // 'Sports', 'Politics', 'Tech', etc. (auto-categorized)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // Relationships
-  postTags    PostTag[]
-  trending    TrendingTag[]
+  postTags PostTag[]
+  trending TrendingTag[]
 
   @@index([name])
 }
@@ -953,15 +971,15 @@ model PostTag {
 
 // TrendingTag model - stores calculated trending tags with scores
 model TrendingTag {
-  id               String   @id @default(uuid())
-  tagId            String
-  score            Float    // Trending score (time-weighted)
-  postCount        Int      // Number of posts in the time window
-  rank             Int      // Ranking position (1 = most trending)
-  calculatedAt     DateTime @default(now())
-  windowStart      DateTime // Start of calculation window
-  windowEnd        DateTime // End of calculation window
-  relatedContext   String?  // Optional context like "Trending with X"
+  id             String   @id @default(uuid())
+  tagId          String
+  score          Float // Trending score (time-weighted)
+  postCount      Int // Number of posts in the time window
+  rank           Int // Ranking position (1 = most trending)
+  calculatedAt   DateTime @default(now())
+  windowStart    DateTime // Start of calculation window
+  windowEnd      DateTime // End of calculation window
+  relatedContext String? // Optional context like "Trending with X"
 
   // Relationships
   tag Tag @relation(fields: [tagId], references: [id], onDelete: Cascade)
@@ -974,7 +992,7 @@ model TrendingTag {
 // WidgetCache model - stores cached widget data for performance
 model WidgetCache {
   widget    String   @id // 'markets', 'breaking_news', 'stats', etc.
-  data      Json     // Cached widget data
+  data      Json // Cached widget data
   updatedAt DateTime @default(now()) @updatedAt
 
   @@index([widget, updatedAt(sort: Desc)])
@@ -982,9 +1000,9 @@ model WidgetCache {
 
 // GameConfig model - stores game-wide configuration including Agent0 registration
 model GameConfig {
-  id        String   @id @default(uuid())
-  key       String   @unique
-  value     Json
+  id    String @id @default(uuid())
+  key   String @unique
+  value Json
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -994,39 +1012,39 @@ model GameConfig {
 
 // Feedback model - stores ratings and feedback between users, agents, and the game
 model Feedback {
-  id              String   @id @default(uuid())
+  id String @id @default(uuid())
 
   // Who gave the feedback
-  fromUserId      String?
-  fromUser        User?    @relation("FeedbackGiven", fields: [fromUserId], references: [id], onDelete: Cascade)
-  fromAgentId     String?  // For AI agents giving feedback (non-user agents)
+  fromUserId  String?
+  fromUser    User?   @relation("FeedbackGiven", fields: [fromUserId], references: [id], onDelete: Cascade)
+  fromAgentId String? // For AI agents giving feedback (non-user agents)
 
   // Who received the feedback
-  toUserId        String?
-  toUser          User?    @relation("FeedbackReceived", fields: [toUserId], references: [id], onDelete: Cascade)
-  toAgentId       String?  // For non-user agents receiving feedback
+  toUserId  String?
+  toUser    User?   @relation("FeedbackReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+  toAgentId String? // For non-user agents receiving feedback
 
   // Feedback content
-  score           Int      // 0-100 scale (game performance score)
-  rating          Int?     // Optional 1-5 star rating (user experience)
-  comment         String?  @db.Text
-  category        String?  // e.g., "game_performance", "interaction", "trade", "behavior"
+  score    Int // 0-100 scale (game performance score)
+  rating   Int? // Optional 1-5 star rating (user experience)
+  comment  String? @db.Text
+  category String? // e.g., "game_performance", "interaction", "trade", "behavior"
 
   // Context
   gameId          String?
   tradeId         String?
   positionId      String?
-  interactionType String   // "user_to_agent", "agent_to_user", "game_to_agent", "agent_to_game"
+  interactionType String // "user_to_agent", "agent_to_user", "game_to_agent", "agent_to_game"
 
   // Blockchain linkage
-  onChainTxHash   String?  // If submitted to ERC-8004 Reputation contract
-  agent0TokenId   Int?     // Agent0 NFT token ID for on-chain sync
+  onChainTxHash String? // If submitted to ERC-8004 Reputation contract
+  agent0TokenId Int? // Agent0 NFT token ID for on-chain sync
 
   // Metadata
-  metadata        Json?    // Additional context (performance metrics, etc.)
+  metadata Json? // Additional context (performance metrics, etc.)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([fromUserId])
   @@index([toUserId])
@@ -1040,51 +1058,51 @@ model Feedback {
 
 // AgentPerformanceMetrics model - aggregated performance and reputation metrics
 model AgentPerformanceMetrics {
-  id                    String   @id @default(uuid())
-  userId                String   @unique
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Game performance metrics
-  gamesPlayed           Int      @default(0)
-  gamesWon              Int      @default(0)
-  averageGameScore      Float    @default(0) // 0-100 average score from game feedback
-  lastGameScore         Float?   // Most recent game score
-  lastGamePlayedAt      DateTime?
+  gamesPlayed      Int       @default(0)
+  gamesWon         Int       @default(0)
+  averageGameScore Float     @default(0) // 0-100 average score from game feedback
+  lastGameScore    Float? // Most recent game score
+  lastGamePlayedAt DateTime?
 
   // Trading performance (normalized 0-1)
-  normalizedPnL         Float    @default(0.5) // PNL converted to 0-1 scale via sigmoid
-  totalTrades           Int      @default(0)
-  profitableTrades      Int      @default(0)
-  winRate               Float    @default(0) // Percentage of profitable trades
-  averageROI            Float    @default(0) // Average return on investment
-  sharpeRatio           Float?   // Risk-adjusted returns
+  normalizedPnL    Float  @default(0.5) // PNL converted to 0-1 scale via sigmoid
+  totalTrades      Int    @default(0)
+  profitableTrades Int    @default(0)
+  winRate          Float  @default(0) // Percentage of profitable trades
+  averageROI       Float  @default(0) // Average return on investment
+  sharpeRatio      Float? // Risk-adjusted returns
 
   // Feedback aggregates
-  totalFeedbackCount    Int      @default(0)
-  averageFeedbackScore  Float    @default(50) // 0-100 average
-  averageRating         Float?   // 1-5 star average (if ratings given)
-  positiveCount         Int      @default(0) // Feedback score >= 70
-  neutralCount          Int      @default(0) // Feedback score 40-69
-  negativeCount         Int      @default(0) // Feedback score < 40
+  totalFeedbackCount   Int    @default(0)
+  averageFeedbackScore Float  @default(50) // 0-100 average
+  averageRating        Float? // 1-5 star average (if ratings given)
+  positiveCount        Int    @default(0) // Feedback score >= 70
+  neutralCount         Int    @default(0) // Feedback score 40-69
+  negativeCount        Int    @default(0) // Feedback score < 40
 
   // Reputation calculation (composite score)
-  reputationScore       Float    @default(50) // Composite 0-100 score
-  trustLevel            String   @default("UNRATED") // UNRATED, LOW, MEDIUM, HIGH, EXCELLENT
-  confidenceScore       Float    @default(0) // Confidence in reputation (based on sample size)
+  reputationScore Float  @default(50) // Composite 0-100 score
+  trustLevel      String @default("UNRATED") // UNRATED, LOW, MEDIUM, HIGH, EXCELLENT
+  confidenceScore Float  @default(0) // Confidence in reputation (based on sample size)
 
   // Blockchain sync
-  onChainReputationSync Boolean  @default(false)
+  onChainReputationSync Boolean   @default(false)
   lastSyncedAt          DateTime?
-  onChainTrustScore     Float?   // Trust score from ERC-8004 contract
-  onChainAccuracyScore  Float?   // Accuracy score from contract
+  onChainTrustScore     Float? // Trust score from ERC-8004 contract
+  onChainAccuracyScore  Float? // Accuracy score from contract
 
   // Activity tracking
-  firstActivityAt       DateTime?
-  lastActivityAt        DateTime?
-  totalInteractions     Int      @default(0)
+  firstActivityAt   DateTime?
+  lastActivityAt    DateTime?
+  totalInteractions Int       @default(0)
 
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([reputationScore(sort: Desc)])
   @@index([normalizedPnL(sort: Desc)])

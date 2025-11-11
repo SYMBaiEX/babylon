@@ -17,6 +17,7 @@ import { UpdateUserSchema, UserIdParamSchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
 import { requireUserByIdentifier } from '@/lib/users/user-lookup';
 import { confirmOnchainProfileUpdate } from '@/lib/onboarding/onchain-service';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 /**
  * POST /api/users/[userId]/update-profile
@@ -245,6 +246,21 @@ export const POST = withErrorHandling(async (
     { userId: canonicalUserId, pointsAwarded: pointsAwarded.length, onchainConfirmed: requiresOnchainUpdate },
     'POST /api/users/[userId]/update-profile'
   );
+
+  // Track profile updated event
+  const fieldsUpdated = Object.keys(parsedBody).filter(key => parsedBody[key as keyof typeof parsedBody] !== undefined);
+  trackServerEvent(canonicalUserId, 'profile_updated', {
+    fieldsUpdated,
+    hasNewProfileImage: normalizedProfileImageUrl !== undefined && normalizedProfileImageUrl !== currentUser.profileImageUrl,
+    hasNewCoverImage: normalizedCoverImageUrl !== undefined && normalizedCoverImageUrl !== currentUser.coverImageUrl,
+    hasNewBio: normalizedBio !== undefined && normalizedBio !== currentUser.bio,
+    usernameChanged: isUsernameChanging,
+    profileComplete: updatedUser.profileComplete,
+    pointsAwarded: pointsAwarded.reduce((sum, p) => sum + p.amount, 0),
+    onchainUpdate: requiresOnchainUpdate,
+  }).catch((error) => {
+    logger.warn('Failed to track profile_updated event', { error });
+  });
 
   return successResponse({
     user: updatedUser,

@@ -5,6 +5,7 @@
  */
 
 import { prisma } from '../src/lib/prisma'
+import { Prisma } from '@prisma/client'
 
 async function populateManual() {
   console.log('🏷️  Manually populating trending system...\n')
@@ -102,7 +103,7 @@ async function populateManual() {
     const tagCounts = await prisma.$queryRaw<Array<{
       tagId: string
       count: bigint
-    }>>`
+    }>>(Prisma.sql`
       SELECT 
         "tagId",
         COUNT(*) as count
@@ -112,7 +113,7 @@ async function populateManual() {
       GROUP BY "tagId"
       ORDER BY count DESC
       LIMIT 10
-    `
+    `)
 
     // Create trending entries
     for (let i = 0; i < tagCounts.length; i++) {

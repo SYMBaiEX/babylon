@@ -1,9 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  turbopack: {},
   // Specify workspace root to silence lockfile warning
   outputFileTracingRoot: process.cwd(),
+  // Use standalone output for dynamic routes and API endpoints
+  output: 'standalone',
   experimental: {
     optimizePackageImports: ['lucide-react'],
     // instrumentationHook removed - available by default in Next.js 15+

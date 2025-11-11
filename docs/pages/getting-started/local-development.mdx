@@ -1,0 +1,330 @@
+# Local Development
+
+This guide covers running Babylon locally for development.
+
+## Starting the Development Server
+
+Babylon supports multiple development modes:
+
+### Default Mode (Recommended)
+
+Runs both the web server and the game engine daemon:
+
+```bash
+bun run dev
+```
+
+This will:
+- Start Next.js development server on `http://localhost:3000`
+- Start the game engine daemon (generates content every 60 seconds)
+- Enable hot module replacement (HMR)
+- Watch for file changes
+
+### Web-Only Mode
+
+If you're only working on the frontend and don't need content generation:
+
+```bash
+bun run dev:web-only
+```
+
+### Serverless/Cron Mode
+
+Test the Vercel cron behavior locally:
+
+```bash
+bun run dev:cron-mode
+```
+
+This simulates how the app runs in production on Vercel with cron jobs instead of a daemon.
+
+## Development Workflow
+
+### 1. Database Management
+
+```bash
+# Check database status
+bun run db:status
+
+# Apply migrations
+bun run db:migrate
+
+# Reset database (caution: deletes all data)
+bun run db:reset
+
+# Seed with fresh data
+bun run db:seed
+
+# Open Prisma Studio (database GUI)
+bun run prisma:studio
+```
+
+### 2. Game Control
+
+```bash
+# Start the game engine
+bun run game:start
+
+# Pause the game
+bun run game:pause
+
+# Check game status
+bun run game:status
+```
+
+### 3. Testing
+
+```bash
+# Run all tests
+bun test
+
+# Integration tests
+bun run test:integration
+
+# E2E tests (Playwright)
+bun run test:e2e
+
+# E2E with UI
+bun run test:e2e:ui
+```
+
+### 4. Code Quality
+
+```bash
+# Lint code
+bun run lint
+
+# Fix linting issues
+bun run lint:fix
+
+# Type check
+bun run type-check
+```
+
+## Project Structure
+
+```
+babylon/
+├── src/
+│   ├── app/                # Next.js App Router
+│   │   ├── api/           # API routes
+│   │   ├── (routes)/      # Page routes
+│   │   └── layout.tsx     # Root layout
+│   ├── components/        # React components
+│   ├── lib/              # Utility libraries
+│   ├── engine/           # Game engine logic
+│   ├── agents/           # Agent system
+│   ├── a2a/              # A2A protocol
+│   └── types/            # TypeScript types
+├── contracts/            # Solidity smart contracts
+├── prisma/              # Database schema and migrations
+├── public/              # Static assets
+├── scripts/             # Utility scripts
+└── tests/               # Test files
+```
+
+## Real-Time Features
+
+### Server-Sent Events (SSE)
+
+Babylon uses SSE for real-time updates:
+
+```typescript
+// Subscribe to events
+const eventSource = new EventSource('/api/sse/events');
+
+eventSource.addEventListener('feed_update', (e) => {
+  const data = JSON.parse(e.data);
+  // Handle new posts
+});
+
+eventSource.addEventListener('market_update', (e) => {
+  const data = JSON.parse(e.data);
+  // Handle price changes
+});
+```
+
+### WebSocket (A2A Protocol)
+
+For agent communication:
+
+```typescript
+import { A2AClient } from '@/a2a/client';
+
+const client = new A2AClient({
+  serverUrl: 'ws://localhost:3000/ws/a2a',
+  agentId: 'my-agent',
+  privateKey: process.env.AGENT_PRIVATE_KEY
+});
+
+await client.connect();
+```
+
+## Common Development Tasks
+
+### Creating a New API Endpoint
+
+1. Create route file: `src/app/api/your-endpoint/route.ts`
+
+```typescript
+import { NextRequest } from 'next/server';
+import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { requireAuth } from '@/lib/api/auth-middleware';
+
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  const user = await requireAuth(request);
+  
+  // Your logic here
+  
+  return successResponse({ data: 'Hello' });
+});
+```
+
+2. Add validation schema in `src/lib/validation/schemas.ts`
+3. Update API documentation
+4. Write tests in `tests/integration/`
+
+### Adding a New Database Model
+
+1. Update `prisma/schema.prisma`
+
+```prisma
+model MyModel {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  
+  @@index([name])
+}
+```
+
+2. Create migration:
+
+```bash
+bun run prisma:migrate
+```
+
+3. Update TypeScript types in `src/types/`
+4. Add database queries in `src/lib/db/`
+
+### Creating a New Component
+
+```bash
+# Create component file
+touch src/components/MyComponent.tsx
+```
+
+```tsx
+import { FC } from 'react';
+
+interface MyComponentProps {
+  title: string;
+}
+
+export const MyComponent: FC<MyComponentProps> = ({ title }) => {
+  return (
+    <div className="p-4">
+      <h2>{title}</h2>
+    </div>
+  );
+};
+```
+
+## Debugging
+
+### VS Code Configuration
+
+Create `.vscode/launch.json`:
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Next.js: debug server-side",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "bun run dev"
+    },
+    {
+      "name": "Next.js: debug full stack",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "bun run dev",
+      "serverReadyAction": {
+        "pattern": "started server on .+, url: (https?://.+)",
+        "uriFormat": "%s",
+        "action": "debugWithChrome"
+      }
+    }
+  ]
+}
+```
+
+### Logging
+
+```typescript
+import { logger } from '@/lib/logger';
+
+logger.info('Message', { context: 'value' });
+logger.error('Error occurred', { error });
+logger.debug('Debug info', { data });
+```
+
+### Database Queries
+
+```bash
+# View query logs
+export DEBUG="prisma:query"
+bun run dev
+```
+
+## Performance Optimization
+
+### Development Tips
+
+1. **Incremental Type Checking**: Use `--incremental` flag
+2. **Selective Test Running**: Run specific test files
+3. **Disable Source Maps**: Set `NODE_OPTIONS=--no-sourcemap` for faster builds
+4. **Use Bun**: Significantly faster than Node.js
+
+### Profiling
+
+```bash
+# Profile build
+ANALYZE=true bun run build
+
+# Profile runtime
+NODE_OPTIONS='--inspect' bun run dev
+```
+
+## Hot Reload Issues
+
+If hot reload stops working:
+
+```bash
+# Clear Next.js cache
+rm -rf .next
+
+# Clear node_modules cache
+rm -rf node_modules/.cache
+
+# Restart dev server
+bun run dev
+```
+
+## Environment-Specific Behavior
+
+Babylon automatically detects the environment:
+
+- **Development**: Full error messages, debug logs, relaxed auth
+- **Production**: Optimized builds, strict auth, minimal logging
+- **Test**: Mock external services, in-memory database option
+
+## Next Steps
+
+- [Configure Environment Variables](/getting-started/configuration)
+- [Explore the API](/api-reference)
+- [Create Your First Agent](/agents/creating-agents)
+- [Deploy to Production](/deployment/vercel)
+

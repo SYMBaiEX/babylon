@@ -1,37 +1,19 @@
-# Vercel Ignore File
-# Files and directories that should not be deployed to Vercel
+# Test results and artifacts
+test-results/
+playwright-report/
+test-results/screenshots/
+test-results/synpress-html/
+test-results/synpress-results.json
 
-# Local development
-.env.local
-.env.Development
-
-# Test files
-tests/
-**/*.test.ts
-**/__tests__/
-
-# Contract deployment
-deployments/
-lib/forge-std/
-
-# Eliza agents (run locally)
-eliza/
-plugin-babylon/
+# Test configuration
+.envw
+.env.test
+.env.synpress.example
 
 # Development files
 *.log
-cache/
-node_modules/.cache/
+.DS_Store
 
-# Docker
-docker-compose.yml
-Dockerfile
-
-# Build artifacts
-dist/
-*.tsbuildinfo
-
-# Documentation
-*.md
-!README.md
+# Test README
+tests/synpress/README.md
 

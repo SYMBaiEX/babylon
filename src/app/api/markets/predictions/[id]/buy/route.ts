@@ -15,6 +15,7 @@ import { PredictionPricing } from '@/lib/prediction-pricing';
 import { logger } from '@/lib/logger';
 import { FeeService } from '@/lib/services/fee-service';
 import { FEE_CONFIG } from '@/lib/config/fees';
+import { trackServerEvent } from '@/lib/posthog/server';
 /**
  * POST /api/markets/predictions/[id]/buy
  * Buy YES or NO shares in a prediction market
@@ -250,6 +251,21 @@ export const POST = withErrorHandling(async (
   }
 
   const newBalance = await WalletService.getBalance(user.userId);
+
+  // Track prediction buy event
+  trackServerEvent(user.userId, 'prediction_bought', {
+    marketId,
+    side,
+    amount,
+    sharesBought: calculation.sharesBought,
+    avgPrice: calculation.avgPrice,
+    priceImpact: calculation.priceImpact,
+    feeCharged: feeResult.feeCharged,
+    newYesPrice: calculation.newYesPrice,
+    newNoPrice: calculation.newNoPrice,
+  }).catch((error) => {
+    logger.warn('Failed to track prediction_bought event', { error });
+  });
 
   return successResponse(
     {

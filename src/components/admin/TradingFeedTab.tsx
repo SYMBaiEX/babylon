@@ -226,7 +226,7 @@ export function TradingFeedTab() {
           )}
         </div>
         {trade.reason && (
-          <p className="text-xs text-muted-foreground italic">"{trade.reason}"</p>
+          <p className="text-xs text-muted-foreground italic">&quot;{trade.reason}&quot;</p>
         )}
         {trade.pool && (
           <div className="text-xs text-muted-foreground">

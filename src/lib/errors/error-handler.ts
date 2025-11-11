@@ -9,6 +9,7 @@ import { BabylonError } from './base.errors';
 import { logger } from '@/lib/logger';
 import { Prisma } from '@prisma/client';
 import { isAuthenticationError } from '@/lib/api/auth-middleware';
+import { trackServerError } from '@/lib/posthog/server';
 
 /**
  * Main error handler that processes all errors and returns appropriate responses
@@ -46,6 +47,15 @@ export function errorHandler(error: Error | unknown, request: NextRequest): Next
     stack: error.stack,
     name: error.name,
     ...errorContext
+  });
+
+  // Track error with PostHog (async, don't await to avoid slowing down response)
+  const userId = request.headers.get('x-user-id') || null;
+  trackServerError(userId, error, {
+    endpoint: new URL(request.url).pathname,
+    method: request.method,
+  }).catch((trackError) => {
+    logger.warn('Failed to track error with PostHog', { error: trackError });
   });
 
   // Handle authentication errors consistently

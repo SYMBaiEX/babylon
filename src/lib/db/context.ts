@@ -21,6 +21,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import type { AuthenticatedUser } from '@/lib/api/auth-middleware'
 import type { PrismaClient } from '@prisma/client'
 import { logger } from '@/lib/logger'
@@ -46,14 +47,11 @@ async function executeWithRLS<T>(
   // Execute within a transaction to ensure session variable is scoped
   return await client.$transaction(async (tx) => {
     // Force RLS even for table owners (Neon uses owner role for connections)
-    await tx.$executeRawUnsafe(`SET LOCAL row_security = on`)
+    await tx.$executeRaw(Prisma.sql`SET LOCAL row_security = on`)
     
-    // Set the current user ID in the PostgreSQL session using parameterized query
-    // Note: Prisma's $executeRaw with template literals doesn't support SET LOCAL directly,
-    // so we use validated UUID with $executeRawUnsafe (safe after validation)
-    await tx.$executeRawUnsafe(
-      `SET LOCAL app.current_user_id = '${userId}'`
-    )
+    // Set the current user ID using PostgreSQL's set_config function which supports parameterization
+    // This is more secure than string interpolation and works with Prisma v6
+    await tx.$executeRaw(Prisma.sql`SELECT set_config('app.current_user_id', ${userId}, true)`)
 
     // Execute the operation
     return await operation(tx as PrismaClient)
@@ -83,10 +81,10 @@ async function executeAsSystem<T>(
     // Execute within a transaction with system context
     const result = await client.$transaction(async (tx) => {
       // Force RLS even for table owners (but system policies will allow access)
-      await tx.$executeRawUnsafe(`SET LOCAL row_security = on`)
+      await tx.$executeRaw(Prisma.sql`SET LOCAL row_security = on`)
       
       // Set system context marker (policies should check for 'system')
-      await tx.$executeRawUnsafe(`SET LOCAL app.current_user_id = 'system'`)
+      await tx.$executeRaw(Prisma.sql`SELECT set_config('app.current_user_id', 'system', true)`)
 
       // Execute the operation
       return await operation(tx as PrismaClient)
@@ -119,10 +117,10 @@ async function executeAsPublic<T>(
   // Execute within a transaction with no user context
   return await client.$transaction(async (tx) => {
     // Force RLS even for table owners
-    await tx.$executeRawUnsafe(`SET LOCAL row_security = on`)
+    await tx.$executeRaw(Prisma.sql`SET LOCAL row_security = on`)
     
     // Empty string indicates public/unauthenticated access
-    await tx.$executeRawUnsafe(`SET LOCAL app.current_user_id = ''`)
+    await tx.$executeRaw(Prisma.sql`SELECT set_config('app.current_user_id', '', true)`)
 
     // Execute the operation
     return await operation(tx as PrismaClient)

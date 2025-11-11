@@ -63,7 +63,7 @@ export default function AdminDashboard() {
         <div className="flex flex-col items-center justify-center h-full">
           <Shield className="w-16 h-16 text-muted-foreground mb-4" />
           <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
-          <p className="text-muted-foreground">You don't have permission to access the admin dashboard.</p>
+          <p className="text-muted-foreground">You don&apos;t have permission to access the admin dashboard.</p>
         </div>
       </PageContainer>
     )

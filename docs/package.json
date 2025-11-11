@@ -1,0 +1,35 @@
+{
+  "name": "babylon-docs",
+  "version": "1.0.0",
+  "description": "Documentation for Babylon prediction market platform",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "generate:api-docs": "tsx scripts/generate-api-docs.ts",
+    "generate:tsdoc": "typedoc",
+    "generate:deployment-docs": "tsx scripts/generate-deployment-docs.ts",
+    "generate:contract-abis": "tsx scripts/generate-contract-abis.ts",
+    "generate:all": "bun run generate:api-docs && bun run generate:tsdoc && bun run generate:deployment-docs && bun run generate:contract-abis"
+  },
+  "dependencies": {
+    "next": "^15.1.6",
+    "nextra": "^3.3.0",
+    "nextra-theme-docs": "^3.3.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.1",
+    "@types/react": "19.0.0",
+    "@types/react-dom": "19.0.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-react": "^5.18.2",
+    "tsx": "^4.20.6",
+    "typedoc": "^0.28.14",
+    "typedoc-plugin-markdown": "^4.9.0",
+    "typescript": "^5.9.3"
+  }
+}

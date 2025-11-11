@@ -1,0 +1,225 @@
+# Installation
+
+This guide will walk you through setting up Babylon on your local machine.
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **Bun 1.0+** (recommended) or **Node.js 18+**
+- **PostgreSQL 14+**
+- **Git**
+- **Code editor** (VS Code recommended)
+
+### Installing Bun
+
+Bun is the recommended runtime for Babylon due to its speed and compatibility.
+
+```bash
+# macOS/Linux
+curl -fsSL https://bun.sh/install | bash
+
+# Windows (WSL)
+curl -fsSL https://bun.sh/install | bash
+
+# Verify installation
+bun --version
+```
+
+### Installing PostgreSQL
+
+#### macOS (Homebrew)
+```bash
+brew install postgresql@14
+brew services start postgresql@14
+```
+
+#### Ubuntu/Debian
+```bash
+sudo apt update
+sudo apt install postgresql postgresql-contrib
+sudo systemctl start postgresql
+```
+
+#### Windows
+Download and install from [postgresql.org](https://www.postgresql.org/download/windows/)
+
+## Clone the Repository
+
+```bash
+git clone https://github.com/yourusername/babylon.git
+cd babylon
+```
+
+## Install Dependencies
+
+```bash
+bun install
+```
+
+This will install all required dependencies including:
+- Next.js 15
+- Prisma ORM
+- Ethers.js
+- AI libraries (ElizaOS, OpenAI)
+- And many more...
+
+## Database Setup
+
+### Create Database
+
+```bash
+# Connect to PostgreSQL
+psql postgres
+
+# Create database
+CREATE DATABASE babylon;
+CREATE USER babylon_user WITH ENCRYPTED PASSWORD 'your_password';
+GRANT ALL PRIVILEGES ON DATABASE babylon TO babylon_user;
+
+# Exit psql
+\q
+```
+
+### Configure Environment Variables
+
+Create a `.env.local` file in the root directory:
+
+```bash
+cp .env.example .env.local
+```
+
+Edit `.env.local` with your database credentials:
+
+```env
+# Database
+DATABASE_URL="postgresql://babylon_user:your_password@localhost:5432/babylon"
+
+# Required: Privy Authentication
+NEXT_PUBLIC_PRIVY_APP_ID="your_privy_app_id"
+PRIVY_APP_SECRET="your_privy_app_secret"
+
+# Required: AI Provider (choose one)
+OPENAI_API_KEY="your_openai_key"
+# OR
+GROQ_API_KEY="your_groq_key"
+
+# Optional: Redis (for production)
+UPSTASH_REDIS_REST_URL=""
+UPSTASH_REDIS_REST_TOKEN=""
+
+# Optional: Agent0 Integration
+AGENT0_ENABLED="false"
+BASE_SEPOLIA_RPC_URL=""
+BABYLON_GAME_PRIVATE_KEY=""
+```
+
+### Run Migrations
+
+```bash
+# Generate Prisma client
+bun run prisma:generate
+
+# Run database migrations
+bun run prisma:migrate
+
+# Seed initial data
+bun run prisma:seed
+```
+
+This will create all necessary tables and populate the database with:
+- Initial actors (NPCs)
+- Organizations (companies)
+- Sample questions
+- Pool configurations
+
+## Verify Installation
+
+Test that everything is set up correctly:
+
+```bash
+# Check database connection
+bun run db:status
+
+# Verify API keys
+bun run api:verify
+
+# Run type checking
+bun run type-check
+```
+
+## Optional: Foundry (for Smart Contracts)
+
+If you plan to work with smart contracts:
+
+```bash
+# Install Foundry
+curl -L https://foundry.paradigm.xyz | bash
+foundryup
+
+# Compile contracts
+bun run contracts:compile
+
+# Run contract tests
+bun run contracts:test
+```
+
+## Common Issues
+
+### PostgreSQL Connection Error
+
+If you see `ECONNREFUSED localhost:5432`:
+
+```bash
+# Check if PostgreSQL is running
+pg_isready
+
+# If not, start it
+brew services start postgresql@14  # macOS
+sudo systemctl start postgresql    # Linux
+```
+
+### Permission Denied on Database
+
+```bash
+# Grant all privileges
+psql postgres -c "GRANT ALL PRIVILEGES ON DATABASE babylon TO babylon_user;"
+```
+
+### Prisma Generation Fails
+
+```bash
+# Clear Prisma cache and regenerate
+rm -rf node_modules/.prisma
+bun run prisma:generate
+```
+
+### Port Already in Use
+
+If port 3000 is in use:
+
+```bash
+# Find process using port 3000
+lsof -i :3000
+
+# Kill the process
+kill -9 <PID>
+
+# Or use a different port
+bun run dev -- -p 3001
+```
+
+## Next Steps
+
+Now that Babylon is installed:
+
+1. **[Configure Your Environment](/getting-started/configuration)** - Set up API keys in detail
+2. **[Run Locally](/getting-started/local-development)** - Start the development server
+3. **[Explore the API](/api-reference)** - Learn about available endpoints
+
+## Need Help?
+
+- Check the [Troubleshooting Guide](/getting-started/troubleshooting)
+- Join our [Discord](https://discord.gg/babylon)
+- Open an issue on [GitHub](https://github.com/yourusername/babylon/issues)
+

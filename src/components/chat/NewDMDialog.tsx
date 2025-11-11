@@ -191,7 +191,7 @@ export function NewDMDialog({ isOpen, onClose, onChatCreated }: NewDMDialogProps
             <div className="text-center py-12 px-4">
               <UserPlus className="w-12 h-12 mx-auto mb-3 opacity-50 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
-                No users found matching "{searchQuery}"
+                No users found matching &quot;{searchQuery}&quot;
               </p>
             </div>
           ) : (

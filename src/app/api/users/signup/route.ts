@@ -15,6 +15,7 @@ import { z } from 'zod'
 import { getPrivyClient } from '@/lib/api/auth-middleware'
 import type { User as PrivyUser } from '@privy-io/server-auth'
 import type { OnboardingProfilePayload } from '@/lib/onboarding/types'
+import { trackServerEvent } from '@/lib/posthog/server'
 
 interface SignupRequestBody {
   username: string
@@ -24,6 +25,7 @@ interface SignupRequestBody {
   coverImageUrl?: string | null
   referralCode?: string | null
   identityToken?: string | null
+  isWaitlist?: boolean // Mark user as waitlist during signup
 }
 
 const selectUserSummary = {
@@ -55,6 +57,7 @@ const selectUserSummary = {
 
 const SignupSchema = OnboardingProfileSchema.extend({
   identityToken: z.string().min(1).optional().or(z.literal('').transform(() => undefined)),
+  isWaitlist: z.boolean().optional().default(false),
 })
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
@@ -62,7 +65,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const body = await request.json().catch(() => ({})) as SignupRequestBody | Record<string, unknown>
 
   const parsedBody = SignupSchema.parse(body)
-  const { identityToken, referralCode: rawReferralCode, ...profileData } = parsedBody
+  const { identityToken, referralCode: rawReferralCode, isWaitlist, ...profileData } = parsedBody
   const parsedProfile = profileData as OnboardingProfilePayload
   const referralCode = rawReferralCode?.trim() || null
 
@@ -176,6 +179,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       hasUsername: true,
       hasBio: Boolean(parsedProfile.bio && parsedProfile.bio.trim().length > 0),
       hasProfileImage: Boolean(parsedProfile.profileImageUrl),
+      // Waitlist users start with 100 points instead of 1000
+      ...(isWaitlist ? { reputationPoints: 100 } : {}),
     }
 
     const user = await tx.user.upsert({
@@ -271,6 +276,17 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     },
     'POST /api/users/signup'
   )
+
+  // Track signup with PostHog
+  await trackServerEvent(result.user.id, 'signup_completed', {
+    username: result.user.username,
+    hasReferrer: Boolean(result.referrerId),
+    hasFarcaster: result.user.hasFarcaster,
+    hasTwitter: result.user.hasTwitter,
+    hasProfileImage: result.user.hasProfileImage,
+    hasBio: result.user.hasBio,
+    onChainRegistered: result.user.onChainRegistered,
+  })
 
   return successResponse({
     user: {

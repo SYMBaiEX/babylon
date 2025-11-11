@@ -17,6 +17,16 @@ function HomePageContent() {
   const [isChecking, setIsChecking] = useState(true)
 
   useEffect(() => {
+    // Check if force coming soon mode is enabled via URL parameter (?comingsoon=true)
+    const forceComingSoon = searchParams.get('comingsoon') === 'true'
+    
+    // If force coming soon is enabled, show coming soon page
+    if (forceComingSoon) {
+      setShouldShowApp(false)
+      setIsChecking(false)
+      return
+    }
+
     // Check if we're on localhost
     const isLocalhost =
       typeof window !== 'undefined' &&

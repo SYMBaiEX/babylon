@@ -14,6 +14,7 @@ import { WalletService } from '@/lib/services/wallet-service';
 import { logger } from '@/lib/logger';
 import { FeeService } from '@/lib/services/fee-service';
 import { FEE_CONFIG } from '@/lib/config/fees';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 /**
  * POST /api/markets/perps/open
@@ -172,6 +173,21 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     fee: feeResult.feeCharged,
     referrerPaid: feeResult.referrerPaid,
   }, 'POST /api/markets/perps/open');
+
+  // Track trade opened event
+  trackServerEvent(user.userId, 'trade_opened', {
+    type: 'perp',
+    ticker,
+    side,
+    size,
+    leverage,
+    entryPrice: position.entryPrice,
+    marginPaid: marginRequired,
+    feeCharged: feeResult.feeCharged,
+    positionId: position.id,
+  }).catch((error) => {
+    logger.warn('Failed to track trade_opened event', { error });
+  });
 
   return successResponse(
     {

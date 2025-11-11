@@ -295,7 +295,7 @@ export default function PoolDetailPage() {
                   This trading pool is managed by an AI trader who makes autonomous trading decisions.
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  When you deposit, you receive shares representing your portion of the pool. Your returns are based on the pool's overall performance.
+                  When you deposit, you receive shares representing your portion of the pool. Your returns are based on the pool&apos;s overall performance.
                 </p>
               </div>
             </div>

@@ -4,6 +4,7 @@ import { Sidebar } from '@/components/shared/Sidebar'
 import { MobileHeader } from '@/components/shared/MobileHeader'
 import { BottomNav } from '@/components/shared/BottomNav'
 import { Providers } from '@/components/providers/Providers'
+import { Suspense } from 'react'
 
 // Import engine module for API route access (engine started via daemon: bun run daemon)
 import '@/lib/engine'
@@ -84,14 +85,20 @@ export default function RootLayout({
       <body className="antialiased bg-background font-sans overscroll-none" suppressHydrationWarning>
         <Providers>
           <Toaster position="top-center" richColors />
-          <GlobalLoginModal />
+          <Suspense fallback={null}>
+            <GlobalLoginModal />
+          </Suspense>
 
           {/* Mobile Header - Fixed, not affected by pull-to-refresh */}
-          <MobileHeader />
+          <Suspense fallback={null}>
+            <MobileHeader />
+          </Suspense>
 
           <div className="flex min-h-screen max-w-screen-xl mx-auto bg-sidebar">
             {/* Desktop Sidebar - Sticky, not affected by pull-to-refresh */}
-            <Sidebar />
+            <Suspense fallback={null}>
+              <Sidebar />
+            </Suspense>
 
             {/* Main Content Area - Scrollable content with pull-to-refresh */}
             <main className="flex-1 min-h-screen w-full pt-14 pb-14 md:pt-0 md:pb-0 bg-background overflow-hidden">
@@ -101,11 +108,15 @@ export default function RootLayout({
             </main>
 
             {/* Mobile Bottom Navigation - Fixed, not affected by pull-to-refresh */}
-            <BottomNav />
+            <Suspense fallback={null}>
+              <BottomNav />
+            </Suspense>
           </div>
 
           {/* Auth Banner - shows on all pages when not authenticated */}
-          <FeedAuthBanner />
+          <Suspense fallback={null}>
+            <FeedAuthBanner />
+          </Suspense>
         </Providers>
         <Analytics />
         <SpeedInsights />

@@ -11,6 +11,7 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { NotFoundError, BusinessLogicError, AuthorizationError, InsufficientFundsError } from '@/lib/errors';
 import { PoolWithdrawBodySchema } from '@/lib/validation/schemas/pool';
 import { logger } from '@/lib/logger';
+import { trackServerEvent } from '@/lib/posthog/server';
 
 /**
  * POST /api/pools/[id]/withdraw
@@ -184,6 +185,19 @@ export const POST = withErrorHandling(async (
     withdrawalAmount: result.withdrawalAmount,
     pnl: result.pnl
   }, 'POST /api/pools/[id]/withdraw');
+
+  // Track pool withdrawal event
+  trackServerEvent(userId, 'pool_withdrawal', {
+    poolId,
+    depositId,
+    withdrawalAmount: result.withdrawalAmount,
+    performanceFee: result.performanceFee,
+    pnl: result.pnl,
+    originalAmount: result.originalAmount,
+    reputationChange: result.reputationChange,
+  }).catch((error) => {
+    logger.warn('Failed to track pool_withdrawal event', { error });
+  });
 
   return successResponse({
     success: true,
