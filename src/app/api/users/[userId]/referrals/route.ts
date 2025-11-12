@@ -139,7 +139,7 @@ export const GET = withErrorHandling(async (
   // Use username as referral code (without @)
   const referralCode = user.username || null;
   const referralUrl = referralCode
-    ? `${process.env.NEXT_PUBLIC_APP_URL || 'https://babylon.game'}?ref=${referralCode}`
+    ? `${process.env.NEXT_PUBLIC_APP_URL || 'https://babylon.market'}?ref=${referralCode}`
     : null;
 
   logger.info('Referrals fetched successfully', { userId: canonicalUserId, totalReferrals: referrals.length }, 'GET /api/users/[userId]/referrals');
