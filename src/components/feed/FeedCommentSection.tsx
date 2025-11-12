@@ -1,6 +1,7 @@
 'use client';
 
 import { CommentCard } from '@/components/interactions/CommentCard';
+import { CommentInput } from '@/components/interactions/CommentInput';
 import { PostCard } from '@/components/posts/PostCard';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
@@ -10,6 +11,7 @@ import type { CommentData, CommentWithReplies } from '@/types/interactions';
 import { MessageCircle, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useRouter } from 'next/navigation';
 
 interface FeedCommentSectionProps {
   postId: string | null;
@@ -36,6 +38,7 @@ export function FeedCommentSection({
   onClose,
 }: FeedCommentSectionProps) {
   const { user } = useAuth();
+  const router = useRouter();
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
   const [post, setPost] = useState<{
     id: string;
@@ -112,6 +115,13 @@ export function FeedCommentSection({
     loadPostData();
   }, [postId, postData]);
 
+  // Update internal post state when postData prop changes
+  useEffect(() => {
+    if (postData) {
+      setPost(postData);
+    }
+  }, [postData]);
+
   // Load comments when postId changes
   useEffect(() => {
     if (postId) {
@@ -120,6 +130,13 @@ export function FeedCommentSection({
       setComments([]);
     }
   }, [postId, loadCommentsData]);
+
+  // Reload comments when comment count changes (e.g., from SSE updates)
+  useEffect(() => {
+    if (post?.commentCount !== undefined && postId) {
+      loadCommentsData();
+    }
+  }, [post?.commentCount, postId, loadCommentsData]);
 
   // Helper functions
   const removeCommentById = (
@@ -206,6 +223,38 @@ export function FeedCommentSection({
     setComments((prev) => addReplyToComment(prev, parentCommentId, optimisticReply));
     await new Promise(resolve => setTimeout(resolve, 200));
     await loadCommentsData();
+  };
+
+  const handleTopLevelCommentSubmit = async (commentData: CommentData) => {
+    if (!postId) return;
+    
+    const optimisticComment: CommentWithReplies = {
+      id: commentData.id,
+      content: commentData.content,
+      createdAt: commentData.createdAt instanceof Date ? commentData.createdAt : new Date(commentData.createdAt),
+      updatedAt: commentData.updatedAt instanceof Date ? commentData.updatedAt : new Date(commentData.updatedAt),
+      userId: commentData.authorId,
+      userName: commentData.author?.displayName || commentData.author?.username || 'Unknown',
+      userUsername: commentData.author?.username || null,
+      userAvatar: commentData.author?.profileImageUrl || undefined,
+      parentCommentId: undefined,
+      parentCommentAuthorName: undefined,
+      likeCount: commentData._count?.reactions || 0,
+      isLiked: false,
+      replies: [],
+    };
+
+    setComments((prev) => [optimisticComment, ...prev]);
+    
+    // If it's a modal, close it and navigate to post page
+    if (onClose) {
+      // Close modal and navigate - the post page will load fresh data
+      onClose();
+      router.push(`/post/${postId}`);
+    }
+    // If not modal (inline view on post page), the comment count change
+    // will trigger the useEffect that watches post.commentCount,
+    // which will automatically reload comments
   };
 
   const sortedComments = useMemo(() => {
@@ -318,6 +367,17 @@ export function FeedCommentSection({
               {/* Visual thread connector */}
               <div className="px-4">
                 <div className="ml-6 border-l-2 border-border h-4" />
+              </div>
+
+              {/* Comment Input */}
+              <div className="px-4 pb-4">
+                <CommentInput
+                  postId={postId}
+                  placeholder={`Reply to ${post.authorName}...`}
+                  autoFocus
+                  onSubmit={handleTopLevelCommentSubmit}
+                  className="mt-2"
+                />
               </div>
             </div>
           </div>
