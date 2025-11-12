@@ -13,6 +13,12 @@ NC='\033[0m' # No Color
 
 echo -e "${GREEN}=== Diamond Upgrade Script ===${NC}\n"
 
+# Load .env file if it exists
+if [ -f .env ]; then
+    echo -e "${YELLOW}Loading environment from .env file...${NC}"
+    export $(grep -v '^#' .env | grep -E "DEPLOYER_PRIVATE_KEY|DIAMOND_ADDRESS|BASE.*RPC|ETHEREUM.*RPC" | xargs)
+fi
+
 # Check for required environment variables
 if [ -z "$DEPLOYER_PRIVATE_KEY" ]; then
     echo -e "${RED}Error: DEPLOYER_PRIVATE_KEY not set${NC}"

@@ -8,6 +8,7 @@ import "../contracts/core/LiquidityPoolFacet.sol";
 import "../contracts/core/PerpetualMarketFacet.sol";
 import "../contracts/core/ReferralSystemFacet.sol";
 import "../contracts/libraries/LibDiamond.sol";
+import "../contracts/interfaces/IDiamondLoupe.sol";
 
 /// @title UpgradeDiamond
 /// @notice Upgrade script to add new facets to existing Diamond deployment
@@ -61,12 +62,12 @@ contract UpgradeDiamond is Script {
         liquiditySelectors[2] = LiquidityPoolFacet.removeLiquidity.selector;
         liquiditySelectors[3] = LiquidityPoolFacet.swap.selector;
         liquiditySelectors[4] = LiquidityPoolFacet.getPool.selector;
-        liquiditySelectors[5] = LiquidityPoolFacet.getLiquidityPosition.selector;
-        liquiditySelectors[6] = LiquidityPoolFacet.getSwapPrice.selector;
-        liquiditySelectors[7] = LiquidityPoolFacet.getPoolUtilization.selector;
-        liquiditySelectors[8] = LiquidityPoolFacet.calculateLPTokens.selector;
-        liquiditySelectors[9] = LiquidityPoolFacet.calculateWithdrawal.selector;
-        liquiditySelectors[10] = LiquidityPoolFacet.getRewards.selector;
+        liquiditySelectors[5] = LiquidityPoolFacet.getLPPosition.selector;
+        liquiditySelectors[6] = LiquidityPoolFacet.getSwapOutput.selector;
+        liquiditySelectors[7] = LiquidityPoolFacet.getUtilization.selector;
+        liquiditySelectors[8] = LiquidityPoolFacet.getReserves.selector;
+        liquiditySelectors[9] = LiquidityPoolFacet.getPriceImpact.selector;
+        liquiditySelectors[10] = LiquidityPoolFacet.getPendingRewards.selector;
         liquiditySelectors[11] = LiquidityPoolFacet.claimRewards.selector;
 
         cuts[0] = IDiamondCut.FacetCut({
