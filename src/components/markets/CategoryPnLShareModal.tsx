@@ -3,7 +3,7 @@
 import { PnLShareModal } from './PnLShareModal'
 import type { User } from '@/stores/authStore'
 
-type MarketCategory = 'perps' | 'predictions' | 'pools'
+type MarketCategory = 'perps' | 'predictions'
 
 interface CategoryPnLData {
   unrealizedPnL: number

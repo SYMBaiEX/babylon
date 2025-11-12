@@ -12,7 +12,6 @@ export interface PortfolioPnLSnapshot {
   availableBalance: number
   unrealizedPerpPnL: number
   unrealizedPredictionPnL: number
-  unrealizedPoolPnL: number
   totalUnrealizedPnL: number
   totalPnL: number
   accountEquity: number
@@ -67,14 +66,11 @@ export function usePortfolioPnL(): UsePortfolioPnLResult {
     setError(null)
 
     try {
-      const [balanceRes, positionsRes, poolsRes] = await Promise.all([
+      const [balanceRes, positionsRes] = await Promise.all([
         fetch(`/api/users/${encodeURIComponent(user.id)}/balance`, {
           signal: abortController.signal,
         }),
         fetch(`/api/markets/positions/${encodeURIComponent(user.id)}`, {
-          signal: abortController.signal,
-        }),
-        fetch(`/api/pools/deposits/${encodeURIComponent(user.id)}`, {
           signal: abortController.signal,
         }),
       ])
@@ -87,13 +83,8 @@ export function usePortfolioPnL(): UsePortfolioPnLResult {
         throw new Error(`Positions request failed with status ${positionsRes.status}`)
       }
 
-      if (!poolsRes.ok) {
-        throw new Error(`Pools request failed with status ${poolsRes.status}`)
-      }
-
       const balanceJson = await balanceRes.json()
       const positionsJson = await positionsRes.json()
-      const poolsJson = await poolsRes.json()
 
       const totalDeposited = toNumber(balanceJson.totalDeposited)
       const totalWithdrawn = toNumber(balanceJson.totalWithdrawn)
@@ -112,9 +103,7 @@ export function usePortfolioPnL(): UsePortfolioPnLResult {
         0,
       )
 
-      const poolUnrealized = toNumber(poolsJson?.summary?.totalUnrealizedPnL)
-
-      const totalUnrealizedPnL = perpUnrealized + predictionUnrealized + poolUnrealized
+      const totalUnrealizedPnL = perpUnrealized + predictionUnrealized
       const totalPnL = lifetimePnL + totalUnrealizedPnL
       const netContributions = totalDeposited - totalWithdrawn
       const accountEquity = netContributions + totalPnL
@@ -127,7 +116,6 @@ export function usePortfolioPnL(): UsePortfolioPnLResult {
         availableBalance,
         unrealizedPerpPnL: perpUnrealized,
         unrealizedPredictionPnL: predictionUnrealized,
-        unrealizedPoolPnL: poolUnrealized,
         totalUnrealizedPnL,
         totalPnL,
         accountEquity,

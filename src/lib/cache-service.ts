@@ -43,8 +43,6 @@ export const CACHE_KEYS = {
   ORGANIZATION: 'org',
   MARKET: 'market',
   MARKETS_LIST: 'markets:list',
-  POOL: 'pool',
-  POOLS_LIST: 'pools:list',
   TRENDING_TAGS: 'trending:tags',
   WIDGET: 'widget',
 } as const;
@@ -63,8 +61,6 @@ export const DEFAULT_TTLS = {
   
   // Moderate change frequency - medium TTL
   USER: 300, // 5 minutes
-  POOL: 180, // 3 minutes
-  POOLS_LIST: 180, // 3 minutes
   TRENDING_TAGS: 300, // 5 minutes
   WIDGET: 300, // 5 minutes
   

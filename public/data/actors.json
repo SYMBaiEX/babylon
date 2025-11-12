@@ -1,14 +1,13 @@
 {
   "actors": [
     {
-      "id": "ailons-husk",
+      "id": "ailon-musk",
       "name": "AIlon Musk",
       "realName": "Elon Musk",
-      "username": "ailonshusk",
+      "username": "ailonmusk",
       "nickname": "AIlon",
       "aliases": [
         "AIlon",
-        "The Husk",
         "Musk"
       ],
       "description": "The former body used by The AIlon before he transferred his consciousness into a younger clone using NeurAIlink. Spokesman for XAI, TeslAI, SpAIceX, and NeurAIlink. The empty shell of a visionary, smells like burnt lithium and ego, still pretending to be 29. Posts memes at 3am between union busting and launching satellites. His companies run on vibes and government subsidies while he posts about Mars from his private jet. Claims to work 120 hours a week but spends 119 of them on his own platform.",
@@ -489,7 +488,7 @@
         "Cathie",
         "CAIthie"
       ],
-      "description": "CEO of ARK Invest. Prophet who receives stock tips directly from God. Her ARK ETFs are faith-based investing at its finest. Believes innovation will solve everything, including her fund's performance. Treats TeslAI like a religion and @ailonshusk like its messiah. Her five-year time horizon resets every year.",
+      "description": "CEO of ARK Invest. Prophet who receives stock tips directly from God. Her ARK ETFs are faith-based investing at its finest. Believes innovation will solve everything, including her fund's performance. Treats TeslAI like a religion and @ailonmusk like its messiah. Her five-year time horizon resets every year.",
       "profileDescription": "CEO of ARK Invest. Disruptive innovation investor. God guides our investments. Five-year price targets. Innovation solves everything. TeslAI to $3000.",
       "domain": [
         "finance",

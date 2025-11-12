@@ -272,68 +272,6 @@ class CachedDatabaseService {
   }
 
   /**
-   * Get active pools with caching
-   */
-  async getActivePools() {
-    const cacheKey = 'active';
-    
-    return getCacheOrFetch(
-      cacheKey,
-      () => db.prisma.pool.findMany({
-        where: { isActive: true },
-        include: {
-          Actor: {
-            select: {
-              id: true,
-              name: true,
-              description: true,
-              tier: true,
-              personality: true,
-            },
-          },
-          PoolDeposit: {
-            where: {
-              withdrawnAt: null,
-            },
-            select: {
-              amount: true,
-              currentValue: true,
-            },
-          },
-          PoolPosition: {
-            where: {
-              closedAt: null,
-            },
-            select: {
-              marketType: true,
-              ticker: true,
-              marketId: true,
-              side: true,
-              size: true,
-              unrealizedPnL: true,
-            },
-          },
-          _count: {
-            select: {
-              PoolDeposit: {
-                where: {
-                  withdrawnAt: null,
-                },
-              },
-              NPCTrade: true,
-            },
-          },
-        },
-        orderBy: { totalValue: 'desc' },
-      }),
-      {
-        namespace: CACHE_KEYS.POOLS_LIST,
-        ttl: DEFAULT_TTLS.POOLS_LIST,
-      }
-    );
-  }
-
-  /**
    * Get trending tags with caching
    */
   async getTrendingTags(limit = 10) {
@@ -396,13 +334,6 @@ class CachedDatabaseService {
     await invalidateCachePattern('*', { namespace: CACHE_KEYS.MARKETS_LIST });
   }
 
-  /**
-   * Invalidate cache for pools
-   */
-  async invalidatePoolsCache() {
-    logger.info('Invalidating pools cache', undefined, 'CachedDatabaseService');
-    await invalidateCachePattern('*', { namespace: CACHE_KEYS.POOLS_LIST });
-  }
 
   /**
    * Invalidate all caches (use sparingly!)
@@ -412,7 +343,6 @@ class CachedDatabaseService {
     await Promise.all([
       this.invalidatePostsCache(),
       this.invalidateMarketsCache(),
-      this.invalidatePoolsCache(),
     ]);
   }
 }

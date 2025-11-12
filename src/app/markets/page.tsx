@@ -17,12 +17,9 @@ import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
 import { CategoryPnLShareModal } from '@/components/markets/CategoryPnLShareModal';
 import { MarketsWidgetSidebar } from '@/components/markets/MarketsWidgetSidebar';
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
-import { PoolsErrorBoundary } from '@/components/markets/PoolsErrorBoundary';
-import { PoolsList } from '@/components/markets/PoolsList';
 import { PortfolioPnLCard } from '@/components/markets/PortfolioPnLCard';
 import { PortfolioPnLShareModal } from '@/components/markets/PortfolioPnLShareModal';
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList';
-import { UserPoolPositions } from '@/components/markets/UserPoolPositions';
 import { BuyPointsModal } from '@/components/points/BuyPointsModal';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton, WidgetPanelSkeleton } from '@/components/shared/Skeleton';
@@ -32,8 +29,6 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
 import { useUserPositions } from '@/hooks/useUserPositions';
-
-import type { UserPoolSummary } from '@/types/pools';
 
 interface PerpMarket {
   ticker: string;
@@ -77,19 +72,7 @@ interface PredictionMarket {
   } | null;
 }
 
-type MarketTab = 'dashboard' | 'futures' | 'predictions' | 'pools';
-
-interface Pool {
-  id: string;
-  name: string;
-  totalValue?: number;
-  totalDeposits: number;
-  returnPercent: number;
-  npcActor?: {
-    name: string;
-    tier?: string;
-  };
-}
+type MarketTab = 'dashboard' | 'futures' | 'predictions';
 
 type PredictionSort = 'trending' | 'newest' | 'ending-soon' | 'volume';
 
@@ -103,16 +86,14 @@ export default function MarketsPage() {
   const [showBuyPointsModal, setShowBuyPointsModal] = useState(false);
   const [showPnLShareModal, setShowPnLShareModal] = useState(false);
   const [showCategoryPnLShareModal, setShowCategoryPnLShareModal] = useState<
-    'perps' | 'predictions' | 'pools' | null
+    'perps' | 'predictions' | null
   >(null);
 
   // Data
   const [perpMarkets, setPerpMarkets] = useState<PerpMarket[]>([]);
   const [predictions, setPredictions] = useState<PredictionMarket[]>([]);
-  const [poolSummary, setPoolSummary] = useState<UserPoolSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [balanceRefreshTrigger, setBalanceRefreshTrigger] = useState(0);
-  const [topPools, setTopPools] = useState<Pool[]>([]);
 
   const {
     data: portfolioPnL,
@@ -165,42 +146,23 @@ export default function MarketsPage() {
     const isAuth = authenticatedRef.current;
     const userId = userIdRef.current;
 
-    const [perpsRes, predictionsRes, poolsRes] = await Promise.all([
+    const [perpsRes, predictionsRes] = await Promise.all([
       fetch('/api/markets/perps'),
       fetch(
         `/api/markets/predictions${isAuth && userId ? `?userId=${userId}` : ''}`
       ),
-      fetch('/api/pools'),
     ]);
 
     const perpsData = await perpsRes.json();
     const predictionsData = await predictionsRes.json();
-    const poolsData = await poolsRes.json();
 
     setPerpMarkets(perpsData.markets || []);
     setPredictions(predictionsData.questions || []);
 
-    // Get top 6 pools by return percentage
-    const pools = poolsData.pools || [];
-    const sortedPools = [...pools]
-      .filter((p: Pool) => (p.totalValue ?? 0) > 0) // Only pools with value (includes NPC-funded pools)
-      .sort(
-        (a: Pool, b: Pool) => (b.returnPercent ?? 0) - (a.returnPercent ?? 0)
-      )
-      .slice(0, 6);
-    setTopPools(sortedPools);
-
     if (isAuth && userId) {
-      const poolDepositsRes = await fetch(
-        `/api/pools/deposits/${encodeURIComponent(userId)}`
-      );
-      const poolDepositsData = await poolDepositsRes.json();
-      setPoolSummary(poolDepositsData.summary || null);
       if (refreshPositionsRef.current) {
         await refreshPositionsRef.current();
       }
-    } else {
-      setPoolSummary(null);
     }
 
     // Trigger balance refresh after data fetch (after trades)
@@ -385,16 +347,6 @@ export default function MarketsPage() {
     };
   }, [predictionPositions]);
 
-  const poolPnLData = useMemo(() => {
-    if (!poolSummary || poolSummary.activePools === 0) return null;
-    return {
-      unrealizedPnL: poolSummary.totalUnrealizedPnL,
-      positionCount: poolSummary.activePools,
-      totalValue: poolSummary.totalCurrentValue,
-      categorySpecific: { totalInvested: poolSummary.totalInvested },
-    };
-  }, [poolSummary]);
-
   const handleMarketClick = (market: PerpMarket) => {
     // Navigate to dedicated perp page
     router.push(`/markets/perps/${market.ticker}`);
@@ -426,7 +378,7 @@ export default function MarketsPage() {
         <div className="p-4 space-y-6">
           {/* Tabs skeleton */}
           <div className="flex gap-0">
-            {['Dashboard', 'Perps', 'Predictions', 'Pools'].map((tab) => (
+            {['Dashboard', 'Perps', 'Predictions'].map((tab) => (
               <div key={tab} className="flex-1 px-4 py-2.5">
                 <Skeleton className="h-5 w-20 mx-auto" />
               </div>
@@ -501,20 +453,6 @@ export default function MarketsPage() {
                 >
                   Predictions
                 </button>
-                <button
-                  role="tab"
-                  aria-selected={activeTab === 'pools'}
-                  aria-controls="pools-panel"
-                  onClick={() => setActiveTab('pools')}
-                  className={cn(
-                    'flex-1 px-3 sm:px-4 py-2.5 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
-                    activeTab === 'pools'
-                      ? 'text-white font-bold'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  Pools
-                </button>
               </div>
 
               {/* Search - hide on dashboard */}
@@ -529,16 +467,12 @@ export default function MarketsPage() {
                     aria-label={
                       activeTab === 'futures'
                         ? 'Search tickers'
-                        : activeTab === 'predictions'
-                          ? 'Search questions'
-                          : 'Search pools'
+                        : 'Search questions'
                     }
                     placeholder={
                       activeTab === 'futures'
                         ? 'Search tickers...'
-                        : activeTab === 'predictions'
-                          ? 'Search questions...'
-                          : 'Search pools...'
+                        : 'Search questions...'
                     }
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -728,62 +662,6 @@ export default function MarketsPage() {
                   </div>
                 </div>
 
-                {/* Top Performing Pools - Full width */}
-                {topPools.length > 0 && (
-                  <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border">
-                    <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
-                      <TrendingUp className="w-5 h-5 text-orange-600" />
-                      Top Performing Pools
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                      {topPools.map((pool, idx) => (
-                        <button
-                          key={`top-pool-${pool.id}-${idx}`}
-                          onClick={() =>
-                            router.push(`/markets/pools/${pool.id}`)
-                          }
-                          className="p-4 rounded-lg text-left bg-muted/30 hover:bg-muted transition-all cursor-pointer border border-transparent hover:border-orange-500/30"
-                        >
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="flex-1">
-                              <div className="font-bold text-sm mb-1">
-                                {pool.name}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {pool.npcActor?.name}
-                              </div>
-                            </div>
-                            <div
-                              className={cn(
-                                'text-lg font-bold',
-                                (pool.returnPercent ?? 0) >= 0
-                                  ? 'text-green-600'
-                                  : 'text-red-600'
-                              )}
-                            >
-                              {(pool.returnPercent ?? 0) >= 0 ? '+' : ''}
-                              {(pool.returnPercent ?? 0).toFixed(1)}%
-                            </div>
-                          </div>
-                          <div className="flex gap-3 text-xs text-muted-foreground">
-                            <div>
-                              TVL: $
-                              {pool.totalValue?.toFixed(0) ||
-                                pool.totalDeposits.toFixed(0)}
-                            </div>
-                            <div>•</div>
-                            <div>
-                              {pool.npcActor?.tier?.replace('_TIER', '') ||
-                                'N/A'}{' '}
-                              Tier
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {/* CTA for non-authenticated users */}
                 {!authenticated && (
                   <div className="flex flex-col items-center justify-center py-16 px-4 bg-gradient-to-br from-[#0066FF]/10 to-purple-500/10 rounded-lg border border-[#0066FF]/20">
@@ -791,8 +669,7 @@ export default function MarketsPage() {
                       Start Trading Today
                     </h3>
                     <p className="text-sm text-muted-foreground mb-6 text-center max-w-md">
-                      Log in to trade perpetual futures, prediction markets, and
-                      invest in trader pools
+                      Log in to trade perpetual futures and prediction markets
                     </p>
                     <button
                       onClick={login}
@@ -803,46 +680,6 @@ export default function MarketsPage() {
                   </div>
                 )}
               </div>
-            ) : activeTab === 'pools' ? (
-              <PoolsErrorBoundary>
-                <div
-                  id="pools-panel"
-                  role="tabpanel"
-                  aria-labelledby="pools-tab"
-                  className="p-4"
-                >
-                  {/* Category P&L Card */}
-                  {authenticated && poolPnLData && (
-                    <div className="mb-6">
-                      <CategoryPnLCard
-                        category="pools"
-                        data={poolPnLData}
-                        loading={portfolioLoading}
-                        error={portfolioError}
-                        onShare={() => setShowCategoryPnLShareModal('pools')}
-                        onRefresh={refreshPortfolio}
-                        lastUpdated={portfolioUpdatedAt}
-                      />
-                    </div>
-                  )}
-
-                  {/* Show user's pool positions if authenticated */}
-                  {authenticated && (
-                    <div className="mb-6">
-                      <UserPoolPositions onWithdraw={fetchData} />
-                    </div>
-                  )}
-
-                  <h2 className="text-sm font-bold text-muted-foreground mb-3">
-                    ALL TRADING POOLS
-                  </h2>
-                  <PoolsList
-                    onPoolClick={(pool) =>
-                      router.push(`/markets/pools/${pool.id}`)
-                    }
-                  />
-                </div>
-              </PoolsErrorBoundary>
             ) : activeTab === 'futures' ? (
               <div
                 id="futures-panel"
@@ -1262,20 +1099,6 @@ export default function MarketsPage() {
               >
                 Predictions
               </button>
-              <button
-                role="tab"
-                aria-selected={activeTab === 'pools'}
-                aria-controls="pools-panel"
-                onClick={() => setActiveTab('pools')}
-                className={cn(
-                  'flex-1 px-3 sm:px-4 py-2.5 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
-                  activeTab === 'pools'
-                    ? 'text-white font-bold'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                Pools
-              </button>
             </div>
 
             {/* Search - hide on dashboard */}
@@ -1290,16 +1113,12 @@ export default function MarketsPage() {
                   aria-label={
                     activeTab === 'futures'
                       ? 'Search tickers'
-                      : activeTab === 'predictions'
-                        ? 'Search questions'
-                        : 'Search pools'
+                      : 'Search questions'
                   }
                   placeholder={
                     activeTab === 'futures'
                       ? 'Search tickers...'
-                      : activeTab === 'predictions'
-                        ? 'Search questions...'
-                        : 'Search pools...'
+                      : 'Search questions...'
                   }
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -1481,59 +1300,6 @@ export default function MarketsPage() {
                 )}
               </div>
 
-              {/* Top Performing Pools */}
-              {topPools.length > 0 && (
-                <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border">
-                  <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-orange-600" />
-                    Top Performing Pools
-                  </h2>
-                  <div className="space-y-3">
-                    {topPools.map((pool, idx) => (
-                      <button
-                        key={`top-pool-mobile-${pool.id}-${idx}`}
-                        onClick={() => router.push(`/markets/pools/${pool.id}`)}
-                        className="w-full p-4 rounded-lg text-left bg-muted/30 hover:bg-muted transition-all cursor-pointer border border-transparent hover:border-orange-500/30"
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="flex-1">
-                            <div className="font-bold text-sm mb-1">
-                              {pool.name}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {pool.npcActor?.name}
-                            </div>
-                          </div>
-                          <div
-                            className={cn(
-                              'text-lg font-bold',
-                              (pool.returnPercent ?? 0) >= 0
-                                ? 'text-green-600'
-                                : 'text-red-600'
-                            )}
-                          >
-                            {(pool.returnPercent ?? 0) >= 0 ? '+' : ''}
-                            {(pool.returnPercent ?? 0).toFixed(1)}%
-                          </div>
-                        </div>
-                        <div className="flex gap-3 text-xs text-muted-foreground">
-                          <div>
-                            TVL: $
-                            {pool.totalValue?.toFixed(0) ||
-                              pool.totalDeposits.toFixed(0)}
-                          </div>
-                          <div>•</div>
-                          <div>
-                            {pool.npcActor?.tier?.replace('_TIER', '') || 'N/A'}{' '}
-                            Tier
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* CTA for non-authenticated users */}
               {!authenticated && (
                 <div className="flex flex-col items-center justify-center py-16 px-4 bg-gradient-to-br from-[#0066FF]/10 to-purple-500/10 rounded-lg border border-[#0066FF]/20">
@@ -1541,8 +1307,7 @@ export default function MarketsPage() {
                     Start Trading Today
                   </h3>
                   <p className="text-sm text-muted-foreground mb-6 text-center max-w-md">
-                    Log in to trade perpetual futures, prediction markets, and
-                    invest in trader pools
+                    Log in to trade perpetual futures and prediction markets
                   </p>
                   <button
                     onClick={login}
@@ -1553,46 +1318,6 @@ export default function MarketsPage() {
                 </div>
               )}
             </div>
-          ) : activeTab === 'pools' ? (
-            <PoolsErrorBoundary>
-              <div
-                id="pools-panel"
-                role="tabpanel"
-                aria-labelledby="pools-tab"
-                className="p-4"
-              >
-                {/* Category P&L Card */}
-                {authenticated && poolPnLData && (
-                  <div className="mb-6">
-                    <CategoryPnLCard
-                      category="pools"
-                      data={poolPnLData}
-                      loading={portfolioLoading}
-                      error={portfolioError}
-                      onShare={() => setShowCategoryPnLShareModal('pools')}
-                      onRefresh={refreshPortfolio}
-                      lastUpdated={portfolioUpdatedAt}
-                    />
-                  </div>
-                )}
-
-                {/* Show user's pool positions if authenticated */}
-                {authenticated && (
-                  <div className="mb-6">
-                    <UserPoolPositions onWithdraw={fetchData} />
-                  </div>
-                )}
-
-                <h2 className="text-sm font-bold text-muted-foreground mb-3">
-                  ALL TRADING POOLS
-                </h2>
-                <PoolsList
-                  onPoolClick={(pool) =>
-                    router.push(`/markets/pools/${pool.id}`)
-                  }
-                />
-              </div>
-            </PoolsErrorBoundary>
           ) : activeTab === 'futures' ? (
             <div
               id="futures-panel"
@@ -1951,17 +1676,6 @@ export default function MarketsPage() {
           onClose={() => setShowCategoryPnLShareModal(null)}
           category="predictions"
           data={predictionPnLData}
-          user={user ?? null}
-          lastUpdated={portfolioUpdatedAt}
-        />
-      )}
-
-      {showCategoryPnLShareModal === 'pools' && (
-        <CategoryPnLShareModal
-          isOpen={true}
-          onClose={() => setShowCategoryPnLShareModal(null)}
-          category="pools"
-          data={poolPnLData}
           user={user ?? null}
           lastUpdated={portfolioUpdatedAt}
         />
