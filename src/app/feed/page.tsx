@@ -174,7 +174,6 @@ function FeedPageContent() {
     }
 
     if (append && uniqueAdded === 0) {
-      setHasMore(false)
       setLoadingMore(false)
       return
     }
