@@ -94,14 +94,32 @@ export function BuyPointsModal({
         );
       }
 
-      const updatedBalance = await refreshBalance();
-      if (!updatedBalance || updatedBalance < requiredAmountWei) {
-        throw new Error(
-          'Funds are still settling. Please try again once the deposit arrives.'
-        );
+      // Poll for balance updates with timeout (30 seconds)
+      const maxAttempts = 30;
+      const pollInterval = 1000; // 1 second
+      
+      // Show feedback to user
+      toast.info('Waiting for deposit to settle...');
+      
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const updatedBalance = await refreshBalance();
+        
+        if (updatedBalance && updatedBalance >= requiredAmountWei) {
+          toast.success('Funds received!');
+          return true;
+        }
+        
+        // Wait before next check (except on last attempt)
+        if (attempt < maxAttempts - 1) {
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+        }
       }
 
-      return true;
+      // If we get here, funds didn't arrive in time
+      toast.error('Deposit is taking longer than expected');
+      throw new Error(
+        'Funds are still settling. Please try again in a moment once the deposit arrives.'
+      );
     },
     [balance, fundWallet, refreshBalance, smartWalletAddress]
   );
@@ -439,7 +457,7 @@ export function BuyPointsModal({
             </h3>
             <p className="text-sm text-muted-foreground mb-4">
               {step === 'payment'
-                ? 'Please confirm the transaction in your wallet'
+                ? 'Preparing your payment transaction...'
                 : 'Confirming your payment on the blockchain'}
             </p>
             {txHash && (

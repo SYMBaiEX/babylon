@@ -15,8 +15,8 @@ interface Pool {
   description?: string
   totalValue: number
   totalDeposits: number
-  returnPercent: number
-  npcActor: {
+  totalReturn: number
+  npcActor?: {
     id: string
     name: string
     tier: string
@@ -24,7 +24,7 @@ interface Pool {
   }
   userDeposit?: number
   userShares?: number
-  createdAt: string
+  openedAt: string
 }
 
 interface PerformancePoint {
@@ -60,7 +60,7 @@ export default function PoolDetailPage() {
     // Generate mock performance history (you'll want to replace this with real data)
     const now = Date.now()
     const history: PerformancePoint[] = []
-    const baseReturn = data.pool.returnPercent
+    const baseReturn = data.pool.totalReturn || 0
     
     for (let i = 30; i >= 0; i--) {
       const time = now - (i * 24 * 60 * 60 * 1000) // Daily for last 30 days
@@ -183,7 +183,7 @@ export default function PoolDetailPage() {
           <div className="flex items-start justify-between gap-4 mb-4">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
-                {pool.npcActor.profilePicture && (
+                {pool.npcActor?.profilePicture && (
                   <img 
                     src={pool.npcActor.profilePicture} 
                     alt={pool.npcActor.name}
@@ -192,9 +192,11 @@ export default function PoolDetailPage() {
                 )}
                 <div>
                   <h1 className="text-2xl font-bold">{pool.name}</h1>
-                  <p className="text-sm text-muted-foreground">
-                    Managed by {pool.npcActor.name}
-                  </p>
+                  {pool.npcActor && (
+                    <p className="text-sm text-muted-foreground">
+                      Managed by {pool.npcActor.name}
+                    </p>
+                  )}
                 </div>
               </div>
               {pool.description && (
@@ -202,12 +204,14 @@ export default function PoolDetailPage() {
               )}
             </div>
 
-            <div className={cn(
-              "px-3 py-1.5 rounded-full text-sm font-bold",
-              getTierColor(pool.npcActor.tier)
-            )}>
-              {getTierName(pool.npcActor.tier)}
-            </div>
+            {pool.npcActor && (
+              <div className={cn(
+                "px-3 py-1.5 rounded-full text-sm font-bold",
+                getTierColor(pool.npcActor.tier)
+              )}>
+                {getTierName(pool.npcActor.tier)}
+              </div>
+            )}
           </div>
 
           {/* Pool Stats */}
@@ -228,19 +232,19 @@ export default function PoolDetailPage() {
             </div>
             <div className={cn(
               "rounded-lg px-3 py-3",
-              pool.returnPercent >= 0 ? "bg-green-600/15" : "bg-red-600/15"
+              pool.totalReturn >= 0 ? "bg-green-600/15" : "bg-red-600/15"
             )}>
               <div className="flex items-center gap-2 text-xs mb-1" style={{
-                color: pool.returnPercent >= 0 ? '#16a34a' : '#dc2626'
+                color: pool.totalReturn >= 0 ? '#16a34a' : '#dc2626'
               }}>
-                {pool.returnPercent >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                {pool.totalReturn >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                 Return
               </div>
               <div className={cn(
                 "text-2xl font-bold",
-                pool.returnPercent >= 0 ? "text-green-600" : "text-red-600"
+                pool.totalReturn >= 0 ? "text-green-600" : "text-red-600"
               )}>
-                {pool.returnPercent >= 0 ? '+' : ''}{pool.returnPercent.toFixed(1)}%
+                {pool.totalReturn >= 0 ? '+' : ''}{pool.totalReturn.toFixed(1)}%
               </div>
             </div>
             <div className="bg-muted/30 rounded-lg px-3 py-3">
@@ -249,7 +253,7 @@ export default function PoolDetailPage() {
                 Created
               </div>
               <div className="text-sm font-bold">
-                {new Date(pool.createdAt).toLocaleDateString('en-US', {
+                {new Date(pool.openedAt).toLocaleDateString('en-US', {
                   month: 'short',
                   day: 'numeric'
                 })}
@@ -328,7 +332,7 @@ export default function PoolDetailPage() {
               <div>
                 <div className="text-xs text-muted-foreground mb-1">Active Days</div>
                 <div className="text-lg font-bold">
-                  {Math.floor((Date.now() - new Date(pool.createdAt).getTime()) / (1000 * 60 * 60 * 24))}
+                  {Math.floor((Date.now() - new Date(pool.openedAt).getTime()) / (1000 * 60 * 60 * 24))}
                 </div>
               </div>
             </div>
@@ -373,9 +377,9 @@ export default function PoolDetailPage() {
                     <span className="text-muted-foreground">Current Return</span>
                     <span className={cn(
                       "font-bold",
-                      pool.returnPercent >= 0 ? "text-green-600" : "text-red-600"
+                      pool.totalReturn >= 0 ? "text-green-600" : "text-red-600"
                     )}>
-                      {pool.returnPercent >= 0 ? '+' : ''}{pool.returnPercent.toFixed(1)}%
+                      {pool.totalReturn >= 0 ? '+' : ''}{pool.totalReturn.toFixed(1)}%
                     </span>
                   </div>
                   <div className="border-t border-border pt-2 mt-2">
@@ -383,9 +387,9 @@ export default function PoolDetailPage() {
                       <span className="text-muted-foreground">If Return Continues</span>
                       <span className={cn(
                         "font-bold",
-                        pool.returnPercent >= 0 ? "text-green-600" : "text-red-600"
+                        pool.totalReturn >= 0 ? "text-green-600" : "text-red-600"
                       )}>
-                        {formatPrice(depositNum * (1 + pool.returnPercent / 100))}
+                        {formatPrice(depositNum * (1 + pool.totalReturn / 100))}
                       </span>
                     </div>
                   </div>

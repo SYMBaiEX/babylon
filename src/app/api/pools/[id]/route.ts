@@ -3,7 +3,7 @@ import { asPublic, asUser } from '@/lib/db/context';
 import { NotFoundError } from '@/lib/errors';
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
-import { IdParamSchema } from '@/lib/validation/schemas';
+import { PoolIdParamSchema } from '@/lib/validation/schemas/pool';
 import type { NextRequest } from 'next/server';
 
 /**
@@ -14,7 +14,7 @@ export const GET = withErrorHandling(async (
   _request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) => {
-  const { id } = IdParamSchema.parse(await context.params);
+  const { id } = PoolIdParamSchema.parse(await context.params);
 
   // Optional auth - pools are public but RLS still applies
   const authUser = await optionalAuth(_request).catch(() => null);

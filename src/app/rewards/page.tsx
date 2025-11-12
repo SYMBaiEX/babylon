@@ -11,7 +11,7 @@ import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccounts
 import { RewardsSkeleton } from '@/components/rewards/RewardsSkeleton'
 import { useAuth } from '@/hooks/useAuth'
 import { getProfileUrl } from '@/lib/profile-utils'
-import { POINTS } from '@/lib/services/points-service'
+import { POINTS } from '@/lib/constants/points'
 import { useAuthStore } from '@/stores/authStore'
 import {
   Award,

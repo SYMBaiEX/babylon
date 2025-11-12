@@ -8,11 +8,12 @@ import { StatsTab } from '@/components/admin/StatsTab'
 import { TradingFeedTab } from '@/components/admin/TradingFeedTab'
 import { UserManagementTab } from '@/components/admin/UserManagementTab'
 import { NotificationsTab } from '@/components/admin/NotificationsTab'
-import { Shield, Activity, Users, BarChart, Bell } from 'lucide-react'
+import { GroupsTab } from '@/components/admin/GroupsTab'
+import { Shield, Activity, Users, BarChart, Bell, MessageSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/shared/Skeleton'
 
-type Tab = 'stats' | 'trades' | 'users' | 'notifications'
+type Tab = 'stats' | 'trades' | 'users' | 'groups' | 'notifications'
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -87,6 +88,7 @@ export default function AdminDashboard() {
     { id: 'stats' as const, label: 'Dashboard', icon: BarChart },
     { id: 'trades' as const, label: 'Trading Feed', icon: Activity },
     { id: 'users' as const, label: 'Users', icon: Users },
+    { id: 'groups' as const, label: 'Groups', icon: MessageSquare },
     { id: 'notifications' as const, label: 'Notifications', icon: Bell },
   ]
 
@@ -129,6 +131,7 @@ export default function AdminDashboard() {
         {activeTab === 'stats' && <StatsTab />}
         {activeTab === 'trades' && <TradingFeedTab />}
         {activeTab === 'users' && <UserManagementTab />}
+        {activeTab === 'groups' && <GroupsTab />}
         {activeTab === 'notifications' && <NotificationsTab />}
       </div>
     </PageContainer>

@@ -66,9 +66,11 @@ export async function POST(req: NextRequest) {
     const pointsAmount = Math.floor(amountUSD * 100)
 
     // Create payment request
-    // Note: For x402, we need to convert USD to wei (assuming USDC or similar stablecoin)
-    // For simplicity, we'll use a 1:1 conversion with 6 decimals (USDC standard)
-    const amountInWei = (amountUSD * 1_000_000).toString() // 6 decimals for USDC
+    // Note: For x402, we need to convert USD to wei (18 decimals for ETH)
+    // Using a simplified conversion: $1 USD ≈ 0.001 ETH for testing
+    // In production, you would fetch the actual ETH/USD price
+    const ethEquivalent = amountUSD * 0.001 // $1 = 0.001 ETH
+    const amountInWei = (ethEquivalent * 1_000_000_000_000_000_000).toString() // 18 decimals for ETH
 
     const paymentRequest = x402Manager.createPaymentRequest(
       fromAddress,

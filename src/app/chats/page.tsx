@@ -2,10 +2,9 @@
 
 import { LoginButton } from '@/components/auth/LoginButton'
 import { Avatar } from '@/components/shared/Avatar'
-import { Skeleton } from '@/components/shared/Skeleton'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { Separator } from '@/components/shared/Separator'
-import { ChatListSkeleton } from '@/components/shared/Skeleton'
+import { ChatListSkeleton, Skeleton } from '@/components/shared/Skeleton'
 import { TaggedText } from '@/components/shared/TaggedText'
 import {
   AlertDialog,
@@ -98,8 +97,12 @@ export default function ChatsPage() {
   const [isLeaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
   const [isLeavingChat, setIsLeavingChat] = useState(false)
   const [leaveChatError, setLeaveChatError] = useState<string | null>(null)
+  // Invite modal state (currently disabled)
+  // const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement | null>(null)
+  const topSentinelRef = useRef<HTMLDivElement | null>(null)
+  const pendingScrollAdjustRef = useRef<{ previousHeight: number; previousTop: number } | null>(null)
   
   // Use SSE for real-time messages with pagination
   const { 
@@ -133,24 +136,55 @@ export default function ChatsPage() {
     [setPullToRefreshRef]
   )
 
-  // Scroll detection for loading older messages
+  // Intersection observer to detect when user scrolls near the top
   useEffect(() => {
     const container = chatContainerRef.current
-    if (!container || !selectedChatId) return
+    const sentinel = topSentinelRef.current
 
-    const handleScroll = () => {
-      const { scrollTop } = container
-      
-      // Load more when scrolling near the top (within 200px)
-      if (scrollTop < 200 && hasMore && !isLoadingMore) {
-        console.log('[ChatsPage] Near top, loading more messages...')
-        loadMore()
+    if (!container || !sentinel || !selectedChatId) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (!entry) return
+        if (
+          entry.isIntersecting &&
+          container.scrollTop < 200 &&
+          hasMore &&
+          !isLoadingMore
+        ) {
+          console.log('[ChatsPage] Sentinel intersected, loading more messages…')
+          pendingScrollAdjustRef.current = {
+            previousHeight: container.scrollHeight,
+            previousTop: container.scrollTop,
+          }
+          loadMore()
+        }
+      },
+      {
+        root: container,
+        rootMargin: '0px 0px 0px 0px',
+        threshold: 0.1,
       }
-    }
+    )
 
-    container.addEventListener('scroll', handleScroll)
-    return () => container.removeEventListener('scroll', handleScroll)
+    observer.observe(sentinel)
+
+    return () => observer.disconnect()
   }, [selectedChatId, hasMore, isLoadingMore, loadMore])
+
+  // Maintain scroll position after loading older messages
+  useEffect(() => {
+    if (isLoadingMore || !pendingScrollAdjustRef.current) return
+    const container = chatContainerRef.current
+    if (!container) return
+
+    const { previousHeight, previousTop } = pendingScrollAdjustRef.current
+    const newHeight = container.scrollHeight
+    const delta = newHeight - previousHeight
+    container.scrollTop = previousTop + delta
+    pendingScrollAdjustRef.current = null
+  }, [isLoadingMore, realtimeMessages.length])
 
   // Debug mode: enabled in localhost
   const isDebugMode = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
@@ -430,6 +464,36 @@ export default function ChatsPage() {
       setIsLeavingChat(false)
     }
   }
+
+  // Invite users handler (currently disabled)
+  /*
+  const handleInviteUsers = async (userIds: string[]) => {
+    if (!selectedChatId) return
+
+    const accessToken = await getAccessToken()
+    if (!accessToken) {
+      throw new Error('Authentication failed')
+    }
+
+    const response = await fetch(`/api/chats/${selectedChatId}/participants`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ userIds }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || 'Failed to invite users')
+    }
+
+    // Reload chat details to show new participants
+    await loadChatDetails(selectedChatId)
+    await loadChats()
+  }
+  */
 
   const sendMessage = async () => {
     if (!selectedChatId || !messageInput.trim() || sending) return
@@ -753,24 +817,38 @@ export default function ChatsPage() {
                         </div>
                       </div>
                       
+                      <div className="flex items-center gap-2">                      
+                      {/* Invite button - show for both DMs and groups (currently hidden) */}
+                      {/* Uncomment to enable user invites:
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setIsInviteModalOpen(true)}
+                        title="Invite users"
+                      >
+                        <UserPlus className="h-5 w-5" />
+                      </Button>
+                      */}
+                      
                       {chatDetails.chat.isGroup && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreVertical className="h-5 w-5" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => setLeaveConfirmOpen(true)}
-                              className="text-red-500"
-                            >
-                              <LogOut className="mr-2 h-4 w-4" />
-                              <span>Leave Chat</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreVertical className="h-5 w-5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => setLeaveConfirmOpen(true)}
+                                className="text-red-500"
+                              >
+                                <LogOut className="mr-2 h-4 w-4" />
+                                <span>Leave Chat</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
                     </div>
 
                     {/* Header Separator */}
@@ -783,6 +861,11 @@ export default function ChatsPage() {
                       ref={setRefs}
                       className="flex-1 overflow-y-auto px-4 py-3 space-y-4 relative"
                     >
+                      {/* Gradient overlay to hint more messages */}
+                      {hasMore && (
+                        <div className="pointer-events-none absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-background via-background/90 to-transparent z-10" />
+                      )}
+
                       {/* Pull-to-refresh indicator */}
                       {pullDistance > 0 && (
                         <div 
@@ -798,23 +881,16 @@ export default function ChatsPage() {
                         </div>
                       )}
 
+                      {/* Sentinel for infinite scroll */}
+                      <div ref={topSentinelRef} className="h-1 w-full" />
+
                       {/* Loading more messages indicator */}
                       {isLoadingMore && (
-                        <div className="flex items-center justify-center py-3">
-                          <Loader2 className="w-5 h-5 text-primary animate-spin mr-2" />
-                          <span className="text-sm text-muted-foreground">Loading older messages...</span>
-                        </div>
-                      )}
-
-                      {/* Show "Load More" button if has more and not auto-loading */}
-                      {hasMore && !isLoadingMore && chatDetails?.messages && chatDetails.messages.length > 0 && (
-                        <div className="flex items-center justify-center py-2">
-                          <button
-                            onClick={loadMore}
-                            className="text-sm text-primary hover:underline flex items-center gap-1"
-                          >
-                            <span>Load older messages</span>
-                          </button>
+                        <div className="sticky top-2 z-20 flex justify-center">
+                          <div className="flex items-center gap-2 rounded-full bg-background/85 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur">
+                            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                            <span>Loading previous messages…</span>
+                          </div>
                         </div>
                       )}
                       
@@ -1238,6 +1314,18 @@ export default function ChatsPage() {
                         )}
                       </div>
                       
+                      {/* Invite button - show for both DMs and groups (currently hidden) */}
+                      {/* Uncomment to enable user invites:
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setIsInviteModalOpen(true)}
+                        title="Invite users"
+                      >
+                        <UserPlus className="h-5 w-5" />
+                      </Button>
+                      */}
+                      
                       {chatDetails.chat.isGroup && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -1471,6 +1559,18 @@ export default function ChatsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Invite Users Modal (currently disabled) */}
+      {/* Uncomment to enable user invites:
+      <InviteUsersModal
+        isOpen={isInviteModalOpen}
+        onClose={() => setIsInviteModalOpen(false)}
+        onInvite={handleInviteUsers}
+        chatId={selectedChatId || undefined}
+        chatName={chatDetails?.chat.name || undefined}
+        currentParticipantIds={chatDetails?.participants.map(p => p.id) || []}
+      />
+      */}
 
     </>
   )

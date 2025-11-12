@@ -134,9 +134,11 @@ export function UserPoolPositions({ onWithdraw }: UserPoolPositionsProps) {
             <div className="flex justify-between items-start mb-2">
               <div>
                 <div className="font-semibold">{deposit.poolName}</div>
-                <div className="text-xs text-muted-foreground">
-                  {deposit.npcActor.name} • {deposit.npcActor.tier?.replace('_TIER', '')}
-                </div>
+                {deposit.npcActor && (
+                  <div className="text-xs text-muted-foreground">
+                    {deposit.npcActor.name} • {deposit.npcActor.tier?.replace('_TIER', '')}
+                  </div>
+                )}
               </div>
               <div className="text-right">
                 <div className={cn(

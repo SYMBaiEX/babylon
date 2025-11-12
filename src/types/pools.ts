@@ -67,7 +67,7 @@ export interface UserPoolDeposit {
   id: string
   poolId: string
   poolName: string
-  npcActor: NPCActor
+  npcActor?: NPCActor
   amount: number
   shares: number
   currentValue: number
@@ -92,7 +92,7 @@ export interface PoolDetails {
   id: string
   name: string
   description?: string | null
-  npcActor: NPCActor
+  npcActor?: NPCActor
   totalValue: number
   totalDeposits: number
   availableBalance: number

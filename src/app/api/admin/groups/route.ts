@@ -6,7 +6,7 @@
 
 import { authenticate } from '@/lib/api/auth-middleware';
 import { withErrorHandling } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
+import { asSystem } from '@/lib/db/context';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
@@ -18,10 +18,12 @@ import { NextResponse } from 'next/server';
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request);
   
-  // Check admin permissions
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.userId },
-    select: { isAdmin: true },
+  // Check admin permissions using asSystem to bypass RLS
+  const dbUser = await asSystem(async (db) => {
+    return await db.user.findUnique({
+      where: { id: user.userId },
+      select: { isAdmin: true },
+    });
   });
 
   if (!dbUser?.isAdmin) {
@@ -43,68 +45,89 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     isGroup: true,
   };
 
-  // Get all chats with full details
-  const chats = await prisma.chat.findMany({
-    where: whereClause,
-    include: {
-      ChatParticipant: {
-        select: {
-          userId: true,
-          joinedAt: true,
+  // Get all data using asSystem in a single call to avoid nested async issues
+  const { chats, allUsers, allActors, allUserGroups } = await asSystem(async (db) => {
+    // Get all chats
+    const chats = await db.chat.findMany({
+      where: whereClause,
+      include: {
+        ChatParticipant: {
+          select: {
+            userId: true,
+            joinedAt: true,
+          },
+        },
+        Message: {
+          select: {
+            id: true,
+            senderId: true,
+            content: true,
+            createdAt: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 10, // Last 10 messages for preview
         },
       },
-      Message: {
-        select: {
-          id: true,
-          senderId: true,
-          content: true,
-          createdAt: true,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        take: 10, // Last 10 messages for preview
+      orderBy: {
+        createdAt: sortOrder === 'asc' ? 'asc' : 'desc',
       },
-    },
-    orderBy: {
-      createdAt: sortOrder === 'asc' ? 'asc' : 'desc',
-    },
+    });
+
+    // Get all unique participant IDs across all chats
+    const allParticipantIds = [...new Set(chats.flatMap(c => c.ChatParticipant.map(p => p.userId)))];
+    const allMessageSenderIds = [...new Set(chats.flatMap(c => c.Message.map(m => m.senderId)))];
+    const allUserIds = [...new Set([...allParticipantIds, ...allMessageSenderIds])];
+
+    // Get all users and actors at once
+    const allUsers = await db.user.findMany({
+      where: { id: { in: allUserIds } },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        isActor: true,
+        profileImageUrl: true,
+      },
+    });
+    
+    const allActors = await db.actor.findMany({
+      where: { id: { in: allUserIds } },
+      select: {
+        id: true,
+        name: true,
+        profileImageUrl: true,
+      },
+    });
+    
+    // Query UserGroup without type issues
+    const allUserGroups = await db.$queryRaw<Array<{ name: string | null; createdById: string }>>`
+      SELECT name, "createdById" FROM "UserGroup"
+    `;
+
+    return { chats, allUsers, allActors, allUserGroups };
   });
+
+  // Create maps for quick lookup  
+  type UserType = typeof allUsers[number];
+  type ActorType = typeof allActors[number];
+  type UserGroupType = { name: string | null; createdById: string };
+  
+  const usersMap = new Map<string, UserType>(allUsers.map(u => [u.id, u]));
+  const actorsMap = new Map<string, ActorType>(allActors.map(a => [a.id, a]));
+  const userGroupsMap = new Map<string, UserGroupType>(
+    allUserGroups.filter((g) => g.name).map((g) => [g.name as string, g])
+  );
 
   // Enrich with creator and participant details
   const enrichedChats = await Promise.all(
     chats.map(async (chat) => {
       const participantIds = chat.ChatParticipant.map(p => p.userId);
       
-      // Get all participants (users and actors)
-      const [users, actors] = await Promise.all([
-        prisma.user.findMany({
-          where: {
-            id: {
-              in: participantIds,
-            },
-          },
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            isActor: true,
-            profileImageUrl: true,
-          },
-        }),
-        prisma.actor.findMany({
-          where: {
-            id: {
-              in: participantIds,
-            },
-          },
-          select: {
-            id: true,
-            name: true,
-            profileImageUrl: true,
-          },
-        }),
-      ]);
+      // Get participants from maps
+      const users = participantIds.map(id => usersMap.get(id)).filter((u): u is UserType => u !== undefined);
+      const actors = participantIds.map(id => actorsMap.get(id)).filter((a): a is ActorType => a !== undefined);
 
       // Determine group type and creator
       const actorParticipants = actors.map(a => a.id);
@@ -133,15 +156,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         }
       } else {
         groupType = 'user';
-        // Check UserGroup table
-        const userGroup = await prisma.userGroup.findFirst({
-          where: {
-            name: chat.name || undefined,
-          },
-          select: {
-            createdById: true,
-          },
-        });
+        // Check UserGroup table from map
+        const userGroup = chat.name ? userGroupsMap.get(chat.name) : null;
         
         if (userGroup) {
           const creator = users.find(u => u.id === userGroup.createdById);
@@ -177,30 +193,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         };
       });
 
-      // Get message senders info
-      const messageSenderIds = chat.Message.map(m => m.senderId);
-      const [messageUsers, messageActors] = await Promise.all([
-        prisma.user.findMany({
-          where: { id: { in: messageSenderIds } },
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            isActor: true,
-          },
-        }),
-        prisma.actor.findMany({
-          where: { id: { in: messageSenderIds } },
-          select: {
-            id: true,
-            name: true,
-          },
-        }),
-      ]);
-
+      // Get message senders from maps
       const messagesWithSenders = chat.Message.map(m => {
-        const user = messageUsers.find(u => u.id === m.senderId);
-        const actor = messageActors.find(a => a.id === m.senderId);
+        const user = usersMap.get(m.senderId);
+        const actor = actorsMap.get(m.senderId);
         
         return {
           id: m.id,

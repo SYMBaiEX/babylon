@@ -13,6 +13,14 @@ import {
 } from './common';
 
 /**
+ * Pool ID parameter schema
+ * Accepts snowflake IDs (numeric strings) or UUIDs
+ */
+export const PoolIdParamSchema = z.object({
+  id: z.string().min(1, 'Pool ID is required')
+});
+
+/**
  * Create pool schema
  */
 export const CreatePoolSchema = z.object({

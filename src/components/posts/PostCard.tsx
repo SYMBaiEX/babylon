@@ -143,12 +143,14 @@ export const PostCard = memo(function PostCard({
     return post;
   }, [post, clientSideRepostData]);
 
-  // For reposts, we want to show the original author's info in the header
-  // and the reposter's info in the "Reposted by" line
-  const displayAuthorId = effectivePost.isRepost && effectivePost.originalAuthorId ? effectivePost.originalAuthorId : effectivePost.authorId;
-  const displayAuthorName = effectivePost.isRepost && effectivePost.originalAuthorName ? effectivePost.originalAuthorName : effectivePost.authorName;
-  const displayAuthorUsername = effectivePost.isRepost && effectivePost.originalAuthorUsername ? effectivePost.originalAuthorUsername : effectivePost.authorUsername;
-  const displayAuthorProfileImageUrl = effectivePost.isRepost && effectivePost.originalAuthorProfileImageUrl ? effectivePost.originalAuthorProfileImageUrl : effectivePost.authorProfileImageUrl;
+  // For QUOTE posts (isRepost with quoteComment), show the REPOSTER's info in the header
+  // For simple reposts (isRepost without quoteComment), show the ORIGINAL author's info
+  const isSimpleRepost = effectivePost.isRepost && !effectivePost.quoteComment;
+  
+  const displayAuthorId = isSimpleRepost && effectivePost.originalAuthorId ? effectivePost.originalAuthorId : effectivePost.authorId;
+  const displayAuthorName = isSimpleRepost && effectivePost.originalAuthorName ? effectivePost.originalAuthorName : effectivePost.authorName;
+  const displayAuthorUsername = isSimpleRepost && effectivePost.originalAuthorUsername ? effectivePost.originalAuthorUsername : effectivePost.authorUsername;
+  const displayAuthorProfileImageUrl = isSimpleRepost && effectivePost.originalAuthorProfileImageUrl ? effectivePost.originalAuthorProfileImageUrl : effectivePost.authorProfileImageUrl;
   
   const showVerifiedBadge = isNpcIdentifier(displayAuthorId);
 
@@ -190,8 +192,8 @@ export const PostCard = memo(function PostCard({
       }}
       onClick={!isDetail ? handleClick : undefined}
     >
-      {/* Repost Indicator - Shows if this is a repost */}
-      {effectivePost.isRepost && (
+      {/* Repost Indicator - Only show for simple reposts (not quote posts) */}
+      {isSimpleRepost && (
         <div className="flex items-center gap-3 mb-3 text-muted-foreground text-sm">
           <Repeat2 size={14} className="text-green-600" />
           <span>
@@ -209,7 +211,7 @@ export const PostCard = memo(function PostCard({
 
       {/* Row 1: Avatar + Name/Handle/Timestamp Header */}
       <div className="flex items-start gap-3 w-full mb-3">
-        {/* Avatar - Clickable, Round - Shows original author for reposts */}
+        {/* Avatar - Clickable, Round - Shows original author for simple reposts, reposter for quote posts */}
         <Link
           href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
           className="shrink-0 hover:opacity-80 transition-opacity"
@@ -227,7 +229,7 @@ export const PostCard = memo(function PostCard({
 
         {/* Header: Name/Handle block on left, Timestamp on right */}
         <div className="flex items-start justify-between gap-3 flex-1 min-w-0">
-          {/* Name and Handle stacked vertically - Shows original author for reposts */}
+          {/* Name and Handle stacked vertically - Shows original author for simple reposts, reposter for quote posts */}
           <div className="flex flex-col min-w-0">
             {/* Name row with verified badge */}
             <div className="flex items-center gap-1.5 min-w-0">

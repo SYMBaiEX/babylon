@@ -10,7 +10,7 @@ interface Pool {
   id: string
   name: string
   description: string | null
-  npcActor: {
+  npcActor?: {
     id: string
     name: string
     description: string | null
@@ -186,12 +186,14 @@ export function PoolsList({ onPoolClick }: PoolsListProps) {
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-bold text-lg">{pool.name}</h3>
-                  <span className={cn(
-                    'px-2 py-0.5 rounded text-xs font-medium',
-                    getTierBadgeColor(pool.npcActor.tier)
-                  )}>
-                    {pool.npcActor.tier?.replace('_TIER', '')}
-                  </span>
+                  {pool.npcActor && (
+                    <span className={cn(
+                      'px-2 py-0.5 rounded text-xs font-medium',
+                      getTierBadgeColor(pool.npcActor.tier)
+                    )}>
+                      {pool.npcActor.tier?.replace('_TIER', '')}
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm text-muted-foreground line-clamp-1">
                   {pool.description}

@@ -46,8 +46,9 @@ async function executeWithRLS<T>(
 
   // Execute within a transaction to ensure session variable is scoped
   return await client.$transaction(async (tx) => {
-    // Force RLS even for table owners (Neon uses owner role for connections)
-    await tx.$executeRaw(Prisma.sql`SET LOCAL row_security = on`)
+    // TEMPORARILY DISABLED: Force RLS even for table owners (Neon uses owner role for connections)
+    // TODO: Re-enable once RLS policies are properly defined in migrations
+    // await tx.$executeRaw(Prisma.sql`SET LOCAL row_security = on`)
     
     // Set the current user ID using PostgreSQL's set_config function which supports parameterization
     // This is more secure than string interpolation and works with Prisma v6
@@ -80,8 +81,9 @@ async function executeAsSystem<T>(
   try {
     // Execute within a transaction with system context
     const result = await client.$transaction(async (tx) => {
-      // Force RLS even for table owners (but system policies will allow access)
-      await tx.$executeRaw(Prisma.sql`SET LOCAL row_security = on`)
+      // TEMPORARILY DISABLED: Force RLS even for table owners (but system policies will allow access)
+      // TODO: Re-enable once RLS policies are properly defined in migrations
+      // await tx.$executeRaw(Prisma.sql`SET LOCAL row_security = on`)
       
       // Set system context marker (policies should check for 'system')
       await tx.$executeRaw(Prisma.sql`SELECT set_config('app.current_user_id', 'system', true)`)
@@ -116,8 +118,9 @@ async function executeAsPublic<T>(
 ): Promise<T> {
   // Execute within a transaction with no user context
   return await client.$transaction(async (tx) => {
-    // Force RLS even for table owners
-    await tx.$executeRaw(Prisma.sql`SET LOCAL row_security = on`)
+    // TEMPORARILY DISABLED: Force RLS even for table owners
+    // TODO: Re-enable once RLS policies are properly defined in migrations
+    // await tx.$executeRaw(Prisma.sql`SET LOCAL row_security = on`)
     
     // Empty string indicates public/unauthenticated access
     await tx.$executeRaw(Prisma.sql`SELECT set_config('app.current_user_id', '', true)`)

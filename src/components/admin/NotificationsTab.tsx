@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { Bell, Send, Users, User, MessageCircle } from 'lucide-react'
+import { Bell, Send, Users, User, MessageCircle, UserPlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -360,6 +360,12 @@ export function NotificationsTab() {
       {/* Divider */}
       <div className="border-t border-border my-8" />
 
+      {/* Group Invite Section */}
+      <GroupInviteSection />
+
+      {/* Divider */}
+      <div className="border-t border-border my-8" />
+
       {/* DM Testing Section */}
       <div className="space-y-4">
         {/* Header */}
@@ -545,6 +551,209 @@ export function NotificationsTab() {
             </ul>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// Group Invite Section Component
+function GroupInviteSection() {
+  const [npcId, setNpcId] = useState('')
+  const [userId, setUserId] = useState('')
+  const [chatId, setChatId] = useState('')
+  const [chatName, setChatName] = useState('')
+  const [sending, setSending] = useState(false)
+
+  const handleSendInvite = useCallback(async () => {
+    if (!npcId.trim()) {
+      toast.error('Please enter an NPC ID')
+      return
+    }
+
+    if (!userId.trim()) {
+      toast.error('Please enter a user ID')
+      return
+    }
+
+    setSending(true)
+
+    try {
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+
+      if (!token) {
+        toast.error('Not authenticated')
+        setSending(false)
+        return
+      }
+
+      const response = await fetch('/api/admin/group-invite', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          npcId: npcId.trim(),
+          userId: userId.trim(),
+          chatId: chatId.trim() || undefined,
+          chatName: chatName.trim() || undefined,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        toast.success(data.message || 'Group invite sent successfully')
+        // Reset form
+        setUserId('')
+        setChatId('')
+        setChatName('')
+      } else {
+        toast.error(data.error || data.message || 'Failed to send group invite')
+      }
+    } catch (error) {
+      console.error('Failed to send group invite:', error)
+      toast.error('Failed to send group invite')
+    } finally {
+      setSending(false)
+    }
+  }, [npcId, userId, chatId, chatName])
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        <UserPlus className="w-5 h-5 text-primary" />
+        <h2 className="text-xl font-semibold">Send Group Chat Invite</h2>
+      </div>
+
+      <p className="text-sm text-muted-foreground">
+        Send a group chat invite to a user on behalf of an NPC. This will add the user to the NPC&apos;s group chat.
+      </p>
+
+      {/* Form */}
+      <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+        {/* NPC ID */}
+        <div>
+          <label htmlFor="npcId" className="block text-sm font-medium mb-2">
+            NPC ID (Inviter) *
+          </label>
+          <input
+            id="npcId"
+            type="text"
+            value={npcId}
+            onChange={(e) => setNpcId(e.target.value)}
+            placeholder="Enter NPC/Actor ID (e.g., actor-1, demo-user-...)"
+            className={cn(
+              'w-full px-4 py-2 rounded-lg border border-border',
+              'bg-background text-foreground',
+              'focus:outline-none focus:border-primary',
+              'disabled:opacity-50 disabled:cursor-not-allowed'
+            )}
+            disabled={sending}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            The NPC that will send the invite. Check the Users tab or database for valid NPC IDs.
+          </p>
+        </div>
+
+        {/* User ID */}
+        <div>
+          <label htmlFor="inviteUserId" className="block text-sm font-medium mb-2">
+            User ID (Invitee) *
+          </label>
+          <input
+            id="inviteUserId"
+            type="text"
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
+            placeholder="Enter user ID to invite"
+            className={cn(
+              'w-full px-4 py-2 rounded-lg border border-border',
+              'bg-background text-foreground',
+              'focus:outline-none focus:border-primary',
+              'disabled:opacity-50 disabled:cursor-not-allowed'
+            )}
+            disabled={sending}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            The user who will receive the invite. Find user IDs in the Users tab.
+          </p>
+        </div>
+
+        {/* Chat ID (Optional) */}
+        <div>
+          <label htmlFor="chatId" className="block text-sm font-medium mb-2">
+            Chat ID (Optional)
+          </label>
+          <input
+            id="chatId"
+            type="text"
+            value={chatId}
+            onChange={(e) => setChatId(e.target.value)}
+            placeholder="Leave empty for auto-generated ID"
+            className={cn(
+              'w-full px-4 py-2 rounded-lg border border-border',
+              'bg-background text-foreground',
+              'focus:outline-none focus:border-primary',
+              'disabled:opacity-50 disabled:cursor-not-allowed'
+            )}
+            disabled={sending}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Optional. If empty, will use format: [npcId]-owned-chat
+          </p>
+        </div>
+
+        {/* Chat Name (Optional) */}
+        <div>
+          <label htmlFor="chatName" className="block text-sm font-medium mb-2">
+            Chat Name (Optional)
+          </label>
+          <input
+            id="chatName"
+            type="text"
+            value={chatName}
+            onChange={(e) => setChatName(e.target.value)}
+            placeholder="Leave empty for auto-generated name"
+            className={cn(
+              'w-full px-4 py-2 rounded-lg border border-border',
+              'bg-background text-foreground',
+              'focus:outline-none focus:border-primary',
+              'disabled:opacity-50 disabled:cursor-not-allowed'
+            )}
+            disabled={sending}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Optional. If empty, will use format: [NPC Name]&apos;s Inner Circle
+          </p>
+        </div>
+
+        {/* Send Button */}
+        <button
+          onClick={handleSendInvite}
+          disabled={sending || !npcId.trim() || !userId.trim()}
+          className={cn(
+            'w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg',
+            'bg-primary text-primary-foreground font-semibold',
+            'hover:bg-primary/90 transition-colors',
+            'disabled:opacity-50 disabled:cursor-not-allowed'
+          )}
+        >
+          <UserPlus className="w-4 h-4" />
+          <span>{sending ? 'Sending Invite...' : 'Send Group Invite'}</span>
+        </button>
+      </div>
+
+      {/* Info */}
+      <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 space-y-2">
+        <h3 className="font-semibold text-sm text-blue-600 dark:text-blue-400">How it works:</h3>
+        <ul className="text-sm text-blue-600 dark:text-blue-400 space-y-1 list-disc list-inside">
+          <li>The NPC will invite the user to their group chat</li>
+          <li>A notification will be sent to the user</li>
+          <li>The user will be added as a participant in the chat</li>
+          <li>If the chat doesn&apos;t exist, it will be created automatically</li>
+        </ul>
       </div>
     </div>
   )

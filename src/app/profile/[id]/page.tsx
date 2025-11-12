@@ -113,19 +113,54 @@ export default function ActorProfilePage() {
 
   const loadActorInfo = useCallback(async () => {
     setLoading(true)
+    
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    }
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+    
+    // First, always try to load as a user by ID
+    // This handles IDs like "testuser-53618432" or Privy IDs
+    try {
+      const userResponse = await fetch(`/api/users/${encodeURIComponent(actorId)}/profile`, { headers })
+      if (userResponse.ok) {
+        const userData = await userResponse.json()
+        if (userData.user) {
+          const user = userData.user
+          setActorInfo({
+            id: user.id,
+            name: user.displayName || user.username || 'User',
+            description: user.bio || '',
+            role: user.isActor ? 'Actor' : 'User',
+            type: user.isActor ? 'actor' : 'user' as const,
+            isUser: true,
+            username: user.username,
+            profileImageUrl: user.profileImageUrl,
+            coverImageUrl: user.coverImageUrl,
+            stats: user.stats,
+          })
+          
+          // Redirect to username-based URL if username exists and we're not already on it
+          if (user.username && !isUsernameParam && !isOwnProfile) {
+            const cleanUsername = user.username.startsWith('@') ? user.username.slice(1) : user.username
+            router.replace(`/profile/${cleanUsername}`)
+            return
+          }
+          
+          setLoading(false)
+          return
+        }
+      }
+    } catch (error) {
+      console.error('Error loading user by ID:', error)
+    }
       
-      // If it's a username (starts with @) or looks like a username, try to find user by username
-      if (isUsernameParam || (!actorId.startsWith('did:privy:') && actorId.length <= 42 && !actorId.includes('-'))) {
-        // Try to load user profile by username first
-        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-        const headers: HeadersInit = {
-          'Content-Type': 'application/json',
-        }
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`
-        }
-        
-        // Try username lookup API
+    // If it's a username (starts with @) or looks like a username, try username lookup
+    if (isUsernameParam || (!actorId.startsWith('did:privy:') && actorId.length <= 42 && !actorId.includes('-'))) {
+      try {
         const usernameLookupResponse = await fetch(`/api/users/by-username/${encodeURIComponent(actorId)}`, { headers })
         if (usernameLookupResponse.ok) {
           const usernameData = await usernameLookupResponse.json()
@@ -144,66 +179,21 @@ export default function ActorProfilePage() {
               stats: user.stats,
             })
             
-            // Redirect to username-based URL if we're on ID-based URL (but not if it's the current user's own profile - handled by useEffect)
+            // Redirect to username-based URL if we're on ID-based URL
             if (!isUsernameParam && user.username && !isOwnProfile) {
               const cleanUsername = user.username.startsWith('@') ? user.username.slice(1) : user.username
               router.replace(`/profile/${cleanUsername}`)
-              return // Don't render, just redirect
+              return
             }
             
             setLoading(false)
             return
           }
         }
+      } catch (error) {
+        console.error('Error loading user by username:', error)
       }
-      
-      // Check if this is a user ID (starts with "did:privy:" or contains privy, or is the current user's ID)
-      const isUserId = actorId.startsWith('did:privy:') || 
-                      actorId.includes('privy') || 
-                      actorId.length > 42 ||
-                      (authenticated && currentUserId && (currentUserId === actorId || currentUserId === decodeURIComponent(identifier)))
-      
-      if (isUserId) {
-        // Load user profile from API by ID
-        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-        const headers: HeadersInit = {
-          'Content-Type': 'application/json',
-        }
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`
-        }
-        
-        const response = await fetch(`/api/users/${encodeURIComponent(actorId)}/profile`, { headers })
-        if (response.ok) {
-          const data = await response.json()
-          if (data.user) {
-            const user = data.user
-            setActorInfo({
-              id: user.id,
-              name: user.displayName || user.username || 'User',
-              description: user.bio || '',
-              role: user.isActor ? 'Actor' : 'User',
-              type: user.isActor ? 'actor' : 'user' as const,
-              isUser: true,
-              username: user.username,
-              profileImageUrl: user.profileImageUrl,
-              coverImageUrl: user.coverImageUrl,
-              stats: user.stats,
-            })
-            
-            // Redirect to username-based URL if username exists
-            if (user.username && !isUsernameParam) {
-              const cleanUsername = user.username.startsWith('@') ? user.username.slice(1) : user.username
-              // Always redirect to username URL if we have one and we're on an ID-based URL
-              router.replace(`/profile/${cleanUsername}`)
-              return // Don't render, just redirect
-            }
-            
-            setLoading(false)
-            return
-          }
-        }
-      }
+    }
       
       // Try to load from actors.json (contains all actors)
       const response = await fetch('/data/actors.json')
@@ -509,7 +499,7 @@ export default function ActorProfilePage() {
           </div>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          <p className="text-muted-foreground">Actor &quot;{actorId}&quot; not found</p>
+          <p className="text-muted-foreground">User or Actor &quot;{actorId}&quot; not found</p>
           <Link
             href="/feed"
             className="px-6 py-3 rounded-lg font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all"
