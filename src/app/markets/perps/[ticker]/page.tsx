@@ -86,6 +86,11 @@ export default function PerpDetailPage() {
     refresh: refreshWalletBalance,
   } = useWalletBalance(user?.id, { enabled: authenticated });
 
+  const trackedTicker = market?.ticker ?? ticker;
+  const livePrices = useMarketPrices(trackedTicker ? [trackedTicker] : []);
+  const livePrice = trackedTicker ? livePrices.get(trackedTicker) : undefined;
+  const displayPrice = livePrice?.price ?? market?.currentPrice ?? 0;
+
   // Track market view
   useEffect(() => {
     if (ticker && market) {
@@ -202,23 +207,6 @@ export default function PerpDetailPage() {
     return `$${(v / 1e3).toFixed(2)}K`;
   };
 
-  if (loading) {
-    return (
-      <PageContainer>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <div className="mx-auto mb-4 flex justify-center">
-              <BouncingLogo size={48} />
-            </div>
-            <p className="text-muted-foreground">Loading market...</p>
-          </div>
-        </div>
-      </PageContainer>
-    );
-  }
-
-  if (!market) return null;
-
   const sizeNum = parseFloat(size) || 0;
   const baseMargin = sizeNum > 0 ? sizeNum / leverage : 0;
   const estimatedFee = sizeNum > 0 ? sizeNum * FEE_CONFIG.TRADING_FEE_RATE : 0;
@@ -226,11 +214,6 @@ export default function PerpDetailPage() {
   const hasSufficientBalance = !authenticated || balance >= totalRequired;
   const showBalanceWarning =
     authenticated && sizeNum > 0 && !hasSufficientBalance;
-  const trackedTicker = market?.ticker ?? ticker;
-  const livePrices = useMarketPrices(trackedTicker ? [trackedTicker] : []);
-  const livePrice = trackedTicker ? livePrices.get(trackedTicker) : undefined;
-  const displayPrice = livePrice?.price ?? market?.currentPrice ?? 0;
-
   useEffect(() => {
     if (!livePrice) return;
     setMarket((prev) =>
@@ -257,6 +240,23 @@ export default function PerpDetailPage() {
     side === 'long'
       ? ((displayPrice - liquidationPrice) / displayPrice) * 100
       : ((liquidationPrice - displayPrice) / displayPrice) * 100;
+
+  if (loading) {
+    return (
+      <PageContainer>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="mx-auto mb-4 flex justify-center">
+              <BouncingLogo size={48} />
+            </div>
+            <p className="text-muted-foreground">Loading market...</p>
+          </div>
+        </div>
+      </PageContainer>
+    );
+  }
+
+  if (!market) return null;
 
   const isHighRisk = leverage > 50 || baseMargin > 1000;
 
