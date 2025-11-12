@@ -9,6 +9,7 @@ import {
   NotFoundError,
 } from '@/lib/errors';
 import { logger } from '@/lib/logger';
+import { cachedDb } from '@/lib/cached-database-service';
 import { getReadyPerpsEngine } from '@/lib/perps-service';
 import { prisma } from '@/lib/prisma';
 import { FeeService } from '@/lib/services/fee-service';
@@ -207,6 +208,14 @@ export class PerpTradeService {
       position.id,
       input.ticker
     );
+
+    await cachedDb.invalidateUserCache(authUser.userId).catch((error) => {
+      logger.error(
+        'Failed to invalidate user cache after perp open',
+        { userId: authUser.userId, error },
+        'PerpTradeService.openPosition'
+      );
+    });
 
     const tradeImpact: TradeImpactInput = {
       marketType: 'perp',
