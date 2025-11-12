@@ -11,6 +11,11 @@ import * as Sentry from '@sentry/nextjs'
 import { registerBabylonGame } from './src/lib/babylon-registry-init'
 
 export async function register() {
+  // Skip instrumentation during build phase
+  if (process.env.NEXT_PHASE === 'phase-production-build') {
+    return
+  }
+  
   // Initialize Sentry for server-side (Node.js runtime)
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     await import('./sentry.server.config')
