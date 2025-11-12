@@ -50,14 +50,14 @@ export interface GameTickResult {
 
 /**
  * Execute a single game tick
- * Designed to complete within Vercel's 5-minute (300 second) limit
+ * Designed to complete within 3 minutes (180 seconds)
  * Uses parallelization for posts, articles, and other operations to maximize throughput
  * Guarantees critical operations (market decisions) always execute via budget reserve
  */
 export async function executeGameTick(): Promise<GameTickResult> {
   const timestamp = new Date();
   const startedAt = Date.now();
-  const budgetMs = Number(process.env.GAME_TICK_BUDGET_MS || 300000); // 5 minutes default
+  const budgetMs = Number(process.env.GAME_TICK_BUDGET_MS || 180000); // 3 minutes default
   const deadline = startedAt + budgetMs;
   
   // Reserve 60 seconds for critical operations (market decisions, widget updates)
@@ -916,101 +916,6 @@ Return your response as JSON in this exact format:
 }
 
 /**
- * Generate baseline articles on first tick (when no events exist yet)
- * Creates general news coverage to seed the Latest News panel
- */
-async function generateBaselineArticles(
-  newsOrgs: Array<{ id: string; name: string | null; description: string | null }>,
-  timestamp: Date,
-  llm: BabylonLLMClient,
-  deadlineMs: number
-): Promise<number> {
-  let articlesCreated = 0;
-  
-  const baselineTopics = [
-    { topic: "the current state of prediction markets", category: "finance" },
-    { topic: "upcoming trends in tech and politics", category: "tech" },
-    { topic: "volatility in crypto markets", category: "finance" },
-    { topic: "major developments to watch this week", category: "business" },
-    { topic: "the state of global markets", category: "finance" },
-  ];
-  
-  // Calculate timestamp spread
-  const tickDurationMs = 60000; // 1 minute
-  const timeSlotMs = tickDurationMs / newsOrgs.length;
-  
-  for (let i = 0; i < Math.min(5, newsOrgs.length); i++) {
-    if (Date.now() > deadlineMs) break;
-    
-    const org = newsOrgs[i];
-    if (!org || !org.name) continue;
-    
-    const topicData = baselineTopics[i % baselineTopics.length];
-    if (!topicData) continue;
-    
-    try {
-      const slotOffset = i * timeSlotMs;
-      const randomJitter = Math.random() * timeSlotMs * 0.8;
-      const timestampWithOffset = new Date(timestamp.getTime() + slotOffset + randomJitter);
-      
-      const prompt = `You are ${org.name}, a news organization. Write a detailed news article about ${topicData.topic}.
-
-Your article should include:
-- A compelling headline (max 100 chars)
-- A 2-3 sentence summary for the article listing (max 400 chars)
-- A full article body of at least 4 paragraphs with clear context, quotes or sourced details where appropriate, and a professional newsroom tone
-- Be professional and informative
-- Match the tone of a ${org.description || 'news organization'}
-- Separate paragraphs with \\n\\n (two newlines)
-
-Return your response as JSON in this exact format:
-{
-  "title": "compelling headline here",
-  "summary": "2-3 sentence summary here",
-  "article": "full article body here with \\n\\n between paragraphs"
-}`;
-      
-      const response = await llm.generateJSON<{ title: string; summary: string; article: string }>(
-        prompt,
-        { properties: { title: { type: 'string' }, summary: { type: 'string' }, article: { type: 'string' } }, required: ['title', 'summary', 'article'] },
-        { temperature: 0.7, maxTokens: 1100 }
-      );
-      
-      if (!response.title || !response.summary || !response.article) continue;
-
-      const summary = response.summary.trim();
-      const articleBody = response.article.trim();
-
-      if (articleBody.length < 400) {
-        logger.warn('Baseline article body too short', { orgId: org.id, length: articleBody.length }, 'GameTick');
-        continue;
-      }
-      
-      await db.createPostWithAllFields({
-        id: generateSnowflakeId(),
-        type: 'article',
-        content: summary,
-        fullContent: articleBody,
-        articleTitle: response.title,
-        category: topicData.category,
-        authorId: org.id,
-        gameId: 'continuous',
-        dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
-        timestamp: timestampWithOffset,
-      });
-      articlesCreated++;
-      logger.debug('Created baseline article', { org: org.name, topic: topicData.topic }, 'GameTick');
-    } catch (error) {
-      logger.warn('Failed to generate baseline article', { error, orgId: org.id }, 'GameTick');
-    }
-  }
-  
-  logger.info('Baseline article generation complete', { articlesCreated }, 'GameTick');
-  return articlesCreated;
-}
-
-/**
- * Generate articles in parallel (optimized version)
  * Generates multiple articles concurrently to maximize throughput
  */
 async function generateArticles(
