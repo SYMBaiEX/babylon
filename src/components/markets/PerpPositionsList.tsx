@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { AlertTriangle, TrendingDown, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
@@ -10,7 +10,10 @@ import { BouncingLogo } from '@/components/shared/BouncingLogo';
 import { cn } from '@/lib/utils';
 
 import { useAuth } from '@/hooks/useAuth';
+import { usePerpMarketSSE } from '@/hooks/usePerpMarketSSE';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
+
+import { calculateUnrealizedPnL } from '@/shared/perps-types';
 
 interface PerpPosition {
   id: string;
@@ -41,6 +44,12 @@ export function PerpPositionsList({
   const { closePosition: closePerpPosition } = usePerpTrade({
     getAccessToken,
   });
+
+  const tickers = useMemo(
+    () => positions.map((pos) => pos.ticker),
+    [positions]
+  );
+  const livePrices = usePerpMarketSSE(tickers);
 
   const handleClose = useCallback(
     async (positionId: string, ticker: string) => {
@@ -104,14 +113,20 @@ export function PerpPositionsList({
   return (
     <div className="space-y-3">
       {positions.map((position) => {
+        const livePrice = livePrices.get(position.ticker)?.price;
+        const currentPrice = livePrice ?? position.currentPrice;
+        const { pnl: dynamicPnL, pnlPercent: dynamicPnLPercent } =
+          calculateUnrealizedPnL(
+            position.entryPrice,
+            currentPrice,
+            position.side,
+            position.size
+          );
+
         const liquidationDistance =
           position.side === 'long'
-            ? ((position.currentPrice - position.liquidationPrice) /
-                position.currentPrice) *
-              100
-            : ((position.liquidationPrice - position.currentPrice) /
-                position.currentPrice) *
-              100;
+            ? ((currentPrice - position.liquidationPrice) / currentPrice) * 100
+            : ((position.liquidationPrice - currentPrice) / currentPrice) * 100;
 
         const isNearLiquidation = liquidationDistance < 5;
         const isClosing = closingId === position.id;
@@ -151,24 +166,20 @@ export function PerpPositionsList({
                 <div
                   className={cn(
                     'text-lg font-bold',
-                    position.unrealizedPnL >= 0
-                      ? 'text-green-600'
-                      : 'text-red-600'
+                    dynamicPnL >= 0 ? 'text-green-600' : 'text-red-600'
                   )}
                 >
-                  {position.unrealizedPnL >= 0 ? '+' : ''}
-                  {formatPrice(position.unrealizedPnL)}
+                  {dynamicPnL >= 0 ? '+' : ''}
+                  {formatPrice(dynamicPnL)}
                 </div>
                 <div
                   className={cn(
                     'text-xs',
-                    position.unrealizedPnL >= 0
-                      ? 'text-green-600'
-                      : 'text-red-600'
+                    dynamicPnL >= 0 ? 'text-green-600' : 'text-red-600'
                   )}
                 >
-                  {position.unrealizedPnL >= 0 ? '+' : ''}
-                  {position.unrealizedPnLPercent.toFixed(2)}%
+                  {dynamicPnL >= 0 ? '+' : ''}
+                  {dynamicPnLPercent.toFixed(2)}%
                 </div>
               </div>
             </div>
@@ -194,7 +205,7 @@ export function PerpPositionsList({
               <div>
                 <div className="text-muted-foreground">Current</div>
                 <div className="font-medium text-foreground">
-                  {formatPrice(position.currentPrice)}
+                  {formatPrice(currentPrice)}
                 </div>
               </div>
               <div>
