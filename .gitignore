@@ -1,6 +1,7 @@
 node_modules
 .env
 .env*.local
+!.env.example
 .DS_Store
 dist/
 .next/
@@ -29,3 +30,6 @@ games/babylon
 games/
 .vercel
 CLAUDE.md
+
+# Sentry Config File
+.env.sentry-build-plugin

@@ -126,6 +126,27 @@ BABYLON_MAX_POSITION_SIZE="500"
 BABYLON_MIN_CONFIDENCE="0.6"
 ```
 
+#### Sentry Error Tracking
+
+For error tracking and performance monitoring:
+
+```env
+# Sentry DSN (required for error tracking)
+NEXT_PUBLIC_SENTRY_DSN="https://your-dsn@sentry.io/project-id"
+SENTRY_DSN="https://your-dsn@sentry.io/project-id"
+
+# Source Map Upload (optional, for better stack traces)
+SENTRY_ORG="your-org"
+SENTRY_PROJECT="your-project"
+SENTRY_AUTH_TOKEN="your-auth-token"
+
+# Release Tracking (optional, set via CI/CD)
+NEXT_PUBLIC_SENTRY_RELEASE="1.0.0"
+SENTRY_RELEASE="1.0.0"
+```
+
+Get your DSN from [Sentry Project Settings](https://sentry.io/settings/projects/).
+
 ## Complete .env.local Example
 
 ```env
@@ -193,6 +214,25 @@ BABYLON_AGENT_SECRET=""
 BABYLON_MAX_TRADE_SIZE="100"
 BABYLON_MAX_POSITION_SIZE="500"
 BABYLON_MIN_CONFIDENCE="0.6"
+
+# ============================================
+# SENTRY ERROR TRACKING (Optional)
+# ============================================
+# Sentry DSN for error tracking and performance monitoring
+# Get your DSN from https://sentry.io/settings/projects/
+NEXT_PUBLIC_SENTRY_DSN="https://your-dsn@sentry.io/project-id"
+SENTRY_DSN="https://your-dsn@sentry.io/project-id"
+
+# Source Map Upload (Optional - for better stack traces in production)
+# Get auth token from https://sentry.io/settings/account/api/auth-tokens/
+SENTRY_ORG="your-org"
+SENTRY_PROJECT="your-project"
+SENTRY_AUTH_TOKEN="your-auth-token"
+
+# Release Tracking (Optional - set via CI/CD or manually)
+# Format: version or git commit hash
+NEXT_PUBLIC_SENTRY_RELEASE=""
+SENTRY_RELEASE=""
 
 # ============================================
 # DEVELOPMENT
