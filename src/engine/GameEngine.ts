@@ -497,8 +497,8 @@ export class GameEngine extends EventEmitter {
                 status: 'resolved',
               },
               include: {
-                user: true,
-                question: true,
+                User: true,
+                Question: true,
               },
             });
 
@@ -2099,6 +2099,8 @@ OUTPUT JSON:
     for (const chat of this.groupChats) {
       try {
         // Create or update chat
+        const timestamp = new Date()
+
         await db.prisma.chat.upsert({
           where: { id: chat.id },
           create: {
@@ -2106,8 +2108,13 @@ OUTPUT JSON:
             name: chat.name,
             isGroup: true,
             gameId: 'continuous',
+            createdAt: timestamp,
+            updatedAt: timestamp,
           },
-          update: {},
+          update: {
+            name: chat.name,
+            updatedAt: timestamp,
+          },
         });
 
         // Create LLM-generated initial message from admin

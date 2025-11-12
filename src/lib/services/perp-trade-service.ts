@@ -378,7 +378,12 @@ export class PerpTradeService {
       );
     }
 
-    await WalletService.recordPnL(authUser.userId, realizedPnL);
+    await WalletService.recordPnL(
+      authUser.userId,
+      realizedPnL,
+      'perp_close',
+      position.id
+    );
 
     await asUser(authUser, async (db) => {
       await db.perpPosition.update({

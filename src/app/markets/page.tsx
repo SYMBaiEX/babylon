@@ -582,6 +582,7 @@ export default function MarketsPage() {
                     onShare={() => setShowPnLShareModal(true)}
                     onRefresh={refreshPortfolio}
                     lastUpdated={portfolioUpdatedAt}
+                    setShowBuyPointsModal={setShowBuyPointsModal}
                   />
                 )}
 
@@ -1358,6 +1359,7 @@ export default function MarketsPage() {
                   onShare={() => setShowPnLShareModal(true)}
                   onRefresh={refreshPortfolio}
                   lastUpdated={portfolioUpdatedAt}
+                  setShowBuyPointsModal={setShowBuyPointsModal}
                 />
               )}
 

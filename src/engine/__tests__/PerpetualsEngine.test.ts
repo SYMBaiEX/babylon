@@ -125,12 +125,12 @@ describe('PerpetualsEngine', () => {
   });
 
   test('calculates funding payments correctly', () => {
-    // $1,000 position, 1% annual rate, 8 hours
-    const payment = calculateFundingPayment(1000, 0.01, 8);
+    // $1,000 position, 1% annual rate, single 8-hour period
+    const payment = calculateFundingPayment(1000, 0.01);
     expect(payment).toBeCloseTo(0.009, 2); // ~$0.009
 
-    // $10,000 position, 5% annual rate, 24 hours (3 periods)
-    const largePayment = calculateFundingPayment(10000, 0.05, 24);
+    // $10,000 position, 5% annual rate, still per 8-hour period baseline
+    const largePayment = calculateFundingPayment(10000, 0.05);
     expect(largePayment).toBeCloseTo(0.46, 2);
   });
 

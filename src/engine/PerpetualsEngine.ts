@@ -692,7 +692,7 @@ export class PerpetualsEngine extends EventEmitter {
   /**
    * Sync dirty positions to database
    */
-  private async syncDirtyPositions(): Promise<void> {
+  async syncDirtyPositions(): Promise<void> {
     if (this.dirtyPositions.size === 0) return;
 
     const positionsToSync = Array.from(this.dirtyPositions);
