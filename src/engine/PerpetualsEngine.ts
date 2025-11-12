@@ -77,6 +77,7 @@ type PriceUpdateMap = Map<string, number>;
 
 export class PerpetualsEngine extends EventEmitter {
   private positions: Map<string, PerpPosition> = new Map();
+  private poolPositions: Map<string, string> = new Map(); // positionId -> poolId mapping
   private markets: Map<string, PerpMarket> = new Map();
   private fundingRates: Map<string, FundingRate> = new Map();
   private dailySnapshots: Map<string, DailyPriceSnapshot[]> = new Map(); // ticker -> snapshots
@@ -88,6 +89,7 @@ export class PerpetualsEngine extends EventEmitter {
   private syncInterval: number = 10000; // Sync to DB every 10 seconds
   private syncTimer: NodeJS.Timeout | null = null;
   private dirtyPositions: Set<string> = new Set(); // Track positions that need DB sync
+  private dirtyPoolPositions: Set<string> = new Set(); // Track pool positions that need DB sync
 
   constructor() {
     super();
@@ -205,6 +207,70 @@ export class PerpetualsEngine extends EventEmitter {
   }
 
   /**
+   * Open a pool position (NPC position) with a custom ID
+   * This allows NPC positions to be tracked in the engine
+   */
+  openPoolPosition(
+    positionId: string,
+    poolId: string,
+    options: {
+      ticker: string;
+      side: 'long' | 'short';
+      size: number;
+      leverage: number;
+      entryPrice: number;
+      currentPrice: number;
+      liquidationPrice: number;
+      organizationId: string;
+    }
+  ): PerpPosition {
+    const market = this.markets.get(options.ticker);
+    if (!market) {
+      throw new Error(`Market ${options.ticker} not found`);
+    }
+
+    const timestamp = new Date().toISOString();
+    const position: PerpPosition = {
+      id: positionId,
+      userId: poolId, // Use poolId as userId for NPC positions
+      ticker: options.ticker,
+      organizationId: options.organizationId,
+      side: options.side,
+      entryPrice: options.entryPrice,
+      currentPrice: options.currentPrice,
+      size: options.size,
+      leverage: options.leverage,
+      liquidationPrice: options.liquidationPrice,
+      unrealizedPnL: 0,
+      unrealizedPnLPercent: 0,
+      fundingPaid: 0,
+      openedAt: timestamp,
+      lastUpdated: timestamp,
+    };
+
+    this.positions.set(position.id, position);
+    this.poolPositions.set(position.id, poolId);
+
+    // Record trade history
+    this.tradeHistory.push({
+      userId: poolId,
+      ticker: options.ticker,
+      type: 'open',
+      size: options.size,
+      price: options.entryPrice,
+      volume: options.size,
+      timestamp,
+    });
+
+    // Update market open interest
+    market.openInterest += options.size * options.leverage;
+    market.volume24h += options.size;
+
+    this.emit('position:opened', position);
+    return position;
+  }
+
+  /**
    * Close a position
    */
   closePosition(
@@ -275,8 +341,12 @@ export class PerpetualsEngine extends EventEmitter {
     market.openInterest -= position.size * position.leverage;
     market.volume24h += position.size;
 
-    // Remove position
+    // Remove position from tracking
     this.positions.delete(positionId);
+    const isPoolPosition = this.poolPositions.has(positionId);
+    if (isPoolPosition) {
+      this.poolPositions.delete(positionId);
+    }
 
     this.emit('position:closed', { position, realizedPnL });
     return { position, realizedPnL };
@@ -285,6 +355,7 @@ export class PerpetualsEngine extends EventEmitter {
   /**
    * Update all positions with new prices
    * Marks positions as dirty for periodic database sync
+   * Also updates PoolPosition records for NPC positions
    */
   updatePositions(priceUpdates: PriceUpdateMap): void {
     const now = new Date().toISOString();
@@ -308,7 +379,12 @@ export class PerpetualsEngine extends EventEmitter {
         position.unrealizedPnLPercent = pnlPercent;
 
         // Mark position as dirty for DB sync
-        this.dirtyPositions.add(positionId);
+        // Check if this is a pool position or regular position
+        if (this.poolPositions.has(positionId)) {
+          this.dirtyPoolPositions.add(positionId);
+        } else {
+          this.dirtyPositions.add(positionId);
+        }
 
         // Check for liquidation
         if (
@@ -462,6 +538,7 @@ export class PerpetualsEngine extends EventEmitter {
   /**
    * Liquidate a position
    * On liquidation, the user loses their entire margin (collateral)
+   * Handles both regular positions and pool positions
    */
   private liquidatePosition(positionId: string, currentPrice: number): void {
     const position = this.positions.get(positionId);
@@ -473,6 +550,8 @@ export class PerpetualsEngine extends EventEmitter {
     // Loss is the margin amount (not the full position size)
     const marginLoss = position.size / position.leverage;
     const timestamp = new Date().toISOString();
+    const isPoolPosition = this.poolPositions.has(positionId);
+    const poolId = isPoolPosition ? this.poolPositions.get(positionId) : undefined;
 
     const liquidation: Liquidation = {
       positionId,
@@ -515,10 +594,99 @@ export class PerpetualsEngine extends EventEmitter {
     // Update market
     market.openInterest -= position.size * position.leverage;
 
-    // Remove position
+    // Remove position from tracking
     this.positions.delete(positionId);
+    if (isPoolPosition && poolId) {
+      this.poolPositions.delete(positionId);
+    }
 
-    this.emit('position:liquidated', liquidation);
+    // Emit liquidation event with pool position info
+    this.emit('position:liquidated', {
+      ...liquidation,
+      isPoolPosition,
+      poolId,
+    });
+
+    // If this is a pool position, close it in the database asynchronously
+    if (isPoolPosition && poolId) {
+      this.closePoolPositionInDb(positionId, currentPrice, -marginLoss, poolId).catch(
+        (error) => {
+          logger.error(
+            'Failed to close pool position in DB after liquidation',
+            {
+              positionId,
+              poolId,
+              error,
+            },
+            'PerpetualsEngine'
+          );
+        }
+      );
+    }
+  }
+
+  /**
+   * Close a pool position in the database after liquidation
+   */
+  private async closePoolPositionInDb(
+    positionId: string,
+    closingPrice: number,
+    realizedPnL: number,
+    poolId: string
+  ): Promise<void> {
+    try {
+      await prisma.$transaction(async (tx) => {
+        const position = await tx.poolPosition.findUnique({
+          where: { id: positionId },
+        });
+
+        if (!position || position.closedAt) {
+          return; // Already closed or doesn't exist
+        }
+
+        // Close position
+        await tx.poolPosition.update({
+          where: { id: positionId },
+          data: {
+            closedAt: new Date(),
+            currentPrice: closingPrice,
+            unrealizedPnL: 0,
+            realizedPnL,
+          },
+        });
+
+        // Return remaining capital to pool (margin was lost)
+        // For liquidation, we return nothing (marginLoss was already deducted)
+        // But we still need to update pool PnL
+        await tx.pool.update({
+          where: { id: poolId },
+          data: {
+            lifetimePnL: { increment: realizedPnL },
+          },
+        });
+      });
+
+      logger.info(
+        'Pool position liquidated and closed in DB',
+        {
+          positionId,
+          poolId,
+          realizedPnL,
+        },
+        'PerpetualsEngine'
+      );
+    } catch (error) {
+      logger.error(
+        'Error closing pool position in DB',
+        {
+          positionId,
+          poolId,
+          error,
+        },
+        'PerpetualsEngine'
+      );
+      throw error;
+    }
   }
 
   /**
@@ -691,47 +859,83 @@ export class PerpetualsEngine extends EventEmitter {
 
   /**
    * Sync dirty positions to database
+   * Handles both regular PerpPosition and PoolPosition records
+   * Can be called synchronously for real-time updates
    */
-  private async syncDirtyPositions(): Promise<void> {
-    if (this.dirtyPositions.size === 0) return;
+  async syncDirtyPositions(): Promise<void> {
+    const hasRegularPositions = this.dirtyPositions.size > 0;
+    const hasPoolPositions = this.dirtyPoolPositions.size > 0;
 
-    const positionsToSync = Array.from(this.dirtyPositions);
-    this.dirtyPositions.clear();
+    if (!hasRegularPositions && !hasPoolPositions) return;
 
-    // Batch update positions in database
-    const updates = positionsToSync
-      .map((positionId) => {
-        const position = this.positions.get(positionId);
-        if (!position) return null;
+    // Sync regular positions
+    if (hasRegularPositions) {
+      const positionsToSync = Array.from(this.dirtyPositions);
+      this.dirtyPositions.clear();
 
-        return prisma.perpPosition.update({
-          where: { id: positionId },
-          data: {
-            currentPrice: position.currentPrice,
-            unrealizedPnL: position.unrealizedPnL,
-            unrealizedPnLPercent: position.unrealizedPnLPercent,
-            fundingPaid: position.fundingPaid,
-            lastUpdated: new Date(position.lastUpdated),
-          },
-        });
-      })
-      .filter(
-        (update): update is ReturnType<typeof prisma.perpPosition.update> =>
-          Boolean(update)
-      );
+      const updates = positionsToSync
+        .map((positionId) => {
+          const position = this.positions.get(positionId);
+          if (!position) return null;
 
-    if (updates.length === 0) {
-      return;
+          return prisma.perpPosition.update({
+            where: { id: positionId },
+            data: {
+              currentPrice: position.currentPrice,
+              unrealizedPnL: position.unrealizedPnL,
+              unrealizedPnLPercent: position.unrealizedPnLPercent,
+              fundingPaid: position.fundingPaid,
+              lastUpdated: new Date(position.lastUpdated),
+            },
+          });
+        })
+        .filter(
+          (update): update is ReturnType<typeof prisma.perpPosition.update> =>
+            Boolean(update)
+        );
+
+      if (updates.length > 0) {
+        await Promise.all(updates);
+        logger.debug(
+          `Synced ${updates.length} regular positions to database`,
+          undefined,
+          'PerpetualsEngine'
+        );
+      }
     }
 
-    await Promise.all(updates);
+    // Sync pool positions
+    if (hasPoolPositions) {
+      const poolPositionsToSync = Array.from(this.dirtyPoolPositions);
+      this.dirtyPoolPositions.clear();
 
-    if (updates.length > 0) {
-      logger.debug(
-        `Synced ${updates.length} positions to database`,
-        undefined,
-        'PerpetualsEngine'
-      );
+      const poolUpdates = poolPositionsToSync
+        .map((positionId) => {
+          const position = this.positions.get(positionId);
+          if (!position) return null;
+
+          return prisma.poolPosition.update({
+            where: { id: positionId },
+            data: {
+              currentPrice: position.currentPrice,
+              unrealizedPnL: position.unrealizedPnL,
+              updatedAt: new Date(position.lastUpdated),
+            },
+          });
+        })
+        .filter(
+          (update): update is ReturnType<typeof prisma.poolPosition.update> =>
+            Boolean(update)
+        );
+
+      if (poolUpdates.length > 0) {
+        await Promise.all(poolUpdates);
+        logger.debug(
+          `Synced ${poolUpdates.length} pool positions to database`,
+          undefined,
+          'PerpetualsEngine'
+        );
+      }
     }
   }
 

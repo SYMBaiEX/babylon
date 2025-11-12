@@ -6,6 +6,7 @@
  */
 
 import { Prisma } from '@prisma/client';
+import { getReadyPerpsEngine } from './perps-service';
 import { prisma } from './prisma';
 import { logger } from './logger';
 
@@ -44,17 +45,52 @@ export class PoolPerformanceService {
 
       if (!pool) throw new Error(`Pool not found: ${poolId}`);
 
+      // Update prediction market positions (perp positions are managed by engine)
       for (const position of pool.PoolPosition) {
         await this.updatePositionPnL(tx, position);
       }
 
-      const updatedPositions = await tx.poolPosition.findMany({
+      const dbPositions = await tx.poolPosition.findMany({
         where: { poolId, closedAt: null },
       });
 
+      // Get fresh perp position data from engine (engine has real-time prices)
+      // Sync engine to DB first to ensure DB is also up-to-date for this calculation
+      const perpsEngine = await getReadyPerpsEngine();
+      await perpsEngine.syncDirtyPositions().catch((error) => {
+        // Log but don't fail - engine sync is best effort
+        logger.warn(
+          'Failed to sync engine positions before pool calculation',
+          { poolId, error },
+          'PoolPerformanceService'
+        );
+      });
+
+      // Read from engine (most real-time source) for perp positions
+      const positionsWithFreshPnL = await Promise.all(
+        dbPositions.map(async (pos) => {
+          if (pos.marketType === 'perp' && pos.ticker) {
+            // Get position from engine (has latest price/PnL, now synced to DB too)
+            const enginePosition = perpsEngine.getPosition(pos.id);
+            if (enginePosition) {
+              return {
+                ...pos,
+                unrealizedPnL: enginePosition.unrealizedPnL,
+                currentPrice: enginePosition.currentPrice,
+              };
+            }
+          }
+          // For prediction markets or if not in engine, use DB values
+          return pos;
+        })
+      );
+
       const availableBalance = parseFloat(pool.availableBalance.toString());
       const totalDeposits = parseFloat(pool.totalDeposits.toString());
-      const positionsValue = updatedPositions.reduce((sum, pos) => sum + pos.size + pos.unrealizedPnL, 0);
+      const positionsValue = positionsWithFreshPnL.reduce(
+        (sum, pos) => sum + pos.size + pos.unrealizedPnL,
+        0
+      );
       const newTotalValue = availableBalance + positionsValue;
       const newLifetimePnL = newTotalValue - totalDeposits;
 
@@ -90,6 +126,8 @@ export class PoolPerformanceService {
 
   /**
    * Update a position's current price and P&L
+   * Note: Perp positions are now managed by PerpetualsEngine and will be updated automatically.
+   * This method only updates prediction market positions.
    */
   private static async updatePositionPnL(
     tx: Prisma.TransactionClient,
@@ -106,24 +144,16 @@ export class PoolPerformanceService {
       unrealizedPnL: number
     }
   ): Promise<void> {
+    // Skip perp positions - they are managed by PerpetualsEngine
+    // The engine syncs price updates to PoolPosition records automatically
+    if (position.marketType === 'perp') {
+      return;
+    }
+
     let currentPrice = position.currentPrice;
     let unrealizedPnL = position.unrealizedPnL;
 
-    if (position.marketType === 'perp' && position.ticker) {
-      const org = await tx.organization.findFirst({
-        where: { id: { contains: position.ticker.toLowerCase() } },
-        select: { currentPrice: true },
-      });
-
-      if (org?.currentPrice) {
-        currentPrice = org.currentPrice;
-        const priceChange = currentPrice - position.entryPrice;
-        const isLong = position.side === 'long';
-        const pnlMultiplier = isLong ? 1 : -1;
-        const percentChange = priceChange / position.entryPrice;
-        unrealizedPnL = percentChange * position.size * pnlMultiplier;
-      }
-    } else if (position.marketType === 'prediction' && position.marketId) {
+    if (position.marketType === 'prediction' && position.marketId) {
       const market = await tx.market.findFirst({
         where: { id: position.marketId, resolved: false },
         select: { yesShares: true, noShares: true },

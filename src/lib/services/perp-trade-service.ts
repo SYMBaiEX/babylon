@@ -16,6 +16,7 @@ import { generateSnowflakeId } from '@/lib/snowflake';
 import { FeeService } from '@/lib/services/fee-service';
 import type { TradeImpactInput } from '@/lib/services/market-impact-service';
 import { applyPerpTradeImpacts } from '@/lib/services/perp-price-impact-service';
+import { PerpSettlementService } from '@/lib/services/perp-settlement-service';
 import { WalletService } from '@/lib/services/wallet-service';
 import { Prisma } from '@prisma/client';
 
@@ -213,6 +214,19 @@ export class PerpTradeService {
       input.ticker
     );
 
+    // Integrate settlement service (non-blocking)
+    PerpSettlementService.settleOpenPosition(position).catch((error) => {
+      logger.warn(
+        'Failed to settle open position (non-blocking)',
+        {
+          positionId: position.id,
+          userId: authUser.userId,
+          error,
+        },
+        'PerpTradeService.openPosition'
+      );
+    });
+
     await cachedDb.invalidateUserCache(authUser.userId).catch((error) => {
       logger.error(
         'Failed to invalidate user cache after perp open',
@@ -409,6 +423,19 @@ export class PerpTradeService {
             platformReceived: 0,
             referrerId: null,
           };
+
+    // Integrate settlement service (non-blocking)
+    PerpSettlementService.settleClosePosition(position).catch((error) => {
+      logger.warn(
+        'Failed to settle close position (non-blocking)',
+        {
+          positionId: position.id,
+          userId: authUser.userId,
+          error,
+        },
+        'PerpTradeService.closePosition'
+      );
+    });
 
     const closingImpact: TradeImpactInput = {
       marketType: 'perp',

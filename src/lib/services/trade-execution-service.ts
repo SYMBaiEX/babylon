@@ -5,6 +5,7 @@
  * Creates positions, updates balances, records trades.
  */
 import { logger } from '@/lib/logger';
+import { getReadyPerpsEngine } from '@/lib/perps-service';
 import { prisma } from '@/lib/prisma';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
@@ -144,10 +145,16 @@ export class TradeExecutionService {
     }
 
     // Get current price
-    const org = await prisma.organization.findFirst({
-      where: {
-        id: { contains: decision.ticker.toLowerCase() },
-      },
+    // Ticker is derived from org ID by removing dashes, uppercasing, and truncating to 12 chars
+    // So we need to find org where: org.id.toUpperCase().replace(/-/g, '').substring(0, 12) === ticker
+    const ticker = decision.ticker.toUpperCase();
+    const allOrgs = await prisma.organization.findMany({
+      where: { type: 'company' },
+    });
+
+    const org = allOrgs.find((o) => {
+      const orgTicker = o.id.toUpperCase().replace(/-/g, '').substring(0, 12);
+      return orgTicker === ticker;
     });
 
     if (!org?.currentPrice) {
@@ -223,6 +230,47 @@ export class TradeExecutionService {
 
       return pos;
     });
+
+    // Integrate with PerpetualsEngine after DB creation
+    try {
+      const perpsEngine = await getReadyPerpsEngine();
+      
+      // Add position to engine using poolId as userId (for NPC positions)
+      // The engine will track this position and update it on price changes
+      perpsEngine.openPoolPosition(position.id, poolId, {
+        ticker: decision.ticker!,
+        side,
+        size: positionSize,
+        leverage,
+        entryPrice: currentPrice,
+        currentPrice,
+        liquidationPrice,
+        organizationId: org.id,
+      });
+
+      logger.debug(
+        'NPC perp position added to engine',
+        {
+          positionId: position.id,
+          poolId,
+          ticker: decision.ticker,
+        },
+        'TradeExecutionService'
+      );
+    } catch (error) {
+      // Log error but don't fail the trade - engine integration is best effort
+      logger.error(
+        'Failed to add NPC position to PerpetualsEngine',
+        {
+          positionId: position.id,
+          poolId,
+          ticker: decision.ticker,
+          error,
+        },
+        'TradeExecutionService'
+      );
+      // Position is still created in DB, so trade succeeds
+    }
 
     return {
       npcId: decision.npcId,
@@ -394,6 +442,33 @@ export class TradeExecutionService {
       });
       if (org?.currentPrice) {
         currentPrice = org.currentPrice;
+      }
+
+      // Remove position from PerpetualsEngine if it's a perp position
+      try {
+        const perpsEngine = await getReadyPerpsEngine();
+        if (perpsEngine.hasPosition(decision.positionId)) {
+          perpsEngine.closePosition(decision.positionId, currentPrice);
+          logger.debug(
+            'NPC perp position removed from engine',
+            {
+              positionId: decision.positionId,
+              poolId,
+            },
+            'TradeExecutionService'
+          );
+        }
+      } catch (error) {
+        // Log error but don't fail the close - engine removal is best effort
+        logger.error(
+          'Failed to remove NPC position from PerpetualsEngine',
+          {
+            positionId: decision.positionId,
+            poolId,
+            error,
+          },
+          'TradeExecutionService'
+        );
       }
     } else if (position.marketType === 'prediction' && position.marketId) {
       const market = await prisma.market.findUnique({
