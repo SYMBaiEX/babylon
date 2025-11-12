@@ -6,7 +6,7 @@
  */
 import { prisma } from '@/lib/database-service';
 import { logger } from '@/lib/logger';
-import { ensurePerpsEngineReady, getPerpsEngine } from '@/lib/perps-service';
+import { getReadyPerpsEngine } from '@/lib/perps-service';
 import { ParticipationService } from '@/lib/services/participation-service';
 import { ReputationService } from '@/lib/services/reputation-service';
 import { WalletService } from '@/lib/services/wallet-service';
@@ -32,8 +32,7 @@ export async function getCachedUserPositions(userId: string) {
 
   try {
     // Get perpetual positions
-    const perpsEngine = getPerpsEngine();
-    await ensurePerpsEngineReady();
+    const perpsEngine = await getReadyPerpsEngine();
     const perpPositions = perpsEngine.getUserPositions(userId);
 
     // Get prediction market positions

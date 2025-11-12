@@ -1,6 +1,6 @@
 import { db } from '@/lib/database-service';
 import { logger } from '@/lib/logger';
-import { ensurePerpsEngineReady, getPerpsEngine } from '@/lib/perps-service';
+import { getReadyPerpsEngine } from '@/lib/perps-service';
 import { prisma } from '@/lib/prisma';
 import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
 
@@ -35,8 +35,7 @@ export class PriceUpdateService {
   ): Promise<AppliedPriceUpdate[]> {
     if (updates.length === 0) return [];
 
-    await ensurePerpsEngineReady();
-    const perpsEngine = getPerpsEngine();
+    const perpsEngine = await getReadyPerpsEngine();
 
     const appliedUpdates: AppliedPriceUpdate[] = [];
     const priceMap = new Map<string, number>();

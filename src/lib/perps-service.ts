@@ -12,6 +12,7 @@ import { prisma } from './prisma';
 
 let perpsEngineInstance: PerpetualsEngine | null = null;
 let initializationPromise: Promise<void> | null = null;
+let initializing = false;
 
 export function getPerpsEngine(): PerpetualsEngine {
   // Only instantiate on server side
@@ -22,6 +23,10 @@ export function getPerpsEngine(): PerpetualsEngine {
   }
 
   if (!perpsEngineInstance) {
+    if (initializing) {
+      throw new Error('PerpetualsEngine is being initialized elsewhere');
+    }
+
     perpsEngineInstance = new PerpetualsEngine();
   }
 
@@ -52,11 +57,25 @@ export async function ensurePerpsEngineReady(): Promise<void> {
   }
 }
 
+export async function getReadyPerpsEngine(): Promise<PerpetualsEngine> {
+  await ensurePerpsEngineReady();
+  return getPerpsEngine();
+}
+
+export async function withPerpsEngine<T>(
+  fn: (engine: PerpetualsEngine) => Promise<T> | T
+): Promise<T> {
+  const engine = await getReadyPerpsEngine();
+  return await fn(engine);
+}
+
 async function initializePerpsEngine(): Promise<void> {
   if (!perpsEngineInstance) return;
 
-  const organizations = (await db.getAllOrganizations()) as Organization[];
-  perpsEngineInstance.initializeMarkets(organizations);
+  initializing = true;
+  try {
+    const organizations = (await db.getAllOrganizations()) as Organization[];
+    perpsEngineInstance.initializeMarkets(organizations);
 
   const openPositions = await prisma.perpPosition.findMany({
     where: { closedAt: null },
@@ -82,6 +101,9 @@ async function initializePerpsEngine(): Promise<void> {
         lastUpdated: position.lastUpdated ?? position.openedAt,
       }))
     );
+  }
+  } finally {
+    initializing = false;
   }
 }
 
