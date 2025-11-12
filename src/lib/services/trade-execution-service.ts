@@ -1,24 +1,37 @@
 /**
  * Trade Execution Service
- * 
+ *
  * Executes LLM-generated trading decisions for NPCs.
  * Creates positions, updates balances, records trades.
  */
-
-import { prisma } from '@/lib/database-service';
-import { logger } from '@/lib/logger';
-import { generateSnowflakeId } from '@/lib/snowflake';
-import type { ExecutedTrade, ExecutionResult, TradingDecision } from '@/types/market-decisions';
-import { PredictionPricing } from '@/lib/prediction-pricing';
 import { Prisma } from '@prisma/client';
+
+import { logger } from '@/lib/logger';
+import { PredictionPricing } from '@/lib/prediction-pricing';
+import { prisma } from '@/lib/prisma';
+import { generateSnowflakeId } from '@/lib/snowflake';
+
+import type {
+  ExecutedTrade,
+  ExecutionResult,
+  TradingDecision,
+} from '@/types/market-decisions';
+
+import {
+  type AggregatedImpact,
+  type TradeImpactInput,
+  aggregateTradeImpacts,
+} from './market-impact-service';
 
 export class TradeExecutionService {
   /**
    * Execute a batch of trading decisions
    */
-  async executeDecisionBatch(decisions: TradingDecision[]): Promise<ExecutionResult> {
+  async executeDecisionBatch(
+    decisions: TradingDecision[]
+  ): Promise<ExecutionResult> {
     const startTime = Date.now();
-    
+
     const result: ExecutionResult = {
       totalDecisions: decisions.length,
       successfulTrades: 0,
@@ -29,18 +42,18 @@ export class TradeExecutionService {
       errors: [],
       executedTrades: [],
     };
-    
+
     for (const decision of decisions) {
       if (decision.action === 'hold') {
         result.holdDecisions++;
         continue;
       }
-      
+
       try {
         const executedTrade = await this.executeSingleDecision(decision);
         result.executedTrades.push(executedTrade);
         result.successfulTrades++;
-        
+
         if (executedTrade.marketType === 'perp') {
           result.totalVolumePerp += executedTrade.size;
         } else {
@@ -53,28 +66,38 @@ export class TradeExecutionService {
           decision,
           error: error instanceof Error ? error.message : String(error),
         });
-        
-        logger.error(`Failed to execute trade for ${decision.npcName}`, {
-          error,
-          decision,
-        }, 'TradeExecutionService');
+
+        logger.error(
+          `Failed to execute trade for ${decision.npcName}`,
+          {
+            error,
+            decision,
+          },
+          'TradeExecutionService'
+        );
       }
     }
-    
+
     const duration = Date.now() - startTime;
-    
-    logger.info(`Executed ${result.successfulTrades} trades in ${duration}ms`, {
-      ...result,
-      durationMs: duration,
-    }, 'TradeExecutionService');
-    
+
+    logger.info(
+      `Executed ${result.successfulTrades} trades in ${duration}ms`,
+      {
+        ...result,
+        durationMs: duration,
+      },
+      'TradeExecutionService'
+    );
+
     return result;
   }
-  
+
   /**
    * Execute a single trading decision
    */
-  async executeSingleDecision(decision: TradingDecision): Promise<ExecutedTrade> {
+  async executeSingleDecision(
+    decision: TradingDecision
+  ): Promise<ExecutedTrade> {
     // Get NPC's pool
     const actor = await prisma.actor.findUnique({
       where: { id: decision.npcId },
@@ -85,33 +108,33 @@ export class TradeExecutionService {
         },
       },
     });
-    
+
     if (!actor) {
       throw new Error(`Actor not found: ${decision.npcId}`);
     }
-    
+
     const pool = actor.Pool[0];
     if (!pool) {
       throw new Error(`No active pool found for ${decision.npcName}`);
     }
-    
+
     // Handle close position
     if (decision.action === 'close_position') {
       return await this.closePosition(decision, pool.id);
     }
-    
+
     // Handle open position
     if (decision.action === 'open_long' || decision.action === 'open_short') {
       return await this.openPerpPosition(decision, pool.id);
     }
-    
+
     if (decision.action === 'buy_yes' || decision.action === 'buy_no') {
       return await this.openPredictionPosition(decision, pool.id);
     }
-    
+
     throw new Error(`Unknown action: ${decision.action}`);
   }
-  
+
   /**
    * Open a perpetual position
    */
@@ -122,40 +145,42 @@ export class TradeExecutionService {
     if (!decision.ticker) {
       throw new Error('Ticker required for perp position');
     }
-    
+
     // Get current price
     const org = await prisma.organization.findFirst({
       where: {
         id: { contains: decision.ticker.toLowerCase() },
       },
     });
-    
+
     if (!org?.currentPrice) {
       throw new Error(`Organization not found for ticker: ${decision.ticker}`);
     }
-    
+
     const currentPrice = org.currentPrice;
     const leverage = 5; // Standard leverage
     const side = decision.action === 'open_long' ? 'long' : 'short';
-    
+
     // NPC pool trades have NO trading fees (only 5% performance fee on withdrawal)
     const positionSize = decision.amount * leverage;
-    
+
     // Calculate liquidation price
     const liquidationDistance = side === 'long' ? 0.8 : 1.2;
     const liquidationPrice = currentPrice * liquidationDistance;
-    
+
     // Execute in transaction
     const position = await prisma.$transaction(async (tx) => {
       // Check and deduct from pool balance
       const pool = await tx.pool.findUnique({ where: { id: poolId } });
       if (!pool) throw new Error(`Pool not found: ${poolId}`);
-      
+
       const availableBalance = parseFloat(pool.availableBalance.toString());
       if (availableBalance < decision.amount) {
-        throw new Error(`Insufficient pool balance: ${availableBalance} < ${decision.amount}`);
+        throw new Error(
+          `Insufficient pool balance: ${availableBalance} < ${decision.amount}`
+        );
       }
-      
+
       // Deduct from pool
       await tx.pool.update({
         where: { id: poolId },
@@ -163,7 +188,7 @@ export class TradeExecutionService {
           availableBalance: { decrement: decision.amount },
         },
       });
-      
+
       // Create position
       const pos = await tx.poolPosition.create({
         data: {
@@ -181,7 +206,7 @@ export class TradeExecutionService {
           updatedAt: new Date(),
         },
       });
-      
+
       // Record trade
       await tx.nPCTrade.create({
         data: {
@@ -198,10 +223,10 @@ export class TradeExecutionService {
           reason: decision.reasoning,
         },
       });
-      
+
       return pos;
     });
-    
+
     return {
       npcId: decision.npcId,
       npcName: decision.npcName,
@@ -219,7 +244,7 @@ export class TradeExecutionService {
       timestamp: new Date().toISOString(),
     };
   }
-  
+
   /**
    * Open a prediction market position
    */
@@ -230,19 +255,21 @@ export class TradeExecutionService {
     if (!decision.marketId) {
       throw new Error('MarketId required for prediction position');
     }
-    
+
     // Get market
     const market = await prisma.market.findUnique({
       where: { id: decision.marketId },
     });
-    
+
     if (!market) {
       throw new Error(`Market not found: ${decision.marketId}`);
     }
-    
+
     const yesShares = parseFloat(market.yesShares.toString());
     const noShares = parseFloat(market.noShares.toString());
     const side = decision.action === 'buy_yes' ? 'YES' : 'NO';
+
+    // Use proper AMM pricing (CPMM: k = yesShares * noShares)
     const calc = PredictionPricing.calculateBuy(
       yesShares,
       noShares,
@@ -258,12 +285,14 @@ export class TradeExecutionService {
       // Check and deduct from pool balance
       const pool = await tx.pool.findUnique({ where: { id: poolId } });
       if (!pool) throw new Error(`Pool not found: ${poolId}`);
-      
+
       const availableBalance = parseFloat(pool.availableBalance.toString());
       if (availableBalance < decision.amount) {
-        throw new Error(`Insufficient pool balance: ${availableBalance} < ${decision.amount}`);
+        throw new Error(
+          `Insufficient pool balance: ${availableBalance} < ${decision.amount}`
+        );
       }
-      
+
       // Deduct from pool
       await tx.pool.update({
         where: { id: poolId },
@@ -271,7 +300,7 @@ export class TradeExecutionService {
           availableBalance: { decrement: decision.amount },
         },
       });
-      
+
       // Update market shares
       await tx.market.update({
         where: { id: decision.marketId! },
@@ -283,7 +312,7 @@ export class TradeExecutionService {
           },
         },
       });
-      
+
       // Create position
       const pos = await tx.poolPosition.create({
         data: {
@@ -300,7 +329,7 @@ export class TradeExecutionService {
           updatedAt: new Date(),
         },
       });
-      
+
       // Record trade
       await tx.nPCTrade.create({
         data: {
@@ -317,10 +346,10 @@ export class TradeExecutionService {
           reason: decision.reasoning,
         },
       });
-      
+
       return pos;
     });
-    
+
     return {
       npcId: decision.npcId,
       npcName: decision.npcName,
@@ -339,7 +368,7 @@ export class TradeExecutionService {
       timestamp: new Date().toISOString(),
     };
   }
-  
+
   /**
    * Close an existing position
    */
@@ -350,22 +379,22 @@ export class TradeExecutionService {
     if (!decision.positionId) {
       throw new Error('PositionId required to close position');
     }
-    
+
     const position = await prisma.poolPosition.findUnique({
       where: { id: decision.positionId },
     });
-    
+
     if (!position) {
       throw new Error(`Position not found: ${decision.positionId}`);
     }
-    
+
     if (position.closedAt) {
       throw new Error(`Position already closed: ${decision.positionId}`);
     }
-    
+
     // Get current price
     let currentPrice = position.currentPrice;
-    
+
     if (position.marketType === 'perp' && position.ticker) {
       const org = await prisma.organization.findFirst({
         where: { id: { contains: position.ticker.toLowerCase() } },
@@ -382,18 +411,19 @@ export class TradeExecutionService {
         const noShares = parseFloat(market.noShares.toString());
         const totalShares = yesShares + noShares;
         if (totalShares > 0) {
-          currentPrice = position.side === 'YES'
-            ? (yesShares / totalShares) * 100
-            : (noShares / totalShares) * 100;
+          currentPrice =
+            position.side === 'YES'
+              ? (yesShares / totalShares) * 100
+              : (noShares / totalShares) * 100;
         }
       }
     }
-    
+
     // Calculate P&L
     const priceChange = currentPrice - position.entryPrice;
     const isLong = position.side === 'long' || position.side === 'YES';
     const pnlMultiplier = isLong ? 1 : -1;
-    
+
     let realizedPnL: number;
     if (position.marketType === 'perp') {
       const percentChange = priceChange / position.entryPrice;
@@ -402,9 +432,9 @@ export class TradeExecutionService {
       const shares = position.shares || 0;
       realizedPnL = (priceChange / 100) * shares;
     }
-    
+
     // NPC pool trades have NO trading fees (only 5% performance fee on withdrawal)
-    
+
     // Execute in transaction
     await prisma.$transaction(async (tx) => {
       // Close position
@@ -417,10 +447,10 @@ export class TradeExecutionService {
           realizedPnL,
         },
       });
-      
+
       // Return capital + P&L to pool (no trading fee)
       const returnAmount = position.size + realizedPnL;
-      
+
       await tx.pool.update({
         where: { id: poolId },
         data: {
@@ -428,7 +458,7 @@ export class TradeExecutionService {
           lifetimePnL: { increment: realizedPnL },
         },
       });
-      
+
       // Record trade
       await tx.nPCTrade.create({
         data: {
@@ -447,7 +477,7 @@ export class TradeExecutionService {
         },
       });
     });
-    
+
     return {
       npcId: decision.npcId,
       npcName: decision.npcName,
@@ -467,66 +497,21 @@ export class TradeExecutionService {
       timestamp: new Date().toISOString(),
     };
   }
-  
+
   /**
    * Get total trade impact by ticker/market
    */
-  async getTradeImpacts(executedTrades: ExecutedTrade[]): Promise<Map<string, {
-    longVolume: number;
-    shortVolume: number;
-    yesVolume: number;
-    noVolume: number;
-    netSentiment: number;
-  }>> {
-    const impacts = new Map<string, {
-      longVolume: number;
-      shortVolume: number;
-      yesVolume: number;
-      noVolume: number;
-      netSentiment: number;
-    }>();
-    
-    for (const trade of executedTrades) {
-      const key = trade.ticker || `market-${trade.marketId}`;
-      
-      const impact = impacts.get(key) || {
-        longVolume: 0,
-        shortVolume: 0,
-        yesVolume: 0,
-        noVolume: 0,
-        netSentiment: 0,
-      };
-      
-      if (trade.marketType === 'perp') {
-        if (trade.side === 'long') {
-          impact.longVolume += trade.size;
-        } else {
-          impact.shortVolume += trade.size;
-        }
-      } else {
-        if (trade.side === 'YES') {
-          impact.yesVolume += trade.size;
-        } else {
-          impact.noVolume += trade.size;
-        }
-      }
-      
-      impacts.set(key, impact);
-    }
-    
-    // Calculate net sentiment for each
-    for (const [, impact] of impacts) {
-      const totalPerp = impact.longVolume + impact.shortVolume;
-      const totalPred = impact.yesVolume + impact.noVolume;
-      
-      if (totalPerp > 0) {
-        impact.netSentiment = (impact.longVolume - impact.shortVolume) / totalPerp;
-      } else if (totalPred > 0) {
-        impact.netSentiment = (impact.yesVolume - impact.noVolume) / totalPred;
-      }
-    }
-    
-    return impacts;
+  async getTradeImpacts(
+    executedTrades: ExecutedTrade[]
+  ): Promise<Map<string, AggregatedImpact>> {
+    const inputs: TradeImpactInput[] = executedTrades.map((trade) => ({
+      marketType: trade.marketType,
+      ticker: trade.ticker,
+      marketId: trade.marketId,
+      side: trade.side,
+      size: trade.size,
+    }));
+
+    return aggregateTradeImpacts(inputs);
   }
 }
-
