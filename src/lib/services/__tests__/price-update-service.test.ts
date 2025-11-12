@@ -1,14 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import { PriceUpdateService } from '../price-update-service';
 
-const mockFindUnique = vi.fn();
-const mockUpdateOrg = vi.fn();
-const mockRecordPriceUpdate = vi.fn();
-const mockBroadcast = vi.fn();
-const mockUpdatePositions = vi.fn();
+const mockFindUnique = mock();
+const mockUpdateOrg = mock();
+const mockRecordPriceUpdate = mock();
+const mockBroadcast = mock();
+const mockUpdatePositions = mock();
+const mockGetReadyPerpsEngine = mock().mockResolvedValue({
+  updatePositions: mockUpdatePositions,
+});
 
-vi.mock('@/lib/prisma', () => ({
+mock.module('@/lib/prisma', () => ({
   prisma: {
     organization: {
       findUnique: mockFindUnique,
@@ -17,20 +20,18 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 
-vi.mock('@/lib/database-service', () => ({
+mock.module('@/lib/database-service', () => ({
   db: {
     recordPriceUpdate: mockRecordPriceUpdate,
   },
 }));
 
-vi.mock('@/lib/sse/event-broadcaster', () => ({
+mock.module('@/lib/sse/event-broadcaster', () => ({
   broadcastToChannel: mockBroadcast,
 }));
 
-vi.mock('@/lib/perps-service', () => ({
-  getReadyPerpsEngine: vi.fn().mockResolvedValue({
-    updatePositions: mockUpdatePositions,
-  }),
+mock.module('@/lib/perps-service', () => ({
+  getReadyPerpsEngine: mockGetReadyPerpsEngine,
 }));
 
 describe('PriceUpdateService.applyUpdates', () => {
@@ -40,6 +41,10 @@ describe('PriceUpdateService.applyUpdates', () => {
     mockRecordPriceUpdate.mockReset();
     mockBroadcast.mockReset();
     mockUpdatePositions.mockReset();
+    mockGetReadyPerpsEngine.mockReset();
+    mockGetReadyPerpsEngine.mockResolvedValue({
+      updatePositions: mockUpdatePositions,
+    });
   });
 
   it('persists price update and notifies engine/SSE', async () => {

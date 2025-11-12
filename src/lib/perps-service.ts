@@ -14,6 +14,25 @@ let perpsEngineInstance: PerpetualsEngine | null = null;
 let initializationPromise: Promise<void> | null = null;
 let initializing = false;
 
+type PoolPositionInput = {
+  ticker: string
+  side: 'long' | 'short'
+  size: number
+  leverage: number
+  entryPrice: number
+  currentPrice: number
+  liquidationPrice: number
+  organizationId: string
+}
+
+type PerpsEngineWithPoolSupport = PerpetualsEngine & {
+  openPoolPosition?: (
+    positionId: string,
+    poolId: string,
+    position: PoolPositionInput
+  ) => void
+}
+
 export function getPerpsEngine(): PerpetualsEngine {
   // Only instantiate on server side
   if (typeof window !== 'undefined') {
@@ -114,67 +133,80 @@ async function initializePerpsEngine(): Promise<void> {
     });
 
     if (openPoolPositions.length > 0) {
-      let hydratedCount = 0;
-      for (const poolPos of openPoolPositions) {
-        if (!poolPos.ticker || !poolPos.leverage) continue;
+      const engineWithPools =
+        perpsEngineInstance as PerpsEngineWithPoolSupport;
+      const openPoolPosition = engineWithPools.openPoolPosition;
+      const supportsPoolHydration = typeof openPoolPosition === 'function';
 
-        // Find organization ID from ticker
-        const org = organizations.find(
-          (o) =>
-            o.type === 'company' &&
-            poolPos.ticker &&
-            o.id.toUpperCase().replace(/-/g, '') === poolPos.ticker.toUpperCase()
-        );
-
-        if (!org) {
-          logger.warn(
-            'Skipping pool position hydration - organization not found',
-            {
-              positionId: poolPos.id,
-              ticker: poolPos.ticker,
-            },
-            'PerpsService'
-          );
-          continue;
-        }
-
-        try {
-          perpsEngineInstance.openPoolPosition(
-            poolPos.id,
-            poolPos.poolId,
-            {
-              ticker: poolPos.ticker,
-              side: poolPos.side as 'long' | 'short',
-              size: poolPos.size,
-              leverage: poolPos.leverage,
-              entryPrice: poolPos.entryPrice,
-              currentPrice: poolPos.currentPrice,
-              liquidationPrice: poolPos.liquidationPrice ?? 0,
-              organizationId: org.id,
-            }
-          );
-          hydratedCount++;
-        } catch (error) {
-          // Log but don't fail initialization
-          logger.warn(
-            'Failed to hydrate pool position',
-            {
-              positionId: poolPos.id,
-              poolId: poolPos.poolId,
-              ticker: poolPos.ticker,
-              error,
-            },
-            'PerpsService'
-          );
-        }
-      }
-
-      if (hydratedCount > 0) {
+      if (!supportsPoolHydration) {
         logger.info(
-          `Hydrated ${hydratedCount} pool positions from database`,
-          undefined,
+          'PerpsEngine does not yet support pool position hydration; skipping',
+          { count: openPoolPositions.length },
           'PerpsService'
         );
+      } else {
+        let hydratedCount = 0;
+        for (const poolPos of openPoolPositions) {
+          if (!poolPos.ticker || !poolPos.leverage) continue;
+
+          // Find organization ID from ticker
+          const org = organizations.find(
+            (o) =>
+              o.type === 'company' &&
+              poolPos.ticker &&
+              o.id.toUpperCase().replace(/-/g, '') === poolPos.ticker.toUpperCase()
+          );
+
+          if (!org) {
+            logger.warn(
+              'Skipping pool position hydration - organization not found',
+              {
+                positionId: poolPos.id,
+                ticker: poolPos.ticker,
+              },
+              'PerpsService'
+            );
+            continue;
+          }
+
+          try {
+            openPoolPosition(
+              poolPos.id,
+              poolPos.poolId,
+              {
+                ticker: poolPos.ticker,
+                side: poolPos.side as 'long' | 'short',
+                size: poolPos.size,
+                leverage: poolPos.leverage,
+                entryPrice: poolPos.entryPrice,
+                currentPrice: poolPos.currentPrice,
+                liquidationPrice: poolPos.liquidationPrice ?? 0,
+                organizationId: org.id,
+              }
+            );
+            hydratedCount++;
+          } catch (error) {
+            // Log but don't fail initialization
+            logger.warn(
+              'Failed to hydrate pool position',
+              {
+                positionId: poolPos.id,
+                poolId: poolPos.poolId,
+                ticker: poolPos.ticker,
+                error,
+              },
+              'PerpsService'
+            );
+          }
+        }
+
+        if (hydratedCount > 0) {
+          logger.info(
+            `Hydrated ${hydratedCount} pool positions from database`,
+            undefined,
+            'PerpsService'
+          );
+        }
       }
     }
   } finally {
