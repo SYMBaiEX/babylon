@@ -16,7 +16,7 @@ echo -e "${GREEN}=== Diamond Upgrade Script ===${NC}\n"
 # Load .env file if it exists
 if [ -f .env ]; then
     echo -e "${YELLOW}Loading environment from .env file...${NC}"
-    export $(grep -v '^#' .env | grep -E "DEPLOYER_PRIVATE_KEY|DIAMOND_ADDRESS|BASE.*RPC|ETHEREUM.*RPC" | xargs)
+    export $(grep -v '^#' .env | grep -E "DEPLOYER_PRIVATE_KEY|DIAMOND_ADDRESS|NEXT_PUBLIC_DIAMOND_ADDRESS|BASE.*RPC|ETHEREUM.*RPC" | xargs)
 fi
 
 # Check for required environment variables
@@ -27,10 +27,16 @@ if [ -z "$DEPLOYER_PRIVATE_KEY" ]; then
     exit 1
 fi
 
+# Use NEXT_PUBLIC_DIAMOND_ADDRESS if DIAMOND_ADDRESS is not set
+if [ -z "$DIAMOND_ADDRESS" ] && [ -n "$NEXT_PUBLIC_DIAMOND_ADDRESS" ]; then
+    export DIAMOND_ADDRESS=$NEXT_PUBLIC_DIAMOND_ADDRESS
+fi
+
 if [ -z "$DIAMOND_ADDRESS" ]; then
     echo -e "${RED}Error: DIAMOND_ADDRESS not set${NC}"
-    echo "Please set your Diamond proxy address:"
-    echo "  export DIAMOND_ADDRESS=0x..."
+    echo "Please set your Diamond proxy address in .env:"
+    echo "  DIAMOND_ADDRESS=0x..."
+    echo "  or NEXT_PUBLIC_DIAMOND_ADDRESS=0x..."
     exit 1
 fi
 
