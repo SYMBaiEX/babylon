@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { readdir } from "node:fs/promises";
-import type { EpisodeRecord } from "../../plugin-babylon/src/training/trajectory-types";
+import type { EpisodeRecord } from "../plugin-babylon/src/training/trajectory-types";
 
 const DEFAULT_EPISODE_DIR = join(process.cwd(), "training", "episodes");
 

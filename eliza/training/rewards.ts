@@ -1,4 +1,4 @@
-import type { EpisodeRecord, RewardComponent, TrajectoryEvent } from "../../plugin-babylon/src/training/trajectory-types";
+import type { EpisodeRecord, RewardComponent, TrajectoryEvent } from "../plugin-babylon/src/training/trajectory-types";
 import { BabylonLLMClient } from "../../src/generator/llm/openai-client";
 
 export interface EpisodeSummary {

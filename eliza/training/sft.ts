@@ -6,7 +6,7 @@ import type {
   ObservationEvent,
   OutcomeEvent,
   ActionEvent,
-} from "../../plugin-babylon/src/training/trajectory-types";
+} from "../plugin-babylon/src/training/trajectory-types";
 
 export interface SftExample {
   prompt: string;

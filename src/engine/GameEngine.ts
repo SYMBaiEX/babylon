@@ -776,6 +776,16 @@ export class GameEngine extends EventEmitter {
               oldPrice: update.oldPrice,
             },
           })),
+          ...baselineTradeUpdates.map((update) => ({
+            organizationId: update.organizationId,
+            newPrice: update.newPrice,
+            source: 'npc_trade' as const,
+            reason: update.reason,
+            metadata: {
+              impact: update.impact,
+              oldPrice: update.oldPrice,
+            },
+          })),
           ...tradeBasedPriceUpdates.map((update) => ({
             organizationId: update.organizationId,
             newPrice: update.newPrice,

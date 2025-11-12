@@ -1,14 +1,10 @@
-import type { TrainingConfig } from "../../eliza/plugin-training/src/types";
-import { HuggingFaceClient } from "../../eliza/plugin-training/src/utils/huggingface-client";
+import type { TrainingConfig } from "../plugin-training/src/types";
+import { HuggingFaceClient } from "../plugin-training/src/utils/huggingface-client";
+import { IAgentRuntime } from "@elizaos/core";
 
 type RuntimeShimLike = {
   getSetting: (key: string) => string | undefined;
-  logger: {
-    info: (...args: unknown[]) => void;
-    warn: (...args: unknown[]) => void;
-    error: (...args: unknown[]) => void;
-    debug: (...args: unknown[]) => void;
-  };
+  logger: IAgentRuntime["logger"];
 };
 
 class RuntimeShim implements RuntimeShimLike {
@@ -23,7 +19,11 @@ class RuntimeShim implements RuntimeShimLike {
     warn: console.warn,
     error: console.error,
     debug: console.debug,
-  } as unknown as IAgentRuntime["logger"];
+    trace: console.debug,
+    fatal: console.error,
+    success: console.log,
+    level: 'info' as const,
+  } as IAgentRuntime["logger"];
 }
 
 export interface DatasetUploadConfig {
