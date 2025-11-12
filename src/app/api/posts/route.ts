@@ -43,6 +43,34 @@ function toISOStringSafe(date: Date | string | null | undefined): string {
   return new Date().toISOString();
 }
 
+/**
+ * Parse repost content to extract metadata
+ * Returns null if not a repost, otherwise returns parsed data
+ */
+function parseRepostContent(content: string): {
+  isRepost: true;
+  quoteComment: string | null;
+  originalContent: string;
+  originalAuthorUsername: string;
+} | null {
+  const separatorPattern = /\n\n--- Reposted from @(.+?) ---\n/;
+  const match = content.match(separatorPattern);
+  
+  if (!match) return null;
+  
+  const parts = content.split(separatorPattern);
+  const quoteComment = parts[0]?.trim() || null;
+  const originalContent = parts[2]?.trim() || '';
+  const originalAuthorUsername = match[1] || '';
+  
+  return {
+    isRepost: true,
+    quoteComment,
+    originalContent,
+    originalAuthorUsername,
+  };
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -146,26 +174,85 @@ export async function GET(request: Request) {
       const commentMap = new Map(allComments.map(c => [c.postId, c._count.postId]));
       const shareMap = new Map(allShares.map(s => [s.postId, s._count.postId]));
       
+      // Format following posts with repost metadata
+      const formattedFollowingPosts = await Promise.all(posts.map(async (post) => {
+        const user = post.authorId ? userMap.get(post.authorId) : undefined;
+        
+        // Parse repost metadata if this is a repost
+        const repostData = parseRepostContent(post.content || '');
+        let repostMetadata = {};
+        
+        if (repostData) {
+          // Look up original author by username
+          const originalAuthor = await prisma.user.findUnique({
+            where: { username: repostData.originalAuthorUsername },
+            select: { id: true, username: true, displayName: true, profileImageUrl: true },
+          }) || await prisma.actor.findFirst({
+            where: { id: repostData.originalAuthorUsername },
+            select: { id: true, name: true, profileImageUrl: true },
+          });
+          
+          if (originalAuthor) {
+            // Find the Share record for this repost to get the original post ID
+            // Look for shares by this author where the original post author matches
+            const shareRecord = await prisma.share.findFirst({
+              where: { 
+                userId: post.authorId || '',
+                Post: {
+                  authorId: originalAuthor.id
+                }
+              },
+              orderBy: { createdAt: 'desc' },
+              select: { postId: true },
+            });
+            
+            repostMetadata = {
+              isRepost: true,
+              quoteComment: repostData.quoteComment,
+              originalContent: repostData.originalContent,
+              originalPostId: shareRecord?.postId || null,
+              originalAuthorId: originalAuthor.id,
+              originalAuthorName: 'name' in originalAuthor ? originalAuthor.name : (originalAuthor.displayName || originalAuthor.username),
+              originalAuthorUsername: 'username' in originalAuthor ? originalAuthor.username : originalAuthor.id,
+              originalAuthorProfileImageUrl: originalAuthor.profileImageUrl || null,
+            };
+          } else {
+            // Even if we can't find the original author, still mark as repost
+            // This prevents showing the separator text in the UI
+            repostMetadata = {
+              isRepost: true,
+              quoteComment: repostData.quoteComment,
+              originalContent: repostData.originalContent,
+              originalPostId: null,
+              originalAuthorId: repostData.originalAuthorUsername, // Use username as fallback ID
+              originalAuthorName: repostData.originalAuthorUsername,
+              originalAuthorUsername: repostData.originalAuthorUsername,
+              originalAuthorProfileImageUrl: null,
+            };
+          }
+        }
+        
+        return {
+          id: post.id,
+          content: post.content,
+          author: post.authorId,
+          authorId: post.authorId,
+          authorName: user?.displayName || user?.username || post.authorId || 'Unknown',
+          authorUsername: user?.username || null,
+          timestamp: toISOStringSafe(post.timestamp),
+          createdAt: toISOStringSafe(post.createdAt),
+          likeCount: reactionMap.get(post.id) ?? 0,
+          commentCount: commentMap.get(post.id) ?? 0,
+          shareCount: shareMap.get(post.id) ?? 0,
+          isLiked: false,
+          isShared: false,
+          ...repostMetadata, // Add repost metadata if applicable
+        };
+      }));
+      
       return NextResponse.json({
         success: true,
-        posts: posts.map((post) => {
-          const user = post.authorId ? userMap.get(post.authorId) : undefined;
-          return {
-            id: post.id,
-            content: post.content,
-            author: post.authorId,
-            authorId: post.authorId,
-            authorName: user?.displayName || user?.username || post.authorId || 'Unknown',
-            authorUsername: user?.username || null,
-            timestamp: toISOStringSafe(post.timestamp),
-            createdAt: toISOStringSafe(post.createdAt),
-            likeCount: reactionMap.get(post.id) ?? 0,
-            commentCount: commentMap.get(post.id) ?? 0,
-            shareCount: shareMap.get(post.id) ?? 0,
-            isLiked: false,
-            isShared: false,
-          };
-        }),
+        posts: formattedFollowingPosts,
         total: posts.length,
         limit,
         offset,
@@ -262,7 +349,7 @@ export async function GET(request: Request) {
     const shareMap = new Map(allShares.map(s => [s.postId, s._count.postId]));
     
     // Format posts to match FeedPost interface
-    const formattedPosts = posts.map((post) => {
+    const formattedPosts = await Promise.all(posts.map(async (post) => {
       try {
         // Validate post structure
         if (!post || !post.id) {
@@ -298,6 +385,60 @@ export async function GET(request: Request) {
         const timestamp = toISOStringSafe(post.timestamp);
         const createdAt = toISOStringSafe(post.createdAt);
         
+        // Parse repost metadata if this is a repost
+        const repostData = parseRepostContent(post.content || '');
+        let repostMetadata = {};
+        
+        if (repostData) {
+          // Look up original author by username
+          const originalAuthor = await prisma.user.findUnique({
+            where: { username: repostData.originalAuthorUsername },
+            select: { id: true, username: true, displayName: true, profileImageUrl: true },
+          }) || await prisma.actor.findFirst({
+            where: { id: repostData.originalAuthorUsername },
+            select: { id: true, name: true, profileImageUrl: true },
+          });
+          
+          if (originalAuthor) {
+            // Find the Share record for this repost to get the original post ID
+            // Look for shares by this author where the original post author matches
+            const shareRecord = await prisma.share.findFirst({
+              where: { 
+                userId: post.authorId || '',
+                Post: {
+                  authorId: originalAuthor.id
+                }
+              },
+              orderBy: { createdAt: 'desc' },
+              select: { postId: true },
+            });
+            
+            repostMetadata = {
+              isRepost: true,
+              quoteComment: repostData.quoteComment,
+              originalContent: repostData.originalContent,
+              originalPostId: shareRecord?.postId || null,
+              originalAuthorId: originalAuthor.id,
+              originalAuthorName: 'name' in originalAuthor ? originalAuthor.name : (originalAuthor.displayName || originalAuthor.username),
+              originalAuthorUsername: 'username' in originalAuthor ? originalAuthor.username : originalAuthor.id,
+              originalAuthorProfileImageUrl: originalAuthor.profileImageUrl || null,
+            };
+          } else {
+            // Even if we can't find the original author, still mark as repost
+            // This prevents showing the separator text in the UI
+            repostMetadata = {
+              isRepost: true,
+              quoteComment: repostData.quoteComment,
+              originalContent: repostData.originalContent,
+              originalPostId: null,
+              originalAuthorId: repostData.originalAuthorUsername, // Use username as fallback ID
+              originalAuthorName: repostData.originalAuthorUsername,
+              originalAuthorUsername: repostData.originalAuthorUsername,
+              originalAuthorProfileImageUrl: null,
+            };
+          }
+        }
+        
         return {
           id: post.id,
           type: post.type || undefined,
@@ -323,12 +464,13 @@ export async function GET(request: Request) {
           shareCount: shareMap.get(post.id) ?? 0,
           isLiked: false, // Will be updated by interaction store polling
           isShared: false, // Will be updated by interaction store polling
+          ...repostMetadata, // Add repost metadata if applicable
         };
       } catch (error) {
         logger.error('Error formatting post', { error, postId: post?.id, post }, 'GET /api/posts');
         return null;
       }
-    }).filter((post): post is NonNullable<typeof post> => post !== null);
+    })).then(posts => posts.filter((post): post is NonNullable<typeof post> => post !== null));
     
     logger.info('Formatted posts', { 
       originalCount: posts.length, 

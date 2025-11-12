@@ -4,9 +4,11 @@ import { cn } from '@/lib/utils';
 import { Repeat2, X } from 'lucide-react';
 import { useState } from 'react';
 import { useInteractionStore } from '@/stores/interactionStore';
+import { useFeedStore } from '@/stores/feedStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useLoginModal } from '@/hooks/useLoginModal';
 import type { RepostButtonProps } from '@/types/interactions';
+import type { FeedPost } from '@/shared/types';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { toast } from 'sonner';
 
@@ -42,6 +44,7 @@ export function RepostButton({
   const [quoteComment, setQuoteComment] = useState('');
 
   const { toggleShare, postInteractions, loadingStates } = useInteractionStore();
+  const { addOptimisticPost } = useFeedStore();
   
   // Get state from store instead of local state
   const storeData = postInteractions.get(postId);
@@ -82,11 +85,39 @@ export function RepostButton({
     setTimeout(() => setIsAnimating(false), 300);
 
     try {
-      await toggleShare(postId, commentToSend);
-      // Show success toast
-      toast.success(isQuote ? 'Quote posted!' : 'Reposted!', {
-        description: 'Your followers will see this in their feed.',
-      });
+      const response = await toggleShare(postId, commentToSend);
+      
+      // If this is a quote post and we got repost data back, add it optimistically to the feed
+      if (response && response.repostPost && isQuote) {
+        const repostData = response.repostPost;
+        const optimisticPost: FeedPost = {
+          id: repostData.id,
+          content: repostData.content,
+          author: repostData.authorId,
+          authorId: repostData.authorId,
+          authorName: repostData.authorName,
+          authorUsername: repostData.authorUsername || undefined,
+          authorProfileImageUrl: repostData.authorProfileImageUrl || undefined,
+          timestamp: repostData.timestamp,
+          likeCount: 0,
+          commentCount: 0,
+          shareCount: 0,
+          isLiked: false,
+          isShared: false,
+          // Repost metadata
+          isRepost: repostData.isRepost || false,
+          originalPostId: repostData.originalPostId || null,
+          originalAuthorId: repostData.originalAuthorId || null,
+          originalAuthorName: repostData.originalAuthorName || null,
+          originalAuthorUsername: repostData.originalAuthorUsername || null,
+          originalAuthorProfileImageUrl: repostData.originalAuthorProfileImageUrl || null,
+          originalContent: repostData.originalContent || null,
+          quoteComment: repostData.quoteComment || null,
+        };
+        
+        // Add to feed optimistically
+        addOptimisticPost(optimisticPost);
+      }
     } catch (error) {
       console.error('Failed to share post:', error);
       toast.error('Failed to share', {

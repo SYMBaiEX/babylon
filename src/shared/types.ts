@@ -226,6 +226,7 @@ export interface FeedPost {
   originalAuthorName?: string | null;
   originalAuthorUsername?: string | null;
   originalAuthorProfileImageUrl?: string | null;
+  originalContent?: string | null; // Original post content for quote posts
   quoteComment?: string | null;
 }
 

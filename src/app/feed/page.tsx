@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 import type { FeedPost } from '@/shared/types'
 import { useAuthStore } from '@/stores/authStore'
 import { useGameStore } from '@/stores/gameStore'
+import { useFeedStore } from '@/stores/feedStore'
 import { Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react'
@@ -27,6 +28,7 @@ function FeedPageContent() {
   const { authenticated } = useAuth()
   const { user } = useAuthStore()
   const { refreshAll: refreshWidgets } = useWidgetRefresh()
+  const { registerOptimisticPostCallback, unregisterOptimisticPostCallback } = useFeedStore()
   const [tab, setTab] = useState<'latest' | 'following'>('latest')
   const [posts, setPosts] = useState<FeedPost[]>([])
   const [loading, setLoading] = useState(true)
@@ -97,6 +99,19 @@ function FeedPageContent() {
     }
     loadActorNames()
   }, [])
+
+  // Register callback for optimistic posts (e.g., from quote reposts)
+  useEffect(() => {
+    const handleOptimisticPost = (post: FeedPost) => {
+      setLocalPosts(prev => [post, ...prev])
+    }
+
+    registerOptimisticPostCallback(handleOptimisticPost)
+
+    return () => {
+      unregisterOptimisticPostCallback()
+    }
+  }, [registerOptimisticPostCallback, unregisterOptimisticPostCallback])
 
   const fetchLatestPosts = useCallback(async (requestOffset: number, append = false, skipLoadingState = false) => {
     if (tab !== 'latest') return

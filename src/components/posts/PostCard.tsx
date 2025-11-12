@@ -41,6 +41,7 @@ export interface PostCardProps {
     originalAuthorName?: string | null;
     originalAuthorUsername?: string | null;
     originalAuthorProfileImageUrl?: string | null;
+    originalContent?: string | null;
     quoteComment?: string | null;
   };
   className?: string;
@@ -256,6 +257,78 @@ export const PostCard = memo(function PostCard({
               Read Full Article →
             </button>
           )}
+        </div>
+      ) : post.isRepost && post.originalAuthorId ? (
+        // Repost (with or without quote comment) - show embedded card if we have original author info
+        <div className="w-full mb-4">
+          {/* Quote comment (if present) */}
+          {post.quoteComment && (
+            <div className="text-foreground leading-relaxed whitespace-pre-wrap break-words mb-4 post-content">
+              <TaggedText
+                text={post.quoteComment}
+                onTagClick={(tag) => {
+                  router.push(`/feed?search=${encodeURIComponent(tag)}`)
+                }}
+              />
+            </div>
+          )}
+
+          {/* Embedded original post */}
+          <div
+            className={cn(
+              'rounded-xl border border-white/10 p-4',
+              'bg-white/5',
+              post.originalPostId && 'hover:bg-white/[0.07] cursor-pointer',
+              !post.originalPostId && 'cursor-default',
+              'transition-colors'
+            )}
+            onClick={(e) => {
+              if (post.originalPostId) {
+                e.stopPropagation();
+                router.push(`/post/${post.originalPostId}`);
+              }
+            }}
+          >
+            {/* Original post author */}
+            <div className="flex items-start gap-3 mb-3">
+              <Avatar
+                id={post.originalAuthorId || ''}
+                name={post.originalAuthorName || ''}
+                type="actor"
+                size="sm"
+                src={post.originalAuthorProfileImageUrl || undefined}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-white truncate">
+                    {post.originalAuthorName}
+                  </span>
+                  {post.originalAuthorId && isNpcIdentifier(post.originalAuthorId) && (
+                    <VerifiedBadge size="sm" />
+                  )}
+                </div>
+                <span className="text-white/50 text-sm">
+                  @{post.originalAuthorUsername || post.originalAuthorId}
+                </span>
+              </div>
+            </div>
+
+            {/* Original post content - Use originalContent if available, otherwise parse */}
+            <div className="text-white/90 leading-relaxed whitespace-pre-wrap break-words">
+              <TaggedText 
+                text={(() => {
+                  // Use originalContent if available, otherwise extract from combined content
+                  if (post.originalContent) return post.originalContent;
+                  const separatorPattern = /\n\n--- Reposted from @.*? ---\n/;
+                  const parts = post.content.split(separatorPattern);
+                  return (parts.length > 1 && parts[1]) ? parts[1] : post.content;
+                })()}
+                onTagClick={(tag) => {
+                  router.push(`/feed?search=${encodeURIComponent(tag)}`)
+                }} 
+              />
+            </div>
+          </div>
         </div>
       ) : (
         // Regular post - Show content as normal

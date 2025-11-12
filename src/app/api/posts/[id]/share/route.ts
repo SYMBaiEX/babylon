@@ -166,6 +166,7 @@ export const POST = withErrorHandling(async (
         originalAuthorName: originalAuthorName,
         originalAuthorUsername: originalAuthorUsername,
         originalAuthorProfileImageUrl: originalAuthorProfileImageUrl,
+        originalContent: originalPost.content, // Include original content separately
         quoteComment: quoteComment || null,
       };
 

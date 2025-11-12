@@ -43,7 +43,7 @@ interface InteractionStoreActions {
   loadComments: (postId: string) => Promise<CommentWithReplies[]>;
 
   // Share actions
-  toggleShare: (postId: string, comment?: string) => Promise<void>;
+  toggleShare: (postId: string, comment?: string) => Promise<{ repostPost?: any } | void>;
 
   // Favorite actions
   toggleFavorite: (profileId: string) => Promise<void>;
@@ -215,28 +215,34 @@ export const useInteractionStore = create<InteractionStore>()(
 
         setLoading(loadingKey, true);
 
-        const response = await apiCall<{ data: CommentData }>(
-          `/api/posts/${postId}/comments`,
-          {
-            method: 'POST',
-            body: JSON.stringify({ content, parentCommentId: parentId }),
-          }
-        );
+        try {
+          const response = await apiCall<CommentData>(
+            `/api/posts/${postId}/comments`,
+            {
+              method: 'POST',
+              body: JSON.stringify({ content, parentCommentId: parentId }),
+            }
+          );
 
-        if (!parentId) {
-          const currentInteraction = postInteractions.get(postId);
-          if (currentInteraction) {
-            set((state) => ({
-              postInteractions: new Map(state.postInteractions).set(postId, {
-                ...currentInteraction,
-                commentCount: currentInteraction.commentCount + 1,
-              }),
-            }));
+          if (!parentId) {
+            const currentInteraction = postInteractions.get(postId);
+            if (currentInteraction) {
+              set((state) => ({
+                postInteractions: new Map(state.postInteractions).set(postId, {
+                  ...currentInteraction,
+                  commentCount: currentInteraction.commentCount + 1,
+                }),
+              }));
+            }
           }
+
+          setLoading(loadingKey, false);
+          return response;
+        } catch (error) {
+          console.error('Failed to add comment:', error);
+          setLoading(loadingKey, false);
+          return null;
         }
-
-        setLoading(loadingKey, false);
-        return response.data;
       },
 
       editComment: async (commentId: string, content: string) => {
@@ -323,7 +329,7 @@ export const useInteractionStore = create<InteractionStore>()(
 
         const method = wasShared ? 'DELETE' : 'POST';
         const body = !wasShared && comment ? JSON.stringify({ comment }) : undefined;
-        const response = await apiCall<{ data: { shareCount: number; isShared: boolean } }>(
+        const response = await apiCall<{ data: { shareCount: number; isShared: boolean; repostPost?: any } }>(
           `/api/posts/${postId}/share`,
           { 
             method,
@@ -340,6 +346,9 @@ export const useInteractionStore = create<InteractionStore>()(
         }));
 
         setLoading(`share-${postId}`, false);
+
+        // Return response data (includes repostPost for optimistic UI)
+        return response.data;
       },
 
       // Favorite actions (uses follow API)
