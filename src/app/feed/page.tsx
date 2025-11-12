@@ -174,7 +174,7 @@ function FeedPageContent() {
     }
 
     if (append && uniqueAdded === 0) {
-      // setHasMore(false)
+      setHasMore(false)
       setLoadingMore(false)
       return
     }
@@ -367,7 +367,7 @@ function FeedPageContent() {
             </div>
           </div>
 
-          {/* Feed content - Single scrollable container with pull-to-refresh */}
+          {/* Feed content - Scrollable container with pull-to-refresh */}
           <div 
             ref={scrollContainerRef}
             className="flex-1 bg-background overflow-y-auto overflow-x-hidden"

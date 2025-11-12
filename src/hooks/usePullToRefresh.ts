@@ -59,7 +59,7 @@ export function usePullToRefresh(options: PullToRefreshOptions): PullToRefreshRe
     }
     
     // Set locks immediately
-    // console.log('[PTR] Setting locks and starting refresh')
+    console.log('[PTR] Setting locks and starting refresh')
     hasTriggeredRef.current = true
     isRefreshingRef.current = true
     
@@ -77,7 +77,7 @@ export function usePullToRefresh(options: PullToRefreshOptions): PullToRefreshRe
     try {
       await onRefresh()
     } finally {
-      // console.log('[PTR] Refresh complete')
+      console.log('[PTR] Refresh complete')
       // Keep spinner visible briefly
       await new Promise(resolve => setTimeout(resolve, 200))
       
@@ -87,7 +87,7 @@ export function usePullToRefresh(options: PullToRefreshOptions): PullToRefreshRe
       
       // Reset locks after animation (with additional buffer to prevent rapid re-triggers)
       setTimeout(() => {
-        // console.log('[PTR] Locks reset')
+        console.log('[PTR] Locks reset')
         hasTriggeredRef.current = false
         isRefreshingRef.current = false
         wheelAccumulator.current = 0
@@ -210,7 +210,7 @@ export function usePullToRefresh(options: PullToRefreshOptions): PullToRefreshRe
 
         // Trigger at threshold
         if (distance >= threshold && !hasTriggeredRef.current && !isRefreshingRef.current) {
-          // console.log('[PTR Wheel] Triggering at distance:', distance)
+          console.log('[PTR Wheel] Triggering at distance:', distance)
           // Clear accumulator before triggering
           wheelAccumulator.current = 0
           lastWheelTriggerRef.current = now
