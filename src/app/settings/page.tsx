@@ -119,7 +119,7 @@ export default function SettingsPage() {
       const trimmedUsername = (username ?? '').trim();
       const trimmedBio = (bio ?? '').trim();
 
-      const endpoint = `https://babylon.game/agent/${smartWalletAddress.toLowerCase()}`;
+      const endpoint = `https://babylon.market/agent/${smartWalletAddress.toLowerCase()}`;
       const metadata = {
         name:
           trimmedDisplayName ||

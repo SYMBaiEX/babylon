@@ -65,7 +65,7 @@ export function PnLShareModal({
   const offscreenCardRef = useRef<HTMLDivElement>(null)
 
   const shareUrl =
-    typeof window !== 'undefined' ? `${window.location.origin}/markets` : 'https://babylon.game'
+    typeof window !== 'undefined' ? `${window.location.origin}/markets` : 'https://babylon.market'
 
   const canShare = Boolean(
     user && (type === 'portfolio' ? portfolioData : categoryData)

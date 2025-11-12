@@ -375,7 +375,7 @@ export default function ProfilePage() {
         const trimmedUsername = (updatedData.username ?? '').trim()
         const trimmedBio = (updatedData.bio ?? '').trim()
 
-        const endpoint = `https://babylon.game/agent/${smartWalletAddress.toLowerCase()}`
+        const endpoint = `https://babylon.market/agent/${smartWalletAddress.toLowerCase()}`
         const metadata = {
           name:
             trimmedDisplayName ||
