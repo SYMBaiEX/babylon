@@ -53,6 +53,7 @@ let connecting = false;
 let reconnectAttempts = 0;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let lastConnectionError: string | null = null;
+let pendingTokenRetry: ReturnType<typeof setTimeout> | null = null;
 const connectionListeners = new Set<ConnectionListener>();
 let getAccessTokenRef: (() => Promise<string | null>) | null = null;
 let authenticatedRef = false;
@@ -75,6 +76,11 @@ const notifyConnectionStatus = (connected: boolean, error: string | null) => {
 };
 
 const closeEventSource = () => {
+  if (pendingTokenRetry) {
+    clearTimeout(pendingTokenRetry);
+    pendingTokenRetry = null;
+  }
+
   if (globalEventSource) {
     try {
       globalEventSource.close();
@@ -91,6 +97,18 @@ const closeEventSource = () => {
 
   connectedChannels.clear();
   connecting = false;
+};
+
+const scheduleTokenRetry = () => {
+  if (pendingTokenRetry || !authenticatedRef) {
+    return;
+  }
+
+  const delay = Math.min(reconnectDelayRef, 1000);
+  pendingTokenRetry = setTimeout(() => {
+    pendingTokenRetry = null;
+    void ensureConnection();
+  }, delay);
 };
 
 const channelsInSync = () => {
@@ -148,6 +166,7 @@ async function ensureConnection(forceReconnect = false) {
   if (!token) {
     connecting = false;
     notifyConnectionStatus(false, 'Missing access token for SSE');
+    scheduleTokenRetry();
     return;
   }
 
