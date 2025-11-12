@@ -11,6 +11,7 @@ import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { logger } from '@/lib/logger';
 import { DMChatCreateSchema } from '@/lib/validation/schemas';
 import { trackServerEvent } from '@/lib/posthog/server';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 /**
  * POST /api/chats/dm
@@ -63,7 +64,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     let existingChat = await db.chat.findUnique({
       where: { id: chatId },
       include: {
-        participants: {
+        ChatParticipant: {
           select: {
             userId: true,
           },
@@ -73,18 +74,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
     if (!existingChat) {
       // Create new DM chat
-      existingChat = await db.chat.create({
+      await db.chat.create({
         data: {
           id: chatId,
           name: null, // DMs don't have names
           isGroup: false,
-        },
-        include: {
-          participants: {
-            select: {
-              userId: true,
-            },
-          },
+          updatedAt: new Date(),
         },
       });
 
@@ -92,24 +87,46 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       await Promise.all([
         db.chatParticipant.create({
           data: {
+            id: generateSnowflakeId(),
             chatId,
             userId: user.userId,
           },
         }),
         db.chatParticipant.create({
           data: {
+            id: generateSnowflakeId(),
             chatId,
             userId: targetUserId,
           },
         }),
       ]);
+
+      // Reload chat with participants
+      existingChat = await db.chat.findUnique({
+        where: { id: chatId },
+        select: {
+          id: true,
+          name: true,
+          isGroup: true,
+          gameId: true,
+          dayNumber: true,
+          createdAt: true,
+          updatedAt: true,
+          ChatParticipant: {
+            select: {
+              userId: true,
+            },
+          },
+        },
+      });
     } else {
       // Chat exists, ensure both participants are added
-      const participantIds = existingChat.participants.map(p => p.userId);
+      const participantIds = existingChat.ChatParticipant.map(p => p.userId);
       
       if (!participantIds.includes(user.userId)) {
         await db.chatParticipant.create({
           data: {
+            id: generateSnowflakeId(),
             chatId,
             userId: user.userId,
           },
@@ -119,6 +136,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       if (!participantIds.includes(targetUserId)) {
         await db.chatParticipant.create({
           data: {
+            id: generateSnowflakeId(),
             chatId,
             userId: targetUserId,
           },
@@ -129,13 +147,17 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     return { chat: existingChat, targetUser };
   });
 
+  if (!chat.chat) {
+    throw new Error('Chat creation failed');
+  }
+
   logger.info('DM chat created or retrieved successfully', { chatId: chat.chat.id, userId: user.userId, targetUserId }, 'POST /api/chats/dm');
 
   // Track DM created/opened event
   trackServerEvent(user.userId, 'dm_opened', {
     chatId: chat.chat.id,
     recipientId: targetUserId,
-    isNewChat: !chat.chat.participants || chat.chat.participants.length === 0,
+    isNewChat: !chat.chat.ChatParticipant || chat.chat.ChatParticipant.length === 0,
   }).catch((error) => {
     logger.warn('Failed to track dm_opened event', { error });
   });

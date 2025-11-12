@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import type { UserPoolDeposit, UserPoolSummary } from '@/types/pools'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { Skeleton } from '@/components/shared/Skeleton'
 
 interface UserPoolPositionsProps {
   onWithdraw?: () => void
@@ -68,7 +68,7 @@ export function UserPoolPositions({ onWithdraw }: UserPoolPositionsProps) {
 
   if (!authenticated) {
     return (
-      <div className="p-4 rounded-lg bg-muted/50 text-center">
+      <div className="px-4 py-3 rounded-lg bg-muted/50 text-center">
         <p className="text-sm text-muted-foreground">
           Log in to see your pool positions
         </p>
@@ -79,7 +79,10 @@ export function UserPoolPositions({ onWithdraw }: UserPoolPositionsProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <BouncingLogo size={24} />
+        <div className="space-y-3 w-full">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
       </div>
     )
   }
@@ -92,7 +95,7 @@ export function UserPoolPositions({ onWithdraw }: UserPoolPositionsProps) {
     <div className="space-y-4">
       {/* Summary */}
       {summary && (
-        <div className="p-4 bg-muted rounded-lg">
+        <div className="px-4 py-3 bg-muted rounded-lg">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <div className="text-sm text-muted-foreground mb-1">Total Invested</div>
@@ -127,7 +130,7 @@ export function UserPoolPositions({ onWithdraw }: UserPoolPositionsProps) {
       {/* Individual Deposits */}
       <div className="space-y-2">
         {deposits.map((deposit) => (
-          <div key={deposit.id} className="p-3 bg-card border border-border rounded-lg">
+          <div key={deposit.id} className="p-3 bg-card border border-border rounded-2xl">
             <div className="flex justify-between items-start mb-2">
               <div>
                 <div className="font-semibold">{deposit.poolName}</div>

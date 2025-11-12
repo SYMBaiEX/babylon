@@ -8,6 +8,7 @@ import { authenticate } from '@/lib/api/auth-middleware'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
 import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
+import { cachedDb } from '@/lib/cached-database-service'
 
 const userSelect = {
   id: true,
@@ -35,6 +36,8 @@ const userSelect = {
   showTwitterPublic: true,
   showFarcasterPublic: true,
   showWalletPublic: true,
+  isAdmin: true,
+  isActor: true,
   createdAt: true,
   updatedAt: true,
 } as const
@@ -69,6 +72,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     })
   }
 
+  // Get cached profile stats
+  const stats = await cachedDb.getUserProfileStats(dbUser.id)
+
   const responseUser = {
     id: dbUser.id,
     privyId: dbUser.privyId,
@@ -95,8 +101,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     showTwitterPublic: dbUser.showTwitterPublic,
     showFarcasterPublic: dbUser.showFarcasterPublic,
     showWalletPublic: dbUser.showWalletPublic,
+    isAdmin: dbUser.isAdmin,
+    isActor: dbUser.isActor,
     createdAt: dbUser.createdAt.toISOString(),
     updatedAt: dbUser.updatedAt.toISOString(),
+    stats: stats || undefined,
   }
 
   const needsOnboarding = !dbUser.profileComplete

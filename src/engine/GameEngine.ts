@@ -497,8 +497,8 @@ export class GameEngine extends EventEmitter {
                 status: 'resolved',
               },
               include: {
-                user: true,
-                question: true,
+                User: true,
+                Question: true,
               },
             });
 
@@ -2106,6 +2106,7 @@ OUTPUT JSON:
             name: chat.name,
             isGroup: true,
             gameId: 'continuous',
+            updatedAt: new Date(),
           },
           update: {},
         });

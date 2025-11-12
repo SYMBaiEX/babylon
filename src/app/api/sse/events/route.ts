@@ -17,7 +17,7 @@ import { authenticate, isAuthenticationError } from '@/lib/api/auth-middleware';
 import { getEventBroadcaster, type SSEClient, type Channel } from '@/lib/sse/event-broadcaster';
 import { SSEChannelsQuerySchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
-import { v4 as uuidv4 } from 'uuid';
+import { generateSnowflakeId } from '@/lib/snowflake';
 import { ZodError } from 'zod';
 
 // Disable buffering for SSE
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 
     // Create SSE stream
     const encoder = new TextEncoder();
-    const clientId = uuidv4();
+    const clientId = generateSnowflakeId();
     
     let pingIntervalId: NodeJS.Timeout | null = null;
     let isStreamClosed = false;

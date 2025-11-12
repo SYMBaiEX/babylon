@@ -27,6 +27,7 @@ import { GameGenerator, type GameHistory, type GeneratedGame } from '../generato
 import type { ChatMessage } from '@/shared/types';
 import { logger } from '@/lib/logger';
 import { db } from '@/lib/database-service';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 interface CLIOptions {
   verbose?: boolean;
@@ -156,10 +157,12 @@ async function main() {
     // Note: Full game data saved to genesis.json file, not database
     await db.prisma.game.create({
       data: {
+        id: generateSnowflakeId(),
         isContinuous: false,
         isRunning: false,
         currentDate: new Date(),
         speed: 60000,
+        updatedAt: new Date(),
       },
     });
     
@@ -311,10 +314,12 @@ async function main() {
   // Note: Game is now stored in database (posts, events, actors)
   const savedGame = await db.prisma.game.create({
     data: {
+      id: generateSnowflakeId(),
       isContinuous: false,
       isRunning: false,
       currentDate: new Date(nextStartDate),
       speed: 60000,
+      updatedAt: new Date(),
     },
   });
   

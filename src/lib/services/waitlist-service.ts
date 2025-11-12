@@ -3,9 +3,10 @@
  * Manages waitlist signups, positions, and invite codes
  */
 
-import { prisma } from '@/lib/database-service'
-import { logger } from '@/lib/logger'
-import { nanoid } from 'nanoid'
+import { prisma } from '@/lib/database-service';
+import { logger } from '@/lib/logger';
+import { generateSnowflakeId } from '@/lib/snowflake';
+import { nanoid } from 'nanoid';
 
 export interface WaitlistMarkResult {
   success: boolean
@@ -137,6 +138,7 @@ export class WaitlistService {
             // Create points transaction for referrer
             await prisma.pointsTransaction.create({
               data: {
+                id: generateSnowflakeId(),
                 userId: referrer.id,
                 amount: 50,
                 pointsBefore: referrer.reputationPoints,
@@ -343,6 +345,7 @@ export class WaitlistService {
       // Create points transaction
       await prisma.pointsTransaction.create({
         data: {
+          id: generateSnowflakeId(),
           userId,
           amount: bonusAmount,
           pointsBefore: user.reputationPoints,
@@ -404,6 +407,7 @@ export class WaitlistService {
       // Create points transaction
       await prisma.pointsTransaction.create({
         data: {
+          id: generateSnowflakeId(),
           userId,
           amount: bonusAmount,
           pointsBefore: user.reputationPoints,

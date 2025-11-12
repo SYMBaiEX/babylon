@@ -84,16 +84,18 @@
  *                   description: Whether user is following the target
  */
 
-import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
-import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { NotFoundError, BusinessLogicError } from '@/lib/errors';
-import { UserIdParamSchema } from '@/lib/validation/schemas';
 import { authenticate } from '@/lib/api/auth-middleware';
-import { notifyFollow } from '@/lib/services/notification-service';
+import { cachedDb } from '@/lib/cached-database-service';
+import { prisma } from '@/lib/database-service';
+import { BusinessLogicError, NotFoundError } from '@/lib/errors';
+import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
-import { findUserByIdentifier } from '@/lib/users/user-lookup';
 import { trackServerEvent } from '@/lib/posthog/server';
+import { notifyFollow } from '@/lib/services/notification-service';
+import { generateSnowflakeId } from '@/lib/snowflake';
+import { findUserByIdentifier } from '@/lib/users/user-lookup';
+import { UserIdParamSchema } from '@/lib/validation/schemas';
+import type { NextRequest } from 'next/server';
 
 /**
  * POST Handler - Follow User or Actor
@@ -152,11 +154,12 @@ export const POST = withErrorHandling(async (
     // Create follow relationship
     const follow = await prisma.follow.create({
       data: {
+        id: generateSnowflakeId(),
         followerId: user.userId,
         followingId: targetId,
       },
       include: {
-        following: {
+        User_Follow_followingIdToUser: {
           select: {
             id: true,
             displayName: true,
@@ -171,13 +174,21 @@ export const POST = withErrorHandling(async (
     // Create notification for the followed user
     await notifyFollow(targetId, user.userId);
 
+    // Invalidate caches for both users to update follower/following counts
+    await Promise.all([
+      cachedDb.invalidateUserCache(user.userId),  // Invalidate follower's cache
+      cachedDb.invalidateUserCache(targetId),     // Invalidate target's cache
+    ]).catch((error) => {
+      logger.warn('Failed to invalidate user cache after follow', { error });
+    });
+
     logger.info('User followed successfully', { userId: user.userId, targetId }, 'POST /api/users/[userId]/follow');
 
     // Track user followed event
     trackServerEvent(user.userId, 'user_followed', {
       targetUserId: targetId,
       targetType: 'user',
-      targetUsername: follow.following.username,
+      targetUsername: follow.User_Follow_followingIdToUser.username,
     }).catch((error) => {
       logger.warn('Failed to track user_followed event', { error });
     });
@@ -185,7 +196,7 @@ export const POST = withErrorHandling(async (
     return successResponse(
       {
         id: follow.id,
-        following: follow.following,
+        following: follow.User_Follow_followingIdToUser,
         createdAt: follow.createdAt,
       },
       201
@@ -221,11 +232,12 @@ export const POST = withErrorHandling(async (
       ? prisma.$transaction(async (tx) => {
           const created = await tx.userActorFollow.create({
             data: {
+              id: generateSnowflakeId(),
               userId: user.userId,
               actorId: targetId,
             },
             include: {
-              actor: {
+              Actor: {
                 select: {
                   id: true,
                   name: true,
@@ -249,11 +261,12 @@ export const POST = withErrorHandling(async (
         })
       : prisma.userActorFollow.create({
           data: {
+            id: generateSnowflakeId(),
             userId: user.userId,
             actorId: targetId,
           },
           include: {
-            actor: {
+            Actor: {
               select: {
                 id: true,
                 name: true,
@@ -265,14 +278,19 @@ export const POST = withErrorHandling(async (
           },
         }));
 
+    // Invalidate cache for the user to update following count
+    await cachedDb.invalidateUserCache(user.userId).catch((error) => {
+      logger.warn('Failed to invalidate user cache after actor follow', { error });
+    });
+
     logger.info('Actor followed successfully', { userId: user.userId, npcId: targetId }, 'POST /api/users/[userId]/follow');
 
     // Track actor followed event
     trackServerEvent(user.userId, 'user_followed', {
       targetUserId: targetId,
       targetType: 'actor',
-      actorName: follow.actor.name,
-      actorTier: follow.actor.tier,
+      actorName: follow.Actor.name,
+      actorTier: follow.Actor.tier,
     }).catch((error) => {
       logger.warn('Failed to track user_followed event', { error });
     });
@@ -280,7 +298,7 @@ export const POST = withErrorHandling(async (
     return successResponse(
       {
         id: follow.id,
-        actor: follow.actor,
+        actor: follow.Actor,
         createdAt: follow.createdAt,
       },
       201
@@ -323,6 +341,14 @@ export const DELETE = withErrorHandling(async (
       where: {
         id: follow.id,
       },
+    });
+
+    // Invalidate caches for both users to update follower/following counts
+    await Promise.all([
+      cachedDb.invalidateUserCache(user.userId),  // Invalidate unfollower's cache
+      cachedDb.invalidateUserCache(targetId),     // Invalidate target's cache
+    ]).catch((error) => {
+      logger.warn('Failed to invalidate user cache after unfollow', { error });
     });
 
     logger.info('User unfollowed successfully', { userId: user.userId, targetId }, 'DELETE /api/users/[userId]/follow');
@@ -384,6 +410,11 @@ export const DELETE = withErrorHandling(async (
           },
         });
       }
+    });
+
+    // Invalidate cache for the user to update following count
+    await cachedDb.invalidateUserCache(user.userId).catch((error) => {
+      logger.warn('Failed to invalidate user cache after actor unfollow', { error });
     });
 
     logger.info('Actor unfollowed successfully', { userId: user.userId, npcId: targetId }, 'DELETE /api/users/[userId]/follow');

@@ -7,7 +7,7 @@ import { ArrowLeft, Award, Calendar, DollarSign, Info, TrendingDown, TrendingUp,
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { Skeleton } from '@/components/shared/Skeleton'
 
 interface Pool {
   id: string
@@ -152,11 +152,10 @@ export default function PoolDetailPage() {
     return (
       <PageContainer>
         <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <div className="mx-auto mb-4 flex justify-center">
-              <BouncingLogo size={48} />
-            </div>
-            <p className="text-muted-foreground">Loading pool...</p>
+          <div className="text-center space-y-4 w-full max-w-2xl">
+            <Skeleton className="h-8 w-48 mx-auto" />
+            <Skeleton className="h-64 w-full" />
+            <Skeleton className="h-32 w-full" />
           </div>
         </div>
       </PageContainer>
@@ -180,7 +179,7 @@ export default function PoolDetailPage() {
           Back to Markets
         </button>
 
-        <div className="bg-card/50 backdrop-blur rounded-lg p-6 border border-border">
+        <div className="bg-card/50 backdrop-blur rounded-2xl p-6 border border-border">
           <div className="flex items-start justify-between gap-4 mb-4">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
@@ -213,14 +212,14 @@ export default function PoolDetailPage() {
 
           {/* Pool Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-muted/30 rounded-lg p-3">
+            <div className="bg-muted/30 rounded-lg px-3 py-3">
               <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                 <DollarSign className="w-3 h-3" />
                 Total Value
               </div>
               <div className="text-lg font-bold">{formatPrice(pool.totalValue)}</div>
             </div>
-            <div className="bg-muted/30 rounded-lg p-3">
+            <div className="bg-muted/30 rounded-lg px-3 py-3">
               <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                 <Users className="w-3 h-3" />
                 Total Deposits
@@ -228,7 +227,7 @@ export default function PoolDetailPage() {
               <div className="text-lg font-bold">{formatPrice(pool.totalDeposits)}</div>
             </div>
             <div className={cn(
-              "rounded-lg p-3",
+              "rounded-lg px-3 py-3",
               pool.returnPercent >= 0 ? "bg-green-600/15" : "bg-red-600/15"
             )}>
               <div className="flex items-center gap-2 text-xs mb-1" style={{
@@ -244,7 +243,7 @@ export default function PoolDetailPage() {
                 {pool.returnPercent >= 0 ? '+' : ''}{pool.returnPercent.toFixed(1)}%
               </div>
             </div>
-            <div className="bg-muted/30 rounded-lg p-3">
+            <div className="bg-muted/30 rounded-lg px-3 py-3">
               <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                 <Calendar className="w-3 h-3" />
                 Created
@@ -260,7 +259,7 @@ export default function PoolDetailPage() {
 
           {/* User Position if exists */}
           {pool.userDeposit && pool.userDeposit > 0 && (
-            <div className="mt-4 p-4 bg-[#0066FF]/10 rounded-lg border border-[#0066FF]/20">
+            <div className="mt-4 px-4 py-3 bg-[#0066FF]/10 rounded-lg border border-[#0066FF]/20">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm text-muted-foreground">Your Deposit</div>
@@ -280,15 +279,15 @@ export default function PoolDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Performance Chart */}
         <div className="lg:col-span-2">
-          <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border">
+          <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
             <h2 className="text-lg font-bold mb-4">Performance History</h2>
             <PerformanceChart data={performanceHistory} />
           </div>
 
           {/* Strategy Info */}
-          <div className="bg-muted/30 rounded-lg p-4 mt-4">
-            <div className="flex items-start gap-2">
-              <Info className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+          <div className="bg-muted/30 rounded-lg px-4 py-3 mt-4">
+            <div className="flex items-start gap-3">
+              <Info className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />
               <div className="flex-1">
                 <h3 className="font-medium mb-2">About This Pool</h3>
                 <p className="text-sm text-muted-foreground mb-2">
@@ -302,8 +301,8 @@ export default function PoolDetailPage() {
           </div>
 
           {/* Trader Stats */}
-          <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border mt-4">
-            <h3 className="font-medium mb-3 flex items-center gap-2">
+          <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border mt-4">
+            <h3 className="font-medium mb-3 flex items-center gap-3">
               <Award className="w-4 h-4" />
               Trader Performance
             </h3>
@@ -338,7 +337,7 @@ export default function PoolDetailPage() {
 
         {/* Deposit Panel */}
         <div className="lg:col-span-1">
-          <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border sticky top-4">
+          <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border sticky top-4">
             <h2 className="text-lg font-bold mb-4">Deposit</h2>
 
             {/* Amount Input */}
@@ -359,7 +358,7 @@ export default function PoolDetailPage() {
 
             {/* Deposit Preview */}
             {depositNum >= 10 && (
-              <div className="bg-muted/20 rounded-lg p-4 mb-4">
+              <div className="bg-muted/20 rounded-lg px-4 py-3 mb-4">
                 <h3 className="text-sm font-bold mb-3 text-muted-foreground">Deposit Preview</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
@@ -406,7 +405,6 @@ export default function PoolDetailPage() {
             >
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">
-                  <BouncingLogo size={20} />
                   Depositing...
                 </span>
               ) : authenticated ? (

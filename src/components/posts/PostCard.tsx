@@ -11,6 +11,7 @@ import { InteractionBar } from '@/components/interactions';
 import { useFontSize } from '@/contexts/FontSizeContext';
 import { getProfileUrl } from '@/lib/profile-utils';
 import type { PostInteraction } from '@/types/interactions';
+import { Repeat2 } from 'lucide-react';
 
 export interface PostCardProps {
   post: {
@@ -32,6 +33,15 @@ export interface PostCardProps {
     shareCount?: number;
     isLiked?: boolean;
     isShared?: boolean;
+    deletedAt?: string | null; // Soft delete timestamp
+    // Repost metadata
+    isRepost?: boolean;
+    originalPostId?: string | null;
+    originalAuthorId?: string | null;
+    originalAuthorName?: string | null;
+    originalAuthorUsername?: string | null;
+    originalAuthorProfileImageUrl?: string | null;
+    quoteComment?: string | null;
   };
   className?: string;
   onClick?: () => void;
@@ -86,7 +96,14 @@ export const PostCard = memo(function PostCard({
     isShared: post.isShared ?? false,
   };
 
-  const showVerifiedBadge = isNpcIdentifier(post.authorId);
+  // For reposts, we want to show the original author's info in the header
+  // and the reposter's info in the "Reposted by" line
+  const displayAuthorId = post.isRepost && post.originalAuthorId ? post.originalAuthorId : post.authorId;
+  const displayAuthorName = post.isRepost && post.originalAuthorName ? post.originalAuthorName : post.authorName;
+  const displayAuthorUsername = post.isRepost && post.originalAuthorUsername ? post.originalAuthorUsername : post.authorUsername;
+  const displayAuthorProfileImageUrl = post.isRepost && post.originalAuthorProfileImageUrl ? post.originalAuthorProfileImageUrl : post.authorProfileImageUrl;
+  
+  const showVerifiedBadge = isNpcIdentifier(displayAuthorId);
 
   const handleClick = () => {
     if (onClick) {
@@ -94,10 +111,28 @@ export const PostCard = memo(function PostCard({
     }
   };
 
+  // If post is deleted, show a minimal placeholder
+  if (post.deletedAt) {
+    return (
+      <article
+        className={cn(
+          'px-4 py-3',
+          'w-full overflow-hidden',
+          'border-b border-border/5',
+          className
+        )}
+      >
+        <div className="flex items-center justify-center text-muted-foreground italic py-8">
+          (no post)
+        </div>
+      </article>
+    );
+  }
+
   return (
     <article
       className={cn(
-        'px-4 sm:px-6 py-4 sm:py-5',
+        'px-4 py-3',
         !isDetail && 'hover:bg-muted/30 cursor-pointer transition-all duration-200',
         'w-full overflow-hidden',
         'border-b border-border/5',
@@ -108,50 +143,67 @@ export const PostCard = memo(function PostCard({
       }}
       onClick={!isDetail ? handleClick : undefined}
     >
+      {/* Repost Indicator - Shows if this is a repost */}
+      {post.isRepost && (
+        <div className="flex items-center gap-3 mb-3 text-muted-foreground text-sm">
+          <Repeat2 size={14} className="text-green-600" />
+          <span>
+            Reposted by{' '}
+            <Link
+              href={getProfileUrl(post.authorId, post.authorUsername)}
+              className="font-semibold hover:underline text-foreground"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {post.authorName}
+            </Link>
+          </span>
+        </div>
+      )}
+
       {/* Row 1: Avatar + Name/Handle/Timestamp Header */}
-      <div className="flex items-start gap-3 sm:gap-4 w-full mb-2">
-        {/* Avatar - Clickable, Round */}
+      <div className="flex items-start gap-3 w-full mb-3">
+        {/* Avatar - Clickable, Round - Shows original author for reposts */}
         <Link
-          href={getProfileUrl(post.authorId, post.authorUsername)}
-          className="flex-shrink-0 hover:opacity-80 transition-opacity"
+          href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
+          className="shrink-0 hover:opacity-80 transition-opacity"
           onClick={(e) => e.stopPropagation()}
         >
           <Avatar
-            id={post.authorId}
-            name={post.authorName}
+            id={displayAuthorId}
+            name={displayAuthorName}
             type={post.type === 'article' ? 'business' : 'actor'}
             size="md"
-            src={post.authorProfileImageUrl || undefined}
+            src={displayAuthorProfileImageUrl || undefined}
             scaleFactor={isDetail ? fontSize : fontSize * (isDesktop ? 1.4 : isMobile ? 0.8 : 1)}
           />
         </Link>
 
         {/* Header: Name/Handle block on left, Timestamp on right */}
-        <div className="flex items-start justify-between gap-2 flex-1 min-w-0">
-          {/* Name and Handle stacked vertically */}
+        <div className="flex items-start justify-between gap-3 flex-1 min-w-0">
+          {/* Name and Handle stacked vertically - Shows original author for reposts */}
           <div className="flex flex-col min-w-0">
             {/* Name row with verified badge */}
             <div className="flex items-center gap-1.5 min-w-0">
               <Link
-                href={getProfileUrl(post.authorId, post.authorUsername)}
+                href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
                 className="font-semibold text-lg sm:text-xl text-foreground hover:underline truncate"
                 onClick={(e) => e.stopPropagation()}
               >
-                {post.authorName}
+                {displayAuthorName}
               </Link>
               {showVerifiedBadge && <VerifiedBadge size="md" className="sm:w-6 sm:h-6" />}
             </div>
             {/* Handle row */}
             <Link
-              href={getProfileUrl(post.authorId, post.authorUsername)}
+              href={getProfileUrl(displayAuthorId, displayAuthorUsername)}
               className="text-muted-foreground text-base hover:underline truncate"
               onClick={(e) => e.stopPropagation()}
             >
-              @{post.authorUsername || post.authorId}
+              @{displayAuthorUsername || displayAuthorId}
             </Link>
           </div>
           {/* Timestamp - Right aligned */}
-          <time className="text-muted-foreground text-base flex-shrink-0 ml-2" title={postDate.toLocaleString()}>
+          <time className="text-muted-foreground text-base shrink-0 ml-2" title={postDate.toLocaleString()}>
             {timeAgo}
           </time>
         </div>
@@ -162,12 +214,12 @@ export const PostCard = memo(function PostCard({
         // Article card - Show title, summary, and "Read more" button
         <div className="w-full mb-3">
           {/* Article title */}
-          <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2 leading-tight">
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-3 leading-tight">
             {post.articleTitle || 'Untitled Article'}
           </h2>
           
           {/* Article metadata */}
-          <div className="flex flex-wrap items-center gap-2 mb-3 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-3 mb-4 text-sm text-muted-foreground">
             {post.byline && <span>{post.byline}</span>}
             {post.category && (
               <>
@@ -198,7 +250,7 @@ export const PostCard = memo(function PostCard({
           {/* Read more button */}
           {!isDetail && (
             <button
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#0066FF] hover:bg-[#2952d9] text-white font-semibold rounded-lg transition-colors"
+              className="inline-flex items-center gap-3 px-4 py-3 bg-[#0066FF] hover:bg-[#2952d9] text-white font-semibold rounded-lg transition-colors"
               onClick={handleClick}
             >
               Read Full Article →
@@ -207,7 +259,7 @@ export const PostCard = memo(function PostCard({
         </div>
       ) : (
         // Regular post - Show content as normal
-        <div className="text-foreground leading-relaxed whitespace-pre-wrap break-words w-full mb-3 post-content">
+        <div className="text-foreground leading-relaxed whitespace-pre-wrap break-words w-full mb-4 post-content">
           <TaggedText
             text={post.content || ''}
             onTagClick={(tag) => {

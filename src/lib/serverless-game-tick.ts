@@ -9,8 +9,10 @@
  * ✅ Vercel-compatible: No filesystem access, completes in <60s
  */
 
+import { ArticleGenerator } from '@/engine/ArticleGenerator';
 import { MarketDecisionEngine } from '@/engine/MarketDecisionEngine';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
+import type { ActorTier, WorldEvent } from '@/shared/types';
 import type { Prisma } from '@prisma/client';
 import { db } from './database-service';
 import { logger } from './logger';
@@ -19,8 +21,6 @@ import { MarketContextService } from './services/market-context-service';
 import { TradeExecutionService } from './services/trade-execution-service';
 import { calculateTrendingIfNeeded, calculateTrendingTags } from './services/trending-calculation-service';
 import { generateSnowflakeId } from './snowflake';
-import { ArticleGenerator } from '@/engine/ArticleGenerator';
-import type { ActorTier, WorldEvent } from '@/shared/types';
 
 export interface GameTickResult {
   postsCreated: number;
@@ -545,7 +545,7 @@ async function bootstrapTrending(): Promise<void> {
   // Check if we have enough posts and tags
   const postCount = await prisma.post.count();
   const taggedPostCount = await prisma.post.count({
-    where: { postTags: { some: {} } },
+    where: { PostTag: { some: {} } },
   });
   
   logger.info('Post/tag status for trending', {
@@ -590,7 +590,11 @@ async function bootstrapTrending(): Promise<void> {
     const tag = await prisma.tag.upsert({
       where: { name: tagData.name },
       update: {},
-      create: tagData,
+      create: {
+        id: generateSnowflakeId(),
+        ...tagData,
+        updatedAt: now,
+      },
     });
     
     // Create trending entry
@@ -598,6 +602,7 @@ async function bootstrapTrending(): Promise<void> {
     
     await prisma.trendingTag.create({
       data: {
+        id: generateSnowflakeId(),
         tagId: tag.id,
         score,
         postCount: Math.floor(Math.random() * 10) + 5,
@@ -1089,6 +1094,7 @@ async function generateEvents(
 
       await prisma.worldEvent.create({
         data: {
+          id: generateSnowflakeId(),
           eventType: 'announcement',
           description: `Development regarding: ${question.text}`,
           actors: [],
@@ -1213,8 +1219,10 @@ Return your response as JSON in this exact format:
     const scenarioId = 1; // TODO: replace with dynamic scenario selection when schema supports it
 
     try {
+      const now = new Date();
       const question = await prisma.question.create({
         data: {
+          id: generateSnowflakeId(),
           questionNumber: nextQuestionNumber,
           text: response.question,
           scenarioId,
@@ -1222,6 +1230,7 @@ Return your response as JSON in this exact format:
           rank: 1,
           resolutionDate,
           status: 'active',
+          updatedAt: now,
         },
       });
 
@@ -1233,6 +1242,7 @@ Return your response as JSON in this exact format:
           liquidity: 1000,
           endDate: resolutionDate,
           gameId: 'continuous',
+          updatedAt: now,
         },
       });
 
@@ -1376,7 +1386,7 @@ async function updateWidgetCaches(): Promise<number> {
     const pools = await prisma.pool.findMany({
       where: { isActive: true },
       include: {
-        npcActor: {
+        Actor: {
           select: { name: true },
         },
       },
@@ -1393,19 +1403,19 @@ async function updateWidgetCaches(): Promise<number> {
             ? ((totalValue - totalDeposits) / totalDeposits) * 100
             : 0;
 
-        // Safely extract npcActor name with multiple fallbacks
+        // Safely extract Actor name with multiple fallbacks
         let npcActorName = 'Unknown';
         try {
           if (
-            pool.npcActor &&
-            typeof pool.npcActor === 'object' &&
-            'name' in pool.npcActor
+            pool.Actor &&
+            typeof pool.Actor === 'object' &&
+            'name' in pool.Actor
           ) {
-            npcActorName = pool.npcActor.name || 'Unknown';
+            npcActorName = pool.Actor.name || 'Unknown';
           }
         } catch (e) {
           logger.warn(
-            'Failed to extract npcActor name',
+            'Failed to extract Actor name',
             { poolId: pool.id, error: e },
             'GameTick'
           );

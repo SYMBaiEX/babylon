@@ -47,7 +47,7 @@ export function PortfolioPnLCard({
   const pnlIsPositive = totalPnL >= 0
 
   return (
-    <section className="rounded-xl border border-[#0066FF]/20 bg-gradient-to-br from-[#0066FF]/10 via-purple-500/10 to-[#0066FF]/5 p-4 sm:p-5 shadow-sm">
+    <section className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-purple-500/10 to-primary/5 px-4 py-3 sm:px-5 sm:py-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -56,7 +56,7 @@ export function PortfolioPnLCard({
           <p className="text-xs text-muted-foreground">{formatRelativeTime(lastUpdated)}</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onRefresh}
@@ -70,7 +70,7 @@ export function PortfolioPnLCard({
             type="button"
             onClick={onShare}
             disabled={loading || !data}
-            className="inline-flex items-center gap-2 rounded-lg bg-white/90 px-3 py-2 text-sm font-semibold text-[#0B1C3D] shadow transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center gap-3 rounded-lg bg-white/90 px-3 py-3 text-sm font-semibold text-[#0B1C3D] shadow transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Share2 className="h-4 w-4" />
             Share P&amp;L
@@ -88,7 +88,7 @@ export function PortfolioPnLCard({
           </div>
         </div>
       ) : error ? (
-        <div className="mt-6 rounded-lg bg-white/10 p-4 text-sm text-white/80">
+        <div className="mt-6 rounded-lg bg-white/10 px-4 py-3 text-sm text-white/80">
           <p className="font-medium text-white">Unable to load P&amp;L</p>
           <p className="mt-1 text-white/80">{error}</p>
         </div>
@@ -98,7 +98,7 @@ export function PortfolioPnLCard({
             <div className="mt-6 flex items-center gap-3">
               <div
                 className={cn(
-                  'inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold',
+                  'inline-flex items-center gap-3 rounded-full px-3 py-2 text-sm font-semibold',
                   pnlIsPositive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400',
                 )}
               >

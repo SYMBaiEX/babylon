@@ -85,7 +85,7 @@ export function CategoryPnLCard({
   return (
     <section
       className={cn(
-        'rounded-xl border bg-gradient-to-br p-4 sm:p-5 shadow-sm',
+        'rounded-2xl border bg-gradient-to-br px-4 py-3 sm:px-5 sm:py-4 shadow-sm',
         config.border,
         config.color,
       )}
@@ -98,7 +98,7 @@ export function CategoryPnLCard({
           <p className="text-xs text-muted-foreground">{formatRelativeTime(lastUpdated)}</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onRefresh}
@@ -112,7 +112,7 @@ export function CategoryPnLCard({
             type="button"
             onClick={onShare}
             disabled={loading || !data}
-            className="inline-flex items-center gap-2 rounded-lg bg-white/90 px-3 py-2 text-sm font-semibold text-[#0B1C3D] shadow transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center gap-3 rounded-lg bg-white/90 px-3 py-3 text-sm font-semibold text-[#0B1C3D] shadow transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Share2 className="h-4 w-4" />
             Share
@@ -130,7 +130,7 @@ export function CategoryPnLCard({
           </div>
         </div>
       ) : error ? (
-        <div className="mt-6 rounded-lg bg-white/10 p-4 text-sm text-white/80">
+        <div className="mt-6 rounded-lg bg-white/10 px-4 py-3 text-sm text-white/80">
           <p className="font-medium text-white">Unable to load P&amp;L</p>
           <p className="mt-1 text-white/80">{error}</p>
         </div>
@@ -140,7 +140,7 @@ export function CategoryPnLCard({
             <div className="mt-6 flex items-center gap-3">
               <div
                 className={cn(
-                  'inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold',
+                  'inline-flex items-center gap-3 rounded-full px-3 py-2 text-sm font-semibold',
                   pnlIsPositive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400',
                 )}
               >

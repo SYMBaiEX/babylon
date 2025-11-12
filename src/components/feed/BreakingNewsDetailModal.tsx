@@ -98,7 +98,7 @@ export function BreakingNewsDetailModal({ isOpen, onClose, item }: BreakingNewsD
           {/* Header */}
           <div className="flex items-start justify-between mb-6">
             <div className="flex items-start gap-4 flex-1">
-              <div className="text-[#0066FF] mt-1 flex-shrink-0">
+              <div className="text-[#0066FF] mt-1 shrink-0">
                 {getIcon(item.icon)}
               </div>
               <div className="flex-1 min-w-0">

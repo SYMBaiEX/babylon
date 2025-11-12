@@ -24,10 +24,16 @@ export async function generateTrendingSummary(
   category: string | null,
   recentPosts: string[]
 ): Promise<string> {
-  // Combine recent posts for context
-  const context = recentPosts.slice(0, 3).join(' | ')
-  
-  const prompt = `Generate a ONE SENTENCE summary for the trending topic "${tagDisplayName}" (Category: ${category || 'General'}).
+  try {
+    // Combine recent posts for context
+    const context = recentPosts.slice(0, 3).join(' | ')
+    
+    // If no context, return a generic summary
+    if (!context || context.trim().length === 0) {
+      return `Trending topic in ${category || 'general'} discussions`
+    }
+    
+    const prompt = `Generate a ONE SENTENCE summary for the trending topic "${tagDisplayName}" (Category: ${category || 'General'}).
 
 Recent posts about this topic:
 ${context}
@@ -46,52 +52,63 @@ Examples:
 
 One sentence summary:`
 
-  const response = await openai.chat.completions.create({
-    model: useGroq ? 'llama-3.3-70b-versatile' : 'gpt-4o-mini',
-    messages: [
-      {
-        role: 'system',
-        content: 'You are a trending topics summarization expert. Generate concise, engaging one-sentence summaries.',
-      },
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
-    temperature: 0.7,
-    max_tokens: 50,
-  })
+    const response = await openai.chat.completions.create({
+      model: useGroq ? 'llama-3.3-70b-versatile' : 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a trending topics summarization expert. Generate concise, engaging one-sentence summaries.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 50,
+    })
 
-  const summary = response.choices[0]?.message?.content?.trim()
-  
-  if (!summary) {
-    throw new Error('Empty summary from LLM');
+    const summary = response.choices[0]?.message?.content?.trim()
+    
+    if (!summary) {
+      // Fallback summary
+      return `Trending in ${category || 'general'} discussions`
+    }
+
+    // Clean up the summary
+    let cleanSummary = summary
+      .replace(/^["']|["']$/g, '') // Remove quotes
+      .replace(/\.$/, '') // Remove trailing period (we'll add it back)
+      .trim()
+    
+    // Ensure it ends with a period
+    if (!cleanSummary.endsWith('.') && !cleanSummary.endsWith('!') && !cleanSummary.endsWith('?')) {
+      cleanSummary += '.'
+    }
+
+    // Validate length (should be concise)
+    const wordCount = cleanSummary.split(' ').length
+    if (wordCount > 20) {
+      // If too long, truncate to first 12 words
+      cleanSummary = cleanSummary.split(' ').slice(0, 12).join(' ') + '...'
+    }
+
+    logger.debug('Generated trending summary', {
+      tag: tagDisplayName,
+      summary: cleanSummary,
+      wordCount,
+    }, 'TrendingSummaryService')
+
+    return cleanSummary
+  } catch (error) {
+    logger.warn('Failed to generate trending summary, using fallback', {
+      tag: tagDisplayName,
+      error: error instanceof Error ? error.message : String(error)
+    }, 'TrendingSummaryService')
+    
+    // Return a safe fallback
+    return `Trending topic in ${category || 'general'} discussions`
   }
-
-  // Clean up the summary
-  let cleanSummary = summary
-    .replace(/^["']|["']$/g, '') // Remove quotes
-    .replace(/\.$/, '') // Remove trailing period (we'll add it back)
-    .trim()
-  
-  // Ensure it ends with a period
-  if (!cleanSummary.endsWith('.') && !cleanSummary.endsWith('!') && !cleanSummary.endsWith('?')) {
-    cleanSummary += '.'
-  }
-
-  // Validate length (should be concise)
-  const wordCount = cleanSummary.split(' ').length
-  if (wordCount > 20) {
-    throw new Error('Summary too long');
-  }
-
-  logger.debug('Generated trending summary', {
-    tag: tagDisplayName,
-    summary: cleanSummary,
-    wordCount,
-  }, 'TrendingSummaryService')
-
-  return cleanSummary
 }
 
 /**

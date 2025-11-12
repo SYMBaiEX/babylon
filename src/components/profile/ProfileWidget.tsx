@@ -6,8 +6,7 @@ import { TrendingUp, TrendingDown, HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
 import { PositionDetailModal } from './PositionDetailModal'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
-import { ReputationCard } from '@/components/reputation/ReputationCard'
+import { Skeleton } from '@/components/shared/Skeleton'
 import type {
   UserBalanceData,
   PredictionPosition,
@@ -171,7 +170,11 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
     return (
       <div className="flex flex-col h-full overflow-y-auto w-full">
         <div className="flex items-center justify-center py-8">
-          <BouncingLogo size={24} />
+          <div className="space-y-3 w-full">
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </div>
         </div>
       </div>
     )
@@ -179,11 +182,6 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto w-full">
-      {/* Reputation Card */}
-      <div className="mb-6">
-        <ReputationCard userId={userId} />
-      </div>
-
       {/* Points Section */}
       <div className="mb-6">
         <h3 className="text-lg font-bold text-foreground mb-3">Points</h3>

@@ -164,8 +164,8 @@ export async function calculateTradeMetrics(positionId: string): Promise<TradeMe
     const position = await prisma.position.findUnique({
       where: { id: positionId },
       include: {
-        question: true,
-        user: {
+        Question: true,
+        User: {
           select: {
             virtualBalance: true,
             totalDeposited: true,
@@ -174,7 +174,7 @@ export async function calculateTradeMetrics(positionId: string): Promise<TradeMe
       },
     })
 
-    if (!position || !position.question) {
+    if (!position || !position.Question) {
       logger.warn('Position or question not found for trade metrics', { positionId }, 'TradeFeedback')
       return null
     }
@@ -197,8 +197,8 @@ export async function calculateTradeMetrics(positionId: string): Promise<TradeMe
     }
 
     // Market resolution date (use question's resolution date or current date)
-    const marketResolutionDate = position.question.resolutionDate
-      ? new Date(position.question.resolutionDate)
+    const marketResolutionDate = position.Question.resolutionDate
+      ? new Date(position.Question.resolutionDate)
       : new Date()
 
     // Calculate component scores
@@ -206,7 +206,7 @@ export async function calculateTradeMetrics(positionId: string): Promise<TradeMe
     const exitTimingScore = calculateExitTimingScore(tradePosition, marketResolutionDate)
 
     // User's total balance at trade time (approximate with current balance + PnL)
-    const userBalance = Number(position.user.virtualBalance) + Number(position.user.totalDeposited)
+    const userBalance = Number(position.User.virtualBalance) + Number(position.User.totalDeposited)
     const riskScore = calculateRiskScore(tradePosition, userBalance)
 
     // Combined timing score (weighted average of entry and exit)

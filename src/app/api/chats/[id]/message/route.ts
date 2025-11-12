@@ -15,6 +15,8 @@ import { broadcastChatMessage } from '@/lib/sse/event-broadcaster'
 import { logger } from '@/lib/logger'
 import { ChatMessageCreateSchema } from '@/lib/validation/schemas'
 import { trackServerEvent } from '@/lib/posthog/server'
+import { notifyDMMessage, notifyGroupChatMessage } from '@/lib/services/notification-service'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 /**
  * POST /api/chats/[id]/message
@@ -40,15 +42,8 @@ export const POST = withErrorHandling(async (
   let chat = await asUser(user, async (db) => {
     return await db.chat.findUnique({
       where: { id: chatId },
-      select: {
-        id: true,
-        isGroup: true,
-        gameId: true,
-        participants: {
-          select: {
-            userId: true,
-          },
-        },
+      include: {
+        ChatParticipant: true,
       },
     })
   })
@@ -88,21 +83,14 @@ export const POST = withErrorHandling(async (
       }
       
       // Create the chat
+      const now = new Date();
       await db.chat.create({
         data: {
           id: chatId,
           name: null,
           isGroup: false,
-        },
-        select: {
-          id: true,
-          isGroup: true,
-          gameId: true,
-          participants: {
-            select: {
-              userId: true,
-            },
-          },
+          createdAt: now,
+          updatedAt: now,
         },
       })
       
@@ -110,12 +98,14 @@ export const POST = withErrorHandling(async (
       await Promise.all([
         db.chatParticipant.create({
           data: {
+            id: generateSnowflakeId(),
             chatId,
             userId: user.userId,
           },
         }),
         db.chatParticipant.create({
           data: {
+            id: generateSnowflakeId(),
             chatId,
             userId: otherUserId,
           },
@@ -125,15 +115,8 @@ export const POST = withErrorHandling(async (
       // Reload to include participants
       return await db.chat.findUnique({
         where: { id: chatId },
-        select: {
-          id: true,
-          isGroup: true,
-          gameId: true,
-          participants: {
-            select: {
-              userId: true,
-            },
-          },
+        include: {
+          ChatParticipant: true,
         },
       })
     })
@@ -153,7 +136,7 @@ export const POST = withErrorHandling(async (
   if (!isGameChat) {
     // For DMs, check ChatParticipant
     if (isDMChat) {
-      isMember = chat.participants.some(p => p.userId === user.userId)
+      isMember = chat.ChatParticipant.some((p) => p.userId === user.userId)
       if (!isMember) {
         throw new AuthorizationError('You are not a participant in this DM', 'chat', 'write')
       }
@@ -210,9 +193,11 @@ export const POST = withErrorHandling(async (
       const result = await asUser(user, async (db) => {
         const msg = await db.message.create({
           data: {
+            id: generateSnowflakeId(),
             content: content.trim(),
             chatId,
             senderId: user.userId,
+            createdAt: new Date(),
           },
         });
 
@@ -249,6 +234,39 @@ export const POST = withErrorHandling(async (
       isGameChat,
       isDMChat,
     });
+
+    // 9.5. Send notifications to other participants
+    if (!isGameChat) {
+      if (isDMChat) {
+        // For DMs, notify the other participant
+        const otherParticipant = chat.ChatParticipant.find((p) => p.userId !== user.userId);
+        if (otherParticipant) {
+          await notifyDMMessage(
+            otherParticipant.userId,
+            user.userId,
+            chatId,
+            content.trim()
+          );
+        }
+      } else if (isGroupChat) {
+        // For group chats, notify all participants except sender
+        const recipientUserIds = chat.ChatParticipant.map((p) => p.userId);
+        const chatInfo = await asUser(user, async (db) => {
+          return await db.chat.findUnique({
+            where: { id: chatId },
+            select: { name: true },
+          });
+        });
+        
+        await notifyGroupChatMessage(
+          recipientUserIds,
+          user.userId,
+          chatId,
+          chatInfo?.name || 'Group Chat',
+          content.trim()
+        );
+      }
+    }
 
   // 10. Return success with feedback
   logger.info('Message sent successfully', { 

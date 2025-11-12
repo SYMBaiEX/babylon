@@ -9,6 +9,7 @@ import { Agent0Client } from '@/agents/agent0/Agent0Client'
 import type { AgentMetadata } from '@/agents/agent0/IPFSPublisher'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/database-service'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 export interface BabylonRegistrationResult {
   tokenId: number
@@ -473,6 +474,7 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
   await prisma.gameConfig.upsert({
     where: { key: 'agent0_registration' },
     create: {
+      id: generateSnowflakeId(),
       key: 'agent0_registration',
       value: {
         registered: true,
@@ -480,7 +482,8 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
         metadataCID,
         txHash: result.txHash,
         registeredAt: new Date().toISOString()
-      }
+      },
+      updatedAt: new Date()
     },
     update: {
       value: {

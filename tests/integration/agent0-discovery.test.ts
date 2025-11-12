@@ -18,42 +18,18 @@ describe('Agent0 Discovery Integration', () => {
     ipfsPublisher = new IPFSPublisher()
   })
   
-  test('IPFS Publisher can publish and fetch metadata', async () => {
+  test('IPFS Publisher deprecation notice', async () => {
+    // IPFSPublisher methods are now deprecated
+    // IPFS publishing is handled by Agent0Client.registerAgent()
     if (!ipfsPublisher.isAvailable()) {
-      console.log('⚠️  IPFS not available, skipping test')
+      console.log('⚠️  IPFS not available (expected - use Agent0Client instead)')
       return
     }
     
-    const testMetadata = {
-      name: 'Test Game',
-      description: 'Test game for discovery',
-      version: '1.0.0',
-      type: 'game-platform',
-      endpoints: {
-        a2a: 'wss://test.game/ws/a2a',
-        mcp: 'https://test.game/mcp',
-        api: 'https://test.game/api'
-      },
-      capabilities: {
-        markets: ['prediction'],
-        actions: ['query_markets', 'place_bet'],
-        protocols: ['a2a', 'rest'],
-        version: '1.0.0'
-      }
-    }
-    
-    try {
-      const cid = await ipfsPublisher.publishMetadata(testMetadata)
-      expect(cid).toBeTruthy()
-      expect(typeof cid).toBe('string')
-      
-      const fetched = await ipfsPublisher.fetchMetadata(cid)
-      expect(fetched.name).toBe(testMetadata.name)
-      expect(fetched.endpoints.a2a).toBe(testMetadata.endpoints.a2a)
-    } catch (error) {
-      console.log('⚠️  IPFS test failed (may need IPFS credentials):', error)
-      // Don't fail test if IPFS is not configured
-    }
+    // Verify the publisher exists but don't call deprecated methods
+    expect(ipfsPublisher).toBeDefined()
+    expect(typeof ipfsPublisher.isAvailable).toBe('function')
+    console.log('✓ IPFSPublisher exists (use Agent0Client.registerAgent() for actual publishing)')
   })
   
   test('GameDiscoveryService can discover games', async () => {

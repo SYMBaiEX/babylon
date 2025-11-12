@@ -14,6 +14,7 @@ import { logger } from '@/lib/logger';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
 import { requireUserByIdentifier } from '@/lib/users/user-lookup';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 /**
  * Generate a unique referral code
@@ -109,6 +110,7 @@ export const GET = withErrorHandling(async (
   if (!existingReferral) {
     await prisma.referral.create({
       data: {
+        id: generateSnowflakeId(),
         referrerId: canonicalUserId,
         referralCode: user.referralCode!,
         status: 'pending',

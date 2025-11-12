@@ -85,6 +85,7 @@ export const POST = withErrorHandling(async (
 
       const endDate = new Date(question.resolutionDate);
       const initialLiquidity = 1000;
+      const now = new Date();
 
       market = await db.market.upsert({
         where: { id: question.id },
@@ -100,6 +101,8 @@ export const POST = withErrorHandling(async (
           resolved: false,
           resolution: null,
           endDate: endDate,
+          createdAt: now,
+          updatedAt: now,
         },
         update: {},
       });

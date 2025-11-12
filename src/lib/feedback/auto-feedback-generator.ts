@@ -145,7 +145,7 @@ export class AutoFeedbackGenerator {
           status: 'resolved',
         },
         include: {
-          question: true,
+          Question: true,
         },
       })
 

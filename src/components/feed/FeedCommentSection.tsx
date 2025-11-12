@@ -3,13 +3,14 @@
 import { CommentCard } from '@/components/interactions/CommentCard';
 import { CommentInput } from '@/components/interactions/CommentInput';
 import { PostCard } from '@/components/posts/PostCard';
-import { BouncingLogo } from '@/components/shared/BouncingLogo';
+import { Skeleton } from '@/components/shared/Skeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { cn } from '@/lib/utils';
 import { useInteractionStore } from '@/stores/interactionStore';
 import type { CommentData, CommentWithReplies } from '@/types/interactions';
 import { MessageCircle, X } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 
 interface FeedCommentSectionProps {
   postId: string | null;
@@ -37,6 +38,7 @@ export function FeedCommentSection({
   onClose,
   onCommentAdded,
 }: FeedCommentSectionProps) {
+  const { user } = useAuth();
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
   const [post, setPost] = useState<{
     id: string;
@@ -209,18 +211,28 @@ export function FeedCommentSection({
     await loadCommentsData();
   };
 
-  const sortedComments = [...comments].sort((a, b) => {
-    switch (sortBy) {
-      case 'newest':
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      case 'oldest':
-        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-      case 'popular':
-        return b.likeCount - a.likeCount;
-      default:
-        return 0;
-    }
-  });
+  const sortedComments = useMemo(() => {
+    return [...comments].sort((a, b) => {
+      // Always prioritize current user's comments at the top
+      const aIsCurrentUser = user && a.userId === user.id;
+      const bIsCurrentUser = user && b.userId === user.id;
+      
+      if (aIsCurrentUser && !bIsCurrentUser) return -1;
+      if (!aIsCurrentUser && bIsCurrentUser) return 1;
+      
+      // For non-user comments (or both are user comments), apply the selected sort
+      switch (sortBy) {
+        case 'newest':
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case 'oldest':
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        case 'popular':
+          return b.likeCount - a.likeCount;
+        default:
+          return 0;
+      }
+    });
+  }, [comments, user, sortBy]);
 
   if (!postId) {
     return null;
@@ -229,8 +241,10 @@ export function FeedCommentSection({
   if (isLoadingPost) {
     return (
       <div className="flex flex-col h-full w-full overflow-hidden bg-background items-center justify-center">
-        <BouncingLogo size={32} />
-        <p className="text-sm text-muted-foreground mt-4">Loading post...</p>
+        <div className="space-y-3 w-full max-w-md p-4">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-4 w-3/4" />
+        </div>
       </div>
     );
   }
@@ -264,7 +278,7 @@ export function FeedCommentSection({
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-border flex-shrink-0">
+            <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-border shrink-0">
               <button
                 type="button"
                 onClick={onClose}
@@ -339,7 +353,7 @@ export function FeedCommentSection({
         <div className="flex flex-col w-full overflow-hidden bg-background relative">
           {/* Sort options */}
           {comments.length > 1 && (
-            <div className="flex items-center gap-2 px-4 py-2 bg-background flex-shrink-0">
+            <div className="flex items-center gap-2 px-4 py-2 bg-background shrink-0">
               <span className="text-xs text-muted-foreground">Sort:</span>
               <div className="flex gap-1">
                 {(['newest', 'oldest', 'popular'] as const).map((option) => (
@@ -362,7 +376,7 @@ export function FeedCommentSection({
           )}
 
           {/* Comment input */}
-          <div className="px-4 py-3 bg-background flex-shrink-0">
+          <div className="px-4 py-3 bg-background shrink-0">
             <CommentInput
               postId={postId}
               placeholder="Post your reply..."
@@ -401,7 +415,10 @@ export function FeedCommentSection({
           <div className="flex-1 overflow-y-auto px-4 py-3">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
-                <BouncingLogo size={24} />
+                <div className="space-y-3 w-full">
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-20 w-full" />
+                </div>
               </div>
             ) : sortedComments.length === 0 ? (
               <EmptyState

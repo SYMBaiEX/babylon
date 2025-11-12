@@ -75,6 +75,7 @@ class CachedDatabaseService {
         const posts = await db.prisma.post.findMany({
           where: {
             authorId: { in: followedIds },
+            deletedAt: null, // Filter out deleted posts
           },
           orderBy: {
             timestamp: 'desc',
@@ -142,6 +143,64 @@ class CachedDatabaseService {
       {
         namespace: CACHE_KEYS.USER_BALANCE,
         ttl: DEFAULT_TTLS.USER_BALANCE,
+      }
+    );
+  }
+
+  /**
+   * Get user profile stats with caching (followers, following, posts)
+   */
+  async getUserProfileStats(userId: string) {
+    const cacheKey = userId;
+    
+    return getCacheOrFetch(
+      cacheKey,
+      async () => {
+        const user = await db.prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            id: true,
+            _count: {
+              select: {
+                Follow_Follow_followingIdToUser: true, // users following this user (followers)
+                Follow_Follow_followerIdToUser: true, // users this user follows (following)
+                UserActorFollow: true,
+                Position: true,
+                Comment: true,
+                Reaction: true,
+              },
+            },
+          },
+        });
+
+        if (!user) return null;
+
+        // Also count legacy actor follows
+        const legacyActorFollowCount = await db.prisma.followStatus.count({
+          where: {
+            userId,
+            isActive: true,
+            followReason: 'user_followed',
+          },
+        });
+
+        // Count posts
+        const postCount = await db.prisma.post.count({
+          where: { authorId: userId },
+        });
+
+        return {
+          followers: user._count.Follow_Follow_followingIdToUser,
+          following: user._count.Follow_Follow_followerIdToUser + user._count.UserActorFollow + legacyActorFollowCount,
+          positions: user._count.Position,
+          comments: user._count.Comment,
+          reactions: user._count.Reaction,
+          posts: postCount,
+        };
+      },
+      {
+        namespace: 'user:profile:stats',
+        ttl: 60, // Cache for 1 minute
       }
     );
   }
@@ -223,7 +282,7 @@ class CachedDatabaseService {
       () => db.prisma.pool.findMany({
         where: { isActive: true },
         include: {
-          npcActor: {
+          Actor: {
             select: {
               id: true,
               name: true,
@@ -232,7 +291,7 @@ class CachedDatabaseService {
               personality: true,
             },
           },
-          deposits: {
+          PoolDeposit: {
             where: {
               withdrawnAt: null,
             },
@@ -241,7 +300,7 @@ class CachedDatabaseService {
               currentValue: true,
             },
           },
-          positions: {
+          PoolPosition: {
             where: {
               closedAt: null,
             },
@@ -256,12 +315,12 @@ class CachedDatabaseService {
           },
           _count: {
             select: {
-              deposits: {
+              PoolDeposit: {
                 where: {
                   withdrawnAt: null,
                 },
               },
-              trades: true,
+              NPCTrade: true,
             },
           },
         },
@@ -286,7 +345,7 @@ class CachedDatabaseService {
         take: limit,
         orderBy: { rank: 'asc' },
         include: {
-          tag: true,
+          Tag: true,
         },
       }),
       {
@@ -323,7 +382,9 @@ class CachedDatabaseService {
     await Promise.all([
       invalidateCache(userId, { namespace: CACHE_KEYS.USER }),
       invalidateCache(userId, { namespace: CACHE_KEYS.USER_BALANCE }),
+      invalidateCache(userId, { namespace: 'user:profile:stats' }),
       invalidateCachePattern(`${userId}:*`, { namespace: CACHE_KEYS.POSTS_FOLLOWING }),
+      invalidateCachePattern('*', { namespace: 'user:follows' }), // Invalidate follows cache
     ]);
   }
 

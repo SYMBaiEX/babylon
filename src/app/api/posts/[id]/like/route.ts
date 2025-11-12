@@ -3,17 +3,18 @@
  * Methods: POST (like), DELETE (unlike)
  */
 
-import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
 import { authenticate } from '@/lib/api/auth-middleware';
-import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { prisma } from '@/lib/database-service';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
-import { PostIdParamSchema } from '@/lib/validation/schemas';
-import { notifyReactionOnPost } from '@/lib/services/notification-service';
+import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
-import { ensureUserForAuth } from '@/lib/users/ensure-user';
 import { trackServerEvent } from '@/lib/posthog/server';
+import { notifyReactionOnPost } from '@/lib/services/notification-service';
+import { generateSnowflakeId } from '@/lib/snowflake';
+import { ensureUserForAuth } from '@/lib/users/ensure-user';
+import { PostIdParamSchema } from '@/lib/validation/schemas';
+import type { NextRequest } from 'next/server';
 
 /**
  * POST /api/posts/[id]/like
@@ -37,7 +38,6 @@ export const POST = withErrorHandling(async (
     // Check if post exists first
     let post = await prisma.post.findUnique({
       where: { id: postId },
-      select: { id: true, authorId: true },
     });
 
     if (!post) {
@@ -53,6 +53,26 @@ export const POST = withErrorHandling(async (
           timestamp,
         },
       });
+    }
+
+    // Check if post is deleted - allow likes to be removed but not added
+    if (post.deletedAt) {
+      // Allow unlike but not like
+      const existingReaction = await prisma.reaction.findUnique({
+        where: {
+          postId_userId_type: {
+            postId,
+            userId: canonicalUserId,
+            type: 'like',
+          },
+        },
+      });
+      
+      if (!existingReaction) {
+        // Trying to add a new like to deleted post - reject
+        throw new BusinessLogicError('Cannot like deleted post', 'POST_DELETED');
+      }
+      // If reaction exists, allow the unlike action to proceed
     }
 
     // Check if already liked
@@ -73,6 +93,7 @@ export const POST = withErrorHandling(async (
     // Create like reaction
     await prisma.reaction.create({
       data: {
+        id: generateSnowflakeId(),
         postId,
         userId: canonicalUserId,
         type: 'like',

@@ -3,7 +3,7 @@
 import { PostCard } from '@/components/posts/PostCard'
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal'
 import { OnChainBadge } from '@/components/profile/OnChainBadge'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { Skeleton } from '@/components/shared/Skeleton'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { TaggedText } from '@/components/shared/TaggedText'
 import { useAuth } from '@/hooks/useAuth'
@@ -11,7 +11,6 @@ import { useUpdateAgentProfileTx } from '@/hooks/useUpdateAgentProfileTx'
 import { cn } from '@/lib/utils'
 import { WALLET_ERROR_MESSAGES } from '@/lib/wallet-utils'
 import { useAuthStore } from '@/stores/authStore'
-import { ReputationCard } from '@/components/reputation/ReputationCard'
 import {
   AlertCircle,
   Calendar,
@@ -22,7 +21,6 @@ import {
   EyeOff,
   Trophy,
   User,
-  Wallet,
   X as XIcon
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -67,6 +65,7 @@ export default function ProfilePage() {
   
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [optimisticFollowingCount, setOptimisticFollowingCount] = useState<number | null>(null)
   const [editModal, setEditModal] = useState<EditModalState>({
     isOpen: false,
     formData: {
@@ -201,6 +200,35 @@ export default function ProfilePage() {
 
     loadContent()
   }, [user?.id, tab])
+  
+  // Listen for profile updates (when user follows/unfollows someone)
+  useEffect(() => {
+    const handleProfileUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent
+      const { type } = customEvent.detail || {}
+      
+      if (type === 'follow' || type === 'unfollow') {
+        // Update following count optimistically based on current displayed value
+        const delta = type === 'follow' ? 1 : -1
+        setOptimisticFollowingCount(prev => {
+          const currentCount = prev !== null ? prev : (user?.stats?.following || 0)
+          return Math.max(0, currentCount + delta) // Never go negative
+        })
+        
+        // Refetch user profile after a delay to get server values
+        setTimeout(() => {
+          setOptimisticFollowingCount(null)
+          // Force auth store to refetch user data
+          if (typeof window !== 'undefined') {
+            window.location.reload()
+          }
+        }, 2000)
+      }
+    }
+    
+    window.addEventListener('profile-updated', handleProfileUpdate)
+    return () => window.removeEventListener('profile-updated', handleProfileUpdate)
+  }, [user?.stats?.following])
 
   const openEditModal = () => {
     setEditModal({
@@ -477,13 +505,17 @@ export default function ProfilePage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <BouncingLogo size={48} />
+            <div className="space-y-4 w-full max-w-2xl">
+              <Skeleton className="h-48 w-full" />
+              <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
           </div>
         ) : authenticated && user ? (
           <>
             {/* Profile Header - Style */}
             <div className="border-b border-border">
-              <div className="max-w-[600px] mx-auto">
+              <div className="max-w-feed mx-auto">
                 {/* Cover Image */}
                 <div className="relative h-32 sm:h-48 bg-gradient-to-br from-primary/20 to-primary/5">
                   {formData.coverImageUrl ? (
@@ -499,7 +531,7 @@ export default function ProfilePage() {
                 <div className="px-4 pb-4">
                   {/* Profile Picture & Edit Button Row */}
                   <div className="flex items-start justify-between gap-3 -mt-12 sm:-mt-16 mb-4">
-                    <div className="relative flex-shrink-0">
+                    <div className="relative shrink-0">
                       {formData.profileImageUrl ? (
                         <img
                           src={formData.profileImageUrl}
@@ -613,32 +645,6 @@ export default function ProfilePage() {
                         </button>
                       </div>
                     )}
-
-                    {/* Wallet */}
-                    {user.walletAddress && (
-                      <div className="flex items-center justify-between group">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Wallet className="w-4 h-4" />
-                          <span className="font-mono text-xs">
-                            {socialVisibility.wallet 
-                              ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
-                              : '••••••••••••'
-                            }
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => toggleSocialVisibility('wallet')}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-muted rounded"
-                          title={socialVisibility.wallet ? 'Public' : 'Private'}
-                        >
-                          {socialVisibility.wallet ? (
-                            <Eye className="w-4 h-4 text-muted-foreground" />
-                          ) : (
-                            <EyeOff className="w-4 h-4 text-muted-foreground" />
-                          )}
-                        </button>
-                      </div>
-                    )}
                   </div>
 
                    {/* Metadata - Twitter Style */}
@@ -660,7 +666,9 @@ export default function ProfilePage() {
                   {/* Stats - Twitter Style */}
                   <div className="flex gap-4 text-sm mb-4">
                     <button className="hover:underline">
-                      <span className="font-bold text-foreground">{user.stats?.following || 0}</span>
+                      <span className="font-bold text-foreground">
+                        {optimisticFollowingCount !== null ? optimisticFollowingCount : (user.stats?.following || 0)}
+                      </span>
                       <span className="text-muted-foreground ml-1">Following</span>
                     </button>
                     <button className="hover:underline">
@@ -672,16 +680,9 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Reputation Card */}
-            {user && (
-              <div className="max-w-[600px] mx-auto px-4 py-6">
-                <ReputationCard userId={user.id} />
-              </div>
-            )}
-
             {/* Tabs: Posts vs Replies */}
             <div className="border-b border-border sticky top-0 bg-background/95 backdrop-blur-sm z-10">
-              <div className="max-w-[600px] mx-auto">
+              <div className="max-w-feed mx-auto">
                 <div className="flex">
                   <button
                     onClick={() => setTab('posts')}
@@ -706,10 +707,14 @@ export default function ProfilePage() {
             </div>
 
             {/* Posts/Replies section */}
-            <div className="max-w-[600px] mx-auto">
+            <div className="max-w-feed mx-auto">
               {loadingPosts ? (
                 <div className="flex items-center justify-center py-12">
-                  <BouncingLogo size={32} />
+                  <div className="space-y-3 w-full max-w-2xl">
+                    <Skeleton className="h-32 w-full" />
+                    <Skeleton className="h-32 w-full" />
+                    <Skeleton className="h-32 w-full" />
+                  </div>
                 </div>
               ) : tab === 'posts' ? (
                 posts.length === 0 ? (
@@ -815,7 +820,7 @@ export default function ProfilePage() {
 
             {/* Edit Profile Modal */}
             {editModal.isOpen && (
-              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-0 md:p-4">
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-0 md:px-4 md:py-3">
                 <div className="bg-background w-full h-full md:h-auto md:max-w-2xl md:rounded-xl md:max-h-[90vh] border-0 md:border md:border-border flex flex-col">
                   {/* Header */}
                   <div className="sticky top-0 bg-background border-b border-border px-4 py-3 flex items-center justify-between z-10">
@@ -823,7 +828,7 @@ export default function ProfilePage() {
                       <button
                         onClick={closeEditModal}
                         disabled={editModal.isSaving}
-                        className="p-2 hover:bg-muted active:bg-muted rounded-full transition-colors disabled:opacity-50 flex-shrink-0"
+                        className="p-2 hover:bg-muted active:bg-muted rounded-full transition-colors disabled:opacity-50 shrink-0"
                         aria-label="Close"
                       >
                         <XIcon className="w-5 h-5" />
@@ -833,7 +838,7 @@ export default function ProfilePage() {
                     <button
                       onClick={saveProfile}
                       disabled={editModal.isSaving}
-                      className="px-4 sm:px-6 py-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/90 disabled:opacity-50 font-semibold text-sm flex-shrink-0 min-h-[44px]"
+                      className="px-4 sm:px-6 py-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/90 disabled:opacity-50 font-semibold text-sm shrink-0 min-h-[44px]"
                     >
                       {editModal.isSaving ? 'Saving...' : 'Save'}
                     </button>
@@ -871,7 +876,7 @@ export default function ProfilePage() {
                           className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-black/60 hover:bg-black/80 active:bg-black/80 rounded-full text-white transition-colors disabled:opacity-50 min-h-[44px]"
                           aria-label="Change cover photo"
                         >
-                          <Camera className="w-4 h-4 flex-shrink-0" />
+                          <Camera className="w-4 h-4 shrink-0" />
                           <span className="text-xs sm:text-sm font-medium">
                             {editModal.coverImage.preview || editModal.formData.coverImageUrl ? 'Change' : 'Add'} cover
                           </span>
@@ -932,7 +937,7 @@ export default function ProfilePage() {
                       {/* Error Message */}
                       {editModal.error && (
                         <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400">
-                          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                          <AlertCircle className="w-4 h-4 shrink-0" />
                           <span className="text-sm">{editModal.error}</span>
                         </div>
                       )}
@@ -951,7 +956,7 @@ export default function ProfilePage() {
                             formData: { ...prev.formData, displayName: e.target.value }
                           }))}
                           placeholder="Your name"
-                          className="w-full bg-muted/50 border border-border rounded-lg px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent min-h-[44px] text-base"
+                          className="w-full bg-muted/50 border border-border rounded-lg px-4 py-3 text-foreground focus:outline-none focus:border-border min-h-[44px] text-base"
                           disabled={editModal.isSaving}
                         />
                       </div>
@@ -963,7 +968,7 @@ export default function ProfilePage() {
                         </label>
                         {usernameChangeLimit && !usernameChangeLimit.canChange && (
                           <div className="mb-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-start gap-2">
-                            <AlertCircle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
+                            <AlertCircle className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
                             <div className="flex-1 min-w-0">
                               <p className="text-xs sm:text-sm text-yellow-500 font-medium">
                                 Username can only be changed once every 24 hours
@@ -974,8 +979,8 @@ export default function ProfilePage() {
                             </div>
                           </div>
                         )}
-                        <div className="flex items-center gap-2 bg-muted/50 border border-border rounded-lg px-4 py-3 focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent min-h-[44px]">
-                          <span className="text-muted-foreground flex-shrink-0">@</span>
+                        <div className="flex items-center gap-2 bg-muted/50 border border-border rounded-lg px-4 py-3 focus-within:border-border min-h-[44px]">
+                          <span className="text-muted-foreground shrink-0">@</span>
                           <input
                             id="username"
                             type="text"
@@ -1006,7 +1011,7 @@ export default function ProfilePage() {
                           placeholder="Tell us about yourself..."
                           rows={4}
                           maxLength={160}
-                          className="w-full bg-muted/50 border border-border rounded-lg px-4 py-3 text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-base"
+                          className="w-full bg-muted/50 border border-border rounded-lg px-4 py-3 text-foreground resize-none focus:outline-none focus:border-border text-base"
                           disabled={editModal.isSaving}
                         />
                         <div className="flex justify-end mt-1">
@@ -1022,7 +1027,7 @@ export default function ProfilePage() {
             )}
           </>
         ) : (
-          <div className="max-w-[600px] mx-auto p-4">
+          <div className="max-w-feed mx-auto px-4 py-3">
             <div className="text-center text-muted-foreground py-12">
               <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p>Please log in to view your profile.</p>

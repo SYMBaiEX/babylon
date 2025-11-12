@@ -18,7 +18,8 @@ import sqlPlugin from '@elizaos/plugin-sql/node';
 import { predictionMarketsPlugin } from '../../../plugin-babylon/src';
 import * as fs from 'fs';
 import * as path from 'path';
-import type { JsonValue } from '@/types/common';
+import type { JsonValue } from '@prisma/client/runtime/library';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 interface CLIOptions {
   character?: string;
@@ -248,8 +249,8 @@ async function main() {
   logger.info('Character configured with plugins and settings');
 
   // Generate agent ID from character name for stability across restarts
-  // Falls back to random UUID if no character name
-  const agentId = stringToUuid(character.name || crypto.randomUUID());
+  // Falls back to snowflake ID if no character name
+  const agentId = stringToUuid(character.name || generateSnowflakeId());
 
   // Create agent runtime
   // Latest ElizaOS: AgentRuntime automatically reads API keys from environment variables

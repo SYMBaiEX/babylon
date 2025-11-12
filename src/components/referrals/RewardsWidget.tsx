@@ -5,7 +5,7 @@ import { Award, Users, TrendingUp, UserPlus, ArrowRight } from 'lucide-react'
 import { Avatar } from '@/components/shared/Avatar'
 import Link from 'next/link'
 import { getProfileUrl } from '@/lib/profile-utils'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { Skeleton } from '@/components/shared/Skeleton'
 
 interface ReferredUser {
   id: string
@@ -119,13 +119,16 @@ export function RewardsWidget({ userId }: RewardsWidgetProps) {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-4 p-4 bg-sidebar-accent/30 rounded-lg border border-border">
+      <div className="flex flex-col gap-4 p-4 bg-sidebar-accent/30 rounded-2xl border border-border">
         <div className="flex items-center gap-2">
           <Award className="w-5 h-5 text-[#0066FF]" />
           <h3 className="font-semibold text-foreground">Rewards</h3>
         </div>
         <div className="flex items-center justify-center py-8">
-          <BouncingLogo size={24} />
+          <div className="space-y-3 w-full">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
         </div>
       </div>
     )
@@ -133,7 +136,7 @@ export function RewardsWidget({ userId }: RewardsWidgetProps) {
 
   if (!data) {
     return (
-      <div className="flex flex-col gap-4 p-4 bg-sidebar-accent/30 rounded-lg border border-border">
+      <div className="flex flex-col gap-4 p-4 bg-sidebar-accent/30 rounded-2xl border border-border">
         <div className="flex items-center gap-2">
           <Award className="w-5 h-5 text-[#0066FF]" />
           <h3 className="font-semibold text-foreground">Rewards</h3>
@@ -149,7 +152,7 @@ export function RewardsWidget({ userId }: RewardsWidgetProps) {
   return (
     <div className="flex flex-col gap-4">
       {/* Stats Summary */}
-      <div className="flex flex-col gap-3 p-4 bg-sidebar-accent/30 rounded-lg border border-border">
+      <div className="flex flex-col gap-3 p-4 bg-sidebar-accent/30 rounded-2xl border border-border">
         <div className="flex items-center gap-2">
           <Award className="w-5 h-5 text-[#0066FF]" />
           <h3 className="font-semibold text-foreground">Rewards</h3>
@@ -186,7 +189,7 @@ export function RewardsWidget({ userId }: RewardsWidgetProps) {
       </div>
 
       {/* Recent Referrals */}
-      <div className="flex flex-col gap-3 p-4 bg-sidebar-accent/30 rounded-lg border border-border">
+      <div className="flex flex-col gap-3 p-4 bg-sidebar-accent/30 rounded-2xl border border-border">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-foreground text-sm">Recent Referrals</h3>
           {data.stats.totalReferrals > 5 && (
@@ -231,7 +234,7 @@ export function RewardsWidget({ userId }: RewardsWidgetProps) {
                     </p>
                   )}
                 </div>
-                <div className="flex-shrink-0 flex items-center gap-1">
+                <div className="shrink-0 flex items-center gap-1">
                   <span className="text-xs font-semibold text-yellow-500">+250</span>
                   {referredUser.isFollowing && (
                     <UserPlus className="w-3 h-3 text-[#0066FF]" />

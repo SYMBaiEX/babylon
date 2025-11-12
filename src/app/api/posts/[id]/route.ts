@@ -1,9 +1,9 @@
 /**
  * API Route: /api/posts/[id]
- * Methods: GET (get single post details)
+ * Methods: GET (get single post details), DELETE (soft delete post)
  */
 
-import { optionalAuth } from '@/lib/api/auth-middleware';
+import { optionalAuth, authenticate } from '@/lib/api/auth-middleware';
 import { asUser, asPublic } from '@/lib/db/context';
 import { BusinessLogicError } from '@/lib/errors';
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
@@ -34,16 +34,16 @@ export const GET = withErrorHandling(async (
       include: {
         _count: {
           select: {
-            reactions: {
+            Reaction: {
               where: {
                 type: 'like',
               },
             },
-            comments: true,
-            shares: true,
+            Comment: true,
+            Share: true,
           },
         },
-        reactions: user
+        Reaction: user
           ? {
               where: {
                 userId: user.userId,
@@ -62,7 +62,7 @@ export const GET = withErrorHandling(async (
                 id: true,
               },
             },
-        shares: user
+        Share: user
           ? {
               where: {
                 userId: user.userId,
@@ -89,17 +89,17 @@ export const GET = withErrorHandling(async (
       include: {
         _count: {
           select: {
-            reactions: {
+            Reaction: {
               where: {
                 type: 'like',
               },
             },
-            comments: true,
-            shares: true,
+            Comment: true,
+            Share: true,
           },
         },
         // Empty arrays for unauthenticated users
-        reactions: {
+        Reaction: {
           where: {
             userId: 'never-match', // Won't match any user
             type: 'like',
@@ -108,7 +108,7 @@ export const GET = withErrorHandling(async (
             id: true,
           },
         },
-        shares: {
+        Share: {
           where: {
             userId: 'never-match', // Won't match any user
           },
@@ -277,16 +277,16 @@ export const GET = withErrorHandling(async (
               include: {
                 _count: {
                   select: {
-                    reactions: {
+                    Reaction: {
                       where: {
                         type: 'like',
                       },
                     },
-                    comments: true,
-                    shares: true,
+                    Comment: true,
+                    Share: true,
                   },
                 },
-                reactions: {
+                Reaction: {
                   where: {
                     userId: user.userId,
                     type: 'like',
@@ -295,7 +295,7 @@ export const GET = withErrorHandling(async (
                     id: true,
                   },
                 },
-                shares: {
+                Share: {
                   where: {
                     userId: user.userId,
                   },
@@ -320,16 +320,16 @@ export const GET = withErrorHandling(async (
               include: {
                 _count: {
                   select: {
-                    reactions: {
+                    Reaction: {
                       where: {
                         type: 'like',
                       },
                     },
-                    comments: true,
-                    shares: true,
+                    Comment: true,
+                    Share: true,
                   },
                 },
-                reactions: {
+                Reaction: {
                   where: {
                     userId: 'never-match',
                     type: 'like',
@@ -338,7 +338,7 @@ export const GET = withErrorHandling(async (
                     id: true,
                   },
                 },
-                shares: {
+                Share: {
                   where: {
                     userId: 'never-match',
                   },
@@ -353,6 +353,11 @@ export const GET = withErrorHandling(async (
 
     if (!post) {
       throw new BusinessLogicError('Post not found', 'POST_NOT_FOUND');
+    }
+
+    // Check if post is deleted
+    if (post.deletedAt) {
+      throw new BusinessLogicError('This post has been deleted', 'POST_DELETED');
     }
 
     // Get author info - public data, doesn't require user authentication
@@ -396,8 +401,8 @@ export const GET = withErrorHandling(async (
 
     // Return database post
     // Safely check reactions and shares - Prisma may return undefined even when included
-    const reactionsArray = post.reactions && Array.isArray(post.reactions) ? post.reactions : [];
-    const sharesArray = post.shares && Array.isArray(post.shares) ? post.shares : [];
+    const reactionsArray = post.Reaction && Array.isArray(post.Reaction) ? post.Reaction : [];
+    const sharesArray = post.Share && Array.isArray(post.Share) ? post.Share : [];
 
     logger.info('Post fetched successfully', { postId, source: 'database' }, 'GET /api/posts/[id]');
 
@@ -421,13 +426,64 @@ export const GET = withErrorHandling(async (
         isActorPost: true, // Posts are from game actors
         timestamp: post.timestamp ? post.timestamp.toISOString() : post.createdAt.toISOString(),
         createdAt: post.createdAt.toISOString(),
-        likeCount: post._count?.reactions ?? 0,
-        commentCount: post._count?.comments ?? 0,
-        shareCount: post._count?.shares ?? 0,
+        likeCount: post._count?.Reaction ?? 0,
+        commentCount: post._count?.Comment ?? 0,
+        shareCount: post._count?.Share ?? 0,
         isLiked: reactionsArray.length > 0,
         isShared: sharesArray.length > 0,
         source: 'database',
       },
     });
+});
+
+/**
+ * DELETE /api/posts/[id]
+ * Soft delete a post (mark as deleted)
+ */
+export const DELETE = withErrorHandling(async (
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) => {
+  const { id: postId } = PostIdParamSchema.parse(await context.params);
+  
+  // Require authentication (throws error if not authenticated)
+  const user = await authenticate(request);
+  
+  // Get the post to check ownership
+  const post = await asUser(user, async (db) => {
+    return await db.post.findUnique({
+      where: { id: postId },
+      select: { id: true, authorId: true, deletedAt: true },
+    });
+  });
+  
+  if (!post) {
+    throw new BusinessLogicError('Post not found', 'POST_NOT_FOUND');
+  }
+  
+  // Check if post is already deleted
+  if (post.deletedAt) {
+    throw new BusinessLogicError('Post already deleted', 'POST_ALREADY_DELETED');
+  }
+  
+  // Check if user is the author of the post
+  if (post.authorId !== user.userId) {
+    throw new BusinessLogicError('Unauthorized to delete this post', 'UNAUTHORIZED');
+  }
+  
+  // Soft delete the post by setting deletedAt timestamp
+  await asUser(user, async (db) => {
+    await db.post.update({
+      where: { id: postId },
+      data: { deletedAt: new Date() },
+    });
+  });
+  
+  logger.info('Post soft deleted', { postId, userId: user.userId }, 'DELETE /api/posts/[id]');
+  
+  return successResponse({
+    message: 'Post deleted successfully',
+    data: { id: postId, deletedAt: new Date().toISOString() },
+  });
 });
 

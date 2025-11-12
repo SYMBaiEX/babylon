@@ -187,7 +187,7 @@ export function useAuth(): UseAuthReturn {
             showTwitterPublic: me.user.showTwitterPublic ?? undefined,
             showFarcasterPublic: me.user.showFarcasterPublic ?? undefined,
             showWalletPublic: me.user.showWalletPublic ?? undefined,
-            stats: undefined,
+            stats: me.user.stats ?? undefined,
             nftTokenId: me.user.nftTokenId ?? undefined,
             createdAt: me.user.createdAt,
             onChainRegistered: me.user.onChainRegistered ?? undefined,

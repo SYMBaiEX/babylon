@@ -311,6 +311,15 @@ export interface RepostButtonProps {
   size?: 'sm' | 'md' | 'lg';
   showCount?: boolean;
   className?: string;
+  postData?: {
+    id: string;
+    content: string;
+    authorId: string;
+    authorName: string;
+    authorUsername?: string | null;
+    authorProfileImageUrl?: string | null;
+    timestamp: string;
+  };
 }
 
 export interface FavoriteButtonProps {

@@ -19,7 +19,7 @@ import type { ProfileInfo } from '@/types/profiles'
 import { ArrowLeft, MessageCircle, Search } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 
 export default function ActorProfilePage() {
   const params = useParams()
@@ -31,6 +31,7 @@ export default function ActorProfilePage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [tab, setTab] = useState<'posts' | 'replies'>('posts')
   const { allGames } = useGameStore();
+  const [optimisticFollowerCount, setOptimisticFollowerCount] = useState<number | null>(null)
   
   // Check if viewing own profile - compare with both actorId and identifier (for ID-based URLs)
   const isOwnProfile = authenticated && user && (
@@ -64,7 +65,7 @@ export default function ActorProfilePage() {
 
   // Enable error toast notifications
   useErrorToasts()
-
+  
   // Load actor/user info
   const [actorInfo, setActorInfo] = useState<ProfileInfo | null>(null)
   const [loading, setLoading] = useState(true)
@@ -109,9 +110,8 @@ export default function ActorProfilePage() {
     }
   }
 
-  useEffect(() => {
-    const loadActorInfo = async () => {
-      setLoading(true)
+  const loadActorInfo = useCallback(async () => {
+    setLoading(true)
       
       // If it's a username (starts with @) or looks like a username, try to find user by username
       if (isUsernameParam || (!actorId.startsWith('did:privy:') && actorId.length <= 42 && !actorId.includes('-'))) {
@@ -309,10 +309,38 @@ export default function ActorProfilePage() {
       // Not found
       setActorInfo(null)
       setLoading(false)
+  }, [actorId, allGames, authenticated, currentUserId, identifier, isOwnProfile, isUsernameParam, router])
+
+  useEffect(() => {
+    loadActorInfo()
+  }, [loadActorInfo])
+  
+  // Listen for profile updates (when user follows/unfollows someone)
+  useEffect(() => {
+    const handleProfileUpdate = () => {
+      // Reset optimistic count to trigger refetch from server
+      setTimeout(() => {
+        setOptimisticFollowerCount(null)
+        // Refetch actor info to get updated counts
+        loadActorInfo()
+      }, 1000) // Small delay to allow backend cache invalidation
     }
     
-    loadActorInfo()
-  }, [actorId, allGames, authenticated, currentUserId, identifier, isOwnProfile, isUsernameParam, router])
+    window.addEventListener('profile-updated', handleProfileUpdate)
+    return () => window.removeEventListener('profile-updated', handleProfileUpdate)
+  }, [loadActorInfo])
+  
+  // Reset optimistic count when actorInfo changes (server data arrived)
+  useEffect(() => {
+    if (actorInfo && optimisticFollowerCount !== null) {
+      // Wait a bit then reset to use server value
+      const timer = setTimeout(() => {
+        setOptimisticFollowerCount(null)
+      }, 2000)
+      return () => clearTimeout(timer)
+    }
+    return undefined
+  }, [actorInfo, optimisticFollowerCount])
 
   useEffect(() => {
     const loadPosts = async () => {
@@ -598,6 +626,13 @@ export default function ActorProfilePage() {
                       userId={actorInfo.id}
                       size="md"
                       variant="button"
+                      onFollowerCountChange={(delta) => {
+                        // Optimistically update the follower count based on current displayed value
+                        setOptimisticFollowerCount(prev => {
+                          const currentCount = prev !== null ? prev : (actorInfo.stats?.followers || 0)
+                          return Math.max(0, currentCount + delta) // Never go negative
+                        })
+                      }}
                     />
                   </>
                 )}
@@ -646,7 +681,9 @@ export default function ActorProfilePage() {
                 <span className="text-muted-foreground ml-1">Following</span>
               </Link>
               <Link href="#" className="hover:underline">
-                <span className="font-bold text-foreground">{actorInfo.stats?.followers || 0}</span>
+                <span className="font-bold text-foreground">
+                  {optimisticFollowerCount !== null ? optimisticFollowerCount : (actorInfo.stats?.followers || 0)}
+                </span>
                 <span className="text-muted-foreground ml-1">Followers</span>
               </Link>
             </div>
@@ -847,6 +884,13 @@ export default function ActorProfilePage() {
                         userId={actorInfo.id}
                         size="md"
                         variant="button"
+                        onFollowerCountChange={(delta) => {
+                          // Optimistically update the follower count based on current displayed value
+                          setOptimisticFollowerCount(prev => {
+                            const currentCount = prev !== null ? prev : (actorInfo.stats?.followers || 0)
+                            return Math.max(0, currentCount + delta) // Never go negative
+                          })
+                        }}
                       />
                     </>
                   )}
@@ -888,7 +932,9 @@ export default function ActorProfilePage() {
                   <span className="text-muted-foreground ml-1">Following</span>
                 </Link>
                 <Link href="#" className="hover:underline">
-                  <span className="font-bold text-foreground">{actorInfo.stats?.followers || 0}</span>
+                  <span className="font-bold text-foreground">
+                    {optimisticFollowerCount !== null ? optimisticFollowerCount : (actorInfo.stats?.followers || 0)}
+                  </span>
                   <span className="text-muted-foreground ml-1">Followers</span>
                 </Link>
               </div>

@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import type { Address } from 'viem';
 import { formatEther } from 'viem';
 
-import { BouncingLogo } from '@/components/shared/BouncingLogo';
+import { Skeleton } from '@/components/shared/Skeleton';
 
 import { cn } from '@/lib/utils';
 import { WALLET_ERROR_MESSAGES } from '@/lib/wallet-utils';
@@ -332,7 +332,7 @@ export function BuyPointsModal({
                     step="1"
                     value={amountUSD}
                     onChange={(e) => setAmountUSD(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-sidebar border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full pl-10 pr-4 py-3 bg-sidebar border border-border rounded-lg focus:outline-none focus:border-border"
                     placeholder="10"
                     disabled={loading}
                   />
@@ -362,7 +362,7 @@ export function BuyPointsModal({
               </div>
 
               {/* Points Calculation */}
-              <div className="bg-sidebar border border-border rounded-lg p-4">
+              <div className="bg-sidebar border border-border rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-muted-foreground">
                     You'll receive:
@@ -385,7 +385,7 @@ export function BuyPointsModal({
               {/* Info Box */}
               <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
                 <div className="flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                  <AlertCircle className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
                   <div className="text-xs text-blue-700 dark:text-blue-300">
                     <p className="font-medium mb-1">
                       Points are non-transferable
@@ -428,7 +428,7 @@ export function BuyPointsModal({
         return (
           <div className="text-center py-8">
             <div className="mx-auto mb-4 flex justify-center">
-              <BouncingLogo size={64} />
+              <Skeleton className="h-16 w-16 rounded-full" />
             </div>
             <h3 className="text-lg font-semibold mb-2">
               {step === 'payment'
@@ -458,7 +458,7 @@ export function BuyPointsModal({
           <div className="text-center py-8">
             <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Purchase Successful!</h3>
-            <div className="bg-sidebar border border-border rounded-lg p-4 mb-6">
+            <div className="bg-sidebar border border-border rounded-2xl p-4 mb-6">
               <div className="flex items-center justify-center gap-2 mb-2">
                 <Sparkles className="h-6 w-6 text-yellow-500" />
                 <span className="text-2xl font-bold">

@@ -311,7 +311,7 @@ export default function RewardsPage() {
                           : 'bg-sidebar-accent/50 border-border hover:bg-sidebar-accent cursor-pointer'
                       }`}
                     >
-                      <div className={`flex-shrink-0 ${task.color}`}>
+                      <div className={`shrink-0 ${task.color}`}>
                         <Icon className="w-6 h-6" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -323,7 +323,7 @@ export default function RewardsPage() {
                         </div>
                         <p className="text-xs text-muted-foreground truncate">{task.description}</p>
                       </div>
-                      <div className="flex-shrink-0 text-right">
+                      <div className="shrink-0 text-right">
                         <div className={`text-sm font-bold ${task.completed ? 'text-green-500' : 'text-yellow-500'}`}>
                           {task.completed ? '✓ ' : '+'}
                           {task.points}
@@ -472,7 +472,7 @@ export default function RewardsPage() {
           </div>
 
           {/* Rewards Widget Column */}
-          {/* <div className="hidden xl:flex flex-col w-96 flex-shrink-0 overflow-y-auto bg-sidebar p-4">
+          {/* <div className="hidden xl:flex flex-col w-96 shrink-0 overflow-y-auto bg-sidebar p-4">
             {user && <RewardsWidget userId={user.id} />}
           </div> */}
         </div>
@@ -545,7 +545,7 @@ export default function RewardsPage() {
                           : 'bg-muted/30 border-border cursor-pointer'
                       }`}
                     >
-                      <div className={`flex-shrink-0 ${task.color}`}>
+                      <div className={`shrink-0 ${task.color}`}>
                         <Icon className="w-5 h-5" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -557,7 +557,7 @@ export default function RewardsPage() {
                         </div>
                         <p className="text-xs text-muted-foreground truncate">{task.description}</p>
                       </div>
-                      <div className="flex-shrink-0 text-sm font-bold">
+                      <div className="shrink-0 text-sm font-bold">
                         <span className={task.completed ? 'text-green-500' : 'text-yellow-500'}>
                           {task.completed ? '✓' : '+'}{task.points}
                         </span>
@@ -604,7 +604,7 @@ export default function RewardsPage() {
                   <button
                     onClick={handleCopyUrl}
                     disabled={!referralData.referralUrl}
-                    className="px-3 py-2 bg-sidebar-accent/50 hover:bg-sidebar-accent text-foreground rounded-lg transition-colors flex items-center justify-center border border-border disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                    className="px-3 py-2 bg-sidebar-accent/50 hover:bg-sidebar-accent text-foreground rounded-lg transition-colors flex items-center justify-center border border-border disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                     aria-label="Copy referral link"
                   >
                     {copiedUrl ? (

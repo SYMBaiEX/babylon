@@ -43,7 +43,7 @@ interface InteractionStoreActions {
   loadComments: (postId: string) => Promise<CommentWithReplies[]>;
 
   // Share actions
-  toggleShare: (postId: string) => Promise<void>;
+  toggleShare: (postId: string, comment?: string) => Promise<void>;
 
   // Favorite actions
   toggleFavorite: (profileId: string) => Promise<void>;
@@ -293,7 +293,7 @@ export const useInteractionStore = create<InteractionStore>()(
       },
 
       // Share actions
-      toggleShare: async (postId: string) => {
+      toggleShare: async (postId: string, comment?: string) => {
         const { postInteractions, setLoading } = get();
         const currentInteraction = postInteractions.get(postId) || {
           postId,
@@ -322,9 +322,13 @@ export const useInteractionStore = create<InteractionStore>()(
         setLoading(`share-${postId}`, true);
 
         const method = wasShared ? 'DELETE' : 'POST';
+        const body = !wasShared && comment ? JSON.stringify({ comment }) : undefined;
         const response = await apiCall<{ data: { shareCount: number; isShared: boolean } }>(
           `/api/posts/${postId}/share`,
-          { method }
+          { 
+            method,
+            ...(body && { body })
+          }
         );
 
         set((state) => ({

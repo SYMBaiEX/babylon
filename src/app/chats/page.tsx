@@ -2,7 +2,7 @@
 
 import { LoginButton } from '@/components/auth/LoginButton'
 import { Avatar } from '@/components/shared/Avatar'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { Skeleton } from '@/components/shared/Skeleton'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { Separator } from '@/components/shared/Separator'
 import { ChatListSkeleton } from '@/components/shared/Skeleton'
@@ -531,45 +531,48 @@ export default function ChatsPage() {
           <div className="flex-1 overflow-hidden">
             <div className="flex h-full">
               {/* Left Column: Chat List with Filters */}
-              <div className="w-96 flex flex-col bg-background border-r border-border">
+              <div className="w-96 flex flex-col bg-background">
                 {/* Header with Filters */}
-                <div className="p-4">
+                <div className="px-4 py-3">
                   <h2 className="text-xl font-bold mb-4 text-foreground">Messages</h2>
                   
                   {/* Filter Tabs */}
-                  <div className="flex gap-1 p-1 bg-sidebar-accent/30 rounded-lg mb-4">
+                  <div className="flex items-center border-b border-border mb-4">
                     <button
                       onClick={() => setActiveFilter('all')}
                       className={cn(
-                        'flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all',
-                        activeFilter === 'all'
-                          ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
+                        'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
+                        activeFilter === 'all' ? 'text-foreground' : 'text-muted-foreground'
                       )}
                     >
                       All
+                      {activeFilter === 'all' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
+                      )}
                     </button>
                     <button
                       onClick={() => setActiveFilter('dms')}
                       className={cn(
-                        'flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all',
-                        activeFilter === 'dms'
-                          ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
+                        'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
+                        activeFilter === 'dms' ? 'text-foreground' : 'text-muted-foreground'
                       )}
                     >
                       DMs
+                      {activeFilter === 'dms' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
+                      )}
                     </button>
                     <button
                       onClick={() => setActiveFilter('groups')}
                       className={cn(
-                        'flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all',
-                        activeFilter === 'groups'
-                          ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
+                        'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
+                        activeFilter === 'groups' ? 'text-foreground' : 'text-muted-foreground'
                       )}
                     >
                       Groups
+                      {activeFilter === 'groups' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
+                      )}
                     </button>
                   </div>
                   
@@ -599,8 +602,13 @@ export default function ChatsPage() {
                   </div>
                 </div>
 
+                {/* Section Separator */}
+                <div className="px-4">
+                  <Separator />
+                </div>
+
                 {/* Chat List */}
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto mt-2">
                   {_loading ? (
                     <ChatListSkeleton count={10} />
                   ) : filteredChats.length === 0 ? (
@@ -628,7 +636,7 @@ export default function ChatsPage() {
                         <div
                           onClick={() => setSelectedChatId(chat.id)}
                           className={cn(
-                            'p-4 cursor-pointer transition-all duration-300',
+                            'px-4 py-3 cursor-pointer transition-all duration-300',
                             selectedChatId === chat.id
                               ? 'bg-sidebar-accent/50 border-l-4'
                               : 'hover:bg-sidebar-accent/30',
@@ -642,7 +650,7 @@ export default function ChatsPage() {
                         >
                           <div className="flex items-center gap-3">
                             {chat.isGroup ? (
-                              <div className="w-10 h-10 rounded-full bg-sidebar-accent/50 flex items-center justify-center flex-shrink-0 chat-button">
+                              <div className="w-10 h-10 rounded-full bg-sidebar-accent/50 flex items-center justify-center shrink-0 chat-button">
                                 <Users className="w-5 h-5" style={{ color: '#b82323' }} />
                               </div>
                             ) : (
@@ -671,12 +679,15 @@ export default function ChatsPage() {
                 </div>
               </div>
 
+              {/* Vertical Separator */}
+              <Separator orientation="vertical" className="shrink-0" />
+
               {/* Right Column: Chat View */}
               <div className="flex-1 flex flex-col bg-background">
                 {selectedChatId && chatDetails ? (
                   <>
                     {/* Chat Header */}
-                    <div className="p-4 bg-background border-b border-border flex items-center justify-between">
+                    <div className="px-4 py-4 bg-background flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         {chatDetails.chat.isGroup ? (
                           <div className="w-10 h-10 rounded-full bg-sidebar-accent/50 flex items-center justify-center">
@@ -725,10 +736,15 @@ export default function ChatsPage() {
                       )}
                     </div>
 
+                    {/* Header Separator */}
+                    <div className="px-4">
+                      <Separator />
+                    </div>
+
                     {/* Messages */}
                     <div 
                       ref={setRefs}
-                      className="flex-1 overflow-y-auto p-4 space-y-4 relative"
+                      className="flex-1 overflow-y-auto px-4 py-3 space-y-4 relative"
                     >
                       {/* Pull-to-refresh indicator */}
                       {pullDistance > 0 && (
@@ -747,7 +763,11 @@ export default function ChatsPage() {
                       
                       {loadingChat ? (
                         <div className="flex items-center justify-center h-full">
-                          <BouncingLogo size={32} />
+                          <div className="space-y-3 w-full max-w-md">
+                            <Skeleton className="h-16 w-full" />
+                            <Skeleton className="h-16 w-full" />
+                            <Skeleton className="h-16 w-full" />
+                          </div>
                         </div>
                       ) : (
                         (chatDetails?.messages || []).map((msg, i) => {
@@ -781,7 +801,7 @@ export default function ChatsPage() {
                                   isCurrentUser ? 'items-end' : 'items-start',
                                 )}
                               >
-                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <div className="flex items-center gap-3 mb-1 flex-wrap">
                                   {!isCurrentUser && (
                                     <span className="font-bold text-sm text-foreground">
                                       {senderName}
@@ -806,7 +826,7 @@ export default function ChatsPage() {
                                 </div>
                                 <div
                                   className={cn(
-                                    'px-4 py-2 rounded-2xl message-bubble text-sm whitespace-pre-wrap break-words',
+                                    'px-4 py-3 rounded-2xl message-bubble text-sm whitespace-pre-wrap break-words',
                                     isCurrentUser
                                       ? 'rounded-tr-sm'
                                       : 'rounded-tl-sm',
@@ -852,23 +872,28 @@ export default function ChatsPage() {
                       <div className="px-4">
                         {sendError && (
                           <div className="flex items-center gap-2 p-2 rounded-lg bg-sidebar-accent/30 mb-2 border-2" style={{ borderColor: '#f59e0b' }}>
-                            <AlertCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#f59e0b' }} />
+                            <AlertCircle className="w-4 h-4 shrink-0" style={{ color: '#f59e0b' }} />
                             <span className="text-xs" style={{ color: '#f59e0b' }}>{sendError}</span>
                           </div>
                         )}
                         {sendSuccess && (
                           <div className="flex items-center gap-2 p-2 rounded-lg bg-sidebar-accent/30 mb-2 border-2" style={{ borderColor: '#10b981' }}>
-                            <Check className="w-4 h-4 flex-shrink-0" style={{ color: '#10b981' }} />
+                            <Check className="w-4 h-4 shrink-0" style={{ color: '#10b981' }} />
                             <span className="text-xs" style={{ color: '#10b981' }}>Message sent!</span>
                           </div>
                         )}
                       </div>
                     )}
 
+                    {/* Input Separator */}
+                    <div className="px-4">
+                      <Separator />
+                    </div>
+
                     {/* Message Input */}
                     {authenticated ? (
-                      <div className="p-4 bg-background border-t border-border">
-                        <div className="flex gap-2">
+                      <div className="px-4 py-3 bg-background">
+                        <div className="flex gap-3">
                           <input
                             type="text"
                             value={messageInput}
@@ -888,23 +913,23 @@ export default function ChatsPage() {
                             onClick={sendMessage}
                             disabled={!messageInput.trim() || sending}
                             className={cn(
-                              'px-4 py-3 rounded-lg font-semibold flex items-center gap-2',
+                              'px-4 py-3 rounded-lg font-semibold flex items-center gap-3',
                               'bg-sidebar-accent/50 chat-button',
                               'transition-all duration-300',
                               'disabled:opacity-50 disabled:cursor-not-allowed'
                             )}
                             style={{ color: '#0066FF' }}
                           >
-                            {sending ? (
-                              <BouncingLogo size={20} />
-                            ) : (
-                              <Send className="w-5 h-5" />
-                            )}
+                          {sending ? (
+                            <Skeleton className="h-5 w-5 rounded" />
+                          ) : (
+                            <Send className="w-5 h-5" />
+                          )}
                           </button>
                         </div>
                       </div>
                     ) : (
-                      <div className="p-4 bg-background border-t border-border">
+                      <div className="px-4 py-3 bg-background">
                         <div className="text-center">
                           <p className="text-sm text-muted-foreground mb-3">Log in to send messages</p>
                           <LoginButton />
@@ -938,47 +963,50 @@ export default function ChatsPage() {
               <div
                 className={cn(
                   'w-full flex-col bg-background',
-                  selectedChatId ? 'hidden lg:flex lg:w-96 lg:border-r lg:border-border' : 'flex',
+                  selectedChatId ? 'hidden lg:flex lg:w-96' : 'flex',
                 )}
               >
                 {/* Mobile Header with Tabs */}
-                <div className="p-4">
+                <div className="px-4 py-3">
                   <h2 className="text-xl font-bold mb-4 text-foreground">Messages</h2>
                   
                   {/* Filter Tabs */}
-                  <div className="flex gap-1 p-1 bg-sidebar-accent/30 rounded-lg mb-4">
+                  <div className="flex items-center border-b border-border mb-4">
                     <button
                       onClick={() => setActiveFilter('all')}
                       className={cn(
-                        'flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all',
-                        activeFilter === 'all'
-                          ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
+                        'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
+                        activeFilter === 'all' ? 'text-foreground' : 'text-muted-foreground'
                       )}
                     >
                       All
+                      {activeFilter === 'all' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
+                      )}
                     </button>
                     <button
                       onClick={() => setActiveFilter('dms')}
                       className={cn(
-                        'flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all',
-                        activeFilter === 'dms'
-                          ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
+                        'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
+                        activeFilter === 'dms' ? 'text-foreground' : 'text-muted-foreground'
                       )}
                     >
                       DMs
+                      {activeFilter === 'dms' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
+                      )}
                     </button>
                     <button
                       onClick={() => setActiveFilter('groups')}
                       className={cn(
-                        'flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all',
-                        activeFilter === 'groups'
-                          ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
+                        'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
+                        activeFilter === 'groups' ? 'text-foreground' : 'text-muted-foreground'
                       )}
                     >
                       Groups
+                      {activeFilter === 'groups' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
+                      )}
                     </button>
                   </div>
 
@@ -1026,10 +1054,14 @@ export default function ChatsPage() {
                     )}
                   </div>
                 </div>
-                <Separator />
+                
+                {/* Section Separator */}
+                <div className="px-4">
+                  <Separator />
+                </div>
 
                 {/* Chat List */}
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto mt-2">
                   {_loading ? (
                     <ChatListSkeleton count={10} />
                   ) : filteredChats.length === 0 ? (
@@ -1057,7 +1089,7 @@ export default function ChatsPage() {
                         <div
                           onClick={() => setSelectedChatId(chat.id)}
                           className={cn(
-                            'p-4 cursor-pointer transition-all duration-300',
+                            'px-4 py-3 cursor-pointer transition-all duration-300',
                             selectedChatId === chat.id
                               ? 'bg-sidebar-accent/50 border-l-4'
                               : 'hover:bg-sidebar-accent/30',
@@ -1071,7 +1103,7 @@ export default function ChatsPage() {
                         >
                           <div className="flex items-center gap-3">
                             {chat.isGroup ? (
-                              <div className="w-10 h-10 rounded-full bg-sidebar-accent/50 flex items-center justify-center flex-shrink-0 chat-button">
+                              <div className="w-10 h-10 rounded-full bg-sidebar-accent/50 flex items-center justify-center shrink-0 chat-button">
                                 <Users className="w-5 h-5" style={{ color: '#b82323' }} />
                               </div>
                             ) : (
@@ -1100,6 +1132,11 @@ export default function ChatsPage() {
                 </div>
               </div>
 
+              {/* Vertical Separator for Tablet */}
+              {selectedChatId && (
+                <Separator orientation="vertical" className="hidden lg:block shrink-0" />
+              )}
+
               {/* Chat View (full screen on mobile, shared on tablet) */}
               {selectedChatId && chatDetails && (
                 <div
@@ -1109,7 +1146,7 @@ export default function ChatsPage() {
                   )}
                 >
                   {/* Mobile/Tablet Header with Back Button */}
-                  <div className="p-4 bg-background border-b border-border">
+                  <div className="px-4 py-4 bg-background">
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => setSelectedChatId(null)}
@@ -1165,11 +1202,20 @@ export default function ChatsPage() {
                     </div>
                   </div>
 
+                  {/* Header Separator */}
+                  <div className="px-4">
+                    <Separator />
+                  </div>
+
                   {/* Messages */}
-                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
                     {loadingChat ? (
                       <div className="flex items-center justify-center h-full">
-                        <BouncingLogo size={32} />
+                        <div className="space-y-3 w-full max-w-md">
+                          <Skeleton className="h-16 w-full" />
+                          <Skeleton className="h-16 w-full" />
+                          <Skeleton className="h-16 w-full" />
+                        </div>
                       </div>
                     ) : (
                       (chatDetails?.messages || []).map((msg, i) => {
@@ -1274,22 +1320,27 @@ export default function ChatsPage() {
                     <div className="px-4">
                       {sendError && (
                         <div className="flex items-center gap-2 p-2 rounded-lg bg-sidebar-accent/30 mb-2 border-2" style={{ borderColor: '#f59e0b' }}>
-                          <AlertCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#f59e0b' }} />
+                          <AlertCircle className="w-4 h-4 shrink-0" style={{ color: '#f59e0b' }} />
                           <span className="text-xs" style={{ color: '#f59e0b' }}>{sendError}</span>
                         </div>
                       )}
                       {sendSuccess && (
                         <div className="flex items-center gap-2 p-2 rounded-lg bg-sidebar-accent/30 mb-2 border-2" style={{ borderColor: '#10b981' }}>
-                          <Check className="w-4 h-4 flex-shrink-0" style={{ color: '#10b981' }} />
+                          <Check className="w-4 h-4 shrink-0" style={{ color: '#10b981' }} />
                           <span className="text-xs" style={{ color: '#10b981' }}>Message sent!</span>
                         </div>
                       )}
                     </div>
                   )}
 
+                  {/* Input Separator */}
+                  <div className="px-4">
+                    <Separator />
+                  </div>
+
                   {/* Message Input */}
                   {authenticated ? (
-                    <div className="p-4 bg-background border-t border-border">
+                    <div className="px-4 py-3 bg-background">
                       <div className="flex gap-2">
                         <input
                           type="text"
@@ -1318,7 +1369,7 @@ export default function ChatsPage() {
                           style={{ color: '#0066FF' }}
                         >
                           {sending ? (
-                            <BouncingLogo size={20} />
+                            <Skeleton className="h-5 w-5 rounded" />
                           ) : (
                             <Send className="w-5 h-5" />
                           )}
@@ -1326,7 +1377,7 @@ export default function ChatsPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="p-4 bg-background border-t border-border">
+                    <div className="px-4 py-3 bg-background">
                       <div className="text-center">
                         <p className="text-sm text-muted-foreground mb-3">Log in to send messages</p>
                         <LoginButton />

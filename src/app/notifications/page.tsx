@@ -201,22 +201,44 @@ export default function NotificationsPage() {
   }
 
   const getNotificationLink = (notification: Notification) => {
-    // System notifications redirect based on their content
-    if (notification.type === 'system') {
-      if (notification.message.includes('profile')) {
-        return '/settings'
-      }
-      return '/feed'
+    // Group chat invite - go to chat
+    if (notification.type === 'system' && notification.message.includes('invited you to')) {
+      // Extract chat ID from the message or notification data
+      // For now, go to chats page where they can see their invitations
+      return '/chats'
     }
-    if (notification.postId) {
-      return `/feed#post-${notification.postId}`
+    
+    // DM or group chat message - go to the specific chat
+    if (notification.type === 'system' && (notification.message.includes('Message') || notification.message.includes('message'))) {
+      return '/chats'
     }
-    if (notification.commentId) {
-      return `/feed#comment-${notification.commentId}`
+    
+    // Profile completion - go to settings
+    if (notification.type === 'system' && notification.message.includes('profile')) {
+      return '/settings'
     }
-    if (notification.actorId) {
+    
+    // Follow notification - go to the follower's profile
+    if (notification.type === 'follow' && notification.actorId) {
       return `/profile/${notification.actorId}`
     }
+    
+    // Comment or reaction on post - go to the post detail page
+    if ((notification.type === 'comment' || notification.type === 'reaction' || notification.type === 'reply') && notification.postId) {
+      return `/post/${notification.postId}`
+    }
+    
+    // Share notification - go to the post
+    if (notification.type === 'share' && notification.postId) {
+      return `/post/${notification.postId}`
+    }
+    
+    // Mention - go to the post if available
+    if (notification.type === 'mention' && notification.postId) {
+      return `/post/${notification.postId}`
+    }
+    
+    // Default: go to feed
     return '/feed'
   }
 
@@ -259,7 +281,7 @@ export default function NotificationsPage() {
               onClick={markAllAsRead}
               disabled={markingAsRead}
               className={cn(
-                'flex items-center gap-2 px-4 py-2 text-sm font-semibold',
+                'flex items-center gap-3 px-4 py-3 text-sm font-semibold',
                 'bg-transparent hover:bg-muted/50',
                 'disabled:opacity-50 disabled:cursor-not-allowed',
                 'transition-colors'
@@ -295,7 +317,7 @@ export default function NotificationsPage() {
             </p>
           </div>
         ) : (
-          <div className="max-w-[600px] mx-auto">
+          <div className="max-w-feed mx-auto">
             {notifications.map((notification) => (
               <Link
                 key={notification.id}
@@ -314,7 +336,7 @@ export default function NotificationsPage() {
                 <div className="flex items-start gap-3">
                   {/* Unread Indicator - moved to left */}
                   {!notification.read && (
-                    <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0 mt-2" />
+                    <div className="w-2 h-2 bg-primary rounded-full shrink-0 mt-2" />
                   )}
                   
                   {/* Actor Avatar */}
@@ -323,11 +345,11 @@ export default function NotificationsPage() {
                       id={notification.actor.id}
                       name={notification.actor.displayName}
                       size="md"
-                      className="flex-shrink-0"
+                      className="shrink-0"
                     />
                   ) : (
                     <div className={cn(
-                      "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
+                      "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
                       notification.type === 'system' ? "bg-primary/10" : "bg-muted"
                     )}>
                       {notification.type === 'system' ? (
@@ -340,7 +362,7 @@ export default function NotificationsPage() {
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start gap-2">
+                    <div className="flex items-start gap-3">
                       <div className="flex-1">
                         {notification.type === 'system' ? (
                           <p className="text-foreground leading-relaxed">
@@ -348,13 +370,22 @@ export default function NotificationsPage() {
                           </p>
                         ) : (
                           <p className="text-foreground leading-relaxed">
-                            <span className="font-semibold">
-                              {notification.actor?.displayName || 'Someone'}
-                            </span>
-                            {' '}
-                            <span className="text-muted-foreground">
-                              {getNotificationIcon(notification.type)} {notification.message}
-                            </span>
+                            {notification.type !== 'system' ? (
+                              <>
+                                <span className="font-semibold">
+                                  {notification.actor?.displayName || 'Someone'}
+                                </span>
+                                {' '}
+                                <span className="text-muted-foreground">
+                                  {getNotificationIcon(notification.type)}{' '}
+                                  {notification.message.replace(notification.actor?.displayName || '', '').replace(/^:\s*/, '')}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground">
+                                {getNotificationIcon(notification.type)} {notification.message}
+                              </span>
+                            )}
                           </p>
                         )}
                         <time className="text-sm text-muted-foreground mt-1 block">
@@ -372,4 +403,3 @@ export default function NotificationsPage() {
     </PageContainer>
   )
 }
-

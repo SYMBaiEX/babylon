@@ -87,7 +87,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         isActive: true,
       },
       include: {
-        npcActor: {
+        Actor: {
           select: {
             personality: true,
           },
@@ -107,8 +107,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     if ('strategy' in body && body.strategy) {
       strategy = body.strategy
-    } else if (pool.npcActor?.personality) {
-      const personalityLower = pool.npcActor.personality.toLowerCase()
+    } else if (pool.Actor?.personality) {
+      const personalityLower = pool.Actor.personality.toLowerCase()
       const aggressiveKeywords = ['erratic', 'disaster', 'memecoin', 'degen']
       const conservativeKeywords = ['vampire', 'yacht', 'philosopher']
 

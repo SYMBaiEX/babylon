@@ -4,6 +4,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
+import { generateSnowflakeId } from '@/lib/snowflake'
 import { BusinessLogicError, ValidationError, InternalServerError, ConflictError } from '@/lib/errors'
 import { PointsService } from '@/lib/services/points-service'
 import { notifyNewAccount } from '@/lib/services/notification-service'
@@ -177,7 +178,7 @@ export async function processOnchainRegistration({
     } else {
       const referral = await prisma.referral.findUnique({
         where: { referralCode },
-        include: { referrer: true },
+        include: { User_Referral_referrerIdToUser: true },
       })
 
       if (referral && referral.status === 'pending') {
@@ -212,6 +213,7 @@ export async function processOnchainRegistration({
     if (!dbUser) {
       dbUser = await prisma.user.create({
         data: {
+          id: generateSnowflakeId(),
           privyId: user.userId,
           username: user.userId,
           displayName: displayName || username || user.userId,
@@ -221,6 +223,7 @@ export async function processOnchainRegistration({
           isActor: false,
           virtualBalance: 10000,
           totalDeposited: 10000,
+          updatedAt: new Date(),
         },
         select: {
           id: true,
@@ -260,6 +263,7 @@ export async function processOnchainRegistration({
           virtualBalance: 0,
           totalDeposited: 0,
           referredBy: referrerId,
+          updatedAt: new Date(),
         },
         select: {
           id: true,
@@ -749,6 +753,7 @@ export async function processOnchainRegistration({
 
   await prisma.balanceTransaction.create({
     data: {
+      id: generateSnowflakeId(),
       userId: dbUser.id,
       type: 'deposit',
       amount: amountDecimal,
@@ -783,6 +788,7 @@ export async function processOnchainRegistration({
           completedAt: new Date(),
         },
         create: {
+          id: generateSnowflakeId(),
           referrerId,
           referralCode,
           referredUserId: dbUser.id,
@@ -801,6 +807,7 @@ export async function processOnchainRegistration({
       },
       update: {},
       create: {
+        id: generateSnowflakeId(),
         followerId: referrerId,
         followingId: dbUser.id,
       },

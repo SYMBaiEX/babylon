@@ -77,7 +77,7 @@ export const GET = withErrorHandling(async (
       status: 'completed',
     },
     include: {
-      referredUser: {
+      User_Referral_referredUserIdToUser: {
         select: {
           id: true,
           username: true,
@@ -124,15 +124,15 @@ export const GET = withErrorHandling(async (
 
   // Format referred users with follow status
   const referredUsers = referrals
-    .filter(r => r.referredUser)
+    .filter(r => r.User_Referral_referredUserIdToUser)
     .map(r => ({
-      id: r.referredUser!.id,
-      username: r.referredUser!.username,
-      displayName: r.referredUser!.displayName,
-      profileImageUrl: r.referredUser!.profileImageUrl,
-      createdAt: r.referredUser!.createdAt,
-      reputationPoints: r.referredUser!.reputationPoints,
-      isFollowing: followingUserIds.has(r.referredUser!.id),
+      id: r.User_Referral_referredUserIdToUser!.id,
+      username: r.User_Referral_referredUserIdToUser!.username,
+      displayName: r.User_Referral_referredUserIdToUser!.displayName,
+      profileImageUrl: r.User_Referral_referredUserIdToUser!.profileImageUrl,
+      createdAt: r.User_Referral_referredUserIdToUser!.createdAt,
+      reputationPoints: r.User_Referral_referredUserIdToUser!.reputationPoints,
+      isFollowing: followingUserIds.has(r.User_Referral_referredUserIdToUser!.id),
       joinedAt: r.completedAt,
     }));
 

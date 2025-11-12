@@ -102,15 +102,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         hasTwitter: true,
         createdAt: true,
         updatedAt: true,
-        _count: {
-          select: {
-            comments: true,
-            reactions: true,
-            positions: true,
-            following: true,
-            followedBy: true,
-          },
-        },
       },
     }),
     prisma.user.count({ where }),

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Activity, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/shared/Avatar'
-import { BouncingLogo } from '@/components/shared/BouncingLogo'
+import { Skeleton } from '@/components/shared/Skeleton'
 
 type TradeType = 'balance' | 'npc' | 'position'
 
@@ -121,7 +121,7 @@ export function TradingFeedTab() {
     const displayName = trade.user.displayName || trade.user.username || 'Anonymous'
     
     return (
-      <div className="bg-card border border-border rounded-lg p-4 hover:border-primary/50 transition-colors">
+      <div className="bg-card border border-border rounded-2xl p-4 hover:border-primary/50 transition-colors">
         <div className="flex items-start gap-3">
           <Avatar
             src={trade.user.profileImageUrl || undefined}
@@ -273,7 +273,11 @@ export function TradingFeedTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <BouncingLogo size={48} />
+        <div className="space-y-3 w-full">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
       </div>
     )
   }

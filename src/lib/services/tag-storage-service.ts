@@ -5,6 +5,7 @@
  */
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 import type { GeneratedTag } from './tag-generation-service';
 
@@ -36,9 +37,11 @@ export async function storeTagsForPost(
     try {
       await prisma.tag.createMany({
         data: tagsToCreate.map((tag) => ({
+          id: generateSnowflakeId(),
           name: tag.name,
           displayName: tag.displayName,
           category: tag.category || null,
+          updatedAt: new Date(),
         })),
         skipDuplicates: true, // Ignore duplicates without error
       });
@@ -71,6 +74,7 @@ export async function storeTagsForPost(
   const postTagData = tags.map((tag) => {
     const dbTag = existingTagMap.get(tag.name)!;
     return {
+      id: generateSnowflakeId(),
       postId,
       tagId: dbTag.id,
     };
@@ -98,7 +102,7 @@ export async function getTagsForPost(postId: string) {
   return await prisma.postTag.findMany({
     where: { postId },
     include: {
-      tag: true,
+      Tag: true,
     },
     orderBy: {
       createdAt: 'asc',
@@ -136,7 +140,7 @@ export async function getPostsByTag(
     prisma.postTag.findMany({
       where: { tagId: tag.id },
       include: {
-        post: true,
+        Post: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -151,7 +155,7 @@ export async function getPostsByTag(
 
   return {
     tag,
-    posts: postTags.map((pt) => pt.post),
+    posts: postTags.map((pt) => pt.Post),
     total,
   };
 }
@@ -187,7 +191,7 @@ export async function getTagStatistics(
       },
     },
     include: {
-      tag: true,
+      Tag: true,
     },
     orderBy: {
       createdAt: 'asc',
@@ -214,7 +218,7 @@ export async function getTagStatistics(
       if (pt.createdAt > existing.newestPostDate) existing.newestPostDate = pt.createdAt;
     } else {
       tagStats.set(pt.tagId, {
-        tag: pt.tag,
+        tag: pt.Tag,
         postCount: 1,
         recentPostCount: isRecent ? 1 : 0,
         oldestPostDate: pt.createdAt,
@@ -259,6 +263,7 @@ export async function storeTrendingTags(
       tags.map((tag) =>
         tx.trendingTag.create({
           data: {
+            id: generateSnowflakeId(),
             tagId: tag.tagId,
             score: tag.score,
             postCount: tag.postCount,
@@ -308,7 +313,7 @@ export async function getCurrentTrendingTags(limit = 10) {
       },
     },
     include: {
-      tag: true,
+      Tag: true,
     },
     orderBy: {
       rank: 'asc',

@@ -1,10 +1,10 @@
-import type { NextRequest } from 'next/server';
 import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asUser, asPublic } from '@/lib/db/context';
-import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { asPublic, asUser } from '@/lib/db/context';
 import { NotFoundError } from '@/lib/errors';
-import { IdParamSchema } from '@/lib/validation/schemas';
+import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
+import { IdParamSchema } from '@/lib/validation/schemas';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/pools/[id]
@@ -25,7 +25,7 @@ export const GET = withErrorHandling(async (
     return await db.pool.findUnique({
       where: { id },
       include: {
-        npcActor: {
+        Actor: {
           select: {
             id: true,
             name: true,
@@ -36,7 +36,7 @@ export const GET = withErrorHandling(async (
             postStyle: true,
           },
         },
-        deposits: {
+        PoolDeposit: {
           where: {
             withdrawnAt: null,
           },
@@ -44,7 +44,7 @@ export const GET = withErrorHandling(async (
             depositedAt: 'desc',
           },
         },
-        positions: {
+        PoolPosition: {
           where: {
             closedAt: null,
           },
@@ -52,7 +52,7 @@ export const GET = withErrorHandling(async (
             openedAt: 'desc',
           },
         },
-        trades: {
+        NPCTrade: {
           orderBy: {
             executedAt: 'desc',
           },
@@ -65,7 +65,7 @@ export const GET = withErrorHandling(async (
       return await db.pool.findUnique({
       where: { id },
       include: {
-        npcActor: {
+        Actor: {
           select: {
             id: true,
             name: true,
@@ -76,7 +76,7 @@ export const GET = withErrorHandling(async (
             postStyle: true,
           },
         },
-        deposits: {
+        PoolDeposit: {
           where: {
             withdrawnAt: null,
           },
@@ -84,7 +84,7 @@ export const GET = withErrorHandling(async (
             depositedAt: 'desc',
           },
         },
-        positions: {
+        PoolPosition: {
           where: {
             closedAt: null,
           },
@@ -92,7 +92,7 @@ export const GET = withErrorHandling(async (
             openedAt: 'desc',
           },
         },
-        trades: {
+        NPCTrade: {
           orderBy: {
             executedAt: 'desc',
           },
@@ -112,7 +112,7 @@ export const GET = withErrorHandling(async (
     const lifetimePnL = parseFloat(pool.lifetimePnL.toString());
     const availableBalance = parseFloat(pool.availableBalance.toString());
     
-    const totalUnrealizedPnL = pool.positions.reduce(
+    const totalUnrealizedPnL = pool.PoolPosition.reduce(
       (sum, pos) => sum + pos.unrealizedPnL,
       0
     );
@@ -122,33 +122,33 @@ export const GET = withErrorHandling(async (
     // Calculate position breakdown
     const positionsByType = {
       perp: {
-        count: pool.positions.filter(p => p.marketType === 'perp').length,
-        totalSize: pool.positions
+        count: pool.PoolPosition.filter(p => p.marketType === 'perp').length,
+        totalSize: pool.PoolPosition
           .filter(p => p.marketType === 'perp')
           .reduce((sum, p) => sum + p.size, 0),
-        unrealizedPnL: pool.positions
+        unrealizedPnL: pool.PoolPosition
           .filter(p => p.marketType === 'perp')
           .reduce((sum, p) => sum + p.unrealizedPnL, 0),
       },
       prediction: {
-        count: pool.positions.filter(p => p.marketType === 'prediction').length,
-        totalSize: pool.positions
+        count: pool.PoolPosition.filter(p => p.marketType === 'prediction').length,
+        totalSize: pool.PoolPosition
           .filter(p => p.marketType === 'prediction')
           .reduce((sum, p) => sum + p.size, 0),
-        unrealizedPnL: pool.positions
+        unrealizedPnL: pool.PoolPosition
           .filter(p => p.marketType === 'prediction')
           .reduce((sum, p) => sum + p.unrealizedPnL, 0),
       },
     };
 
-  logger.info('Pool details fetched successfully', { poolId: id, openPositions: pool.positions.length }, 'GET /api/pools/[id]');
+  logger.info('Pool details fetched successfully', { poolId: id, openPositions: pool.PoolPosition.length }, 'GET /api/pools/[id]');
 
   return successResponse({
     pool: {
       id: pool.id,
       name: pool.name,
       description: pool.description,
-      npcActor: pool.npcActor,
+      npcActor: pool.Actor,
       totalValue,
       totalDeposits,
       availableBalance,
@@ -156,15 +156,15 @@ export const GET = withErrorHandling(async (
       totalReturn,
       performanceFeeRate: pool.performanceFeeRate,
       totalFeesCollected: parseFloat(pool.totalFeesCollected.toString()),
-      activeInvestors: pool.deposits.length,
-      openPositions: pool.positions.length,
+      activeInvestors: pool.PoolDeposit.length,
+      openPositions: pool.PoolPosition.length,
       totalUnrealizedPnL,
-      totalTrades: pool.trades.length,
+      totalTrades: pool.NPCTrade.length,
       positionsByType,
       openedAt: pool.openedAt.toISOString(),
       updatedAt: pool.updatedAt.toISOString(),
     },
-    deposits: pool.deposits.map(d => ({
+    deposits: pool.PoolDeposit.map(d => ({
       id: d.id,
       userId: d.userId,
       amount: parseFloat(d.amount.toString()),
@@ -173,7 +173,7 @@ export const GET = withErrorHandling(async (
       unrealizedPnL: parseFloat(d.unrealizedPnL.toString()),
       depositedAt: d.depositedAt.toISOString(),
     })),
-    positions: pool.positions.map(p => ({
+    positions: pool.PoolPosition.map(p => ({
       id: p.id,
       marketType: p.marketType,
       ticker: p.ticker,
@@ -188,7 +188,7 @@ export const GET = withErrorHandling(async (
       unrealizedPnL: p.unrealizedPnL,
       openedAt: p.openedAt.toISOString(),
     })),
-    recentTrades: pool.trades.map(t => ({
+    recentTrades: pool.NPCTrade.map(t => ({
       id: t.id,
       marketType: t.marketType,
       ticker: t.ticker,
