@@ -28,6 +28,38 @@ interface PositionsState {
   perpStats: PerpStats;
 }
 
+type NumericLike = number | string | null | undefined;
+
+interface ApiPerpPositionPayload {
+  id: string;
+  userId?: string;
+  ticker: string;
+  organizationId?: string;
+  side: PerpPosition['side'];
+  entryPrice: NumericLike;
+  currentPrice: NumericLike;
+  size: NumericLike;
+  leverage: NumericLike;
+  liquidationPrice?: NumericLike;
+  unrealizedPnL?: NumericLike;
+  unrealizedPnLPercent?: NumericLike;
+  fundingPaid?: NumericLike;
+  openedAt: string;
+  lastUpdated?: string;
+}
+
+interface ApiPredictionPositionPayload {
+  id: string;
+  marketId: string;
+  question: string;
+  side: UserPredictionPosition['side'];
+  shares: NumericLike;
+  avgPrice: NumericLike;
+  currentPrice: NumericLike;
+  resolved?: boolean;
+  resolution?: boolean | null;
+}
+
 interface UseUserPositionsOptions {
   enabled?: boolean;
 }
@@ -88,7 +120,7 @@ export function useUserPositions(
       const perpetuals = data?.perpetuals ?? {};
       const predictions = data?.predictions ?? {};
 
-      const normalizedPerps = (perpetuals.positions ?? []).map((pos: any) => ({
+      const normalizedPerps = (perpetuals.positions ?? []).map((pos: ApiPerpPositionPayload) => ({
         id: pos.id,
         userId: pos.userId,
         ticker: pos.ticker,
@@ -107,7 +139,7 @@ export function useUserPositions(
       })) as PerpPosition[];
 
       const normalizedPredictions = (predictions.positions ?? []).map(
-        (pos: any) => ({
+        (pos: ApiPredictionPositionPayload) => ({
           id: pos.id,
           marketId: pos.marketId,
           question: pos.question,
