@@ -4,7 +4,7 @@
  * View all group chats in the system for verification and debugging
  */
 
-import { authenticate } from '@/lib/api/auth-middleware';
+import { requireAdmin } from '@/lib/api/admin-middleware';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { asSystem } from '@/lib/db/context';
 import type { NextRequest } from 'next/server';
@@ -16,22 +16,8 @@ import { NextResponse } from 'next/server';
  * Admin only
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  const user = await authenticate(request);
-  
-  // Check admin permissions using asSystem to bypass RLS
-  const dbUser = await asSystem(async (db) => {
-    return await db.user.findUnique({
-      where: { id: user.userId },
-      select: { isAdmin: true },
-    });
-  });
-
-  if (!dbUser?.isAdmin) {
-    return NextResponse.json(
-      { error: 'Admin access required' },
-      { status: 403 }
-    );
-  }
+  // Require admin authentication (includes localhost bypass)
+  await requireAdmin(request);
 
   // Get query parameters
   const { searchParams } = new URL(request.url);

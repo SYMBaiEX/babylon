@@ -15,7 +15,7 @@ import { logger } from '@/lib/logger';
 const QuerySchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(50),
   offset: z.coerce.number().min(0).default(0),
-  type: z.enum(['all', 'balance', 'npc', 'position']).optional(),
+  type: z.enum(['all', 'balance', 'npc', 'position']).default('all'),
 });
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
@@ -27,7 +27,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const params = QuerySchema.parse({
     limit: searchParams.get('limit') || '50',
     offset: searchParams.get('offset') || '0',
-    type: searchParams.get('type'),
+    type: searchParams.get('type') || undefined,
   });
 
   logger.info(`Admin trading feed requested`, { params }, 'GET /api/admin/trades');
