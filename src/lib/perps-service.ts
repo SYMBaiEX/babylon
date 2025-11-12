@@ -180,6 +180,9 @@ async function initializePerpsEngine(): Promise<void> {
   } finally {
     initializing = false;
   }
+  } finally {
+    initializing = false;
+  }
 }
 
 // NOTE: Singleton export removed to prevent initialization during Next.js build

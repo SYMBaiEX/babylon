@@ -9,7 +9,7 @@ import {
   NotFoundError,
 } from '@/lib/errors';
 import { logger } from '@/lib/logger';
-import { ensurePerpsEngineReady, getPerpsEngine } from '@/lib/perps-service';
+import { getReadyPerpsEngine } from '@/lib/perps-service';
 import { prisma } from '@/lib/prisma';
 import { FeeService } from '@/lib/services/fee-service';
 import type { TradeImpactInput } from '@/lib/services/market-impact-service';
@@ -80,8 +80,7 @@ export class PerpTradeService {
     authUser: AuthenticatedUser,
     input: OpenPerpPositionInput
   ): Promise<OpenPerpPositionResult> {
-    await ensurePerpsEngineReady();
-    const perpsEngine = getPerpsEngine();
+    const perpsEngine = await getReadyPerpsEngine();
 
     const markets = perpsEngine.getMarkets();
     const market = markets.find((m) => m.ticker === input.ticker);
@@ -246,8 +245,7 @@ export class PerpTradeService {
     authUser: AuthenticatedUser,
     positionId: string
   ): Promise<ClosePerpPositionResult> {
-    await ensurePerpsEngineReady();
-    const perpsEngine = getPerpsEngine();
+    const perpsEngine = await getReadyPerpsEngine();
 
     const dbPosition = await asUser(authUser, async (db) => {
       return await db.perpPosition.findUnique({
