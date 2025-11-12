@@ -22,6 +22,7 @@ import { FEE_CONFIG } from '@/lib/config/fees';
 import { cn } from '@/lib/utils';
 
 import { useAuth } from '@/hooks/useAuth';
+import { useMarketPrices } from '@/hooks/useMarketPrices';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
 import { useMarketTracking } from '@/hooks/usePostHog';
 import { useUserPositions } from '@/hooks/useUserPositions';
@@ -169,7 +170,7 @@ export default function PerpDetailPage() {
       });
 
       toast.success('Position opened!', {
-        description: `Opened ${leverage}x ${side} on ${market.ticker} at $${market.currentPrice.toFixed(2)}`,
+        description: `Opened ${leverage}x ${side} on ${market.ticker} at $${displayPrice.toFixed(2)}`,
       });
 
       await Promise.all([
@@ -225,16 +226,37 @@ export default function PerpDetailPage() {
   const hasSufficientBalance = !authenticated || balance >= totalRequired;
   const showBalanceWarning =
     authenticated && sizeNum > 0 && !hasSufficientBalance;
+  const trackedTicker = market?.ticker ?? ticker;
+  const livePrices = useMarketPrices(trackedTicker ? [trackedTicker] : []);
+  const livePrice = trackedTicker ? livePrices.get(trackedTicker) : undefined;
+  const displayPrice = livePrice?.price ?? market?.currentPrice ?? 0;
+
+  useEffect(() => {
+    if (!livePrice) return;
+    setMarket((prev) =>
+      prev ? { ...prev, currentPrice: livePrice.price } : prev
+    );
+    setPriceHistory((prev) => {
+      const last = prev[prev.length - 1];
+      if (last && Math.abs(last.price - livePrice.price) < 1e-6) {
+        return prev;
+      }
+      const next = [...prev, { time: Date.now(), price: livePrice.price }];
+      const maxPoints = 200;
+      return next.slice(Math.max(0, next.length - maxPoints));
+    });
+  }, [livePrice]);
+
   const liquidationPrice =
     side === 'long'
-      ? market.currentPrice * (1 - 0.9 / leverage)
-      : market.currentPrice * (1 + 0.9 / leverage);
+      ? displayPrice * (1 - 0.9 / leverage)
+      : displayPrice * (1 + 0.9 / leverage);
 
   const positionValue = sizeNum * leverage;
   const liquidationDistance =
     side === 'long'
-      ? ((market.currentPrice - liquidationPrice) / market.currentPrice) * 100
-      : ((liquidationPrice - market.currentPrice) / market.currentPrice) * 100;
+      ? ((displayPrice - liquidationPrice) / displayPrice) * 100
+      : ((liquidationPrice - displayPrice) / displayPrice) * 100;
 
   const isHighRisk = leverage > 50 || baseMargin > 1000;
 
@@ -257,7 +279,7 @@ export default function PerpDetailPage() {
           </div>
           <div className="text-right">
             <div className="text-3xl font-bold">
-              {formatPrice(market.currentPrice)}
+              {formatPrice(displayPrice)}
             </div>
             <div
               className={cn(
@@ -325,10 +347,7 @@ export default function PerpDetailPage() {
         <div className="lg:col-span-2">
           <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border">
             <h2 className="text-lg font-bold mb-4">Price Chart</h2>
-            <PriceChart
-              data={priceHistory}
-              currentPrice={market.currentPrice}
-            />
+            <PriceChart data={priceHistory} currentPrice={displayPrice} />
           </div>
 
           {/* Funding Rate Info */}
@@ -463,7 +482,7 @@ export default function PerpDetailPage() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Entry Price</span>
                   <span className="font-medium">
-                    {formatPrice(market.currentPrice)}
+                    {formatPrice(displayPrice)}
                   </span>
                 </div>
                 <div className="flex justify-between">

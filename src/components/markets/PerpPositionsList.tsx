@@ -10,7 +10,7 @@ import { BouncingLogo } from '@/components/shared/BouncingLogo';
 import { cn } from '@/lib/utils';
 
 import { useAuth } from '@/hooks/useAuth';
-import { usePerpMarketSSE } from '@/hooks/usePerpMarketSSE';
+import { useMarketPrices } from '@/hooks/useMarketPrices';
 import { usePerpTrade } from '@/hooks/usePerpTrade';
 
 import { calculateUnrealizedPnL } from '@/shared/perps-types';
@@ -49,7 +49,7 @@ export function PerpPositionsList({
     () => positions.map((pos) => pos.ticker),
     [positions]
   );
-  const livePrices = usePerpMarketSSE(tickers);
+  const livePrices = useMarketPrices(tickers);
 
   const handleClose = useCallback(
     async (positionId: string, ticker: string) => {
