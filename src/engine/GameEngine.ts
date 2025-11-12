@@ -28,7 +28,6 @@ import {
   PriceUpdateService,
 } from '@/lib/services/price-update-service';
 import { TradeExecutionService } from '@/lib/services/trade-execution-service';
-import { NPCInvestmentManager } from '@/lib/npc/npc-investment-manager';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import {
   broadcastChatMessage,
@@ -494,12 +493,12 @@ export class GameEngine extends EventEmitter {
             // Query all resolved positions for this market
             const positions = await db.prisma.position.findMany({
               where: {
-                questionId: question.questionNumber,
+                questionId: toQuestionIdNumber(question.id),
                 status: 'resolved',
               },
               include: {
-                User: true,
-                Question: true,
+                user: true,
+                question: true,
               },
             });
 
@@ -696,40 +695,12 @@ export class GameEngine extends EventEmitter {
         events
       );
 
-      // ===== Step 7: Baseline NPC allocations (ensure pools deploy idle capital) =====
-      let baselineTradeUpdates: PriceUpdate[] = [];
-      try {
-        const baselineResult = await NPCInvestmentManager.executeBaselineInvestments(new Date(timestamp));
-        if (baselineResult && baselineResult.executedTrades.length > 0) {
-          logger.info(
-            `Baseline NPC investments executed: ${baselineResult.successfulTrades} trades`,
-            { trades: baselineResult.successfulTrades },
-            'GameEngine'
-          );
-          baselineTradeUpdates = await this.updatePricesFromTrades(baselineResult);
-          if (baselineTradeUpdates.length > 0) {
-            logger.info(
-              `Baseline trade price updates: ${baselineTradeUpdates.length}`,
-              { count: baselineTradeUpdates.length },
-              'GameEngine'
-            );
-          }
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error(
-          'Failed to execute baseline NPC investments',
-          { error: errorMessage },
-          'GameEngine'
-        );
-      }
-
-      // ===== Step 8: Generate NPC Market Decisions =====
+      // ===== NEW: Step 7: Generate NPC Market Decisions =====
       logger.info('Generating NPC market decisions...', {}, 'GameEngine');
       const marketDecisions =
         await this.marketDecisionEngine.generateBatchDecisions();
 
-      // ===== Step 9: Execute Trades =====
+      // ===== NEW: Step 8: Execute Trades =====
       const executionResult =
         await this.tradeExecutionService.executeDecisionBatch(marketDecisions);
       logger.info(
@@ -742,7 +713,7 @@ export class GameEngine extends EventEmitter {
         'GameEngine'
       );
 
-      // ===== Step 10: Update Market Prices Based on NPC Trades =====
+      // ===== NEW: Step 9: Update Market Prices Based on NPC Trades =====
       logger.info(
         `Calculating price updates from ${executionResult.executedTrades.length} executed trades...`,
         {},
@@ -756,10 +727,10 @@ export class GameEngine extends EventEmitter {
         'GameEngine'
       );
 
-      // Combine event-based, baseline, and trade-based price updates
-      const allPriceUpdates = [...priceUpdates, ...baselineTradeUpdates, ...tradeBasedPriceUpdates];
+      // Combine event-based and trade-based price updates
+      const allPriceUpdates = [...priceUpdates, ...tradeBasedPriceUpdates];
       logger.info(
-        `Total price updates this tick: ${allPriceUpdates.length} (${priceUpdates.length} from events + ${baselineTradeUpdates.length} baseline + ${tradeBasedPriceUpdates.length} from trades)`,
+        `Total price updates this tick: ${allPriceUpdates.length} (${priceUpdates.length} from events + ${tradeBasedPriceUpdates.length} from trades)`,
         {},
         'GameEngine'
       );
@@ -770,16 +741,6 @@ export class GameEngine extends EventEmitter {
             organizationId: update.organizationId,
             newPrice: update.newPrice,
             source: 'event' as const,
-            reason: update.reason,
-            metadata: {
-              impact: update.impact,
-              oldPrice: update.oldPrice,
-            },
-          })),
-          ...baselineTradeUpdates.map((update) => ({
-            organizationId: update.organizationId,
-            newPrice: update.newPrice,
-            source: 'npc_trade' as const,
             reason: update.reason,
             metadata: {
               impact: update.impact,
@@ -1646,7 +1607,7 @@ OUTPUT JSON:
       for (const question of relevantQuestions) {
         // Find relevant event
         const relevantEvent = events.find(
-          (e) => e.relatedQuestion === toQuestionIdNumber(question.id)
+          (e) => e.relatedQuestion === question.id
         );
         if (!relevantEvent) continue;
 
@@ -1968,7 +1929,7 @@ OUTPUT JSON:
       try {
         await db.createQuestion({
           ...question,
-          questionNumber: question.questionNumber || 0,
+          questionNumber: toQuestionIdNumber(question.id),
         });
       } catch (error) {
         const errorMessage =
@@ -2055,13 +2016,8 @@ OUTPUT JSON:
       );
     }
 
-    // Batch actor and organization upserts to prevent connection pool exhaustion
-    const { batchExecute } = await import('@/lib/batch-operations');
-    
-    await batchExecute(
-      this.actors,
-      10, // Process 10 at a time to stay within connection pool limits
-      async (actor) => {
+    await Promise.allSettled(
+      this.actors.map(async (actor) => {
         try {
           // Convert SelectedActor to Actor
           const actorData: Actor = {
@@ -2094,13 +2050,11 @@ OUTPUT JSON:
             'GameEngine'
           );
         }
-      }
+      })
     );
 
-    await batchExecute(
-      this.organizations,
-      10, // Process 10 at a time to stay within connection pool limits
-      async (org) => {
+    await Promise.allSettled(
+      this.organizations.map(async (org) => {
         try {
           await db.upsertOrganization(org);
         } catch (error) {
@@ -2117,7 +2071,7 @@ OUTPUT JSON:
             'GameEngine'
           );
         }
-      }
+      })
     );
   }
 
@@ -2152,7 +2106,6 @@ OUTPUT JSON:
             name: chat.name,
             isGroup: true,
             gameId: 'continuous',
-            updatedAt: new Date(),
           },
           update: {},
         });
@@ -2260,14 +2213,6 @@ OUTPUT JSON:
     if (tick.events.length > 0) {
       for (const event of tick.events) {
         try {
-          // Validate integer fields to prevent Snowflake ID insertion
-          const safeDayNumber = typeof dayNumber === 'number' && 
-            Number.isFinite(dayNumber) && 
-            dayNumber >= 0 && 
-            dayNumber <= 2147483647 
-            ? dayNumber 
-            : undefined;
-          
           await db.createEvent({
             id: event.id,
             eventType: event.type,
@@ -2280,7 +2225,7 @@ OUTPUT JSON:
             pointsToward: event.pointsToward ?? undefined,
             visibility: event.visibility,
             gameId: GameEngine.GAME_ID,
-            dayNumber: safeDayNumber,
+            dayNumber,
           });
         } catch (error: unknown) {
           if (
@@ -2853,11 +2798,7 @@ Return ONLY this JSON:
 
   /**
    * Update market prices based on NPC trading activity
-   * 
-   * Uses trade impact-based pricing:
-   * - Calculates net sentiment from long/short volumes
-   * - Applies price impact based on volume
-   * - Prediction market odds updated directly in TradeExecutionService
+   * Prices move based on net sentiment from trades
    */
   private async updatePricesFromTrades(
     executionResult: ExecutionResult
