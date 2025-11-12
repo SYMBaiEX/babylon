@@ -287,7 +287,6 @@ export async function GET(request: Request) {
         return NextResponse.json({
           success: true,
           posts: formattedFollowingPosts,
-          total: posts.length,
           limit,
           offset,
           source: 'following',
@@ -526,7 +525,6 @@ export async function GET(request: Request) {
     const response = NextResponse.json({
       success: true,
       posts: formattedPosts,
-      total: formattedPosts.length,
       limit,
       offset,
     });
