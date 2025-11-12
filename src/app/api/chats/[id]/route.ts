@@ -27,14 +27,27 @@ export const GET = withErrorHandling(async (
   
   const all = searchParams.get('all')
   const debug = searchParams.get('debug')
+  const cursor = searchParams.get('cursor') // Cursor for pagination (message ID)
+  const limitParam = searchParams.get('limit')
   
   if (all) query.all = all
   if (debug) query.debug = debug
   
   const validatedQuery = ChatQuerySchema.parse(query)
+  
+  // Parse pagination parameters
+  const limit = limitParam ? parseInt(limitParam, 10) : 50
+  const effectiveLimit = Math.min(Math.max(limit, 1), 100) // Between 1 and 100
 
   // Check for debug mode (localhost access to game chats)
   const debugMode = validatedQuery.debug === 'true'
+  
+  logger.info('GET /api/chats/[id]', { 
+    chatId, 
+    cursor, 
+    limit: effectiveLimit,
+    debugMode 
+  }, 'GET /api/chats/[id]');
 
   // Get chat first to check if it's a game chat
   const chat = await asSystem(async (db) => {
@@ -76,15 +89,29 @@ export const GET = withErrorHandling(async (
     }
   }
 
+  // Build message query with cursor-based pagination
+  const messageQuery: {
+    orderBy: { createdAt: 'desc' }
+    take: number
+    cursor?: { id: string }
+    skip?: number
+  } = {
+    orderBy: { createdAt: 'desc' }, // Get newest first
+    take: effectiveLimit + 1, // Take one extra to check if there are more
+  }
+  
+  // If cursor provided, get messages older than the cursor
+  if (cursor) {
+    messageQuery.cursor = { id: cursor }
+    messageQuery.skip = 1 // Skip the cursor itself
+  }
+
   // Get chat with messages with RLS (use system for debug mode)
   const fullChat = await (authUser ? asUser(authUser, async (db) => {
     return await db.chat.findUnique({
       where: { id: chatId },
       include: {
-        Message: {
-          orderBy: { createdAt: 'asc' },
-          take: 100, // Limit to last 100 messages
-        },
+        Message: messageQuery,
         ChatParticipant: true,
       },
     })
@@ -92,10 +119,7 @@ export const GET = withErrorHandling(async (
     return await db.chat.findUnique({
       where: { id: chatId },
       include: {
-        Message: {
-          orderBy: { createdAt: 'asc' },
-          take: 100,
-        },
+        Message: messageQuery,
         ChatParticipant: true,
       },
     })
@@ -213,11 +237,24 @@ export const GET = withErrorHandling(async (
       }
     }
 
+  // Check if there are more messages
+  const hasMore = fullChat.Message.length > effectiveLimit
+  const messages = hasMore ? fullChat.Message.slice(0, effectiveLimit) : fullChat.Message
+  
+  // Reverse to get chronological order (oldest first)
+  const messagesInOrder = [...messages].reverse()
+  
+  // Get the cursor for the next page (oldest message ID in this batch)
+  const nextCursor = hasMore ? fullChat.Message[effectiveLimit - 1]?.id : null
+
   logger.info('Chat fetched successfully', { 
     chatId, 
     isGameChat, 
     isDM: !fullChat.isGroup,
-    debugMode 
+    debugMode,
+    messagesReturned: messages.length,
+    hasMore,
+    nextCursor
   }, 'GET /api/chats/[id]')
 
   return successResponse({
@@ -229,13 +266,18 @@ export const GET = withErrorHandling(async (
       updatedAt: fullChat.updatedAt,
       otherUser: otherUser,
     },
-    messages: fullChat.Message.map((msg) => ({
+    messages: messagesInOrder.map((msg) => ({
       id: msg.id,
       content: msg.content,
       senderId: msg.senderId,
       createdAt: msg.createdAt,
     })),
     participants: participantsInfo,
+    pagination: {
+      hasMore,
+      nextCursor,
+      limit: effectiveLimit,
+    },
   })
 })
 

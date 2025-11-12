@@ -12,11 +12,14 @@ import {
 import { logger } from '@/lib/logger';
 import { getReadyPerpsEngine } from '@/lib/perps-service';
 import { prisma } from '@/lib/prisma';
+import { generateSnowflakeId } from '@/lib/snowflake';
 import { FeeService } from '@/lib/services/fee-service';
 import type { TradeImpactInput } from '@/lib/services/market-impact-service';
 import { applyPerpTradeImpacts } from '@/lib/services/perp-price-impact-service';
+import { PerpSettlementService } from '@/lib/services/perp-settlement-service';
 import { WalletService } from '@/lib/services/wallet-service';
-import { generateSnowflakeId } from '@/lib/snowflake';
+
+import { Prisma } from '@prisma/client';
 
 import type { PerpPosition } from '@/shared/perps-types';
 
@@ -172,9 +175,9 @@ export class PerpTradeService {
             id: generateSnowflakeId(),
             userId: authUser.userId,
             type: 'perp_open',
-            amount: -totalCost,
-            balanceBefore: currentBalance,
-            balanceAfter: newBalance,
+            amount: new Prisma.Decimal(-totalCost),
+            balanceBefore: new Prisma.Decimal(currentBalance),
+            balanceAfter: new Prisma.Decimal(newBalance),
             relatedId: position.id,
             description: `Opened ${input.leverage}x ${input.side} position on ${input.ticker} (incl. $${feeCalc.feeAmount.toFixed(2)} fee)`,
           },
@@ -211,6 +214,19 @@ export class PerpTradeService {
       position.id,
       input.ticker
     );
+
+    // Integrate settlement service (non-blocking)
+    PerpSettlementService.settleOpenPosition(position).catch((error) => {
+      logger.warn(
+        'Failed to settle open position (non-blocking)',
+        {
+          positionId: position.id,
+          userId: authUser.userId,
+          error,
+        },
+        'PerpTradeService.openPosition'
+      );
+    });
 
     await cachedDb.invalidateUserCache(authUser.userId).catch((error) => {
       logger.error(
@@ -408,6 +424,19 @@ export class PerpTradeService {
             platformReceived: 0,
             referrerId: null,
           };
+
+    // Integrate settlement service (non-blocking)
+    PerpSettlementService.settleClosePosition(position).catch((error) => {
+      logger.warn(
+        'Failed to settle close position (non-blocking)',
+        {
+          positionId: position.id,
+          userId: authUser.userId,
+          error,
+        },
+        'PerpTradeService.closePosition'
+      );
+    });
 
     const closingImpact: TradeImpactInput = {
       marketType: 'perp',

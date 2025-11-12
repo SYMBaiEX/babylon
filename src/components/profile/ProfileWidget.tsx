@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { useWidgetCacheStore } from '@/stores/widgetCacheStore'
 import { PositionDetailModal } from './PositionDetailModal'
 import { Skeleton } from '@/components/shared/Skeleton'
+import { useAuth } from '@/hooks/useAuth'
 import type {
   UserBalanceData,
   PredictionPosition,
@@ -21,6 +22,7 @@ interface ProfileWidgetProps {
 
 export function ProfileWidget({ userId }: ProfileWidgetProps) {
   const router = useRouter()
+  const { needsOnboarding, user } = useAuth()
   const [balance, setBalance] = useState<UserBalanceData | null>(null)
   const [predictions, setPredictions] = useState<PredictionPosition[]>([])
   const [perps, setPerps] = useState<PerpPositionFromAPI[]>([])
@@ -28,7 +30,7 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
   const [stats, setStats] = useState<UserProfileStats | null>(null)
   const [loading, setLoading] = useState(true)
   const widgetCache = useWidgetCacheStore()
-  
+
   // Modal state
   const [modalOpen, setModalOpen] = useState(false)
   const [modalType, setModalType] = useState<'prediction' | 'perp' | 'pool'>('prediction')
@@ -36,7 +38,14 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
 
   useEffect(() => {
     if (!userId) return
-    
+
+    // Skip fetching profile if current user needs onboarding
+    const isCurrentUser = user?.id === userId
+    if (isCurrentUser && needsOnboarding) {
+      setLoading(false)
+      return
+    }
+
     const fetchData = async (skipCache = false) => {
       // Check cache first (unless explicitly skipping)
       if (!skipCache) {
@@ -59,7 +68,7 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
       }
 
       setLoading(true)
-      
+
       // Fetch all data in parallel
       const [balanceRes, positionsRes, poolsRes, profileRes] = await Promise.all([
         fetch(`/api/users/${encodeURIComponent(userId)}/balance`),
@@ -105,6 +114,13 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
       // Process stats
       if (profileRes.ok) {
         const profileJson = await profileRes.json()
+
+        // Check if user needs onboarding (graceful handling)
+        if (profileJson.needsOnboarding) {
+          setLoading(false)
+          return
+        }
+
         const userStats = profileJson.user?.stats || {}
         statsData = {
           following: userStats.following || 0,
@@ -126,11 +142,11 @@ export function ProfileWidget({ userId }: ProfileWidgetProps) {
     }
 
     fetchData()
-    
+
     // Refresh every 30 seconds (skip cache to get fresh data)
     const interval = setInterval(() => fetchData(true), 30000)
     return () => clearInterval(interval)
-  }, [userId])
+  }, [userId, needsOnboarding, user?.id, widgetCache])
 
   const formatPoints = (points: number) => {
     return points.toLocaleString('en-US', {

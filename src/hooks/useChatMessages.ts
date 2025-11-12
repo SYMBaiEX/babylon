@@ -24,10 +24,13 @@ export interface ChatMessage {
 export function useChatMessages(chatId: string | null) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const previousChatIdRef = useRef<string | null>(null);
   const hasLoadedRef = useRef<Set<string>>(new Set());
 
-  // Load existing messages from API
+  // Load existing messages from API (initial load)
   const loadMessages = useCallback(async (chatId: string) => {
     // Skip if already loaded
     if (hasLoadedRef.current.has(chatId)) {
@@ -36,9 +39,9 @@ export function useChatMessages(chatId: string | null) {
       return;
     }
 
-    console.log(`[useChatMessages] Loading messages for chat ${chatId}`);
+    console.log(`[useChatMessages] Loading initial messages for chat ${chatId}`);
     setIsLoading(true);
-    const response = await fetch(`/api/chats/${chatId}`);
+    const response = await fetch(`/api/chats/${chatId}?limit=50`);
     console.log(`[useChatMessages] Response status: ${response.status}`);
     
     if (response.ok) {
@@ -57,10 +60,16 @@ export function useChatMessages(chatId: string | null) {
           senderId: msg.senderId,
           createdAt: typeof msg.createdAt === 'string' ? msg.createdAt : msg.createdAt.toISOString(),
         }));
-        console.log(`[useChatMessages] Loaded ${formattedMessages.length} messages`);
+        console.log(`[useChatMessages] Loaded ${formattedMessages.length} messages, hasMore:`, data.pagination?.hasMore);
         setMessages(formattedMessages);
+        setHasMore(data.pagination?.hasMore || false);
+        setNextCursor(data.pagination?.nextCursor || null);
         hasLoadedRef.current.add(chatId);
-        logger.debug(`Loaded ${formattedMessages.length} messages for chat ${chatId}`, { chatId, count: formattedMessages.length }, 'useChatMessages');
+        logger.debug(`Loaded ${formattedMessages.length} messages for chat ${chatId}`, { 
+          chatId, 
+          count: formattedMessages.length,
+          hasMore: data.pagination?.hasMore 
+        }, 'useChatMessages');
       }
     } else {
       const errorData = await response.json().catch(() => null);
@@ -68,6 +77,56 @@ export function useChatMessages(chatId: string | null) {
     }
     setIsLoading(false);
   }, []);
+
+  // Load more older messages (pagination)
+  const loadMore = useCallback(async () => {
+    if (!chatId || !nextCursor || isLoadingMore || !hasMore) {
+      console.log(`[useChatMessages] Skip loadMore:`, { chatId, nextCursor, isLoadingMore, hasMore });
+      return;
+    }
+
+    console.log(`[useChatMessages] Loading more messages with cursor: ${nextCursor}`);
+    setIsLoadingMore(true);
+    
+    try {
+      const response = await fetch(`/api/chats/${chatId}?cursor=${nextCursor}&limit=50`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`[useChatMessages] Loaded ${data.messages?.length} more messages`);
+        
+        if (data.messages && data.messages.length > 0) {
+          const formattedMessages: ChatMessage[] = data.messages.map((msg: {
+            id: string;
+            content: string;
+            senderId: string;
+            createdAt: string | Date;
+          }) => ({
+            id: msg.id,
+            content: msg.content,
+            chatId: chatId,
+            senderId: msg.senderId,
+            createdAt: typeof msg.createdAt === 'string' ? msg.createdAt : msg.createdAt.toISOString(),
+          }));
+          
+          // Prepend older messages to the beginning
+          setMessages(prev => [...formattedMessages, ...prev]);
+          setHasMore(data.pagination?.hasMore || false);
+          setNextCursor(data.pagination?.nextCursor || null);
+          
+          logger.debug(`Loaded ${formattedMessages.length} more messages`, { 
+            chatId, 
+            count: formattedMessages.length,
+            hasMore: data.pagination?.hasMore 
+          }, 'useChatMessages');
+        }
+      }
+    } catch (error) {
+      console.error(`[useChatMessages] Failed to load more messages:`, error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [chatId, nextCursor, isLoadingMore, hasMore]);
 
   // Handle SSE updates for this chat
   const handleChatUpdate = useCallback((data: Record<string, unknown>) => {
@@ -119,10 +178,14 @@ export function useChatMessages(chatId: string | null) {
     if (previousChatId !== chatId) {
       if (chatId) {
         setMessages([]);
+        setHasMore(false);
+        setNextCursor(null);
         loadMessages(chatId);
       } else {
         setIsLoading(false);
         setMessages([]);
+        setHasMore(false);
+        setNextCursor(null);
       }
       previousChatIdRef.current = chatId;
     }
@@ -177,6 +240,9 @@ export function useChatMessages(chatId: string | null) {
   return {
     messages,
     isLoading,
+    isLoadingMore,
+    hasMore,
+    loadMore,
     addMessage,
     clearMessages,
     reloadMessages,

@@ -102,7 +102,7 @@ export class A2AClient extends EventEmitter {
       },
       capabilities: this.config.capabilities,
       endpoint: this.config.endpoint
-    } as JsonRpcParams)
+    } as unknown as JsonRpcParams)
 
     this.agentId = response.agentId
     this._sessionToken = response.sessionToken

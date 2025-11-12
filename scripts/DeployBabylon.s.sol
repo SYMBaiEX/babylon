@@ -7,6 +7,9 @@ import "../contracts/core/DiamondCutFacet.sol";
 import "../contracts/core/DiamondLoupeFacet.sol";
 import "../contracts/core/PredictionMarketFacet.sol";
 import "../contracts/core/OracleFacet.sol";
+import "../contracts/core/LiquidityPoolFacet.sol";
+import "../contracts/core/PerpetualMarketFacet.sol";
+import "../contracts/core/ReferralSystemFacet.sol";
 import "../contracts/identity/ERC8004IdentityRegistry.sol";
 import "../contracts/identity/ERC8004ReputationSystem.sol";
 import "../contracts/oracles/ChainlinkOracleMock.sol";
@@ -22,6 +25,9 @@ contract DeployBabylon is Script {
     DiamondLoupeFacet public diamondLoupeFacet;
     PredictionMarketFacet public predictionMarketFacet;
     OracleFacet public oracleFacet;
+    LiquidityPoolFacet public liquidityPoolFacet;
+    PerpetualMarketFacet public perpetualMarketFacet;
+    ReferralSystemFacet public referralSystemFacet;
     ERC8004IdentityRegistry public identityRegistry;
     ERC8004ReputationSystem public reputationSystem;
     ChainlinkOracleMock public chainlinkOracle;
@@ -61,7 +67,7 @@ contract DeployBabylon is Script {
 
         // 2. Deploy Diamond with DiamondCutFacet
         console.log("\n2. Deploying Diamond...");
-        diamond = new Diamond(deployer, address(diamondCutFacet));
+        diamond = new Diamond(address(diamondCutFacet), address(diamondLoupeFacet));
         console.log("Diamond:", address(diamond));
 
         // 3. Add DiamondLoupeFacet
@@ -129,19 +135,95 @@ contract DeployBabylon is Script {
 
         IDiamondCut(address(diamond)).diamondCut(oracleCut, address(0), "");
 
-        // 6. Deploy ERC-8004 Identity Registry
-        console.log("\n6. Deploying ERC-8004 Identity Registry...");
+        // 6. Deploy and add new facets (LiquidityPool, PerpetualMarket, ReferralSystem)
+        console.log("\n6. Deploying new facets...");
+        liquidityPoolFacet = new LiquidityPoolFacet();
+        console.log("LiquidityPoolFacet:", address(liquidityPoolFacet));
+
+        perpetualMarketFacet = new PerpetualMarketFacet();
+        console.log("PerpetualMarketFacet:", address(perpetualMarketFacet));
+
+        referralSystemFacet = new ReferralSystemFacet();
+        console.log("ReferralSystemFacet:", address(referralSystemFacet));
+
+        // 7. Add new facets to Diamond
+        console.log("\n7. Adding new facets to Diamond...");
+        IDiamondCut.FacetCut[] memory newFacetsCut = new IDiamondCut.FacetCut[](3);
+
+        // LiquidityPoolFacet selectors
+        bytes4[] memory liquiditySelectors = new bytes4[](12);
+        liquiditySelectors[0] = LiquidityPoolFacet.createLiquidityPool.selector;
+        liquiditySelectors[1] = LiquidityPoolFacet.addLiquidity.selector;
+        liquiditySelectors[2] = LiquidityPoolFacet.removeLiquidity.selector;
+        liquiditySelectors[3] = LiquidityPoolFacet.swap.selector;
+        liquiditySelectors[4] = LiquidityPoolFacet.getPool.selector;
+        liquiditySelectors[5] = LiquidityPoolFacet.getLPPosition.selector;
+        liquiditySelectors[6] = LiquidityPoolFacet.getSwapOutput.selector;
+        liquiditySelectors[7] = LiquidityPoolFacet.getUtilization.selector;
+        liquiditySelectors[8] = LiquidityPoolFacet.getReserves.selector;
+        liquiditySelectors[9] = LiquidityPoolFacet.getPriceImpact.selector;
+        liquiditySelectors[10] = LiquidityPoolFacet.getPendingRewards.selector;
+        liquiditySelectors[11] = LiquidityPoolFacet.claimRewards.selector;
+
+        newFacetsCut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(liquidityPoolFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: liquiditySelectors
+        });
+
+        // PerpetualMarketFacet selectors
+        bytes4[] memory perpetualSelectors = new bytes4[](10);
+        perpetualSelectors[0] = PerpetualMarketFacet.createPerpetualMarket.selector;
+        perpetualSelectors[1] = PerpetualMarketFacet.openPosition.selector;
+        perpetualSelectors[2] = PerpetualMarketFacet.closePosition.selector;
+        perpetualSelectors[3] = PerpetualMarketFacet.liquidatePosition.selector;
+        perpetualSelectors[4] = PerpetualMarketFacet.updateFundingRate.selector;
+        perpetualSelectors[5] = PerpetualMarketFacet.getPerpetualMarket.selector;
+        perpetualSelectors[6] = PerpetualMarketFacet.getPosition.selector;
+        perpetualSelectors[7] = PerpetualMarketFacet.getLiquidationPrice.selector;
+        perpetualSelectors[8] = PerpetualMarketFacet.getMarkPrice.selector;
+        perpetualSelectors[9] = PerpetualMarketFacet.getFundingRate.selector;
+
+        newFacetsCut[1] = IDiamondCut.FacetCut({
+            facetAddress: address(perpetualMarketFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: perpetualSelectors
+        });
+
+        // ReferralSystemFacet selectors
+        bytes4[] memory referralSelectors = new bytes4[](10);
+        referralSelectors[0] = ReferralSystemFacet.registerReferral.selector;
+        referralSelectors[1] = ReferralSystemFacet.payReferralCommission.selector;
+        referralSelectors[2] = ReferralSystemFacet.claimReferralEarnings.selector;
+        referralSelectors[3] = ReferralSystemFacet.getReferralData.selector;
+        referralSelectors[4] = ReferralSystemFacet.getTierInfo.selector;
+        referralSelectors[5] = ReferralSystemFacet.getReferralChain.selector;
+        referralSelectors[6] = ReferralSystemFacet.getTotalReferrals.selector;
+        referralSelectors[7] = ReferralSystemFacet.getTotalCommissions.selector;
+        referralSelectors[8] = ReferralSystemFacet.isReferred.selector;
+        referralSelectors[9] = ReferralSystemFacet.calculateCommission.selector;
+
+        newFacetsCut[2] = IDiamondCut.FacetCut({
+            facetAddress: address(referralSystemFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: referralSelectors
+        });
+
+        IDiamondCut(address(diamond)).diamondCut(newFacetsCut, address(0), "");
+
+        // 8. Deploy ERC-8004 Identity Registry
+        console.log("\n8. Deploying ERC-8004 Identity Registry...");
         identityRegistry = new ERC8004IdentityRegistry();
         console.log("IdentityRegistry:", address(identityRegistry));
 
-        // 7. Deploy ERC-8004 Reputation System
-        console.log("\n7. Deploying ERC-8004 Reputation System...");
+        // 9. Deploy ERC-8004 Reputation System
+        console.log("\n9. Deploying ERC-8004 Reputation System...");
         reputationSystem = new ERC8004ReputationSystem(address(identityRegistry));
         console.log("ReputationSystem:", address(reputationSystem));
 
-        // 8. Deploy Oracle Mocks (for testnet)
+        // 10. Deploy Oracle Mocks (for testnet)
         if (block.chainid == 84532) { // Base Sepolia
-            console.log("\n8. Deploying Oracle Mocks (Testnet)...");
+            console.log("\n10. Deploying Oracle Mocks (Testnet)...");
             chainlinkOracle = new ChainlinkOracleMock();
             console.log("ChainlinkOracle:", address(chainlinkOracle));
 
@@ -152,7 +234,7 @@ contract DeployBabylon is Script {
             OracleFacet(address(diamond)).setChainlinkOracle(address(chainlinkOracle));
             OracleFacet(address(diamond)).setUMAOracle(address(umaOracle));
         } else {
-            console.log("\n8. Skipping Oracle Mocks (Mainnet - use real oracles)");
+            console.log("\n10. Skipping Oracle Mocks (Mainnet - use real oracles)");
         }
 
         vm.stopBroadcast();
@@ -164,6 +246,9 @@ contract DeployBabylon is Script {
         console.log("DiamondLoupeFacet:", address(diamondLoupeFacet));
         console.log("PredictionMarketFacet:", address(predictionMarketFacet));
         console.log("OracleFacet:", address(oracleFacet));
+        console.log("LiquidityPoolFacet:", address(liquidityPoolFacet));
+        console.log("PerpetualMarketFacet:", address(perpetualMarketFacet));
+        console.log("ReferralSystemFacet:", address(referralSystemFacet));
         console.log("IdentityRegistry:", address(identityRegistry));
         console.log("ReputationSystem:", address(reputationSystem));
         if (block.chainid == 84532) {

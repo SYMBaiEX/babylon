@@ -101,8 +101,14 @@ export default function ChatsPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement | null>(null)
   
-  // Use SSE for real-time messages
-  const { messages: realtimeMessages, isConnected: sseConnected } = useChatMessages(selectedChatId)
+  // Use SSE for real-time messages with pagination
+  const { 
+    messages: realtimeMessages, 
+    isConnected: sseConnected,
+    isLoadingMore,
+    hasMore,
+    loadMore
+  } = useChatMessages(selectedChatId)
   
   // Pull-to-refresh state
   const {
@@ -126,6 +132,25 @@ export default function ChatsPage() {
     },
     [setPullToRefreshRef]
   )
+
+  // Scroll detection for loading older messages
+  useEffect(() => {
+    const container = chatContainerRef.current
+    if (!container || !selectedChatId) return
+
+    const handleScroll = () => {
+      const { scrollTop } = container
+      
+      // Load more when scrolling near the top (within 200px)
+      if (scrollTop < 200 && hasMore && !isLoadingMore) {
+        console.log('[ChatsPage] Near top, loading more messages...')
+        loadMore()
+      }
+    }
+
+    container.addEventListener('scroll', handleScroll)
+    return () => container.removeEventListener('scroll', handleScroll)
+  }, [selectedChatId, hasMore, isLoadingMore, loadMore])
 
   // Debug mode: enabled in localhost
   const isDebugMode = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
@@ -770,6 +795,26 @@ export default function ChatsPage() {
                               pullDistance > 80 ? "animate-spin" : ""
                             )} 
                           />
+                        </div>
+                      )}
+
+                      {/* Loading more messages indicator */}
+                      {isLoadingMore && (
+                        <div className="flex items-center justify-center py-3">
+                          <Loader2 className="w-5 h-5 text-primary animate-spin mr-2" />
+                          <span className="text-sm text-muted-foreground">Loading older messages...</span>
+                        </div>
+                      )}
+
+                      {/* Show "Load More" button if has more and not auto-loading */}
+                      {hasMore && !isLoadingMore && chatDetails?.messages && chatDetails.messages.length > 0 && (
+                        <div className="flex items-center justify-center py-2">
+                          <button
+                            onClick={loadMore}
+                            className="text-sm text-primary hover:underline flex items-center gap-1"
+                          >
+                            <span>Load older messages</span>
+                          </button>
                         </div>
                       )}
                       
