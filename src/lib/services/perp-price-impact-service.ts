@@ -1,13 +1,14 @@
-import { db } from '@/lib/database-service';
 import { logger } from '@/lib/logger';
-import { ensurePerpsEngineReady, getPerpsEngine } from '@/lib/perps-service';
 import { prisma } from '@/lib/prisma';
-import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
 
 import {
   type TradeImpactInput,
   aggregateTradeImpacts,
 } from './market-impact-service';
+import {
+  type PriceUpdateInput,
+  PriceUpdateService,
+} from './price-update-service';
 
 interface OrganizationTicker {
   id: string;
@@ -54,9 +55,7 @@ export async function applyPerpTradeImpacts(
 
   const impacts = aggregateTradeImpacts(perpTrades);
   const tickerMap = await buildTickerMap();
-  await ensurePerpsEngineReady();
-  const perpsEngine = getPerpsEngine();
-  const priceUpdateMap = new Map<string, number>();
+  const priceUpdates: PriceUpdateInput[] = [];
 
   for (const [rawTicker, impact] of impacts) {
     if (!rawTicker) continue;
@@ -81,43 +80,21 @@ export async function applyPerpTradeImpacts(
     const newPrice = Number((currentPrice * (1 + priceChange)).toFixed(2));
     if (!Number.isFinite(newPrice) || newPrice <= 0) continue;
 
-    const change = newPrice - currentPrice;
-    const changePercent = (change / currentPrice) * 100;
-
-    await prisma.organization.update({
-      where: { id: orgEntry.id },
-      data: { currentPrice: newPrice },
-    });
-
-    await db.recordPriceUpdate(orgEntry.id, newPrice, change, changePercent);
-    priceUpdateMap.set(orgEntry.id, newPrice);
-
-    try {
-      broadcastToChannel('markets', {
-        type: 'perp_price_update',
+    priceUpdates.push({
+      organizationId: orgEntry.id,
+      newPrice,
+      source: 'user_trade',
+      reason: `User perp trades on ${ticker}`,
+      metadata: {
         ticker,
-        price: newPrice,
-        changePercent,
-        source: 'user_trade',
-      });
-    } catch (error) {
-      logger.debug('applyPerpTradeImpacts: SSE broadcast failed', { error });
-    }
-
-    logger.info(
-      'Perp price updated from user trade',
-      {
-        ticker: ticker,
-        organizationId: orgEntry.id,
-        newPrice,
-        changePercent,
-        volume: totalVolume,
+        changePercent: (priceChange * 100).toFixed(4),
+        totalVolume,
+        netSentiment: impact.netSentiment,
       },
-      'PerpPriceImpact'
-    );
+    });
   }
 
-  if (priceUpdateMap.size > 0) {
-    perpsEngine.updatePositions(priceUpdateMap);
+  if (priceUpdates.length > 0) {
+    await PriceUpdateService.applyUpdates(priceUpdates);
   }
 }
