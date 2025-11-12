@@ -207,7 +207,10 @@ export class PerpetualsEngine extends EventEmitter {
   /**
    * Close a position
    */
-  closePosition(positionId: string): {
+  closePosition(
+    positionId: string,
+    exitPriceOverride?: number
+  ): {
     position: PerpPosition;
     realizedPnL: number;
   } {
@@ -221,10 +224,20 @@ export class PerpetualsEngine extends EventEmitter {
       throw new Error(`Market ${position.ticker} not found`);
     }
 
+    if (exitPriceOverride !== undefined) {
+      const priceUpdates: PriceUpdateMap = new Map();
+      priceUpdates.set(market.organizationId, exitPriceOverride);
+      this.updatePositions(priceUpdates);
+    }
+
+    const effectiveExitPrice = exitPriceOverride ?? market.currentPrice;
+    position.currentPrice = effectiveExitPrice;
+    position.lastUpdated = new Date().toISOString();
+
     // Calculate final PnL
     const { pnl } = calculateUnrealizedPnL(
       position.entryPrice,
-      market.currentPrice,
+      effectiveExitPrice,
       position.side,
       position.size
     );
@@ -240,7 +253,7 @@ export class PerpetualsEngine extends EventEmitter {
       size: position.size,
       leverage: position.leverage,
       entryPrice: position.entryPrice,
-      exitPrice: market.currentPrice,
+      exitPrice: effectiveExitPrice,
       realizedPnL,
       fundingPaid: position.fundingPaid,
       timestamp,
@@ -253,7 +266,7 @@ export class PerpetualsEngine extends EventEmitter {
       ticker: position.ticker,
       type: 'close',
       size: position.size,
-      price: market.currentPrice,
+      price: effectiveExitPrice,
       volume: position.size, // Volume in USD (size is already in USD)
       timestamp,
     });
@@ -568,6 +581,10 @@ export class PerpetualsEngine extends EventEmitter {
     return Array.from(this.positions.values()).filter(
       (p) => p.userId === userId
     );
+  }
+
+  getPosition(positionId: string): PerpPosition | undefined {
+    return this.positions.get(positionId);
   }
 
   hasPosition(positionId: string): boolean {

@@ -10,6 +10,7 @@ import {
 } from '@/lib/errors';
 import { logger } from '@/lib/logger';
 import { ensurePerpsEngineReady, getPerpsEngine } from '@/lib/perps-service';
+import { prisma } from '@/lib/prisma';
 import { FeeService } from '@/lib/services/fee-service';
 import type { TradeImpactInput } from '@/lib/services/market-impact-service';
 import { applyPerpTradeImpacts } from '@/lib/services/perp-price-impact-service';
@@ -52,6 +53,26 @@ export interface ClosePerpPositionResult {
     referrerId: string | null;
   };
   newBalance: number;
+}
+
+export function resolveExitPrice(options: {
+  enginePrice?: number | null;
+  organizationPrice?: number | null;
+  positionPrice?: number | null;
+  entryPrice: number;
+}): number {
+  const normalize = (value?: number | null): number | null => {
+    if (value === undefined || value === null) return null;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+  };
+
+  return (
+    normalize(options.enginePrice) ??
+    normalize(options.positionPrice) ??
+    normalize(options.organizationPrice) ??
+    options.entryPrice
+  );
 }
 
 export class PerpTradeService {
@@ -270,7 +291,52 @@ export class PerpTradeService {
       });
     }
 
-    const { position, realizedPnL } = perpsEngine.closePosition(positionId);
+    const latestOrganization = await prisma.organization.findUnique({
+      where: { id: dbPosition.organizationId },
+      select: { currentPrice: true },
+    });
+
+    const enginePosition = perpsEngine.getPosition(positionId);
+
+    const exitPrice = resolveExitPrice({
+      enginePrice: enginePosition?.currentPrice ?? null,
+      organizationPrice: latestOrganization?.currentPrice
+        ? Number(latestOrganization.currentPrice)
+        : null,
+      positionPrice: dbPosition.currentPrice
+        ? Number(dbPosition.currentPrice)
+        : null,
+      entryPrice: Number(dbPosition.entryPrice),
+    });
+
+    if (!enginePosition) {
+      logger.warn(
+        'Engine position missing during close, relying on DB snapshot',
+        { positionId },
+        'PerpTradeService.closePosition'
+      );
+    }
+
+    const { position, realizedPnL } = perpsEngine.closePosition(
+      positionId,
+      exitPrice
+    );
+
+    logger.debug(
+      'Resolved exit price for perp close',
+      {
+        positionId,
+        enginePrice: enginePosition?.currentPrice ?? null,
+        prismaPositionPrice: dbPosition.currentPrice
+          ? Number(dbPosition.currentPrice)
+          : null,
+        organizationPrice: latestOrganization?.currentPrice
+          ? Number(latestOrganization.currentPrice)
+          : null,
+        exitPrice,
+      },
+      'PerpTradeService.closePosition'
+    );
 
     const marginPaid = position.size / position.leverage;
     const grossSettlement = marginPaid + realizedPnL;
