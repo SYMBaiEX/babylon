@@ -94,7 +94,7 @@ function extractErrorMessage(payload: unknown, status: number): string {
 
     try {
       return JSON.stringify(errorPayload);
-    } catch (error) {
+    } catch {
       return `Request failed with status ${status}`;
     }
   }

@@ -16,6 +16,7 @@ import { FeeService } from '@/lib/services/fee-service';
 import type { TradeImpactInput } from '@/lib/services/market-impact-service';
 import { applyPerpTradeImpacts } from '@/lib/services/perp-price-impact-service';
 import { WalletService } from '@/lib/services/wallet-service';
+import { generateSnowflakeId } from '@/lib/snowflake';
 
 import type { PerpPosition } from '@/shared/perps-types';
 
@@ -168,6 +169,7 @@ export class PerpTradeService {
 
         await db.balanceTransaction.create({
           data: {
+            id: generateSnowflakeId(),
             userId: authUser.userId,
             type: 'perp_open',
             amount: -totalCost,
@@ -193,6 +195,7 @@ export class PerpTradeService {
             unrealizedPnL: position.unrealizedPnL,
             unrealizedPnLPercent: position.unrealizedPnLPercent,
             fundingPaid: position.fundingPaid,
+            lastUpdated: new Date(),
           },
         });
       });
@@ -386,6 +389,7 @@ export class PerpTradeService {
           currentPrice: position.currentPrice,
           unrealizedPnL: 0,
           unrealizedPnLPercent: 0,
+          lastUpdated: new Date(),
         },
       });
     });
