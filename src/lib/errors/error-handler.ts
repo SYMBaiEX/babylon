@@ -10,6 +10,7 @@ import { logger } from '@/lib/logger';
 import { Prisma } from '@prisma/client';
 import { isAuthenticationError } from '@/lib/api/auth-middleware';
 import { trackServerError } from '@/lib/posthog/server';
+import * as Sentry from '@sentry/nextjs';
 
 /**
  * Main error handler that processes all errors and returns appropriate responses
@@ -57,6 +58,40 @@ export function errorHandler(error: Error | unknown, request: NextRequest): Next
   }).catch((trackError) => {
     logger.warn('Failed to track error with PostHog', { error: trackError });
   });
+
+  // Capture error in Sentry (only for server errors, not client errors like validation)
+  // Skip capturing validation errors, authentication errors, and known operational errors
+  const shouldCaptureInSentry = 
+    error instanceof Error &&
+    !(error instanceof ZodError) &&
+    !(error instanceof BabylonError && error.isOperational && error.statusCode < 500) &&
+    !isAuthenticationError(error) &&
+    error.name !== 'ValidationError';
+
+  if (shouldCaptureInSentry) {
+    Sentry.withScope((scope) => {
+      // Add request context
+      scope.setContext('request', {
+        url: request.url,
+        method: request.method,
+        headers: Object.fromEntries(request.headers.entries()),
+      });
+
+      // Add user context if available
+      if (userId) {
+        scope.setUser({ id: userId });
+      }
+
+      // Add additional context for Babylon errors
+      if (error instanceof BabylonError && error.context) {
+        scope.setContext('errorContext', error.context);
+        scope.setTag('errorCode', error.code);
+      }
+
+      // Capture the exception
+      Sentry.captureException(error);
+    });
+  }
 
   // Handle authentication errors consistently
   if (isAuthenticationError(error)) {
