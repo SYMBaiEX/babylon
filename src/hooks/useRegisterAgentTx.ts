@@ -59,7 +59,7 @@ export function useRegisterAgentTx() {
         console.warn('Could not pre-check registration status:', checkError);
       }
 
-      const agentEndpoint = `https://babylon.game/agent/${smartWalletAddress.toLowerCase()}`;
+      const agentEndpoint = `https://babylon.market/agent/${smartWalletAddress.toLowerCase()}`;
       const metadataUri = JSON.stringify({
         name: profile.displayName ?? profile.username,
         username: profile.username,

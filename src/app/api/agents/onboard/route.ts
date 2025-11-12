@@ -166,7 +166,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
     // Prepare registration parameters
     const name = agentName || agentId
-    const agentEndpoint = endpoint || `https://babylon.game/agent/${agentId}`
+    const agentEndpoint = endpoint || `https://babylon.market/agent/${agentId}`
     const capabilitiesHash = '0x0000000000000000000000000000000000000000000000000000000000000001' as `0x${string}` // Basic capabilities
     const metadataURI = JSON.stringify({
       name,
@@ -306,7 +306,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         type: 'agent',
         endpoints: {
           a2a: endpoint || `wss://babylon.game/ws/a2a`,
-          api: `https://babylon.game/api/agents/${agentId}`,
+          api: `https://babylon.market/api/agents/${agentId}`,
         },
         capabilities: {
           strategies: ['momentum', 'sentiment', 'volume', 'arbitrage', 'market_making'], // AI strategies
