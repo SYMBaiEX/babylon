@@ -203,6 +203,57 @@ export class Agent0Client implements IAgent0Client {
   }
   
   /**
+   * Register Babylon game itself on agent0 (Ethereum)
+   *
+   * This registers the GAME as an agent in the agent0 ecosystem for:
+   * - Cross-game discovery
+   * - External agent onboarding
+   * - Interoperability with agent0 network
+   *
+   * The game's metadata includes pointers to Base network where game operates
+   */
+  async registerBabylonGame(): Promise<Agent0RegistrationResult> {
+    const baseChainId = parseInt(process.env.BASE_CHAIN_ID || '8453', 10) // Base mainnet by default
+    const baseRegistryAddress = process.env.BASE_IDENTITY_REGISTRY_ADDRESS
+    const baseReputationAddress = process.env.BASE_REPUTATION_SYSTEM_ADDRESS
+    const baseMarketAddress = process.env.BASE_DIAMOND_ADDRESS
+
+    if (!baseRegistryAddress) {
+      throw new Error('BASE_IDENTITY_REGISTRY_ADDRESS required for game registration')
+    }
+
+    logger.info('Registering Babylon game on agent0', {
+      baseChainId,
+      baseRegistryAddress
+    }, 'Agent0Client [registerBabylonGame]')
+
+    return this.registerAgent({
+      name: process.env.BABYLON_GAME_NAME || 'Babylon Prediction Game',
+      description: process.env.BABYLON_GAME_DESCRIPTION || 'AI-powered prediction market game on Base network',
+      imageUrl: process.env.BABYLON_LOGO_URL,
+      walletAddress: process.env.BABYLON_GAME_WALLET || process.env.AGENT0_PRIVATE_KEY || '',
+      mcpEndpoint: process.env.BABYLON_MCP_URL ? `${process.env.BABYLON_MCP_URL}/mcp` : undefined,
+      a2aEndpoint: process.env.BABYLON_A2A_URL ? `${process.env.BABYLON_A2A_URL}/a2a` : undefined,
+      capabilities: {
+        strategies: ['prediction-markets', 'reputation-tracking', 'agent-discovery'],
+        markets: ['sports', 'crypto', 'politics', 'entertainment', 'ai'],
+        actions: ['register-player', 'create-market', 'place-bet', 'resolve-market', 'submit-feedback'],
+        version: '1.0.0',
+        platform: 'babylon',
+        userType: 'game',
+        x402Support: true,
+        // Cross-chain game network info
+        gameNetwork: {
+          chainId: baseChainId,
+          registryAddress: baseRegistryAddress,
+          reputationAddress: baseReputationAddress,
+          marketAddress: baseMarketAddress
+        }
+      }
+    })
+  }
+
+  /**
    * Search for agents using Agent0 SDK
    */
   async searchAgents(filters: Agent0SearchFilters): Promise<Agent0SearchResult[]> {
@@ -410,4 +461,3 @@ export function getAgent0Client(): Agent0Client {
   
   return agent0ClientInstance
 }
-

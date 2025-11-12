@@ -83,6 +83,14 @@ export interface AgentCapabilities {
   x402Support?: boolean // ERC-402 payment support for agent services
   platform?: string // Platform identifier (e.g., 'babylon', 'eliza')
   userType?: string // User type (e.g., 'agent', 'user')
+  gameNetwork?: GameNetworkInfo // For games: cross-chain registry information
+}
+
+export interface GameNetworkInfo {
+  chainId: number // Network chainId where game operates (e.g., 8453 for Base mainnet)
+  registryAddress: string // ERC8004IdentityRegistry contract address on game network
+  reputationAddress?: string // ERC8004ReputationSystem contract address on game network
+  marketAddress?: string // PredictionMarketFacet/Diamond contract address on game network
 }
 
 export interface AgentProfile {

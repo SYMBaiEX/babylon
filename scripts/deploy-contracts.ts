@@ -25,6 +25,9 @@ interface DeploymentResult {
     reputationSystem: string
     diamond: string
     predictionMarketFacet: string
+    perpetualMarketFacet: string
+    liquidityPoolFacet: string
+    referralSystemFacet: string
     oracleFacet: string
     diamondCutFacet: string
     diamondLoupeFacet: string
@@ -70,11 +73,17 @@ class ContractDeployer {
     const diamondCutFacet = await this.deployContract('DiamondCutFacet')
     const diamondLoupeFacet = await this.deployContract('DiamondLoupeFacet')
     const predictionMarketFacet = await this.deployContract('PredictionMarketFacet')
+    const perpetualMarketFacet = await this.deployContract('PerpetualMarketFacet')
+    const liquidityPoolFacet = await this.deployContract('LiquidityPoolFacet')
+    const referralSystemFacet = await this.deployContract('ReferralSystemFacet')
     const oracleFacet = await this.deployContract('OracleFacet')
 
     logger.info(`DiamondCutFacet: ${diamondCutFacet}`, undefined, 'Script');
     logger.info(`DiamondLoupeFacet: ${diamondLoupeFacet}`, undefined, 'Script');
     logger.info(`PredictionMarketFacet: ${predictionMarketFacet}`, undefined, 'Script');
+    logger.info(`PerpetualMarketFacet: ${perpetualMarketFacet}`, undefined, 'Script');
+    logger.info(`LiquidityPoolFacet: ${liquidityPoolFacet}`, undefined, 'Script');
+    logger.info(`ReferralSystemFacet: ${referralSystemFacet}`, undefined, 'Script');
     logger.info(`OracleFacet: ${oracleFacet}`, undefined, 'Script');
 
     // 5. Deploy Diamond with initial facets
@@ -83,6 +92,9 @@ class ContractDeployer {
       diamondCutFacet,
       diamondLoupeFacet,
       predictionMarketFacet,
+      perpetualMarketFacet,
+      liquidityPoolFacet,
+      referralSystemFacet,
       oracleFacet
     )
     logger.info(`Diamond Proxy: ${diamond}`, undefined, 'Script');
@@ -95,6 +107,9 @@ class ContractDeployer {
         reputationSystem,
         diamond,
         predictionMarketFacet,
+        perpetualMarketFacet,
+        liquidityPoolFacet,
+        referralSystemFacet,
         oracleFacet,
         diamondCutFacet,
         diamondLoupeFacet
@@ -110,6 +125,9 @@ class ContractDeployer {
         reputationSystem,
         diamond,
         predictionMarketFacet,
+        perpetualMarketFacet,
+        liquidityPoolFacet,
+        referralSystemFacet,
         oracleFacet,
         diamondCutFacet,
         diamondLoupeFacet
@@ -157,6 +175,9 @@ class ContractDeployer {
         'DiamondCutFacet': 'contracts/core/DiamondCutFacet.sol',
         'DiamondLoupeFacet': 'contracts/core/DiamondLoupeFacet.sol',
         'PredictionMarketFacet': 'contracts/core/PredictionMarketFacet.sol',
+        'PerpetualMarketFacet': 'contracts/core/PerpetualMarketFacet.sol',
+        'LiquidityPoolFacet': 'contracts/core/LiquidityPoolFacet.sol',
+        'ReferralSystemFacet': 'contracts/core/ReferralSystemFacet.sol',
         'OracleFacet': 'contracts/core/OracleFacet.sol',
         'Diamond': 'contracts/core/Diamond.sol'
       }
@@ -203,6 +224,9 @@ class ContractDeployer {
     cutFacet: string,
     loupeFacet: string,
     marketFacet: string,
+    perpetualFacet: string,
+    liquidityFacet: string,
+    referralFacet: string,
     oracleFacet: string
   ): Promise<string> {
     // Diamond requires diamond cut initialization

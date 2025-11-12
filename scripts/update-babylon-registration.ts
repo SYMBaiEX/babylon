@@ -128,7 +128,7 @@ async function updateBabylonRegistration() {
 
     // Set status
     agent.setActive(true)
-    agent.setX402Support(false) // Free to use
+    agent.setX402Support(true) // Enable ERC-402 micropayments for premium actions
 
     console.log('📤 Re-registering with updated metadata...')
     console.log('   (This uploads new IPFS file and updates on-chain URI)')
