@@ -57,6 +57,9 @@
     "training:benchmark": "bun run eliza/plugin-training/scripts/run-benchmark.ts",
     "training:test": "bun test eliza/plugin-training/src/__tests__/e2e/"
   },
+  "prisma": {
+    "seed": "bun run prisma/seed.ts"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
     "@aws-sdk/client-s3": "^3.928.0",
