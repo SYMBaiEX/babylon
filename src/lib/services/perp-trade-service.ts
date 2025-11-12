@@ -12,10 +12,12 @@ import { logger } from '@/lib/logger';
 import { cachedDb } from '@/lib/cached-database-service';
 import { getReadyPerpsEngine } from '@/lib/perps-service';
 import { prisma } from '@/lib/prisma';
+import { generateSnowflakeId } from '@/lib/snowflake';
 import { FeeService } from '@/lib/services/fee-service';
 import type { TradeImpactInput } from '@/lib/services/market-impact-service';
 import { applyPerpTradeImpacts } from '@/lib/services/perp-price-impact-service';
 import { WalletService } from '@/lib/services/wallet-service';
+import { Prisma } from '@prisma/client';
 
 import type { PerpPosition } from '@/shared/perps-types';
 
@@ -168,11 +170,12 @@ export class PerpTradeService {
 
         await db.balanceTransaction.create({
           data: {
+            id: generateSnowflakeId(),
             userId: authUser.userId,
             type: 'perp_open',
-            amount: -totalCost,
-            balanceBefore: currentBalance,
-            balanceAfter: newBalance,
+            amount: new Prisma.Decimal(-totalCost),
+            balanceBefore: new Prisma.Decimal(currentBalance),
+            balanceAfter: new Prisma.Decimal(newBalance),
             relatedId: position.id,
             description: `Opened ${input.leverage}x ${input.side} position on ${input.ticker} (incl. $${feeCalc.feeAmount.toFixed(2)} fee)`,
           },
@@ -193,6 +196,7 @@ export class PerpTradeService {
             unrealizedPnL: position.unrealizedPnL,
             unrealizedPnLPercent: position.unrealizedPnLPercent,
             fundingPaid: position.fundingPaid,
+            lastUpdated: new Date(),
           },
         });
       });
