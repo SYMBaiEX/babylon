@@ -78,18 +78,17 @@ contract UpgradeDiamond is Script {
         console.log("LiquidityPoolFacet: %d selectors", liquiditySelectors.length);
 
         // 2b. PerpetualMarketFacet selectors
-        bytes4[] memory perpetualSelectors = new bytes4[](11);
+        bytes4[] memory perpetualSelectors = new bytes4[](10);
         perpetualSelectors[0] = PerpetualMarketFacet.createPerpetualMarket.selector;
-        perpetualSelectors[1] = PerpetualMarketFacet.openLongPosition.selector;
-        perpetualSelectors[2] = PerpetualMarketFacet.openShortPosition.selector;
-        perpetualSelectors[3] = PerpetualMarketFacet.closePosition.selector;
-        perpetualSelectors[4] = PerpetualMarketFacet.liquidatePosition.selector;
-        perpetualSelectors[5] = PerpetualMarketFacet.updateFundingRate.selector;
-        perpetualSelectors[6] = PerpetualMarketFacet.getPerpetualMarket.selector;
-        perpetualSelectors[7] = PerpetualMarketFacet.getPosition.selector;
-        perpetualSelectors[8] = PerpetualMarketFacet.calculateLiquidationPrice.selector;
+        perpetualSelectors[1] = PerpetualMarketFacet.openPosition.selector;
+        perpetualSelectors[2] = PerpetualMarketFacet.closePosition.selector;
+        perpetualSelectors[3] = PerpetualMarketFacet.liquidatePosition.selector;
+        perpetualSelectors[4] = PerpetualMarketFacet.updateFundingRate.selector;
+        perpetualSelectors[5] = PerpetualMarketFacet.getPerpetualMarket.selector;
+        perpetualSelectors[6] = PerpetualMarketFacet.getPosition.selector;
+        perpetualSelectors[7] = PerpetualMarketFacet.getLiquidationPrice.selector;
+        perpetualSelectors[8] = PerpetualMarketFacet.getMarkPrice.selector;
         perpetualSelectors[9] = PerpetualMarketFacet.getFundingRate.selector;
-        perpetualSelectors[10] = PerpetualMarketFacet.getPositionValue.selector;
 
         cuts[1] = IDiamondCut.FacetCut({
             facetAddress: address(perpetualMarketFacet),
@@ -99,15 +98,17 @@ contract UpgradeDiamond is Script {
         console.log("PerpetualMarketFacet: %d selectors", perpetualSelectors.length);
 
         // 2c. ReferralSystemFacet selectors
-        bytes4[] memory referralSelectors = new bytes4[](8);
+        bytes4[] memory referralSelectors = new bytes4[](10);
         referralSelectors[0] = ReferralSystemFacet.registerReferral.selector;
         referralSelectors[1] = ReferralSystemFacet.payReferralCommission.selector;
-        referralSelectors[2] = ReferralSystemFacet.checkTierUpgrade.selector;
-        referralSelectors[3] = ReferralSystemFacet.getReferralInfo.selector;
-        referralSelectors[4] = ReferralSystemFacet.getReferralTier.selector;
-        referralSelectors[5] = ReferralSystemFacet.getTotalReferrals.selector;
-        referralSelectors[6] = ReferralSystemFacet.getTotalCommissionsEarned.selector;
-        referralSelectors[7] = ReferralSystemFacet.getCommissionRate.selector;
+        referralSelectors[2] = ReferralSystemFacet.claimReferralEarnings.selector;
+        referralSelectors[3] = ReferralSystemFacet.getReferralData.selector;
+        referralSelectors[4] = ReferralSystemFacet.getTierInfo.selector;
+        referralSelectors[5] = ReferralSystemFacet.getReferralChain.selector;
+        referralSelectors[6] = ReferralSystemFacet.getTotalReferrals.selector;
+        referralSelectors[7] = ReferralSystemFacet.getTotalCommissions.selector;
+        referralSelectors[8] = ReferralSystemFacet.isReferred.selector;
+        referralSelectors[9] = ReferralSystemFacet.calculateCommission.selector;
 
         cuts[2] = IDiamondCut.FacetCut({
             facetAddress: address(referralSystemFacet),
