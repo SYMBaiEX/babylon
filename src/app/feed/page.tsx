@@ -124,6 +124,7 @@ function FeedPageContent() {
     const response = await fetch(`/api/posts?limit=${PAGE_SIZE}&offset=${requestOffset}`)
     if (!response.ok) {
       if (append) setHasMore(false)
+      setLoadingMore(false)
       return
     }
 
@@ -173,7 +174,8 @@ function FeedPageContent() {
     }
 
     if (append && uniqueAdded === 0) {
-      setHasMore(false)
+      // setHasMore(false)
+      setLoadingMore(false)
       return
     }
 
@@ -351,47 +353,38 @@ function FeedPageContent() {
   // Removed early loading return to prevent layout shifts - loading state is handled inline
 
   return (
-    <PageContainer noPadding className="flex flex-col min-h-screen w-full overflow-visible">
-      {/* Mobile/Tablet: Header with tabs and search */}
-      <div className="sticky top-0 z-10 bg-background shadow-sm flex-shrink-0 lg:hidden">
-        <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2">
-          {/* Tabs */}
-          <FeedToggle activeTab={tab} onTabChange={setTab} />
-        </div>
-      </div>
-
-      {/* Desktop: Multi-column layout with scrollable feed */}
-      <div className="hidden lg:flex flex-1 min-h-0">
-        {/* Left: Feed area - aligned with sidebar, full width */}
-        <div className="flex-1 flex flex-col min-w-0 border-l border-r border-[rgba(120,120,120,0.5)]">
-          {/* Desktop: Top bar with tabs and post button */}
+    <PageContainer noPadding className="flex flex-col h-full w-full overflow-hidden">
+      {/* Single responsive layout */}
+      <div className="flex flex-1 min-h-0">
+        {/* Feed area - responsive width and borders */}
+        <div className="flex-1 flex flex-col min-w-0 lg:border-l lg:border-r border-[rgba(120,120,120,0.5)]">
+          {/* Header with tabs - responsive positioning and padding */}
           <div className="sticky top-0 z-10 bg-background shadow-sm flex-shrink-0">
-            <div className="px-6 py-4">
-              {/* Top row: Tabs */}
-              <div className="flex items-center justify-between mb-3">
+            <div className="px-3 sm:px-4 lg:px-6 py-2 lg:py-4">
+              <div className="flex items-center justify-between lg:mb-3">
                 <FeedToggle activeTab={tab} onTabChange={setTab} />
               </div>
             </div>
           </div>
 
-          {/* Feed content - Scrollable container with pull-to-refresh */}
+          {/* Feed content - Single scrollable container with pull-to-refresh */}
           <div 
             ref={scrollContainerRef}
             className="flex-1 bg-background overflow-y-auto overflow-x-hidden"
           >
-            <div className="w-full max-w-[700px] mx-auto">
-              {/* Pull to refresh indicator (desktop) */}
+            {/* Content wrapper - responsive padding and max-width */}
+            <div className="w-full px-4 lg:px-6 lg:max-w-[700px] lg:mx-auto">
+              {/* Pull to refresh indicator */}
               <PullToRefreshIndicator
                 pullDistance={pullDistance}
                 isRefreshing={isRefreshing}
               />
-            </div>
-            
-            {(loading || (tab === 'following' && loadingFollowing)) ? (
-              <div className="w-full max-w-[700px] mx-auto px-6">
-                <FeedSkeleton count={6} />
-              </div>
-            ) : basePosts.length === 0 && tab === 'latest' ? (
+              
+              {(loading || (tab === 'following' && loadingFollowing)) ? (
+                <div className="w-full">
+                  <FeedSkeleton count={5} />
+                </div>
+              ) : basePosts.length === 0 && tab === 'latest' ? (
                 // No posts yet
                 <div className="w-full p-4 sm:p-8 text-center">
                   <div className="text-muted-foreground py-8 sm:py-12">
@@ -409,7 +402,7 @@ function FeedPageContent() {
                 // Following tab with no followed profiles
                 <div className="w-full p-4 sm:p-8 text-center">
                   <div className="text-muted-foreground py-8 sm:py-12">
-                    <h2 className="font-semibold mb-2 text-foreground">👥 Not Following Anyone Yet</h2>
+                    <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">👥 Not Following Anyone Yet</h2>
                     <p className="mb-4 text-sm sm:text-base">
                       {loadingFollowing
                         ? 'Loading following...'
@@ -420,17 +413,17 @@ function FeedPageContent() {
               ) : basePosts.length === 0 ? (
                 // Game loaded but no visible posts yet
                 <div className="w-full p-4 sm:p-8 text-center">
-                <div className="text-muted-foreground py-8 sm:py-12">
-                  <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">⏱️ No Posts Yet</h2>
-                  <p className="mb-4 text-sm sm:text-base">
-                    Game is running in the background via realtime-daemon. Content will appear here as it&apos;s generated.
-                  </p>
-                </div>
+                  <div className="text-muted-foreground py-8 sm:py-12">
+                    <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">⏱️ No Posts Yet</h2>
+                    <p className="mb-4 text-sm sm:text-base">
+                      Game is running in the background via realtime-daemon. Content will appear here as it&apos;s generated.
+                    </p>
+                  </div>
                 </div>
               ) : (
-              // Show posts - centered container
-              <div className="w-full px-6 space-y-0 max-w-[700px] mx-auto">
-                {basePosts.map((post, i: number) => {
+                // Show posts - single implementation
+                <div className="w-full space-y-0">
+                  {basePosts.map((post, i: number) => {
                     // Handle both FeedPost (from game store) and API post shapes
                     // API posts have authorId, FeedPost has author (both are author IDs)
                     const authorId = ('authorId' in post ? post.authorId : post.author) || ''
@@ -486,133 +479,16 @@ function FeedPageContent() {
                           You&apos;re all caught up.
                         </div>
                       )}
-                  </>
-                )}
-              </div>
-            )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Right: Widget panels - only on desktop (xl+) */}
         <WidgetSidebar />
-      </div>
-
-      {/* Mobile/Tablet: Feed area */}
-      <div 
-        ref={scrollContainerRef}
-        className="flex lg:hidden flex-1 overflow-y-auto overflow-x-hidden bg-background w-full"
-      >
-        <div className="w-full">
-          {/* Pull to refresh indicator */}
-          <PullToRefreshIndicator
-            pullDistance={pullDistance}
-            isRefreshing={isRefreshing}
-          />
-          
-          {(loading || (tab === 'following' && loadingFollowing)) ? (
-            <div className="w-full px-4">
-              <FeedSkeleton count={5} />
-            </div>
-            ) : basePosts.length === 0 && tab === 'latest' ? (
-            // No posts yet
-            <div className="w-full p-4 sm:p-8 text-center">
-              <div className="text-muted-foreground py-8 sm:py-12">
-                <h2 className="text-xl sm:text-2xl font-bold mb-2 text-foreground">No Posts Yet</h2>
-                <p className="mb-4 text-sm sm:text-base">
-                  Engine is generating posts...
-                </p>
-                <div className="text-xs sm:text-sm text-muted-foreground space-y-2">
-                  <p>Check terminal for tick logs.</p>
-                  <p>Posts appear within 60 seconds.</p>
-                </div>
-              </div>
-            </div>
-          ) : basePosts.length === 0 && tab === 'following' ? (
-            // Following tab with no followed profiles
-            <div className="w-full p-4 sm:p-8 text-center">
-              <div className="text-muted-foreground py-8 sm:py-12">
-                <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">👥 Not Following Anyone Yet</h2>
-                <p className="mb-4 text-sm sm:text-base">
-                  {loadingFollowing
-                    ? 'Loading following...'
-                    : 'Follow profiles to see their posts here. Visit a profile and click the Follow button.'}
-                </p>
-              </div>
-            </div>
-          ) : basePosts.length === 0 ? (
-            // Game loaded but no visible posts yet
-            <div className="w-full p-4 sm:p-8 text-center">
-              <div className="text-muted-foreground py-8 sm:py-12">
-                <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">⏱️ No Posts Yet</h2>
-                <p className="mb-4 text-sm sm:text-base">
-                  Game is running in the background via realtime-daemon. Content will appear here as it&apos;s generated.
-                </p>
-              </div>
-            </div>
-          ) : (
-            // Show posts
-            <div className="w-full px-4">
-              {basePosts.map((post, i: number) => {
-              // Handle both FeedPost (from game store) and API post shapes
-              // API posts have authorId, FeedPost has author (both are author IDs)
-              const authorId = ('authorId' in post ? post.authorId : post.author) || ''
-              // Get actual actor name from loaded data, fallback to authorName or ID
-              const authorName = actorNames.get(authorId) || ('authorName' in post ? post.authorName : '') || authorId
-
-              // Show banner at the random interval (if not dismissed)
-              const showBannerAfterThisPost = !bannerDismissed && i === bannerInterval.current - 1
-
-              const postData = {
-                id: post.id,
-                content: post.content,
-                authorId,
-                authorName,
-                authorUsername: ('authorUsername' in post ? post.authorUsername : null) || null,
-                authorProfileImageUrl: ('authorProfileImageUrl' in post ? post.authorProfileImageUrl : null),
-                timestamp: post.timestamp,
-                likeCount: ('likeCount' in post ? (post.likeCount as number) : 0) || 0,
-                commentCount: ('commentCount' in post ? (post.commentCount as number) : 0) || 0,
-                shareCount: ('shareCount' in post ? (post.shareCount as number) : 0) || 0,
-                isLiked: ('isLiked' in post ? (post.isLiked as boolean) : false) || false,
-                isShared: ('isShared' in post ? (post.isShared as boolean) : false) || false,
-              }
-
-              return (
-                <div key={`post-wrapper-${post.id}-${i}`}>
-                  <PostCard
-                    post={postData}
-                    onClick={() => router.push(`/post/${post.id}`)}
-                  />
-                  {showBannerAfterThisPost && (
-                    <InviteFriendsBanner 
-                      onDismiss={() => {
-                        setBannerDismissed(true)
-                        // Recalculate interval for next load
-                        bannerInterval.current = calculateBannerInterval()
-                      }}
-                    />
-                  )}
-                </div>
-                )
-              })}
-              {tab === 'latest' && (
-                <>
-                  <div ref={loadMoreRef} className="h-1 w-full" />
-                  {loadingMore && (
-                    <div className="py-4 text-center text-sm text-muted-foreground">
-                      Loading more posts...
-                    </div>
-                  )}
-                  {!loadingMore && !hasMore && posts.length > 0 && (
-                    <div className="py-4 text-center text-xs text-muted-foreground">
-                      You&apos;re all caught up.
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Floating Post Button - Bottom Right */}

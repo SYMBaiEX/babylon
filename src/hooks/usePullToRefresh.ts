@@ -59,7 +59,7 @@ export function usePullToRefresh(options: PullToRefreshOptions): PullToRefreshRe
     }
     
     // Set locks immediately
-    console.log('[PTR] Setting locks and starting refresh')
+    // console.log('[PTR] Setting locks and starting refresh')
     hasTriggeredRef.current = true
     isRefreshingRef.current = true
     
@@ -77,7 +77,7 @@ export function usePullToRefresh(options: PullToRefreshOptions): PullToRefreshRe
     try {
       await onRefresh()
     } finally {
-      console.log('[PTR] Refresh complete')
+      // console.log('[PTR] Refresh complete')
       // Keep spinner visible briefly
       await new Promise(resolve => setTimeout(resolve, 200))
       
@@ -87,7 +87,7 @@ export function usePullToRefresh(options: PullToRefreshOptions): PullToRefreshRe
       
       // Reset locks after animation (with additional buffer to prevent rapid re-triggers)
       setTimeout(() => {
-        console.log('[PTR] Locks reset')
+        // console.log('[PTR] Locks reset')
         hasTriggeredRef.current = false
         isRefreshingRef.current = false
         wheelAccumulator.current = 0
@@ -116,16 +116,21 @@ export function usePullToRefresh(options: PullToRefreshOptions): PullToRefreshRe
 
     nodeRef.current = node
 
+    // Helper to get actual scroll position (works with both node and document)
+    const getScrollTop = (): number => {
+      return (document.scrollingElement?.scrollTop ?? 0) || node.scrollTop
+    }
+
     // === TOUCH HANDLERS ===
     const onTouchStart = (e: TouchEvent) => {
-      if (node.scrollTop === 0 && !hasTriggeredRef.current) {
+      if (getScrollTop() === 0 && !hasTriggeredRef.current) {
         touchStartY.current = e.touches[0]?.clientY ?? 0
         isPulling.current = true
       }
     }
 
     const onTouchMove = (e: TouchEvent) => {
-      if (!isPulling.current || hasTriggeredRef.current || node.scrollTop > 0) {
+      if (!isPulling.current || hasTriggeredRef.current || getScrollTop() > 0) {
         isPulling.current = false
         return
       }
@@ -158,6 +163,8 @@ export function usePullToRefresh(options: PullToRefreshOptions): PullToRefreshRe
 
     // === WHEEL HANDLER ===
     const onWheel = (e: WheelEvent) => {
+      const scrollTop = getScrollTop()
+      
       const now = Date.now()
       if (now - lastWheelTriggerRef.current < 800) {
         wheelAccumulator.current = 0
@@ -173,7 +180,7 @@ export function usePullToRefresh(options: PullToRefreshOptions): PullToRefreshRe
         return
       }
       
-      if (node.scrollTop > 0) {
+      if (scrollTop > 0) {
         wheelAccumulator.current = 0
         return
       }
@@ -203,7 +210,7 @@ export function usePullToRefresh(options: PullToRefreshOptions): PullToRefreshRe
 
         // Trigger at threshold
         if (distance >= threshold && !hasTriggeredRef.current && !isRefreshingRef.current) {
-          console.log('[PTR Wheel] Triggering at distance:', distance)
+          // console.log('[PTR Wheel] Triggering at distance:', distance)
           // Clear accumulator before triggering
           wheelAccumulator.current = 0
           lastWheelTriggerRef.current = now
