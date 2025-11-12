@@ -8,9 +8,6 @@ import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { nanoid } from 'nanoid';
 
-const REFERRAL_BONUS_POINTS = 50;
-const NEW_USER_BONUS_POINTS = 500;
-
 export interface WaitlistMarkResult {
   success: boolean
   waitlistPosition: number
@@ -126,8 +123,8 @@ export class WaitlistService {
           // Valid referral - award points!
           else {
             // Award +50 points to referrer
-            const newInvitePoints = referrer.invitePoints + REFERRAL_BONUS_POINTS
-            const newReputationPoints = referrer.reputationPoints + REFERRAL_BONUS_POINTS
+            const newInvitePoints = referrer.invitePoints + 50
+            const newReputationPoints = referrer.reputationPoints + 50
             
             await prisma.user.update({
               where: { id: referrer.id },
@@ -143,7 +140,7 @@ export class WaitlistService {
               data: {
                 id: generateSnowflakeId(),
                 userId: referrer.id,
-                amount: REFERRAL_BONUS_POINTS,
+                amount: 50,
                 pointsBefore: referrer.reputationPoints,
                 pointsAfter: newReputationPoints,
                 reason: 'referral',
@@ -350,7 +347,7 @@ export class WaitlistService {
         data: {
           id: generateSnowflakeId(),
           userId,
-          amount: REFERRAL_BONUS_POINTS,
+          amount: bonusAmount,
           pointsBefore: user.reputationPoints,
           pointsAfter: newReputationPoints,
           reason: 'email_verification',
@@ -395,7 +392,7 @@ export class WaitlistService {
 
       const bonusAmount = 25
       const newBonusPoints = user.bonusPoints + bonusAmount
-      const newReputationPoints = user.reputationPoints + NEW_USER_BONUS_POINTS
+      const newReputationPoints = user.reputationPoints + bonusAmount
 
       await prisma.user.update({
         where: { id: userId },
@@ -412,7 +409,7 @@ export class WaitlistService {
         data: {
           id: generateSnowflakeId(),
           userId,
-          amount: NEW_USER_BONUS_POINTS,
+          amount: bonusAmount,
           pointsBefore: user.reputationPoints,
           pointsAfter: newReputationPoints,
           reason: 'wallet_connect',

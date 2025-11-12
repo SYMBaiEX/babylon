@@ -317,7 +317,7 @@ export default function NotificationsPage() {
             </p>
           </div>
         ) : (
-          <div className="max-w-[600px] mx-auto">
+          <div className="max-w-feed mx-auto">
             {notifications.map((notification) => (
               <Link
                 key={notification.id}
@@ -403,4 +403,3 @@ export default function NotificationsPage() {
     </PageContainer>
   )
 }
-

@@ -183,7 +183,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
 
       {/* Modal - Desktop */}
       <div className="hidden md:flex fixed inset-0 z-50 items-center justify-center p-4">
-        <div className="rounded-2xl border border-white/10 bg-[#050816] shadow-2xl w-full max-w-[600px] max-h-[80vh] flex flex-col overflow-hidden">
+        <div className="rounded-2xl border border-white/10 bg-[#050816] shadow-2xl w-full max-w-feed max-h-[80vh] flex flex-col overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
             <div>

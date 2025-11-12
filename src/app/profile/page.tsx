@@ -515,7 +515,7 @@ export default function ProfilePage() {
           <>
             {/* Profile Header - Style */}
             <div className="border-b border-border">
-              <div className="max-w-[600px] mx-auto">
+              <div className="max-w-feed mx-auto">
                 {/* Cover Image */}
                 <div className="relative h-32 sm:h-48 bg-gradient-to-br from-primary/20 to-primary/5">
                   {formData.coverImageUrl ? (
@@ -682,7 +682,7 @@ export default function ProfilePage() {
 
             {/* Tabs: Posts vs Replies */}
             <div className="border-b border-border sticky top-0 bg-background/95 backdrop-blur-sm z-10">
-              <div className="max-w-[600px] mx-auto">
+              <div className="max-w-feed mx-auto">
                 <div className="flex">
                   <button
                     onClick={() => setTab('posts')}
@@ -707,7 +707,7 @@ export default function ProfilePage() {
             </div>
 
             {/* Posts/Replies section */}
-            <div className="max-w-[600px] mx-auto">
+            <div className="max-w-feed mx-auto">
               {loadingPosts ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="space-y-3 w-full max-w-2xl">
@@ -1027,7 +1027,7 @@ export default function ProfilePage() {
             )}
           </>
         ) : (
-          <div className="max-w-[600px] mx-auto px-4 py-3">
+          <div className="max-w-feed mx-auto px-4 py-3">
             <div className="text-center text-muted-foreground py-12">
               <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p>Please log in to view your profile.</p>

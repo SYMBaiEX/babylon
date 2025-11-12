@@ -182,7 +182,7 @@ export default function TrendingTagPage() {
                 </div>
               </div>
             ) : (
-              <div className="max-w-[700px] mx-auto px-6 py-4 space-y-0">
+              <div className="max-w-feed mx-auto px-6 py-4 space-y-0">
                 {posts.map((post) => (
                   <PostCard
                     key={post.id}

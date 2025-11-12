@@ -40,6 +40,7 @@ interface CommentInput {
   parentCommentId: string | null;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt: Date | null;
   User: {
     id: string;
     username: string | null;
@@ -47,8 +48,8 @@ interface CommentInput {
     profileImageUrl: string | null;
     isActor: boolean;
   };
-  Reaction: Array<{ id: string }>;
-  _count: { Reaction: number; other_Comment: number };
+  Reaction: Array<{ id: string; userId: string; type: string }>;
+  _count: { Reaction: number };
 }
 
 function buildCommentTree(

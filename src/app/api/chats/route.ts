@@ -3,13 +3,13 @@
  * Methods: GET (list user's chats), POST (create new chat)
  */
 
-import type { NextRequest } from 'next/server';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { asSystem, asUser } from '@/lib/db/context';
 import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { ChatCreateSchema, ChatQuerySchema } from '@/lib/validation/schemas';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/chats

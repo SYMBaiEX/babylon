@@ -1,19 +1,28 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
-import { PageContainer } from '@/components/shared/PageContainer'
 import { EntitySearchAutocomplete } from '@/components/explore/EntitySearchAutocomplete'
-import { cn } from '@/lib/utils'
-import { useSearchParams, useRouter } from 'next/navigation'
 import { PostCard } from '@/components/posts/PostCard'
-import { FeedSkeleton } from '@/components/shared/Skeleton'
-import type { FeedPost } from '@/shared/types'
-import { 
-  Search, Users, Bot, Building2, UserCircle, ExternalLink, 
-  Shield, Wallet, TrendingUp, Activity, X, AlertCircle 
-} from 'lucide-react'
 import { Avatar } from '@/components/shared/Avatar'
+import { PageContainer } from '@/components/shared/PageContainer'
+import { FeedSkeleton, Skeleton } from '@/components/shared/Skeleton'
+import { cn } from '@/lib/utils'
+import type { FeedPost } from '@/shared/types'
+import {
+  Activity,
+  AlertCircle,
+  Bot, Building2,
+  ExternalLink,
+  Search,
+  Shield,
+  TrendingUp,
+  UserCircle,
+  Users,
+  Wallet,
+  X
+} from 'lucide-react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
 
 interface RegistryEntity {
   type: 'user' | 'actor' | 'agent' | 'app'
@@ -231,13 +240,13 @@ function ExplorePageContent() {
 
     const cardContent = (
       <>
-        <div className="px-4 py-3 border-b border-border bg-muted/30">
+        <div className="p-4 border-b border-border bg-muted/30">
           <div className="flex items-start gap-3">
             <Avatar
               src={entity.imageUrl}
               name={entity.name}
               size="lg"
-              className="shrink-0"
+              className="flex-shrink-0"
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2">
@@ -251,7 +260,7 @@ function ExplorePageContent() {
                     </p>
                   )}
                 </div>
-                <div className="shrink-0">
+                <div className="flex-shrink-0">
                   {entity.type === 'user' && renderBadge('user', 'User', <UserCircle className="h-3 w-3" />, getBadgeColor())}
                   {entity.type === 'actor' && renderBadge('actor', 'Actor', <Users className="h-3 w-3" />, getBadgeColor())}
                   {entity.type === 'agent' && renderBadge('agent', 'Agent', <Bot className="h-3 w-3" />, getBadgeColor())}
@@ -268,13 +277,13 @@ function ExplorePageContent() {
           </div>
         </div>
 
-        <div className="px-4 py-3 space-y-3">
+        <div className="p-4 space-y-3">
           {entity.onChainRegistered && (
-            <div className="flex items-center gap-2 text-sm bg-green-500/5 border border-green-500/20 rounded-xl px-3 py-2">
-              <Shield className="h-4 w-4 text-green-500 shrink-0" />
+            <div className="flex items-center gap-2 text-sm bg-green-500/5 border border-green-500/20 rounded-lg p-2">
+              <Shield className="h-4 w-4 text-green-500 flex-shrink-0" />
               <span className="text-green-500 font-medium flex-1">On-chain registered</span>
               {entity.nftTokenId && (
-                <span className="text-xs font-mono bg-green-500/10 px-2 py-0.5 rounded-lg">
+                <span className="text-xs font-mono bg-green-500/10 px-2 py-0.5 rounded">
                   #{entity.nftTokenId}
                 </span>
               )}
@@ -282,10 +291,10 @@ function ExplorePageContent() {
           )}
 
           {entity.agent0TokenId && (
-            <div className="flex items-center gap-2 text-sm bg-blue-500/5 border border-blue-500/20 rounded-xl px-3 py-2">
-              <Bot className="h-4 w-4 text-blue-500 shrink-0" />
+            <div className="flex items-center gap-2 text-sm bg-blue-500/5 border border-blue-500/20 rounded-lg p-2">
+              <Bot className="h-4 w-4 text-blue-500 flex-shrink-0" />
               <span className="text-blue-500 font-medium flex-1">Agent0 Token</span>
-              <span className="text-xs font-mono bg-blue-500/10 px-2 py-0.5 rounded-lg">
+              <span className="text-xs font-mono bg-blue-500/10 px-2 py-0.5 rounded">
                 #{entity.agent0TokenId}
               </span>
             </div>
@@ -293,7 +302,7 @@ function ExplorePageContent() {
 
           {entity.walletAddress && (
             <div className="flex items-center gap-2 text-sm">
-              <Wallet className="h-4 w-4 text-blue-400 shrink-0" />
+              <Wallet className="h-4 w-4 text-blue-400 flex-shrink-0" />
               <code className="text-xs text-muted-foreground font-mono truncate flex-1">
                 {entity.walletAddress.slice(0, 6)}...{entity.walletAddress.slice(-4)}
               </code>
@@ -311,8 +320,8 @@ function ExplorePageContent() {
 
           <div className="grid grid-cols-2 gap-2">
             {entity.balance && (
-              <div className="flex items-center gap-2 text-sm bg-emerald-500/5 border border-emerald-500/20 rounded-xl px-3 py-2">
-                <TrendingUp className="h-4 w-4 text-emerald-500 shrink-0" />
+              <div className="flex items-center gap-2 text-sm bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2">
+                <TrendingUp className="h-4 w-4 text-emerald-500 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs text-muted-foreground">Balance</div>
                   <div className="font-semibold truncate text-foreground">
@@ -322,8 +331,8 @@ function ExplorePageContent() {
               </div>
             )}
             {entity.reputationPoints !== undefined && (
-              <div className="flex items-center gap-2 text-sm bg-purple-500/5 border border-purple-500/20 rounded-xl px-3 py-2">
-                <Activity className="h-4 w-4 text-purple-500 shrink-0" />
+              <div className="flex items-center gap-2 text-sm bg-purple-500/5 border border-purple-500/20 rounded-lg p-2">
+                <Activity className="h-4 w-4 text-purple-500 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs text-muted-foreground">Reputation</div>
                   <div className="font-semibold truncate text-foreground">
@@ -387,12 +396,12 @@ function ExplorePageContent() {
           {entity.domain && entity.domain.length > 0 && (
             <div className="flex flex-wrap gap-1 pt-2">
               {entity.domain.slice(0, 3).map((d: string) => (
-                <span key={d} className="px-2 py-1 bg-muted text-muted-foreground rounded-lg text-xs">
+                <span key={d} className="px-2 py-1 bg-muted text-muted-foreground rounded text-xs">
                   {d}
                 </span>
               ))}
               {entity.domain.length > 3 && (
-                <span className="px-2 py-1 bg-muted text-muted-foreground rounded-lg text-xs">
+                <span className="px-2 py-1 bg-muted text-muted-foreground rounded text-xs">
                   +{entity.domain.length - 3} more
                 </span>
               )}
@@ -412,7 +421,7 @@ function ExplorePageContent() {
                     className="text-blue-500 hover:text-blue-400 flex items-center gap-1 truncate transition-colors"
                   >
                     <span className="truncate">{entity.a2aEndpoint}</span>
-                    <ExternalLink className="h-3 w-3 shrink-0" />
+                    <ExternalLink className="h-3 w-3 flex-shrink-0" />
                   </a>
                 </div>
               )}
@@ -427,7 +436,7 @@ function ExplorePageContent() {
                     className="text-blue-500 hover:text-blue-400 flex items-center gap-1 truncate transition-colors"
                   >
                     <span className="truncate">{entity.mcpEndpoint}</span>
-                    <ExternalLink className="h-3 w-3 shrink-0" />
+                    <ExternalLink className="h-3 w-3 flex-shrink-0" />
                   </a>
                 </div>
               )}
@@ -443,8 +452,8 @@ function ExplorePageContent() {
           key={entity.id}
           href={profileUrl}
           className={cn(
-            'block bg-card border border-border rounded-2xl overflow-hidden transition-all duration-200',
-            'hover:shadow-lg hover:border-primary/50 cursor-pointer'
+            'block bg-card border border-border rounded-xl overflow-hidden transition-all duration-200',
+            'hover:shadow-lg hover:border-[#0066FF]/50 cursor-pointer'
           )}
         >
           {cardContent}
@@ -455,7 +464,7 @@ function ExplorePageContent() {
     return (
       <div
         key={entity.id}
-        className="block bg-card border border-border rounded-2xl overflow-hidden transition-all duration-200"
+        className="block bg-card border border-border rounded-xl overflow-hidden transition-all duration-200"
       >
         {cardContent}
       </div>
@@ -484,36 +493,36 @@ function ExplorePageContent() {
 
   return (
     <PageContainer>
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-4xl font-bold mb-2 text-foreground">Explore</h1>
-          <p className="text-muted-foreground text-lg">
-            Search for posts, users, agents, and more
-          </p>
-        </div>
-
-        {/* Search bar */}
-        <div className="mb-6">
-          <EntitySearchAutocomplete
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Search..."
-          />
+      <div className="max-w-7xl mx-auto p-4">
+        {/* Header with Search */}
+        <div className="flex items-start justify-between gap-4 mb-6">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-4xl font-bold mb-2 text-foreground">Explore</h1>
+            <p className="text-muted-foreground text-lg">
+              Search for posts, users, agents, and more
+            </p>
+          </div>
+          <div className="w-full max-w-md flex-shrink-0">
+            <EntitySearchAutocomplete
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search..."
+            />
+          </div>
         </div>
 
         {/* Main tabs */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-6 border-b border-border">
           <button
             onClick={() => {
               setActiveTab('feed')
               router.push(`/explore?q=${encodeURIComponent(searchQuery)}&tab=feed`, { scroll: false })
             }}
             className={cn(
-              'px-6 py-3 font-semibold transition-all duration-200 rounded-lg',
+              'px-6 py-3 font-semibold transition-all duration-200 border-b-2',
               activeTab === 'feed'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                ? 'border-[#0066FF] text-[#0066FF]'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
             Feed
@@ -524,10 +533,10 @@ function ExplorePageContent() {
               router.push(`/explore?q=${encodeURIComponent(searchQuery)}&tab=registry`, { scroll: false })
             }}
             className={cn(
-              'px-6 py-3 font-semibold transition-all duration-200 rounded-lg',
+              'px-6 py-3 font-semibold transition-all duration-200 border-b-2',
               activeTab === 'registry'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                ? 'border-[#0066FF] text-[#0066FF]'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
             Registry
@@ -597,32 +606,32 @@ function ExplorePageContent() {
               <div className="mb-6">
                 {/* Stats overview */}
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
-                  <div className="bg-card border border-border rounded-2xl px-4 py-3">
+                  <div className="bg-card border border-border rounded-xl p-4">
                     <div className="text-sm text-muted-foreground mb-1">Total</div>
                     <div className="text-3xl font-bold text-foreground">{registryData.totals.total}</div>
                   </div>
-                  <div className="bg-card border border-border rounded-2xl px-4 py-3">
+                  <div className="bg-card border border-border rounded-xl p-4">
                     <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
                       <UserCircle className="h-4 w-4" />
                       <span>Users</span>
                     </div>
                     <div className="text-3xl font-bold text-foreground">{registryData.totals.users}</div>
                   </div>
-                  <div className="bg-card border border-border rounded-2xl px-4 py-3">
+                  <div className="bg-card border border-border rounded-xl p-4">
                     <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
                       <Users className="h-4 w-4" />
                       <span>Actors</span>
                     </div>
                     <div className="text-3xl font-bold text-foreground">{registryData.totals.actors}</div>
                   </div>
-                  <div className="bg-card border border-border rounded-2xl px-4 py-3">
+                  <div className="bg-card border border-border rounded-xl p-4">
                     <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
                       <Bot className="h-4 w-4" />
                       <span>Agents</span>
                     </div>
                     <div className="text-3xl font-bold text-foreground">{registryData.totals.agents}</div>
                   </div>
-                  <div className="bg-card border border-border rounded-2xl px-4 py-3">
+                  <div className="bg-card border border-border rounded-xl p-4">
                     <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
                       <Building2 className="h-4 w-4" />
                       <span>Apps</span>
@@ -636,9 +645,9 @@ function ExplorePageContent() {
                   <button
                     onClick={() => setRegistryTab('all')}
                     className={cn(
-                      'px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                      'px-4 py-2 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
                       registryTab === 'all'
-                        ? 'bg-primary text-primary-foreground'
+                        ? 'bg-[#0066FF] text-white'
                         : 'bg-muted text-muted-foreground hover:bg-muted/80'
                     )}
                   >
@@ -647,9 +656,9 @@ function ExplorePageContent() {
                   <button
                     onClick={() => setRegistryTab('users')}
                     className={cn(
-                      'flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                      'flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
                       registryTab === 'users'
-                        ? 'bg-primary text-primary-foreground'
+                        ? 'bg-[#0066FF] text-white'
                         : 'bg-muted text-muted-foreground hover:bg-muted/80'
                     )}
                   >
@@ -659,9 +668,9 @@ function ExplorePageContent() {
                   <button
                     onClick={() => setRegistryTab('actors')}
                     className={cn(
-                      'flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                      'flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
                       registryTab === 'actors'
-                        ? 'bg-primary text-primary-foreground'
+                        ? 'bg-[#0066FF] text-white'
                         : 'bg-muted text-muted-foreground hover:bg-muted/80'
                     )}
                   >
@@ -671,9 +680,9 @@ function ExplorePageContent() {
                   <button
                     onClick={() => setRegistryTab('agents')}
                     className={cn(
-                      'flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                      'flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
                       registryTab === 'agents'
-                        ? 'bg-primary text-primary-foreground'
+                        ? 'bg-[#0066FF] text-white'
                         : 'bg-muted text-muted-foreground hover:bg-muted/80'
                     )}
                   >
@@ -683,9 +692,9 @@ function ExplorePageContent() {
                   <button
                     onClick={() => setRegistryTab('apps')}
                     className={cn(
-                      'flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
+                      'flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap',
                       registryTab === 'apps'
-                        ? 'bg-primary text-primary-foreground'
+                        ? 'bg-[#0066FF] text-white'
                         : 'bg-muted text-muted-foreground hover:bg-muted/80'
                     )}
                   >
@@ -700,7 +709,7 @@ function ExplorePageContent() {
                       className={cn(
                         'flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-all duration-200 whitespace-nowrap',
                         onChainOnly
-                          ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                          ? 'bg-[#0066FF] text-white hover:bg-[#0052CC]'
                           : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-border'
                       )}
                     >
@@ -716,8 +725,13 @@ function ExplorePageContent() {
             {/* Loading state */}
             {loadingRegistry && (
               <div className="flex items-center justify-center py-20">
-                <div className="text-center">
-                  <p className="text-muted-foreground">Loading registry data...</p>
+                <div className="text-center space-y-4 w-full max-w-2xl">
+                  <Skeleton className="h-8 w-48 mx-auto" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <Skeleton className="h-48 w-full" />
+                    <Skeleton className="h-48 w-full" />
+                    <Skeleton className="h-48 w-full" />
+                  </div>
                 </div>
               </div>
             )}

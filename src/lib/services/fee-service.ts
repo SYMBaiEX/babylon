@@ -261,6 +261,14 @@ export class FeeService {
       where: whereClause,
       select: {
         userId: true,
+        User_TradingFee_userIdToUser: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            profileImageUrl: true,
+          },
+        },
       },
       distinct: ['userId'],
     })

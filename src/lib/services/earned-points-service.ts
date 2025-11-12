@@ -78,7 +78,7 @@ export class EarnedPointsService {
    */
   static async awardEarnedPointsForPnL(
     userId: string,
-    pnlAmount: number,
+    pnl: number,
     tradeType: string,
     relatedId?: string
   ): Promise<void> {
@@ -98,7 +98,7 @@ export class EarnedPointsService {
       }
 
       // Calculate points for this P&L
-      const pointsFromThisTrade = this.pnlToPoints(pnlAmount)
+      const pointsFromThisTrade = this.pnlToPoints(pnl)
 
       // Skip if no points change
       if (pointsFromThisTrade === 0) {
@@ -125,14 +125,15 @@ export class EarnedPointsService {
             userId,
             amount: pointsFromThisTrade,
             pointsBefore: user.reputationPoints,
-            pointsAfter: user.reputationPoints + pointsFromThisTrade,
-            reason: tradeType || 'trade_performance',
+            pointsAfter: newReputationPoints,
+            reason: 'trading_pnl',
             metadata: JSON.stringify({
               tradeId: generateSnowflakeId(),
-              pnl: pnlAmount,
               points: pointsFromThisTrade,
+              pnl,
               tradeType,
               relatedId,
+              pointsFromTrade: pointsFromThisTrade,
             }),
           },
         })
@@ -140,7 +141,7 @@ export class EarnedPointsService {
 
       logger.info('Awarded earned points for P&L', {
         userId,
-        pnlAmount,
+        pnl,
         pointsFromTrade: pointsFromThisTrade,
         totalEarnedPoints: newEarnedPoints,
         totalReputationPoints: newReputationPoints,

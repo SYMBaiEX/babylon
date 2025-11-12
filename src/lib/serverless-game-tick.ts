@@ -1228,7 +1228,6 @@ Return your response as JSON in this exact format:
           scenarioId,
           outcome: Math.random() > 0.5,
           rank: 1,
-          createdDate: new Date(),
           resolutionDate,
           status: 'active',
           updatedAt: now,

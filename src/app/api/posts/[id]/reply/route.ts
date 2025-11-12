@@ -3,20 +3,20 @@
  * Methods: POST (reply to a post with rate limiting and quality checks)
  */
 
-import type { NextRequest } from 'next/server';
-import { prisma } from '@/lib/database-service';
 import { authenticate } from '@/lib/api/auth-middleware';
-import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { prisma } from '@/lib/database-service';
 import { BusinessLogicError } from '@/lib/errors';
-import { PostIdParamSchema, ReplyToPostSchema } from '@/lib/validation/schemas';
-import { ReplyRateLimiter } from '@/lib/services/reply-rate-limiter';
-import { MessageQualityChecker } from '@/lib/services/message-quality-checker';
-import { FollowingMechanics } from '@/lib/services/following-mechanics';
-import { GroupChatInvite } from '@/lib/services/group-chat-invite';
+import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
-import { ensureUserForAuth } from '@/lib/users/ensure-user';
+import { FollowingMechanics } from '@/lib/services/following-mechanics';
+import { GroupChatInvite } from '@/lib/services/group-chat-invite';
+import { MessageQualityChecker } from '@/lib/services/message-quality-checker';
+import { ReplyRateLimiter } from '@/lib/services/reply-rate-limiter';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import { ensureUserForAuth } from '@/lib/users/ensure-user';
+import { PostIdParamSchema, ReplyToPostSchema } from '@/lib/validation/schemas';
+import type { NextRequest } from 'next/server';
 
 /**
  * POST /api/posts/[id]/reply

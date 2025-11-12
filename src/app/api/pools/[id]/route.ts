@@ -1,10 +1,10 @@
-import type { NextRequest } from 'next/server';
 import { optionalAuth } from '@/lib/api/auth-middleware';
-import { asUser, asPublic } from '@/lib/db/context';
-import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
+import { asPublic, asUser } from '@/lib/db/context';
 import { NotFoundError } from '@/lib/errors';
-import { IdParamSchema } from '@/lib/validation/schemas';
+import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
+import { IdParamSchema } from '@/lib/validation/schemas';
+import type { NextRequest } from 'next/server';
 
 /**
  * GET /api/pools/[id]

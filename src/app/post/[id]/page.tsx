@@ -110,7 +110,7 @@ export default function PostPage({ params }: PostPageProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="space-y-4 w-full max-w-2xl px-4 py-3">
+        <div className="space-y-4 w-full max-w-feed px-4 py-3">
           <Skeleton className="h-8 w-3/4" />
           <Skeleton className="h-64 w-full" />
           <Skeleton className="h-32 w-full" />
@@ -162,7 +162,7 @@ export default function PostPage({ params }: PostPageProps) {
 
           {/* Post content */}
           <div className="flex-1 overflow-y-auto">
-            <div className="max-w-2xl mx-auto w-full">
+            <div className="max-w-feed mx-auto w-full">
               {/* Post */}
               <div className="border-b border-border">
                 {post.type === 'article' && post.fullContent ? (

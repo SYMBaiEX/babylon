@@ -659,7 +659,6 @@ class DatabaseService {
         affiliations: actor.affiliations || [],
         postStyle: actor.postStyle,
         postExample: actor.postExample || [],
-        updatedAt: new Date(),
         role: actor.role,
         // Update database-specific fields if provided
         ...(actor.initialLuck !== undefined && { initialLuck: actor.initialLuck }),
