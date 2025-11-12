@@ -7,7 +7,7 @@
  * - Validates sufficient funds
  * - Calculates PnL
  */
-import { Prisma } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 
 import { cachedDb } from '@/lib/cached-database-service';
 import { logger } from '@/lib/logger';
@@ -108,11 +108,11 @@ export class WalletService {
     const newBalance = currentBalance - amount;
 
     // Update balance and record transaction in a single transaction
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => {
       await tx.user.update({
         where: { id: userId },
         data: {
-          virtualBalance: new Prisma.Decimal(newBalance),
+          virtualBalance: newBalance,
         },
       });
 
@@ -121,9 +121,9 @@ export class WalletService {
           id: generateSnowflakeId(),
           userId,
           type,
-          amount: new Prisma.Decimal(-amount), // Negative for debit
-          balanceBefore: new Prisma.Decimal(currentBalance),
-          balanceAfter: new Prisma.Decimal(newBalance),
+          amount: -amount, // Negative for debit
+          balanceBefore: currentBalance,
+          balanceAfter: newBalance,
           relatedId,
           description,
         },
@@ -162,11 +162,11 @@ export class WalletService {
     const newBalance = currentBalance + amount;
 
     // Update balance and record transaction
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => {
       await tx.user.update({
         where: { id: userId },
         data: {
-          virtualBalance: new Prisma.Decimal(newBalance),
+          virtualBalance: newBalance,
         },
       });
 
@@ -175,9 +175,9 @@ export class WalletService {
           id: generateSnowflakeId(),
           userId,
           type,
-          amount: new Prisma.Decimal(amount), // Positive for credit
-          balanceBefore: new Prisma.Decimal(currentBalance),
-          balanceAfter: new Prisma.Decimal(newBalance),
+          amount: amount, // Positive for credit
+          balanceBefore: currentBalance,
+          balanceAfter: newBalance,
           relatedId,
           description,
         },
@@ -221,7 +221,7 @@ export class WalletService {
     await prisma.user.update({
       where: { id: userId },
       data: {
-        lifetimePnL: new Prisma.Decimal(newLifetimePnL),
+        lifetimePnL: newLifetimePnL,
       },
     });
 
@@ -269,7 +269,8 @@ export class WalletService {
       take: limit,
     });
 
-    return transactions.map((tx) => ({
+    type TransactionType = typeof transactions[0];
+    return transactions.map((tx: TransactionType) => ({
       id: tx.id,
       type: tx.type,
       amount: Number(tx.amount),
@@ -295,12 +296,12 @@ export class WalletService {
 
     // Only initialize if balance is 0 (new user)
     if (Number(user.virtualBalance) === 0) {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => {
         await tx.user.update({
           where: { id: userId },
           data: {
-            virtualBalance: new Prisma.Decimal(this.STARTING_BALANCE),
-            totalDeposited: new Prisma.Decimal(this.STARTING_BALANCE),
+            virtualBalance: this.STARTING_BALANCE,
+            totalDeposited: this.STARTING_BALANCE,
           },
         });
 
@@ -309,9 +310,9 @@ export class WalletService {
             id: generateSnowflakeId(),
             userId,
             type: 'deposit',
-            amount: new Prisma.Decimal(this.STARTING_BALANCE),
-            balanceBefore: new Prisma.Decimal(0),
-            balanceAfter: new Prisma.Decimal(this.STARTING_BALANCE),
+            amount: this.STARTING_BALANCE,
+            balanceBefore: 0,
+            balanceAfter: this.STARTING_BALANCE,
             description: 'Initial deposit - Welcome to Babylon!',
           },
         });

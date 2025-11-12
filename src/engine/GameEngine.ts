@@ -12,7 +12,6 @@
  * - Friend-of-friends group membership model
  * - Satirical LLM-generated group chat names
  */
-import { Prisma } from '@prisma/client';
 import { EventEmitter } from 'events';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -1894,16 +1893,27 @@ OUTPUT JSON:
     });
 
     const recentDays = this.buildRecentDaysContext(
-      recentEvents.map((e) => ({
-        id: e.id,
-        day: e.dayNumber || 0,
-        type: e.eventType as WorldEvent['type'],
-        actors: e.actors as string[],
-        description: e.description,
-        relatedQuestion: e.relatedQuestion ?? undefined,
-        pointsToward: (e.pointsToward as 'YES' | 'NO' | null) ?? null,
-        visibility: e.visibility as WorldEvent['visibility'],
-      }))
+      recentEvents.map(
+        (e: {
+          id: string;
+          dayNumber: number | null;
+          eventType: string;
+          actors: unknown;
+          description: string;
+          relatedQuestion: number | null;
+          pointsToward: string | null;
+          visibility: string;
+        }) => ({
+          id: e.id,
+          day: e.dayNumber || 0,
+          type: e.eventType as WorldEvent['type'],
+          actors: e.actors as string[],
+          description: e.description,
+          relatedQuestion: e.relatedQuestion ?? undefined,
+          pointsToward: (e.pointsToward as 'YES' | 'NO' | null) ?? null,
+          visibility: e.visibility as WorldEvent['visibility'],
+        })
+      )
     );
 
     const newQuestions = await this.questionManager.generateDailyQuestions({
@@ -2099,7 +2109,7 @@ OUTPUT JSON:
     for (const chat of this.groupChats) {
       try {
         // Create or update chat
-        const timestamp = new Date()
+        const timestamp = new Date();
 
         await db.prisma.chat.upsert({
           where: { id: chat.id },
@@ -2236,7 +2246,9 @@ OUTPUT JSON:
           });
         } catch (error: unknown) {
           if (
-            error instanceof Prisma.PrismaClientKnownRequestError &&
+            typeof error === 'object' &&
+            error !== null &&
+            'code' in error &&
             error.code === 'P2002'
           ) {
             // Duplicate event, skip

@@ -26,6 +26,9 @@ const globalForPrisma = globalThis as unknown as {
   prismaWithRetry: ReturnType<typeof createRetryProxy<PrismaClient>> | undefined;
 };
 
+// Check if we're in Next.js build phase
+const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build';
+
 /**
  * Serverless-optimized connection pool settings
  * 
@@ -114,7 +117,15 @@ function createPrismaClient() {
 /**
  * Get or create the base Prisma client
  */
-function getPrismaClient(): PrismaClient {
+function getPrismaClient(): PrismaClient | null {
+  // Skip Prisma initialization during Next.js build time
+  if (isBuildTime) {
+    if (!globalForPrisma.prisma) {
+      console.log('[Prisma] Build time detected - skipping Prisma initialization');
+    }
+    return null;
+  }
+  
   if (!globalForPrisma.prisma) {
     globalForPrisma.prisma = createPrismaClient();
     
@@ -127,22 +138,27 @@ function getPrismaClient(): PrismaClient {
   return globalForPrisma.prisma;
 }
 
-// Get base Prisma client
+// Get base Prisma client (will be null during build time)
 const basePrismaClient = getPrismaClient();
 
 // Export base client for operations that need full type inference
 // (e.g., when retry proxy loses type information for complex union types)
-export const prismaBase = basePrismaClient;
+// During build time, this will be null but won't be called
+export const prismaBase = basePrismaClient as PrismaClient;
 
 // Wrap with retry logic and explicitly type as PrismaClient to preserve types through proxy
-export const prisma: PrismaClient = (globalForPrisma.prismaWithRetry ?? createRetryProxy(basePrismaClient, {
-  maxRetries: 5,
-  initialDelayMs: 100,
-  maxDelayMs: 5000,
-  jitter: true,
-})) as PrismaClient;
+// During build time, basePrismaClient is null, so we skip retry proxy creation
+export const prisma: PrismaClient = (basePrismaClient 
+  ? (globalForPrisma.prismaWithRetry ?? createRetryProxy(basePrismaClient, {
+      maxRetries: 5,
+      initialDelayMs: 100,
+      maxDelayMs: 5000,
+      jitter: true,
+    })) as PrismaClient
+  : null as unknown as PrismaClient // Type cast for build time
+);
 
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV !== 'production' && basePrismaClient) {
   globalForPrisma.prismaWithRetry = prisma as ReturnType<typeof createRetryProxy<PrismaClient>>;
 }
 

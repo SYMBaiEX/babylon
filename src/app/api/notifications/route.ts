@@ -97,7 +97,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   logger.info('Notifications fetched successfully', { userId: authUser.userId, count: notifications.length, unreadCount }, 'GET /api/notifications');
 
   return successResponse({
-    notifications: notifications.map((n) => ({
+    notifications: notifications.map((n: typeof notifications[number]) => ({
       id: n.id,
       type: n.type,
       actorId: n.actorId,

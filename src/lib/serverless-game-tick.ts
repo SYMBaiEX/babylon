@@ -13,7 +13,6 @@ import { ArticleGenerator } from '@/engine/ArticleGenerator';
 import { MarketDecisionEngine } from '@/engine/MarketDecisionEngine';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
 import type { ActorTier, WorldEvent } from '@/shared/types';
-import type { Prisma } from '@prisma/client';
 import { db } from './database-service';
 import { logger } from './logger';
 import { NPCInvestmentManager } from './npc/npc-investment-manager';
@@ -1011,7 +1010,15 @@ async function generateArticles(
     }));
 
   // Generate articles in parallel with Promise.allSettled to handle failures gracefully
-  const articlePromises = eventsTocover.map(async (event) => {
+  const articlePromises = eventsTocover.map(async (event: {
+    id: string;
+    eventType: string;
+    description: string;
+    actors: unknown;
+    relatedQuestion: number | null;
+    visibility: string;
+    dayNumber: number | null;
+  }) => {
     // Check deadline before starting each article
     if (Date.now() > deadlineMs) {
       logger.debug('Skipping article due to deadline', { eventId: event.id }, 'GameTick');
@@ -1023,7 +1030,7 @@ async function generateArticles(
         id: event.id,
         type: event.eventType as WorldEvent['type'],
         description: event.description,
-        actors: event.actors || [],
+        actors: event.actors as string[] || [],
         relatedQuestion: event.relatedQuestion || undefined,
         visibility: event.visibility as WorldEvent['visibility'],
         day: event.dayNumber || 0,
@@ -1302,8 +1309,9 @@ async function updateMarketPricesFromTrades(
     },
   });
 
-  const companyMap = new Map(
-    companies.map(c => [c.id.toUpperCase().replace(/-/g, ''), c])
+  type CompanyData = typeof companies[0];
+  const companyMap = new Map<string, CompanyData>(
+    companies.map((c: CompanyData) => [c.id.toUpperCase().replace(/-/g, ''), c])
   );
 
   // Calculate total holdings for each company from ALL positions
@@ -1724,24 +1732,21 @@ async function updateWidgetCaches(): Promise<number> {
       .slice(0, 3);
 
     // Update cache
+    const cacheData = {
+      topPerpGainers,
+      topPoolGainers,
+      topVolumeQuestions,
+      lastUpdated: new Date().toISOString(),
+    };
+
     await prisma.widgetCache.upsert({
       where: { widget: 'markets' },
       create: {
         widget: 'markets',
-        data: {
-          topPerpGainers,
-          topPoolGainers,
-          topVolumeQuestions,
-          lastUpdated: new Date().toISOString(),
-        } as unknown as Prisma.InputJsonValue,
+        data: cacheData as object,
       },
       update: {
-        data: {
-          topPerpGainers,
-          topPoolGainers,
-          topVolumeQuestions,
-          lastUpdated: new Date().toISOString(),
-        } as unknown as Prisma.InputJsonValue,
+        data: cacheData as object,
         updatedAt: new Date(),
       },
     });

@@ -132,7 +132,7 @@ export const GET = withErrorHandling(async (
   // Get participant details with RLS (use system for debug mode)
   const { users, actors } = await (authUser ? asUser(authUser, async (db) => {
     // Get participant details - need to check both users and actors
-    const participantUserIds = fullChat.ChatParticipant.map((p) => p.userId);
+    const participantUserIds = fullChat.ChatParticipant.map((p: typeof fullChat.ChatParticipant[number]) => p.userId);
     const users = await db.user.findMany({
       where: {
         id: { in: participantUserIds },
@@ -146,7 +146,7 @@ export const GET = withErrorHandling(async (
     });
 
     // Get unique sender IDs from messages (for game chats, these are often actors)
-    const senderIds = [...new Set(fullChat.Message.map((m) => m.senderId))];
+    const senderIds = [...new Set(fullChat.Message.map((m: typeof fullChat.Message[number]) => m.senderId))];
     const actors = await db.actor.findMany({
       where: {
         id: { in: senderIds as string[] },
@@ -160,7 +160,7 @@ export const GET = withErrorHandling(async (
 
     return { users, actors };
   }) : asSystem(async (db) => {
-    const participantUserIds = fullChat.ChatParticipant.map((p) => p.userId);
+    const participantUserIds = fullChat.ChatParticipant.map((p: typeof fullChat.ChatParticipant[number]) => p.userId);
     const users = await db.user.findMany({
       where: {
         id: { in: participantUserIds },
@@ -173,7 +173,7 @@ export const GET = withErrorHandling(async (
       },
     });
 
-    const senderIds = [...new Set(fullChat.Message.map((m) => m.senderId))];
+    const senderIds = [...new Set(fullChat.Message.map((m: typeof fullChat.Message[number]) => m.senderId))];
     const actors = await db.actor.findMany({
       where: {
         id: { in: senderIds as string[] },
@@ -188,15 +188,15 @@ export const GET = withErrorHandling(async (
     return { users, actors };
   }));
 
-    const usersMap = new Map(users.map((u) => [u.id, u]));
-    const actorsMap = new Map(actors.map((a) => [a.id, a]));
+    const usersMap = new Map<string, typeof users[number]>(users.map((u: typeof users[number]) => [u.id, u]));
+    const actorsMap = new Map<string, typeof actors[number]>(actors.map((a: typeof actors[number]) => [a.id, a]));
 
     // Get unique sender IDs from messages (for debug mode)
-    const senderIds = [...new Set(fullChat.Message.map((m) => m.senderId))];
+    const senderIds = [...new Set(fullChat.Message.map((m: typeof fullChat.Message[number]) => m.senderId))];
 
     // Build participants list from ChatParticipants or message senders (for debug mode)
     const participantsInfo = fullChat.ChatParticipant.length > 0
-      ? fullChat.ChatParticipant.map((p) => {
+      ? fullChat.ChatParticipant.map((p: typeof fullChat.ChatParticipant[number]) => {
           const user = usersMap.get(p.userId);
           const actor = actorsMap.get(p.userId);
           return {
@@ -207,7 +207,7 @@ export const GET = withErrorHandling(async (
           };
         })
       : // In debug mode with no participants, use actors from messages
-        senderIds.map((senderId: string) => {
+        (senderIds as string[]).map((senderId: string) => {
           const actor = actorsMap.get(senderId);
           const user = usersMap.get(senderId);
           return {
@@ -220,9 +220,9 @@ export const GET = withErrorHandling(async (
 
     // For DMs, get the other participant's name and details
     let displayName = fullChat.name;
-    let otherUser = null;
+    let otherUser: { id: string; displayName: string | null; username: string | null; profileImageUrl: string | null } | null = null;
     if (!fullChat.isGroup && !fullChat.name && userId) {
-      const otherParticipant = fullChat.ChatParticipant.find((p) => p.userId !== userId);
+      const otherParticipant = fullChat.ChatParticipant.find((p: typeof fullChat.ChatParticipant[number]) => p.userId !== userId);
       if (otherParticipant) {
         const otherUserData = usersMap.get(otherParticipant.userId);
         if (otherUserData) {
@@ -266,7 +266,7 @@ export const GET = withErrorHandling(async (
       updatedAt: fullChat.updatedAt,
       otherUser: otherUser,
     },
-    messages: messagesInOrder.map((msg) => ({
+    messages: messagesInOrder.map((msg: typeof messagesInOrder[number]) => ({
       id: msg.id,
       content: msg.content,
       senderId: msg.senderId,

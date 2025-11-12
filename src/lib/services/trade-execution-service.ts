@@ -4,6 +4,8 @@
  * Executes LLM-generated trading decisions for NPCs.
  * Creates positions, updates balances, records trades.
  */
+import type { PrismaClient } from '@prisma/client';
+
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { generateSnowflakeId } from '@/lib/snowflake';
@@ -166,7 +168,7 @@ export class TradeExecutionService {
     const liquidationPrice = currentPrice * liquidationDistance;
 
     // Execute in transaction
-    const position = await prisma.$transaction(async (tx) => {
+    const position = await prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => {
       // Check and deduct from pool balance
       const pool = await tx.pool.findUnique({ where: { id: poolId } });
       if (!pool) throw new Error(`Pool not found: ${poolId}`);
@@ -276,7 +278,7 @@ export class TradeExecutionService {
     const shares = decision.amount; // Direct 1:1
 
     // Execute in transaction
-    const position = await prisma.$transaction(async (tx) => {
+    const position = await prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => {
       // Check and deduct from pool balance
       const pool = await tx.pool.findUnique({ where: { id: poolId } });
       if (!pool) throw new Error(`Pool not found: ${poolId}`);
@@ -429,7 +431,7 @@ export class TradeExecutionService {
     // NPC pool trades have NO trading fees (only 5% performance fee on withdrawal)
 
     // Execute in transaction
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => {
       // Close position
       await tx.poolPosition.update({
         where: { id: decision.positionId! },
@@ -498,7 +500,7 @@ export class TradeExecutionService {
   async getTradeImpacts(
     executedTrades: ExecutedTrade[]
   ): Promise<Map<string, AggregatedImpact>> {
-    const inputs: TradeImpactInput[] = executedTrades.map((trade) => ({
+    const inputs: TradeImpactInput[] = executedTrades.map((trade: ExecutedTrade) => ({
       marketType: trade.marketType,
       ticker: trade.ticker,
       marketId: trade.marketId,

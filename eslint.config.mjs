@@ -12,10 +12,7 @@ export default [
       "contracts/**",
       "plugin-babylon/**",
       "**/*.config.*",
-      "**/*.test.ts",
-      "**/*.test.tsx",
-      "**/__tests__/**",
-      "**/tests/**"
+      "**/*.test.ts"
     ]
   },
   {

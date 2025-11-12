@@ -62,8 +62,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     });
 
     // Get all unique participant IDs across all chats
-    const allParticipantIds = [...new Set(chats.flatMap(c => c.ChatParticipant.map(p => p.userId)))];
-    const allMessageSenderIds = [...new Set(chats.flatMap(c => c.Message.map(m => m.senderId)))];
+    type ChatType = typeof chats[0];
+    type ChatParticipantType = typeof chats[0]['ChatParticipant'][0];
+    type MessageType = typeof chats[0]['Message'][0];
+    const allParticipantIds = [...new Set(chats.flatMap((c: ChatType) => c.ChatParticipant.map((p: ChatParticipantType) => p.userId)))];
+    const allMessageSenderIds = [...new Set(chats.flatMap((c: ChatType) => c.Message.map((m: MessageType) => m.senderId)))];
     const allUserIds = [...new Set([...allParticipantIds, ...allMessageSenderIds])];
 
     // Get all users and actors at once
@@ -100,25 +103,27 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   type ActorType = typeof allActors[number];
   type UserGroupType = { name: string | null; createdById: string };
   
-  const usersMap = new Map<string, UserType>(allUsers.map(u => [u.id, u]));
-  const actorsMap = new Map<string, ActorType>(allActors.map(a => [a.id, a]));
+  const usersMap = new Map<string, UserType>(allUsers.map((u: UserType) => [u.id, u]));
+  const actorsMap = new Map<string, ActorType>(allActors.map((a: ActorType) => [a.id, a]));
   const userGroupsMap = new Map<string, UserGroupType>(
-    allUserGroups.filter((g) => g.name).map((g) => [g.name as string, g])
+    allUserGroups.filter((g: UserGroupType) => g.name).map((g: UserGroupType) => [g.name as string, g])
   );
 
   // Enrich with creator and participant details
+  type ChatWithRelations = typeof chats[0];
+  type ChatParticipantInner = typeof chats[0]['ChatParticipant'][0];
   const enrichedChats = await Promise.all(
-    chats.map(async (chat) => {
-      const participantIds = chat.ChatParticipant.map(p => p.userId);
+    chats.map(async (chat: ChatWithRelations) => {
+      const participantIds = chat.ChatParticipant.map((p: ChatParticipantInner) => p.userId);
       
       // Get participants from maps
-      const users = participantIds.map(id => usersMap.get(id)).filter((u): u is UserType => u !== undefined);
-      const actors = participantIds.map(id => actorsMap.get(id)).filter((a): a is ActorType => a !== undefined);
+      const users = participantIds.map((id: string) => usersMap.get(id)).filter((u: UserType | undefined): u is UserType => u !== undefined);
+      const actors = participantIds.map((id: string) => actorsMap.get(id)).filter((a: ActorType | undefined): a is ActorType => a !== undefined);
 
       // Determine group type and creator
-      const actorParticipants = actors.map(a => a.id);
+      const actorParticipants = actors.map((a: ActorType) => a.id);
       const hasNPCs = actorParticipants.length > 0;
-      const hasUsers = users.filter(u => !u.isActor).length > 0;
+      const hasUsers = users.filter((u: UserType) => !u.isActor).length > 0;
       
       let groupType = 'unknown';
       let creatorName = 'Unknown';
@@ -127,7 +132,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       if (hasNPCs && !hasUsers) {
         groupType = 'npc-only';
         // Find creator from chat name or first NPC
-        const creator = actors.find(a => chat.name?.includes(a.name)) || actors[0];
+        const creator = actors.find((a: ActorType) => chat.name?.includes(a.name)) || actors[0];
         if (creator) {
           creatorName = creator.name;
           creatorId = creator.id;
@@ -135,7 +140,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       } else if (hasNPCs && hasUsers) {
         groupType = 'npc-mixed';
         // Alpha group - NPC created
-        const creator = actors.find(a => chat.name?.includes(a.name)) || actors[0];
+        const creator = actors.find((a: ActorType) => chat.name?.includes(a.name)) || actors[0];
         if (creator) {
           creatorName = creator.name;
           creatorId = creator.id;
@@ -146,7 +151,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         const userGroup = chat.name ? userGroupsMap.get(chat.name) : null;
         
         if (userGroup) {
-          const creator = users.find(u => u.id === userGroup.createdById);
+          const creator = users.find((u: UserType) => u.id === userGroup.createdById);
           if (creator) {
             creatorName = creator.displayName || creator.username || 'Unknown';
             creatorId = creator.id;
@@ -165,9 +170,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       }
 
       // Combine user and actor info
-      const participants = chat.ChatParticipant.map(p => {
-        const user = users.find(u => u.id === p.userId);
-        const actor = actors.find(a => a.id === p.userId);
+      type ParticipantType = typeof chat.ChatParticipant[0];
+      const participants = chat.ChatParticipant.map((p: ParticipantType) => {
+        const user = users.find((u: UserType) => u.id === p.userId);
+        const actor = actors.find((a: ActorType) => a.id === p.userId);
         
         return {
           id: p.userId,
@@ -180,7 +186,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       });
 
       // Get message senders from maps
-      const messagesWithSenders = chat.Message.map(m => {
+      type MessageType = typeof chat.Message[0];
+      const messagesWithSenders = chat.Message.map((m: MessageType) => {
         const user = usersMap.get(m.senderId);
         const actor = actorsMap.get(m.senderId);
         

@@ -106,11 +106,11 @@ export const GET = withErrorHandling(
     const perpStats = {
       totalPositions: perpPositions.length,
       totalPnL: perpPositions.reduce(
-        (sum, p) => sum + Number(p.unrealizedPnL),
+        (sum: number, p: typeof perpPositions[number]) => sum + Number(p.unrealizedPnL),
         0
       ),
       totalFunding: perpPositions.reduce(
-        (sum, p) => sum + Number(p.fundingPaid),
+        (sum: number, p: typeof perpPositions[number]) => sum + Number(p.fundingPaid),
         0
       ),
     };
@@ -127,7 +127,7 @@ export const GET = withErrorHandling(
 
     return successResponse({
       perpetuals: {
-        positions: perpPositions.map((p) => ({
+        positions: perpPositions.map((p: typeof perpPositions[number]) => ({
           id: p.id,
           ticker: p.ticker,
           side: p.side as 'long' | 'short',
@@ -144,7 +144,7 @@ export const GET = withErrorHandling(
         stats: perpStats,
       },
       predictions: {
-        positions: predictionPositions.map((p) => {
+        positions: predictionPositions.map((p: typeof predictionPositions[number]) => {
           const yesShares = Number(p.Market.yesShares);
           const noShares = Number(p.Market.noShares);
           const totalShares = yesShares + noShares;

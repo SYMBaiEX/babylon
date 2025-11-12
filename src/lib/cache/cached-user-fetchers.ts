@@ -67,7 +67,7 @@ export async function getCachedUserPositions(userId: string) {
     return {
       success: true,
       perpetuals: {
-        positions: perpPositions.map((p) => ({
+        positions: perpPositions.map((p: typeof perpPositions[number]) => ({
           id: p.id,
           ticker: p.ticker,
           side: p.side,
@@ -84,7 +84,7 @@ export async function getCachedUserPositions(userId: string) {
         stats: perpStats,
       },
       predictions: {
-        positions: predictionPositions.map((p) => ({
+        positions: predictionPositions.map((p: typeof predictionPositions[number]) => ({
           id: p.id,
           marketId: p.marketId,
           question: p.Market.question,
@@ -168,8 +168,8 @@ export async function getCachedFollowingFeed(
       },
     });
 
-    const followedUserIds = userFollows.map((f) => f.followingId);
-    const followedActorIds = actorFollows.map((f) => f.npcId);
+    const followedUserIds = userFollows.map((f: typeof userFollows[number]) => f.followingId);
+    const followedActorIds = actorFollows.map((f: typeof actorFollows[number]) => f.npcId);
     const allFollowedIds = [...followedUserIds, ...followedActorIds];
 
     if (allFollowedIds.length === 0) {
@@ -203,7 +203,7 @@ export async function getCachedFollowingFeed(
     });
 
     // Fetch user details separately since Post doesn't have author relation
-    const authorIds = [...new Set(posts.map((p) => p.authorId))];
+    const authorIds = [...new Set(posts.map((p: typeof posts[number]) => p.authorId))];
     const authors = await prisma.user.findMany({
       where: { id: { in: authorIds } },
       select: {
@@ -213,12 +213,13 @@ export async function getCachedFollowingFeed(
         profileImageUrl: true,
       },
     });
-    const authorMap = new Map(authors.map((a) => [a.id, a]));
+    const authorMap = new Map(authors.map((a: typeof authors[number]) => [a.id, a]));
 
+    type AuthorType = typeof authors[number];
     const result = {
       success: true,
-      posts: posts.map((post) => {
-        const author = authorMap.get(post.authorId);
+      posts: posts.map((post: typeof posts[number]) => {
+        const author = authorMap.get(post.authorId) as AuthorType | undefined;
         return {
           id: post.id,
           content: post.content,
@@ -451,7 +452,7 @@ export async function getCachedUserChats(userId: string) {
     });
 
     // Get chat details for group chats
-    const groupChatIds = memberships.map((m) => m.chatId);
+    const groupChatIds = memberships.map((m: typeof memberships[number]) => m.chatId);
     const groupChatDetails = await prisma.chat.findMany({
       where: {
         id: { in: groupChatIds },
@@ -464,7 +465,7 @@ export async function getCachedUserChats(userId: string) {
       },
     });
 
-    const chatDetailsMap = new Map(groupChatDetails.map((c) => [c.id, c]));
+    const chatDetailsMap = new Map(groupChatDetails.map((c: typeof groupChatDetails[number]) => [c.id, c]));
 
     // Get DM chats the user participates in
     const dmParticipants = await prisma.chatParticipant.findMany({
@@ -473,7 +474,7 @@ export async function getCachedUserChats(userId: string) {
       },
     });
 
-    const dmChatIds = dmParticipants.map((p) => p.chatId);
+    const dmChatIds = dmParticipants.map((p: typeof dmParticipants[number]) => p.chatId);
     const dmChatsDetails = await prisma.chat.findMany({
       where: {
         id: { in: dmChatIds },
@@ -489,9 +490,20 @@ export async function getCachedUserChats(userId: string) {
     });
 
     // Format group chats
+    type ChatDetailsType = typeof groupChatDetails[number];
+    type GroupChatType = {
+      id: string;
+      name: string;
+      isGroup: boolean;
+      lastMessage: typeof groupChatDetails[number]['Message'][number] | null;
+      messageCount: number;
+      qualityScore: number | null;
+      lastMessageAt: Date | null;
+      updatedAt: Date;
+    };
     const groupChats = memberships
-      .map((membership) => {
-        const chat = chatDetailsMap.get(membership.chatId);
+      .map((membership: typeof memberships[number]): GroupChatType | null => {
+        const chat = chatDetailsMap.get(membership.chatId) as ChatDetailsType | undefined;
         if (!chat) return null;
         return {
           id: membership.chatId,
@@ -504,10 +516,10 @@ export async function getCachedUserChats(userId: string) {
           updatedAt: chat.updatedAt,
         };
       })
-      .filter((c) => c !== null);
+      .filter((c: GroupChatType | null): c is GroupChatType => c !== null);
 
     // Format DM chats
-    const directChats = dmChatsDetails.map((chat) => ({
+    const directChats = dmChatsDetails.map((chat: typeof dmChatsDetails[number]) => ({
       id: chat.id,
       name: chat.name || 'Direct Message',
       isGroup: false,
@@ -619,9 +631,9 @@ export async function getCachedUserReputation(userId: string) {
       },
     });
 
-    const resolvedPositions = userPositions.filter((p) => p.Market.resolved);
+    const resolvedPositions = userPositions.filter((p: typeof userPositions[number]) => p.Market.resolved);
     const wins = resolvedPositions.filter(
-      (p) => p.Market.resolution === p.side
+      (p: typeof resolvedPositions[number]) => p.Market.resolution === p.side
     ).length;
     const losses = resolvedPositions.length - wins;
     const winRate =
@@ -656,7 +668,7 @@ export async function getCachedUserReputation(userId: string) {
           }
         : null,
       hasNft: onChainReputation !== null,
-      recentActivity: recentActivity.map((activity) => ({
+      recentActivity: recentActivity.map((activity: typeof recentActivity[number]) => ({
         id: activity.id,
         description: activity.description,
         amount: Number(activity.amount),
