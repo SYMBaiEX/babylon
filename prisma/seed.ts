@@ -70,6 +70,7 @@ async function main() {
           tradingBalance: hasPool ? new Prisma.Decimal(10000) : new Prisma.Decimal(0),
           reputationPoints: hasPool ? 10000 : 0,
           profileImageUrl: profileImageUrl,
+          updatedAt: new Date(),
         },
       });
     } catch (error: any) {
@@ -223,6 +224,7 @@ async function main() {
       hasBio: true,
       hasProfileImage: true,
       reputationPoints: 5000,
+      updatedAt: new Date(),
     },
     {
       id: 'demo-user-welcome-bot',
@@ -237,6 +239,7 @@ async function main() {
       hasBio: true,
       hasProfileImage: true,
       reputationPoints: 3000,
+      updatedAt: new Date(),
     },
   ];
 
@@ -298,6 +301,8 @@ async function main() {
 
 main()
   .catch((error) => {
+    console.error('Full error details:');
+    console.error(error);
     logger.error('Seed failed:', error, 'Script');
     process.exit(1);
   })

@@ -28,11 +28,18 @@ export function getPrivyTestAccount(): PrivyTestAccount {
   if (!email || !phone || !otp) {
     throw new Error(
       'Privy test credentials not configured. Please set PRIVY_TEST_EMAIL, PRIVY_TEST_PHONE, and PRIVY_TEST_OTP environment variables.\n' +
-      'Get these from: Privy Dashboard > User management > Authentication > Advanced > Enable test accounts'
+      'See tests/synpress/README-PRIVY-SETUP.md for setup instructions.'
     )
   }
 
   return { email, phone, otp }
+}
+
+/**
+ * Check if Privy test credentials are configured
+ */
+export function hasPrivyTestCredentials(): boolean {
+  return !!(process.env.PRIVY_TEST_EMAIL && process.env.PRIVY_TEST_PHONE && process.env.PRIVY_TEST_OTP)
 }
 
 /**

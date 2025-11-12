@@ -97,7 +97,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     });
 
     if (!targetUser) {
-      throw new NotFoundError('User not found', 'user');
+      throw new NotFoundError('User', userId);
     }
 
     if (targetUser.isActor) {

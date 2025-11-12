@@ -758,35 +758,51 @@ Return your response as JSON in this exact format:
 
       } else {
         // Generate organization article
-        const prompt = `You are ${creator.name}, a news organization. Write a brief news headline and summary (max 300 chars total) about this prediction market: "${question.text}". Be professional and informative.
+        const prompt = `You are ${creator.name}, a news organization. Write a comprehensive news article about this prediction market: "${question.text}".
+
+Provide:
+- "title": a compelling headline (max 100 characters)
+- "summary": a succinct 2-3 sentence summary for social feeds (max 400 characters)
+- "article": a full-length article body (at least 4 paragraphs) with concrete details, analysis, and optional quotes. The article should read like a professional newsroom piece, not bullet points.
 
 Return your response as JSON in this exact format:
 {
   "title": "news headline here",
-  "summary": "brief summary here"
+  "summary": "2-3 sentence summary here",
+  "article": "full article body here"
 }`;
 
-        const response = await llm.generateJSON<{ title: string; summary: string }>(
+        const response = await llm.generateJSON<{ title: string; summary: string; article: string }>(
           prompt,
           { 
             properties: {
               title: { type: 'string' },
-              summary: { type: 'string' }
+              summary: { type: 'string' },
+              article: { type: 'string' }
             },
-            required: ['title', 'summary'] 
+            required: ['title', 'summary', 'article'] 
           },
-          { temperature: 0.7, maxTokens: 300 }
+          { temperature: 0.7, maxTokens: 1000 }
         );
 
-        if (!response.title || !response.summary) {
+        if (!response.title || !response.summary || !response.article) {
           logger.warn('Empty article generated', { creatorIndex: i, creatorName: creator.name }, 'GameTick');
+          continue;
+        }
+
+        const summary = response.summary.trim();
+        const articleBody = response.article.trim();
+
+        if (articleBody.length < 400) {
+          logger.warn('Article body too short', { creatorIndex: i, creatorName: creator.name, length: articleBody.length }, 'GameTick');
           continue;
         }
 
         await db.createPostWithAllFields({
           id: generateSnowflakeId(),
           type: 'article',
-          content: response.summary,
+          content: summary,
+          fullContent: articleBody,
           articleTitle: response.title,
           authorId: creator.id,
           gameId: 'continuous',
@@ -859,28 +875,39 @@ async function generateBaselineArticles(
 
 Your article should include:
 - A compelling headline (max 100 chars)
-- A 2-3 sentence summary for the article listing (max 200 chars)
+- A 2-3 sentence summary for the article listing (max 400 chars)
+- A full article body of at least 4 paragraphs with clear context, quotes or sourced details where appropriate, and a professional newsroom tone
 - Be professional and informative
 - Match the tone of a ${org.description || 'news organization'}
 
 Return your response as JSON in this exact format:
 {
   "title": "compelling headline here",
-  "summary": "2-3 sentence summary here"
+  "summary": "2-3 sentence summary here",
+  "article": "full article body here"
 }`;
       
-      const response = await llm.generateJSON<{ title: string; summary: string }>(
+      const response = await llm.generateJSON<{ title: string; summary: string; article: string }>(
         prompt,
-        { properties: { title: { type: 'string' }, summary: { type: 'string' } }, required: ['title', 'summary'] },
-        { temperature: 0.7, maxTokens: 400 }
+        { properties: { title: { type: 'string' }, summary: { type: 'string' }, article: { type: 'string' } }, required: ['title', 'summary', 'article'] },
+        { temperature: 0.7, maxTokens: 1100 }
       );
       
-      if (!response.title || !response.summary) continue;
+      if (!response.title || !response.summary || !response.article) continue;
+
+      const summary = response.summary.trim();
+      const articleBody = response.article.trim();
+
+      if (articleBody.length < 400) {
+        logger.warn('Baseline article body too short', { orgId: org.id, length: articleBody.length }, 'GameTick');
+        continue;
+      }
       
       await db.createPostWithAllFields({
         id: generateSnowflakeId(),
         type: 'article',
-        content: response.summary,
+        content: summary,
+        fullContent: articleBody,
         articleTitle: response.title,
         category: topicData.category,
         authorId: org.id,

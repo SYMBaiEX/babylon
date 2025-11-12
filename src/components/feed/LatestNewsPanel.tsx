@@ -134,23 +134,6 @@ export function LatestNewsPanel() {
     }
   }
 
-  const getBiasIndicator = (biasScore?: number) => {
-    if (!biasScore || Math.abs(biasScore) < 0.3) return null;
-    
-    const isPositive = biasScore > 0;
-    const strength = Math.abs(biasScore);
-    
-    return (
-      <span 
-        className="text-xs font-semibold ml-1" 
-        style={{ color: isPositive ? '#10b981' : '#ef4444' }}
-        title={`Bias: ${isPositive ? 'Favorable' : 'Critical'} (${strength.toFixed(2)})`}
-      >
-        {isPositive ? '↗' : '↘'}
-      </span>
-    );
-  }
-
   const getTimeAgo = (timestamp: string) => {
     const now = Date.now()
     const diff = now - new Date(timestamp).getTime()
@@ -197,7 +180,6 @@ export function LatestNewsPanel() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-foreground leading-snug">
                     {article.title}
-                    {getBiasIndicator(article.biasScore)}
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {article.authorOrgName} · {getTimeAgo(article.publishedAt)}

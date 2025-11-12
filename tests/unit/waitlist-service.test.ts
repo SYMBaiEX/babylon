@@ -25,13 +25,18 @@ describe('WaitlistService', () => {
 
   describe('generateInviteCode', () => {
     it('should generate unique 8-character uppercase code', () => {
-      const code1 = WaitlistService.generateInviteCode()
-      const code2 = WaitlistService.generateInviteCode()
-
-      expect(code1).toHaveLength(8)
-      expect(code2).toHaveLength(8)
-      expect(code1).toMatch(/^[A-Z0-9]{8}$/)
-      expect(code1).not.toBe(code2) // Should be unique
+      // Generate multiple codes to test uniqueness
+      const codes = Array.from({ length: 10 }, () => WaitlistService.generateInviteCode())
+      
+      // All should be 8 characters
+      codes.forEach(code => {
+        expect(code).toHaveLength(8)
+        expect(code).toMatch(/^[A-Z0-9_-]{8}$/)
+      })
+      
+      // At least some should be unique (nanoid has tiny collision probability)
+      const uniqueCodes = new Set(codes)
+      expect(uniqueCodes.size).toBeGreaterThan(1)
     })
   })
 

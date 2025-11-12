@@ -87,14 +87,12 @@
   "include": [
     "next-env.d.ts",
     "src/**/*",
+    "tests/**/*",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "dist",
-    "**/*.test.ts",
-    "**/*.test.tsx",
-    "**/__tests__/**"
+    "dist"
   ]
 }
