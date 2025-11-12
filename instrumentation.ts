@@ -2,22 +2,20 @@
  * Next.js Instrumentation
  * 
  * Runs on server startup to register Babylon in Agent0 registry and initialize Sentry.
- * Only runs in Node.js runtime (not Edge).
+ * For Next.js 16.0.1, this file handles server-side Sentry initialization.
+ * 
+ * Note: Client-side Sentry is initialized via instrumentation-client.ts
  */
 
 import * as Sentry from '@sentry/nextjs'
 import { registerBabylonGame } from './src/lib/babylon-registry-init'
 
 export async function register() {
-  // Initialize Sentry for server-side
+  // Initialize Sentry for server-side (Node.js runtime)
   if (process.env.NEXT_RUNTIME === 'nodejs') {
-    await import('./sentry.server.config');
+    await import('./sentry.server.config')
   }
-
-  if (process.env.NEXT_RUNTIME === 'edge') {
-    await import('./sentry.edge.config');
-  }
-
+  
   // Temporarily disabled to prevent blocking dev server
   // Re-enable when agent0-sdk is properly installed
   if (false && process.env.NEXT_RUNTIME === 'nodejs') {
@@ -34,4 +32,7 @@ export async function register() {
     }
   }
 }
+
+// Export request error handler for Next.js App Router
+export const onRequestError = Sentry.captureRequestError
 
