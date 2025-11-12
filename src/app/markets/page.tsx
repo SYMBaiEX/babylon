@@ -9,9 +9,8 @@ import {
   Clock,
   Flame,
   Search,
-  Sparkles,
   TrendingDown,
-  TrendingUp,
+  TrendingUp
 } from 'lucide-react';
 
 import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
@@ -27,7 +26,6 @@ import { UserPoolPositions } from '@/components/markets/UserPoolPositions';
 import { BuyPointsModal } from '@/components/points/BuyPointsModal';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton, WidgetPanelSkeleton } from '@/components/shared/Skeleton';
-import { WalletBalance } from '@/components/shared/WalletBalance';
 
 import { cn } from '@/lib/utils';
 
@@ -519,20 +517,6 @@ export default function MarketsPage() {
                 </button>
               </div>
 
-              {/* Wallet Balance and Buy Points */}
-              {authenticated && (
-                <div className="flex items-center gap-3">
-                  <WalletBalance refreshTrigger={balanceRefreshTrigger} />
-                  <button
-                    onClick={() => setShowBuyPointsModal(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-medium rounded-lg hover:from-yellow-600 hover:to-amber-700 transition-all shadow-md hover:shadow-lg"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    <span className="hidden sm:inline">Buy Points</span>
-                  </button>
-                </div>
-              )}
-
               {/* Search - hide on dashboard */}
               {activeTab !== 'dashboard' && (
                 <div className="relative">
@@ -580,8 +564,6 @@ export default function MarketsPage() {
                     loading={portfolioLoading}
                     error={portfolioError}
                     onShare={() => setShowPnLShareModal(true)}
-                    onRefresh={refreshPortfolio}
-                    lastUpdated={portfolioUpdatedAt}
                     setShowBuyPointsModal={setShowBuyPointsModal}
                   />
                 )}
@@ -1296,20 +1278,6 @@ export default function MarketsPage() {
               </button>
             </div>
 
-            {/* Wallet Balance and Buy Points */}
-            {authenticated && (
-              <div className="flex items-center gap-3">
-                <WalletBalance refreshTrigger={balanceRefreshTrigger} />
-                <button
-                  onClick={() => setShowBuyPointsModal(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-medium rounded-lg hover:from-yellow-600 hover:to-amber-700 transition-all shadow-md hover:shadow-lg"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span className="hidden sm:inline">Buy Points</span>
-                </button>
-              </div>
-            )}
-
             {/* Search - hide on dashboard */}
             {activeTab !== 'dashboard' && (
               <div className="relative">
@@ -1357,8 +1325,6 @@ export default function MarketsPage() {
                   loading={portfolioLoading}
                   error={portfolioError}
                   onShare={() => setShowPnLShareModal(true)}
-                  onRefresh={refreshPortfolio}
-                  lastUpdated={portfolioUpdatedAt}
                   setShowBuyPointsModal={setShowBuyPointsModal}
                 />
               )}

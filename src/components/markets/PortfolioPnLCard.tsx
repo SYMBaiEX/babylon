@@ -1,13 +1,11 @@
 import { type PortfolioPnLSnapshot } from '@/hooks/usePortfolioPnL'
-import { RefreshCcw, Share2, Sparkles } from 'lucide-react'
+import { Share2, Sparkles } from 'lucide-react'
 
 interface PortfolioPnLCardProps {
   data: PortfolioPnLSnapshot | null
   loading: boolean
   error: string | null
   onShare: () => void
-  onRefresh: () => void | Promise<void>
-  lastUpdated: number | null
   setShowBuyPointsModal: (show: boolean) => void
 }
 
@@ -22,42 +20,21 @@ function formatCurrency(value: number | null | undefined) {
   return formatter.format(safeValue)
 }
 
-function formatRelativeTime(timestamp: number | null) {
-  if (!timestamp) return ''
-  const diffMs = Date.now() - timestamp
-  if (diffMs < 0) return ''
-  const diffMinutes = Math.round(diffMs / (1000 * 60))
-  if (diffMinutes <= 1) return 'Updated just now'
-  if (diffMinutes < 60) return `Updated ${diffMinutes}m ago`
-  const diffHours = Math.round(diffMinutes / 60)
-  if (diffHours < 24) return `Updated ${diffHours}h ago`
-  const diffDays = Math.round(diffHours / 24)
-  return `Updated ${diffDays}d ago`
-}
-
 export function PortfolioPnLCard({
   data,
   loading,
   error,
   onShare,
-  onRefresh,
-  lastUpdated,
   setShowBuyPointsModal
 }: PortfolioPnLCardProps) {
   return (
-    <section className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-purple-500/10 to-primary/5 px-4 py-3 sm:px-5 sm:py-4 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Your Portfolio
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            {formatRelativeTime(lastUpdated)}
-          </p>
-        </div>
-
+    <>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <h2 className="text-md font-semibold uppercase tracking-wide text-muted-foreground">
+          Your Portfolio
+        </h2>
         <div className="flex items-center gap-3">
-          <button
+          {/* <button
             type="button"
             onClick={onRefresh}
             disabled={loading}
@@ -65,7 +42,7 @@ export function PortfolioPnLCard({
             aria-label="Refresh portfolio P&L"
           >
             <RefreshCcw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+          </button> */}
           <button
             type="button"
             onClick={onShare}
@@ -84,6 +61,7 @@ export function PortfolioPnLCard({
           </button>
         </div>
       </div>
+          <section className="mt-4 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-purple-500/10 to-primary/5 px-4 py-3 sm:px-5 sm:py-4 shadow-sm">
 
       {loading ? (
         <div className="mt-6 grid grid-cols-2 gap-3">
@@ -97,14 +75,14 @@ export function PortfolioPnLCard({
         </div>
       ) : (
         data && (
-          <div className="mt-6 grid grid-cols-2 gap-3">
-            <div className="rounded-lg border border-white/10 bg-white/10 p-4 backdrop-blur">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-4">
               <dt className="text-xs uppercase text-white/70">Total Points</dt>
               <dd className="mt-2 text-3xl font-bold text-white">
                 {formatCurrency(data.accountEquity)}
               </dd>
             </div>
-            <div className="rounded-lg border border-white/10 bg-white/10 p-4 backdrop-blur">
+            <div className="p-4">
               <dt className="text-xs uppercase text-white/70">Available to Invest</dt>
               <dd className="mt-2 text-3xl font-bold text-white">
                 {formatCurrency(data.availableBalance)}
@@ -114,6 +92,7 @@ export function PortfolioPnLCard({
         )
       )}
     </section>
+    </>
   )
 }
 
