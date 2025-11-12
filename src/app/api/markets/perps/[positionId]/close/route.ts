@@ -8,13 +8,18 @@ import { authenticate } from '@/lib/api/auth-middleware';
 import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { NotFoundError, BusinessLogicError, AuthorizationError } from '@/lib/errors';
-import { PositionIdParamSchema, ClosePerpPositionSchema } from '@/lib/validation/schemas';
+import { ClosePerpPositionSchema } from '@/lib/validation/schemas';
 import { getPerpsEngine } from '@/lib/perps-service';
 import { WalletService } from '@/lib/services/wallet-service';
 import { logger } from '@/lib/logger';
 import { FeeService } from '@/lib/services/fee-service';
 import { FEE_CONFIG } from '@/lib/config/fees';
 import { trackServerEvent } from '@/lib/posthog/server';
+import { z } from 'zod';
+
+const ClosePerpPositionParamsSchema = z.object({
+  positionId: z.string().min(1),
+});
 
 /**
  * POST /api/markets/perps/[positionId]/close
@@ -25,13 +30,12 @@ export const POST = withErrorHandling(async (
   context: { params: Promise<{ positionId: string }> }
 ) => {
   const user = await authenticate(request);
-  const { positionId } = PositionIdParamSchema.parse(await context.params);
+  const { positionId } = ClosePerpPositionParamsSchema.parse(await context.params);
   
-  // Parse and validate request body (optional for partial close)
+  // Parse and validate request body (optional for partial close)  
   const body = await request.json().catch(() => ({}));
-  if (Object.keys(body).length > 0) {
-    ClosePerpPositionSchema.parse(body);
-  }
+  // Validation only - partial close not yet implemented
+  ClosePerpPositionSchema.partial().parse(body);
 
   // Get position from database with RLS
   const dbPosition = await asUser(user, async (db) => {
@@ -91,7 +95,7 @@ export const POST = withErrorHandling(async (
   }
 
   // Record PnL
-  await WalletService.recordPnL(user.userId, realizedPnL);
+  await WalletService.recordPnL(user.userId, realizedPnL, 'perp_close', positionId);
 
   // Update position in database with RLS
   await asUser(user, async (db) => {

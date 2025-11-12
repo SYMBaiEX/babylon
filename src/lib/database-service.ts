@@ -138,6 +138,18 @@ class DatabaseService {
     dayNumber?: number;
     timestamp: Date;
   }) {
+    // Validate dayNumber to prevent INT4 overflow
+    const safeDayNumber = typeof data.dayNumber === 'number' && 
+      Number.isFinite(data.dayNumber) && 
+      data.dayNumber >= 0 && 
+      data.dayNumber <= 2147483647 
+      ? data.dayNumber 
+      : undefined;
+
+    if (data.dayNumber !== undefined && safeDayNumber === undefined) {
+      console.warn('[Post] Invalid dayNumber value:', data.dayNumber, 'for post:', data.id);
+    }
+
     const created = await prisma.post.create({
       data: {
         id: data.id,
@@ -152,7 +164,7 @@ class DatabaseService {
         category: data.category,
         authorId: data.authorId,
         gameId: data.gameId,
-        dayNumber: data.dayNumber,
+        dayNumber: safeDayNumber,
         timestamp: data.timestamp,
       },
     });
@@ -174,14 +186,28 @@ class DatabaseService {
    */
   async createManyPosts(posts: Array<FeedPost & { gameId?: string; dayNumber?: number }>) {
     const result = await prisma.post.createMany({
-      data: posts.map(post => ({
-        id: post.id,
-        content: post.content,
-        authorId: post.author,
-        gameId: post.gameId,
-        dayNumber: post.dayNumber,
-        timestamp: new Date(post.timestamp),
-      })),
+      data: posts.map(post => {
+        // Validate dayNumber to prevent INT4 overflow
+        const safeDayNumber = typeof post.dayNumber === 'number' && 
+          Number.isFinite(post.dayNumber) && 
+          post.dayNumber >= 0 && 
+          post.dayNumber <= 2147483647 
+          ? post.dayNumber 
+          : undefined;
+
+        if (post.dayNumber !== undefined && safeDayNumber === undefined) {
+          console.warn('[Post] Invalid dayNumber value:', post.dayNumber, 'for post:', post.id);
+        }
+
+        return {
+          id: post.id,
+          content: post.content,
+          authorId: post.author,
+          gameId: post.gameId,
+          dayNumber: safeDayNumber,
+          timestamp: new Date(post.timestamp),
+        };
+      }),
       skipDuplicates: true,
     });
 
@@ -605,10 +631,49 @@ class DatabaseService {
       descriptionString = String(event.description || '');
     }
 
+    // Validate integer fields to prevent Snowflake ID insertion
+    // Log warning if value exceeds INT4 range
+    if (event.relatedQuestion !== undefined && 
+        (typeof event.relatedQuestion !== 'number' || 
+         !Number.isFinite(event.relatedQuestion) || 
+         event.relatedQuestion < 0 || 
+         event.relatedQuestion > 2147483647)) {
+      console.warn('[WorldEvent] Invalid relatedQuestion value:', event.relatedQuestion, 'for event:', event.id);
+    }
+    
+    if (event.dayNumber !== undefined && 
+        (typeof event.dayNumber !== 'number' || 
+         !Number.isFinite(event.dayNumber) || 
+         event.dayNumber < 0 || 
+         event.dayNumber > 2147483647)) {
+      console.warn('[WorldEvent] Invalid dayNumber value:', event.dayNumber, 'for event:', event.id);
+    }
+
+    const safeRelatedQuestion = typeof event.relatedQuestion === 'number' && 
+      Number.isFinite(event.relatedQuestion) && 
+      event.relatedQuestion >= 0 && 
+      event.relatedQuestion <= 2147483647 
+      ? event.relatedQuestion 
+      : undefined;
+
+    const safeDayNumber = typeof event.dayNumber === 'number' && 
+      Number.isFinite(event.dayNumber) && 
+      event.dayNumber >= 0 && 
+      event.dayNumber <= 2147483647 
+      ? event.dayNumber 
+      : undefined;
+
     return await prisma.worldEvent.create({
       data: {
-        ...event,
+        id: event.id,
+        eventType: event.eventType,
         description: descriptionString,
+        actors: event.actors,
+        relatedQuestion: safeRelatedQuestion,
+        pointsToward: event.pointsToward,
+        visibility: event.visibility,
+        gameId: event.gameId,
+        dayNumber: safeDayNumber,
       },
     });
   }

@@ -31,14 +31,19 @@ export function useChatMessages(chatId: string | null) {
   const loadMessages = useCallback(async (chatId: string) => {
     // Skip if already loaded
     if (hasLoadedRef.current.has(chatId)) {
+      console.log(`[useChatMessages] Skipping reload for ${chatId} - already loaded`);
       setIsLoading(false);
       return;
     }
 
+    console.log(`[useChatMessages] Loading messages for chat ${chatId}`);
     setIsLoading(true);
     const response = await fetch(`/api/chats/${chatId}`);
+    console.log(`[useChatMessages] Response status: ${response.status}`);
+    
     if (response.ok) {
       const data = await response.json();
+      console.log(`[useChatMessages] Response data:`, data);
       if (data.messages) {
         const formattedMessages: ChatMessage[] = data.messages.map((msg: {
           id: string;
@@ -52,10 +57,14 @@ export function useChatMessages(chatId: string | null) {
           senderId: msg.senderId,
           createdAt: typeof msg.createdAt === 'string' ? msg.createdAt : msg.createdAt.toISOString(),
         }));
+        console.log(`[useChatMessages] Loaded ${formattedMessages.length} messages`);
         setMessages(formattedMessages);
         hasLoadedRef.current.add(chatId);
         logger.debug(`Loaded ${formattedMessages.length} messages for chat ${chatId}`, { chatId, count: formattedMessages.length }, 'useChatMessages');
       }
+    } else {
+      const errorData = await response.json().catch(() => null);
+      console.error(`[useChatMessages] Failed to load messages:`, errorData);
     }
     setIsLoading(false);
   }, []);

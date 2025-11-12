@@ -102,7 +102,7 @@ export class A2AClient extends EventEmitter {
       },
       capabilities: this.config.capabilities,
       endpoint: this.config.endpoint
-    } as unknown as JsonRpcParams)
+    } as JsonRpcParams)
 
     this.agentId = response.agentId
     this._sessionToken = response.sessionToken
@@ -125,7 +125,13 @@ export class A2AClient extends EventEmitter {
    * Handle incoming message
    */
   private handleMessage(data: Buffer): void {
-    const message = JSON.parse(data.toString()) as JsonRpcResponse
+    let message: JsonRpcResponse;
+    try {
+      message = JSON.parse(data.toString());
+    } catch {
+      logger.error('Failed to parse incoming JSON message', { data: data.toString() });
+      return;
+    }
 
     if (message.id !== undefined && message.id !== null) {
       const pending = this.pendingRequests.get(message.id)
@@ -135,14 +141,18 @@ export class A2AClient extends EventEmitter {
         if (message.error) {
           pending.reject(new Error(message.error.message))
         } else {
-          pending.resolve(message.result ?? null as JsonRpcResult)
+          pending.resolve(message.result ?? null)
         }
       }
     }
 
-    if (message.id === null && 'method' in message && 'jsonrpc' in message && message.jsonrpc === '2.0') {
-      this.handleNotification(message as JsonRpcRequest)
+    if (this.isJsonRpcNotification(message)) {
+      this.handleNotification(message)
     }
+  }
+
+  private isJsonRpcNotification(message: JsonRpcResponse | JsonRpcRequest): message is JsonRpcRequest {
+    return message.id === null && 'method' in message && 'jsonrpc' in message && message.jsonrpc === '2.0';
   }
 
   /**
@@ -248,7 +258,14 @@ export class A2AClient extends EventEmitter {
     minReputation?: number
     markets?: string[]
   }, limit?: number): Promise<{ agents: AgentProfile[]; total: number }> {
-    return this.sendRequest(A2AMethod.DISCOVER_AGENTS, { filters, limit } as JsonRpcParams)
+    const params: JsonRpcParams = {};
+    if (filters) {
+      params.filters = filters;
+    }
+    if (limit !== undefined) {
+      params.limit = limit;
+    }
+    return this.sendRequest(A2AMethod.DISCOVER_AGENTS, Object.keys(params).length > 0 ? params : undefined)
   }
 
   async getAgentInfo(agentId: string): Promise<AgentProfile> {
@@ -321,7 +338,8 @@ export class A2AClient extends EventEmitter {
   // ==================== Information Sharing ====================
 
   async shareAnalysis(analysis: MarketAnalysis): Promise<{ shared: boolean; analysisId: string }> {
-    return this.sendRequest(A2AMethod.SHARE_ANALYSIS, { analysis } as unknown as JsonRpcParams)
+    const params: JsonRpcParams = { analysis };
+    return this.sendRequest(A2AMethod.SHARE_ANALYSIS, params)
   }
 
   async requestAnalysis(
@@ -329,11 +347,12 @@ export class A2AClient extends EventEmitter {
     paymentOffer?: string,
     deadline?: number
   ): Promise<{ requestId: string; broadcasted: boolean }> {
-    return this.sendRequest(A2AMethod.REQUEST_ANALYSIS, {
+    const params: JsonRpcParams = {
       marketId,
-      paymentOffer,
-      deadline: deadline || Date.now() + 3600000 // 1 hour default
-    } as JsonRpcParams)
+      paymentOffer: paymentOffer || null,
+      deadline: deadline || Date.now() + 3600000
+    };
+    return this.sendRequest(A2AMethod.REQUEST_ANALYSIS, params)
   }
 
   // ==================== x402 Micropayments ====================
@@ -344,12 +363,13 @@ export class A2AClient extends EventEmitter {
     service: string,
     metadata?: Record<string, JsonValue>
   ): Promise<{ requestId: string; amount: string; expiresAt: number }> {
-    return this.sendRequest(A2AMethod.PAYMENT_REQUEST, {
+    const params: JsonRpcParams = {
       to,
       amount,
       service,
-      metadata
-    } as JsonRpcParams)
+      metadata: metadata || {}
+    };
+    return this.sendRequest(A2AMethod.PAYMENT_REQUEST, params)
   }
 
   async submitPaymentReceipt(

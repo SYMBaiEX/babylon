@@ -12,6 +12,8 @@ import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { getReputationBreakdown } from '@/lib/reputation/reputation-service';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import type { TradingDecision, ExecutionResult } from '@/types/market-decisions';
+import { TradeExecutionService } from '@/lib/services/trade-execution-service';
 
 export interface PortfolioPosition {
   id: string;
@@ -209,6 +211,208 @@ export class NPCInvestmentManager {
     }
 
     return actions;
+  }
+
+  /**
+   * Ensure each NPC pool has an initial baseline allocation
+   * Invests ~80% of available balance across aligned companies
+   */
+  static async executeBaselineInvestments(timestamp: Date = new Date()): Promise<ExecutionResult | null> {
+    const baselineDecisions = await this.buildBaselineDecisions();
+
+    if (baselineDecisions.length === 0) {
+      return null;
+    }
+
+    logger.info(
+      `Executing ${baselineDecisions.length} baseline NPC trades`,
+      { timestamp: timestamp.toISOString() },
+      'NPCInvestmentManager'
+    );
+
+    const tradeExecutionService = new TradeExecutionService();
+    const result = await tradeExecutionService.executeDecisionBatch(baselineDecisions);
+
+    logger.info(
+      'Baseline NPC investments completed',
+      {
+        trades: result.successfulTrades,
+        pools: new Set(baselineDecisions.map((d) => d.npcId)).size,
+      },
+      'NPCInvestmentManager'
+    );
+
+    return result;
+  }
+
+  /**
+   * Build baseline allocation decisions for NPC pools lacking exposure
+   */
+  private static async buildBaselineDecisions(): Promise<TradingDecision[]> {
+    const activePools = await prisma.pool.findMany({
+      where: { isActive: true },
+      include: {
+        PoolPosition: {
+          where: { closedAt: null },
+          select: { id: true },
+        },
+      },
+    });
+
+    if (activePools.length === 0) {
+      return [];
+    }
+
+    const actorIds = Array.from(new Set(activePools.map((pool) => pool.npcActorId)));
+
+    const organizationsPromise = prisma.organization.findMany({
+      where: { type: 'company' },
+      select: {
+        id: true,
+        name: true,
+        currentPrice: true,
+        initialPrice: true,
+      },
+    });
+
+    const relationships = await prisma.actorRelationship.findMany({
+      where: {
+        OR: [
+          { actor1Id: { in: actorIds } },
+          { actor2Id: { in: actorIds } },
+        ],
+      },
+      select: {
+        actor1Id: true,
+        actor2Id: true,
+        sentiment: true,
+        strength: true,
+      },
+    });
+
+    const actorIdSet = new Set(actorIds);
+    relationships.forEach((rel) => {
+      actorIdSet.add(rel.actor1Id);
+      actorIdSet.add(rel.actor2Id);
+    });
+
+    const actors = await prisma.actor.findMany({
+      where: { id: { in: Array.from(actorIdSet) } },
+      select: {
+        id: true,
+        name: true,
+        affiliations: true,
+      },
+    });
+
+    const organizations = await organizationsPromise;
+
+    const actorMap = new Map(actors.map((actor) => [actor.id, actor]));
+    const organizationMap = new Map(organizations.map((org) => [org.id, org]));
+    const organizationTickerMap = new Map(
+      organizations.map((org) => [org.id, org.id.toUpperCase().replace(/-/g, '')])
+    );
+
+    const relationshipsByActor = new Map<string, Array<{ otherId: string; sentiment: number; strength: number }>>();
+    relationships.forEach((rel) => {
+      relationshipsByActor.set(rel.actor1Id, [
+        ...(relationshipsByActor.get(rel.actor1Id) || []),
+        { otherId: rel.actor2Id, sentiment: rel.sentiment, strength: rel.strength },
+      ]);
+      relationshipsByActor.set(rel.actor2Id, [
+        ...(relationshipsByActor.get(rel.actor2Id) || []),
+        { otherId: rel.actor1Id, sentiment: rel.sentiment, strength: rel.strength },
+      ]);
+    });
+
+    // Sort fallback organizations by current price (descending) to pick meaningful assets
+    const fallbackOrganizations = [...organizations].sort(
+      (a, b) => (b.currentPrice ?? b.initialPrice ?? 100) - (a.currentPrice ?? a.initialPrice ?? 100)
+    );
+
+    const baselineDecisions: TradingDecision[] = [];
+
+    for (const pool of activePools) {
+      // Skip pools that already hold positions
+      if (pool.PoolPosition.length > 0) {
+        continue;
+      }
+
+      const actor = actorMap.get(pool.npcActorId);
+      if (!actor) {
+        continue;
+      }
+
+      const availableBalance = parseFloat(pool.availableBalance.toString());
+      if (availableBalance <= 0) {
+        continue;
+      }
+
+      const investBudget = availableBalance * 0.8;
+      if (investBudget < 1) {
+        continue;
+      }
+
+      const targetOrgIds = new Set<string>();
+
+      (actor.affiliations || []).forEach((orgId) => {
+        if (organizationMap.has(orgId)) {
+          targetOrgIds.add(orgId);
+        }
+      });
+
+      const relatedActors = relationshipsByActor.get(actor.id) || [];
+      relatedActors
+        .filter((rel) => rel.sentiment >= 0.25 && rel.strength >= 0.4)
+        .forEach((rel) => {
+          const counterpart = actorMap.get(rel.otherId);
+          counterpart?.affiliations?.forEach((orgId) => {
+            if (organizationMap.has(orgId)) {
+              targetOrgIds.add(orgId);
+            }
+          });
+        });
+
+      if (targetOrgIds.size === 0) {
+        fallbackOrganizations.slice(0, 3).forEach((org) => targetOrgIds.add(org.id));
+      }
+
+      const targetTickers = Array.from(targetOrgIds)
+        .map((orgId) => organizationTickerMap.get(orgId))
+        .filter((ticker): ticker is string => Boolean(ticker))
+        .slice(0, 5);
+
+      if (targetTickers.length === 0) {
+        continue;
+      }
+
+      let remainingBudget = investBudget;
+
+      targetTickers.forEach((ticker, index) => {
+        const allocationsRemaining = targetTickers.length - index;
+        let allocation = remainingBudget / allocationsRemaining;
+        allocation = Number(allocation.toFixed(2));
+
+        if (allocation <= 0) {
+          return;
+        }
+
+        remainingBudget = Math.max(remainingBudget - allocation, 0);
+
+        baselineDecisions.push({
+          npcId: actor.id,
+          npcName: actor.name,
+          action: 'open_long',
+          marketType: 'perp',
+          ticker,
+          amount: allocation,
+          confidence: 0.9,
+          reasoning: 'Baseline allocation to aligned organizations',
+        });
+      });
+    }
+
+    return baselineDecisions;
   }
 
   /**

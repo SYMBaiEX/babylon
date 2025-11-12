@@ -8,6 +8,7 @@ import { ethers } from 'ethers'
 import WebSocket from 'ws'
 import { A2AWebSocketServer } from '../../server/websocket-server'
 import type { JsonRpcRequest, JsonRpcResponse, AgentCapabilities } from '../../types'
+import type { JsonRpcParams } from '@/types/json-rpc'
 import { A2AMethod } from '../../types'
 
 describe('A2AWebSocketServer Integration', () => {
@@ -97,9 +98,9 @@ describe('A2AWebSocketServer Integration', () => {
                 signature,
                 timestamp
               },
-              capabilities,
+              capabilities: capabilities as any,
               endpoint: `ws://localhost:${serverPort}`
-            },
+            } as JsonRpcParams,
             id: 1
           }
 
@@ -112,9 +113,11 @@ describe('A2AWebSocketServer Integration', () => {
           if (response.id === 1) {
             expect(response.jsonrpc).toBe('2.0')
             expect(response.result).toBeDefined()
-            expect(response.result.agentId).toBeDefined()
-            expect(response.result.sessionToken).toBeDefined()
-            expect(response.result.serverCapabilities).toBeDefined()
+            if (!response.result) throw new Error('Result is undefined')
+            const result = response.result as any
+            expect(result.agentId).toBeDefined()
+            expect(result.sessionToken).toBeDefined()
+            expect(result.serverCapabilities).toBeDefined()
             ws.close()
             resolve()
           }
@@ -177,9 +180,9 @@ describe('A2AWebSocketServer Integration', () => {
             signature,
             timestamp
           },
-          capabilities,
+          capabilities: capabilities as any,
           endpoint: `ws://localhost:${serverPort}`
-        },
+        } as JsonRpcParams,
         id: 'handshake'
       }
 
@@ -190,7 +193,8 @@ describe('A2AWebSocketServer Integration', () => {
           const response = JSON.parse(data.toString()) as JsonRpcResponse
           if (response.id === 'handshake') {
             ws.removeListener('message', messageHandler)
-            resolve(response.result.agentId)
+            if (!response.result) throw new Error('Result is undefined')
+            resolve((response.result as any).agentId)
           }
         }
         ws.on('message', messageHandler)
@@ -218,7 +222,8 @@ describe('A2AWebSocketServer Integration', () => {
             const response = JSON.parse(data.toString()) as JsonRpcResponse
             if (response.id === 'discover') {
               expect(response.result).toBeDefined()
-              expect(response.result.agents).toBeDefined()
+              if (!response.result) throw new Error('Result is undefined')
+              expect((response.result as any).agents).toBeDefined()
               ws.close()
               resolve()
             }
@@ -249,7 +254,8 @@ describe('A2AWebSocketServer Integration', () => {
             const response = JSON.parse(data.toString()) as JsonRpcResponse
             if (response.id === 'subscribe') {
               expect(response.result).toBeDefined()
-              expect(response.result.subscribed).toBe(true)
+              if (!response.result) throw new Error('Result is undefined')
+              expect((response.result as any).subscribed).toBe(true)
               ws.close()
               resolve()
             }
@@ -308,9 +314,9 @@ describe('A2AWebSocketServer Integration', () => {
                 signature,
                 timestamp
               },
-              capabilities,
+              capabilities: capabilities as any,
               endpoint: `ws://localhost:${serverPort}`
-            },
+            } as JsonRpcParams,
             id: 'handshake'
           }
 
@@ -390,9 +396,9 @@ describe('A2AWebSocketServer Integration', () => {
                 signature,
                 timestamp
               },
-              capabilities,
+              capabilities: capabilities as any,
               endpoint: `ws://localhost:${serverPort}`
-            },
+            } as JsonRpcParams,
             id: 1
           }
 

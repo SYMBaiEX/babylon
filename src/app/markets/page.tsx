@@ -661,6 +661,7 @@ export default function MarketsPage() {
             <div className="flex items-center gap-3">
               <WalletBalance refreshTrigger={balanceRefreshTrigger} />
               <button
+                data-testid="buy-points-button"
                 onClick={() => setShowBuyPointsModal(true)}
                 className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-medium rounded-lg hover:from-yellow-600 hover:to-amber-700 transition-all shadow-md hover:shadow-lg"
               >

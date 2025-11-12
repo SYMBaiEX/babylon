@@ -1,7 +1,6 @@
 'use client';
 
 import { CommentCard } from '@/components/interactions/CommentCard';
-import { CommentInput } from '@/components/interactions/CommentInput';
 import { PostCard } from '@/components/posts/PostCard';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
@@ -29,14 +28,12 @@ interface FeedCommentSectionProps {
     isShared: boolean;
   };
   onClose?: () => void;
-  onCommentAdded?: () => void;
 }
 
 export function FeedCommentSection({
   postId,
   postData,
   onClose,
-  onCommentAdded,
 }: FeedCommentSectionProps) {
   const { user } = useAuth();
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
@@ -322,29 +319,6 @@ export function FeedCommentSection({
               <div className="px-4">
                 <div className="ml-6 border-l-2 border-border h-4" />
               </div>
-
-              {/* Reply Input */}
-              <div className="px-4 pb-4">
-                <CommentInput
-                  postId={postId}
-                  placeholder="Post your reply..."
-                  onSubmit={async (comment) => {
-                    // Only proceed if comment was successfully created
-                    if (!comment) return;
-                    
-                    // Close the modal immediately
-                    if (onClose) {
-                      onClose();
-                    }
-                    
-                    // Call onCommentAdded callback if provided (after closing)
-                    if (onCommentAdded) {
-                      onCommentAdded();
-                    }
-                  }}
-                  autoFocus
-                />
-              </div>
             </div>
           </div>
         </div>
@@ -374,42 +348,6 @@ export function FeedCommentSection({
               </div>
             </div>
           )}
-
-          {/* Comment input */}
-          <div className="px-4 py-3 bg-background shrink-0">
-            <CommentInput
-              postId={postId}
-              placeholder="Post your reply..."
-              onSubmit={async (comment) => {
-                if (comment) {
-                  // Optimistically add comment to the list immediately
-                  const optimisticComment: CommentWithReplies = {
-                    id: comment.id,
-                    content: comment.content,
-                    createdAt: comment.createdAt instanceof Date ? comment.createdAt : new Date(comment.createdAt),
-                    updatedAt: comment.updatedAt instanceof Date ? comment.updatedAt : new Date(comment.updatedAt),
-                    userId: comment.authorId,
-                    userName: comment.author?.displayName || comment.author?.username || 'Unknown',
-                    userUsername: comment.author?.username || null,
-                    userAvatar: comment.author?.profileImageUrl || undefined,
-                    parentCommentId: comment.parentCommentId,
-                    likeCount: comment._count?.reactions || 0,
-                    isLiked: false,
-                    replies: [],
-                  };
-                  setComments((prev) => [optimisticComment, ...prev]);
-                }
-                // Small delay to ensure API has processed, then reload to get full data
-                await new Promise(resolve => setTimeout(resolve, 200));
-                await loadCommentsData();
-                
-                // Call onCommentAdded callback if provided
-                if (onCommentAdded) {
-                  onCommentAdded();
-                }
-              }}
-            />
-          </div>
 
           {/* Comments list */}
           <div className="flex-1 overflow-y-auto px-4 py-3">

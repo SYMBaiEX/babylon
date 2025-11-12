@@ -8,6 +8,7 @@ import type { JsonRpcParams, JsonRpcResult } from '@/types/json-rpc';
 import type { RegistryClient, X402Manager } from '@/types/a2a-server';
 import type { IAgent0Client } from '@/agents/agent0/types';
 import type { IUnifiedDiscoveryService } from '@/agents/agent0/types';
+import { z } from 'zod';
 
 // JSON-RPC 2.0 Base Types
 export interface JsonRpcRequest {
@@ -75,14 +76,24 @@ export interface AgentCredentials {
   timestamp: number
 }
 
+export const AgentCapabilitiesSchema = z.object({
+  strategies: z.array(z.string()).optional().default([]),
+  markets: z.array(z.string()).optional().default([]),
+  actions: z.array(z.string()).optional().default([]),
+  version: z.string().optional().default('1.0.0'),
+  x402Support: z.boolean().optional(),
+  platform: z.string().optional(),
+  userType: z.string().optional(),
+});
 export interface AgentCapabilities {
   strategies: string[]
   markets: string[]
   actions: string[]
   version: string
-  x402Support?: boolean // ERC-402 payment support for agent services
-  platform?: string // Platform identifier (e.g., 'babylon', 'eliza')
-  userType?: string // User type (e.g., 'agent', 'user')
+  x402Support?: boolean
+  platform?: string
+  userType?: string
+  [key: string]: JsonValue | boolean | string | undefined
 }
 
 export interface AgentProfile {
@@ -166,16 +177,17 @@ export interface CoalitionMessage {
 }
 
 // Analysis Sharing Types
-export interface MarketAnalysis {
-  marketId: string
-  analyst: string
-  prediction: number // 0-1 probability
-  confidence: number // 0-1 confidence level
-  reasoning: string
-  dataPoints: Record<string, JsonValue>
-  timestamp: number
-  signature?: string
-}
+export const MarketAnalysisSchema = z.object({
+  marketId: z.string(),
+  analyst: z.string(),
+  prediction: z.number().min(0).max(1),
+  confidence: z.number().min(0).max(1),
+  reasoning: z.string(),
+  dataPoints: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+  timestamp: z.number(),
+  signature: z.string().optional(),
+});
+export type MarketAnalysis = z.infer<typeof MarketAnalysisSchema>;
 
 export interface AnalysisRequest {
   requestId: string

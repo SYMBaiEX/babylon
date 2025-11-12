@@ -13,41 +13,30 @@ import { updateGameMetrics, updateFeedbackMetrics } from '@/lib/reputation/reput
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
+import { z } from 'zod'
 
-interface GameFeedbackRequest {
-  agentId: string
-  gameId: string
-  score: number // 0-100 scale
-  won: boolean
-  comment?: string
-  metadata?: Record<string, unknown>
-}
+const GameFeedbackSchema = z.object({
+  agentId: z.string().min(1, 'agentId is required'),
+  gameId: z.string().min(1, 'gameId is required'),
+  score: z.number().min(0).max(100),
+  won: z.boolean(),
+  comment: z.string().max(5000).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+})
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as GameFeedbackRequest
+    const json = await request.json()
+    const parsed = GameFeedbackSchema.safeParse(json)
 
-    // Validate required fields
-    if (!body.agentId) {
-      return NextResponse.json({ error: 'agentId is required' }, { status: 400 })
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid request payload', details: parsed.error.flatten() },
+        { status: 400 }
+      )
     }
 
-    if (!body.gameId) {
-      return NextResponse.json({ error: 'gameId is required' }, { status: 400 })
-    }
-
-    if (typeof body.score !== 'number') {
-      return NextResponse.json({ error: 'score must be a number' }, { status: 400 })
-    }
-
-    if (typeof body.won !== 'boolean') {
-      return NextResponse.json({ error: 'won must be a boolean' }, { status: 400 })
-    }
-
-    // Validate score range (0-100)
-    if (body.score < 0 || body.score > 100) {
-      return NextResponse.json({ error: 'score must be between 0 and 100' }, { status: 400 })
-    }
+    const body = parsed.data
 
     // Verify agent exists
     const agent = await requireUserByIdentifier(body.agentId)
@@ -82,7 +71,7 @@ export async function POST(request: NextRequest) {
         comment: body.comment,
         gameId: body.gameId,
         interactionType: 'game_to_agent',
-        metadata: body.metadata ? (body.metadata as unknown as Prisma.InputJsonValue) : undefined,
+        metadata: body.metadata as Prisma.InputJsonValue | undefined,
         createdAt: now,
         updatedAt: now,
       },

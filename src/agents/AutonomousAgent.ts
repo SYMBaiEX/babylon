@@ -29,7 +29,7 @@ export interface AgentConfig {
 }
 
 export interface AgentAnalysisResult {
-  questionId: number;
+  questionId: string | number; // Can be Snowflake string or question number
   prediction: boolean;
   confidence: number;
   reasoning: string;
@@ -240,9 +240,10 @@ export class AutonomousAgent extends EventEmitter {
       }
     );
 
-    const questionIdNumber = typeof question.id === 'number' ? question.id : parseInt(String(question.id), 10);
+    // Use questionNumber if available, otherwise use the ID as-is (don't parseInt Snowflakes)
+    const questionId = question.questionNumber || question.id;
     const analysis: AgentAnalysisResult = {
-      questionId: questionIdNumber,
+      questionId,
       prediction: response.prediction,
       confidence: response.confidence,
       reasoning: response.reasoning,

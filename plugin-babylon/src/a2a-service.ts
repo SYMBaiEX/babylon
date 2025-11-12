@@ -293,12 +293,21 @@ export class BabylonA2AService extends Service {
     prediction: number;
     confidence: number;
     reasoning: string;
-    dataPoints?: Record<string, unknown>;
+    dataPoints?: Record<string, JsonValue>;
     timestamp: number;
   }): Promise<void> {
+    // Filter dataPoints to only include primitive values (string | number | boolean | null)
+    const filteredDataPoints: Record<string, string | number | boolean | null> = {};
+    if (analysis.dataPoints) {
+      for (const [key, value] of Object.entries(analysis.dataPoints)) {
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value === null) {
+          filteredDataPoints[key] = value;
+        }
+      }
+    }
     const analysisWithData: MarketAnalysis = {
       ...analysis,
-      dataPoints: (analysis.dataPoints || {}) as Record<string, JsonValue>,
+      dataPoints: filteredDataPoints,
     };
     await this.client!.shareAnalysis(analysisWithData);
     logger.info(`Shared analysis for market: ${analysis.marketId}`);

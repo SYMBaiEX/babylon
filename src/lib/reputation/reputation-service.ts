@@ -634,11 +634,14 @@ export async function generateBatchGameFeedback(
 ) {
   logger.info('Generating batch game feedback', { count: completions.length }, 'AutoFeedback')
 
-  const feedbackPromises = completions.map((completion) =>
-    generateGameCompletionFeedback(completion.agentId, completion.gameId, completion.metrics)
+  // Use batching to prevent connection pool exhaustion
+  const { batchExecuteWithResults } = await import('@/lib/batch-operations')
+  
+  const results = await batchExecuteWithResults(
+    completions,
+    10, // Process 10 at a time
+    (completion) => generateGameCompletionFeedback(completion.agentId, completion.gameId, completion.metrics)
   )
-
-  const results = await Promise.allSettled(feedbackPromises)
 
   const successful = results.filter((r) => r.status === 'fulfilled').length
   const failed = results.filter((r) => r.status === 'rejected').length

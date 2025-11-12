@@ -530,8 +530,8 @@ export default function ProfilePage() {
                 {/* Profile Info */}
                 <div className="px-4 pb-4">
                   {/* Profile Picture & Edit Button Row */}
-                  <div className="flex items-start justify-between gap-3 -mt-12 sm:-mt-16 mb-4">
-                    <div className="relative shrink-0">
+                  <div className="flex items-end justify-between gap-3 mb-4">
+                    <div className="relative shrink-0 -mt-12 sm:-mt-16">
                       {formData.profileImageUrl ? (
                         <img
                           src={formData.profileImageUrl}
@@ -546,7 +546,7 @@ export default function ProfilePage() {
                     </div>
                     <button
                       onClick={openEditModal}
-                      className="mt-3 sm:mt-4 px-4 sm:px-6 py-2 rounded-full border-2 border-border hover:bg-muted active:bg-muted transition-colors font-semibold text-sm whitespace-nowrap min-h-[44px] z-1"
+                      className="px-4 sm:px-6 py-2 rounded-full border border-border bg-white text-black dark:bg-white dark:text-black hover:bg-gray-100 dark:hover:bg-gray-200 active:bg-gray-100 dark:active:bg-gray-200 transition-colors font-semibold text-sm whitespace-nowrap min-h-[44px]"
                     >
                       Edit Profile
                     </button>

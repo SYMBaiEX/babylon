@@ -94,10 +94,20 @@ export class MarketDecisionEngine {
       { temperature: 0.8, maxTokens: 8000 }
     );
     
+    logger.info(`LLM returned response for ${contexts.length} NPCs`, { 
+      responseType: Array.isArray(response) ? 'array' : typeof response,
+      responseLength: Array.isArray(response) ? response.length : 'N/A',
+      sampleDecision: Array.isArray(response) && response.length > 0 ? response[0] : null
+    }, 'MarketDecisionEngine');
+    
     // Validate response is array
     if (!Array.isArray(response)) {
       logger.error('LLM returned non-array response for batch decisions', { response }, 'MarketDecisionEngine');
       return [];
+    }
+    
+    if (response.length === 0) {
+      logger.warn('LLM returned empty array for batch decisions', { npcCount: contexts.length }, 'MarketDecisionEngine');
     }
     
     return response;
@@ -216,18 +226,28 @@ export class MarketDecisionEngine {
     decisions: TradingDecision[],
     contexts: Map<string, NPCMarketContext>
   ): TradingDecision[] {
+    logger.info(`Validating ${decisions.length} raw LLM decisions`, { 
+      decisionsCount: decisions.length,
+      contextsCount: contexts.size,
+      sampleDecisionAction: decisions[0]?.action,
+      sampleNpcName: decisions[0]?.npcName
+    }, 'MarketDecisionEngine');
+    
     const valid: TradingDecision[] = [];
+    const rejectionReasons: Record<string, number> = {};
     
     for (const decision of decisions) {
       const context = contexts.get(decision.npcId);
       
       if (!context) {
+        rejectionReasons['no_context'] = (rejectionReasons['no_context'] || 0) + 1;
         logger.warn(`Decision for unknown NPC: ${decision.npcId}`, {}, 'MarketDecisionEngine');
         continue;
       }
       
       // Validate hold action
       if (decision.action === 'hold') {
+        logger.info(`${decision.npcName} chose to HOLD`, {}, 'MarketDecisionEngine');
         valid.push({
           ...decision,
           marketType: null,
@@ -337,6 +357,7 @@ export class MarketDecisionEngine {
       valid: valid.length,
       total: decisions.length,
       filtered: decisions.length - valid.length,
+      rejectionReasons,
     }, 'MarketDecisionEngine');
     
     return valid;

@@ -11,23 +11,25 @@ async function main() {
   // Find an NPC with a pool
   const actor = await prisma.actor.findFirst({
     where: { hasPool: true },
-    include: { pools: { where: { isActive: true }, take: 1 } }
+    include: { Pool: { where: { isActive: true }, take: 1 } }
   })
   
-  if (!actor || !actor.pools[0]) {
+  if (!actor || !actor.Pool[0]) {
     console.log('❌ No actor with pool found')
     console.log('Run: bun run scripts/init-pools.ts')
     return
   }
   
   console.log(`Found NPC: ${actor.name}`)
-  console.log(`Pool: ${actor.pools[0].name}\n`)
+  console.log(`Pool: ${actor.Pool[0].name}\n`)
+  
+  const poolId = actor.Pool[0].id
   
   // Create a test NPC trade
   const trade = await prisma.nPCTrade.create({
     data: {
       npcActorId: actor.id,
-      poolId: actor.pools[0].id,
+      poolId: poolId,
       marketType: 'perp',
       ticker: 'BTC',
       action: 'open_long',
@@ -50,7 +52,7 @@ async function main() {
     prisma.nPCTrade.create({
       data: {
         npcActorId: actor.id,
-        poolId: actor.pools[0].id,
+        poolId: poolId,
         marketType: 'perp',
         ticker: 'ETH',
         action: 'open_short',
@@ -65,7 +67,7 @@ async function main() {
     prisma.nPCTrade.create({
       data: {
         npcActorId: actor.id,
-        poolId: actor.pools[0].id,
+        poolId: poolId,
         marketType: 'prediction',
         marketId: '1',
         action: 'buy_yes',
@@ -89,4 +91,5 @@ main().catch((error) => {
   console.error('❌ Error:', error)
   process.exit(1)
 })
+
 

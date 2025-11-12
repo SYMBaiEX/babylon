@@ -199,6 +199,22 @@ if (minioRunning.trim() !== MINIO_CONTAINER_NAME) {
   logger.info('MinIO running (localhost:9000-9001)', undefined, 'Script');
 }
 
+// Initialize MinIO bucket if MinIO is running
+if (minioRunning.trim() === MINIO_CONTAINER_NAME) {
+  try {
+    const { getStorageClient } = await import('../src/lib/storage/s3-client.js');
+    const storage = getStorageClient();
+    await storage.initializeBucket();
+    logger.info('MinIO bucket initialized', undefined, 'Script');
+  } catch (error: any) {
+    if (error.message?.includes('already exists') || error.name?.includes('BucketAlready')) {
+      logger.info('MinIO bucket already exists', undefined, 'Script');
+    } else {
+      logger.warn('MinIO bucket initialization skipped', { error: error.message }, 'Script');
+    }
+  }
+}
+
 // Test database connection with Prisma
 logger.info('Testing database connection...', undefined, 'Script');
 const prisma = new PrismaClient();

@@ -93,6 +93,7 @@
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "plugin-babylon"
   ]
 }

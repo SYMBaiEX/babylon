@@ -41,8 +41,7 @@ describe('IPFSPublisher', () => {
       },
       capabilities: {
         markets: ['prediction'],
-        actions: ['trade'],
-        version: '1.0.0'
+        actions: ['trade']
       }
     }
     
@@ -60,7 +59,7 @@ describe('IPFSPublisher', () => {
         description: 'Test',
         version: '1.0.0',
         endpoints: {},
-        capabilities: { markets: [], actions: [], version: '1.0.0' }
+        capabilities: { markets: [], actions: [] }
       })
     ).rejects.toThrow('Use Agent0Client.registerAgent() instead')
   })

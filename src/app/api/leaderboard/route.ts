@@ -22,14 +22,17 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Parse and validate query parameters
   const queryParams = Object.fromEntries(searchParams.entries())
-  const { page, pageSize, minPoints } = LeaderboardQuerySchema.parse(queryParams)
+  const { page, pageSize, minPoints, pointsType } = LeaderboardQuerySchema.parse(queryParams)
 
-  const leaderboard = await PointsService.getLeaderboard(page, pageSize, minPoints)
+  const pointsCategory = (pointsType ?? 'all') as 'all' | 'earned' | 'referral'
+
+  const leaderboard = await PointsService.getLeaderboard(page, pageSize, minPoints, pointsCategory)
 
   logger.info('Leaderboard fetched successfully', {
     page,
     pageSize,
     minPoints,
+    pointsCategory,
     totalCount: leaderboard.totalCount
   }, 'GET /api/leaderboard')
 
@@ -41,7 +44,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       totalCount: leaderboard.totalCount,
       totalPages: leaderboard.totalPages,
     },
-    minPoints,
+    minPoints: pointsCategory === 'all' ? minPoints : 0,
+    pointsCategory: leaderboard.pointsCategory,
   })
 });
 

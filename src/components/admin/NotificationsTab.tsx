@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { Bell, Send, Users, User } from 'lucide-react'
+import { useState, useCallback, useEffect } from 'react'
+import { Bell, Send, Users, User, MessageCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -14,6 +14,38 @@ export function NotificationsTab() {
   const [type, setType] = useState<NotificationType>('system')
   const [recipientType, setRecipientType] = useState<RecipientType>('specific')
   const [sending, setSending] = useState(false)
+
+  // DM Testing state
+  const [dmSenderId, setDmSenderId] = useState('demo-user-babylon-support')
+  const [dmRecipientId, setDmRecipientId] = useState('')
+  const [sendingDm, setSendingDm] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [debugInfo, setDebugInfo] = useState<Record<string, unknown> | null>(null)
+
+  // Fetch current user ID on mount
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+        if (!token) return
+
+        const response = await fetch('/api/users/me', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          setCurrentUserId(data.user?.id || null)
+        }
+      } catch (error) {
+        console.error('Failed to fetch current user:', error)
+      }
+    }
+    
+    fetchCurrentUser()
+  }, [])
 
   const handleSend = useCallback(async () => {
     if (!message.trim()) {
@@ -67,6 +99,106 @@ export function NotificationsTab() {
       setSending(false)
     }
   }, [message, userId, type, recipientType])
+
+  const handleDebugDMs = useCallback(async () => {
+    if (!dmRecipientId.trim()) {
+      toast.error('Please enter a recipient user ID to debug')
+      return
+    }
+
+    try {
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      if (!token) {
+        toast.error('Not authenticated')
+        return
+      }
+
+      const response = await fetch(`/api/admin/debug-dm?userId=${encodeURIComponent(dmRecipientId.trim())}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      const data = await response.json()
+      console.log('[Debug DM]', data)
+      setDebugInfo(data)
+      
+      if (data.participantRecords?.length === 0) {
+        toast.error(`No DM chats found for user ${dmRecipientId}`)
+      } else {
+        toast.success(`Found ${data.participantRecords?.length || 0} DM participant records and ${data.chats?.length || 0} chats`)
+      }
+    } catch (error) {
+      console.error('Debug DM error:', error)
+      toast.error('Failed to debug DMs')
+    }
+  }, [dmRecipientId])
+
+  const handleSendTestDMs = useCallback(async () => {
+    if (!dmSenderId.trim()) {
+      toast.error('Please enter a sender user ID')
+      return
+    }
+
+    if (!dmRecipientId.trim()) {
+      toast.error('Please enter a recipient user ID')
+      return
+    }
+
+    if (dmSenderId === dmRecipientId) {
+      toast.error('Sender and recipient must be different users')
+      return
+    }
+
+    setSendingDm(true)
+
+    try {
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+
+      if (!token) {
+        toast.error('Not authenticated')
+        setSendingDm(false)
+        return
+      }
+
+      toast.info('Sending 100 test DM messages... This may take a moment.')
+
+      const response = await fetch('/api/admin/test-dm-messages', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          senderId: dmSenderId.trim(),
+          recipientId: dmRecipientId.trim(),
+          messageCount: 100,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        const chatId = data.chatId;
+        console.log('[Admin] Test DM messages sent. Chat ID:', chatId, 'Data:', data);
+        toast.success(data.message || 'Test DM messages sent successfully', {
+          duration: 10000,
+          action: {
+            label: 'Go to Chats',
+            onClick: () => window.location.href = '/chats'
+          }
+        })
+      } else {
+        console.error('[Admin] Failed to send messages:', data);
+        toast.error(data.message || 'Failed to send test DM messages')
+      }
+    } catch (error) {
+      console.error('Failed to send test DM messages:', error)
+      toast.error('Failed to send test DM messages')
+    } finally {
+      setSendingDm(false)
+    }
+  }, [dmSenderId, dmRecipientId])
 
   return (
     <div className="space-y-6">
@@ -223,6 +355,196 @@ export function NotificationsTab() {
           <li>Keep messages concise and actionable (max 500 characters)</li>
           <li>Notifications won&apos;t be sent to banned users or NPCs/actors</li>
         </ul>
+      </div>
+
+      {/* Divider */}
+      <div className="border-t border-border my-8" />
+
+      {/* DM Testing Section */}
+      <div className="space-y-4">
+        {/* Header */}
+        <div className="flex items-center gap-2">
+          <MessageCircle className="w-5 h-5 text-primary" />
+          <h2 className="text-xl font-semibold">Test DM Messages</h2>
+        </div>
+
+        <p className="text-sm text-muted-foreground">
+          Send 100 test messages between users to test DM pagination and scrolling behavior.
+        </p>
+
+        {/* Form */}
+        <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+          {/* Sender User ID */}
+          <div>
+            <label htmlFor="dmSenderId" className="block text-sm font-medium mb-2">
+              Sender User ID
+            </label>
+            <input
+              id="dmSenderId"
+              type="text"
+              value={dmSenderId}
+              onChange={(e) => setDmSenderId(e.target.value)}
+              placeholder="Enter sender user ID"
+              className={cn(
+                'w-full px-4 py-2 rounded-lg border border-border',
+                'bg-background text-foreground',
+                'focus:outline-none focus:border-border',
+                'disabled:opacity-50 disabled:cursor-not-allowed'
+              )}
+              disabled={sendingDm}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Default: demo-user-babylon-support (Babylon Support)
+            </p>
+          </div>
+
+          {/* Recipient User ID */}
+          <div>
+            <label htmlFor="dmRecipientId" className="block text-sm font-medium mb-2">
+              Recipient User ID
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="dmRecipientId"
+                type="text"
+                value={dmRecipientId}
+                onChange={(e) => setDmRecipientId(e.target.value)}
+                placeholder="Enter recipient user ID or use quick fill"
+                className={cn(
+                  'flex-1 px-4 py-2 rounded-lg border border-border',
+                  'bg-background text-foreground',
+                  'focus:outline-none focus:border-border',
+                  'disabled:opacity-50 disabled:cursor-not-allowed'
+                )}
+                disabled={sendingDm}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (currentUserId) {
+                    setDmRecipientId(currentUserId)
+                    toast.success('Using your user ID as recipient')
+                  } else {
+                    toast.error('Could not fetch your user ID')
+                  }
+                }}
+                disabled={sendingDm || !currentUserId}
+                className={cn(
+                  'px-3 py-2 rounded-lg border border-border',
+                  'bg-primary text-primary-foreground hover:bg-primary/90 transition-colors',
+                  'text-xs whitespace-nowrap font-semibold',
+                  'disabled:opacity-50 disabled:cursor-not-allowed'
+                )}
+                title="Use your logged-in user ID as recipient"
+              >
+                Use My ID
+              </button>
+              <button
+                type="button"
+                onClick={() => setDmRecipientId('demo-user-welcome-bot')}
+                disabled={sendingDm}
+                className={cn(
+                  'px-3 py-2 rounded-lg border border-border',
+                  'bg-background hover:bg-muted transition-colors',
+                  'text-xs whitespace-nowrap',
+                  'disabled:opacity-50 disabled:cursor-not-allowed'
+                )}
+                title="Use Welcome Bot as recipient"
+              >
+                Welcome Bot
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Click &quot;Use My ID&quot; to use your logged-in account (blockchain_b0ss), or &quot;Welcome Bot&quot; for the test user
+            </p>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={handleDebugDMs}
+              disabled={!dmRecipientId.trim()}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg',
+                'bg-secondary text-secondary-foreground font-medium',
+                'hover:bg-secondary/90 transition-colors border border-border',
+                'disabled:opacity-50 disabled:cursor-not-allowed'
+              )}
+              title="Check what DM chats exist for this user"
+            >
+              🔍 Debug DMs
+            </button>
+            
+            <button
+              onClick={handleSendTestDMs}
+              disabled={sendingDm || !dmSenderId.trim() || !dmRecipientId.trim()}
+              className={cn(
+                'flex-[2] flex items-center justify-center gap-2 px-6 py-3 rounded-lg',
+                'bg-primary text-primary-foreground font-semibold',
+                'hover:bg-primary/90 transition-colors',
+                'disabled:opacity-50 disabled:cursor-not-allowed'
+              )}
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>{sendingDm ? 'Sending 100 Messages...' : 'Send 100 Test DM Messages'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Debug Info Display */}
+        {debugInfo && (
+          <div className="bg-card border border-border rounded-lg p-4 mt-4">
+            <h3 className="font-semibold text-sm mb-2">Debug Results:</h3>
+            <div className="bg-muted rounded p-3 text-xs font-mono overflow-auto max-h-96">
+              <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
+            </div>
+          </div>
+        )}
+
+        {/* Info */}
+        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+          <p className="text-sm text-blue-600 dark:text-blue-400">
+            ℹ️ <strong>Note:</strong> This will create or use an existing DM chat between the two users
+            and send 100 numbered test messages. Perfect for testing pagination when scrolling up in the chat.
+          </p>
+        </div>
+
+        {/* Default Users Info */}
+        <div className="bg-muted/50 border border-border rounded-lg p-4 space-y-3">
+          <h3 className="font-semibold text-sm">How to Use:</h3>
+          <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
+            <li>
+              <strong>Easiest:</strong> Click &quot;Use My ID&quot; button to test with your own account!
+            </li>
+            <li>
+              <strong>Or use Welcome Bot:</strong> Click &quot;Welcome Bot&quot; to use the default test user
+            </li>
+            <li>
+              <strong>Find other IDs:</strong> Go to the &quot;Users&quot; tab above to see all user IDs
+            </li>
+          </ol>
+          
+          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 mt-3">
+            <p className="text-xs text-yellow-600 dark:text-yellow-400">
+              ⚠️ <strong>Important:</strong> You need the <strong>user ID</strong> (long string like &quot;cm3x7y8z9...&quot;), 
+              not the username. The &quot;Use My ID&quot; button handles this automatically!
+            </p>
+          </div>
+          
+          <div className="border-t border-border pt-3 mt-3">
+            <h4 className="font-semibold text-xs mb-2">Default Test Users (auto-seeded):</h4>
+            <ul className="text-xs text-muted-foreground space-y-1">
+              <li className="flex items-center gap-2">
+                <code className="bg-muted px-2 py-1 rounded font-mono">demo-user-babylon-support</code>
+                <span>→ Babylon Support (default sender)</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <code className="bg-muted px-2 py-1 rounded font-mono">demo-user-welcome-bot</code>
+                <span>→ Welcome Bot (click button to use)</span>
+              </li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
   )

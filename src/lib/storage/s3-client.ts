@@ -32,7 +32,7 @@ interface UploadOptions {
   file: Buffer
   filename: string
   contentType: string
-  folder?: 'profiles' | 'covers' | 'posts'
+  folder?: 'profiles' | 'covers' | 'posts' | 'user-profiles' | 'user-banners' | 'actors' | 'actor-banners' | 'organizations' | 'org-banners' | 'logos' | 'icons' | 'static'
   optimize?: boolean
 }
 
@@ -157,23 +157,37 @@ class S3StorageClient {
    * Delete an image file
    */
   async deleteImage(url: string): Promise<void> {
-    if (this.useVercel) {
-      // Delete from Vercel Blob
-      await vercelBlobDel(url)
-      logger.info('Image deleted successfully from Vercel Blob', { url })
-    } else {
-      // Delete from MinIO/S3
-      if (!this.client) {
-        throw new Error('S3 client not initialized')
+    try {
+      if (this.useVercel) {
+        // Delete from Vercel Blob
+        await vercelBlobDel(url)
+        logger.info('Image deleted successfully from Vercel Blob', { url })
+      } else {
+        // Delete from MinIO/S3
+        if (!this.client) {
+          throw new Error('S3 client not initialized')
+        }
+
+        // Extract key from URL if full URL is provided
+        let key = url
+        if (url.startsWith('http')) {
+          // URL format: http://localhost:9000/babylon-uploads/folder/file.jpg
+          // Extract: folder/file.jpg
+          const urlParts = url.split(`/${this.bucket}/`)
+          key = urlParts.length > 1 ? (urlParts[1] || url) : url
+        }
+
+        const command = new DeleteObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        })
+
+        await this.client.send(command)
+        logger.info('Image deleted successfully from MinIO', { key })
       }
-
-      const command = new DeleteObjectCommand({
-        Bucket: this.bucket,
-        Key: url,
-      })
-
-      await this.client.send(command)
-      logger.info('Image deleted successfully from MinIO', { key: url })
+    } catch (error) {
+      logger.error('Failed to delete image', { url, error: error instanceof Error ? error.message : String(error) })
+      throw error
     }
   }
 
@@ -220,8 +234,17 @@ class S3StorageClient {
       return
     }
 
-    await this.client!.send(new CreateBucketCommand({ Bucket: this.bucket }))
-    logger.info(`Created bucket: ${this.bucket}`)
+    try {
+      await this.client!.send(new CreateBucketCommand({ Bucket: this.bucket }))
+      logger.info(`Created bucket: ${this.bucket}`)
+    } catch (error) {
+      const err = error as { name?: string; Code?: string; message?: string }
+      if (err.name === 'BucketAlreadyOwnedByYou' || err.Code === 'BucketAlreadyOwnedByYou') {
+        logger.info(`Bucket ${this.bucket} already exists`)
+      } else {
+        throw error
+      }
+    }
 
     const policy = {
       Version: '2012-10-17',
@@ -235,13 +258,63 @@ class S3StorageClient {
       ],
     }
 
-    await this.client!.send(
-      new PutBucketPolicyCommand({
+    try {
+      await this.client!.send(
+        new PutBucketPolicyCommand({
+          Bucket: this.bucket,
+          Policy: JSON.stringify(policy),
+        })
+      )
+      logger.info(`Set public policy for bucket: ${this.bucket}`)
+    } catch (error) {
+      const err = error as { message?: string }
+      logger.warn(`Failed to set bucket policy (may already be set): ${err.message || 'Unknown error'}`)
+    }
+  }
+
+  /**
+   * List objects in a folder
+   */
+  async listObjects(prefix: string): Promise<string[]> {
+    if (this.useVercel) {
+      const { list } = await import('@vercel/blob')
+      const { blobs } = await list({ prefix })
+      return blobs.map(blob => blob.pathname)
+    } else {
+      const { ListObjectsV2Command } = await import('@aws-sdk/client-s3')
+      const command = new ListObjectsV2Command({
         Bucket: this.bucket,
-        Policy: JSON.stringify(policy),
+        Prefix: prefix,
       })
-    )
-    logger.info(`Set public policy for bucket: ${this.bucket}`)
+      const response = await this.client!.send(command)
+      return (response.Contents || []).map(obj => obj.Key || '')
+    }
+  }
+
+  /**
+   * Check if an object exists
+   */
+  async exists(key: string): Promise<boolean> {
+    if (this.useVercel) {
+      const { head } = await import('@vercel/blob')
+      try {
+        await head(key)
+        return true
+      } catch {
+        return false
+      }
+    } else {
+      const { HeadObjectCommand } = await import('@aws-sdk/client-s3')
+      try {
+        await this.client!.send(new HeadObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        }))
+        return true
+      } catch {
+        return false
+      }
+    }
   }
 }
 

@@ -132,34 +132,45 @@ export default function ChatsPage() {
   
   // Function declarations (before useEffects that use them)
   const loadChats = useCallback(async () => {
+    console.log('[ChatsPage] loadChats called, isDebugMode:', isDebugMode)
     setLoading(true)
-    
-    if (isDebugMode) {
-      const response = await fetch('/api/chats?all=true')
-      const data = await response.json()
-      setAllChats(data.chats || [])
-      setLoading(false)
-      return
-    }
 
     const token = await getAccessToken()
+    console.log('[ChatsPage] Got access token:', token ? 'yes' : 'no')
     if (!token) {
       console.error('Failed to get access token for loadChats')
       setLoading(false)
       return
     }
 
-    const response = await fetch('/api/chats', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-    const data = await response.json()
+    // Fetch both personal chats (with DMs) AND game chats
+    console.log('[ChatsPage] Fetching personal chats and game chats')
+    const [personalResponse, gameResponse] = await Promise.all([
+      fetch('/api/chats', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }),
+      isDebugMode ? fetch('/api/chats?all=true') : Promise.resolve(null),
+    ])
 
-    // Combine both groups and DMs into a single list
+    console.log('[ChatsPage] Personal response status:', personalResponse.status)
+    const personalData = await personalResponse.json()
+    console.log('[ChatsPage] Personal response data:', personalData)
+
+    let gameChats: Chat[] = []
+    if (gameResponse) {
+      console.log('[ChatsPage] Game response status:', gameResponse.status)
+      const gameData = await gameResponse.json()
+      console.log('[ChatsPage] Game response data:', gameData)
+      gameChats = gameData.chats || []
+    }
+
+    // Combine personal chats (groups + DMs) and game chats
     const combined = [
-      ...(data.groupChats || []),
-      ...(data.directChats || [])
+      ...(personalData.groupChats || []),
+      ...(personalData.directChats || []),
+      ...gameChats,
     ].sort((a, b) => {
       // Sort by last message time (most recent first)
       const aTime = a.lastMessage?.createdAt || a.updatedAt
@@ -167,6 +178,7 @@ export default function ChatsPage() {
       return new Date(bTime).getTime() - new Date(aTime).getTime()
     })
     
+    console.log('[ChatsPage] Combined chats (personal + game):', combined)
     setAllChats(combined)
     setLoading(false)
   }, [getAccessToken, isDebugMode])

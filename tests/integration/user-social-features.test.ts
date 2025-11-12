@@ -45,6 +45,9 @@ describe('Complete User Social Features Integration', () => {
     })
 
     if (existingUsers.length >= 2) {
+      if (!existingUsers[0] || !existingUsers[1]) {
+        throw new Error('Test users not found')
+      }
       testUser1 = existingUsers[0]
       testUser2 = existingUsers[1]
       console.log(`✅ Using existing users:`)
@@ -321,8 +324,8 @@ describe('Complete User Social Features Integration', () => {
       })
 
       expect(messages.length).toBeGreaterThanOrEqual(2)
-      expect(messages[0].senderId).toBe(testUser1.id)
-      expect(messages[1].senderId).toBe(testUser2.id)
+      expect(messages[0]?.senderId).toBe(testUser1.id)
+      expect(messages[1]?.senderId).toBe(testUser2.id)
       console.log(`✅ DM chat has ${messages.length} messages total`)
     })
 

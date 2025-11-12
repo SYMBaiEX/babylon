@@ -14,6 +14,10 @@ import type {
 } from "@elizaos/core";
 import { BabylonClientService } from "../plugin";
 import type { TradeRequest } from "../types";
+import { getTrainingRecorder } from "../training/training-service";
+
+// Type alias for JSON values
+type JsonValue = string | number | boolean | null | { [key: string]: JsonValue } | JsonValue[];
 
 /**
  * Extended State interface for Babylon trading actions
@@ -37,6 +41,32 @@ interface BabylonActionOptions {
   shares?: number;
   detailed?: boolean;
   includeTradingContext?: boolean;
+}
+
+function recordActionStep(
+  runtime: IAgentRuntime,
+  actionName: string,
+  input: Record<string, unknown>,
+  output?: Record<string, unknown>,
+  error?: string,
+): void {
+  const recorder = getTrainingRecorder(runtime);
+  if (!recorder) return;
+  const sanitize = (payload?: Record<string, unknown>): Record<string, JsonValue> | undefined =>
+    payload
+      ? Object.fromEntries(
+          Object.entries(payload).map(([key, value]) => [
+            key,
+            value === undefined ? null : (value as JsonValue),
+          ]),
+        ) as Record<string, JsonValue>
+      : undefined;
+  recorder.recordAction(
+    actionName,
+    sanitize(input) ?? {},
+    sanitize(output),
+    error,
+  );
 }
 
 /**
@@ -95,40 +125,66 @@ export const buySharesAction: Action = {
     const actionState = state as BabylonActionState | undefined;
     const actionOptions = options as BabylonActionOptions | undefined;
     const marketId = actionState?.marketId || actionOptions?.marketId;
-    
-    if (!marketId || typeof marketId !== 'string') {
-      throw new Error("No market specified for trade");
-    }
-
-    const tradeRequest: TradeRequest = {
-      marketId,
-      side: (actionState?.side || actionOptions?.side || "yes") as "yes" | "no",
-      amount: actionState?.amount || actionOptions?.amount || 10,
+    const recorderInput = {
+      marketId: marketId ?? null,
+      side: actionState?.side || actionOptions?.side,
+      amount: actionState?.amount || actionOptions?.amount,
+      message: message.content.text,
     };
 
-    const wallet = await client.getWallet();
-    if (wallet.availableBalance < tradeRequest.amount) {
-      throw new Error(`Insufficient balance. Available: $${wallet.availableBalance}, Required: $${tradeRequest.amount}`);
+    try {
+      if (!marketId || typeof marketId !== "string") {
+        throw new Error("No market specified for trade");
+      }
+
+      const tradeRequest: TradeRequest = {
+        marketId,
+        side: (actionState?.side || actionOptions?.side || "yes") as "yes" | "no",
+        amount: actionState?.amount || actionOptions?.amount || 10,
+      };
+
+      const wallet = await client.getWallet();
+      if (wallet.availableBalance < tradeRequest.amount) {
+        throw new Error(
+          `Insufficient balance. Available: $${wallet.availableBalance}, Required: $${tradeRequest.amount}`,
+        );
+      }
+
+      runtime.logger.info(
+        `Buying ${tradeRequest.side} shares for $${tradeRequest.amount} on market ${tradeRequest.marketId}`,
+      );
+      const result = await client.buyShares(tradeRequest);
+
+      const responseText = `✅ Trade executed! Bought ${result.shares?.toFixed(2) || 0} shares at avg price $${result.avgPrice?.toFixed(2) || 0}`;
+
+      recordActionStep(
+        runtime,
+        "BUY_SHARES",
+        recorderInput,
+        {
+          shares: result.shares,
+          avgPrice: result.avgPrice,
+          responseText,
+        },
+      );
+
+      callback?.({
+        text: responseText,
+        action: "BUY_SHARES",
+        data: result,
+      });
+
+      return {
+        success: true,
+        text: responseText,
+        data: result,
+      };
+    } catch (error) {
+      const messageText =
+        error instanceof Error ? error.message : "Unknown trade error";
+      recordActionStep(runtime, "BUY_SHARES", recorderInput, undefined, messageText);
+      throw error;
     }
-
-    runtime.logger.info(
-      `Buying ${tradeRequest.side} shares for $${tradeRequest.amount} on market ${tradeRequest.marketId}`,
-    );
-    const result = await client.buyShares(tradeRequest);
-
-    const responseText = `✅ Trade executed! Bought ${result.shares?.toFixed(2) || 0} shares at avg price $${result.avgPrice?.toFixed(2) || 0}`;
-
-    callback?.({
-      text: responseText,
-      action: "BUY_SHARES",
-      data: result,
-    });
-
-    return {
-      success: true,
-      text: responseText,
-      data: result,
-    };
   },
   examples: [
     [
@@ -221,37 +277,58 @@ export const sellSharesAction: Action = {
     const actionOptions = options as BabylonActionOptions | undefined;
     const marketId = actionState?.marketId || actionOptions?.marketId;
     const shares = actionState?.shares || actionOptions?.shares;
-
-    if (!marketId) {
-      throw new Error("No market specified");
-    }
-
-    const positions = await client.getPositions();
-    const position = positions.find((p) => p.marketId === marketId);
-
-    if (!position) {
-      throw new Error(`No position found for market ${marketId}`);
-    }
-
-    const sharesToSell = (shares || position.shares) as number;
-    runtime.logger.info(
-      `Selling ${sharesToSell} shares from market ${marketId}`,
-    );
-    const result = await client.sellShares(marketId, sharesToSell);
-
-    const responseText = `✅ Position closed! Sold ${sharesToSell.toFixed(2)} shares. P&L: ${position.pnl >= 0 ? "+" : ""}$${position.pnl.toFixed(2)}`;
-
-    callback?.({
-      text: responseText,
-      action: "SELL_SHARES",
-      data: result,
-    });
-
-    return {
-      success: true,
-      text: responseText,
-      data: result,
+    const recorderInput = {
+      marketId: marketId ?? null,
+      shares,
+      message: message.content.text,
     };
+
+    try {
+      if (!marketId) {
+        throw new Error("No market specified");
+      }
+
+      const positions = await client.getPositions();
+      const position = positions.find((p) => p.marketId === marketId);
+
+      if (!position) {
+        throw new Error(`No position found for market ${marketId}`);
+      }
+
+      const sharesToSell = (shares || position.shares) as number;
+      runtime.logger.info(
+        `Selling ${sharesToSell} shares from market ${marketId}`,
+      );
+      const result = await client.sellShares(marketId, sharesToSell);
+
+      const responseText = `✅ Position closed! Sold ${sharesToSell.toFixed(2)} shares. P&L: ${position.pnl >= 0 ? "+" : ""}$${position.pnl.toFixed(2)}`;
+      recordActionStep(
+        runtime,
+        "SELL_SHARES",
+        recorderInput,
+        {
+          shares: sharesToSell,
+          realizedPnL: position.pnl,
+          responseText,
+        },
+      );
+
+      callback?.({
+        text: responseText,
+        action: "SELL_SHARES",
+        data: result,
+      });
+
+      return {
+        success: true,
+        text: responseText,
+        data: result,
+      };
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : "Unknown sell error";
+      recordActionStep(runtime, "SELL_SHARES", recorderInput, undefined, messageText);
+      throw error;
+    }
   },
   examples: [
     [
@@ -346,6 +423,21 @@ export const checkWalletAction: Action = {
         : `\n- Status: ❌ Insufficient funds (need $${(pendingTradeAmount - wallet.availableBalance).toFixed(2)} more)`;
     }
 
+    recordActionStep(
+      runtime,
+      "CHECK_WALLET",
+      {
+        message: message.content.text,
+        inTradingFlow,
+        pendingTradeAmount,
+      },
+      {
+        balance: wallet.balance,
+        available: wallet.availableBalance,
+        locked: wallet.lockedBalance,
+      },
+    );
+
     callback?.({
       text: responseText,
       action: "CHECK_WALLET",
@@ -437,17 +529,29 @@ export const likePostAction: Action = {
       throw new Error("Post ID is required. Please specify which post to like.");
     }
 
-    await client.likePost(postId);
-    
-    const responseText = `✅ Liked post ${postId}`;
-    callback?.({
-      text: responseText,
-      action: "LIKE_POST",
-    });
-    return {
-      success: true,
-      text: responseText,
+    const recorderInput = {
+      postId,
+      message: message.content.text,
     };
+
+    try {
+      await client.likePost(postId);
+
+      const responseText = `✅ Liked post ${postId}`;
+      recordActionStep(runtime, "LIKE_POST", recorderInput, { responseText });
+      callback?.({
+        text: responseText,
+        action: "LIKE_POST",
+      });
+      return {
+        success: true,
+        text: responseText,
+      };
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : "Unknown like error";
+      recordActionStep(runtime, "LIKE_POST", recorderInput, undefined, messageText);
+      throw error;
+    }
   },
 };
 
@@ -501,18 +605,38 @@ export const createPostAction: Action = {
       throw new Error("Post content is required");
     }
 
-    const result = await client.createPost(content);
-    
-    const responseText = `✅ Created post: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`;
-    callback?.({
-      text: responseText,
-      action: "CREATE_POST",
-    });
-    return {
-      success: true,
-      text: responseText,
-      data: result,
+    const recorderInput = {
+      content,
+      message: message.content.text,
     };
+
+    try {
+      const result = await client.createPost(content);
+
+      const responseText = `✅ Created post: "${content.substring(0, 50)}${content.length > 50 ? "..." : ""}"`;
+      recordActionStep(
+        runtime,
+        "CREATE_POST",
+        recorderInput,
+        {
+          responseText,
+          postId: result.postId ?? null,
+        },
+      );
+      callback?.({
+        text: responseText,
+        action: "CREATE_POST",
+      });
+      return {
+        success: true,
+        text: responseText,
+        data: result,
+      };
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : "Unknown post error";
+      recordActionStep(runtime, "CREATE_POST", recorderInput, undefined, messageText);
+      throw error;
+    }
   },
 };
 
@@ -578,17 +702,29 @@ export const followUserAction: Action = {
       throw new Error("User ID is required. Please specify which user to follow.");
     }
 
-    await client.followUser(userId);
-    
-    const responseText = `✅ Started following user ${userId}`;
-    callback?.({
-      text: responseText,
-      action: "FOLLOW_USER",
-    });
-    return {
-      success: true,
-      text: responseText,
+    const recorderInput = {
+      userId,
+      message: message.content.text,
     };
+
+    try {
+      await client.followUser(userId);
+
+      const responseText = `✅ Started following user ${userId}`;
+      recordActionStep(runtime, "FOLLOW_USER", recorderInput, { responseText });
+      callback?.({
+        text: responseText,
+        action: "FOLLOW_USER",
+      });
+      return {
+        success: true,
+        text: responseText,
+      };
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : "Unknown follow error";
+      recordActionStep(runtime, "FOLLOW_USER", recorderInput, undefined, messageText);
+      throw error;
+    }
   },
 };
 
@@ -657,18 +793,39 @@ export const commentOnPostAction: Action = {
       throw new Error("Comment content is required");
     }
 
-    const result = await client.commentOnPost(postId, content);
-    
-    const responseText = `✅ Commented on post ${postId}`;
-    callback?.({
-      text: responseText,
-      action: "COMMENT_ON_POST",
-    });
-    return {
-      success: true,
-      text: responseText,
-      data: result,
+    const recorderInput = {
+      postId,
+      content,
+      message: message.content.text,
     };
+
+    try {
+      const result = await client.commentOnPost(postId, content);
+
+      const responseText = `✅ Commented on post ${postId}`;
+      recordActionStep(
+        runtime,
+        "COMMENT_ON_POST",
+        recorderInput,
+        {
+          responseText,
+          commentId: result.commentId ?? null,
+        },
+      );
+      callback?.({
+        text: responseText,
+        action: "COMMENT_ON_POST",
+      });
+      return {
+        success: true,
+        text: responseText,
+        data: result,
+      };
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : "Unknown comment error";
+      recordActionStep(runtime, "COMMENT_ON_POST", recorderInput, undefined, messageText);
+      throw error;
+    }
   },
 };
 

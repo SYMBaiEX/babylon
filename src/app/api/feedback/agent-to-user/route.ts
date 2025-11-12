@@ -12,44 +12,38 @@ import { prisma } from '@/lib/database-service'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
+import { z } from 'zod'
 
-interface AgentToUserFeedbackRequest {
-  agentId: string
-  toUserId: string
-  score: number // 0-100 scale
-  rating?: number // Optional 1-5 star rating
-  comment?: string
-  category?: string // e.g., "cooperation", "communication", "reliability"
-  interactionType?: string // e.g., "game", "trade", "chat"
-  metadata?: Record<string, unknown>
-}
+const AgentToUserFeedbackSchema = z.object({
+  agentId: z.string().min(1, 'agentId is required'),
+  toUserId: z.string().min(1, 'toUserId is required'),
+  score: z.number().min(0).max(100),
+  rating: z.number().int().min(1).max(5).optional(),
+  comment: z.string().max(5000).optional(),
+  category: z.string().min(1).optional(),
+  interactionType: z.string().min(1).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+})
+
+const AgentToUserFeedbackQuerySchema = z.object({
+  userId: z.string().min(1, 'userId is required'),
+  limit: z.number().int().min(1).max(100).default(20),
+  offset: z.number().int().min(0).default(0),
+})
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as AgentToUserFeedbackRequest
+    const json = await request.json()
+    const parsed = AgentToUserFeedbackSchema.safeParse(json)
 
-    // Validate required fields
-    if (!body.agentId) {
-      return NextResponse.json({ error: 'agentId is required' }, { status: 400 })
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid request payload', details: parsed.error.flatten() },
+        { status: 400 }
+      )
     }
 
-    if (!body.toUserId) {
-      return NextResponse.json({ error: 'toUserId is required' }, { status: 400 })
-    }
-
-    if (typeof body.score !== 'number') {
-      return NextResponse.json({ error: 'score must be a number' }, { status: 400 })
-    }
-
-    // Validate score range (0-100)
-    if (body.score < 0 || body.score > 100) {
-      return NextResponse.json({ error: 'score must be between 0 and 100' }, { status: 400 })
-    }
-
-    // Validate optional star rating (1-5)
-    if (body.rating !== undefined && (body.rating < 1 || body.rating > 5)) {
-      return NextResponse.json({ error: 'rating must be between 1 and 5' }, { status: 400 })
-    }
+    const body = parsed.data
 
     // Verify agent and user exist
     const fromAgent = await requireUserByIdentifier(body.agentId)
@@ -71,8 +65,8 @@ export async function POST(request: NextRequest) {
         rating: body.rating,
         comment: body.comment,
         category: body.category,
-        interactionType: body.interactionType || 'agent_to_user',
-        metadata: body.metadata ? (body.metadata as unknown as Prisma.InputJsonValue) : undefined,
+        interactionType: body.interactionType ?? 'agent_to_user',
+        metadata: body.metadata as Prisma.InputJsonValue | undefined,
         createdAt: now,
         updatedAt: now,
       },
@@ -123,13 +117,24 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('userId')
-    const limit = parseInt(searchParams.get('limit') || '20', 10)
-    const offset = parseInt(searchParams.get('offset') || '0', 10)
+    const userIdParam = searchParams.get('userId') ?? undefined
+    const limitParam = searchParams.get('limit')
+    const offsetParam = searchParams.get('offset')
 
-    if (!userId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400 })
+    const queryParse = AgentToUserFeedbackQuerySchema.safeParse({
+      userId: userIdParam,
+      limit: limitParam ? Number(limitParam) : undefined,
+      offset: offsetParam ? Number(offsetParam) : undefined,
+    })
+
+    if (!queryParse.success) {
+      return NextResponse.json(
+        { error: 'Invalid query parameters', details: queryParse.error.flatten() },
+        { status: 400 }
+      )
     }
+
+    const { userId, limit, offset } = queryParse.data
 
     // Verify user exists
     const user = await requireUserByIdentifier(userId)

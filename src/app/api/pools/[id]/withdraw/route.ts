@@ -10,6 +10,7 @@ import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { trackServerEvent } from '@/lib/posthog/server';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import { WalletService } from '@/lib/services/wallet-service';
 import { PoolWithdrawBodySchema } from '@/lib/validation/schemas/pool';
 import { Prisma } from '@prisma/client';
 import type { NextRequest } from 'next/server';
@@ -109,6 +110,11 @@ export const POST = withErrorHandling(async (
     // 7. Credit user balance
     const user = await tx.user.findUnique({
       where: { id: userId },
+      select: {
+        virtualBalance: true,
+        lifetimePnL: true,
+        earnedPoints: true,
+      },
     });
 
     if (!user) {
@@ -118,20 +124,12 @@ export const POST = withErrorHandling(async (
     const userBalance = parseFloat(user.virtualBalance.toString());
     const newUserBalance = userBalance + withdrawalAmount;
     const netPnL = withdrawalAmount - originalAmount;
-
-    // Calculate reputation points to award/deduct based on P&L
-    const reputationChange = Math.floor(netPnL / 10);
-    const currentReputation = user.reputationPoints;
-    const newReputation = Math.max(0, currentReputation + reputationChange);
+    const previousLifetimePnL = parseFloat(user.lifetimePnL.toString());
 
     await tx.user.update({
       where: { id: userId },
       data: {
         virtualBalance: new Prisma.Decimal(newUserBalance),
-        lifetimePnL: new Prisma.Decimal(
-          parseFloat(user.lifetimePnL.toString()) + netPnL
-        ),
-        reputationPoints: newReputation,
       },
     });
 
@@ -149,44 +147,34 @@ export const POST = withErrorHandling(async (
       },
     });
 
-    // 9. Create reputation points transaction if there was a change
-    if (reputationChange !== 0) {
-      await tx.pointsTransaction.create({
-        data: {
-          id: generateSnowflakeId(),
-          userId,
-          amount: reputationChange,
-          pointsBefore: currentReputation,
-          pointsAfter: newReputation,
-          reason: netPnL > 0 ? 'pool_profit' : 'pool_loss',
-          metadata: JSON.stringify({
-            poolId,
-            poolName: pool.name,
-            netPnL,
-            originalAmount,
-            withdrawalAmount,
-          }),
-        },
-      });
-    }
-
       return {
         withdrawalAmount,
         performanceFee,
         pnl: netPnL,
         originalAmount,
         newBalance: newUserBalance,
-        reputationChange,
-        newReputation,
+        previousLifetimePnL,
       };
     });
   });
+
+  const pointsUpdate = await WalletService.recordPnL(
+    userId,
+    result.pnl,
+    'pool_withdraw',
+    depositId
+  );
+
+  const reputationChange = pointsUpdate.earnedPointsDelta;
 
   logger.info('Pool withdrawal successful', {
     poolId,
     userId,
     withdrawalAmount: result.withdrawalAmount,
-    pnl: result.pnl
+    pnl: result.pnl,
+    reputationChange,
+    previousLifetimePnL: pointsUpdate.previousLifetimePnL,
+    newLifetimePnL: pointsUpdate.newLifetimePnL,
   }, 'POST /api/pools/[id]/withdraw');
 
   // Track pool withdrawal event
@@ -197,13 +185,22 @@ export const POST = withErrorHandling(async (
     performanceFee: result.performanceFee,
     pnl: result.pnl,
     originalAmount: result.originalAmount,
-    reputationChange: result.reputationChange,
+    reputationChange,
+    earnedPointsDelta: reputationChange,
   }).catch((error) => {
     logger.warn('Failed to track pool_withdrawal event', { error });
   });
 
   return successResponse({
     success: true,
-    ...result,
+    withdrawalAmount: result.withdrawalAmount,
+    performanceFee: result.performanceFee,
+    pnl: result.pnl,
+    originalAmount: result.originalAmount,
+    newBalance: result.newBalance,
+    reputationChange,
+    earnedPointsDelta: reputationChange,
+    previousLifetimePnL: pointsUpdate.previousLifetimePnL,
+    newLifetimePnL: pointsUpdate.newLifetimePnL,
   });
 });

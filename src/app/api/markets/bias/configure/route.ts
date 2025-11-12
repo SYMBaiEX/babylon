@@ -16,64 +16,57 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { biasEngine } from '@/lib/feedback/bias-engine'
 import { logger } from '@/lib/logger'
+import { z } from 'zod'
 
-interface SetBiasRequest {
-  action: 'set'
-  entityId: string
-  entityName: string
-  direction: 'up' | 'down'
-  strength?: number // 0-1, default 0.5
-  durationHours?: number // null = permanent
-  decayRate?: number // 0-1, default 0.1
-}
+const SetBiasSchema = z.object({
+  action: z.literal('set'),
+  entityId: z.string().min(1),
+  entityName: z.string().min(1),
+  direction: z.enum(['up', 'down']),
+  strength: z.number().min(0).max(1).optional(),
+  durationHours: z.number().optional(),
+  decayRate: z.number().min(0).max(1).optional(),
+});
 
-interface RemoveBiasRequest {
-  action: 'remove'
-  entityId: string
-}
+const RemoveBiasSchema = z.object({
+  action: z.literal('remove'),
+  entityId: z.string().min(1),
+});
 
-interface BulkSetBiasRequest {
-  action: 'bulk-set'
-  biases: Array<{
-    entityId: string
-    entityName: string
-    direction: 'up' | 'down'
-    strength?: number
-    durationHours?: number
-    decayRate?: number
-  }>
-}
+const BulkSetBiasSchema = z.object({
+  action: z.literal('bulk-set'),
+  biases: z.array(z.object({
+    entityId: z.string().min(1),
+    entityName: z.string().min(1),
+    direction: z.enum(['up', 'down']),
+    strength: z.number().min(0).max(1).optional(),
+    durationHours: z.number().optional(),
+    decayRate: z.number().min(0).max(1).optional(),
+  })).min(1),
+});
 
-type BiasConfigRequest = SetBiasRequest | RemoveBiasRequest | BulkSetBiasRequest
+const BiasConfigSchema = z.discriminatedUnion('action', [
+  SetBiasSchema,
+  RemoveBiasSchema,
+  BulkSetBiasSchema,
+]);
+
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as BiasConfigRequest
+    const json = await request.json()
+    const parsed = BiasConfigSchema.safeParse(json)
 
-    // Validate action
-    if (!body.action || !['set', 'remove', 'bulk-set'].includes(body.action)) {
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'action must be one of: set, remove, bulk-set' },
+        { error: 'Invalid request payload', details: parsed.error.flatten() },
         { status: 400 }
       )
     }
 
+    const body = parsed.data
+
     if (body.action === 'set') {
-      // Validate required fields for set
-      if (!body.entityId || !body.entityName || !body.direction) {
-        return NextResponse.json(
-          { error: 'entityId, entityName, and direction are required for set action' },
-          { status: 400 }
-        )
-      }
-
-      if (body.direction !== 'up' && body.direction !== 'down') {
-        return NextResponse.json(
-          { error: 'direction must be "up" or "down"' },
-          { status: 400 }
-        )
-      }
-
       // Set the bias
       biasEngine.setBias(
         body.entityId,
@@ -101,14 +94,6 @@ export async function POST(request: NextRequest) {
         },
       }, { status: 201 })
     } else if (body.action === 'remove') {
-      // Validate required fields for remove
-      if (!body.entityId) {
-        return NextResponse.json(
-          { error: 'entityId is required for remove action' },
-          { status: 400 }
-        )
-      }
-
       // Remove the bias
       const removed = biasEngine.removeBias(body.entityId)
 
@@ -125,29 +110,6 @@ export async function POST(request: NextRequest) {
       })
     } else {
       // action === 'bulk-set'
-      if (!Array.isArray(body.biases) || body.biases.length === 0) {
-        return NextResponse.json(
-          { error: 'biases array is required and must not be empty for bulk-set action' },
-          { status: 400 }
-        )
-      }
-
-      // Validate all biases in array
-      for (const bias of body.biases) {
-        if (!bias.entityId || !bias.entityName || !bias.direction) {
-          return NextResponse.json(
-            { error: 'Each bias must have entityId, entityName, and direction' },
-            { status: 400 }
-          )
-        }
-        if (bias.direction !== 'up' && bias.direction !== 'down') {
-          return NextResponse.json(
-            { error: 'direction must be "up" or "down"' },
-            { status: 400 }
-          )
-        }
-      }
-
       // Set all biases
       biasEngine.setBulkBiases(body.biases)
 

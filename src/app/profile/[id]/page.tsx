@@ -11,6 +11,7 @@ import { ProfileHeaderSkeleton, FeedSkeleton } from '@/components/shared/Skeleto
 import { useAuth } from '@/hooks/useAuth'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
 import { extractUsername, isUsername } from '@/lib/profile-utils'
+import { getBannerImageUrl } from '@/lib/assets'
 import { cn } from '@/lib/utils'
 import { POST_TYPES } from '@/shared/constants'
 import type { Actor, FeedPost, Organization } from '@/shared/types'
@@ -548,38 +549,32 @@ export default function ActorProfilePage() {
         <div className="border-b border-border">
           {/* Cover Image */}
           <div className="relative h-[200px] bg-muted">
-            {actorInfo.isUser && actorInfo.type === 'user' && 'coverImageUrl' in actorInfo && actorInfo.coverImageUrl ? (
-              <img
-                src={actorInfo.coverImageUrl as string}
-                alt="Cover"
-                className="w-full h-full object-cover"
-              />
-            ) : actorInfo.type === 'actor' ? (
-              <img
-                src={`/images/actor-banners/${actorInfo.id}.jpg`}
-                alt={`${actorInfo.name} banner`}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  // Fallback to gradient if image not found
-                  e.currentTarget.style.display = 'none'
-                  e.currentTarget.nextElementSibling?.classList.remove('hidden')
-                }}
-              />
-            ) : actorInfo.type === 'organization' ? (
-              <img
-                src={`/images/org-banners/${actorInfo.id}.jpg`}
-                alt={`${actorInfo.name} banner`}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  // Fallback to gradient if image not found
-                  e.currentTarget.style.display = 'none'
-                  e.currentTarget.nextElementSibling?.classList.remove('hidden')
-                }}
-              />
-            ) : null}
+            {(() => {
+              // Get banner URL using the utility function (supports CDN)
+              const bannerUrl = actorInfo.isUser && actorInfo.type === 'user' && 'coverImageUrl' in actorInfo
+                ? actorInfo.coverImageUrl as string
+                : getBannerImageUrl(
+                    null,
+                    actorInfo.id,
+                    actorInfo.type === 'organization' ? 'organization' : 'actor'
+                  )
+
+              return bannerUrl ? (
+                <img
+                  src={bannerUrl}
+                  alt={`${actorInfo.name} banner`}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    // Fallback to gradient if image not found
+                    e.currentTarget.style.display = 'none'
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                  }}
+                />
+              ) : null
+            })()}
             <div className={cn(
               "w-full h-full bg-gradient-to-br from-primary/20 to-primary/5",
-              (actorInfo.type === 'actor' || actorInfo.type === 'organization') ? "hidden" : ""
+              actorInfo.type === 'actor' || actorInfo.type === 'organization' ? "hidden" : ""
             )} />
           </div>
 
@@ -806,38 +801,32 @@ export default function ActorProfilePage() {
           <div className="border-b border-border">
             {/* Cover Image */}
             <div className="relative h-[200px] bg-muted">
-              {actorInfo.isUser && actorInfo.type === 'user' && 'coverImageUrl' in actorInfo && actorInfo.coverImageUrl ? (
-                <img
-                  src={actorInfo.coverImageUrl as string}
-                  alt="Cover"
-                  className="w-full h-full object-cover"
-                />
-              ) : actorInfo.type === 'actor' ? (
-                <img
-                  src={`/images/actor-banners/${actorInfo.id}.jpg`}
-                  alt={`${actorInfo.name} banner`}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    // Fallback to gradient if image not found
-                    e.currentTarget.style.display = 'none'
-                    e.currentTarget.nextElementSibling?.classList.remove('hidden')
-                  }}
-                />
-              ) : actorInfo.type === 'organization' ? (
-                <img
-                  src={`/images/org-banners/${actorInfo.id}.jpg`}
-                  alt={`${actorInfo.name} banner`}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    // Fallback to gradient if image not found
-                    e.currentTarget.style.display = 'none'
-                    e.currentTarget.nextElementSibling?.classList.remove('hidden')
-                  }}
-                />
-              ) : null}
+              {(() => {
+                // Get banner URL using the utility function (supports CDN)
+                const bannerUrl = actorInfo.isUser && actorInfo.type === 'user' && 'coverImageUrl' in actorInfo
+                  ? actorInfo.coverImageUrl as string
+                  : getBannerImageUrl(
+                      null,
+                      actorInfo.id,
+                      actorInfo.type === 'organization' ? 'organization' : 'actor'
+                    )
+
+                return bannerUrl ? (
+                  <img
+                    src={bannerUrl}
+                    alt={`${actorInfo.name} banner`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      // Fallback to gradient if image not found
+                      e.currentTarget.style.display = 'none'
+                      e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                    }}
+                  />
+                ) : null
+              })()}
               <div className={cn(
                 "w-full h-full bg-gradient-to-br from-primary/20 to-primary/5",
-                (actorInfo.type === 'actor' || actorInfo.type === 'organization') ? "hidden" : ""
+                actorInfo.type === 'actor' || actorInfo.type === 'organization' ? "hidden" : ""
               )} />
             </div>
 

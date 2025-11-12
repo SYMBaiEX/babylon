@@ -81,6 +81,7 @@ import { BabylonChatService } from "./services/chat-service";
 import { SocialInteractionService } from "./services/services";
 import { Agent0Service } from "./agent0-service";
 import { BabylonDiscoveryService } from "./discovery-service";
+import { BabylonTrainingService } from "./training/training-service";
 
 /**
  * Plugin configuration schema
@@ -589,6 +590,7 @@ export const predictionMarketsPlugin: Plugin = {
     BabylonDiscoveryService,  // 1. Discovers Babylon from Agent0 registry
     Agent0Service,            // 2. Agent0 integration (can use discovered data)
     BabylonClientService,     // 3. REST API client (uses discovered API endpoint)
+    BabylonTrainingService,   // 4. Trajectory recording (optional)
     BabylonA2AService,        // 4. A2A protocol (uses discovered A2A endpoint)
     BabylonTradingService,    // 5. Trading automation (depends on all above)
     BabylonChatService,       // 6. Chat features

@@ -7,6 +7,10 @@
 import type { Evaluator, IAgentRuntime, Memory, State } from "@elizaos/core";
 import { BabylonClientService } from "../plugin";
 import type { BabylonMarket, MarketAnalysis } from "../types";
+import { getTrainingRecorder } from "../training/training-service";
+
+// Type alias for JSON values
+type JsonValue = string | number | boolean | null | { [key: string]: JsonValue } | JsonValue[];
 
 /**
  * Extended State interface for market analysis evaluator
@@ -57,6 +61,38 @@ interface PortfolioManagementState extends State {
 interface TradingCharacterSettings {
   strategies?: string[];
   riskTolerance?: number;
+}
+
+function recordObservation(
+  runtime: IAgentRuntime,
+  label: string,
+  payload: Record<string, unknown>,
+): void {
+  const recorder = getTrainingRecorder(runtime);
+  if (!recorder) return;
+  const sanitized = Object.fromEntries(
+    Object.entries(payload).map(([key, value]) => [
+      key,
+      value === undefined ? null : (value as JsonValue),
+    ]),
+  );
+  recorder.recordObservation(label, sanitized);
+}
+
+function recordOutcome(
+  runtime: IAgentRuntime,
+  label: string,
+  payload: Record<string, unknown>,
+): void {
+  const recorder = getTrainingRecorder(runtime);
+  if (!recorder) return;
+  const sanitized = Object.fromEntries(
+    Object.entries(payload).map(([key, value]) => [
+      key,
+      value === undefined ? null : (value as JsonValue),
+    ]),
+  );
+  recorder.recordOutcome(label, sanitized);
 }
 
 /**
@@ -135,6 +171,33 @@ export const marketAnalysisEvaluator: Evaluator = {
 
       analysisState.analysis = analysis;
       analysisState.market = market;
+    }
+
+    try {
+      const observationPayload: Record<string, unknown> = {
+        requestedMarketId: marketId ?? null,
+        analyses: (analysisState.analyses ?? [])
+          .slice(0, 3)
+          .map((analysis) => ({
+            marketId: analysis.marketId,
+            recommendation: analysis.recommendation,
+            confidence: analysis.confidence,
+            riskLevel: analysis.riskLevel,
+          })),
+        singleAnalysis: analysisState.analysis
+          ? {
+              marketId: analysisState.analysis.marketId,
+              recommendation: analysisState.analysis.recommendation,
+              confidence: analysisState.analysis.confidence,
+              riskLevel: analysisState.analysis.riskLevel,
+            }
+          : null,
+        marketCount: analysisState.marketCount ?? null,
+        error: analysisState.error ?? null,
+      };
+      recordObservation(runtime, "market_analysis", observationPayload);
+    } catch (error) {
+      runtime.logger.warn("Failed to record market analysis observation: " + String(error));
     }
   },
   examples: [
@@ -371,6 +434,23 @@ export const portfolioManagementEvaluator: Evaluator = {
       winRate,
     };
     portfolioState.recommendations = recommendations;
+
+    try {
+      const outcomePayload: Record<string, unknown> = {
+        totalPositionValue,
+        totalPnL,
+        profitablePositions,
+        losingPositions,
+        exposureRatio,
+        winRate,
+        recommendations,
+        focusOnRisk,
+        focusOnPnL,
+      };
+      recordOutcome(runtime, "portfolio_review", outcomePayload);
+    } catch (error) {
+      runtime.logger.warn("Failed to record portfolio outcome: " + String(error));
+    }
   },
   examples: [
     {
@@ -583,6 +663,21 @@ export const socialInteractionEvaluator: Evaluator = {
     runtime.logger.debug(
       `Social interaction evaluation complete: like=${socialState.shouldLike}, comment=${socialState.shouldComment}, follow=${socialState.shouldFollow}, post=${socialState.shouldPost}`,
     );
+
+    try {
+      recordObservation(runtime, "social_interaction", {
+        selectedPostId: targetPost?.id ?? null,
+        selectedUserId: targetUserId ?? null,
+        shouldLike: socialState.shouldLike ?? false,
+        shouldComment: socialState.shouldComment ?? false,
+        shouldFollow: socialState.shouldFollow ?? false,
+        shouldPost: socialState.shouldPost ?? false,
+        interactionReason: socialState.interactionReason ?? null,
+        interestingPostsCount: interestingPosts.length,
+      });
+    } catch (error) {
+      runtime.logger.warn("Failed to record social interaction observation: " + String(error));
+    }
   },
 };
 

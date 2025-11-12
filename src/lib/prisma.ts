@@ -19,6 +19,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import { createRetryProxy } from './prisma-retry';
+import { createMonitoredPrismaClient } from './db/monitored-prisma';
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -38,12 +39,39 @@ const globalForPrisma = globalThis as unknown as {
  */
 
 /**
+ * Enforce optimal connection pool parameters
+ * Adds or overrides connection pool settings to ensure optimal performance
+ */
+function enforceConnectionPoolParams(url: string): string {
+  if (!url) return url;
+
+  const urlObj = new URL(url);
+  const params = urlObj.searchParams;
+
+  // Optimal connection pool settings for high concurrency
+  // These are enforced programmatically to prevent misconfiguration
+  const optimalParams = {
+    connection_limit: '50',      // High enough for 2000+ CCU
+    pool_timeout: '30',          // 30 seconds to wait for connection
+    connect_timeout: '10',       // 10 seconds to establish connection
+  };
+
+  // Apply optimal parameters (override existing if present)
+  for (const [key, value] of Object.entries(optimalParams)) {
+    params.set(key, value);
+  }
+
+  // Return the optimized URL
+  return urlObj.toString();
+}
+
+/**
  * Create a new Prisma Client with serverless-optimized settings
  */
 function createPrismaClient() {
   // Support Vercel Prisma integration: prefer PRISMA_DATABASE_URL, fallback to DATABASE_URL
   // This allows the Vercel Prisma integration to work while maintaining compatibility
-  const databaseUrl = process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL;
+  let databaseUrl = process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL;
   
   if (!databaseUrl && process.env.NODE_ENV === 'production') {
     console.error('[Prisma] ERROR: Neither PRISMA_DATABASE_URL nor DATABASE_URL is set');
@@ -53,8 +81,15 @@ function createPrismaClient() {
   if (process.env.PRISMA_DATABASE_URL && !process.env.DATABASE_URL) {
     process.env.DATABASE_URL = process.env.PRISMA_DATABASE_URL;
   }
+
+  // CRITICAL: Enforce optimal connection pool parameters
+  // This ensures we can handle high concurrent load regardless of .env configuration
+  if (databaseUrl) {
+    databaseUrl = enforceConnectionPoolParams(databaseUrl);
+    console.log('[Prisma] Enforced connection pool settings: connection_limit=50, pool_timeout=30, connect_timeout=10');
+  }
   
-  return new PrismaClient({
+  const baseClient = new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
     
     // Serverless connection optimization
@@ -67,6 +102,13 @@ function createPrismaClient() {
     // These are internal Prisma settings that help with connection management
     // Note: Some of these are set via DATABASE_URL query params for better control
   });
+
+  // Wrap with query monitoring in development and test environments
+  if (process.env.NODE_ENV === 'development' || process.env.ENABLE_QUERY_MONITORING === 'true') {
+    return createMonitoredPrismaClient(baseClient);
+  }
+
+  return baseClient;
 }
 
 /**

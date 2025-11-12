@@ -14,7 +14,7 @@ declare global {
       address: string
       chainId: string
     }
-    __privyAccessToken?: string
+    __privyAccessToken?: string | null
   }
 }
 
@@ -101,7 +101,7 @@ export async function setupAuthState(page: any, navigateToUrl?: string) {
   })
 
   // Set up init script BEFORE navigation (runs on every page load)
-  await page.addInitScript((data) => {
+  await page.addInitScript((data: { user: typeof TEST_USER; token: string }) => {
     // Enable E2E test mode bypass
     window.__E2E_TEST_MODE = true
     window.__E2E_TEST_USER = data.user
@@ -168,7 +168,7 @@ export async function setupAuthState(page: any, navigateToUrl?: string) {
     await page.goto(navigateToUrl)
 
     // Inject test mode flags directly after page load
-    await page.evaluate((data) => {
+    await page.evaluate((data: { user: typeof TEST_USER; token: string }) => {
       window.__E2E_TEST_MODE = true
       window.__E2E_TEST_USER = data.user
       window.__E2E_TEST_WALLET = {
@@ -194,7 +194,7 @@ type AuthFixtures = {
 
 export const test = base.extend<AuthFixtures>({
   // Authenticated page fixture
-  authenticatedPage: async ({ page }, use) => {
+  authenticatedPage: async ({ page }: { page: any }, use: (page: any) => Promise<void>) => {
     await setupAuthState(page)
     await use(page)
   },

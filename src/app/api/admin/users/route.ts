@@ -102,6 +102,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         hasTwitter: true,
         createdAt: true,
         updatedAt: true,
+        _count: {
+          select: {
+            Comment: true,
+            Reaction: true,
+            Position: true,
+            Follow_Follow_followerIdToUser: true,
+            Follow_Follow_followingIdToUser: true,
+          },
+        },
       },
     }),
     prisma.user.count({ where }),
@@ -114,6 +123,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       totalDeposited: user.totalDeposited.toString(),
       totalWithdrawn: user.totalWithdrawn.toString(),
       lifetimePnL: user.lifetimePnL.toString(),
+      _count: {
+        comments: user._count.Comment,
+        reactions: user._count.Reaction,
+        positions: user._count.Position,
+        following: user._count.Follow_Follow_followerIdToUser,
+        followedBy: user._count.Follow_Follow_followingIdToUser,
+      },
     })),
     pagination: {
       limit: params.limit,

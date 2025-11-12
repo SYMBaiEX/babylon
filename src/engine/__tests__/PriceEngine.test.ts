@@ -118,6 +118,7 @@ describe('PriceEngine', () => {
 
     const event: WorldEvent = {
       id: 'test-event',
+      day: 1,
       type: 'scandal',
       actors: ['test-actor'],
       description: 'CEO involved in scandal',

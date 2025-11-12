@@ -5,6 +5,10 @@
     {
       "path": "/api/cron/game-tick",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/training",
+      "schedule": "0 2 * * *"
     }
   ],
   "functions": {
@@ -14,6 +18,14 @@
     },
     "src/app/api/cron/game-tick/route.ts": {
       "memory": 1024,
+      "maxDuration": 300
+    },
+    "src/app/api/cron/training/route.ts": {
+      "memory": 2048,
+      "maxDuration": 300
+    },
+    "src/app/api/training/run-cycle/route.ts": {
+      "memory": 2048,
       "maxDuration": 300
     },
     "src/app/api/**/*.ts": {

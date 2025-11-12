@@ -16,11 +16,13 @@ import type { ActorTier, WorldEvent } from '@/shared/types';
 import type { Prisma } from '@prisma/client';
 import { db } from './database-service';
 import { logger } from './logger';
+import { NPCInvestmentManager } from './npc/npc-investment-manager';
 import { prisma } from './prisma';
 import { MarketContextService } from './services/market-context-service';
 import { TradeExecutionService } from './services/trade-execution-service';
 import { calculateTrendingIfNeeded, calculateTrendingTags } from './services/trending-calculation-service';
 import { generateSnowflakeId } from './snowflake';
+import type { ExecutionResult } from '@/types/market-decisions';
 
 export interface GameTickResult {
   postsCreated: number;
@@ -36,6 +38,13 @@ export interface GameTickResult {
     total: number;
     successful: number;
     failed: number;
+  };
+  alphaInvitesSent: number;
+  npcGroupDynamics?: {
+    groupsCreated: number;
+    membersAdded: number;
+    membersRemoved: number;
+    usersKicked: number;
   };
 }
 
@@ -66,6 +75,7 @@ export async function executeGameTick(): Promise<GameTickResult> {
     widgetCachesUpdated: 0,
     trendingCalculated: false,
     reputationSynced: false,
+    alphaInvitesSent: 0,
   };
 
   try {
@@ -212,6 +222,73 @@ export async function executeGameTick(): Promise<GameTickResult> {
       logger.error('Failed to generate events', { error: errorMessage }, 'GameTick');
     }
 
+    // PRIORITY: Generate and execute NPC trading decisions BEFORE articles
+    // This ensures markets always update even if articles time out
+    if (llmClient && Date.now() < deadline) {
+      try {
+        const baselineResult = await NPCInvestmentManager.executeBaselineInvestments(timestamp);
+
+        if (baselineResult) {
+          const baselineUpdates = await updateMarketPricesFromTrades(
+            timestamp,
+            baselineResult
+          );
+          result.marketsUpdated += baselineUpdates;
+        }
+
+        const contextService = new MarketContextService();
+        const decisionEngine = new MarketDecisionEngine(llmClient, contextService);
+        const executionService = new TradeExecutionService();
+
+        const marketDecisions = await decisionEngine.generateBatchDecisions();
+
+        if (marketDecisions.length === 0) {
+          logger.info('No NPC market trades generated this tick', {}, 'GameTick');
+        } else {
+          const executionResult =
+            await executionService.executeDecisionBatch(marketDecisions);
+
+          logger.info(
+            `NPC Trading: ${executionResult.successfulTrades} trades executed`,
+            {
+              successful: executionResult.successfulTrades,
+              failed: executionResult.failedTrades,
+              holds: executionResult.holdDecisions,
+            },
+            'GameTick'
+          );
+
+          // Update prices based on NPC trades
+          const marketsUpdated = await updateMarketPricesFromTrades(
+            timestamp,
+            executionResult
+          );
+          result.marketsUpdated += marketsUpdated;
+        }
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        logger.error(
+          'Failed to generate/execute market decisions',
+          { error: errorMessage },
+          'GameTick'
+        );
+      }
+    } else if (!llmClient) {
+      logger.warn(
+        'Skipping market decisions – LLM unavailable',
+        undefined,
+        'GameTick'
+      );
+    } else {
+      logger.warn(
+        'Skipping market decisions – tick budget exceeded',
+        { budgetMs },
+        'GameTick'
+      );
+    }
+
+    // Generate articles AFTER market decisions (lower priority)
     if (llmClient) {
       if (Date.now() < deadline) {
         try {
@@ -235,55 +312,6 @@ export async function executeGameTick(): Promise<GameTickResult> {
       logger.warn(
         'Skipping article generation – LLM unavailable',
         undefined,
-        'GameTick'
-      );
-    }
-
-    // Generate and execute NPC trading decisions
-    if (llmClient && Date.now() < deadline) {
-      try {
-        const contextService = new MarketContextService();
-        const decisionEngine = new MarketDecisionEngine(llmClient, contextService);
-        const executionService = new TradeExecutionService();
-
-        const marketDecisions = await decisionEngine.generateBatchDecisions();
-        const executionResult =
-          await executionService.executeDecisionBatch(marketDecisions);
-
-        logger.info(
-          `NPC Trading: ${executionResult.successfulTrades} trades executed`,
-          {
-            successful: executionResult.successfulTrades,
-            failed: executionResult.failedTrades,
-            holds: executionResult.holdDecisions,
-          },
-          'GameTick'
-        );
-
-        // Update prices based on NPC trades
-        const marketsUpdated = await updateMarketPricesFromTrades(
-          timestamp
-        );
-        result.marketsUpdated = marketsUpdated;
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        logger.error(
-          'Failed to generate/execute market decisions',
-          { error: errorMessage },
-          'GameTick'
-        );
-      }
-    } else if (!llmClient) {
-      logger.warn(
-        'Skipping market decisions – LLM unavailable',
-        undefined,
-        'GameTick'
-      );
-    } else {
-      logger.warn(
-        'Skipping market decisions – tick budget exceeded',
-        { budgetMs },
         'GameTick'
       );
     }
@@ -373,6 +401,39 @@ export async function executeGameTick(): Promise<GameTickResult> {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Failed to sync reputation', { error: errorMessage }, 'GameTick');
       // Don't fail the entire tick if reputation sync fails
+    }
+
+    // Process alpha group invites (small chance for highly engaged users)
+    try {
+      const { AlphaGroupInviteService } = await import('./services/alpha-group-invite-service');
+      const invites = await AlphaGroupInviteService.processTickInvites();
+      result.alphaInvitesSent = invites.length;
+      if (invites.length > 0) {
+        logger.info('Alpha group invites sent', { count: invites.length, invites }, 'GameTick');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error('Failed to process alpha invites', { error: errorMessage }, 'GameTick');
+      // Don't fail the entire tick if alpha invites fail
+    }
+
+    // Process NPC group dynamics (form, join, leave, kick)
+    try {
+      const { NPCGroupDynamicsService } = await import('./services/npc-group-dynamics-service');
+      const dynamics = await NPCGroupDynamicsService.processTickDynamics();
+      result.npcGroupDynamics = {
+        groupsCreated: dynamics.groupsCreated,
+        membersAdded: dynamics.membersAdded,
+        membersRemoved: dynamics.membersRemoved,
+        usersKicked: dynamics.usersKicked,
+      };
+      if (dynamics.groupsCreated > 0 || dynamics.membersAdded > 0 || dynamics.membersRemoved > 0 || dynamics.usersKicked > 0) {
+        logger.info('NPC group dynamics processed', dynamics, 'GameTick');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error('Failed to process NPC group dynamics', { error: errorMessage }, 'GameTick');
+      // Don't fail the entire tick if NPC group dynamics fail
     }
 
     const durationMs = Date.now() - startedAt;
@@ -763,13 +824,13 @@ Return your response as JSON in this exact format:
 Provide:
 - "title": a compelling headline (max 100 characters)
 - "summary": a succinct 2-3 sentence summary for social feeds (max 400 characters)
-- "article": a full-length article body (at least 4 paragraphs) with concrete details, analysis, and optional quotes. The article should read like a professional newsroom piece, not bullet points.
+- "article": a full-length article body (at least 4 paragraphs) with concrete details, analysis, and optional quotes. The article should read like a professional newsroom piece, not bullet points. Separate paragraphs with \\n\\n (two newlines).
 
 Return your response as JSON in this exact format:
 {
   "title": "news headline here",
   "summary": "2-3 sentence summary here",
-  "article": "full article body here"
+  "article": "full article body here with \\n\\n between paragraphs"
 }`;
 
         const response = await llm.generateJSON<{ title: string; summary: string; article: string }>(
@@ -879,12 +940,13 @@ Your article should include:
 - A full article body of at least 4 paragraphs with clear context, quotes or sourced details where appropriate, and a professional newsroom tone
 - Be professional and informative
 - Match the tone of a ${org.description || 'news organization'}
+- Separate paragraphs with \\n\\n (two newlines)
 
 Return your response as JSON in this exact format:
 {
   "title": "compelling headline here",
   "summary": "2-3 sentence summary here",
-  "article": "full article body here"
+  "article": "full article body here with \\n\\n between paragraphs"
 }`;
       
       const response = await llm.generateJSON<{ title: string; summary: string; article: string }>(
@@ -1119,16 +1181,27 @@ async function generateEvents(
         continue;
       }
 
+      // Validate integer fields to prevent overflow
+      const questionNum = typeof question.questionNumber === 'number' && 
+        Number.isFinite(question.questionNumber) && 
+        question.questionNumber >= 0 && 
+        question.questionNumber <= 2147483647 
+        ? question.questionNumber 
+        : undefined;
+        
+      const dayNum = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+      const safeDayNumber = dayNum >= 0 && dayNum <= 2147483647 ? dayNum : undefined;
+
       await prisma.worldEvent.create({
         data: {
           id: generateSnowflakeId(),
           eventType: 'announcement',
           description: `Development regarding: ${question.text}`,
           actors: [],
-          relatedQuestion: question.questionNumber,
+          relatedQuestion: questionNum,
           visibility: 'public',
           gameId: 'continuous',
-          dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+          dayNumber: safeDayNumber,
           timestamp: timestamp,
         },
       });
@@ -1149,22 +1222,107 @@ async function generateEvents(
 
 /**
  * Update market prices based on NPC trading activity
- * Prices move based on net sentiment from trades
+ * 
+ * Prices are derived from total NPC holdings (investment-based pricing):
+ * - More NPCs buying/holding = higher price
+ * - NPCs selling = lower price
+ * - Price reflects actual capital deployed, not just sentiment
  */
 async function updateMarketPricesFromTrades(
-  timestamp: Date
+  _timestamp: Date,
+  executionResult: ExecutionResult
 ): Promise<number> {
-  // TODO: Implement market price updates based on NPC trading activity
-  // This should analyze recent Position and PerpPosition changes and adjust
-  // Organization and Question prices accordingly based on trading volume/sentiment
-  
-  logger.info(
-    'Market price update from trades (not yet implemented)',
-    { timestamp },
-    'GameTick'
+  if (!executionResult.executedTrades.length) {
+    return 0;
+  }
+
+  // Get all companies with current holdings
+  const companies = await prisma.organization.findMany({
+    where: { type: 'company' },
+    select: {
+      id: true,
+      name: true,
+      currentPrice: true,
+      initialPrice: true,
+    },
+  });
+
+  const companyMap = new Map(
+    companies.map(c => [c.id.toUpperCase().replace(/-/g, ''), c])
   );
+
+  // Calculate total holdings for each company from ALL positions
+  const holdingsByTicker = new Map<string, number>();
   
-  return 0;
+  const allPositions = await prisma.poolPosition.findMany({
+    where: {
+      marketType: 'perp',
+      closedAt: null,
+      ticker: { not: null },
+    },
+    select: {
+      ticker: true,
+      side: true,
+      size: true,
+    },
+  });
+
+  for (const pos of allPositions) {
+    if (!pos.ticker) continue;
+    
+    const current = holdingsByTicker.get(pos.ticker) || 0;
+    // Long positions add to holdings, short positions subtract
+    const delta = pos.side === 'long' ? pos.size : -pos.size;
+    holdingsByTicker.set(pos.ticker, current + delta);
+  }
+
+  let updates = 0;
+
+  // Update prices based on total capital deployed
+  // Market cap = initialPrice × syntheticSupply + totalDeployed
+  for (const [ticker, netHoldings] of holdingsByTicker) {
+    const company = companyMap.get(ticker);
+    if (!company) continue;
+
+    const initialPrice = company.initialPrice ?? 100;
+    const currentPrice = company.currentPrice ?? initialPrice;
+    
+    // Fixed synthetic supply per company
+    const syntheticSupply = 10000;
+    const baseMarketCap = initialPrice * syntheticSupply; // e.g. $100 × 10k = $1M
+    
+    // Market cap increases with net long holdings
+    const newMarketCap = baseMarketCap + netHoldings;
+    
+    // Price = marketCap / supply, with floor and ceiling
+    const rawPrice = newMarketCap / syntheticSupply;
+    const minPrice = initialPrice * 0.1; // Floor: 90% max drop
+    const maxPrice = currentPrice * 2.0; // Cap: 100% max gain per tick
+    const newPrice = Math.max(minPrice, Math.min(rawPrice, maxPrice));
+    
+    const change = newPrice - currentPrice;
+    const changePercent = currentPrice > 0 ? (change / currentPrice) * 100 : 0;
+
+    // Only update if price actually changed
+    if (Math.abs(change) < 0.01) continue;
+
+    await prisma.organization.update({
+      where: { id: company.id },
+      data: { currentPrice: newPrice },
+    });
+
+    await db.recordPriceUpdate(company.id, newPrice, change, changePercent);
+
+    logger.info(
+      `Price update for ${ticker}: ${currentPrice.toFixed(2)} -> ${newPrice.toFixed(2)} (${changePercent.toFixed(2)}%) [holdings: $${netHoldings.toFixed(0)}]`,
+      { ticker, currentPrice, newPrice, netHoldings, marketCap: newMarketCap },
+      'GameTick'
+    );
+
+    updates++;
+  }
+
+  return updates;
 }
 
 /**
@@ -1496,7 +1654,7 @@ async function updateWidgetCaches(): Promise<number> {
       const yesPrice = totalShares > 0 ? yesShares / totalShares : 0.5;
 
       return {
-        id: parseInt(market.id) || 0,
+        id: market.id, // Keep as Snowflake string, don't convert to int
         text: market.question || 'Unknown Question',
         totalVolume,
         yesPrice,

@@ -8,137 +8,132 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
 import { PointsService } from '@/lib/services/points-service'
+import { withErrorHandling } from '@/lib/errors/error-handler';
+import { z } from 'zod';
 
-interface FarcasterCallbackBody {
-  message: string
-  signature: string
-  fid: number
-  username: string
-  displayName?: string
-  pfpUrl?: string
-  state: string
-}
+const FarcasterCallbackBodySchema = z.object({
+  message: z.string(),
+  signature: z.string(),
+  fid: z.number(),
+  username: z.string(),
+  displayName: z.string().optional(),
+  pfpUrl: z.string().url().optional(),
+  state: z.string(),
+});
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json() as FarcasterCallbackBody
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  const body = await request.json();
+  const parsed = FarcasterCallbackBodySchema.safeParse(body);
 
-    if (!body.message || !body.signature || !body.fid || !body.username || !body.state) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      )
-    }
-
-    // Verify state format and get user ID
-    const stateParts = body.state.split(':')
-    if (stateParts.length < 2) {
-      return NextResponse.json(
-        { error: 'Invalid state format' },
-        { status: 400 }
-      )
-    }
-
-    const [userId, timestampStr] = stateParts
-    if (!userId || !timestampStr) {
-      return NextResponse.json(
-        { error: 'Invalid state format' },
-        { status: 400 }
-      )
-    }
-
-    const stateTimestamp = parseInt(timestampStr, 10)
-    if (isNaN(stateTimestamp)) {
-      return NextResponse.json(
-        { error: 'Invalid state timestamp' },
-        { status: 400 }
-      )
-    }
-
-    const now = Date.now()
-    
-    // State expires after 10 minutes
-    if (now - stateTimestamp > 10 * 60 * 1000) {
-      return NextResponse.json(
-        { error: 'State expired' },
-        { status: 400 }
-      )
-    }
-
-    // Verify Farcaster signature
-    const isValid = await verifyFarcasterSignature(body.message, body.signature, body.fid)
-    
-    if (!isValid) {
-      return NextResponse.json(
-        { error: 'Invalid signature' },
-        { status: 401 }
-      )
-    }
-
-    // Check if user exists
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true },
-    })
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      )
-    }
-
-    // Check if Farcaster account is already linked to another user
-    const existingLink = await prisma.user.findFirst({
-      where: {
-        farcasterFid: body.fid.toString(),
-        id: { not: userId },
-      },
-    })
-
-    if (existingLink) {
-      return NextResponse.json(
-        { error: 'Farcaster account already linked to another user' },
-        { status: 409 }
-      )
-    }
-
-    // Update user with Farcaster info
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        farcasterFid: body.fid.toString(),
-        farcasterUsername: body.username,
-        hasFarcaster: true,
-        farcasterDisplayName: body.displayName,
-        farcasterPfpUrl: body.pfpUrl,
-        farcasterVerifiedAt: new Date(),
-      },
-    })
-
-    // Award points if this is the first time linking Farcaster
-    const pointsResult = await PointsService.awardFarcasterLink(userId, body.username)
-
-    logger.info(
-      'Farcaster account linked successfully',
-      { userId, farcasterUsername: body.username, fid: body.fid, pointsAwarded: pointsResult.pointsAwarded },
-      'FarcasterCallback'
-    )
-
-    return NextResponse.json({
-      success: true,
-      pointsAwarded: pointsResult.pointsAwarded,
-      newTotal: pointsResult.newTotal,
-    })
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    logger.error('Farcaster auth callback error', { error: errorMessage, stack: error instanceof Error ? error.stack : undefined }, 'FarcasterCallback')
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: 'Authentication failed' },
-      { status: 500 }
+      { error: 'Invalid request payload', details: parsed.error.flatten() },
+      { status: 400 }
+    );
+  }
+  const { message, signature, fid, username, displayName, pfpUrl, state } = parsed.data;
+
+  // Verify state format and get user ID
+  const stateParts = state.split(':')
+  if (stateParts.length < 2) {
+    return NextResponse.json(
+      { error: 'Invalid state format' },
+      { status: 400 }
     )
   }
-}
+
+  const [userId, timestampStr] = stateParts
+  if (!userId || !timestampStr) {
+    return NextResponse.json(
+      { error: 'Invalid state format' },
+      { status: 400 }
+    )
+  }
+
+  const stateTimestamp = parseInt(timestampStr, 10)
+  if (isNaN(stateTimestamp)) {
+    return NextResponse.json(
+      { error: 'Invalid state timestamp' },
+      { status: 400 }
+    )
+  }
+
+  const now = Date.now()
+  
+  // State expires after 10 minutes
+  if (now - stateTimestamp > 10 * 60 * 1000) {
+    return NextResponse.json(
+      { error: 'State expired' },
+      { status: 400 }
+    )
+  }
+
+  // Verify Farcaster signature
+  const isValid = await verifyFarcasterSignature(message, signature, fid)
+  
+  if (!isValid) {
+    return NextResponse.json(
+      { error: 'Invalid signature' },
+      { status: 401 }
+    )
+  }
+
+  // Check if user exists
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  })
+
+  if (!user) {
+    return NextResponse.json(
+      { error: 'User not found' },
+      { status: 404 }
+    )
+  }
+
+  // Check if Farcaster account is already linked to another user
+  const existingLink = await prisma.user.findFirst({
+    where: {
+      farcasterFid: fid.toString(),
+      id: { not: userId },
+    },
+  })
+
+  if (existingLink) {
+    return NextResponse.json(
+      { error: 'Farcaster account already linked to another user' },
+      { status: 409 }
+    )
+  }
+
+  // Update user with Farcaster info
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      farcasterFid: fid.toString(),
+      farcasterUsername: username,
+      hasFarcaster: true,
+      farcasterDisplayName: displayName,
+      farcasterPfpUrl: pfpUrl,
+      farcasterVerifiedAt: new Date(),
+    },
+  })
+
+  // Award points if this is the first time linking Farcaster
+  const pointsResult = await PointsService.awardFarcasterLink(userId, username)
+
+  logger.info(
+    'Farcaster account linked successfully',
+    { userId, farcasterUsername: username, fid: fid, pointsAwarded: pointsResult.pointsAwarded },
+    'FarcasterCallback'
+  )
+
+  return NextResponse.json({
+    success: true,
+    pointsAwarded: pointsResult.pointsAwarded,
+    newTotal: pointsResult.newTotal,
+  })
+});
 
 /**
  * Verify Farcaster signature using Neynar API or direct hub verification

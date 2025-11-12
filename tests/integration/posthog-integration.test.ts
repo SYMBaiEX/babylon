@@ -120,7 +120,7 @@ describe('PostHog Server Integration', () => {
     });
 
     it('should handle concurrent tracking calls', async () => {
-      const promises = [];
+      const promises: Promise<void>[] = [];
       
       for (let i = 0; i < 10; i++) {
         promises.push(trackServerEvent(`test-user-${i}`, `concurrent_test_${i}`, {

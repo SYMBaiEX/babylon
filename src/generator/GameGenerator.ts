@@ -30,7 +30,7 @@ import { FeedGenerator } from '../engine/FeedGenerator';
 import { BabylonLLMClient } from './llm/openai-client';
 import { logger } from '@/lib/logger';
 import { generateActorContext } from '../engine/EmotionSystem';
-import { shuffleArray, toQuestionIdNumber, toQuestionIdNumberOrNull } from '@/shared/utils';
+import { shuffleArray, toQuestionIdNumberOrNull } from '@/shared/utils';
 import { 
   renderPrompt,
   scenarios as scenariosPrompt,
@@ -1137,7 +1137,7 @@ Otherwise, start fresh.`;
       const type = eventTypes[Math.floor(Math.random() * eventTypes.length)]!;
       const numActorsInvolved = type === 'meeting' ? 2 + Math.floor(Math.random() * 3) : 1;
       const involvedActors = shuffleArray(allActors).slice(0, numActorsInvolved);
-      const questionId = toQuestionIdNumber(questions[i % questions.length]!.id);
+      const questionId = questions[i % questions.length]!.questionNumber || 0;
 
       eventRequests.push({
         eventNumber: i,

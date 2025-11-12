@@ -13,7 +13,7 @@ import { config } from 'dotenv';
 import { join } from 'path';
 config({ path: join(process.cwd(), '.env') });
 
-import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
+import { describe, it, expect, beforeAll } from 'bun:test';
 import { generateSnowflakeId } from '../../src/lib/snowflake';
 import { prisma } from '../../src/lib/database-service';
 
@@ -80,6 +80,9 @@ describe('Followers/Following and Relationships Integration Tests', () => {
       throw new Error(`Not enough actors found in database for testing. Found ${actors.length}, need at least 2. Total in DB: ${totalActors}`);
     }
 
+    if (!actors[0] || !actors[1]) {
+      throw new Error('Test actors not found')
+    }
     testActor = actors[0];
     secondTestActor = actors[1];
     console.log(`✅ Using test actors: ${testActor.name} and ${secondTestActor.name}`);
@@ -443,7 +446,7 @@ describe('Followers/Following and Relationships Integration Tests', () => {
     });
 
     it('should not have self-follows in ActorFollow', async () => {
-      const selfFollows = await prisma.actorFollow.count({
+      await prisma.actorFollow.count({
         where: {
           followerId: {
             equals: prisma.actorFollow.fields.followingId,

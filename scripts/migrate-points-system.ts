@@ -44,14 +44,14 @@ async function migratePointsSystem() {
         const lifetimePnL = Number(user.lifetimePnL)
         const earnedPoints = EarnedPointsService.pnlToPoints(lifetimePnL)
 
-        // Calculate invite points from referral count (50 points per referral)
-        const invitePoints = user.referralCount * 50
+        // Calculate invite points from referral count (250 points per referral)
+        const invitePoints = user.referralCount * 250
 
         // Calculate bonus points from existing tracking flags
         let bonusPoints = 0
-        if (user.pointsAwardedForEmail) bonusPoints += 25
-        if (user.pointsAwardedForWallet) bonusPoints += 25
-        if (user.pointsAwardedForProfile) bonusPoints += 50 // Profile completion bonus
+        if (user.pointsAwardedForWallet) bonusPoints += 1000
+        if (user.pointsAwardedForProfile) bonusPoints += 1000 // Profile completion bonus
+        // Note: Email, Farcaster, Twitter tracked separately via pointsAwardedForFarcaster/Twitter flags
 
         // Calculate new total reputation points
         // Base (100) + Invite + Earned + Bonus

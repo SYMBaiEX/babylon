@@ -4,8 +4,6 @@
  */
 
 import { describe, it, expect } from 'bun:test'
-import { prisma } from '../../src/lib/database-service'
-import { generateSnowflakeId } from '../../src/lib/snowflake'
 
 describe('Article Generation Service', () => {
 

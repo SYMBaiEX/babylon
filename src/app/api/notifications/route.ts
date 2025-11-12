@@ -12,6 +12,7 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { InternalServerError } from '@/lib/errors';
 import { NotificationsQuerySchema, MarkNotificationsReadSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
+import { getCacheOrFetch, invalidateCache, CACHE_KEYS } from '@/lib/cache-service';
 
 /**
  * GET /api/notifications - Get user notifications
@@ -52,34 +53,46 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     where.type = validatedType;
   }
 
-  const { notifications, unreadCount } = await asUser(authUser, async (db) => {
-    const notifications = await db.notification.findMany({
-      where,
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: validatedLimit,
-      include: {
-        User_Notification_actorIdToUser: {
-          select: {
-            id: true,
-            displayName: true,
-            username: true,
-            profileImageUrl: true,
+  // OPTIMIZED: Cache notifications with short TTL (high-frequency polling endpoint)
+  const cacheKey = `notifications:${authUser.userId}:${JSON.stringify(where)}:${validatedLimit}`;
+  
+  const { notifications, unreadCount } = await getCacheOrFetch(
+    cacheKey,
+    async () => {
+      return await asUser(authUser, async (db) => {
+        const notifications = await db.notification.findMany({
+          where,
+          orderBy: {
+            createdAt: 'desc',
           },
-        },
-      },
-    });
+          take: validatedLimit,
+          include: {
+            User_Notification_actorIdToUser: {
+              select: {
+                id: true,
+                displayName: true,
+                username: true,
+                profileImageUrl: true,
+              },
+            },
+          },
+        });
 
-    const unreadCount = await db.notification.count({
-      where: {
-        userId: authUser.userId,
-        read: false,
-      },
-    });
+        const unreadCount = await db.notification.count({
+          where: {
+            userId: authUser.userId,
+            read: false,
+          },
+        });
 
-    return { notifications, unreadCount };
-  });
+        return { notifications, unreadCount };
+      });
+    },
+    {
+      namespace: CACHE_KEYS.USER,
+      ttl: 10, // 10 second cache (high-frequency endpoint, needs to be fresh)
+    }
+  );
 
   logger.info('Notifications fetched successfully', { userId: authUser.userId, count: notifications.length, unreadCount }, 'GET /api/notifications');
 
@@ -127,6 +140,9 @@ export const PATCH = withErrorHandling(async (request: NextRequest) => {
         },
       });
 
+      // Invalidate notification cache after update
+      await invalidateCache(`notifications:${authUser.userId}:*`, { namespace: CACHE_KEYS.USER });
+
       logger.info('All notifications marked as read', { userId: authUser.userId }, 'PATCH /api/notifications');
       return;
     }
@@ -142,6 +158,9 @@ export const PATCH = withErrorHandling(async (request: NextRequest) => {
           read: true,
         },
       });
+
+      // Invalidate notification cache after update
+      await invalidateCache(`notifications:${authUser.userId}:*`, { namespace: CACHE_KEYS.USER });
 
       logger.info('Notifications marked as read', { userId: authUser.userId, count: notificationIds.length }, 'PATCH /api/notifications');
       return;

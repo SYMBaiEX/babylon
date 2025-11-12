@@ -9,6 +9,8 @@ import { prisma } from '@/lib/database-service';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import type { ExecutedTrade, ExecutionResult, TradingDecision } from '@/types/market-decisions';
+import { PredictionPricing } from '@/lib/prediction-pricing';
+import { Prisma } from '@prisma/client';
 
 export class TradeExecutionService {
   /**
@@ -231,7 +233,7 @@ export class TradeExecutionService {
     
     // Get market
     const market = await prisma.market.findUnique({
-      where: { id: decision.marketId.toString() },
+      where: { id: decision.marketId },
     });
     
     if (!market) {
@@ -240,16 +242,16 @@ export class TradeExecutionService {
     
     const yesShares = parseFloat(market.yesShares.toString());
     const noShares = parseFloat(market.noShares.toString());
-    const totalShares = yesShares + noShares;
-    
-    const yesPrice = totalShares > 0 ? (yesShares / totalShares) * 100 : 50;
-    const noPrice = totalShares > 0 ? (noShares / totalShares) * 100 : 50;
-    
     const side = decision.action === 'buy_yes' ? 'YES' : 'NO';
-    const entryPrice = side === 'YES' ? yesPrice : noPrice;
+    const calc = PredictionPricing.calculateBuy(
+      yesShares,
+      noShares,
+      side === 'YES' ? 'yes' : 'no',
+      decision.amount
+    );
     
-    // NPC pool trades have NO trading fees (only 5% performance fee on withdrawal)
-    const shares = decision.amount; // Direct 1:1
+    const entryPrice = calc.avgPrice * 100;
+    const shares = calc.sharesBought;
     
     // Execute in transaction
     const position = await prisma.$transaction(async (tx) => {
@@ -272,10 +274,12 @@ export class TradeExecutionService {
       
       // Update market shares
       await tx.market.update({
-        where: { id: decision.marketId!.toString() },
+        where: { id: decision.marketId! },
         data: {
-          [side === 'YES' ? 'yesShares' : 'noShares']: {
-            increment: shares,
+          yesShares: new Prisma.Decimal(calc.newYesShares),
+          noShares: new Prisma.Decimal(calc.newNoShares),
+          liquidity: {
+            increment: new Prisma.Decimal(decision.amount),
           },
         },
       });
@@ -286,7 +290,7 @@ export class TradeExecutionService {
           id: generateSnowflakeId(),
           poolId,
           marketType: 'prediction',
-          marketId: decision.marketId!.toString(),
+          marketId: decision.marketId!,
           side,
           entryPrice,
           currentPrice: entryPrice,
@@ -304,7 +308,7 @@ export class TradeExecutionService {
           npcActorId: decision.npcId,
           poolId,
           marketType: 'prediction',
-          marketId: decision.marketId!.toString(),
+          marketId: decision.marketId!,
           action: decision.action,
           side,
           amount: decision.amount,
@@ -450,12 +454,12 @@ export class TradeExecutionService {
       poolId,
       marketType: position.marketType as 'perp' | 'prediction',
       ticker: position.ticker || undefined,
-      marketId: position.marketId ? parseInt(position.marketId) : undefined,
+      marketId: position.marketId || undefined, // Keep as string (Snowflake ID)
       action: 'close_position',
       side: position.side,
       amount: position.size,
       size: position.size,
-      shares: position.shares || undefined,
+      shares: position.shares !== null ? position.shares : undefined,
       executionPrice: currentPrice,
       confidence: decision.confidence,
       reasoning: decision.reasoning,

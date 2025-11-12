@@ -154,10 +154,6 @@ export function InteractionBar({
             isShared: postData.isShared ?? false,
           }}
           onClose={() => setShowComments(false)}
-          onCommentAdded={() => {
-            // Comment count is automatically updated by the store's addComment method
-            // Note: modal is already closed by onClose callback
-          }}
         />
       )}
     </>

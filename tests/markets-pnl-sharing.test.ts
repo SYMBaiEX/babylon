@@ -2,7 +2,7 @@
  * Test suite for Markets P&L Sharing functionality
  */
 
-import { describe, it, expect, beforeEach } from 'bun:test'
+import { describe, it, expect } from 'bun:test'
 
 describe('Markets P&L Sharing', () => {
   describe('Portfolio P&L Hook', () => {
@@ -154,7 +154,11 @@ describe('Markets P&L Sharing', () => {
       const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
       
       expect(url).toContain('https://twitter.com/intent/tweet?text=')
-      expect(decodeURIComponent(url.split('text=')[1])).toBe(text)
+      const textPart = url.split('text=')[1]
+      expect(textPart).toBeDefined()
+      if (textPart) {
+        expect(decodeURIComponent(textPart)).toBe(text)
+      }
     })
 
     it('should generate Farcaster compose URL correctly', () => {
@@ -162,7 +166,11 @@ describe('Markets P&L Sharing', () => {
       const url = `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`
       
       expect(url).toContain('https://warpcast.com/~/compose?text=')
-      expect(decodeURIComponent(url.split('text=')[1])).toBe(text)
+      const textPart = url.split('text=')[1]
+      expect(textPart).toBeDefined()
+      if (textPart) {
+        expect(decodeURIComponent(textPart)).toBe(text)
+      }
     })
   })
 

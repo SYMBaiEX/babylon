@@ -18,7 +18,7 @@ interface BaseTrade {
     displayName: string | null
     profileImageUrl: string | null
     isActor: boolean
-  }
+  } | null
 }
 
 interface BalanceTrade extends BaseTrade {
@@ -118,6 +118,9 @@ export function TradingFeedTab() {
   }
 
   const TradeCard = ({ trade }: { trade: Trade }) => {
+    // Handle null user (should not happen, but be safe)
+    if (!trade.user) return null
+    
     const displayName = trade.user.displayName || trade.user.username || 'Anonymous'
     
     return (

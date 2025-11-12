@@ -18,77 +18,70 @@ import {
   CompletionFormat,
 } from '@/lib/reputation/reputation-service'
 import { logger } from '@/lib/logger'
+import { z } from 'zod'
 
-interface GameMetrics {
-  won: boolean
-  pnl: number
-  positionsClosed: number
-  finalBalance: number
-  startingBalance: number
-  decisionsCorrect: number
-  decisionsTotal: number
-  timeToComplete?: number
-  riskManagement?: number
-}
+const GameMetricsSchema = z.object({
+  won: z.boolean(),
+  pnl: z.number(),
+  positionsClosed: z.number(),
+  finalBalance: z.number(),
+  startingBalance: z.number(),
+  decisionsCorrect: z.number(),
+  decisionsTotal: z.number(),
+  timeToComplete: z.number().optional(),
+  riskManagement: z.number().optional(),
+})
 
-interface TradeMetrics {
-  profitable: boolean
-  roi: number
-  holdingPeriod: number
-  timingScore: number
-  riskScore: number
-}
+const TradeMetricsSchema = z.object({
+  profitable: z.boolean(),
+  roi: z.number(),
+  holdingPeriod: z.number(),
+  timingScore: z.number(),
+  riskScore: z.number(),
+})
 
-interface GameFeedbackRequest {
-  type: 'game'
-  agentId: string
-  gameId: string
-  metrics: GameMetrics
-}
+const GameFeedbackRequestSchema = z.object({
+  type: z.literal('game'),
+  agentId: z.string().min(1),
+  gameId: z.string().min(1),
+  metrics: GameMetricsSchema,
+})
 
-interface TradeFeedbackRequest {
-  type: 'trade'
-  agentId: string
-  tradeId: string
-  metrics: TradeMetrics
-}
+const TradeFeedbackRequestSchema = z.object({
+  type: z.literal('trade'),
+  agentId: z.string().min(1),
+  tradeId: z.string().min(1),
+  metrics: TradeMetricsSchema,
+})
 
-type AutoGenerateFeedbackRequest = GameFeedbackRequest | TradeFeedbackRequest
+const AutoGenerateFeedbackRequestSchema = z.discriminatedUnion('type', [
+  GameFeedbackRequestSchema,
+  TradeFeedbackRequestSchema,
+])
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as AutoGenerateFeedbackRequest
+    const json = await request.json()
+    const parsed = AutoGenerateFeedbackRequestSchema.safeParse(json)
 
-    // Validate request type
-    if (!body.type || (body.type !== 'game' && body.type !== 'trade')) {
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'type must be either "game" or "trade"' },
+        { error: 'Invalid request payload', details: parsed.error.flatten() },
         { status: 400 }
       )
     }
 
-    // Validate common fields
-    if (!body.agentId) {
-      return NextResponse.json({ error: 'agentId is required' }, { status: 400 })
-    }
-
-    if (!body.metrics) {
-      return NextResponse.json({ error: 'metrics is required' }, { status: 400 })
-    }
+    const body = parsed.data
 
     // Verify agent exists
     const agent = await requireUserByIdentifier(body.agentId)
 
     // Generate feedback based on type
     if (body.type === 'game') {
-      if (!body.gameId) {
-        return NextResponse.json({ error: 'gameId is required for game feedback' }, { status: 400 })
-      }
-
       const feedback = await generateGameCompletionFeedback(
         agent.id,
         body.gameId,
-        body.metrics as GameMetrics
+        body.metrics
       )
 
       return NextResponse.json({
@@ -100,17 +93,10 @@ export async function POST(request: NextRequest) {
       }, { status: 201 })
     } else {
       // type === 'trade'
-      if (!body.tradeId) {
-        return NextResponse.json(
-          { error: 'tradeId is required for trade feedback' },
-          { status: 400 }
-        )
-      }
-
       const feedback = await CompletionFormat(
         agent.id,
         body.tradeId,
-        body.metrics as TradeMetrics
+        body.metrics
       )
 
       return NextResponse.json({

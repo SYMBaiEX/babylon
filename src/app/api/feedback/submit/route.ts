@@ -19,57 +19,39 @@ import { prisma } from '@/lib/database-service'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
+import { z } from 'zod'
 
-interface FeedbackSubmitRequest {
-  fromUserId: string
-  toUserId: string
-  score?: number
-  stars?: number
-  comment?: string
-  category?: string
-}
+const FeedbackSubmitSchema = z.object({
+  fromUserId: z.string().min(1, 'fromUserId is required'),
+  toUserId: z.string().min(1, 'toUserId is required'),
+  score: z.number().min(0).max(100).optional(),
+  stars: z.number().int().min(1).max(5).optional(),
+  comment: z.string().max(5000).optional(),
+  category: z.string().min(1).optional(),
+}).refine(
+  ({ score, stars }) => score !== undefined || stars !== undefined,
+  {
+    message: 'Either score or stars must be provided',
+    path: ['score'],
+  }
+)
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as FeedbackSubmitRequest
+    const json = await request.json()
+    const parsed = FeedbackSubmitSchema.safeParse(json)
 
-    // Validate required fields
-    if (!body.fromUserId) {
-      return NextResponse.json({ error: 'fromUserId is required' }, { status: 400 })
-    }
-
-    if (!body.toUserId) {
-      return NextResponse.json({ error: 'toUserId is required' }, { status: 400 })
-    }
-
-    // Calculate score from stars if provided, otherwise validate score
-    let score: number
-
-    if (body.stars !== undefined) {
-      // Convert stars (1-5) to score (0-100)
-      if (body.stars < 1 || body.stars > 5) {
-        return NextResponse.json(
-          { error: 'stars must be between 1 and 5' },
-          { status: 400 }
-        )
-      }
-      score = body.stars * 20 // 1 star = 20, 5 stars = 100
-    } else if (body.score !== undefined) {
-      score = body.score
-
-      // Validate score range
-      if (score < 0 || score > 100) {
-        return NextResponse.json(
-          { error: 'score must be between 0 and 100' },
-          { status: 400 }
-        )
-      }
-    } else {
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'either score or stars must be provided' },
+        { error: 'Invalid request payload', details: parsed.error.flatten() },
         { status: 400 }
       )
     }
+
+    const body = parsed.data
+
+    // Calculate score from stars if provided, otherwise use provided score
+    const score = body.stars !== undefined ? body.stars * 20 : (body.score as number)
 
     // Verify both users exist
     const fromUser = await requireUserByIdentifier(body.fromUserId)
@@ -91,8 +73,8 @@ export async function POST(request: NextRequest) {
         fromUserId: fromUser.id,
         toUserId: toUser.id,
         score,
-        comment: body.comment || null,
-        category: body.category || 'general',
+        comment: body.comment ?? null,
+        category: body.category ?? 'general',
         interactionType: 'user_to_agent', // Manual user feedback
         createdAt: now,
         updatedAt: now,

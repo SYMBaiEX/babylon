@@ -27,6 +27,17 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
+        hostname: '**.public.blob.vercel-storage.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '9000',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
         hostname: '**',
       },
     ],
@@ -47,6 +58,10 @@ const nextConfig = {
 
     // Externalize electron-fetch for server-side
     if (isServer) {
+      // Ensure config.externals is an array before pushing
+      if (!Array.isArray(config.externals)) {
+        config.externals = [];
+      }
       config.externals.push('electron');
     }
 

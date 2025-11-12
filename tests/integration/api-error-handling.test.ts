@@ -204,7 +204,7 @@ describe('API Error Handling Integration', () => {
 
       // If rate limited, should return 429
       const rateLimited = responses.filter(r => r.status === 429)
-      if (rateLimited.length > 0) {
+      if (rateLimited.length > 0 && rateLimited[0]) {
         const data = await rateLimited[0].json()
         expect(data.error).toBeDefined()
       }

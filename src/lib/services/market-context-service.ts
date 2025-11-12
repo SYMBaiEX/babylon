@@ -102,7 +102,7 @@ export class MarketContextService {
         id: pos.id,
         marketType: pos.marketType as 'perp' | 'prediction',
         ticker: pos.ticker || undefined,
-        marketId: pos.marketId ? parseInt(pos.marketId) : undefined,
+        marketId: pos.marketId || undefined, // Keep as string (Snowflake ID)
         side: pos.side,
         entryPrice: pos.entryPrice,
         currentPrice: pos.currentPrice,
@@ -196,7 +196,7 @@ export class MarketContextService {
       id: pos.id,
       marketType: pos.marketType as 'perp' | 'prediction',
       ticker: pos.ticker || undefined,
-      marketId: pos.marketId ? parseInt(pos.marketId) : undefined,
+      marketId: pos.marketId || undefined, // Keep as string (Snowflake ID)
       side: pos.side,
       entryPrice: pos.entryPrice,
       currentPrice: pos.currentPrice,
@@ -439,7 +439,7 @@ export class MarketContextService {
       );
       
       return {
-        id: parseInt(market.id),
+        id: market.id, // Keep as Snowflake string
         text: market.question,
         yesPrice,
         noPrice,

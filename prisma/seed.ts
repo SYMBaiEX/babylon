@@ -20,6 +20,7 @@ const prisma = new PrismaClient();
 
 import type { SeedActorsDatabase } from '../src/shared/types';
 import { FollowInitializer } from '../src/lib/services/FollowInitializer';
+import { CapitalAllocationService } from '../src/lib/services/capital-allocation-service';
 
 async function main() {
   logger.info('SEEDING DATABASE', undefined, 'Script');
@@ -109,6 +110,7 @@ async function main() {
           initialPrice: org.initialPrice || null,
           currentPrice: org.initialPrice || null,
           imageUrl: imageUrl,
+          updatedAt: new Date(),
         },
       });
       orgCount++;
@@ -144,42 +146,103 @@ async function main() {
     logger.info('Game state already exists', undefined, 'Script');
   }
 
-  // Initialize pools for actors with hasPool=true
-  logger.info('Initializing trading pools...', undefined, 'Script');
+  // Initialize pools for actors with hasPool=true WITH CAPITAL
+  logger.info('Initializing trading pools with capital...', undefined, 'Script');
   
   const poolActors = await prisma.actor.findMany({
     where: { hasPool: true },
-    select: { id: true, name: true },
   });
   
   let poolsCreated = 0;
+  let totalCapitalAllocated = 0;
+  
   for (const actor of poolActors) {
+    // Calculate realistic capital allocation
+    const actorData = actorsData.actors.find(a => a.id === actor.id);
+    if (!actorData) {
+      logger.warn(`Actor ${actor.id} not found in actors.json`, undefined, 'Script');
+      continue;
+    }
+
+    const capitalAllocation = CapitalAllocationService.calculateCapital(actorData);
+    
     try {
       await prisma.pool.create({
         data: {
+          id: `pool-${actor.id}`,
           npcActorId: actor.id,
           name: `${actor.name}'s Pool`,
           description: `Trading pool managed by ${actor.name}`,
-          totalValue: new Prisma.Decimal(0),
-          totalDeposits: new Prisma.Decimal(0),
-          availableBalance: new Prisma.Decimal(0),
+          totalValue: new Prisma.Decimal(capitalAllocation.initialPoolBalance),
+          totalDeposits: new Prisma.Decimal(0), // No user deposits yet
+          availableBalance: new Prisma.Decimal(capitalAllocation.initialPoolBalance),
           lifetimePnL: new Prisma.Decimal(0),
-          performanceFeeRate: 0.08,
+          performanceFeeRate: 0.05, // 5% performance fee
           totalFeesCollected: new Prisma.Decimal(0),
-          isActive: true
+          isActive: true,
+          updatedAt: new Date(),
         },
       });
+      
+      // Also update actor's trading balance
+      await prisma.actor.update({
+        where: { id: actor.id },
+        data: {
+          tradingBalance: new Prisma.Decimal(capitalAllocation.tradingBalance),
+          reputationPoints: capitalAllocation.reputationPoints,
+        },
+      });
+      
       poolsCreated++;
+      totalCapitalAllocated += capitalAllocation.initialPoolBalance;
+      
+      logger.info(`✅ Created pool for ${actor.name} with $${capitalAllocation.initialPoolBalance.toLocaleString()}`, {
+        actorId: actor.id,
+        capital: capitalAllocation.initialPoolBalance,
+      }, 'Script');
     } catch (error: any) {
-      // Skip if pool already exists (P2002 = unique constraint violation)
       if (error.code !== 'P2002') {
         throw error;
       }
+      
+      // Pool already exists - update with capital if needed
+      const existingPool = await prisma.pool.findFirst({ where: { npcActorId: actor.id } });
+      if (!existingPool) {
+        poolsCreated++;
+        continue;
+      }
+
+      const currentBalance = Number(existingPool.availableBalance);
+      
+      // Always update to ensure proper capital allocation
+      await prisma.pool.update({
+        where: { id: existingPool.id },
+        data: {
+          totalValue: new Prisma.Decimal(capitalAllocation.initialPoolBalance),
+          availableBalance: new Prisma.Decimal(capitalAllocation.initialPoolBalance),
+        },
+      });
+      
+      await prisma.actor.update({
+        where: { id: actor.id },
+        data: {
+          tradingBalance: new Prisma.Decimal(capitalAllocation.tradingBalance),
+          reputationPoints: capitalAllocation.reputationPoints,
+        },
+      });
+      
+      totalCapitalAllocated += capitalAllocation.initialPoolBalance;
       poolsCreated++;
+      
+      logger.info(`✅ Updated pool for ${actor.name}: $${currentBalance.toFixed(0)} → $${capitalAllocation.initialPoolBalance.toLocaleString()}`, {
+        actorId: actor.id,
+        oldBalance: currentBalance,
+        newBalance: capitalAllocation.initialPoolBalance,
+      }, 'Script');
     }
   }
   
-  logger.info(`Initialized ${poolsCreated} pools for ${poolActors.length} pool actors`, undefined, 'Script');
+  logger.info(`Initialized ${poolsCreated} pools with $${totalCapitalAllocated.toLocaleString()} total capital`, undefined, 'Script');
 
   // Seed relationships from actors.json
   logger.info('Seeding actor relationships...', undefined, 'Script');
@@ -301,8 +364,6 @@ async function main() {
 
 main()
   .catch((error) => {
-    console.error('Full error details:');
-    console.error(error);
     logger.error('Seed failed:', error, 'Script');
     process.exit(1);
   })

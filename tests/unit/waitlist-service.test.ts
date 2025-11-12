@@ -4,7 +4,7 @@
  * Tests core waitlist service methods and logic
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
+import { describe, it, expect, afterEach } from 'bun:test'
 import { WaitlistService } from '../../src/lib/services/waitlist-service'
 import { prisma } from '../../src/lib/database-service'
 import { generateSnowflakeId } from '../../src/lib/snowflake'
@@ -437,6 +437,7 @@ describe('WaitlistService', () => {
       const topUsers = await WaitlistService.getTopWaitlistUsers(3)
 
       expect(topUsers).toHaveLength(3)
+      if (!topUsers[0] || !topUsers[1] || !topUsers[2]) throw new Error('Expected 3 users')
       expect(topUsers[0].invitePoints).toBe(150)
       expect(topUsers[1].invitePoints).toBe(100)
       expect(topUsers[2].invitePoints).toBe(50)

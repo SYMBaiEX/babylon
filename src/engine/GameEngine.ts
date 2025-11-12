@@ -19,6 +19,7 @@ import { ActorSocialActions } from '@/lib/services/ActorSocialActions';
 import { FollowInitializer } from '@/lib/services/FollowInitializer';
 import { RelationshipManager } from '@/lib/services/RelationshipManager';
 import { broadcastChatMessage, broadcastToChannel } from '@/lib/sse/event-broadcaster';
+import { NPCInvestmentManager } from '@/lib/npc/npc-investment-manager';
 import type {
   Actor,
   ActorConnection,
@@ -34,7 +35,7 @@ import type {
   SelectedActor,
   WorldEvent,
 } from '@/shared/types';
-import { shuffleArray, toQuestionIdNumber, toQuestionIdNumberOrNull } from '@/shared/utils';
+import { shuffleArray } from '@/shared/utils';
 import type { JsonValue } from '@/types/common';
 import { Prisma } from '@prisma/client';
 import { EventEmitter } from 'events';
@@ -353,7 +354,7 @@ export class GameEngine extends EventEmitter {
             // Query all resolved positions for this market
             const positions = await db.prisma.position.findMany({
               where: {
-                questionId: toQuestionIdNumber(question.id),
+                questionId: question.questionNumber,
                 status: 'resolved',
               },
               include: {
@@ -533,6 +534,34 @@ export class GameEngine extends EventEmitter {
       // Step 6: Generate group chat messages about questions
       const groupChatMessages = await this.generateGroupChatDiscussions(activeQuestions, events);
 
+      // Baseline NPC allocations (ensure pools deploy idle capital)
+      let baselineTradeUpdates: PriceUpdate[] = [];
+      try {
+        const baselineResult = await NPCInvestmentManager.executeBaselineInvestments(new Date(timestamp));
+        if (baselineResult && baselineResult.executedTrades.length > 0) {
+          logger.info(
+            `Baseline NPC investments executed: ${baselineResult.successfulTrades} trades`,
+            { trades: baselineResult.successfulTrades },
+            'GameEngine'
+          );
+          baselineTradeUpdates = await this.updatePricesFromTrades(baselineResult);
+          if (baselineTradeUpdates.length > 0) {
+            logger.info(
+              `Baseline trade price updates: ${baselineTradeUpdates.length}`,
+              { count: baselineTradeUpdates.length },
+              'GameEngine'
+            );
+          }
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(
+          'Failed to execute baseline NPC investments',
+          { error: errorMessage },
+          'GameEngine'
+        );
+      }
+
       // ===== NEW: Step 7: Generate NPC Market Decisions =====
       logger.info('Generating NPC market decisions...', {}, 'GameEngine');
       const marketDecisions = await this.marketDecisionEngine.generateBatchDecisions();
@@ -551,8 +580,12 @@ export class GameEngine extends EventEmitter {
       logger.info(`Trade-based price updates: ${tradeBasedPriceUpdates.length}`, { count: tradeBasedPriceUpdates.length }, 'GameEngine');
       
       // Combine event-based and trade-based price updates
-      const allPriceUpdates = [...priceUpdates, ...tradeBasedPriceUpdates];
-      logger.info(`Total price updates this tick: ${allPriceUpdates.length} (${priceUpdates.length} from events + ${tradeBasedPriceUpdates.length} from trades)`, {}, 'GameEngine');
+      const allPriceUpdates = [...priceUpdates, ...baselineTradeUpdates, ...tradeBasedPriceUpdates];
+      logger.info(
+        `Total price updates this tick: ${allPriceUpdates.length} (${priceUpdates.length} from events + ${baselineTradeUpdates.length} baseline + ${tradeBasedPriceUpdates.length} from trades)`,
+        {},
+        'GameEngine'
+      );
       
       // Update perps engine with new prices
       if (allPriceUpdates.length > 0) {
@@ -790,7 +823,7 @@ OUTPUT JSON:
         type: (response.type as WorldEvent['type']) || 'announcement',
         actors: involvedActors.map(a => a.id),
         description: response.description || `Development in: ${question.text}`,
-        relatedQuestion: toQuestionIdNumberOrNull(question.id),
+        relatedQuestion: question.questionNumber || null,
         pointsToward: shouldPointToOutcome ? (question.outcome ? 'YES' : 'NO') : null,
         visibility: 'public',
       };
@@ -810,7 +843,7 @@ OUTPUT JSON:
         type: 'announcement',
         actors: involvedActors.map(a => a.id),
         description: `${involvedActors[0]?.name || 'Someone'} makes move regarding: ${question.text}`,
-        relatedQuestion: toQuestionIdNumberOrNull(question.id),
+        relatedQuestion: question.questionNumber || null,
         pointsToward: shouldPointToOutcome ? (question.outcome ? 'YES' : 'NO') : null,
         visibility: 'public',
       };
@@ -859,7 +892,7 @@ OUTPUT JSON:
         type: (response.type as WorldEvent['type']) || 'announcement',
         actors: involvedActors.map(a => a.id),
         description: response.description,
-        relatedQuestion: toQuestionIdNumberOrNull(question.id),
+        relatedQuestion: question.questionNumber || null,
         pointsToward: question.outcome ? 'YES' : 'NO',
         visibility: 'public',
       };
@@ -878,7 +911,7 @@ OUTPUT JSON:
         type: 'announcement',
         actors: involvedActors.map(a => a.id),
         description: `RESOLUTION: ${question.text} - Outcome is ${question.outcome ? 'YES' : 'NO'}`,
-        relatedQuestion: toQuestionIdNumberOrNull(question.id),
+        relatedQuestion: question.questionNumber || null,
         pointsToward: question.outcome ? 'YES' : 'NO',
         visibility: 'public',
       };
@@ -1279,7 +1312,7 @@ OUTPUT JSON:
       
       for (const question of relevantQuestions) {
         // Find relevant event
-        const relevantEvent = events.find(e => e.relatedQuestion === question.id);
+        const relevantEvent = events.find(e => e.relatedQuestion === question.questionNumber);
         if (!relevantEvent) continue;
 
         // Admin posts about the event/question
@@ -1511,7 +1544,7 @@ OUTPUT JSON:
   private async generateQuestions(_count: number): Promise<Question[]> {
     const currentDate = new Date().toISOString().split('T')[0]!;
     const activeQuestions = this.questions.filter(q => q.status === 'active');
-    const nextId = Math.max(0, ...this.questions.map(q => toQuestionIdNumber(q.id))) + 1;
+    const nextId = Math.max(0, ...this.questions.map(q => q.questionNumber || 0)) + 1;
 
     // Get recent events for context
     const recentEvents = await db.prisma.worldEvent.findMany({
@@ -1553,7 +1586,7 @@ OUTPUT JSON:
       try {
         await db.createQuestion({
           ...question,
-          questionNumber: toQuestionIdNumber(question.id),
+          questionNumber: question.questionNumber || 0,
         });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1617,8 +1650,13 @@ OUTPUT JSON:
       }, 'GameEngine');
     }
 
-    await Promise.allSettled(
-      this.actors.map(async (actor) => {
+    // Batch actor and organization upserts to prevent connection pool exhaustion
+    const { batchExecute } = await import('@/lib/batch-operations');
+    
+    await batchExecute(
+      this.actors,
+      10, // Process 10 at a time to stay within connection pool limits
+      async (actor) => {
         try {
           // Convert SelectedActor to Actor
           const actorData: Actor = {
@@ -1643,11 +1681,13 @@ OUTPUT JSON:
             actorId: actor.id 
           }, 'GameEngine');
         }
-      })
+      }
     );
 
-    await Promise.allSettled(
-      this.organizations.map(async (org) => {
+    await batchExecute(
+      this.organizations,
+      10, // Process 10 at a time to stay within connection pool limits
+      async (org) => {
         try {
           await db.upsertOrganization(org);
         } catch (error) {
@@ -1659,7 +1699,7 @@ OUTPUT JSON:
             orgId: org.id 
           }, 'GameEngine');
         }
-      })
+      }
     );
   }
 
@@ -1777,16 +1817,31 @@ OUTPUT JSON:
     if (tick.events.length > 0) {
       for (const event of tick.events) {
         try {
+          // Validate integer fields to prevent Snowflake ID insertion
+          const safeRelatedQuestion = typeof event.relatedQuestion === 'number' && 
+            Number.isFinite(event.relatedQuestion) && 
+            event.relatedQuestion >= 0 && 
+            event.relatedQuestion <= 2147483647 
+            ? event.relatedQuestion 
+            : undefined;
+          
+          const safeDayNumber = typeof dayNumber === 'number' && 
+            Number.isFinite(dayNumber) && 
+            dayNumber >= 0 && 
+            dayNumber <= 2147483647 
+            ? dayNumber 
+            : undefined;
+          
           await db.createEvent({
             id: event.id,
             eventType: event.type,
             description: event.description,
             actors: event.actors,
-            relatedQuestion: typeof event.relatedQuestion === 'number' ? event.relatedQuestion : undefined,
+            relatedQuestion: safeRelatedQuestion,
             pointsToward: event.pointsToward ?? undefined,
             visibility: event.visibility,
             gameId: GameEngine.GAME_ID,
-            dayNumber,
+            dayNumber: safeDayNumber,
           });
         } catch (error: unknown) {
           if (
@@ -2013,7 +2068,7 @@ OUTPUT JSON:
       type: 'announcement',
       actors: [],
       description: `Development in: ${question.text}`,
-      relatedQuestion: toQuestionIdNumberOrNull(question.id),
+      relatedQuestion: question.questionNumber || null,
       pointsToward: question.outcome ? 'YES' : 'NO',
       visibility: 'public',
     };
@@ -2317,87 +2372,111 @@ Return ONLY this JSON:
   
   /**
    * Update market prices based on NPC trading activity
-   * Prices move based on net sentiment from trades
+   * 
+   * Prices are derived from total NPC holdings (investment-based pricing):
+   * - Prices reflect actual capital deployed via AMM mechanics
+   * - Holdings drive prices up, exits drive prices down
    */
-  private async updatePricesFromTrades(executionResult: ExecutionResult): Promise<PriceUpdate[]> {
+  private async updatePricesFromTrades(_executionResult: ExecutionResult): Promise<PriceUpdate[]> {
     const updates: PriceUpdate[] = [];
     
-    logger.debug(`updatePricesFromTrades called with ${executionResult.executedTrades.length} trades`, {}, 'GameEngine');
+    // Get all companies
+    const companies = this.organizations.filter(o => o.type === 'company');
     
-    // Get trade impacts by ticker/market
-    const impacts = await this.tradeExecutionService.getTradeImpacts(executionResult.executedTrades);
+    // Calculate total holdings for each company from ALL pool positions
+    const holdingsByOrgId = new Map<string, number>();
     
-    logger.debug(`Calculated impacts for ${impacts.size} tickers`, {}, 'GameEngine');
-    
-    for (const [key, impact] of impacts) {
-      // Handle perpetual price updates
-      if (key.match(/^[A-Z]+$/)) {
-        const ticker = key;
-        logger.debug(`Processing ticker ${ticker}`, {}, 'GameEngine');
-        
-        const company = this.organizations.find(o => 
-          o.type === 'company' && 
-          o.id.toUpperCase().replace(/-/g, '') === ticker
-        );
-        
-        if (!company) {
-          logger.warn(`No company found for ticker ${ticker}`, {}, 'GameEngine');
-          continue;
-        }
-        
-        if (!company.currentPrice) {
-          logger.warn(`Company ${company.id} has no currentPrice`, {}, 'GameEngine');
-          continue;
-        }
-        
-        const totalVolume = impact.longVolume + impact.shortVolume;
-        if (totalVolume === 0) continue;
-        
-        // Calculate price impact
-        // Net long sentiment = price goes up
-        // Net short sentiment = price goes down
-        const volumeImpact = Math.min(totalVolume / 10000, 0.05); // Cap at 5%
-        const priceChange = impact.netSentiment * volumeImpact;
-        
-        const oldPrice = company.currentPrice;
-        const newPrice = oldPrice * (1 + priceChange);
-        const change = newPrice - oldPrice;
-        const changePercent = (change / oldPrice) * 100;
-        
-        // Update company price
-        company.currentPrice = newPrice;
-        const companyIndex = this.organizations.findIndex(o => o.id === company.id);
-        if (companyIndex >= 0) {
-          this.organizations[companyIndex] = company;
-        }
-        
-        updates.push({
-          organizationId: company.id,
-          timestamp: new Date().toISOString(),
-          oldPrice: Number(oldPrice.toFixed(2)),
-          newPrice: Number(newPrice.toFixed(2)),
-          change: Number(change.toFixed(2)),
-          changePercent: Number(changePercent.toFixed(2)),
-          reason: `NPC trading: ${impact.longVolume.toFixed(0)} long, ${impact.shortVolume.toFixed(0)} short`,
-          impact: 'moderate',
-        });
-        
-        logger.debug(`Price update for ${ticker}: ${oldPrice.toFixed(2)} -> ${newPrice.toFixed(2)} (${changePercent.toFixed(2)}%)`, {
-          ticker,
-          oldPrice,
-          newPrice,
-          changePercent,
-          longVolume: impact.longVolume,
-          shortVolume: impact.shortVolume,
-        }, 'GameEngine');
+    const allPositions = await db.prisma.poolPosition.findMany({
+      where: {
+        marketType: 'perp',
+        closedAt: null,
+        ticker: { not: null },
+      },
+      select: {
+        ticker: true,
+        side: true,
+        size: true,
+      },
+    });
+
+    // Map ticker to organization ID
+    const tickerToOrgId = new Map(
+      companies.map(c => [c.id.toUpperCase().replace(/-/g, ''), c.id])
+    );
+
+    for (const pos of allPositions) {
+      if (!pos.ticker) continue;
+      
+      const orgId = tickerToOrgId.get(pos.ticker);
+      if (!orgId) continue;
+      
+      const current = holdingsByOrgId.get(orgId) || 0;
+      // Long positions add to holdings, short positions subtract
+      const delta = pos.side === 'long' ? pos.size : -pos.size;
+      holdingsByOrgId.set(orgId, current + delta);
+    }
+
+    // Update prices based on total holdings
+    // Price = (baseMarketCap + netHoldings) / syntheticSupply
+    for (const company of companies) {
+      const netHoldings = holdingsByOrgId.get(company.id) || 0;
+      if (netHoldings === 0) continue;
+
+      const initialPrice = company.initialPrice || 100;
+      const currentPrice = company.currentPrice || initialPrice;
+      
+      const syntheticSupply = 10000;
+      const baseMarketCap = initialPrice * syntheticSupply;
+      const newMarketCap = baseMarketCap + netHoldings;
+      
+      // Price with floor and ceiling
+      const rawPrice = newMarketCap / syntheticSupply;
+      const minPrice = initialPrice * 0.1; // Floor: 90% max drop
+      const maxPrice = currentPrice * 2.0; // Cap: 100% max gain per tick
+      const newPrice = Math.max(minPrice, Math.min(rawPrice, maxPrice));
+      
+      const change = newPrice - currentPrice;
+      const changePercent = currentPrice > 0 ? (change / currentPrice) * 100 : 0;
+      
+      if (Math.abs(change) < 0.01) continue;
+      
+      company.currentPrice = newPrice;
+      const companyIndex = this.organizations.findIndex(o => o.id === company.id);
+      if (companyIndex >= 0) {
+        this.organizations[companyIndex] = company;
       }
+      
+      updates.push({
+        organizationId: company.id,
+        timestamp: new Date().toISOString(),
+        oldPrice: Number(currentPrice.toFixed(2)),
+        newPrice: Number(newPrice.toFixed(2)),
+        change: Number(change.toFixed(2)),
+        changePercent: Number(changePercent.toFixed(2)),
+        reason: `Holdings-based pricing: $${netHoldings.toFixed(0)} net long`,
+        impact: 'moderate',
+      });
+      
+      logger.debug(`Price update for ${company.id}: ${currentPrice.toFixed(2)} -> ${newPrice.toFixed(2)} (holdings: $${netHoldings.toFixed(0)})`, {
+        organizationId: company.id,
+        currentPrice,
+        newPrice,
+        netHoldings,
+        marketCap: newMarketCap,
+      }, 'GameEngine');
     }
     
-    // Note: Prediction market odds are updated directly in TradeExecutionService
-    // when positions are opened, so no need to update them here
-    
+    // Update perps engine with new spot prices immediately
     if (updates.length > 0) {
-      logger.info(`Updated ${updates.length} prices based on NPC trades`, { count: updates.length }, 'GameEngine');
+      const priceMap = new Map<string, number>();
+      companies.forEach(company => {
+        if (company.currentPrice) {
+          priceMap.set(company.id, company.currentPrice);
+        }
+      });
+      this.perpsEngine.updatePositions(priceMap);
+      
+      logger.info(`Updated ${updates.length} prices and synced perp positions`, { count: updates.length }, 'GameEngine');
     }
     
     return updates;

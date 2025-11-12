@@ -15,7 +15,17 @@ import { QuestionManager } from '../QuestionManager';
 // Mock LLM client for testing
 const mockLLM = {
   generateJSON: async () => ({ questions: [] }),
-} as { generateJSON: () => Promise<{ questions: unknown[] }> };
+  client: null,
+  provider: 'openai' as const,
+  groqKey: '',
+  openaiKey: '',
+  anthropicKey: '',
+  model: 'gpt-4',
+  temperature: 0.7,
+  maxTokens: 2000,
+  generateText: async () => '',
+  generateStream: async function* () { yield ''; },
+} as unknown as import('../../generator/llm/openai-client').BabylonLLMClient;
 
 describe('QuestionManager', () => {
   test('detects questions that should be resolved', () => {

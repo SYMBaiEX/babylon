@@ -65,6 +65,10 @@ export interface CommentData {
     username: string | null;
     profileImageUrl: string | null;
   };
+  // API response includes these directly
+  likeCount?: number;
+  replyCount?: number;
+  // Deprecated: kept for backwards compatibility
   _count?: {
     reactions: number;
     replies: number;

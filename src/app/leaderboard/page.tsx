@@ -5,9 +5,12 @@ import { PageContainer } from '@/components/shared/PageContainer'
 import { RankBadge, RankNumber } from '@/components/shared/RankBadge'
 import { LeaderboardSkeleton } from '@/components/shared/Skeleton'
 import { useAuth } from '@/hooks/useAuth'
+import { formatCurrency } from '@/lib/utils'
 import { ChevronLeft, ChevronRight, TrendingUp, Trophy, Users } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+
+type LeaderboardTab = 'all' | 'earned' | 'referral'
 
 interface LeaderboardUser {
   id: string
@@ -36,6 +39,7 @@ interface LeaderboardData {
     totalPages: number
   }
   minPoints: number
+  pointsCategory: LeaderboardTab
 }
 
 export default function LeaderboardPage() {
@@ -44,8 +48,15 @@ export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
+  const [selectedTab, setSelectedTab] = useState<LeaderboardTab>('all')
+  const tabs: Array<{ key: LeaderboardTab; label: string; description: string }> = [
+    { key: 'all', label: 'All Points', description: 'Total reputation including invites and bonuses' },
+    { key: 'earned', label: 'Earned Points', description: 'Points from trading P&L across all markets' },
+    { key: 'referral', label: 'Referral Points', description: 'Points from inviting and onboarding friends' },
+  ]
   const pageSize = 100
-  const minPoints = 500 // Show all users and NPCs with >500 reputation
+  const baseMinPoints = 500
+  const minPoints = selectedTab === 'all' ? baseMinPoints : 0 // Only gate All Points view
 
   // Fetch leaderboard data
   useEffect(() => {
@@ -53,21 +64,36 @@ export default function LeaderboardPage() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(
-        `/api/leaderboard?page=${currentPage}&pageSize=${pageSize}&minPoints=${minPoints}`
-      )
+      try {
+        const response = await fetch(
+          `/api/leaderboard?page=${currentPage}&pageSize=${pageSize}&minPoints=${minPoints}&pointsType=${selectedTab}`
+        )
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch leaderboard')
+        if (!response.ok) {
+          throw new Error('Failed to fetch leaderboard')
+        }
+
+        const data = await response.json()
+        setLeaderboardData(data)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to fetch leaderboard'
+        setError(message)
+      } finally {
+        setLoading(false)
       }
-
-      const data = await response.json()
-      setLeaderboardData(data)
-      setLoading(false)
     }
 
     fetchLeaderboard()
-  }, [currentPage])
+  }, [currentPage, minPoints, pageSize, selectedTab])
+
+  const handleTabChange = (tab: LeaderboardTab) => {
+    if (tab === selectedTab) {
+      return
+    }
+
+    setSelectedTab(tab)
+    setCurrentPage(1)
+  }
 
   const handlePreviousPage = () => {
     if (currentPage > 1) {
@@ -83,10 +109,41 @@ export default function LeaderboardPage() {
     }
   }
 
+  const activePointsLabel =
+    selectedTab === 'all'
+      ? 'All Points'
+      : selectedTab === 'earned'
+        ? 'Earned Points'
+        : 'Referral Points'
+
+  const activeTabDescription =
+    tabs.find((tab) => tab.key === selectedTab)?.description || ''
+
   return (
     <PageContainer noPadding className="flex flex-col">
       {/* Desktop: Full width content */}
       <div className="hidden sm:flex flex-1 flex-col overflow-hidden">
+        <div className="w-full max-w-feed mx-auto px-4 lg:px-6 pt-6">
+          <div className="flex flex-wrap items-center gap-2">
+            {tabs.map((tab) => {
+              const isActive = tab.key === selectedTab
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => handleTabChange(tab.key)}
+                  className={`px-4 py-2 rounded-full border text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-[#0066FF] border-[#0066FF] text-white shadow-sm'
+                      : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/40'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">{activeTabDescription}</p>
+        </div>
 
       {/* Loading State */}
       {loading && (
@@ -112,13 +169,33 @@ export default function LeaderboardPage() {
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="text-center text-muted-foreground">
             <Trophy className="w-16 h-16 mx-auto mb-4 opacity-50" />
-            <p className="text-lg font-semibold mb-2 text-foreground">Compete with AI Traders</p>
-            <p className="text-sm mb-2">
-              Earn {minPoints.toLocaleString()} reputation points to appear on the leaderboard!
-            </p>
-            <p className="text-xs">
-              Complete your profile, link socials, share, and refer friends to earn up to 7,000 points
-            </p>
+            {leaderboardData.pointsCategory === 'all' && (
+              <>
+                <p className="text-lg font-semibold mb-2 text-foreground">Compete with AI Traders</p>
+                <p className="text-sm mb-2">
+                  Earn {baseMinPoints.toLocaleString()} reputation points to appear on the leaderboard!
+                </p>
+                <p className="text-xs">
+                  Complete your profile, link socials, share, and refer friends to earn up to 7,000 points
+                </p>
+              </>
+            )}
+            {leaderboardData.pointsCategory === 'earned' && (
+              <>
+                <p className="text-lg font-semibold mb-2 text-foreground">No Earned Points Yet</p>
+                <p className="text-sm">
+                  Close profitable trades across perps and prediction markets to climb this board.
+                </p>
+              </>
+            )}
+            {leaderboardData.pointsCategory === 'referral' && (
+              <>
+                <p className="text-lg font-semibold mb-2 text-foreground">No Referral Points Yet</p>
+                <p className="text-sm">
+                  Share your invite link and onboard friends to earn referral points.
+                </p>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -137,7 +214,20 @@ export default function LeaderboardPage() {
               {leaderboardData.leaderboard.map((player) => {
                 const isCurrentUser = authenticated && user && player.id === user.id
                 const profileUrl = `/profile/${player.username || player.id}`
-                
+                const displayPoints =
+                  selectedTab === 'all'
+                    ? player.allPoints
+                    : selectedTab === 'earned'
+                      ? player.earnedPoints
+                      : player.invitePoints
+                const formattedPoints = (displayPoints ?? 0).toLocaleString()
+                const absolutePnL = Math.abs(player.lifetimePnL)
+                const formattedPnL = formatCurrency(absolutePnL)
+                const pnlDisplay =
+                  player.lifetimePnL === 0 ? formatCurrency(0) : `${player.lifetimePnL > 0 ? '+' : '-'}${formattedPnL}`
+                const pnlColor =
+                  player.lifetimePnL === 0 ? 'text-muted-foreground' : player.lifetimePnL > 0 ? 'text-green-500' : 'text-red-500'
+
                 return (
                   <Link
                     key={player.id}
@@ -193,9 +283,9 @@ export default function LeaderboardPage() {
                         <div className="flex items-center gap-3">
                           <div>
                             <div className="text-lg font-bold text-foreground">
-                              {player.allPoints?.toLocaleString() || 0}
+                              {formattedPoints}
                             </div>
-                            <div className="text-xs text-muted-foreground">All Points</div>
+                            <div className="text-xs text-muted-foreground">{activePointsLabel}</div>
                           </div>
                           <div className="shrink-0">
                             <RankBadge rank={player.rank} size="md" showLabel={false} />
@@ -205,8 +295,20 @@ export default function LeaderboardPage() {
                     </div>
 
                     {/* Points Breakdown - Show for all users */}
-                    {!player.isActor && (player.invitePoints > 0 || player.earnedPoints !== 0 || player.bonusPoints > 0) && (
+                    {!player.isActor && (
+                      player.invitePoints > 0 ||
+                      player.earnedPoints !== 0 ||
+                      player.bonusPoints > 0 ||
+                      player.lifetimePnL !== 0 ||
+                      player.referralCount > 0
+                    ) && (
                       <div className="mt-2 ml-16 flex gap-4 text-xs">
+                        <div className="flex items-center gap-1">
+                          <span className="text-muted-foreground">P&L:</span>
+                          <span className={`font-semibold ${pnlColor}`}>
+                            {pnlDisplay}
+                          </span>
+                        </div>
                         {player.invitePoints > 0 && (
                           <div className="flex items-center gap-1">
                             <span className="text-muted-foreground">Invite:</span>
@@ -225,6 +327,12 @@ export default function LeaderboardPage() {
                           <div className="flex items-center gap-1">
                             <span className="text-muted-foreground">Bonus:</span>
                             <span className="font-semibold text-yellow-500">{player.bonusPoints}</span>
+                          </div>
+                        )}
+                        {player.referralCount > 0 && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-muted-foreground">Referrals:</span>
+                            <span className="font-semibold text-primary">{player.referralCount}</span>
                           </div>
                         )}
                       </div>
@@ -269,6 +377,27 @@ export default function LeaderboardPage() {
 
       {/* Mobile/Tablet: Full width content */}
       <div className="flex sm:hidden flex-col flex-1 overflow-hidden">
+        <div className="w-full px-4 sm:px-6 pt-4">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2">
+            {tabs.map((tab) => {
+              const isActive = tab.key === selectedTab
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => handleTabChange(tab.key)}
+                  className={`whitespace-nowrap px-3 py-2 rounded-full border text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-[#0066FF] border-[#0066FF] text-white shadow-sm'
+                      : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/40'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">{activeTabDescription}</p>
+        </div>
 
         {/* Loading State */}
         {loading && (
@@ -294,13 +423,33 @@ export default function LeaderboardPage() {
           <div className="flex-1 flex items-center justify-center p-8">
             <div className="text-center text-muted-foreground">
               <Trophy className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-semibold mb-2 text-foreground">Compete with AI Traders</p>
-              <p className="text-sm mb-2">
-                Earn {minPoints.toLocaleString()} reputation points to appear on the leaderboard!
-              </p>
-              <p className="text-xs">
-                Complete your profile, link socials, share, and refer friends to earn up to 7,000 points
-              </p>
+              {leaderboardData.pointsCategory === 'all' && (
+                <>
+                  <p className="text-lg font-semibold mb-2 text-foreground">Compete with AI Traders</p>
+                  <p className="text-sm mb-2">
+                    Earn {baseMinPoints.toLocaleString()} reputation points to appear on the leaderboard!
+                  </p>
+                  <p className="text-xs">
+                    Complete your profile, link socials, share, and refer friends to earn up to 7,000 points.
+                  </p>
+                </>
+              )}
+              {leaderboardData.pointsCategory === 'earned' && (
+                <>
+                  <p className="text-lg font-semibold mb-2 text-foreground">No Earned Points Yet</p>
+                  <p className="text-sm">
+                    Close profitable trades across perps and prediction markets to climb this board.
+                  </p>
+                </>
+              )}
+              {leaderboardData.pointsCategory === 'referral' && (
+                <>
+                  <p className="text-lg font-semibold mb-2 text-foreground">No Referral Points Yet</p>
+                  <p className="text-sm">
+                    Share your invite link and onboard friends to earn referral points.
+                  </p>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -321,6 +470,19 @@ export default function LeaderboardPage() {
                 {leaderboardData.leaderboard.map((player) => {
                   const isCurrentUser = authenticated && user && player.id === user.id
                   const profileUrl = `/profile/${player.username || player.id}`
+                  const displayPoints =
+                    selectedTab === 'all'
+                      ? player.allPoints
+                      : selectedTab === 'earned'
+                        ? player.earnedPoints
+                        : player.invitePoints
+                  const formattedPoints = (displayPoints ?? 0).toLocaleString()
+                  const absolutePnL = Math.abs(player.lifetimePnL)
+                  const formattedPnL = formatCurrency(absolutePnL)
+                  const pnlDisplay =
+                    player.lifetimePnL === 0 ? formatCurrency(0) : `${player.lifetimePnL > 0 ? '+' : '-'}${formattedPnL}`
+                  const pnlColor =
+                    player.lifetimePnL === 0 ? 'text-muted-foreground' : player.lifetimePnL > 0 ? 'text-green-500' : 'text-red-500'
                   
                   return (
                     <Link
@@ -370,11 +532,41 @@ export default function LeaderboardPage() {
                             </p>
                           )}
                           <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground">
-                            <span>{player.allPoints?.toLocaleString() || 0} pts</span>
+                            <span className="text-foreground font-semibold">{formattedPoints} pts</span>
+                            <span>{activePointsLabel}</span>
                             {player.rank <= 3 && (
                               <RankBadge rank={player.rank} />
                             )}
                           </div>
+                          {!player.isActor && (
+                            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs sm:text-sm text-muted-foreground">
+                              <span className={`${pnlColor} font-semibold`}>P&L: {pnlDisplay}</span>
+                              {player.invitePoints > 0 && (
+                                <span>
+                                  Invite: <span className="font-semibold text-primary">{player.invitePoints}</span>
+                                </span>
+                              )}
+                              {player.earnedPoints !== 0 && (
+                                <span>
+                                  Earned:{' '}
+                                  <span className={`font-semibold ${player.earnedPoints > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                    {player.earnedPoints > 0 ? '+' : ''}
+                                    {player.earnedPoints}
+                                  </span>
+                                </span>
+                              )}
+                              {player.bonusPoints > 0 && (
+                                <span>
+                                  Bonus: <span className="font-semibold text-yellow-500">{player.bonusPoints}</span>
+                                </span>
+                              )}
+                              {player.referralCount > 0 && (
+                                <span>
+                                  Referrals: <span className="font-semibold text-primary">{player.referralCount}</span>
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </Link>

@@ -4,15 +4,7 @@
  * Queries the Agent0 subgraph for fast agent discovery and search.
  */
 
-// Temporarily disabled - install graphql-request to re-enable
-// import { GraphQLClient } from 'graphql-request'
-class GraphQLClient {
-  constructor(_url: string) {}
-  request(_query: string, _variables?: unknown): Promise<unknown> {
-    return Promise.resolve({});
-  }
-}
-import { logger } from '@/lib/logger'
+import { GraphQLClient } from 'graphql-request'
 
 export interface SubgraphAgent {
   id: string
@@ -40,17 +32,19 @@ export interface SubgraphAgent {
 
 export class SubgraphClient {
   private client: GraphQLClient
-  
+
   constructor() {
     const subgraphUrl = process.env.AGENT0_SUBGRAPH_URL
     
     if (!subgraphUrl) {
-      logger.warn('AGENT0_SUBGRAPH_URL not configured, subgraph queries will fail', undefined, 'SubgraphClient')
+      throw new Error('AGENT0_SUBGRAPH_URL environment variable is required')
     }
     
-    this.client = new GraphQLClient(
-      subgraphUrl || 'https://api.studio.thegraph.com/query/.../agent0'
-    )
+    this.client = new GraphQLClient(subgraphUrl, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
   }
   
   /**

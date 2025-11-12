@@ -175,3 +175,4 @@ noPrice = noShares / (yesShares + noShares)
 - Removed 6 console.log statements from `MarketsPanel.tsx`
 - Kept appropriate console.error in `MarketBiasIndicator.tsx`
 
+

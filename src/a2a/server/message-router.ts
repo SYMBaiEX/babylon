@@ -27,73 +27,25 @@ import type { IUnifiedDiscoveryService } from '@/agents/agent0/types'
 import { logger } from '../utils/logger'
 import { prisma } from '@/lib/database-service'
 import { getAnalysisService } from '../services/analysis-service'
+import {
+  DiscoverParamsSchema,
+  GetAgentInfoParamsSchema,
+  GetMarketDataParamsSchema,
+  GetMarketPricesParamsSchema,
+  SubscribeMarketParamsSchema,
+  ProposeCoalitionParamsSchema,
+  JoinCoalitionParamsSchema,
+  CoalitionMessageParamsSchema,
+  LeaveCoalitionParamsSchema,
+  RequestAnalysisParamsSchema,
+  PaymentRequestParamsSchema,
+  PaymentReceiptParamsSchema,
+  GetAnalysesParamsSchema,
+} from './validation'
+import { MarketAnalysisSchema } from '../types'
 
 // Typed parameter interfaces for each method
-interface DiscoverParams {
-  filters?: {
-    strategies?: string[]
-    minReputation?: number
-    markets?: string[]
-  }
-  limit?: number
-}
-
-interface GetAgentInfoParams {
-  agentId: string
-}
-
-interface GetMarketDataParams {
-  marketId: string
-}
-
-interface GetMarketPricesParams {
-  marketId: string
-}
-
-interface SubscribeMarketParams {
-  marketId: string
-}
-
-interface ProposeCoalitionParams {
-  name: string
-  targetMarket: string
-  strategy: string
-  minMembers: number
-  maxMembers: number
-}
-
-interface JoinCoalitionParams {
-  coalitionId: string
-}
-
-interface CoalitionMessageParams {
-  coalitionId: string
-  messageType: 'analysis' | 'vote' | 'action' | 'coordination'
-  content: Record<string, string | number | boolean | null>
-}
-
-interface LeaveCoalitionParams {
-  coalitionId: string
-}
-
-interface RequestAnalysisParams {
-  marketId: string
-  paymentOffer?: string
-  deadline: number
-}
-
-interface PaymentRequestParams {
-  to: string
-  amount: string
-  service: string
-  metadata?: Record<string, string | number | boolean | null>
-  from?: string
-}
-
-interface PaymentReceiptParams {
-  requestId: string
-  txHash: string
-}
+// Note: These types are inferred from schemas but kept for potential future use
 
 export class MessageRouter {
   private config: Required<A2AServerConfig>
@@ -191,16 +143,12 @@ export class MessageRouter {
   private async handleDiscover(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.DISCOVER_AGENTS)
     
-    // Validate and type params
-    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: expected object'
-      )
+    const parseResult = DiscoverParamsSchema.safeParse(request.params);
+    if (!parseResult.success) {
+      return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for discoverAgents');
     }
-    
-    const discoverRequest = request.params as DiscoverParams
+    const discoverRequest = parseResult.data;
+
     let agents: AgentProfile[] = []
 
     if (this.unifiedDiscovery) {
@@ -238,25 +186,12 @@ export class MessageRouter {
   private async handleGetAgentInfo(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.GET_AGENT_INFO)
     
-    // Validate and type params
-    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: expected object'
-      )
+    const parseResult = GetAgentInfoParamsSchema.safeParse(request.params);
+    if (!parseResult.success) {
+      return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for getAgentInfo');
     }
+    const agentInfo = parseResult.data;
     
-    const agentInfo = request.params as unknown as GetAgentInfoParams
-    
-    if (!agentInfo.agentId || typeof agentInfo.agentId !== 'string') {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: agentId is required'
-      )
-    }
-
     // Check if it's an external agent (agent0-{tokenId} format)
     if (agentInfo.agentId.startsWith('agent0-')) {
       const tokenId = parseInt(agentInfo.agentId.replace('agent0-', ''), 10)
@@ -340,24 +275,11 @@ export class MessageRouter {
   private async handleGetMarketData(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.GET_MARKET_DATA)
     
-    // Validate and type params
-    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: expected object'
-      )
+    const parseResult = GetMarketDataParamsSchema.safeParse(request.params);
+    if (!parseResult.success) {
+      return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for getMarketData');
     }
-    
-    const marketRequest = request.params as unknown as GetMarketDataParams
-    
-    if (!marketRequest.marketId || typeof marketRequest.marketId !== 'string') {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: marketId is required'
-      )
-    }
+    const marketRequest = parseResult.data;
 
     const market = await prisma.market.findUnique({
       where: { id: marketRequest.marketId }
@@ -400,24 +322,12 @@ export class MessageRouter {
   private async handleGetMarketPrices(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.GET_MARKET_PRICES)
     
-    // Validate and type params
-    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: expected object'
-      )
+    const parseResult = GetMarketPricesParamsSchema.safeParse(request.params);
+    if (!parseResult.success) {
+      return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for getMarketPrices');
     }
-    
-    const pricesRequest = request.params as unknown as GetMarketPricesParams
-    
-    if (!pricesRequest.marketId || typeof pricesRequest.marketId !== 'string') {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: marketId is required'
-      )
-    }
+    const pricesRequest = parseResult.data;
+
     const market = await prisma.market.findUnique({
       where: { id: pricesRequest.marketId }
     })
@@ -454,24 +364,11 @@ export class MessageRouter {
   private async handleSubscribeMarket(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.SUBSCRIBE_MARKET)
     
-    // Validate and type params
-    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: expected object'
-      )
+    const parseResult = SubscribeMarketParamsSchema.safeParse(request.params);
+    if (!parseResult.success) {
+      return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for subscribeMarket');
     }
-    
-    const subscriptionRequest = request.params as unknown as SubscribeMarketParams
-    
-    if (!subscriptionRequest.marketId || typeof subscriptionRequest.marketId !== 'string') {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: marketId is required'
-      )
-    }
+    const subscriptionRequest = parseResult.data;
 
     // Add agent to subscription set for this market
     if (!this.marketSubscriptions.has(subscriptionRequest.marketId)) {
@@ -493,24 +390,12 @@ export class MessageRouter {
   private async handleProposeCoalition(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.PROPOSE_COALITION)
     
-    // Validate and type params
-    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: expected object'
-      )
+    const parseResult = ProposeCoalitionParamsSchema.safeParse(request.params);
+    if (!parseResult.success) {
+      return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for proposeCoalition');
     }
+    const proposal = parseResult.data;
     
-    const proposal = request.params as unknown as ProposeCoalitionParams
-    
-    if (!proposal.name || !proposal.targetMarket || !proposal.strategy) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: name, targetMarket, and strategy are required'
-      )
-    }
     const coalitionId = `coalition-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
     const coalition: Coalition = {
@@ -538,24 +423,11 @@ export class MessageRouter {
   private async handleJoinCoalition(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.JOIN_COALITION)
     
-    // Validate and type params
-    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: expected object'
-      )
+    const parseResult = JoinCoalitionParamsSchema.safeParse(request.params);
+    if (!parseResult.success) {
+      return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for joinCoalition');
     }
-    
-    const joinRequest = request.params as unknown as JoinCoalitionParams
-    
-    if (!joinRequest.coalitionId || typeof joinRequest.coalitionId !== 'string') {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: coalitionId is required'
-      )
-    }
+    const joinRequest = parseResult.data;
 
     const coalition = this.coalitions.get(joinRequest.coalitionId)
     if (!coalition) {
@@ -584,24 +456,11 @@ export class MessageRouter {
   private async handleCoalitionMessage(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.COALITION_MESSAGE)
     
-    // Validate and type params
-    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: expected object'
-      )
+    const parseResult = CoalitionMessageParamsSchema.safeParse(request.params);
+    if (!parseResult.success) {
+      return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for coalitionMessage');
     }
-    
-    const messageData = request.params as unknown as CoalitionMessageParams
-    
-    if (!messageData.coalitionId || !messageData.messageType) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: coalitionId and messageType are required'
-      )
-    }
+    const messageData = parseResult.data;
 
     const coalition = this.coalitions.get(messageData.coalitionId)
     if (!coalition) {
@@ -655,24 +514,11 @@ export class MessageRouter {
   private async handleLeaveCoalition(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.LEAVE_COALITION)
     
-    // Validate and type params
-    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: expected object'
-      )
+    const parseResult = LeaveCoalitionParamsSchema.safeParse(request.params);
+    if (!parseResult.success) {
+      return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for leaveCoalition');
     }
-    
-    const leaveRequest = request.params as unknown as LeaveCoalitionParams
-    
-    if (!leaveRequest.coalitionId || typeof leaveRequest.coalitionId !== 'string') {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: coalitionId is required'
-      )
-    }
+    const leaveRequest = parseResult.data;
 
     const coalition = this.coalitions.get(leaveRequest.coalitionId)
     if (!coalition) {
@@ -705,16 +551,12 @@ export class MessageRouter {
   private async handleShareAnalysis(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.SHARE_ANALYSIS)
     
-    // Validate and type params
-    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: expected object'
-      )
+    // This one is slightly different as the whole params object is the analysis
+    const parseResult = MarketAnalysisSchema.safeParse(request.params);
+    if (!parseResult.success) {
+        return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for shareAnalysis');
     }
-    
-    const analysis = request.params as unknown as MarketAnalysis
+    const analysis = parseResult.data;
 
     // Validate analysis has required fields
     if (!analysis.marketId || !analysis.timestamp) {
@@ -768,17 +610,12 @@ export class MessageRouter {
   private async handleRequestAnalysis(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.REQUEST_ANALYSIS)
     
-    // Validate and type params
-    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: expected object'
-      )
+    const parseResult = RequestAnalysisParamsSchema.safeParse(request.params);
+    if (!parseResult.success) {
+        return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for requestAnalysis');
     }
-    
-    const analysisRequest = request.params as unknown as RequestAnalysisParams
-    
+    const analysisRequest = parseResult.data;
+
     if (!analysisRequest.marketId || !analysisRequest.deadline) {
       return this.errorResponse(
         request.id,
@@ -843,16 +680,11 @@ export class MessageRouter {
   private async handleGetAnalyses(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.GET_ANALYSES)
     
-    // Validate and type params
-    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: expected object'
-      )
+    const parseResult = GetAnalysesParamsSchema.safeParse(request.params);
+    if (!parseResult.success) {
+        return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for getAnalyses');
     }
-    
-    const params = request.params as { marketId: string; limit?: number }
+    const params = parseResult.data;
     
     if (!params.marketId || typeof params.marketId !== 'string') {
       return this.errorResponse(
@@ -892,17 +724,12 @@ export class MessageRouter {
   private async handlePaymentRequest(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.PAYMENT_REQUEST)
     
-    // Validate and type params
-    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: expected object'
-      )
+    const parseResult = PaymentRequestParamsSchema.safeParse(request.params);
+    if (!parseResult.success) {
+        return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for payment request');
     }
-    
-    const paymentRequest = request.params as unknown as PaymentRequestParams
-    
+    const paymentRequest = parseResult.data;
+
     if (!paymentRequest.to || !paymentRequest.amount || !paymentRequest.service) {
       return this.errorResponse(
         request.id,
@@ -933,7 +760,7 @@ export class MessageRouter {
       paymentRequest.to,
       paymentRequest.amount,
       paymentRequest.service,
-      paymentRequest.metadata as Record<string, string | number | boolean | null> | undefined
+      paymentRequest.metadata
     )
 
     return {
@@ -950,17 +777,12 @@ export class MessageRouter {
   private async handlePaymentReceipt(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
     this.logRequest(agentId, A2AMethod.PAYMENT_RECEIPT)
     
-    // Validate and type params
-    if (!request.params || typeof request.params !== 'object' || Array.isArray(request.params)) {
-      return this.errorResponse(
-        request.id,
-        ErrorCode.INVALID_PARAMS,
-        'Invalid params: expected object'
-      )
+    const parseResult = PaymentReceiptParamsSchema.safeParse(request.params);
+    if (!parseResult.success) {
+        return this.errorResponse(request.id, ErrorCode.INVALID_PARAMS, 'Invalid params for payment receipt');
     }
-    
-    const receipt = request.params as unknown as PaymentReceiptParams
-    
+    const receipt = parseResult.data;
+
     if (!receipt.requestId || !receipt.txHash) {
       return this.errorResponse(
         request.id,

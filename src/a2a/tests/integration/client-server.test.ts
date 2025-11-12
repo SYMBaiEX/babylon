@@ -162,7 +162,9 @@ describe('Client-Server Integration', () => {
 
       expect(proposal.coalitionId).toBeDefined()
       expect(proposal.proposal.name).toBe('Alpha Coalition')
-      expect(proposal.proposal.members).toContain(client.getAgentId())
+      const agentId = client.getAgentId()
+      if (!agentId) throw new Error('Agent ID is null')
+      expect(proposal.proposal.members).toContain(agentId)
 
       // Create second client
       const wallet2 = new ethers.Wallet('0x0123456789012345678901234567890123456789012345678901234567890124')
@@ -188,8 +190,11 @@ describe('Client-Server Integration', () => {
       const joined = await client2.joinCoalition(proposal.coalitionId)
 
       expect(joined.joined).toBe(true)
-      expect(joined.coalition.members).toContain(client.getAgentId())
-      expect(joined.coalition.members).toContain(client2.getAgentId())
+      const agentId1 = client.getAgentId()
+      const agentId2 = client2.getAgentId()
+      if (!agentId1 || !agentId2) throw new Error('Agent ID is null')
+      expect(joined.coalition.members).toContain(agentId1)
+      expect(joined.coalition.members).toContain(agentId2)
 
       client2.disconnect()
     })

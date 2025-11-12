@@ -11,6 +11,7 @@
 
 import { test, expect } from '@playwright/test'
 import { prisma } from '@/lib/database-service'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 // Test users will be created/found before tests
 let testUser1: { id: string; username: string; displayName: string }
@@ -84,7 +85,7 @@ test.describe('Follow System - Complete Coverage', () => {
         select: {
           _count: {
             select: {
-              following: true,
+              Follow_Follow_followerIdToUser: true,
             },
           },
         },
@@ -95,7 +96,7 @@ test.describe('Follow System - Complete Coverage', () => {
         select: {
           _count: {
             select: {
-              followedBy: true,
+              Follow_Follow_followingIdToUser: true,
             },
           },
         },
@@ -104,6 +105,7 @@ test.describe('Follow System - Complete Coverage', () => {
       // Create follow relationship
       await prisma.follow.create({
         data: {
+          id: generateSnowflakeId(),
           followerId: testUser1.id,
           followingId: testUser2.id,
         },
@@ -118,7 +120,7 @@ test.describe('Follow System - Complete Coverage', () => {
         select: {
           _count: {
             select: {
-              following: true,
+              Follow_Follow_followerIdToUser: true,
             },
           },
         },
@@ -129,18 +131,18 @@ test.describe('Follow System - Complete Coverage', () => {
         select: {
           _count: {
             select: {
-              followedBy: true,
+              Follow_Follow_followingIdToUser: true,
             },
           },
         },
       })
 
       // Verify counts increased
-      expect(updatedUser1!._count.following).toBe((initialUser1!._count.following || 0) + 1)
-      expect(updatedUser2!._count.followedBy).toBe((initialUser2!._count.followedBy || 0) + 1)
+      expect(updatedUser1!._count.Follow_Follow_followerIdToUser).toBe((initialUser1!._count.Follow_Follow_followerIdToUser || 0) + 1)
+      expect(updatedUser2!._count.Follow_Follow_followingIdToUser).toBe((initialUser2!._count.Follow_Follow_followingIdToUser || 0) + 1)
 
-      console.log('✅ User 1 following count:', updatedUser1!._count.following)
-      console.log('✅ User 2 follower count:', updatedUser2!._count.followedBy)
+      console.log('✅ User 1 following count:', updatedUser1!._count.Follow_Follow_followerIdToUser)
+      console.log('✅ User 2 follower count:', updatedUser2!._count.Follow_Follow_followingIdToUser)
     })
 
     test('should unfollow user and see counts decrease', async () => {
@@ -150,7 +152,7 @@ test.describe('Follow System - Complete Coverage', () => {
         select: {
           _count: {
             select: {
-              following: true,
+              Follow_Follow_followerIdToUser: true,
             },
           },
         },
@@ -161,7 +163,7 @@ test.describe('Follow System - Complete Coverage', () => {
         select: {
           _count: {
             select: {
-              followedBy: true,
+              Follow_Follow_followingIdToUser: true,
             },
           },
         },
@@ -190,7 +192,7 @@ test.describe('Follow System - Complete Coverage', () => {
         select: {
           _count: {
             select: {
-              following: true,
+              Follow_Follow_followerIdToUser: true,
             },
           },
         },
@@ -201,7 +203,7 @@ test.describe('Follow System - Complete Coverage', () => {
         select: {
           _count: {
             select: {
-              followedBy: true,
+              Follow_Follow_followingIdToUser: true,
             },
           },
         },
@@ -209,12 +211,12 @@ test.describe('Follow System - Complete Coverage', () => {
 
       // Verify counts decreased (or stayed same if didn't exist)
       if (existingFollow) {
-        expect(updatedUser1!._count.following).toBe((initialUser1!._count.following || 0) - 1)
-        expect(updatedUser2!._count.followedBy).toBe((initialUser2!._count.followedBy || 0) - 1)
+        expect(updatedUser1!._count.Follow_Follow_followerIdToUser).toBe((initialUser1!._count.Follow_Follow_followerIdToUser || 0) - 1)
+        expect(updatedUser2!._count.Follow_Follow_followingIdToUser).toBe((initialUser2!._count.Follow_Follow_followingIdToUser || 0) - 1)
       }
 
-      console.log('✅ User 1 following count after unfollow:', updatedUser1!._count.following)
-      console.log('✅ User 2 follower count after unfollow:', updatedUser2!._count.followedBy)
+      console.log('✅ User 1 following count after unfollow:', updatedUser1!._count.Follow_Follow_followerIdToUser)
+      console.log('✅ User 2 follower count after unfollow:', updatedUser2!._count.Follow_Follow_followingIdToUser)
     })
 
     test('should verify counts are non-zero for users with follows', async () => {
@@ -231,6 +233,7 @@ test.describe('Follow System - Complete Coverage', () => {
       if (!existingFollow) {
         await prisma.follow.create({
           data: {
+            id: generateSnowflakeId(),
             followerId: testUser1.id,
             followingId: testUser2.id,
           },
@@ -244,7 +247,7 @@ test.describe('Follow System - Complete Coverage', () => {
         select: {
           _count: {
             select: {
-              following: true,
+              Follow_Follow_followerIdToUser: true,
             },
           },
         },
@@ -255,19 +258,19 @@ test.describe('Follow System - Complete Coverage', () => {
         select: {
           _count: {
             select: {
-              followedBy: true,
+              Follow_Follow_followingIdToUser: true,
             },
           },
         },
       })
 
       // At least User 1 should have 1 following, User 2 should have 1 follower
-      expect(user1!._count.following).toBeGreaterThan(0)
-      expect(user2!._count.followedBy).toBeGreaterThan(0)
+      expect(user1!._count.Follow_Follow_followerIdToUser).toBeGreaterThan(0)
+      expect(user2!._count.Follow_Follow_followingIdToUser).toBeGreaterThan(0)
 
       console.log('✅ Verified non-zero counts:')
-      console.log(`   User 1 following: ${user1!._count.following}`)
-      console.log(`   User 2 followers: ${user2!._count.followedBy}`)
+      console.log(`   User 1 following: ${user1!._count.Follow_Follow_followerIdToUser}`)
+      console.log(`   User 2 followers: ${user2!._count.Follow_Follow_followingIdToUser}`)
     })
   })
 
@@ -289,20 +292,21 @@ test.describe('Follow System - Complete Coverage', () => {
         select: {
           _count: {
             select: {
-              following: true,
-              userActorFollows: true,
+              Follow_Follow_followerIdToUser: true,
+              UserActorFollow: true,
             },
           },
         },
       })
 
       const initialTotalFollowing = 
-        (initialUser!._count.following || 0) + 
-        (initialUser!._count.userActorFollows || 0)
+        (initialUser!._count.Follow_Follow_followerIdToUser || 0) + 
+        (initialUser!._count.UserActorFollow || 0)
 
       // Create follow
       await prisma.userActorFollow.create({
         data: {
+          id: generateSnowflakeId(),
           userId: testUser1.id,
           actorId: testActor.id,
         },
@@ -316,16 +320,16 @@ test.describe('Follow System - Complete Coverage', () => {
         select: {
           _count: {
             select: {
-              following: true,
-              userActorFollows: true,
+              Follow_Follow_followerIdToUser: true,
+              UserActorFollow: true,
             },
           },
         },
       })
 
       const updatedTotalFollowing = 
-        (updatedUser!._count.following || 0) + 
-        (updatedUser!._count.userActorFollows || 0)
+        (updatedUser!._count.Follow_Follow_followerIdToUser || 0) + 
+        (updatedUser!._count.UserActorFollow || 0)
 
       // Verify count increased
       expect(updatedTotalFollowing).toBe(initialTotalFollowing + 1)
@@ -340,16 +344,16 @@ test.describe('Follow System - Complete Coverage', () => {
         select: {
           _count: {
             select: {
-              following: true,
-              userActorFollows: true,
+              Follow_Follow_followerIdToUser: true,
+              UserActorFollow: true,
             },
           },
         },
       })
 
       const initialTotalFollowing = 
-        (initialUser!._count.following || 0) + 
-        (initialUser!._count.userActorFollows || 0)
+        (initialUser!._count.Follow_Follow_followerIdToUser || 0) + 
+        (initialUser!._count.UserActorFollow || 0)
 
       // Delete follow
       const existingFollow = await prisma.userActorFollow.findUnique({
@@ -373,16 +377,16 @@ test.describe('Follow System - Complete Coverage', () => {
         select: {
           _count: {
             select: {
-              following: true,
-              userActorFollows: true,
+              Follow_Follow_followerIdToUser: true,
+              UserActorFollow: true,
             },
           },
         },
       })
 
       const updatedTotalFollowing = 
-        (updatedUser!._count.following || 0) + 
-        (updatedUser!._count.userActorFollows || 0)
+        (updatedUser!._count.Follow_Follow_followerIdToUser || 0) + 
+        (updatedUser!._count.UserActorFollow || 0)
 
       // Verify count decreased if follow existed
       if (existingFollow) {
@@ -406,6 +410,7 @@ test.describe('Follow System - Complete Coverage', () => {
       if (!existingFollow) {
         await prisma.userActorFollow.create({
           data: {
+            id: generateSnowflakeId(),
             userId: testUser1.id,
             actorId: testActor.id,
           },
@@ -440,6 +445,7 @@ test.describe('Follow System - Complete Coverage', () => {
       if (!follow1to2) {
         await prisma.follow.create({
           data: {
+            id: generateSnowflakeId(),
             followerId: testUser1.id,
             followingId: testUser2.id,
           },
@@ -459,6 +465,7 @@ test.describe('Follow System - Complete Coverage', () => {
       if (!follow2to1) {
         await prisma.follow.create({
           data: {
+            id: generateSnowflakeId(),
             followerId: testUser2.id,
             followingId: testUser1.id,
           },
@@ -473,8 +480,8 @@ test.describe('Follow System - Complete Coverage', () => {
         select: {
           _count: {
             select: {
-              following: true,
-              followedBy: true,
+              Follow_Follow_followerIdToUser: true,
+              Follow_Follow_followingIdToUser: true,
             },
           },
         },
@@ -485,22 +492,22 @@ test.describe('Follow System - Complete Coverage', () => {
         select: {
           _count: {
             select: {
-              following: true,
-              followedBy: true,
+              Follow_Follow_followerIdToUser: true,
+              Follow_Follow_followingIdToUser: true,
             },
           },
         },
       })
 
       // Both should have at least 1 follower and 1 following
-      expect(user1!._count.following).toBeGreaterThanOrEqual(1)
-      expect(user1!._count.followedBy).toBeGreaterThanOrEqual(1)
-      expect(user2!._count.following).toBeGreaterThanOrEqual(1)
-      expect(user2!._count.followedBy).toBeGreaterThanOrEqual(1)
+      expect(user1!._count.Follow_Follow_followerIdToUser).toBeGreaterThanOrEqual(1)
+      expect(user1!._count.Follow_Follow_followingIdToUser).toBeGreaterThanOrEqual(1)
+      expect(user2!._count.Follow_Follow_followerIdToUser).toBeGreaterThanOrEqual(1)
+      expect(user2!._count.Follow_Follow_followingIdToUser).toBeGreaterThanOrEqual(1)
 
       console.log('✅ Mutual follows verified:')
-      console.log(`   User 1: ${user1!._count.following} following, ${user1!._count.followedBy} followers`)
-      console.log(`   User 2: ${user2!._count.following} following, ${user2!._count.followedBy} followers`)
+      console.log(`   User 1: ${user1!._count.Follow_Follow_followerIdToUser} following, ${user1!._count.Follow_Follow_followingIdToUser} followers`)
+      console.log(`   User 2: ${user2!._count.Follow_Follow_followerIdToUser} following, ${user2!._count.Follow_Follow_followingIdToUser} followers`)
     })
 
     test('should correctly track followers list', async () => {
@@ -508,7 +515,7 @@ test.describe('Follow System - Complete Coverage', () => {
       const followers = await prisma.follow.findMany({
         where: { followingId: testUser2.id },
         include: {
-          follower: {
+          User_Follow_followerIdToUser: {
             select: {
               id: true,
               username: true,
@@ -521,17 +528,18 @@ test.describe('Follow System - Complete Coverage', () => {
       expect(followers.length).toBeGreaterThan(0)
 
       // User 1 should be in the followers list
-      const hasUser1 = followers.some(f => f.follower.id === testUser1.id)
+      const hasUser1 = followers.some(f => f.User_Follow_followerIdToUser.id === testUser1.id)
       expect(hasUser1).toBe(true)
 
       console.log(`✅ User 2 has ${followers.length} followers`)
-      console.log('   Followers:', followers.map(f => f.follower.username).join(', '))
+      console.log('   Followers:', followers.map(f => f.User_Follow_followerIdToUser.username).join(', '))
     })
 
     test('should correctly track following list', async () => {
       // Ensure User 1 is following User 2
       await prisma.follow.create({
         data: {
+          id: generateSnowflakeId(),
           followerId: testUser1.id,
           followingId: testUser2.id,
         },
@@ -543,7 +551,7 @@ test.describe('Follow System - Complete Coverage', () => {
       const following = await prisma.follow.findMany({
         where: { followerId: testUser1.id },
         include: {
-          following: {
+          User_Follow_followingIdToUser: {
             select: {
               id: true,
               username: true,
@@ -556,11 +564,11 @@ test.describe('Follow System - Complete Coverage', () => {
       expect(following.length).toBeGreaterThanOrEqual(1)
 
       // User 2 should be in the following list
-      const hasUser2 = following.some(f => f.following.id === testUser2.id)
+      const hasUser2 = following.some(f => f.User_Follow_followingIdToUser.id === testUser2.id)
       expect(hasUser2).toBe(true)
 
       console.log(`✅ User 1 is following ${following.length} users`)
-      console.log('   Following:', following.map(f => f.following.username).join(', '))
+      console.log('   Following:', following.map(f => f.User_Follow_followingIdToUser.username).join(', '))
     })
   })
 
@@ -579,6 +587,7 @@ test.describe('Follow System - Complete Coverage', () => {
       if (!existingFollow) {
         await prisma.follow.create({
           data: {
+            id: generateSnowflakeId(),
             followerId: testUser1.id,
             followingId: testUser2.id,
           },
@@ -602,22 +611,22 @@ test.describe('Follow System - Complete Coverage', () => {
 
     test('should correctly report not following status', async () => {
       // Ensure User 1 is NOT following User 2
-      await prisma.follow.deleteMany({
+      const deleted = await prisma.follow.deleteMany({
         where: {
           followerId: testUser1.id,
           followingId: testUser2.id,
         },
       })
 
-      await new Promise(resolve => setTimeout(resolve, 200))
+      console.log(`Deleted ${deleted.count} follow relationships`)
 
-      // Check follow status
-      const isFollowing = await prisma.follow.findUnique({
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      // Check follow status - verify it's really gone
+      const isFollowing = await prisma.follow.findFirst({
         where: {
-          followerId_followingId: {
-            followerId: testUser1.id,
-            followingId: testUser2.id,
-          },
+          followerId: testUser1.id,
+          followingId: testUser2.id,
         },
       })
 

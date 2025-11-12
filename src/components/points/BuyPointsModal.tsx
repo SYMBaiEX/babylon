@@ -326,6 +326,7 @@ export function BuyPointsModal({
                 <div className="relative">
                   <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                   <input
+                    data-testid="points-amount-input"
                     type="number"
                     min="1"
                     max="1000"
@@ -369,7 +370,7 @@ export function BuyPointsModal({
                   </span>
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-yellow-500" />
-                    <span className="text-xl font-bold">
+                    <span data-testid="points-amount-display" className="text-xl font-bold">
                       {pointsAmount.toLocaleString()}
                     </span>
                     <span className="text-sm text-muted-foreground">
@@ -409,6 +410,7 @@ export function BuyPointsModal({
                 Cancel
               </button>
               <button
+                data-testid="buy-points-submit-button"
                 onClick={handleCreatePayment}
                 disabled={loading || amountNum < 1 || amountNum > 1000}
                 className={cn(
@@ -442,6 +444,7 @@ export function BuyPointsModal({
             </p>
             {txHash && (
               <a
+                data-testid="transaction-hash-link"
                 href={`https://sepolia.basescan.org/tx/${txHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -455,13 +458,13 @@ export function BuyPointsModal({
 
       case 'success':
         return (
-          <div className="text-center py-8">
+          <div data-testid="payment-success" className="text-center py-8">
             <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Purchase Successful!</h3>
             <div className="bg-sidebar border border-border rounded-2xl p-4 mb-6">
               <div className="flex items-center justify-center gap-2 mb-2">
                 <Sparkles className="h-6 w-6 text-yellow-500" />
-                <span className="text-2xl font-bold">
+                <span data-testid="points-awarded-amount" className="text-2xl font-bold">
                   {pointsAwarded.toLocaleString()}
                 </span>
                 <span className="text-muted-foreground">points</span>
@@ -491,10 +494,10 @@ export function BuyPointsModal({
 
       case 'error':
         return (
-          <div className="text-center py-8">
+          <div data-testid="payment-error" className="text-center py-8">
             <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Payment Failed</h3>
-            <p className="text-sm text-muted-foreground mb-6">
+            <p data-testid="payment-error-message" className="text-sm text-muted-foreground mb-6">
               {error || 'An error occurred during payment'}
             </p>
             <div className="flex gap-3">
@@ -521,6 +524,7 @@ export function BuyPointsModal({
 
   return (
     <div
+      data-testid="buy-points-modal-overlay"
       className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
@@ -529,6 +533,7 @@ export function BuyPointsModal({
       }}
     >
       <div
+        data-testid="buy-points-modal"
         className="bg-background border border-border rounded-xl w-full max-w-md shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >

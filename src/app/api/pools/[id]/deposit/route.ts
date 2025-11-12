@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 import { trackServerEvent } from '@/lib/posthog/server';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { PoolDepositBodySchema } from '@/lib/validation/schemas/pool';
+import { IdParamSchema } from '@/lib/validation/schemas';
 import { Prisma } from '@prisma/client';
 import type { NextRequest } from 'next/server';
 
@@ -18,7 +19,7 @@ export const POST = withErrorHandling(async (
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) => {
-  const { id: poolId } = await context.params;
+  const { id: poolId } = IdParamSchema.parse(await context.params);
 
   // Parse and validate request body
   const body = await request.json();

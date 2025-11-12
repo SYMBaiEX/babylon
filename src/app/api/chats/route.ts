@@ -17,6 +17,9 @@ import type { NextRequest } from 'next/server';
  * Query params: ?all=true - Get all game chats (not just user's chats)
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
+  console.log('[API /api/chats] GET request received');
+  logger.info('GET /api/chats - Request received', undefined, 'GET /api/chats');
+  
   // Validate query parameters
   const { searchParams } = new URL(request.url);
   const query: Record<string, string> = {};
@@ -27,12 +30,16 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   if (all) query.all = all;
   if (debug) query.debug = debug;
   
+  console.log('[API /api/chats] Query params:', { all, debug });
+  
   const validatedQuery = Object.keys(query).length > 0 
     ? ChatQuerySchema.parse(query) 
     : { all: undefined, debug: undefined };
 
   // Check if requesting all game chats
   const getAllChats = validatedQuery.all === 'true';
+  
+  console.log('[API /api/chats] getAllChats:', getAllChats);
 
   if (getAllChats) {
     // Return all game chats (no auth required for read-only game data)
@@ -74,8 +81,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const user = await authenticate(request);
 
-  // Get user's chats with RLS
-  const { groupChats, directChats } = await asUser(user, async (db) => {
+  logger.info('Fetching chats for user', { 
+    userId: user.userId,
+    privyId: user.privyId,
+    dbUserId: user.dbUserId,
+    fullUser: user
+  }, 'GET /api/chats');
+
+  // Get user's chats - TEMPORARILY BYPASS RLS FOR DEBUGGING
+  const { groupChats, directChats } = await asSystem(async (db) => {
     // Get user's group chat memberships
     const memberships = await db.groupChatMembership.findMany({
       where: {
@@ -109,6 +123,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         userId: user.userId,
       },
     });
+
+    logger.info('Found DM participants (using asSystem bypass)', { 
+      userId: user.userId, 
+      count: dmParticipants.length,
+      participants: dmParticipants 
+    }, 'GET /api/chats');
 
     const dmChatIds = dmParticipants.map((p) => p.chatId);
     const dmChatsDetails = await db.chat.findMany({

@@ -10,6 +10,7 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { PostIdParamSchema, SharePostSchema } from '@/lib/validation/schemas';
 import { notifyShare } from '@/lib/services/notification-service';
+import { NPCInteractionTracker } from '@/lib/services/npc-interaction-tracker';
 import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
 import { ensureUserForAuth, getCanonicalUserId } from '@/lib/users/ensure-user';
@@ -98,6 +99,11 @@ export const POST = withErrorHandling(async (
         userId: canonicalUserId,
         postId,
       },
+    });
+
+    // Track interaction with NPC (if post author is NPC)
+    await NPCInteractionTracker.trackShare(canonicalUserId, postId).catch((error) => {
+      logger.warn('Failed to track NPC interaction', { error });
     });
 
     // Create a repost post (like a retweet) that shows on user's profile and feed

@@ -18,6 +18,7 @@ export default function PostPage({ params }: PostPageProps) {
   const { id: postId } = use(params);
   const router = useRouter();
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
+  const [commentSectionKey, _setCommentSectionKey] = useState(0);
   
   // Function to open comment modal when comment button is clicked
   const handleCommentClick = () => {
@@ -25,7 +26,10 @@ export default function PostPage({ params }: PostPageProps) {
   };
 
   // Function to update post interactions from store
-  const updatePostInteractions = () => {
+  // Unused but kept for potential future use
+  // @ts-expect-error TS6133 - Intentionally unused
+   
+  const _updatePostInteractions = (): void => {
     if (post) {
       const { postInteractions } = useInteractionStore.getState();
       const storeData = postInteractions.get(postId);
@@ -255,14 +259,9 @@ export default function PostPage({ params }: PostPageProps) {
               {/* Comments Section - Always visible below the post */}
               <div className="border-b border-border">
                 <FeedCommentSection
+                  key={`inline-comments-${commentSectionKey}`}
                   postId={postId}
                   postData={post}
-                  onCommentAdded={() => {
-                    // Update post interactions after comment is added
-                    setTimeout(() => {
-                      updatePostInteractions();
-                    }, 300);
-                  }}
                 />
               </div>
             </div>
@@ -381,14 +380,9 @@ export default function PostPage({ params }: PostPageProps) {
           {/* Comments Section - Always visible below the post */}
           <div className="border-b border-border">
             <FeedCommentSection
+              key={`inline-comments-mobile-${commentSectionKey}`}
               postId={postId}
               postData={post}
-              onCommentAdded={() => {
-                // Update post interactions after comment is added
-                setTimeout(() => {
-                  updatePostInteractions();
-                }, 300);
-              }}
             />
           </div>
         </div>
@@ -400,13 +394,6 @@ export default function PostPage({ params }: PostPageProps) {
           postId={postId}
           postData={post}
           onClose={() => setIsCommentModalOpen(false)}
-          onCommentAdded={() => {
-            // Update post interactions after comment is added
-            // Note: modal is already closed by onClose callback
-            setTimeout(() => {
-              updatePostInteractions();
-            }, 300);
-          }}
         />
       )}
     </PageContainer>

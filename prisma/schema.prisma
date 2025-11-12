@@ -182,6 +182,7 @@ model Comment {
   @@index([deletedAt])
   @@index([parentCommentId])
   @@index([postId, createdAt(sort: Desc)])
+  @@index([postId, deletedAt]) // For filtering deleted comments
 }
 
 model Favorite {
@@ -305,6 +306,62 @@ model GroupChatMembership {
   @@index([userId, isActive])
 }
 
+model UserGroup {
+  id              String            @id
+  name            String
+  description     String?
+  createdById     String
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime
+  UserGroupMember UserGroupMember[]
+  UserGroupAdmin  UserGroupAdmin[]
+
+  @@index([createdById])
+  @@index([createdAt(sort: Desc)])
+}
+
+model UserGroupMember {
+  id        String    @id
+  groupId   String
+  userId    String
+  joinedAt  DateTime  @default(now())
+  addedBy   String
+  UserGroup UserGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
+}
+
+model UserGroupAdmin {
+  id          String    @id
+  groupId     String
+  userId      String
+  grantedAt   DateTime  @default(now())
+  grantedBy   String
+  UserGroup   UserGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
+}
+
+model UserGroupInvite {
+  id          String    @id
+  groupId     String
+  invitedUserId String
+  invitedBy   String
+  status      String    @default("pending") // pending, accepted, declined
+  invitedAt   DateTime  @default(now())
+  respondedAt DateTime?
+  message     String?
+
+  @@unique([groupId, invitedUserId])
+  @@index([groupId])
+  @@index([invitedUserId, status])
+  @@index([status])
+}
+
 model Market {
   id          String     @id
   question    String
@@ -379,6 +436,7 @@ model Notification {
   @@index([read])
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, read, createdAt(sort: Desc)])
+  @@index([userId, type, read]) // For filtering notifications by type
 }
 
 model OnboardingIntent {
@@ -599,6 +657,8 @@ model Post {
   @@index([parentCommentId])
   @@index([timestamp(sort: Desc)])
   @@index([type, timestamp(sort: Desc)])
+  @@index([type, deletedAt, timestamp(sort: Desc)]) // Compound index for filtered feeds
+  @@index([authorId, type, timestamp(sort: Desc)]) // For user's posts by type
 }
 
 model PostTag {
@@ -889,9 +949,12 @@ model User {
   @@index([referralCode])
   @@index([reputationPoints(sort: Desc)])
   @@index([username])
+  @@index([displayName]) // For search queries
   @@index([waitlistJoinedAt])
   @@index([waitlistPosition])
   @@index([walletAddress])
+  @@index([isBanned, isActor]) // Compound index for filtering
+  @@index([profileComplete, createdAt(sort: Desc)]) // For finding incomplete profiles
 }
 
 model UserActorFollow {

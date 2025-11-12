@@ -15,41 +15,27 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { biasEngine } from '@/lib/feedback/bias-engine'
 import { logger } from '@/lib/logger'
+import { z } from 'zod'
 
-interface TuneBiasRequest {
-  entityId: string
-  strength: number // 0-1, 0 = deactivate
-  decayRate?: number // Optional, 0-1
-}
+const TuneBiasSchema = z.object({
+  entityId: z.string().min(1, 'entityId is required'),
+  strength: z.number().min(0).max(1),
+  decayRate: z.number().min(0).max(1).optional(),
+});
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as TuneBiasRequest
+    const json = await request.json()
+    const parsed = TuneBiasSchema.safeParse(json)
 
-    // Validate required fields
-    if (!body.entityId) {
-      return NextResponse.json({ error: 'entityId is required' }, { status: 400 })
-    }
-
-    if (body.strength === undefined) {
-      return NextResponse.json({ error: 'strength is required' }, { status: 400 })
-    }
-
-    // Validate strength range
-    if (body.strength < 0 || body.strength > 1) {
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'strength must be between 0 and 1' },
+        { error: 'Invalid request payload', details: parsed.error.flatten() },
         { status: 400 }
       )
     }
 
-    // Validate decay rate if provided
-    if (body.decayRate !== undefined && (body.decayRate < 0 || body.decayRate > 1)) {
-      return NextResponse.json(
-        { error: 'decayRate must be between 0 and 1' },
-        { status: 400 }
-      )
-    }
+    const body = parsed.data
 
     // Check if bias exists
     const currentBias = biasEngine.getBiasAdjustment(body.entityId)

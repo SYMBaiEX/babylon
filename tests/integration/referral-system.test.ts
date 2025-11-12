@@ -266,9 +266,9 @@ describe('Referral System', () => {
     expect(leaderboard.length).toBeGreaterThanOrEqual(3)
     
     // User 1 should be first
-    expect(leaderboard[0].id).toBe(user1Id)
-    expect(leaderboard[0].invitePoints).toBe(50)
-    expect(leaderboard[0].referralCount).toBe(1)
+    expect(leaderboard[0]?.id).toBe(user1Id)
+    expect(leaderboard[0]?.invitePoints).toBe(50)
+    expect(leaderboard[0]?.referralCount).toBe(1)
 
     console.log('\nTop 3 Leaderboard:')
     leaderboard.slice(0, 3).forEach((user, idx) => {
@@ -278,7 +278,7 @@ describe('Referral System', () => {
 
   it('should prevent self-referral', async () => {
     // Try to have a user refer themselves
-    const user1 = await prisma.user.findUnique({
+    await prisma.user.findUnique({
       where: { id: user1Id },
       select: { referralCode: true }
     })

@@ -16,6 +16,7 @@ import {
 } from '@elizaos/core';
 import sqlPlugin from '@elizaos/plugin-sql/node';
 import { predictionMarketsPlugin } from '../../../plugin-babylon/src';
+import { trajectoryLoggerPlugin } from '../../../eliza/plugin-trajectory-logger/src/index';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { JsonValue } from '@prisma/client/runtime/library';
@@ -261,7 +262,7 @@ async function main() {
   const runtime = new AgentRuntime({
     character,
     agentId,
-    plugins: [sqlPlugin, predictionMarketsPlugin],  // SQL plugin must be first to initialize database adapter
+    plugins: [sqlPlugin, trajectoryLoggerPlugin, predictionMarketsPlugin], // SQL plugin must be first to initialize database adapter
   });
 
   // Initialize character with Babylon-specific setup

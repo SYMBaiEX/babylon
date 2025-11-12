@@ -175,7 +175,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       avgPrice: pos.avgPrice.toString(),
       createdAt: pos.createdAt,
     })),
-  ];
+  ].filter(trade => trade.user !== null); // Filter out trades with missing users
 
   // Sort by timestamp
   allTrades.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());

@@ -876,14 +876,25 @@ export async function confirmOnchainProfileUpdate({
     )
   }
 
-  if (!receipt.from || receipt.from.toLowerCase() !== lowerWallet) {
+  // Get the expected token ID for this user's wallet address
+  const expectedTokenId = Number(
+    await publicClient.readContract({
+      address: IDENTITY_REGISTRY,
+      abi: IDENTITY_REGISTRY_ABI,
+      functionName: 'getTokenId',
+      args: [walletAddress as Address],
+    })
+  )
+
+  if (!expectedTokenId || Number.isNaN(expectedTokenId)) {
     throw new BusinessLogicError(
-      'Profile update transaction must originate from the registered wallet',
-      'PROFILE_UPDATE_UNAUTHORIZED',
-      { txHash, txFrom: receipt.from, walletAddress: lowerWallet }
+      'User wallet is not registered on-chain',
+      'WALLET_NOT_REGISTERED',
+      { walletAddress: lowerWallet }
     )
   }
 
+  // Parse the transaction to find the AgentUpdated event and verify it updates the correct token
   let tokenId: number | null = null
   let endpoint = ''
   let capabilitiesHash = '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`
@@ -908,19 +919,21 @@ export async function confirmOnchainProfileUpdate({
     }
   }
 
+  // Verify that the transaction updated the correct token ID
   if (!tokenId) {
-    tokenId = Number(
-      await publicClient.readContract({
-        address: IDENTITY_REGISTRY,
-        abi: IDENTITY_REGISTRY_ABI,
-        functionName: 'getTokenId',
-        args: [walletAddress as Address],
-      })
+    throw new BusinessLogicError(
+      'Transaction did not emit AgentUpdated event',
+      'PROFILE_UPDATE_EVENT_NOT_FOUND',
+      { txHash }
     )
   }
 
-  if (!tokenId || Number.isNaN(tokenId)) {
-    throw new InternalServerError('Unable to determine token ID from profile update transaction', { txHash })
+  if (tokenId !== expectedTokenId) {
+    throw new BusinessLogicError(
+      'Transaction updated a different token ID than expected',
+      'PROFILE_UPDATE_TOKEN_MISMATCH',
+      { txHash, expectedTokenId, actualTokenId: tokenId, walletAddress: lowerWallet }
+    )
   }
 
   const profile = await publicClient.readContract({

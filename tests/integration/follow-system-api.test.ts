@@ -69,6 +69,9 @@ describe('Follow System API Integration Tests', () => {
         },
       })
     } else {
+      if (!users[0] || !users[1]) {
+        throw new Error('Test users not found')
+      }
       testUser1 = users[0]
       testUser2 = users[1]
     }

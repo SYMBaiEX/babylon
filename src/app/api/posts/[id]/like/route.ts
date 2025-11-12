@@ -11,10 +11,12 @@ import { logger } from '@/lib/logger';
 import { parsePostId } from '@/lib/post-id-parser';
 import { trackServerEvent } from '@/lib/posthog/server';
 import { notifyReactionOnPost } from '@/lib/services/notification-service';
+import { NPCInteractionTracker } from '@/lib/services/npc-interaction-tracker';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { ensureUserForAuth } from '@/lib/users/ensure-user';
 import { PostIdParamSchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
+import { invalidateCache, CACHE_KEYS } from '@/lib/cache-service';
 
 /**
  * POST /api/posts/[id]/like
@@ -110,6 +112,11 @@ export const POST = withErrorHandling(async (
       );
     }
 
+    // Track interaction with NPC (if post author is NPC)
+    await NPCInteractionTracker.trackLike(canonicalUserId, postId).catch((error) => {
+      logger.warn('Failed to track NPC interaction', { error });
+    });
+
     // Get updated like count
     const likeCount = await prisma.reaction.count({
       where: {
@@ -117,6 +124,9 @@ export const POST = withErrorHandling(async (
         type: 'like',
       },
     });
+
+  // Invalidate interaction cache for this post
+  await invalidateCache(`post:${postId}:interactions:*`, { namespace: CACHE_KEYS.POST });
 
   logger.info('Post liked successfully', { postId, userId: canonicalUserId, likeCount }, 'POST /api/posts/[id]/like');
 
@@ -191,6 +201,9 @@ export const DELETE = withErrorHandling(async (
         type: 'like',
       },
     });
+
+  // Invalidate interaction cache for this post
+  await invalidateCache(`post:${postId}:interactions:*`, { namespace: CACHE_KEYS.POST });
 
   logger.info('Post unliked successfully', { postId, userId: canonicalUserId, likeCount }, 'DELETE /api/posts/[id]/like');
 

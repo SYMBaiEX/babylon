@@ -30,7 +30,7 @@ export class AnalysisService {
       this.analyses.set(marketId, marketAnalyses.slice(-this.MAX_ANALYSES_PER_MARKET))
     }
     
-    logger.debug(`Stored analysis ${analysisId} for market ${marketId}`, undefined, 'AnalysisService')
+    logger.debug(`[AnalysisService] Stored analysis ${analysisId} for market ${marketId}`)
     return analysisId
   }
   
@@ -80,7 +80,7 @@ export class AnalysisService {
     }
     
     if (totalCleaned > 0) {
-      logger.info(`Cleaned up ${totalCleaned} old analyses`, undefined, 'AnalysisService')
+      logger.info(`[AnalysisService] Cleaned up ${totalCleaned} old analyses`)
     }
   }
   

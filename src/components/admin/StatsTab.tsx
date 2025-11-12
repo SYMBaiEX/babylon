@@ -118,44 +118,33 @@ export function StatsTab() {
     return value.toLocaleString()
   }
 
-  const StatCard = ({ 
+  const StatItem = ({ 
     icon: Icon, 
     label, 
-    value, 
-    sublabel, 
-    subvalue, 
+    value,
     color = 'primary' 
   }: { 
     icon: React.ComponentType<{ className?: string }>
     label: string
     value: string | number
-    sublabel?: string
-    subvalue?: string | number
     color?: 'primary' | 'green' | 'blue' | 'orange' | 'red' | 'purple'
   }) => {
     const colorClasses = {
-      primary: 'bg-primary/10 text-primary',
-      green: 'bg-green-500/10 text-green-500',
-      blue: 'bg-blue-500/10 text-blue-500',
-      orange: 'bg-orange-500/10 text-orange-500',
-      red: 'bg-red-500/10 text-red-500',
-      purple: 'bg-purple-500/10 text-purple-500',
+      primary: 'text-primary',
+      green: 'text-green-500',
+      blue: 'text-blue-500',
+      orange: 'text-orange-500',
+      red: 'text-red-500',
+      purple: 'text-purple-500',
     }
 
     return (
-      <div className="bg-card border border-border rounded-lg p-4">
-        <div className="flex items-start justify-between mb-2">
-          <div className={cn('p-2 rounded-lg', colorClasses[color])}>
-            <Icon className="w-5 h-5" />
-          </div>
+      <div className="flex items-center gap-3">
+        <Icon className={cn('w-4 h-4 flex-shrink-0', colorClasses[color])} />
+        <div className="flex-1 min-w-0">
+          <div className="text-sm text-muted-foreground">{label}</div>
+          <div className="text-xl font-bold">{value}</div>
         </div>
-        <div className="text-2xl font-bold mb-1">{value}</div>
-        <div className="text-sm text-muted-foreground">{label}</div>
-        {sublabel && subvalue !== undefined && (
-          <div className="text-xs text-muted-foreground mt-1">
-            {sublabel}: <span className="font-medium text-foreground">{subvalue}</span>
-          </div>
-        )}
       </div>
     )
   }
@@ -164,12 +153,8 @@ export function StatsTab() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="space-y-4 w-full">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-24 w-full" />
-          </div>
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-32 w-full" />
         </div>
       </div>
     )
@@ -185,152 +170,179 @@ export function StatsTab() {
 
   return (
     <div className="space-y-6">
-      {/* Users Section */}
-      <div>
-        <h2 className="text-xl font-bold mb-3">Users</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            icon={Users}
-            label="Total Users"
-            value={formatNumber(stats.users.total)}
-            sublabel="Real Users"
-            subvalue={formatNumber(stats.users.realUsers)}
-            color="blue"
-          />
-          <StatCard
-            icon={Activity}
-            label="NPCs/Actors"
-            value={formatNumber(stats.users.actors)}
-            color="purple"
-          />
-          <StatCard
-            icon={UserCheck}
-            label="Signups This Week"
-            value={formatNumber(stats.users.signups.thisWeek)}
-            sublabel="Today"
-            subvalue={formatNumber(stats.users.signups.today)}
-            color="green"
-          />
-          <StatCard
-            icon={Shield}
-            label="Admins"
-            value={formatNumber(stats.users.admins)}
-            sublabel="Banned"
-            subvalue={formatNumber(stats.users.banned)}
-            color="orange"
-          />
+      {/* Overview Stats - Cleaner, less boxy design */}
+      <div className="bg-gradient-to-br from-card to-accent/20 border border-border rounded-lg p-6">
+        <h2 className="text-lg font-semibold mb-6 text-muted-foreground uppercase tracking-wide">Platform Overview</h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Users Column */}
+          <div className="space-y-4">
+            <StatItem
+              icon={Users}
+              label="Total Users"
+              value={formatNumber(stats.users.total)}
+              color="blue"
+            />
+            <StatItem
+              icon={Activity}
+              label="NPCs/Actors"
+              value={formatNumber(stats.users.actors)}
+              color="purple"
+            />
+            <StatItem
+              icon={UserCheck}
+              label="Real Users"
+              value={formatNumber(stats.users.realUsers)}
+              color="green"
+            />
+          </div>
+
+          {/* Activity Column */}
+          <div className="space-y-4">
+            <StatItem
+              icon={TrendingUp}
+              label="Total Markets"
+              value={formatNumber(stats.markets.total)}
+              color="green"
+            />
+            <StatItem
+              icon={ShoppingCart}
+              label="Active Markets"
+              value={formatNumber(stats.markets.active)}
+              color="blue"
+            />
+            <StatItem
+              icon={Activity}
+              label="Positions"
+              value={formatNumber(stats.markets.positions)}
+              color="primary"
+            />
+          </div>
+
+          {/* Financial Column */}
+          <div className="space-y-4">
+            <StatItem
+              icon={DollarSign}
+              label="Total Balance"
+              value={formatCurrency(stats.financial.totalVirtualBalance)}
+              color="green"
+            />
+            <StatItem
+              icon={DollarSign}
+              label="Deposited"
+              value={formatCurrency(stats.financial.totalDeposited)}
+              color="blue"
+            />
+            <StatItem
+              icon={TrendingUp}
+              label="Lifetime P&L"
+              value={formatCurrency(stats.financial.totalLifetimePnL)}
+              color={parseFloat(stats.financial.totalLifetimePnL) >= 0 ? 'green' : 'red'}
+            />
+          </div>
+
+          {/* Engagement Column */}
+          <div className="space-y-4">
+            <StatItem
+              icon={Activity}
+              label="Total Posts"
+              value={formatNumber(stats.social.posts)}
+              color="blue"
+            />
+            <StatItem
+              icon={Activity}
+              label="Comments"
+              value={formatNumber(stats.social.comments)}
+              color="green"
+            />
+            <StatItem
+              icon={Award}
+              label="Reactions"
+              value={formatNumber(stats.social.reactions)}
+              color="orange"
+            />
+          </div>
         </div>
       </div>
 
-      {/* Markets & Trading */}
-      <div>
-        <h2 className="text-xl font-bold mb-3">Markets & Trading</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            icon={TrendingUp}
-            label="Total Markets"
-            value={formatNumber(stats.markets.total)}
-            sublabel="Active"
-            subvalue={formatNumber(stats.markets.active)}
-            color="green"
-          />
-          <StatCard
-            icon={ShoppingCart}
-            label="Total Positions"
-            value={formatNumber(stats.markets.positions)}
-            color="blue"
-          />
-          <StatCard
-            icon={Activity}
-            label="Balance Transactions"
-            value={formatNumber(stats.trading.balanceTransactions)}
-            color="primary"
-          />
-          <StatCard
-            icon={Activity}
-            label="NPC Trades"
-            value={formatNumber(stats.trading.npcTrades)}
-            color="purple"
-          />
+      {/* Secondary Stats Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-card border border-border rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-muted-foreground">User Signups</h3>
+            <UserCheck className="w-4 h-4 text-green-500" />
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between items-baseline">
+              <span className="text-xs text-muted-foreground">Today</span>
+              <span className="text-lg font-bold">{formatNumber(stats.users.signups.today)}</span>
+            </div>
+            <div className="flex justify-between items-baseline">
+              <span className="text-xs text-muted-foreground">This Week</span>
+              <span className="text-lg font-bold">{formatNumber(stats.users.signups.thisWeek)}</span>
+            </div>
+            <div className="flex justify-between items-baseline">
+              <span className="text-xs text-muted-foreground">This Month</span>
+              <span className="text-lg font-bold">{formatNumber(stats.users.signups.thisMonth)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-card border border-border rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-muted-foreground">Trading Activity</h3>
+            <Activity className="w-4 h-4 text-purple-500" />
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between items-baseline">
+              <span className="text-xs text-muted-foreground">NPC Trades</span>
+              <span className="text-lg font-bold">{formatNumber(stats.trading.npcTrades)}</span>
+            </div>
+            <div className="flex justify-between items-baseline">
+              <span className="text-xs text-muted-foreground">Balance Txns</span>
+              <span className="text-lg font-bold">{formatNumber(stats.trading.balanceTransactions)}</span>
+            </div>
+            <div className="flex justify-between items-baseline">
+              <span className="text-xs text-muted-foreground">Pool Deposits</span>
+              <span className="text-lg font-bold">{formatNumber(stats.pools.deposits)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-card border border-border rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-muted-foreground">Moderation</h3>
+            <Shield className="w-4 h-4 text-orange-500" />
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between items-baseline">
+              <span className="text-xs text-muted-foreground">Admins</span>
+              <span className="text-lg font-bold">{formatNumber(stats.users.admins)}</span>
+            </div>
+            <div className="flex justify-between items-baseline">
+              <span className="text-xs text-muted-foreground">Banned Users</span>
+              <span className="text-lg font-bold text-red-500">{formatNumber(stats.users.banned)}</span>
+            </div>
+            <div className="flex justify-between items-baseline">
+              <span className="text-xs text-muted-foreground">Referrals</span>
+              <span className="text-lg font-bold">{formatNumber(stats.engagement.referrals)}</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Financial Metrics */}
-      <div>
-        <h2 className="text-xl font-bold mb-3">Financial Metrics</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            icon={DollarSign}
-            label="Total Virtual Balance"
-            value={formatCurrency(stats.financial.totalVirtualBalance)}
-            color="green"
-          />
-          <StatCard
-            icon={DollarSign}
-            label="Total Deposited"
-            value={formatCurrency(stats.financial.totalDeposited)}
-            color="blue"
-          />
-          <StatCard
-            icon={DollarSign}
-            label="Total Withdrawn"
-            value={formatCurrency(stats.financial.totalWithdrawn)}
-            color="orange"
-          />
-          <StatCard
-            icon={TrendingUp}
-            label="Total Lifetime P&L"
-            value={formatCurrency(stats.financial.totalLifetimePnL)}
-            color={parseFloat(stats.financial.totalLifetimePnL) >= 0 ? 'green' : 'red'}
-          />
-        </div>
-      </div>
-
-      {/* Social Engagement */}
-      <div>
-        <h2 className="text-xl font-bold mb-3">Social Engagement</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            icon={Activity}
-            label="Total Posts"
-            value={formatNumber(stats.social.posts)}
-            sublabel="Today"
-            subvalue={formatNumber(stats.social.postsToday)}
-            color="blue"
-          />
-          <StatCard
-            icon={Activity}
-            label="Comments"
-            value={formatNumber(stats.social.comments)}
-            color="green"
-          />
-          <StatCard
-            icon={Award}
-            label="Reactions"
-            value={formatNumber(stats.social.reactions)}
-            color="orange"
-          />
-          <StatCard
-            icon={Users}
-            label="Referrals"
-            value={formatNumber(stats.engagement.referrals)}
-            color="purple"
-          />
-        </div>
-      </div>
-
-      {/* Top Users */}
+      {/* Top Users & Recent Signups */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top by Balance */}
         <div>
-          <h2 className="text-xl font-bold mb-3">Top Users by Balance</h2>
-          <div className="bg-card border border-border rounded-lg">
+          <h2 className="text-lg font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Top Users by Balance</h2>
+          <div className="bg-card border border-border rounded-lg divide-y divide-border">
             {stats.topUsers.byBalance.map((user, index) => (
               <div
                 key={user.id}
-                className="flex items-center gap-3 p-3 border-b border-border last:border-b-0 hover:bg-accent transition-colors"
+                className="flex items-center gap-3 p-3 hover:bg-accent/50 transition-colors"
               >
-                <div className="text-lg font-bold text-muted-foreground w-6">
+                <div className="text-sm font-bold text-muted-foreground w-6">
                   #{index + 1}
                 </div>
                 <Avatar
@@ -339,7 +351,7 @@ export function StatsTab() {
                   size="sm"
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">
+                  <div className="font-medium truncate text-sm">
                     {user.displayName || user.username || 'Anonymous'}
                   </div>
                   {user.username && user.displayName !== user.username && (
@@ -349,7 +361,7 @@ export function StatsTab() {
                   )}
                 </div>
                 <div className="text-right">
-                  <div className="font-bold text-green-600">
+                  <div className="font-bold text-green-600 text-sm">
                     {formatCurrency(user.virtualBalance)}
                   </div>
                   <div className={cn(
@@ -366,12 +378,12 @@ export function StatsTab() {
 
         {/* Recent Signups */}
         <div>
-          <h2 className="text-xl font-bold mb-3">Recent Signups</h2>
-          <div className="bg-card border border-border rounded-lg">
+          <h2 className="text-lg font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Recent Signups</h2>
+          <div className="bg-card border border-border rounded-lg divide-y divide-border">
             {stats.recentSignups.map((user) => (
               <div
                 key={user.id}
-                className="flex items-center gap-3 p-3 border-b border-border last:border-b-0 hover:bg-accent transition-colors"
+                className="flex items-center gap-3 p-3 hover:bg-accent/50 transition-colors"
               >
                 <Avatar
                   src={user.profileImageUrl ?? undefined}
@@ -379,7 +391,7 @@ export function StatsTab() {
                   size="sm"
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">
+                  <div className="font-medium truncate text-sm">
                     {user.displayName || user.username || 'Anonymous'}
                   </div>
                   <div className="text-xs text-muted-foreground">
@@ -388,17 +400,17 @@ export function StatsTab() {
                 </div>
                 <div className="flex gap-1">
                   {user.onChainRegistered && (
-                    <span className="px-2 py-1 text-xs rounded bg-green-500/20 text-green-500">
+                    <span className="px-2 py-0.5 text-xs rounded bg-green-500/20 text-green-500">
                       On-chain
                     </span>
                   )}
                   {user.hasFarcaster && (
-                    <span className="px-2 py-1 text-xs rounded bg-purple-500/20 text-purple-500">
+                    <span className="px-2 py-0.5 text-xs rounded bg-purple-500/20 text-purple-500">
                       FC
                     </span>
                   )}
                   {user.hasTwitter && (
-                    <span className="px-2 py-1 text-xs rounded bg-blue-500/20 text-blue-500">
+                    <span className="px-2 py-0.5 text-xs rounded bg-blue-500/20 text-blue-500">
                       X
                     </span>
                   )}
@@ -411,4 +423,3 @@ export function StatsTab() {
     </div>
   )
 }
-

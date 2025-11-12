@@ -149,8 +149,8 @@ export class ButtonValidator {
     
     for (let i = 0; i < buttonElements.length; i++) {
       const button = buttonElements[i]
-      const text = await button.textContent().catch(() => '')
-      const visible = await button.isVisible().catch(() => false)
+      const text = await button?.textContent().catch(() => '') || ''
+      const visible = await button?.isVisible().catch(() => false) || false
       const selector = `button >> nth=${i}`
       
       buttons.push({
@@ -165,8 +165,8 @@ export class ButtonValidator {
     
     for (let i = 0; i < linkElements.length; i++) {
       const link = linkElements[i]
-      const text = await link.textContent().catch(() => '')
-      const visible = await link.isVisible().catch(() => false)
+      const text = await link?.textContent().catch(() => '') || ''
+      const visible = await link?.isVisible().catch(() => false) || false
       const selector = `a[role="button"] >> nth=${i}`
       
       buttons.push({

@@ -31,7 +31,7 @@ interface User {
   hasTwitter: boolean
   createdAt: string
   updatedAt: string
-  _count: {
+  _count?: {
     comments: number
     reactions: number
     positions: number
@@ -204,11 +204,11 @@ export function UserManagementTab() {
 
             {/* Activity Stats */}
             <div className="flex gap-4 text-xs text-muted-foreground">
-              <span>Posts: {user._count.comments}</span>
-              <span>Reactions: {user._count.reactions}</span>
-              <span>Positions: {user._count.positions}</span>
-              <span>Followers: {user._count.followedBy}</span>
-              <span>Following: {user._count.following}</span>
+              <span>Posts: {user._count?.comments ?? 0}</span>
+              <span>Reactions: {user._count?.reactions ?? 0}</span>
+              <span>Positions: {user._count?.positions ?? 0}</span>
+              <span>Followers: {user._count?.followedBy ?? 0}</span>
+              <span>Following: {user._count?.following ?? 0}</span>
             </div>
 
             {/* Wallet Address */}

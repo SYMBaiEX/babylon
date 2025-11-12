@@ -16,6 +16,7 @@ import { logger } from '@/lib/logger';
 import { FeeService } from '@/lib/services/fee-service';
 import { FEE_CONFIG } from '@/lib/config/fees';
 import { trackServerEvent } from '@/lib/posthog/server';
+import { IdParamSchema } from '@/lib/validation/schemas';
 /**
  * POST /api/markets/predictions/[id]/sell
  * Sell shares from prediction market position
@@ -25,7 +26,7 @@ export const POST = withErrorHandling(async (
   context: { params: Promise<{ id: string }> }
 ) => {
   const user = await authenticate(request);
-  const { id: marketId } = await context.params;
+  const { id: marketId } = IdParamSchema.parse(await context.params);
 
   if (!marketId) {
     throw new BusinessLogicError('Market ID is required', 'MARKET_ID_REQUIRED');
@@ -160,8 +161,8 @@ export const POST = withErrorHandling(async (
     await db.market.update({
       where: { id: marketId },
       data: {
-        yesShares: new Prisma.Decimal(calculation.newYesPrice * (Number(market.yesShares) + Number(market.noShares))),
-        noShares: new Prisma.Decimal(calculation.newNoPrice * (Number(market.yesShares) + Number(market.noShares))),
+        yesShares: new Prisma.Decimal(calculation.newYesShares),
+        noShares: new Prisma.Decimal(calculation.newNoShares),
         liquidity: {
           decrement: new Prisma.Decimal(grossProceeds),
         },
@@ -187,7 +188,7 @@ export const POST = withErrorHandling(async (
     // Calculate PnL (use net proceeds)
     const costBasis = Number(position.avgPrice) * shares;
     const profitLoss = netProceeds - costBasis;
-    await WalletService.recordPnL(user.userId, profitLoss);
+    await WalletService.recordPnL(user.userId, profitLoss, 'prediction_sell', marketId);
 
     return { 
       grossProceeds,

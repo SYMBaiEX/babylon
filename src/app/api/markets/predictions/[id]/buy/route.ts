@@ -15,6 +15,7 @@ import { FeeService } from '@/lib/services/fee-service';
 import { WalletService } from '@/lib/services/wallet-service';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { PredictionMarketTradeSchema } from '@/lib/validation/schemas/trade';
+import { IdParamSchema } from '@/lib/validation/schemas';
 import { Prisma } from '@prisma/client';
 import type { NextRequest } from 'next/server';
 /**
@@ -25,7 +26,7 @@ export const POST = withErrorHandling(async (
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) => {
-  const { id: marketId } = await context.params;
+  const { id: marketId } = IdParamSchema.parse(await context.params);
 
   // Authentication - errors propagate to withErrorHandling
   const user = await authenticate(request);
@@ -186,8 +187,8 @@ export const POST = withErrorHandling(async (
     const updated = await db.market.update({
       where: { id: marketId },
       data: {
-        yesShares: new Prisma.Decimal(calc.newYesPrice * (Number(market.yesShares) + Number(market.noShares))),
-        noShares: new Prisma.Decimal(calc.newNoPrice * (Number(market.yesShares) + Number(market.noShares))),
+        yesShares: new Prisma.Decimal(calc.newYesShares),
+        noShares: new Prisma.Decimal(calc.newNoShares),
         liquidity: {
           increment: new Prisma.Decimal(calc.netAmount),
         },

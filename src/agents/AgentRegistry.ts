@@ -92,11 +92,13 @@ export class AgentRegistry extends EventEmitter {
     this.agents.set(status.agentId, registration);
 
     // Index by strategies
-    for (const strategy of profile.capabilities.strategies) {
-      if (!this.strategyIndex.has(strategy)) {
-        this.strategyIndex.set(strategy, new Set());
+    if (profile.capabilities.strategies) {
+      for (const strategy of profile.capabilities.strategies) {
+        if (!this.strategyIndex.has(strategy)) {
+          this.strategyIndex.set(strategy, new Set());
+        }
+        this.strategyIndex.get(strategy)!.add(status.agentId);
       }
-      this.strategyIndex.get(strategy)!.add(status.agentId);
     }
 
     // Setup agent event listeners
@@ -148,12 +150,14 @@ export class AgentRegistry extends EventEmitter {
     if (!registration) return;
 
     // Remove from strategy index
-    for (const strategy of registration.profile.capabilities.strategies) {
-      const agents = this.strategyIndex.get(strategy);
-      if (agents) {
-        agents.delete(agentId);
-        if (agents.size === 0) {
-          this.strategyIndex.delete(strategy);
+    if (registration.profile.capabilities.strategies) {
+      for (const strategy of registration.profile.capabilities.strategies) {
+        const agents = this.strategyIndex.get(strategy);
+        if (agents) {
+          agents.delete(agentId);
+          if (agents.size === 0) {
+            this.strategyIndex.delete(strategy);
+          }
         }
       }
     }
@@ -178,7 +182,7 @@ export class AgentRegistry extends EventEmitter {
       // Check strategy match
       if (criteria.strategies && criteria.strategies.length > 0) {
         const hasMatchingStrategy = criteria.strategies.some(strategy =>
-          registration.profile.capabilities.strategies.includes(strategy)
+          registration.profile.capabilities.strategies?.includes(strategy)
         );
         if (!hasMatchingStrategy) continue;
       }

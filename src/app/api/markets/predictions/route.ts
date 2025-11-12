@@ -10,8 +10,9 @@ import { db } from '@/lib/database-service';
 import { optionalAuth } from '@/lib/api/auth-middleware';
 import { asUser, asPublic } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { MarketQuerySchema, UserIdParamSchema } from '@/lib/validation/schemas';
+import { MarketQuerySchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
+import { z } from 'zod';
 
 /**
  * GET /api/markets/predictions
@@ -19,33 +20,15 @@ import { logger } from '@/lib/logger';
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const questions = await db.getActiveQuestions();
-  const searchParams = request.nextUrl.searchParams;
-  
-  // Build query params object, filtering out null values
-  const queryParams: Record<string, string | number> = {};
-  const status = searchParams.get('status');
-  const category = searchParams.get('category');
-  const minLiquidity = searchParams.get('minLiquidity');
-  const maxLiquidity = searchParams.get('maxLiquidity');
-  const search = searchParams.get('search');
-  const page = searchParams.get('page');
-  const limit = searchParams.get('limit');
-  
-  if (status) queryParams.status = status;
-  if (category) queryParams.category = category;
-  if (minLiquidity) queryParams.minLiquidity = minLiquidity;
-  if (maxLiquidity) queryParams.maxLiquidity = maxLiquidity;
-  if (search) queryParams.search = search;
-  if (page) queryParams.page = page;
-  if (limit) queryParams.limit = limit;
-  
-  // Validate only if there are params to validate
-  if (Object.keys(queryParams).length > 0) {
-    MarketQuerySchema.partial().parse(queryParams);
+  const { searchParams } = new URL(request.url);
+
+  const queryParse = MarketQuerySchema.merge(z.object({ userId: z.string().optional() })).partial().safeParse(Object.fromEntries(searchParams));
+
+  if (!queryParse.success) {
+    return successResponse({ error: 'Invalid query parameters', details: queryParse.error.flatten() }, 400);
   }
-  
-  const userIdParam = searchParams.get('userId');
-  const userId = userIdParam ? UserIdParamSchema.parse({ userId: userIdParam }).userId : undefined;
+
+  const { userId } = queryParse.data;
 
   // Optional auth
   const authUser = await optionalAuth(request).catch(() => null);

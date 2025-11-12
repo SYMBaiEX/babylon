@@ -197,7 +197,16 @@ export class WalletService {
   /**
    * Record PnL (update lifetime PnL and earned points)
    */
-  static async recordPnL(userId: string, pnl: number, tradeType?: string, relatedId?: string): Promise<void> {
+  static async recordPnL(
+    userId: string,
+    pnl: number,
+    tradeType: string,
+    relatedId?: string
+  ): Promise<{
+    previousLifetimePnL: number;
+    newLifetimePnL: number;
+    earnedPointsDelta: number;
+  }> {
     const user = await prisma.user.findUnique({
       where: { id: userId },
     });
@@ -206,7 +215,8 @@ export class WalletService {
       throw new Error('User not found');
     }
 
-    const newLifetimePnL = Number(user.lifetimePnL) + pnl;
+    const previousLifetimePnL = Number(user.lifetimePnL);
+    const newLifetimePnL = previousLifetimePnL + pnl;
 
     await prisma.user.update({
       where: { id: userId },
@@ -215,15 +225,20 @@ export class WalletService {
       },
     });
 
-    // Award earned points based on P&L (async, non-blocking)
-    EarnedPointsService.awardEarnedPointsForPnL(
-      userId, 
-      pnl, 
-      tradeType || 'unknown',
+    // Award earned points - fail fast if this fails  
+    const earnedPointsDelta = await EarnedPointsService.awardEarnedPointsForPnL(
+      userId,
+      previousLifetimePnL,
+      newLifetimePnL,
+      tradeType,
       relatedId
-    ).catch((error) => {
-      logger.error('Failed to award earned points for P&L', { userId, pnl, error }, 'WalletService');
-    });
+    );
+
+    return {
+      previousLifetimePnL,
+      newLifetimePnL,
+      earnedPointsDelta,
+    };
   }
 
   /**
