@@ -32,6 +32,11 @@
     "contracts:compile": "forge build",
     "contracts:test": "forge test",
     "contracts:deploy": "forge script scripts/DeployBabylon.s.sol:DeployBabylon --rpc-url $RPC_URL --broadcast --verify",
+    "contracts:upgrade": "./scripts/upgrade-diamond.sh",
+    "contracts:upgrade:sepolia": "DIAMOND_ADDRESS=$DIAMOND_ADDRESS ./scripts/upgrade-diamond.sh sepolia",
+    "contracts:upgrade:base-sepolia": "DIAMOND_ADDRESS=$DIAMOND_ADDRESS ./scripts/upgrade-diamond.sh base-sepolia",
+    "contracts:upgrade:mainnet": "DIAMOND_ADDRESS=$DIAMOND_ADDRESS ./scripts/upgrade-diamond.sh mainnet",
+    "contracts:upgrade:base": "DIAMOND_ADDRESS=$DIAMOND_ADDRESS ./scripts/upgrade-diamond.sh base",
     "game:init": "bun run scripts/init-game-content.ts",
     "daemon": "bun run src/cli/realtime-daemon.ts"
   },
