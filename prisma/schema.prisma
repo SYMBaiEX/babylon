@@ -435,10 +435,14 @@ model PerpPosition {
   lastUpdated          DateTime
   closedAt             DateTime?
   realizedPnL          Float?
+  settledToChain       Boolean   @default(false)
+  settlementTxHash     String?
+  settledAt            DateTime?
 
   @@index([organizationId])
   @@index([ticker])
   @@index([userId, closedAt])
+  @@index([settledToChain])
 }
 
 model PointsTransaction {
@@ -565,31 +569,31 @@ model Position {
 }
 
 model Post {
-  id                        String     @id
-  content                   String
-  authorId                  String
-  gameId                    String?
-  dayNumber                 Int?
-  timestamp                 DateTime   @default(now())
-  createdAt                 DateTime   @default(now())
-  articleTitle              String?
-  biasScore                 Float?
-  byline                    String?
-  category                  String?
-  fullContent               String?
-  sentiment                 String?
-  slant                     String?
-  type                      String     @default("post")
-  deletedAt                 DateTime?
-  commentOnPostId           String?
-  parentCommentId           String?
-  Comment                   Comment[]
-  PostTag                   PostTag[]
-  Reaction                  Reaction[]
-  Share                     Share[]
-  Post_Post_commentOnPostIdToPost      Post?      @relation("Post_commentOnPostIdToPost", fields: [commentOnPostId], references: [id], onDelete: Cascade)
+  id                                    String     @id
+  content                               String
+  authorId                              String
+  gameId                                String?
+  dayNumber                             Int?
+  timestamp                             DateTime   @default(now())
+  createdAt                             DateTime   @default(now())
+  articleTitle                          String?
+  biasScore                             Float?
+  byline                                String?
+  category                              String?
+  fullContent                           String?
+  sentiment                             String?
+  slant                                 String?
+  type                                  String     @default("post")
+  deletedAt                             DateTime?
+  commentOnPostId                       String?
+  parentCommentId                       String?
+  Comment                               Comment[]
+  PostTag                               PostTag[]
+  Reaction                              Reaction[]
+  Share                                 Share[]
+  Post_Post_commentOnPostIdToPost       Post?      @relation("Post_commentOnPostIdToPost", fields: [commentOnPostId], references: [id], onDelete: Cascade)
   other_Post_Post_commentOnPostIdToPost Post[]     @relation("Post_commentOnPostIdToPost")
-  Post_Post_parentCommentIdToPost      Post?      @relation("Post_parentCommentIdToPost", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  Post_Post_parentCommentIdToPost       Post?      @relation("Post_parentCommentIdToPost", fields: [parentCommentId], references: [id], onDelete: Cascade)
   other_Post_Post_parentCommentIdToPost Post[]     @relation("Post_parentCommentIdToPost")
 
   @@index([authorId, timestamp(sort: Desc)])
