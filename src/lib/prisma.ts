@@ -88,6 +88,10 @@ function getPrismaClient(): PrismaClient {
 // Get base Prisma client
 const basePrismaClient = getPrismaClient();
 
+// Export base client for operations that need full type inference
+// (e.g., when retry proxy loses type information for complex union types)
+export const prismaBase = basePrismaClient;
+
 // Wrap with retry logic and explicitly type as PrismaClient to preserve types through proxy
 export const prisma: PrismaClient = (globalForPrisma.prismaWithRetry ?? createRetryProxy(basePrismaClient, {
   maxRetries: 5,

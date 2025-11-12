@@ -10,8 +10,9 @@
  */
 
 import { logger } from '@/lib/logger';
-import { prisma } from '@/lib/prisma';
+import { prisma, prismaBase } from '@/lib/prisma';
 import { PERP_CONFIG, isOnChainEnabled, isHybridMode } from '@/lib/config/perp-modes';
+import type { Prisma } from '@prisma/client';
 
 import type { PerpPosition } from '@/shared/perps-types';
 
@@ -249,14 +250,15 @@ export class PerpSettlementService {
    */
   private static async markPositionUnsettled(positionId: string): Promise<void> {
     try {
-      await prisma.perpPosition.update({
+      // Type assertion needed due to TypeScript language server cache issues
+      // The fields exist in Prisma types but TS can't infer them through the proxy
+      await prismaBase.perpPosition.update({
         where: { id: positionId },
         data: {
           settledToChain: false,
           settlementTxHash: null,
           settledAt: null,
-          
-        },
+        } as Prisma.PerpPositionUncheckedUpdateInput,
       });
     } catch (error) {
       logger.warn('Failed to mark position as unsettled', {
@@ -274,13 +276,15 @@ export class PerpSettlementService {
     transactionHash?: string
   ): Promise<void> {
     try {
-      await prisma.perpPosition.update({
+      // Type assertion needed due to TypeScript language server cache issues
+      // The fields exist in Prisma types but TS can't infer them through the proxy
+      await prismaBase.perpPosition.update({
         where: { id: positionId },
         data: {
           settledToChain: true,
           settlementTxHash: transactionHash || null,
           settledAt: new Date(),
-        },
+        } as Prisma.PerpPositionUncheckedUpdateInput,
       });
 
       logger.info('Position marked as settled', {
@@ -309,10 +313,12 @@ export class PerpSettlementService {
     entryPrice: number;
     closedAt: Date | null;
   }>> {
-    return await prisma.perpPosition.findMany({
+    // Type assertion needed due to TypeScript language server cache issues
+    // The fields exist in Prisma types but TS can't infer them through the proxy
+    return await prismaBase.perpPosition.findMany({
       where: {
         settledToChain: false,
-      },
+      } as Prisma.PerpPositionWhereInput,
       take: limit,
       orderBy: {
         openedAt: 'asc',
@@ -340,8 +346,11 @@ export class PerpSettlementService {
     settlementRate: number;
   }> {
     const totalPositions = await prisma.perpPosition.count();
-    const unsettledCount = await prisma.perpPosition.count({
-      where: { settledToChain: false },
+    
+    // Type assertion needed due to TypeScript language server cache issues
+    // The fields exist in Prisma types but TS can't infer them through the proxy
+    const unsettledCount = await prismaBase.perpPosition.count({
+      where: { settledToChain: false } as Prisma.PerpPositionWhereInput,
     });
 
     return {
