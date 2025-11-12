@@ -432,11 +432,11 @@ export async function processOnchainRegistration({
       throw new InternalServerError('Server wallet required for agent registration', { missing: 'DEPLOYER_PRIVATE_KEY' })
     }
     registrationAddress = deployerAccount.address
-    const baseEndpoint = endpoint || `https://babylon.game/agent/${user.userId}`
+    const baseEndpoint = endpoint || `https://babylon.market/agent/${user.userId}`
     agentEndpoint = `${baseEndpoint}?agentId=${user.userId}`
   } else {
     registrationAddress = walletAddress! as Address
-    agentEndpoint = endpoint || `https://babylon.game/agent/${walletAddress!.toLowerCase()}`
+    agentEndpoint = endpoint || `https://babylon.market/agent/${walletAddress!.toLowerCase()}`
   }
 
   const capabilitiesHash = '0x0000000000000000000000000000000000000000000000000000000000000001' as `0x${string}`

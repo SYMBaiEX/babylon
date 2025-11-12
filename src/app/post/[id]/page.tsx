@@ -111,6 +111,40 @@ export default function PostPage({ params }: PostPageProps) {
     loadPost();
   }, [postId]);
 
+  // Subscribe to interaction store changes and update post state
+  useEffect(() => {
+    const unsubscribe = useInteractionStore.subscribe((state) => {
+      const storeData = state.postInteractions.get(postId);
+      if (storeData) {
+        setPost((prev) => {
+          if (!prev) return null;
+          
+          // Only update if values actually changed to avoid unnecessary re-renders
+          if (
+            prev.likeCount === storeData.likeCount &&
+            prev.commentCount === storeData.commentCount &&
+            prev.shareCount === storeData.shareCount &&
+            prev.isLiked === storeData.isLiked &&
+            prev.isShared === storeData.isShared
+          ) {
+            return prev;
+          }
+          
+          return {
+            ...prev,
+            likeCount: storeData.likeCount,
+            commentCount: storeData.commentCount,
+            shareCount: storeData.shareCount,
+            isLiked: storeData.isLiked,
+            isShared: storeData.isShared,
+          };
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [postId]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">

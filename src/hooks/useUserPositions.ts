@@ -120,12 +120,13 @@ export function useUserPositions(
       const perpetuals = data?.perpetuals ?? {};
       const predictions = data?.predictions ?? {};
 
-      const normalizedPerps = (perpetuals.positions ?? []).map((pos: ApiPerpPositionPayload) => ({
-        id: pos.id,
-        userId: pos.userId,
-        ticker: pos.ticker,
-        organizationId: pos.organizationId,
-        side: pos.side,
+      const normalizedPerps = (perpetuals.positions ?? []).map(
+        (pos: ApiPerpPositionPayload) => ({
+          id: pos.id,
+          userId: pos.userId,
+          ticker: pos.ticker,
+          organizationId: pos.organizationId,
+          side: pos.side,
         entryPrice: Number(pos.entryPrice),
         currentPrice: Number(pos.currentPrice),
         size: Number(pos.size),
@@ -135,8 +136,9 @@ export function useUserPositions(
         unrealizedPnLPercent: Number(pos.unrealizedPnLPercent),
         fundingPaid: Number(pos.fundingPaid),
         openedAt: pos.openedAt,
-        lastUpdated: pos.lastUpdated ?? pos.openedAt,
-      })) as PerpPosition[];
+          lastUpdated: pos.lastUpdated ?? pos.openedAt,
+        })
+      ) as PerpPosition[];
 
       const normalizedPredictions = (predictions.positions ?? []).map(
         (pos: ApiPredictionPositionPayload) => ({

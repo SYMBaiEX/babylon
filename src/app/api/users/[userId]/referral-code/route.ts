@@ -123,6 +123,6 @@ export const GET = withErrorHandling(async (
   return successResponse({
     referralCode: user.referralCode,
     referralCount: user.referralCount,
-    referralUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://babylon.game'}?ref=${user.referralCode}`,
+    referralUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://babylon.market'}?ref=${user.referralCode}`,
   });
 });

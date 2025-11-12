@@ -225,14 +225,29 @@ export class WalletService {
       },
     });
 
-    // Award earned points - fail fast if this fails  
-    const earnedPointsDelta = await EarnedPointsService.awardEarnedPointsForPnL(
-      userId,
-      previousLifetimePnL,
-      newLifetimePnL,
-      tradeType,
-      relatedId
-    );
+    let earnedPointsDelta = 0;
+    try {
+      earnedPointsDelta = await EarnedPointsService.awardEarnedPointsForPnL(
+        userId,
+        previousLifetimePnL,
+        newLifetimePnL,
+        tradeType,
+        relatedId
+      );
+    } catch (error) {
+      logger.warn(
+        'Failed to award earned points for PnL change',
+        {
+          userId,
+          previousLifetimePnL,
+          newLifetimePnL,
+          tradeType,
+          relatedId,
+          error,
+        },
+        'WalletService'
+      );
+    }
 
     return {
       previousLifetimePnL,

@@ -9,22 +9,25 @@ import {
   Clock,
   Flame,
   Search,
+  Sparkles,
   TrendingDown,
   TrendingUp,
 } from 'lucide-react';
 
 import { CategoryPnLCard } from '@/components/markets/CategoryPnLCard';
+import { CategoryPnLShareModal } from '@/components/markets/CategoryPnLShareModal';
 import { MarketsWidgetSidebar } from '@/components/markets/MarketsWidgetSidebar';
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
-import { PnLShareModal } from '@/components/markets/PnLShareModal';
 import { PoolsErrorBoundary } from '@/components/markets/PoolsErrorBoundary';
 import { PoolsList } from '@/components/markets/PoolsList';
 import { PortfolioPnLCard } from '@/components/markets/PortfolioPnLCard';
+import { PortfolioPnLShareModal } from '@/components/markets/PortfolioPnLShareModal';
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList';
 import { UserPoolPositions } from '@/components/markets/UserPoolPositions';
 import { BuyPointsModal } from '@/components/points/BuyPointsModal';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton, WidgetPanelSkeleton } from '@/components/shared/Skeleton';
+import { WalletBalance } from '@/components/shared/WalletBalance';
 
 import { cn } from '@/lib/utils';
 
@@ -516,6 +519,20 @@ export default function MarketsPage() {
                 </button>
               </div>
 
+              {/* Wallet Balance and Buy Points */}
+              {authenticated && (
+                <div className="flex items-center gap-3">
+                  <WalletBalance refreshTrigger={balanceRefreshTrigger} />
+                  <button
+                    onClick={() => setShowBuyPointsModal(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-medium rounded-lg hover:from-yellow-600 hover:to-amber-700 transition-all shadow-md hover:shadow-lg"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span className="hidden sm:inline">Buy Points</span>
+                  </button>
+                </div>
+              )}
+
               {/* Search - hide on dashboard */}
               {activeTab !== 'dashboard' && (
                 <div className="relative">
@@ -563,6 +580,8 @@ export default function MarketsPage() {
                     loading={portfolioLoading}
                     error={portfolioError}
                     onShare={() => setShowPnLShareModal(true)}
+                    onRefresh={refreshPortfolio}
+                    lastUpdated={portfolioUpdatedAt}
                     setShowBuyPointsModal={setShowBuyPointsModal}
                   />
                 )}
@@ -1277,6 +1296,20 @@ export default function MarketsPage() {
               </button>
             </div>
 
+            {/* Wallet Balance and Buy Points */}
+            {authenticated && (
+              <div className="flex items-center gap-3">
+                <WalletBalance refreshTrigger={balanceRefreshTrigger} />
+                <button
+                  onClick={() => setShowBuyPointsModal(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-medium rounded-lg hover:from-yellow-600 hover:to-amber-700 transition-all shadow-md hover:shadow-lg"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span className="hidden sm:inline">Buy Points</span>
+                </button>
+              </div>
+            )}
+
             {/* Search - hide on dashboard */}
             {activeTab !== 'dashboard' && (
               <div className="relative">
@@ -1324,6 +1357,8 @@ export default function MarketsPage() {
                   loading={portfolioLoading}
                   error={portfolioError}
                   onShare={() => setShowPnLShareModal(true)}
+                  onRefresh={refreshPortfolio}
+                  lastUpdated={portfolioUpdatedAt}
                   setShowBuyPointsModal={setShowBuyPointsModal}
                 />
               )}
@@ -1924,45 +1959,45 @@ export default function MarketsPage() {
         )}
       </div>
 
-      <PnLShareModal
+      <PortfolioPnLShareModal
         isOpen={showPnLShareModal}
         onClose={() => setShowPnLShareModal(false)}
-        type="portfolio"
-        portfolioData={portfolioPnL}
+        data={portfolioPnL}
         user={user ?? null}
+        lastUpdated={portfolioUpdatedAt}
       />
 
       {/* Category P&L Share Modals */}
       {showCategoryPnLShareModal === 'perps' && (
-        <PnLShareModal
+        <CategoryPnLShareModal
           isOpen={true}
           onClose={() => setShowCategoryPnLShareModal(null)}
-          type="category"
           category="perps"
-          categoryData={perpPnLData}
+          data={perpPnLData}
           user={user ?? null}
+          lastUpdated={portfolioUpdatedAt}
         />
       )}
 
       {showCategoryPnLShareModal === 'predictions' && (
-        <PnLShareModal
+        <CategoryPnLShareModal
           isOpen={true}
           onClose={() => setShowCategoryPnLShareModal(null)}
-          type="category"
           category="predictions"
-          categoryData={predictionPnLData}
+          data={predictionPnLData}
           user={user ?? null}
+          lastUpdated={portfolioUpdatedAt}
         />
       )}
 
       {showCategoryPnLShareModal === 'pools' && (
-        <PnLShareModal
+        <CategoryPnLShareModal
           isOpen={true}
           onClose={() => setShowCategoryPnLShareModal(null)}
-          type="category"
           category="pools"
-          categoryData={poolPnLData}
+          data={poolPnLData}
           user={user ?? null}
+          lastUpdated={portfolioUpdatedAt}
         />
       )}
 

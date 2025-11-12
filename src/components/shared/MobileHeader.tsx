@@ -7,7 +7,6 @@ import { X, Home, TrendingUp, MessageCircle, Trophy, Gift, Bell, LogOut, Coins, 
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/stores/authStore'
-import { useLoginModal } from '@/hooks/useLoginModal'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { Avatar } from '@/components/shared/Avatar'
 import { Suspense } from 'react'
@@ -15,7 +14,6 @@ import { Suspense } from 'react'
 function MobileHeaderContent() {
   const { authenticated, logout } = useAuth()
   const { user, setUser } = useAuthStore()
-  const { showLoginModal } = useLoginModal()
   const [showSideMenu, setShowSideMenu] = useState(false)
   const [pointsData, setPointsData] = useState<{ available: number; total: number } | null>(null)
   const [copiedReferral, setCopiedReferral] = useState(false)
@@ -165,7 +163,7 @@ function MobileHeaderContent() {
         )}
       >
         <div className="flex items-center justify-between h-14 px-4">
-          {/* Left: Profile Picture (when authenticated) or Login button */}
+          {/* Left: Profile Picture (when authenticated) */}
           <div className="shrink-0 w-8">
             {authenticated && user ? (
               <button
@@ -181,13 +179,6 @@ function MobileHeaderContent() {
                   src={user.profileImageUrl || undefined}
                   imageUrl={user.profileImageUrl || undefined}
                 />
-              </button>
-            ) : !authenticated ? (
-              <button
-                onClick={() => showLoginModal()}
-                className="px-3 py-1.5 text-xs font-medium rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-              >
-                Login
               </button>
             ) : (
               <div className="w-8" />
