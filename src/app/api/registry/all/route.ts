@@ -34,7 +34,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   // Fetch users from database
   const fetchUsers = async () => {
-    const dbOperation = async (db: PrismaClient) => {
+    try {
+      const dbOperation = async (db: PrismaClient) => {
       const where: Record<string, unknown> = {}
       if (onChainOnly) {
         where.onChainRegistered = true
@@ -108,12 +109,17 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         }))
       }
 
-    return await asPublic(dbOperation)
+      return await asPublic(dbOperation)
+    } catch (error) {
+      logger.error('Failed to fetch users from database', { error }, 'GET /api/registry/all')
+      return []
+    }
   }
 
   // Fetch actors (NPCs) from database
   const fetchActors = async () => {
-    const dbOperation = async (db: PrismaClient) => {
+    try {
+      const dbOperation = async (db: PrismaClient) => {
       const where: Record<string, unknown> = {}
       if (search) {
         where.OR = [
@@ -174,46 +180,82 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       }))
     }
 
-    return await asPublic(dbOperation)
+      return await asPublic(dbOperation)
+    } catch (error) {
+      logger.error('Failed to fetch actors from database', { error }, 'GET /api/registry/all')
+      return []
+    }
   }
 
   const fetchAgents = async () => {
-    const agents = await subgraphClient.searchAgents({
-      type: 'agent',
-      limit: 100
-    })
+    try {
+      const agents = await subgraphClient.searchAgents({
+        type: 'agent',
+        limit: 100
+      })
 
-    return agents.map(agent => ({
-      type: 'agent',
-      id: `agent0-${agent.tokenId}`,
-      tokenId: agent.tokenId,
-      name: agent.name,
-      walletAddress: agent.walletAddress,
-      metadataCID: agent.metadataCID,
-      mcpEndpoint: agent.mcpEndpoint,
-      a2aEndpoint: agent.a2aEndpoint,
-      capabilities: JSON.parse(agent.capabilities!),
-      reputation: agent.reputation,
-    }))
+      return agents.map(agent => {
+        let parsedCapabilities: unknown = {}
+        if (agent.capabilities) {
+          try {
+            parsedCapabilities = JSON.parse(agent.capabilities)
+          } catch {
+            parsedCapabilities = {}
+          }
+        }
+
+        return {
+          type: 'agent',
+          id: `agent0-${agent.tokenId}`,
+          tokenId: agent.tokenId,
+          name: agent.name,
+          walletAddress: agent.walletAddress,
+          metadataCID: agent.metadataCID,
+          mcpEndpoint: agent.mcpEndpoint,
+          a2aEndpoint: agent.a2aEndpoint,
+          capabilities: parsedCapabilities,
+          reputation: agent.reputation,
+        }
+      })
+    } catch (error) {
+      logger.error('Failed to fetch agents from subgraph', { error }, 'GET /api/registry/all')
+      return []
+    }
   }
 
   const fetchApps = async () => {
-    const apps = await subgraphClient.getGamePlatforms({
-      minTrustScore: 0
-    })
+    try {
+      const apps = await subgraphClient.getGamePlatforms({
+        minTrustScore: 0
+      })
 
-    return apps.map(app => ({
-      type: 'app',
-      id: `app-${app.tokenId}`,
-      tokenId: app.tokenId,
-      name: app.name,
-      walletAddress: app.walletAddress,
-      metadataCID: app.metadataCID,
-      mcpEndpoint: app.mcpEndpoint,
-      a2aEndpoint: app.a2aEndpoint,
-      capabilities: JSON.parse(app.capabilities!),
-      reputation: app.reputation!,
-    }))
+      return apps.map(app => {
+        let parsedCapabilities: unknown = {}
+        if (app.capabilities) {
+          try {
+            parsedCapabilities = JSON.parse(app.capabilities)
+          } catch {
+            parsedCapabilities = {}
+          }
+        }
+
+        return {
+          type: 'app',
+          id: `app-${app.tokenId}`,
+          tokenId: app.tokenId,
+          name: app.name,
+          walletAddress: app.walletAddress,
+          metadataCID: app.metadataCID,
+          mcpEndpoint: app.mcpEndpoint,
+          a2aEndpoint: app.a2aEndpoint,
+          capabilities: parsedCapabilities,
+          reputation: app.reputation || 0,
+        }
+      })
+    } catch (error) {
+      logger.error('Failed to fetch apps from subgraph', { error }, 'GET /api/registry/all')
+      return []
+    }
   }
 
   // Fetch based on entity type
