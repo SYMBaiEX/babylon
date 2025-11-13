@@ -257,7 +257,14 @@ jobs:
         run: |
           bash scripts/ci/prepare-env.sh
           bunx prisma generate
-          bunx prisma migrate deploy || true
+          
+          # Wait for postgres to be ready
+          echo "⏳ Waiting for PostgreSQL to be ready..."
+          timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
+          
+          # Push schema to database (better for test environments than migrate deploy)
+          echo "📊 Pushing database schema..."
+          bunx prisma db push --skip-generate --accept-data-loss
       
       - name: Run Unit Tests
         run: bun test tests/unit/ --coverage
@@ -344,7 +351,14 @@ jobs:
         run: |
           bash scripts/ci/prepare-env.sh
           bunx prisma generate
-          bunx prisma migrate deploy || true
+          
+          # Wait for postgres to be ready
+          echo "⏳ Waiting for PostgreSQL to be ready..."
+          timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
+          
+          # Push schema to database (better for test environments than migrate deploy)
+          echo "📊 Pushing database schema..."
+          bunx prisma db push --skip-generate --accept-data-loss
       
       - name: Start production server
         run: |
@@ -438,7 +452,14 @@ jobs:
         run: |
           bash scripts/ci/prepare-env.sh
           bunx prisma generate
-          bunx prisma migrate deploy || true
+          
+          # Wait for postgres to be ready
+          echo "⏳ Waiting for PostgreSQL to be ready..."
+          timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
+          
+          # Push schema to database (better for test environments than migrate deploy)
+          echo "📊 Pushing database schema..."
+          bunx prisma db push --skip-generate --accept-data-loss
       
       - name: Start production server
         run: |
