@@ -45,6 +45,7 @@ jobs:
           # Create .env file with test configuration
           cat > .env.test << EOF
           DATABASE_URL=${{ secrets.TEST_DATABASE_URL }}
+          DIRECT_DATABASE_URL=${{ secrets.TEST_DATABASE_URL }}
           POSTGRES_PRISMA_URL=${{ secrets.TEST_DATABASE_URL }}
           POSTGRES_URL_NON_POOLING=${{ secrets.TEST_DATABASE_URL }}
           NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}
@@ -245,7 +246,7 @@ jobs:
 
   # Step 5: All tests must pass
   all-tests-passed:
-    name: ✅ All Tests Passed
+    name: All Tests Passed
     needs: [build, test-unit-integration, test-e2e, test-synpress]
     runs-on: ubuntu-latest
     if: always()
