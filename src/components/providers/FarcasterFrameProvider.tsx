@@ -33,10 +33,11 @@ export function FarcasterFrameProvider({ children }: { children: React.ReactNode
   const [isMiniApp, setIsMiniApp] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string>()
+  const [isCreatingWallet, setIsCreatingWallet] = useState(false)
   const [fid, setFid] = useState<number>()
   const [username, setUsername] = useState<string>()
 
-  const { ready, authenticated, user } = usePrivy()
+  const { ready, authenticated, user, createWallet } = usePrivy()
   const { initLoginToMiniApp, loginToMiniApp } = useLoginToMiniApp()
 
   // Detect if running in Mini App context
@@ -65,6 +66,20 @@ export function FarcasterFrameProvider({ children }: { children: React.ReactNode
 
     checkMiniApp()
   }, [])
+
+  const hasEmbeddedWallet =
+    user?.wallet?.walletClientType === 'privy' ||
+    user?.wallet?.walletClientType === 'privy-v2' ||
+    (user?.linkedAccounts?.some((account) => {
+      if (account.type !== 'wallet') {
+        return false
+      }
+
+      return (
+        account.walletClientType === 'privy' ||
+        account.walletClientType === 'privy-v2'
+      )
+    }) ?? false)
 
   // Auto-login with Farcaster Mini App when detected
   useEffect(() => {
@@ -107,6 +122,56 @@ export function FarcasterFrameProvider({ children }: { children: React.ReactNode
       setError(error.message)
     })
   }, [ready, authenticated, isMiniApp, isLoading, fid, username, initLoginToMiniApp, loginToMiniApp, user?.id])
+
+  // Ensure embedded wallets are created for non-Mini App sessions
+  useEffect(() => {
+    if (!ready || !authenticated || !user || isMiniApp || hasEmbeddedWallet || isCreatingWallet) {
+      return
+    }
+
+    if (!createWallet) {
+      logger.warn(
+        'Privy createWallet helper unavailable, skipping embedded wallet creation',
+        { userId: user.id },
+        'FarcasterMiniApp',
+      )
+      return
+    }
+
+    setIsCreatingWallet(true)
+
+    createWallet()
+      .then(() => {
+        logger.info(
+          'Embedded wallet created for user',
+          {
+            userId: user.id,
+          },
+          'FarcasterMiniApp',
+        )
+      })
+      .catch((creationError: Error) => {
+        logger.error(
+          'Failed to create embedded wallet automatically',
+          {
+            error: creationError.message,
+            userId: user.id,
+          },
+          'FarcasterMiniApp',
+        )
+      })
+      .finally(() => {
+        setIsCreatingWallet(false)
+      })
+  }, [
+    authenticated,
+    createWallet,
+    hasEmbeddedWallet,
+    isCreatingWallet,
+    isMiniApp,
+    ready,
+    user,
+  ])
 
   const value: FarcasterMiniAppContextType = {
     isMiniApp,
