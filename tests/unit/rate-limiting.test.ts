@@ -211,7 +211,7 @@ describe('Rate Limiting', () => {
     });
 
     it('should use 1-minute windows for all actions', () => {
-      const oneMinute = 60 * 1000;
+      const oneMinute = 60_000;
 
       expect(RATE_LIMIT_CONFIGS.CREATE_POST.windowMs).toBe(oneMinute);
       expect(RATE_LIMIT_CONFIGS.CREATE_COMMENT.windowMs).toBe(oneMinute);
