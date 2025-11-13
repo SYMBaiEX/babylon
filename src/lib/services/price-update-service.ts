@@ -194,7 +194,7 @@ export class PriceUpdateService {
           address: diamondAddress,
           abi: PRICE_STORAGE_FACET_ABI,
           functionName: 'getGlobalTickCounter',
-        });
+        }) as bigint;
       } catch (error) {
         logger.warn(
           'Failed to get tick counter, using timestamp-based tick',

@@ -159,7 +159,7 @@ export const POST = withErrorHandling(async (
         try {
           const { ensureMarketOnChain } = await import('@/lib/services/onchain-market-service');
           await ensureMarketOnChain(market.id).catch((error) => {
-            logger.warn('Failed to create market on-chain (non-blocking)', { error, marketId: market.id }, 'POST /api/markets/predictions/[id]/buy');
+            logger.warn('Failed to create market on-chain (non-blocking)', { error, marketId: market?.id }, 'POST /api/markets/predictions/[id]/buy');
           });
         } catch (error) {
           logger.debug('On-chain market service not available', { error }, 'POST /api/markets/predictions/[id]/buy');

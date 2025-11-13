@@ -109,7 +109,7 @@ export class OracleService {
       })
 
       // Call contract
-      const tx = await this.contract!.commitBabylonGame(
+      const tx = await this.contract!.commitBabylonGame!(
         questionId,
         questionNumber,
         question,
@@ -204,7 +204,7 @@ export class OracleService {
       }
 
       // Call contract
-      const tx = await this.contract!.revealBabylonGame(
+      const tx = await this.contract!.revealBabylonGame!(
         stored.sessionId,
         outcome,
         stored.salt,
@@ -322,7 +322,7 @@ export class OracleService {
 
     try {
       // Call batch contract method
-      const tx = await this.contract!.batchCommitBabylonGames(
+      const tx = await this.contract!.batchCommitBabylonGames!(
         questionIds,
         questionNumbers,
         questions,
@@ -453,7 +453,7 @@ export class OracleService {
 
     try {
       // Call batch contract method
-      const tx = await this.contract!.batchRevealBabylonGames(
+      const tx = await this.contract!.batchRevealBabylonGames!(
         sessionIds,
         outcomes,
         salts,
@@ -513,7 +513,7 @@ export class OracleService {
    */
   async getGameInfo(sessionId: string) {
     try {
-      const info = await this.contract!.getCompleteGameInfo(sessionId)
+      const info = await this.contract!.getCompleteGameInfo!(sessionId)
       return info
     } catch (error) {
       logger.error('Failed to get game info', { error, sessionId }, 'OracleService')
@@ -526,7 +526,7 @@ export class OracleService {
    */
   async getStatistics() {
     try {
-      const stats = await this.contract!.getStatistics()
+      const stats = await this.contract!.getStatistics!()
       return {
         committed: stats.committed.toString(),
         revealed: stats.revealed.toString(),
@@ -562,7 +562,7 @@ export class OracleService {
       }
 
       // Try to read from contract
-      await this.contract!.version()
+      await this.contract!.version!()
 
       return { healthy: true }
     } catch (error) {

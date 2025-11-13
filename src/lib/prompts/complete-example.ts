@@ -212,7 +212,7 @@ export async function generateMixedFeedContent() {
     );
 
     // Only push if we have at least one result
-    if (validation.results.length > 0) {
+    if (validation.results.length > 0 && validation.results[0]) {
       allResults.push({
         name: task.name,
         posts,
