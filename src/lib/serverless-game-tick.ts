@@ -1891,57 +1891,7 @@ async function publishOracleReveals(
   }
 
   return { revealed, errors };
-=======
- * Resolve market on-chain via PredictionMarketFacet
- */
-async function resolveMarketOnChain(
-  onChainMarketId: string,
-  winningOutcome: number
-): Promise<string> {
-  const diamondAddress = process.env.NEXT_PUBLIC_DIAMOND_ADDRESS;
-  const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`;
-  const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
-
-  if (!diamondAddress || !deployerPrivateKey || !rpcUrl) {
-    throw new Error('Missing blockchain configuration');
-  }
-
-  const { createPublicClient, createWalletClient, http } = await import('viem');
-  const { privateKeyToAccount } = await import('viem/accounts');
-  const { baseSepolia } = await import('viem/chains');
-  const { PREDICTION_MARKET_ABI } = await import('@/lib/web3/abis');
-
-  const publicClient = createPublicClient({
-    chain: baseSepolia,
-    transport: http(rpcUrl),
-  });
-
-  const account = privateKeyToAccount(deployerPrivateKey);
-  const walletClient = createWalletClient({
-    account,
-    chain: baseSepolia,
-    transport: http(rpcUrl),
-  });
-
-  // Resolve market on-chain
-  // Note: winningOutcome must be uint8 (0 or 1 for binary markets)
-  const txHash = await walletClient.writeContract({
-    address: diamondAddress as `0x${string}`,
-    abi: PREDICTION_MARKET_ABI,
-    functionName: 'resolveMarket',
-    args: [onChainMarketId as `0x${string}`, winningOutcome as number],
-  });
-
-  // Wait for confirmation
-  await publicClient.waitForTransactionReceipt({
-    hash: txHash,
-    confirmations: 1,
-  });
-
-  return txHash;
->>>>>>> 4932fdd (Refactor imports in agent0-service, enhance Market model with on-chain fields, and implement on-chain market creation and resolution in various services. Add PriceStorageFacet for on-chain price updates and integrate reputation system ABI. Update price handling in PriceUpdateService and ReputationService.)
 }
-
 /**
  * Update widget caches
  * This pre-generates and caches widget data to improve performance

@@ -13,37 +13,19 @@
  */
 
 import { A2AClient as OfficialA2AClient } from '@a2a-js/sdk/client'
+import type { MessageSendParams, TextPart } from '@a2a-js/sdk'
 import { EventEmitter } from 'events'
 import { logger } from '@/lib/logger'
 import type { AgentProfile, MarketData, MarketAnalysis, Coalition } from '@/types/a2a'
 import type { JsonValue, JsonRpcResult } from '@/types/common'
-
-// Local type that matches @a2a-js/sdk's MessageSendParams
-interface MessageSendParams {
-  message: {
-    kind: 'message'
-    messageId: string
-    contextId?: string
-    role: string
-    parts: Array<{
-      kind: string
-      text?: string
-      [key: string]: unknown
-    }>
-  }
-  configuration?: {
-    acceptedOutputModes?: string[]
-    blocking?: boolean
-    historyLength?: number
-  }
-  metadata?: Record<string, unknown>
-}
 
 export interface BabylonA2AClientConfig {
   /** Agent card URL or endpoint */
   cardUrl?: string
   /** WebSocket endpoint (if not using card URL) */
   endpoint?: string
+  /** Agent ID for context */
+  agentId?: string
   /** Authentication credentials */
   credentials?: {
     address: string
@@ -168,21 +150,21 @@ export class BabylonA2AClient extends EventEmitter {
 
     try {
       // Convert JSON-RPC method to A2A message format
+      const textPart: TextPart = {
+        kind: 'text',
+        text: JSON.stringify({
+          method,
+          params
+        })
+      }
+
       const messageParams: MessageSendParams = {
         message: {
           kind: 'message',
           messageId: `msg-${Date.now()}`,
           contextId: this.config.agentId || 'babylon-context',
           role: 'user',
-          parts: [
-            {
-              kind: 'text',
-              text: JSON.stringify({
-                method,
-                params
-              })
-            }
-          ]
+          parts: [textPart]
         },
         configuration: {
           blocking: true,
