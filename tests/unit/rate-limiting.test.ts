@@ -4,7 +4,7 @@
  * Tests for user-level rate limiting and duplicate detection
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'bun:test';
 import {
   checkRateLimit,
   RATE_LIMIT_CONFIGS,

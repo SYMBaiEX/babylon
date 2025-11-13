@@ -6,7 +6,7 @@
  * Tests for A2A protocol moderation features
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { A2AClient } from '@/lib/a2a/client/a2a-client';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { prisma } from '@/lib/database-service';

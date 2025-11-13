@@ -9,7 +9,7 @@
  * NOTE: Requires trajectory schema and TrajectoryLoggerService
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { TrajectoryLoggerService } from '../TrajectoryLoggerService';
 import { 
   toARTMessages, 

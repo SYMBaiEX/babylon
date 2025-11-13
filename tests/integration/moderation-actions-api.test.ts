@@ -4,7 +4,7 @@
  * Tests the user-level moderation actions
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { prisma } from '@/lib/database-service';
 import { nanoid } from 'nanoid';
 

@@ -3,7 +3,7 @@
  * Ensures all required fields are present and no unused fields remain
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll } from 'bun:test';
 import * as fs from 'fs';
 import * as path from 'path';
 
