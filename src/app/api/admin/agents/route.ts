@@ -40,29 +40,34 @@ export async function GET(_req: NextRequest) {
         
         // Performance
         lifetimePnL: true,
-        totalTrades: true,
-        profitableTrades: true,
+        AgentPerformanceMetrics: {
+          select: {
+            totalTrades: true,
+            profitableTrades: true,
+            winRate: true,
+          },
+        },
         
         // Status
         agentStatus: true,
         agentErrorMessage: true,
         agentLastTickAt: true,
-        lastChatAt: true,
+        agentLastChatAt: true,
         
         // Timing
         createdAt: true,
         updatedAt: true,
         
-        // Creator
-        createdBy: true,
+        // Manager/Creator
+        managedBy: true,
       },
       orderBy: {
         agentLastTickAt: 'desc',
       },
     });
 
-    // Get creator names
-    const creatorIds = agents.map(a => a.createdBy).filter(Boolean) as string[];
+    // Get manager/creator names
+    const creatorIds = agents.map(a => a.managedBy).filter(Boolean) as string[];
     const creators = await prisma.user.findMany({
       where: { id: { in: creatorIds } },
       select: { id: true, displayName: true, username: true },
@@ -100,9 +105,10 @@ export async function GET(_req: NextRequest) {
         agent.autonomousDMs ||
         agent.autonomousGroupChats;
 
-      const winRate = agent.totalTrades > 0
-        ? (agent.profitableTrades || 0) / agent.totalTrades
-        : 0;
+      const metrics = agent.AgentPerformanceMetrics;
+      const totalTrades = metrics?.totalTrades || 0;
+      const profitableTrades = metrics?.profitableTrades || 0;
+      const winRate = totalTrades > 0 ? profitableTrades / totalTrades : 0;
 
       return {
         id: agent.id,
@@ -110,8 +116,8 @@ export async function GET(_req: NextRequest) {
         displayName: agent.displayName || agent.username || '',
         description: agent.bio || null,
         profileImageUrl: agent.profileImageUrl || null,
-        creatorId: agent.createdBy || 'system',
-        creatorName: agent.createdBy ? creatorMap.get(agent.createdBy) || null : 'System',
+        creatorId: agent.managedBy || 'system',
+        creatorName: agent.managedBy ? creatorMap.get(agent.managedBy) || null : 'System',
         modelTier: agent.agentModelTier || 'free',
         pointsBalance: agent.agentPointsBalance || 0,
         
@@ -125,14 +131,14 @@ export async function GET(_req: NextRequest) {
         
         // Performance
         lifetimePnL: Number(agent.lifetimePnL || 0),
-        totalTrades: agent.totalTrades || 0,
+        totalTrades,
         winRate,
         
         // Status
         agentStatus: agent.agentStatus,
         errorMessage: agent.agentErrorMessage,
         lastTickAt: agent.agentLastTickAt,
-        lastChatAt: agent.lastChatAt,
+        lastChatAt: agent.agentLastChatAt,
         
         // Timing
         createdAt: agent.createdAt,
