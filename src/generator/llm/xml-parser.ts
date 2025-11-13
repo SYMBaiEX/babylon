@@ -109,7 +109,7 @@ export function parseXMLToObject(xml: string): JsonValue {
     throw new Error('No root element found in XML');
   }
   
-  const rootTag = rootMatch[1];
+  // rootTag (rootMatch[1]) is used in the regex for matching closing tag
   const content = rootMatch[2];
   
   // Parse the content
@@ -150,10 +150,14 @@ function parseXMLContent(content: string): JsonValue {
     // Handle multiple elements with same tag name (arrays)
     if (tagName in children) {
       const existing = children[tagName];
-      if (Array.isArray(existing)) {
-        existing.push(value);
+      if (existing !== undefined) {
+        if (Array.isArray(existing)) {
+          existing.push(value);
+        } else {
+          children[tagName] = [existing, value];
+        }
       } else {
-        children[tagName] = [existing, value];
+        children[tagName] = value;
       }
     } else {
       children[tagName] = value;

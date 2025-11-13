@@ -9,10 +9,10 @@ import { logger } from '@/lib/logger';
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
   try {
-    const { agentId } = params;
+    const { agentId } = await params;
     const body = await req.json();
     const { enabled } = body;
 
