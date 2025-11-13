@@ -155,6 +155,20 @@ export class BabylonA2AClient {
   }
 
   /**
+   * Get prediction markets
+   */
+  async getPredictions(status?: string): Promise<any> {
+    return await this.sendRequest('a2a.getPredictions', { status: status || 'active' })
+  }
+
+  /**
+   * Get perpetual markets
+   */
+  async getPerpetuals(): Promise<any> {
+    return await this.sendRequest('a2a.getPerpetuals', {})
+  }
+
+  /**
    * Get recent feed posts
    */
   async getFeed(limit = 20): Promise<{ posts: any[] }> {

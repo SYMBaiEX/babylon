@@ -1,13 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Save } from 'lucide-react'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 
 interface AgentSettingsProps {
   agent: {
@@ -82,7 +81,7 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
 
   return (
     <div className="space-y-6">
-      <Card className="p-6">
+      <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border">
         <h3 className="text-lg font-semibold mb-4">Basic Information</h3>
         
         <div className="space-y-4">
@@ -114,9 +113,9 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
             />
           </div>
         </div>
-      </Card>
+      </div>
 
-      <Card className="p-6">
+      <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border">
         <h3 className="text-lg font-semibold mb-4">Personality</h3>
         
         <div className="space-y-4">
@@ -160,9 +159,9 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
             />
           </div>
         </div>
-      </Card>
+      </div>
 
-      <Card className="p-6">
+      <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border">
         <h3 className="text-lg font-semibold mb-4">Configuration</h3>
         
         <div className="space-y-4">
@@ -171,37 +170,39 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
             <div className="flex gap-4">
               <button
                 onClick={() => setFormData({ ...formData, modelTier: 'free' })}
-                className={`flex-1 p-4 border rounded-lg transition-colors ${
+                className={cn(
+                  'flex-1 p-4 border rounded-lg transition-colors',
                   formData.modelTier === 'free'
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border hover:border-primary/50'
-                }`}
+                    ? 'border-[#0066FF] bg-[#0066FF]/10'
+                    : 'border-border hover:border-[#0066FF]/50'
+                )}
               >
                 <div className="font-medium">Free (Groq 8B)</div>
-                <div className="text-sm text-gray-400">1 point per message</div>
+                <div className="text-sm text-muted-foreground">1 point per message</div>
               </button>
               <button
                 onClick={() => setFormData({ ...formData, modelTier: 'pro' })}
-                className={`flex-1 p-4 border rounded-lg transition-colors ${
+                className={cn(
+                  'flex-1 p-4 border rounded-lg transition-colors',
                   formData.modelTier === 'pro'
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border hover:border-primary/50'
-                }`}
+                    ? 'border-[#0066FF] bg-[#0066FF]/10'
+                    : 'border-border hover:border-[#0066FF]/50'
+                )}
               >
                 <div className="font-medium">Pro (Groq 70B)</div>
-                <div className="text-sm text-gray-400">1 point per message</div>
+                <div className="text-sm text-muted-foreground">1 point per message</div>
               </button>
             </div>
           </div>
 
           <div className="space-y-3">
             <h4 className="font-medium mb-2">Autonomous Features</h4>
-            <p className="text-sm text-gray-400 mb-4">Control what your agent can do automatically every tick</p>
+            <p className="text-sm text-muted-foreground mb-4">Control what your agent can do automatically every tick</p>
             
-            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+            <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg hover:bg-muted/50 transition-all">
               <div>
                 <div className="font-medium">Autonomous Trading</div>
-                <div className="text-sm text-gray-400">Evaluate and execute trades on markets</div>
+                <div className="text-sm text-muted-foreground">Evaluate and execute trades on markets</div>
               </div>
               <Switch
                 checked={formData.autonomousEnabled}
@@ -209,10 +210,10 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
               />
             </div>
 
-            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+            <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg hover:bg-muted/50 transition-all">
               <div>
                 <div className="font-medium">Autonomous Posting</div>
-                <div className="text-sm text-gray-400">Create posts based on analysis and activity</div>
+                <div className="text-sm text-muted-foreground">Create posts based on analysis and activity</div>
               </div>
               <Switch
                 checked={formData.autonomousPosting}
@@ -220,10 +221,10 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
               />
             </div>
 
-            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+            <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg hover:bg-muted/50 transition-all">
               <div>
                 <div className="font-medium">Autonomous Commenting</div>
-                <div className="text-sm text-gray-400">Comment on relevant posts in feed</div>
+                <div className="text-sm text-muted-foreground">Comment on relevant posts in feed</div>
               </div>
               <Switch
                 checked={formData.autonomousCommenting}
@@ -231,10 +232,10 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
               />
             </div>
 
-            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+            <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg hover:bg-muted/50 transition-all">
               <div>
                 <div className="font-medium">Autonomous DMs</div>
-                <div className="text-sm text-gray-400">Respond to direct messages from users</div>
+                <div className="text-sm text-muted-foreground">Respond to direct messages from users</div>
               </div>
               <Switch
                 checked={formData.autonomousDMs}
@@ -242,10 +243,10 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
               />
             </div>
 
-            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+            <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg hover:bg-muted/50 transition-all">
               <div>
                 <div className="font-medium">Autonomous Group Chats</div>
-                <div className="text-sm text-gray-400">Participate in group chats agent is invited to</div>
+                <div className="text-sm text-muted-foreground">Participate in group chats agent is invited to</div>
               </div>
               <Switch
                 checked={formData.autonomousGroupChats}
@@ -254,15 +255,18 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
             </div>
           </div>
         </div>
-      </Card>
+      </div>
 
       <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={saving}>
-          <Save className="w-4 h-4 mr-2" />
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="px-6 py-2 rounded-lg bg-[#0066FF] hover:bg-[#2952d9] text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        >
+          <Save className="w-4 h-4" />
           {saving ? 'Saving...' : 'Save Changes'}
-        </Button>
+        </button>
       </div>
     </div>
   )
 }
-

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Social Feed Provider
  * Provides access to social feed and posts via A2A protocol

@@ -211,11 +211,14 @@ export async function generateMixedFeedContent() {
       }/${posts.length}`
     );
 
-    allResults.push({
-      name: task.name,
-      posts,
-      validation: validation.results[0], // First result as example
-    });
+    // Only push if we have at least one result
+    if (validation.results.length > 0) {
+      allResults.push({
+        name: task.name,
+        posts,
+        validation: validation.results[0], // First result as example
+      });
+    }
   }
 
   return allResults;
@@ -261,7 +264,7 @@ export function setupValidationMonitoring() {
 // Helper: Mock AI Generation (Replace with your actual AI call)
 // ============================================================================
 
-async function mockAIGeneration(prompt: string): Promise<string[]> {
+async function mockAIGeneration(_prompt: string): Promise<string[]> {
   // This is a placeholder - replace with your actual AI generation
   // Example: OpenAI, Anthropic, local model, etc.
 

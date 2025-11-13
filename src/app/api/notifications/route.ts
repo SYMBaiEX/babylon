@@ -12,7 +12,7 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { InternalServerError } from '@/lib/errors';
 import { NotificationsQuerySchema, MarkNotificationsReadSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
-import { getCacheOrFetch, invalidateCache, CACHE_KEYS } from '@/lib/cache-service';
+import { getCacheOrFetch, invalidateCachePattern, CACHE_KEYS } from '@/lib/cache-service';
 
 /**
  * GET /api/notifications - Get user notifications
@@ -97,22 +97,35 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   logger.info('Notifications fetched successfully', { userId: authUser.userId, count: notifications.length, unreadCount }, 'GET /api/notifications');
 
   return successResponse({
-    notifications: notifications.map((n: typeof notifications[number]) => ({
-      id: n.id,
-      type: n.type,
-      actorId: n.actorId,
-      actor: n.User_Notification_actorIdToUser ? {
-        id: n.User_Notification_actorIdToUser.id,
-        displayName: n.User_Notification_actorIdToUser.displayName,
-        username: n.User_Notification_actorIdToUser.username,
-        profileImageUrl: n.User_Notification_actorIdToUser.profileImageUrl,
-      } : null,
-      postId: n.postId,
-      commentId: n.commentId,
-      message: n.message,
-      read: n.read,
-      createdAt: n.createdAt.toISOString(),
-    })),
+    notifications: notifications.map((n: typeof notifications[number]) => {
+      // Handle createdAt safely - it could be Date (from DB/memory cache) or string (from Redis cache)
+      let createdAtISO: string;
+      if (n.createdAt instanceof Date) {
+        createdAtISO = n.createdAt.toISOString();
+      } else if (typeof n.createdAt === 'string') {
+        createdAtISO = n.createdAt;
+      } else {
+        // Fallback: try to convert to Date then to ISO string
+        createdAtISO = new Date(n.createdAt).toISOString();
+      }
+
+      return {
+        id: n.id,
+        type: n.type,
+        actorId: n.actorId,
+        actor: n.User_Notification_actorIdToUser ? {
+          id: n.User_Notification_actorIdToUser.id,
+          displayName: n.User_Notification_actorIdToUser.displayName,
+          username: n.User_Notification_actorIdToUser.username,
+          profileImageUrl: n.User_Notification_actorIdToUser.profileImageUrl,
+        } : null,
+        postId: n.postId,
+        commentId: n.commentId,
+        message: n.message,
+        read: n.read,
+        createdAt: createdAtISO,
+      };
+    }),
     unreadCount,
   });
 });
@@ -141,7 +154,7 @@ export const PATCH = withErrorHandling(async (request: NextRequest) => {
       });
 
       // Invalidate notification cache after update
-      await invalidateCache(`notifications:${authUser.userId}:*`, { namespace: CACHE_KEYS.USER });
+      await invalidateCachePattern(`notifications:${authUser.userId}:*`, { namespace: CACHE_KEYS.USER });
 
       logger.info('All notifications marked as read', { userId: authUser.userId }, 'PATCH /api/notifications');
       return;
@@ -160,7 +173,7 @@ export const PATCH = withErrorHandling(async (request: NextRequest) => {
       });
 
       // Invalidate notification cache after update
-      await invalidateCache(`notifications:${authUser.userId}:*`, { namespace: CACHE_KEYS.USER });
+      await invalidateCachePattern(`notifications:${authUser.userId}:*`, { namespace: CACHE_KEYS.USER });
 
       logger.info('Notifications marked as read', { userId: authUser.userId, count: notificationIds.length }, 'PATCH /api/notifications');
       return;

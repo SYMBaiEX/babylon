@@ -54,40 +54,56 @@ uv sync
 ```
 
 ### 2. Configure
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
+Create a `.env` file (or copy `.env.example`):
 ```bash
 # Agent0 / ERC-8004
-AGENT0_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
-AGENT0_PRIVATE_KEY=0x...
-AGENT0_SUBGRAPH_URL=https://api.studio.thegraph.com/...
+AGENT0_PRIVATE_KEY=0x...your_private_key
 
 # Babylon
-BABYLON_A2A_URL=ws://localhost:3000
+BABYLON_A2A_URL=ws://localhost:3000/a2a
+BABYLON_HTTP_URL=http://localhost:3000
 
 # LLM
-GROQ_API_KEY=gsk_...
+GROQ_API_KEY=gsk_...your_groq_api_key
 
 # Agent Config
 AGENT_NAME=Alpha Trader
 AGENT_STRATEGY=balanced
+TICK_INTERVAL=30
 ```
 
-### 3. Test
+### 3. Verify Setup
 ```bash
-uv run pytest tests/
+# Verify Agent0 identity and Babylon connectivity
+uv run python verify_setup.py
 ```
 
-### 4. Run
+This will check:
+- ✅ Environment variables
+- ✅ Agent0 identity (private key, signing)
+- ✅ A2A authentication (message format, signatures)
+- ✅ Babylon connectivity (WebSocket, handshake, method calls)
+- ✅ Python dependencies
+
+### 4. Run Tests
 ```bash
-# Autonomous mode (loops forever)
+# Run all tests
+uv run pytest tests/ -v
+
+# Run specific test
+uv run pytest tests/test_a2a_integration.py -v -s
+```
+
+### 5. Start Agent
+```bash
+# Make sure Babylon server is running first!
+# In another terminal: cd /Users/shawwalters/babylon && npm run dev
+
+# Run the agent (uses official a2a-sdk)
+uv run python agent_v2.py
+
+# Or run original agent (custom WebSocket implementation)
 uv run python agent.py
-
-# Interactive mode
-uv run python -m babylon_agent interactive
 ```
 
 ---

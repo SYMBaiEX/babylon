@@ -30,7 +30,7 @@ export default function ActorProfilePage() {
   const identifier = decodeURIComponent(params.id as string)
   const isUsernameParam = isUsername(identifier)
   const actorId = isUsernameParam ? extractUsername(identifier) : identifier
-  const { user, authenticated } = useAuth()
+  const { user, authenticated, getAccessToken } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
   const [tab, setTab] = useState<'posts' | 'replies' | 'trades'>('posts')
   const { allGames } = useGameStore();
@@ -116,7 +116,7 @@ export default function ActorProfilePage() {
   const loadActorInfo = useCallback(async () => {
     setLoading(true)
     
-    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    const token = await getAccessToken()
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     }
@@ -302,7 +302,7 @@ export default function ActorProfilePage() {
       // Not found
       setActorInfo(null)
       setLoading(false)
-  }, [actorId, allGames, authenticated, currentUserId, identifier, isOwnProfile, isUsernameParam, router])
+  }, [actorId, allGames, authenticated, currentUserId, identifier, isOwnProfile, isUsernameParam, router, getAccessToken])
 
   useEffect(() => {
     loadActorInfo()

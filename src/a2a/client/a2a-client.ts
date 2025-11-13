@@ -1,6 +1,9 @@
 /**
  * A2A Client
  * Client library for agents to connect to A2A servers
+ * 
+ * DEPRECATED: This file is being migrated to @/lib/a2a/client
+ * Use BabylonA2AClient or HttpA2AClient instead
  */
 
 import { logger } from '@/lib/logger';
@@ -382,6 +385,61 @@ export class A2AClient extends EventEmitter {
       deadline: deadline || Date.now() + 3600000
     };
     return this.sendRequestInternal(A2AMethod.REQUEST_ANALYSIS, params)
+  }
+
+  // ==================== User Data Operations ====================
+
+  async getUserBalance(userId?: string): Promise<{ 
+    balance: number
+    totalDeposited: number
+    totalWithdrawn: number
+    lifetimePnL: number
+    reputationPoints?: number
+  }> {
+    const params: JsonRpcParams = userId ? { userId } : {}
+    return this.sendRequestInternal('a2a.getBalance', Object.keys(params).length > 0 ? params : undefined)
+  }
+
+  async getUserPositions(userId: string): Promise<{
+    marketPositions: Array<{
+      id: string
+      marketId: string
+      question: string
+      side: string
+      shares: number
+      avgPrice: number
+      currentPrice: number
+      unrealizedPnL: number
+    }>
+    perpPositions: Array<{
+      id: string
+      ticker: string
+      side: string
+      size: number
+      entryPrice: number
+      currentPrice: number
+      leverage: number
+      unrealizedPnL: number
+      liquidationPrice: number
+    }>
+  }> {
+    return this.sendRequestInternal('a2a.getPositions', { userId })
+  }
+
+  async getUserWallet(userId: string): Promise<{
+    balance: {
+      balance: number
+      totalDeposited: number
+      totalWithdrawn: number
+      lifetimePnL: number
+      reputationPoints: number
+    }
+    positions: {
+      marketPositions: any[]
+      perpPositions: any[]
+    }
+  }> {
+    return this.sendRequestInternal('a2a.getUserWallet', { userId })
   }
 
   // ==================== x402 Micropayments ====================

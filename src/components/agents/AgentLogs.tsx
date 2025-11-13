@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { FileText, Filter } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface Log {
   id: string
@@ -73,33 +72,33 @@ export function AgentLogs({ agentId }: AgentLogsProps) {
 
   const getLevelColor = (level: string) => {
     switch (level) {
-      case 'error': return 'text-red-400'
-      case 'warn': return 'text-yellow-400'
-      case 'debug': return 'text-gray-400'
-      default: return 'text-blue-400'
+      case 'error': return 'text-red-600'
+      case 'warn': return 'text-yellow-600'
+      case 'debug': return 'text-muted-foreground'
+      default: return 'text-blue-600'
     }
   }
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'error': return 'bg-red-500/10'
-      case 'trade': return 'bg-green-500/10'
-      case 'chat': return 'bg-blue-500/10'
-      case 'tick': return 'bg-purple-500/10'
-      default: return 'bg-gray-500/10'
+      case 'error': return 'bg-red-500/10 border-red-500/20'
+      case 'trade': return 'bg-green-500/10 border-green-500/20'
+      case 'chat': return 'bg-blue-500/10 border-blue-500/20'
+      case 'tick': return 'bg-purple-500/10 border-purple-500/20'
+      default: return 'bg-muted/30 border-border/50'
     }
   }
 
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <Card className="p-4">
-        <div className="flex items-center gap-4">
-          <Filter className="w-5 h-5 text-gray-400" />
+      <div className="p-4 rounded-lg bg-card/50 backdrop-blur border border-border">
+        <div className="flex items-center gap-4 flex-wrap">
+          <Filter className="w-5 h-5 text-muted-foreground" />
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="px-3 py-2 bg-muted rounded-lg"
+            className="px-3 py-2 bg-muted rounded-lg border border-border text-foreground"
           >
             <option value="all">All Types</option>
             <option value="chat">Chat</option>
@@ -111,7 +110,7 @@ export function AgentLogs({ agentId }: AgentLogsProps) {
           <select
             value={levelFilter}
             onChange={(e) => setLevelFilter(e.target.value)}
-            className="px-3 py-2 bg-muted rounded-lg"
+            className="px-3 py-2 bg-muted rounded-lg border border-border text-foreground"
           >
             <option value="all">All Levels</option>
             <option value="info">Info</option>
@@ -119,16 +118,20 @@ export function AgentLogs({ agentId }: AgentLogsProps) {
             <option value="error">Error</option>
             <option value="debug">Debug</option>
           </select>
-          <Button variant="outline" size="sm" onClick={fetchLogs} disabled={loading}>
+          <button
+            onClick={fetchLogs}
+            disabled={loading}
+            className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             {loading ? 'Refreshing...' : 'Refresh'}
-          </Button>
+          </button>
         </div>
-      </Card>
+      </div>
 
       {/* Logs */}
-      <Card className="p-4">
+      <div className="p-4 rounded-lg bg-card/50 backdrop-blur border border-border">
         {logs.length === 0 ? (
-          <div className="text-center text-gray-400 py-12">
+          <div className="text-center text-muted-foreground py-12">
             <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>No logs found</p>
           </div>
@@ -137,39 +140,37 @@ export function AgentLogs({ agentId }: AgentLogsProps) {
             {logs.map((log) => (
               <div
                 key={log.id}
-                className={`p-3 rounded-lg ${getTypeColor(log.type)} border border-border/50`}
+                className={cn('p-3 rounded-lg border', getTypeColor(log.type))}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-xs font-mono uppercase ${getLevelColor(log.level)}`}>
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className={cn('text-xs font-mono uppercase font-semibold', getLevelColor(log.level))}>
                         {log.level}
                       </span>
-                      <span className="text-xs text-gray-500">•</span>
-                      <span className="text-xs uppercase text-gray-400">{log.type}</span>
-                      <span className="text-xs text-gray-500">•</span>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-muted-foreground">•</span>
+                      <span className="text-xs uppercase text-muted-foreground">{log.type}</span>
+                      <span className="text-xs text-muted-foreground">•</span>
+                      <span className="text-xs text-muted-foreground">
                         {new Date(log.createdAt).toLocaleString()}
                       </span>
                     </div>
                     <div className="text-sm">{log.message}</div>
                     
                     {(log.prompt || log.completion || log.thinking || log.metadata) && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      <button
                         onClick={() => toggleExpanded(log.id)}
-                        className="mt-2 text-xs"
+                        className="mt-2 px-3 py-1 rounded text-xs bg-muted hover:bg-muted/80 transition-all"
                       >
                         {expanded.has(log.id) ? 'Hide Details' : 'Show Details'}
-                      </Button>
+                      </button>
                     )}
 
                     {expanded.has(log.id) && (
                       <div className="mt-3 space-y-2 text-xs">
                         {log.prompt && (
                           <div>
-                            <div className="font-medium text-gray-400 mb-1">Prompt:</div>
+                            <div className="font-medium text-muted-foreground mb-1">Prompt:</div>
                             <pre className="bg-black/30 p-2 rounded overflow-x-auto whitespace-pre-wrap">
                               {log.prompt}
                             </pre>
@@ -177,7 +178,7 @@ export function AgentLogs({ agentId }: AgentLogsProps) {
                         )}
                         {log.completion && (
                           <div>
-                            <div className="font-medium text-gray-400 mb-1">Completion:</div>
+                            <div className="font-medium text-muted-foreground mb-1">Completion:</div>
                             <pre className="bg-black/30 p-2 rounded overflow-x-auto whitespace-pre-wrap">
                               {log.completion}
                             </pre>
@@ -185,7 +186,7 @@ export function AgentLogs({ agentId }: AgentLogsProps) {
                         )}
                         {log.thinking && (
                           <div>
-                            <div className="font-medium text-gray-400 mb-1">Thinking:</div>
+                            <div className="font-medium text-muted-foreground mb-1">Thinking:</div>
                             <pre className="bg-black/30 p-2 rounded overflow-x-auto whitespace-pre-wrap">
                               {log.thinking}
                             </pre>
@@ -193,7 +194,7 @@ export function AgentLogs({ agentId }: AgentLogsProps) {
                         )}
                         {log.metadata && (
                           <div>
-                            <div className="font-medium text-gray-400 mb-1">Metadata:</div>
+                            <div className="font-medium text-muted-foreground mb-1">Metadata:</div>
                             <pre className="bg-black/30 p-2 rounded overflow-x-auto">
                               {JSON.stringify(log.metadata, null, 2)}
                             </pre>
@@ -207,8 +208,7 @@ export function AgentLogs({ agentId }: AgentLogsProps) {
             ))}
           </div>
         )}
-      </Card>
+      </div>
     </div>
   )
 }
-

@@ -275,7 +275,7 @@ export class GameEngine extends EventEmitter {
     const activeQuestions = this.questions.filter(
       (q) => q.status === 'active'
     ).length;
-    const a2aStatus = this.a2aIntegration.getStatus();
+    const a2aStatus = { enabled: this.a2aIntegration.isEnabled() };
     this.initialized = true;
     logger.info(
       'ENGINE READY',
@@ -369,7 +369,7 @@ export class GameEngine extends EventEmitter {
     }
 
     // Shutdown A2A integration
-    await this.a2aIntegration.shutdown();
+    await this.a2aIntegration.stop();
 
     this.emit('stopped');
   }
@@ -670,7 +670,11 @@ export class GameEngine extends EventEmitter {
         }
       }
 
-      // Step 4: Update prices based on events
+      // Step 4: Update actor moods and relationships based on events
+      this.updateActorMoodsFromEvents(events);
+      await this.updateRelationshipsFromEvents(events);
+
+      // Step 4b: Update prices based on events
       const priceUpdates = await this.updatePrices(events);
       if (priceUpdates.length > 0) {
         logger.debug(
@@ -725,6 +729,9 @@ export class GameEngine extends EventEmitter {
         { count: tradeBasedPriceUpdates.length },
         'GameEngine'
       );
+
+      // Update moods based on trading outcomes
+      this.updateActorMoodsFromTrading(executionResult);
 
       // Combine event-based and trade-based price updates
       const allPriceUpdates = [...priceUpdates, ...tradeBasedPriceUpdates];
@@ -849,13 +856,15 @@ export class GameEngine extends EventEmitter {
 
       this.emit('tick', tick);
 
-      // Broadcast market data to A2A agents
-      if (this.a2aIntegration.getStatus().enabled) {
-        this.a2aIntegration.broadcastMarketData(this.questions, priceUpdates);
-
-        // Broadcast significant events
+      // A2A market data is now available via HTTP API routes
+      if (this.a2aIntegration.isEnabled()) {
+        // Market data and events are accessed via:
+        // GET /api/a2a (with method a2a.getMarketData)
+        // No need to broadcast - agents poll the HTTP endpoints
+        
+        // Log significant events for debugging
         for (const event of events) {
-          this.a2aIntegration.broadcastGameEvent({
+          logger.debug('Game event', {
             type: event.type,
             description: event.description,
             relatedQuestion: event.relatedQuestion ?? undefined,
@@ -2751,6 +2760,295 @@ Return ONLY this JSON:
 
   private randomMood(): number {
     return (Math.random() - 0.5) * 2;
+  }
+
+  /**
+   * Update relationships based on events
+   * Events involving multiple actors strengthen or weaken their relationships
+   */
+  private async updateRelationshipsFromEvents(events: WorldEvent[]): Promise<void> {
+    let relationshipsUpdated = 0;
+
+    for (const event of events) {
+      if (!event.actors || event.actors.length < 2) continue;
+
+      // Events involving multiple actors affect their relationships
+      for (let i = 0; i < event.actors.length; i++) {
+        for (let j = i + 1; j < event.actors.length; j++) {
+          const actor1Id = event.actors[i];
+          const actor2Id = event.actors[j];
+          if (!actor1Id || !actor2Id) continue;
+
+          try {
+            const updated = await this.adjustRelationshipFromEvent(
+              actor1Id,
+              actor2Id,
+              event
+            );
+            if (updated) relationshipsUpdated++;
+          } catch (error) {
+            logger.debug(
+              `Failed to update relationship for event`,
+              { error, actor1Id, actor2Id, eventId: event.id },
+              'GameEngine'
+            );
+          }
+        }
+      }
+    }
+
+    if (relationshipsUpdated > 0) {
+      logger.info(
+        `Updated ${relationshipsUpdated} relationships from ${events.length} events`,
+        { relationshipsUpdated, events: events.length },
+        'GameEngine'
+      );
+    }
+  }
+
+  /**
+   * Adjust a relationship based on an event
+   */
+  private async adjustRelationshipFromEvent(
+    actor1Id: string,
+    actor2Id: string,
+    event: WorldEvent
+  ): Promise<boolean> {
+    const existing = await RelationshipManager.getRelationship(actor1Id, actor2Id);
+
+    let sentimentDelta = 0;
+    let strengthDelta = 0;
+
+    // Event type determines relationship impact
+    if (event.type === 'scandal' || event.type === 'conflict') {
+      sentimentDelta = -0.12; // Creates/worsens beef
+      strengthDelta = +0.08; // Conflict strengthens relationship (even if negative)
+    } else if (event.type === 'deal' || event.type === 'meeting') {
+      sentimentDelta = +0.10; // Cooperation improves sentiment
+      strengthDelta = +0.12; // Working together strengthens bond
+    } else if (event.type === 'announcement') {
+      strengthDelta = +0.05; // Being in same event increases awareness
+    }
+
+    if (!existing) {
+      // Create new relationship from event
+      if (Math.abs(sentimentDelta) > 0.05 || strengthDelta > 0.1) {
+        const relationshipType =
+          event.type === 'scandal' || event.type === 'conflict'
+            ? 'rivals'
+            : event.type === 'deal'
+            ? 'business partners'
+            : 'acquaintances';
+
+        await db.prisma.actorRelationship.create({
+          data: {
+            id: `${actor1Id}-${actor2Id}-${Date.now()}`,
+            actor1Id,
+            actor2Id,
+            relationshipType,
+            sentiment: sentimentDelta,
+            strength: strengthDelta,
+            isPublic: true,
+            history: event.description,
+            updatedAt: new Date(),
+          },
+        });
+
+        logger.debug(
+          `New relationship created: ${actor1Id} ↔ ${actor2Id} (${relationshipType})`,
+          { actor1Id, actor2Id, type: relationshipType, event: event.type },
+          'GameEngine'
+        );
+
+        return true;
+      }
+      return false;
+    }
+
+    // Update existing relationship
+    const newSentiment = Math.max(
+      -1,
+      Math.min(1, existing.sentiment + sentimentDelta)
+    );
+    const newStrength = Math.max(0, Math.min(1, existing.strength + strengthDelta));
+
+    // Update relationship type based on sentiment
+    let newType = existing.relationshipType;
+    if (newSentiment < -0.7 && existing.sentiment >= -0.7) {
+      newType = 'rivals'; // Relationship deteriorated to rivals
+    } else if (newSentiment < -0.3 && existing.sentiment >= -0.3) {
+      newType = 'frenemies'; // Became frenemies
+    } else if (newSentiment > 0.7 && existing.sentiment <= 0.7) {
+      newType = 'allies'; // Became close allies
+    } else if (newSentiment > 0.3 && existing.sentiment <= 0.3) {
+      newType = 'collaborators'; // Became collaborators
+    }
+
+    await db.prisma.actorRelationship.update({
+      where: { id: existing.id },
+      data: {
+        sentiment: newSentiment,
+        strength: newStrength,
+        relationshipType: newType,
+        history: existing.history
+          ? `${existing.history}; ${event.description.substring(0, 100)}`
+          : event.description,
+        updatedAt: new Date(),
+      },
+    });
+
+    if (Math.abs(sentimentDelta) > 0.05 || Math.abs(strengthDelta) > 0.05) {
+      logger.debug(
+        `Relationship updated: ${actor1Id} ↔ ${actor2Id} sentiment ${existing.sentiment.toFixed(2)} → ${newSentiment.toFixed(2)}`,
+        {
+          actor1Id,
+          actor2Id,
+          oldSentiment: existing.sentiment,
+          newSentiment,
+          newType,
+        },
+        'GameEngine'
+      );
+    }
+
+    return true;
+  }
+
+  /**
+   * Update actor moods based on events
+   * Events involving actors affect their mood based on outcome direction
+   */
+  private updateActorMoodsFromEvents(events: WorldEvent[]): void {
+    let moodsUpdated = 0;
+
+    for (const event of events) {
+      if (!event.actors || event.actors.length === 0) continue;
+
+      for (const actorId of event.actors) {
+        const current = this.luckMood.get(actorId);
+        if (!current) continue;
+
+        let moodDelta = 0;
+
+        // Events affect mood based on pointsToward and type
+        if (event.pointsToward === 'YES') {
+          // Positive development
+          moodDelta = event.type === 'scandal' ? -0.15 : +0.12;
+        } else if (event.pointsToward === 'NO') {
+          // Negative development
+          moodDelta = event.type === 'deal' ? -0.12 : -0.15;
+        } else {
+          // Ambiguous - small random noise
+          moodDelta = (Math.random() - 0.5) * 0.08;
+        }
+
+        // Scandals and conflicts hurt mood more
+        if (event.type === 'scandal' || event.type === 'conflict') {
+          moodDelta -= 0.1;
+        }
+
+        // Deals and announcements improve mood
+        if (event.type === 'deal' || event.type === 'announcement') {
+          moodDelta += 0.08;
+        }
+
+        // Clamp mood to -1 to 1
+        const newMood = Math.max(-1, Math.min(1, current.mood + moodDelta));
+
+        this.luckMood.set(actorId, {
+          ...current,
+          mood: newMood,
+        });
+
+        moodsUpdated++;
+
+        if (Math.abs(moodDelta) > 0.1) {
+          logger.debug(
+            `Mood shift: ${actorId} ${current.mood.toFixed(2)} → ${newMood.toFixed(2)} (event: ${event.type})`,
+            { actorId, oldMood: current.mood, newMood, event: event.type },
+            'GameEngine'
+          );
+        }
+      }
+    }
+
+    if (moodsUpdated > 0) {
+      logger.info(
+        `Updated moods for ${moodsUpdated} actors from ${events.length} events`,
+        { moodsUpdated, events: events.length },
+        'GameEngine'
+      );
+    }
+  }
+
+  /**
+   * Update actor moods based on trading outcomes
+   * Profitable trades improve mood, losses hurt mood
+   */
+  private updateActorMoodsFromTrading(executionResult: ExecutionResult): void {
+    let moodsUpdated = 0;
+
+    for (const trade of executionResult.executedTrades) {
+      const current = this.luckMood.get(trade.npcId);
+      if (!current) continue;
+
+      // Mood impact from trading activity
+      // Note: ExecutedTrade doesn't have pnl property, mood changes are based on confidence
+      if (trade.action === 'close_position') {
+        // Closing positions affects mood based on confidence
+        let moodDelta = 0;
+        
+        if (trade.confidence > 0.7) {
+          // High confidence closes slightly improve mood
+          moodDelta = Math.min(0.1, trade.confidence * 0.15);
+        } else {
+          // Low confidence closes slightly hurt mood
+          moodDelta = Math.max(-0.15, (trade.confidence - 0.5) * 0.3);
+        }
+
+        const newMood = Math.max(-1, Math.min(1, current.mood + moodDelta));
+
+        this.luckMood.set(trade.npcId, {
+          ...current,
+          mood: newMood,
+        });
+
+        moodsUpdated++;
+
+        if (Math.abs(moodDelta) > 0.05) {
+          logger.debug(
+            `Mood from trading: ${trade.npcId} ${current.mood.toFixed(2)} → ${newMood.toFixed(2)} (confidence: ${trade.confidence.toFixed(2)})`,
+            { npcId: trade.npcId, oldMood: current.mood, newMood, confidence: trade.confidence },
+            'GameEngine'
+          );
+        }
+      }
+
+      // Opening positions creates slight excitement/anxiety
+      if (trade.action === 'open_long' || trade.action === 'open_short' || 
+          trade.action === 'buy_yes' || trade.action === 'buy_no') {
+        const moodCheck = this.luckMood.get(trade.npcId);
+        if (!moodCheck) continue;
+
+        // Small mood shift from taking position (excitement or anxiety)
+        const moodDelta = (Math.random() - 0.3) * 0.1; // Slight bias toward excitement
+
+        const newMood = Math.max(-1, Math.min(1, moodCheck.mood + moodDelta));
+
+        this.luckMood.set(trade.npcId, {
+          ...moodCheck,
+          mood: newMood,
+        });
+      }
+    }
+
+    if (moodsUpdated > 0) {
+      logger.info(
+        `Updated moods for ${moodsUpdated} actors from trading outcomes`,
+        { moodsUpdated },
+        'GameEngine'
+      );
+    }
   }
 
   getState() {

@@ -1,13 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Avatar } from '@/components/shared/Avatar'
 import { Send, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
+import { cn } from '@/lib/utils'
 
 interface Message {
   id: string
@@ -143,34 +142,38 @@ export function AgentChat({ agent, onUpdate }: AgentChatProps) {
   }
 
   return (
-    <Card className="flex flex-col h-[600px]">
+    <div className="flex flex-col h-[600px] rounded-lg bg-card/50 backdrop-blur border border-border">
       {/* Header */}
       <div className="p-4 border-b border-border flex items-center justify-between">
         <div>
           <h3 className="font-semibold">Chat with {agent.name}</h3>
-          <p className="text-sm text-gray-400">{agent.pointsBalance} points available</p>
+          <p className="text-sm text-muted-foreground">{agent.pointsBalance} points available</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant={usePro ? 'default' : 'outline'}
-            size="sm"
+          <button
             onClick={() => setUsePro(!usePro)}
             disabled={agent.modelTier === 'free'}
+            className={cn(
+              'px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed',
+              usePro
+                ? 'bg-[#0066FF] text-white'
+                : 'bg-muted hover:bg-muted/80 text-foreground'
+            )}
           >
-            <Sparkles className="w-4 h-4 mr-2" />
+            <Sparkles className="w-4 h-4" />
             {usePro ? 'Pro Mode' : 'Free Mode'}
-          </Button>
+          </button>
         </div>
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {loading && messages.length === 0 ? (
-          <div className="text-center text-gray-400 py-12">
+          <div className="text-center text-muted-foreground py-12">
             Loading chat history...
           </div>
         ) : messages.length === 0 ? (
-          <div className="text-center text-gray-400 py-12">
+          <div className="text-center text-muted-foreground py-12">
             <p className="mb-2">No messages yet</p>
             <p className="text-sm">Start a conversation with your agent!</p>
           </div>
@@ -192,11 +195,12 @@ export function AgentChat({ agent, onUpdate }: AgentChatProps) {
               )}
               
               <div
-                className={`max-w-[70%] rounded-lg p-3 ${
+                className={cn(
+                  'max-w-[70%] rounded-lg p-3',
                   message.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
+                    ? 'bg-[#0066FF] text-white'
                     : 'bg-muted'
-                }`}
+                )}
               >
                 <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                 <div className="flex items-center gap-2 mt-1 text-xs opacity-70">
@@ -241,9 +245,9 @@ export function AgentChat({ agent, onUpdate }: AgentChatProps) {
             />
             <div className="bg-muted rounded-lg p-3">
               <div className="flex gap-1">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             </div>
           </div>
@@ -254,7 +258,7 @@ export function AgentChat({ agent, onUpdate }: AgentChatProps) {
       {/* Input */}
       <div className="p-4 border-t border-border">
         {agent.pointsBalance < 1 ? (
-          <div className="text-center text-red-400 text-sm py-2">
+          <div className="text-center text-red-600 text-sm py-2">
             Insufficient points. Please deposit points to continue chatting.
           </div>
         ) : (
@@ -267,16 +271,17 @@ export function AgentChat({ agent, onUpdate }: AgentChatProps) {
               disabled={sending}
               className="flex-1"
             />
-            <Button
+            <button
               onClick={sendMessage}
               disabled={!input.trim() || sending || agent.pointsBalance < 1}
+              className="px-4 py-2 rounded-lg bg-[#0066FF] hover:bg-[#2952d9] text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               <Send className="w-4 h-4" />
-            </Button>
+            </button>
           </div>
         )}
       </div>
-    </Card>
+    </div>
   )
 }
 

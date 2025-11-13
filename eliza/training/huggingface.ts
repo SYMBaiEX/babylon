@@ -22,6 +22,10 @@ class RuntimeShim implements RuntimeShimLike {
     trace: console.debug,
     fatal: console.error,
     success: console.log,
+    progress: console.log,
+    log: console.log,
+    clear: () => console.clear ? console.clear() : undefined,
+    child: () => this.logger,
     level: 'info' as const,
   } as IAgentRuntime["logger"];
 }

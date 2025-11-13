@@ -62,13 +62,19 @@ export class TradeExecutionService {
         }
       } catch (error) {
         result.failedTrades++;
+        const errorMessage = error instanceof Error ? error.message : String(error);
         result.errors.push({
           npcId: decision.npcId,
           decision,
-          error: error instanceof Error ? error.message : String(error),
+          error: errorMessage,
         });
 
-        logger.error(
+        // Use warn level for expected failures (non-existent organizations)
+        // Use error level for unexpected system failures
+        const isExpectedFailure = errorMessage.includes('Organization not found');
+        const logLevel = isExpectedFailure ? 'warn' : 'error';
+        
+        logger[logLevel](
           `Failed to execute trade for ${decision.npcName}`,
           {
             error,
@@ -162,12 +168,29 @@ export class TradeExecutionService {
     }
 
     if (!org?.currentPrice) {
-      throw new Error(`Organization not found for ticker: ${decision.ticker}`);
+      logger.warn(
+        `NPC tried to trade non-existent organization`,
+        {
+          npcId: decision.npcId,
+          npcName: decision.npcName,
+          ticker: decision.ticker,
+          action: decision.action,
+        },
+        'TradeExecutionService'
+      );
+      throw new Error(`Organization not found: ${decision.ticker}`);
     }
 
     const currentPrice = org.currentPrice;
     const leverage = 5; // Standard leverage
     const side = decision.action === 'open_long' ? 'long' : 'short';
+
+    // Generate transformed ticker for PerpsEngine (matches PerpetualsEngine.generateTicker)
+    // This removes dashes and uppercases the org ID, truncated to 12 chars
+    let engineTicker = org.id.toUpperCase().replace(/-/g, '');
+    if (engineTicker.length > 12) {
+      engineTicker = engineTicker.substring(0, 12);
+    }
 
     // Calculate trading fee (0.1% on position size)
     const positionSize = decision.amount * leverage;
@@ -201,12 +224,13 @@ export class TradeExecutionService {
       });
 
       // Create position
+      // Store the raw organization ID as ticker for database consistency
       const pos = await tx.poolPosition.create({
         data: {
           id: generateSnowflakeId(),
           poolId,
           marketType: 'perp',
-          ticker: decision.ticker!,
+          ticker: org.id, // Use raw org ID for database storage
           side,
           entryPrice: currentPrice,
           currentPrice,
@@ -225,7 +249,7 @@ export class TradeExecutionService {
           npcActorId: decision.npcId,
           poolId,
           marketType: 'perp',
-          ticker: decision.ticker!,
+          ticker: org.id, // Use raw org ID for database storage
           action: decision.action,
           side,
           amount: decision.amount,

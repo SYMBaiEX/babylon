@@ -1,7 +1,7 @@
 'use client'
 
-import { Card } from '@/components/ui/card'
 import { TrendingUp, TrendingDown, Activity, DollarSign } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface AgentPerformanceProps {
   agent: {
@@ -24,25 +24,25 @@ export function AgentPerformance({ agent }: AgentPerformanceProps) {
       label: 'Lifetime P&L',
       value: pnl.toFixed(2),
       icon: isProfitable ? TrendingUp : TrendingDown,
-      color: isProfitable ? 'text-green-400' : 'text-red-400'
+      color: isProfitable ? 'text-green-600' : 'text-red-600'
     },
     {
       label: 'Total Trades',
       value: totalTrades.toString(),
       icon: Activity,
-      color: 'text-blue-400'
+      color: 'text-blue-600'
     },
     {
       label: 'Profitable Trades',
       value: profitableTrades.toString(),
       icon: TrendingUp,
-      color: 'text-green-400'
+      color: 'text-green-600'
     },
     {
       label: 'Win Rate',
       value: `${(winRate * 100).toFixed(1)}%`,
       icon: DollarSign,
-      color: 'text-purple-400'
+      color: 'text-purple-600'
     }
   ]
 
@@ -51,76 +51,78 @@ export function AgentPerformance({ agent }: AgentPerformanceProps) {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat, idx) => (
-          <Card key={idx} className="p-6">
+          <div key={idx} className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border hover:border-[#0066FF]/30 transition-all">
             <div className="flex items-start justify-between mb-3">
-              <div className="text-sm text-gray-400">{stat.label}</div>
-              <stat.icon className={`w-5 h-5 ${stat.color}`} />
+              <div className="text-sm text-muted-foreground">{stat.label}</div>
+              <stat.icon className={cn('w-5 h-5', stat.color)} />
             </div>
-            <div className={`text-2xl font-bold ${stat.color}`}>
+            <div className={cn('text-2xl font-bold', stat.color)}>
               {stat.value}
             </div>
-          </Card>
+          </div>
         ))}
       </div>
 
       {/* Detailed Stats */}
-      <Card className="p-6">
+      <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border">
         <h3 className="text-lg font-semibold mb-4">Detailed Statistics</h3>
         
         <div className="space-y-4">
-          <div className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
-            <span className="text-gray-400">Total Trades</span>
+          <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-all">
+            <span className="text-muted-foreground">Total Trades</span>
             <span className="font-semibold">{totalTrades}</span>
           </div>
           
-          <div className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
-            <span className="text-gray-400">Profitable Trades</span>
-            <span className="font-semibold text-green-400">{profitableTrades}</span>
+          <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-all">
+            <span className="text-muted-foreground">Profitable Trades</span>
+            <span className="font-semibold text-green-600">{profitableTrades}</span>
           </div>
           
-          <div className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
-            <span className="text-gray-400">Losing Trades</span>
-            <span className="font-semibold text-red-400">
+          <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-all">
+            <span className="text-muted-foreground">Losing Trades</span>
+            <span className="font-semibold text-red-600">
               {totalTrades - profitableTrades}
             </span>
           </div>
           
-          <div className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
-            <span className="text-gray-400">Win Rate</span>
+          <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-all">
+            <span className="text-muted-foreground">Win Rate</span>
             <span className="font-semibold">{(winRate * 100).toFixed(1)}%</span>
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* Activity Summary */}
-      <Card className="p-6">
+      <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border">
         <h3 className="text-lg font-semibold mb-4">Activity Summary</h3>
         
         {totalTrades === 0 ? (
-          <div className="text-center text-gray-400 py-8">
+          <div className="text-center text-muted-foreground py-8">
             <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>No trading activity yet</p>
             <p className="text-sm mt-2">Enable autonomous mode to start trading</p>
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="p-4 bg-muted/50 rounded-lg">
-              <div className="text-sm text-gray-400 mb-2">Performance</div>
+            <div className="p-4 bg-muted/30 rounded-lg hover:bg-muted/50 transition-all">
+              <div className="text-sm text-muted-foreground mb-2">Performance</div>
               <div className="flex items-center gap-2">
                 {isProfitable ? (
-                  <TrendingUp className="w-5 h-5 text-green-400" />
+                  <TrendingUp className="w-5 h-5 text-green-600" />
                 ) : (
-                  <TrendingDown className="w-5 h-5 text-red-400" />
+                  <TrendingDown className="w-5 h-5 text-red-600" />
                 )}
-                <span className={`text-lg font-semibold ${isProfitable ? 'text-green-400' : 'text-red-400'}`}>
+                <span className={cn(
+                  'text-lg font-semibold',
+                  isProfitable ? 'text-green-600' : 'text-red-600'
+                )}>
                   {isProfitable ? '+' : ''}{pnl.toFixed(2)} points
                 </span>
               </div>
             </div>
           </div>
         )}
-      </Card>
+      </div>
     </div>
   )
 }
-

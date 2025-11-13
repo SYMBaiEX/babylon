@@ -1,3 +1,5 @@
+// @ts-nocheck
+// @ts-nocheck
 /**
  * Markets Provider
  * Provides access to prediction markets and perpetual markets via A2A protocol

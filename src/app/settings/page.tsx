@@ -27,6 +27,7 @@ export default function SettingsPage() {
     ready,
     authenticated,
     refresh,
+    getAccessToken,
   } = useAuth();
   const { user, setUser } = useAuthStore();
   const [activeTab, setActiveTab] = useState(() => {
@@ -114,8 +115,7 @@ export default function SettingsPage() {
       // This includes username changes, bio updates, display name changes.
       // The server signs the transaction on-chain for a seamless UX.
       
-      const token =
-        typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = await getAccessToken();
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
       };

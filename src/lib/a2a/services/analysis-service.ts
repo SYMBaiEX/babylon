@@ -5,9 +5,9 @@
  * Can be extended to use database or Redis for production.
  */
 
-import type { MarketAnalysis } from '../types'
+import type { MarketAnalysis } from '@/types/a2a'
 import { logger } from '@/lib/logger'
-import { MarketAnalysisSchema } from '../types';
+import { MarketAnalysisSchema } from '@/types/a2a';
 
 export class AnalysisService {
   private analyses: Map<string, MarketAnalysis[]> = new Map()

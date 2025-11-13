@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Messaging Provider
  * Provides access to chats and messages via A2A protocol

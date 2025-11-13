@@ -52,15 +52,33 @@ export class AgentRuntimeManager {
       throw new Error(`User ${agentUserId} is not an agent`)
     }
 
+    // Helper to safely parse JSON fields
+    const safeParseJSON = (value: string | null | undefined, fallback: any): any => {
+      if (!value) return fallback
+      try {
+        return JSON.parse(value as string)
+      } catch (error) {
+        logger.warn('Failed to parse JSON field', { 
+          value: value?.substring(0, 50),
+          error: error instanceof Error ? error.message : String(error)
+        }, 'AgentRuntimeManager')
+        return fallback
+      }
+    }
+
     // Build character from agent user config
     const character: Character = {
       name: agentUser.displayName || agentUser.username || 'Agent',
       system: agentUser.agentSystem || 'You are a helpful AI agent',
-      bio: agentUser.agentMessageExamples 
-        ? JSON.parse(agentUser.agentMessageExamples as string) 
-        : [agentUser.bio || ''],
+      bio: safeParseJSON(
+        typeof agentUser.agentMessageExamples === 'string' ? agentUser.agentMessageExamples : null,
+        [agentUser.bio || '']
+      ),
       messageExamples: [],
-      style: agentUser.agentStyle ? JSON.parse(agentUser.agentStyle as string) : undefined,
+      style: safeParseJSON(
+        typeof agentUser.agentStyle === 'string' ? agentUser.agentStyle : null,
+        undefined
+      ),
       plugins: [],
       settings: {
         GROQ_API_KEY: process.env.GROQ_API_KEY || '',
@@ -109,9 +127,10 @@ export class AgentRuntimeManager {
         trace: (msg: string) => logger.debug(msg, undefined, `Agent[${agentUser.displayName}]`),
         fatal: (msg: string) => logger.error(msg, new Error(msg), `Agent[${agentUser.displayName}]`),
         progress: (msg: string) => logger.info(msg, undefined, `Agent[${agentUser.displayName}]`),
+        clear: () => console.clear ? console.clear() : undefined,
         child: () => customLogger
       }
-      runtime.logger = customLogger
+      runtime.logger = customLogger as any
     }
 
     // Initialize runtime

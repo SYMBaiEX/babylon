@@ -25,7 +25,7 @@
 
 import type { Plugin } from '@elizaos/core'
 import { logger } from '@/lib/logger'
-
+import { BabylonA2AClient } from '@/lib/a2a/client/babylon-a2a-client'
 // Import all providers
 import {
   marketsProvider,
@@ -34,7 +34,8 @@ import {
   trendingProvider,
   messagesProvider,
   notificationsProvider,
-  dashboardProvider
+  dashboardProvider,
+  userWalletProvider
 } from './providers'
 
 // Import all actions
@@ -115,7 +116,7 @@ export * from './services'
  * 
  * Advanced Usage (With A2A Client):
  * ```typescript
- * import { A2AClient } from '@/a2a/client/a2a-client'
+ * import { A2AClient } from '@/lib/a2a/client'
  * import { babylonPlugin } from '@/lib/agents/plugins/babylon'
  * 
  * const a2aClient = new A2AClient({
@@ -157,7 +158,8 @@ export const babylonPlugin: Plugin = {
     feedProvider,
     trendingProvider,
     messagesProvider,
-    notificationsProvider
+    notificationsProvider,
+    userWalletProvider // Query any user's wallet and positions
   ],
   
   actions: [
@@ -203,7 +205,6 @@ export async function initializeBabylonPlugin(
     }
   }
 ) {
-  const { A2AClient } = await import('@/a2a/client/a2a-client')
   
   const defaultCapabilities = {
     strategies: ['momentum', 'contrarian', 'value'],
@@ -214,7 +215,7 @@ export async function initializeBabylonPlugin(
   
   logger.info('Initializing Babylon plugin with A2A protocol', { endpoint: config.endpoint })
   
-  const a2aClient = new A2AClient({
+  const a2aClient = new BabylonA2AClient({
     endpoint: config.endpoint,
     credentials: config.credentials,
     capabilities: {

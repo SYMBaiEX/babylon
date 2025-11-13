@@ -80,25 +80,23 @@ export async function setupBasicAutonomousAgent(agentUserId: string): Promise<{ 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any)
 
-  // CRITICAL: Set logger on runtime (exact format from AgentRuntimeManager)
+  // CRITICAL: Set logger on runtime (use console.bind pattern from otc-agent working implementation)
+  // Provide all required properties for the Logger type
   if (!runtime.logger || !runtime.logger.log) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const customLogger: any = {
-      log: (msg: string) => logger.info(msg, undefined, `Agent[${agent.displayName}]`),
-      info: (msg: string) => logger.info(msg, undefined, `Agent[${agent.displayName}]`),
-      warn: (msg: string) => logger.warn(msg, undefined, `Agent[${agent.displayName}]`),
-      error: (msg: string) => logger.error(msg, new Error(msg), `Agent[${agent.displayName}]`),
-      debug: (msg: string) => logger.debug(msg, undefined, `Agent[${agent.displayName}]`),
-      success: (msg: string) => logger.info(`✓ ${msg}`, undefined, `Agent[${agent.displayName}]`),
-      notice: (msg: string) => logger.info(msg, undefined, `Agent[${agent.displayName}]`),
-      level: 'info' as const,
-      trace: (msg: string) => logger.debug(msg, undefined, `Agent[${agent.displayName}]`),
-      fatal: (msg: string) => logger.error(msg, new Error(msg), `Agent[${agent.displayName}]`),
-      progress: (msg: string) => logger.info(msg, undefined, `Agent[${agent.displayName}]`),
-      child: () => customLogger,
-      clear: () => {}
+    runtime.logger = {
+      log: console.log.bind(console),
+      info: console.info.bind(console),
+      warn: console.warn.bind(console),
+      error: console.error.bind(console),
+      debug: console.debug.bind(console),
+      trace: console.trace ? console.trace.bind(console) : (..._args: any[]) => {},
+      fatal: console.error.bind(console),
+      success: console.info.bind(console),
+      progress: console.info.bind(console),
+      clear: () => console.clear ? console.clear() : undefined,
+      child: (_bindings: Record<string, unknown>) => runtime.logger,
+      level: 'info', // default level, adjust if necessary
     }
-    runtime.logger = customLogger
   }
 
   // Register plugins manually

@@ -7,7 +7,7 @@ import { OnChainBadge } from '@/components/profile/OnChainBadge'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { TaggedText } from '@/components/shared/TaggedText'
-import { TradesFeed } from '@/components/trades/TradesFeed'
+import { TradingProfile } from '@/components/profile/TradingProfile'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
@@ -50,7 +50,7 @@ interface EditModalState {
 }
 
 export default function ProfilePage() {
-  const { ready, authenticated } = useAuth()
+  const { ready, authenticated, getAccessToken } = useAuth()
   const { user, setUser } = useAuthStore()
   const router = useRouter()
   
@@ -191,7 +191,7 @@ export default function ProfilePage() {
 
     const loadContent = async () => {
       setLoadingPosts(true)
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      const token = await getAccessToken()
       const headers: HeadersInit = { 'Content-Type': 'application/json' }
       if (token) {
         headers['Authorization'] = `Bearer ${token}`
@@ -330,7 +330,7 @@ export default function ProfilePage() {
     setEditModal(prev => ({ ...prev, isSaving: true, error: null }))
 
     try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      const token = await getAccessToken()
       const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {}
 
       const updatedData = { ...editModal.formData }
@@ -455,7 +455,7 @@ export default function ProfilePage() {
       [platform]: newValue
     }))
     
-    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    const token = await getAccessToken()
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     }
@@ -705,7 +705,7 @@ export default function ProfilePage() {
             {/* Posts/Replies/Trades section */}
             <div className="max-w-feed mx-auto">
               {tab === 'trades' ? (
-                <TradesFeed userId={user?.id} />
+                <TradingProfile userId={user?.id} isOwner={true} />
               ) : loadingPosts ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="space-y-3 w-full max-w-2xl">

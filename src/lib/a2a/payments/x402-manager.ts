@@ -7,9 +7,9 @@
 
 import { JsonRpcProvider, type Provider, parseEther, formatEther, hexlify, randomBytes } from 'ethers'
 import { z } from 'zod'
-import { PaymentRequestSchema, type PaymentRequest } from '../types'
+import { PaymentRequestSchema, type PaymentRequest } from '@/types/a2a'
 import type { PaymentVerificationParams, PaymentVerificationResult } from '@/types/payments'
-import { logger } from '../utils/logger'
+import { logger } from '@/lib/logger'
 import { redis, redisClientType } from '@/lib/redis'
 import type { Redis as UpstashRedis } from '@upstash/redis'
 import type IORedis from 'ioredis'

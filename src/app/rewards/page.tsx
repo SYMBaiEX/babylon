@@ -72,7 +72,7 @@ interface ReferralData {
 }
 
 export default function RewardsPage() {
-  const { ready, authenticated } = useAuth()
+  const { ready, authenticated, getAccessToken } = useAuth()
   const { user } = useAuthStore()
   const [referralData, setReferralData] = useState<ReferralData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -88,9 +88,9 @@ export default function RewardsPage() {
     setError(null)
 
     try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      const token = await getAccessToken()
       if (!token) {
-        console.error('Failed to get access token from window.__privyAccessToken')
+        console.error('Failed to get access token')
         setError('Authentication required')
         setLoading(false)
         return

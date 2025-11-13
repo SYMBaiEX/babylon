@@ -16,6 +16,8 @@ import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
+import { generateWorldContext } from '@/lib/prompts/world-context';
+import { validateNoRealNames, validateNoHashtags, validateNoEmojis } from '@/lib/prompts/validate-output';
 
 export interface GroupDynamicsResult {
   groupsCreated: number;
@@ -454,10 +456,23 @@ export class NPCGroupDynamicsService {
           : `Start a casual conversation in the group "${group.name}".`;
 
         try {
-          // Generate message using LLM
-          const prompt = `You are ${randomNpc.displayName}, chatting in a group chat. ${contextPrompt}
+          // Get world context for consistent parody names and market awareness
+          const worldContext = await generateWorldContext({ maxActors: 20 });
+          
+          // Generate message using LLM with world context
+          const prompt = `You are ${randomNpc.displayName}, chatting in a private group chat. ${contextPrompt}
+
+${worldContext.worldActors}
+${worldContext.currentMarkets}
+${worldContext.recentTrades}
 
 Write a brief, casual message (max 150 chars). Be natural and conversational.
+
+IMPORTANT RULES:
+- NO hashtags or emojis
+- NEVER use real names (Elon Musk, Sam Altman, etc.)
+- ALWAYS use parody names from World Actors list (AIlon Musk, Sam AIltman, etc.)
+- You may reference markets or trades naturally if relevant
 
 Return your response as JSON in this exact format:
 {
@@ -479,11 +494,26 @@ Return your response as JSON in this exact format:
             continue;
           }
 
+          // Validate message follows rules
+          const messageContent = response.message.trim();
+          const realNameViolations = validateNoRealNames(messageContent);
+          const hashtagViolations = validateNoHashtags(messageContent);
+          const emojiViolations = validateNoEmojis(messageContent);
+          
+          if (realNameViolations.length > 0 || hashtagViolations.length > 0 || emojiViolations.length > 0) {
+            logger.warn('NPC group message validation failed, skipping', {
+              npcId: randomNpc.id,
+              violations: [...realNameViolations, ...hashtagViolations, ...emojiViolations],
+              message: messageContent,
+            }, 'NPCGroupDynamicsService');
+            continue;
+          }
+
           // Create the message
           await prisma.message.create({
             data: {
               id: generateSnowflakeId(),
-              content: response.message.trim(),
+              content: messageContent,
               chatId: group.id,
               senderId: randomNpc.id,
               createdAt: new Date(),

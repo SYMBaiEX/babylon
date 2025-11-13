@@ -9,7 +9,7 @@ import { BusinessLogicError, ValidationError, InternalServerError, ConflictError
 import { PointsService } from '@/lib/services/points-service'
 import { notifyNewAccount } from '@/lib/services/notification-service'
 import { Agent0Client } from '@/agents/agent0/Agent0Client'
-import type { AgentCapabilities } from '@/a2a/types'
+import type { AgentCapabilities } from '@/types/a2a'
 import type { AuthenticatedUser } from '@/lib/api/auth-middleware'
 import { extractErrorMessage } from '@/lib/api/auth-middleware'
 import { syncAfterAgent0Registration } from '@/lib/reputation/agent0-reputation-sync'

@@ -14,32 +14,47 @@ import { authenticateUser } from '@/lib/server-auth'
 import { prisma } from '@/lib/prisma'
 import { v4 as uuidv4 } from 'uuid'
 import { ModelType } from '@elizaos/core'
+import { withErrorHandling } from '@/lib/errors/error-handler'
+import { BadRequestError, NotFoundError } from '@/lib/errors'
 
-export async function POST(
+export const POST = withErrorHandling(async (
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string }> }
-) {
-  try {
-    const user = await authenticateUser(req)
+) => {
     const { agentId } = await params
-    const body = await req.json()
+    logger.info('Agent chat endpoint hit', { agentId }, 'AgentChat')
+    
+    // Parse body - simple approach like other routes
+    let body: any
+    try {
+      body = await req.json()
+      logger.info('Body parsed successfully', { 
+        agentId,
+        hasMessage: !!body.message,
+        messageLength: body.message?.length || 0
+      }, 'AgentChat')
+    } catch (error) {
+      logger.error('JSON parse failed', { 
+        error: error instanceof Error ? error.message : String(error),
+        errorType: error instanceof Error ? error.constructor.name : typeof error,
+        contentType: req.headers.get('content-type')
+      }, 'AgentChat')
+      throw new BadRequestError('Failed to parse JSON body')
+    }
 
     const { message, usePro } = body
 
     if (!message || typeof message !== 'string') {
-      return NextResponse.json(
-        { error: 'Message is required' },
-        { status: 400 }
-      )
+      throw new BadRequestError('Message is required')
     }
+
+    // Authenticate user
+    const user = await authenticateUser(req)
 
     // Verify ownership and get agent
     const agent = await agentService.getAgent(agentId, user.id)
     if (!agent) {
-      return NextResponse.json(
-        { error: 'Agent not found or unauthorized' },
-        { status: 404 }
-      )
+      throw new NotFoundError('Agent', 'not found or unauthorized')
     }
 
     // Determine point cost
@@ -47,10 +62,7 @@ export async function POST(
 
     // Check balance
     if (agent.agentPointsBalance < pointsCost) {
-      return NextResponse.json(
-        { error: `Insufficient points. Need: ${pointsCost}, Have: ${agent.agentPointsBalance}` },
-        { status: 400 }
-      )
+      throw new BadRequestError(`Insufficient points. Need: ${pointsCost}, Have: ${agent.agentPointsBalance}`)
     }
 
     // Deduct points first
@@ -154,56 +166,38 @@ export async function POST(
       logger.error(`Chat error for agent ${agentId}`, error, 'AgentsAPI')
       throw error
     }
-  } catch (error: unknown) {
-    logger.error('Error in agent chat', error, 'AgentsAPI')
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to process chat' },
-      { status: 500 }
-    )
-  }
-}
+});
 
-export async function GET(
+export const GET = withErrorHandling(async (
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string }> }
-) {
-  try {
-    const user = await authenticateUser(req)
-    const { agentId } = await params
+) => {
+  const user = await authenticateUser(req)
+  const { agentId } = await params
 
-    // Verify ownership
-    const agent = await agentService.getAgent(agentId, user.id)
-    if (!agent) {
-      return NextResponse.json(
-        { error: 'Agent not found or unauthorized' },
-        { status: 404 }
-      )
-    }
-
-    // Get query params
-    const { searchParams } = new URL(req.url)
-    const limit = parseInt(searchParams.get('limit') || '50')
-
-    // Get chat history
-    const messages = await agentService.getChatHistory(agentId, limit)
-
-    return NextResponse.json({
-      success: true,
-      messages: messages.map(msg => ({
-        id: msg.id,
-        role: msg.role,
-        content: msg.content,
-        modelUsed: msg.modelUsed,
-        pointsCost: msg.pointsCost,
-        createdAt: msg.createdAt.toISOString()
-      }))
-    })
-  } catch (error: unknown) {
-    logger.error('Error getting chat history', error, 'AgentsAPI')
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to get chat history' },
-      { status: 500 }
-    )
+  // Verify ownership
+  const agent = await agentService.getAgent(agentId, user.id)
+  if (!agent) {
+    throw new NotFoundError('Agent', 'not found or unauthorized')
   }
-}
+
+  // Get query params
+  const { searchParams } = new URL(req.url)
+  const limit = parseInt(searchParams.get('limit') || '50')
+
+  // Get chat history
+  const messages = await agentService.getChatHistory(agentId, limit)
+
+  return NextResponse.json({
+    success: true,
+    messages: messages.map(msg => ({
+      id: msg.id,
+      role: msg.role,
+      content: msg.content,
+      modelUsed: msg.modelUsed,
+      pointsCost: msg.pointsCost,
+      createdAt: msg.createdAt.toISOString()
+    }))
+  })
+});
 

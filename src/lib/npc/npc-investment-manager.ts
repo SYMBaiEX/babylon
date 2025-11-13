@@ -309,8 +309,9 @@ export class NPCInvestmentManager {
 
     const actorMap = new Map(actors.map((actor) => [actor.id, actor]));
     const organizationMap = new Map(organizations.map((org) => [org.id, org]));
+    // Use organization ID directly as ticker for reliable lookups
     const organizationTickerMap = new Map(
-      organizations.map((org) => [org.id, org.id.toUpperCase().replace(/-/g, '')])
+      organizations.map((org) => [org.id, org.id])
     );
 
     const relationshipsByActor = new Map<string, Array<{ otherId: string; sentiment: number; strength: number }>>();

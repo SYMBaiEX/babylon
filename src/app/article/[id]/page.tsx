@@ -129,15 +129,6 @@ export default function ArticlePage({ params }: ArticlePageProps) {
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-feed mx-auto w-full">
               <article className="px-4 sm:px-6 py-4 sm:py-5">
-                {/* Category badge */}
-                {article.category && (
-                  <div className="mb-4">
-                    <span className="px-3 py-1 bg-[#0066FF]/20 text-[#0066FF] rounded text-sm font-semibold uppercase">
-                      {article.category}
-                    </span>
-                  </div>
-                )}
-                
                 {/* Article title */}
                 <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-4 leading-tight">
                   {article.articleTitle}
@@ -211,15 +202,6 @@ export default function ArticlePage({ params }: ArticlePageProps) {
         {/* Mobile content */}
         <div className="flex-1 overflow-y-auto">
           <article className="px-4 sm:px-6 py-4 sm:py-5">
-            {/* Category badge */}
-            {article.category && (
-              <div className="mb-4">
-                <span className="px-3 py-1 bg-[#0066FF]/20 text-[#0066FF] rounded text-sm font-semibold uppercase">
-                  {article.category}
-                </span>
-              </div>
-            )}
-            
             {/* Article title */}
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-4 leading-tight">
               {article.articleTitle}

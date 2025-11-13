@@ -1,15 +1,16 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { Avatar } from '@/components/shared/Avatar'
+import { PageContainer } from '@/components/shared/PageContainer'
+import { Skeleton } from '@/components/shared/Skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Bot, ArrowLeft, MessageCircle, Activity, TrendingUp, FileText, Settings, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { AgentChat } from '@/components/agents/AgentChat'
 import { AgentWallet } from '@/components/agents/AgentWallet'
 import { AgentLogs } from '@/components/agents/AgentLogs'
@@ -50,23 +51,24 @@ interface Agent {
 export default function AgentDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const { authenticated, ready } = useAuth()
+  const { authenticated, ready, getAccessToken } = useAuth()
   const agentId = params.agentId as string
   
   const [agent, setAgent] = useState<Agent | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
 
-  useEffect(() => {
-    if (ready && authenticated && agentId) {
-      fetchAgent()
-    }
-  }, [ready, authenticated, agentId])
-
-  const fetchAgent = async () => {
+  const fetchAgent = useCallback(async () => {
     try {
       setLoading(true)
-      const token = window.__privyAccessToken
+      const token = await getAccessToken()
+      
+      if (!token) {
+        console.error('No access token available')
+        toast.error('Authentication required')
+        router.push('/agents')
+        return
+      }
       
       const res = await fetch(`/api/agents/${agentId}`, {
         headers: {
@@ -86,7 +88,13 @@ export default function AgentDetailPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [agentId, getAccessToken, router])
+
+  useEffect(() => {
+    if (ready && authenticated && agentId) {
+      fetchAgent()
+    }
+  }, [ready, authenticated, agentId, fetchAgent])
 
   const handleDelete = async () => {
     if (!confirm(`Are you sure you want to delete ${agent?.name}? This cannot be undone.`)) {
@@ -95,7 +103,13 @@ export default function AgentDetailPage() {
 
     setDeleting(true)
     try {
-      const token = window.__privyAccessToken
+      const token = await getAccessToken()
+      
+      if (!token) {
+        toast.error('Authentication required')
+        setDeleting(false)
+        return
+      }
       
       const res = await fetch(`/api/agents/${agentId}`, {
         method: 'DELETE',
@@ -120,54 +134,68 @@ export default function AgentDetailPage() {
 
   if (!ready || !authenticated) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="text-center py-12">
-          <Bot className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-          <p className="text-gray-400">Please sign in to view this agent.</p>
+      <PageContainer>
+        <div className="p-4 max-w-7xl mx-auto space-y-6">
+          <Skeleton className="h-10 w-32" />
+          <div className="space-y-4">
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-96 w-full" />
+          </div>
         </div>
-      </div>
+      </PageContainer>
     )
   }
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6 max-w-7xl">
-        <div className="animate-pulse space-y-6">
-          <div className="h-32 bg-gray-700 rounded-lg" />
-          <div className="h-96 bg-gray-700 rounded-lg" />
+      <PageContainer>
+        <div className="p-4 max-w-7xl mx-auto space-y-6">
+          <Skeleton className="h-10 w-32" />
+          <div className="space-y-4">
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-96 w-full" />
+          </div>
         </div>
-      </div>
+      </PageContainer>
     )
   }
 
   if (!agent) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="text-center py-12">
-          <Bot className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-          <p className="text-gray-400 mb-4">Agent not found</p>
-          <Link href="/agents">
-            <Button>Back to Agents</Button>
-          </Link>
+      <PageContainer>
+        <div className="p-4">
+          <div className="flex flex-col items-center justify-center py-16 px-4 bg-gradient-to-br from-[#0066FF]/10 to-purple-500/10 rounded-lg border border-[#0066FF]/20">
+            <Bot className="w-16 h-16 mb-4 text-muted-foreground" />
+            <h3 className="text-2xl font-bold mb-2">Agent Not Found</h3>
+            <p className="text-sm text-muted-foreground mb-6">
+              This agent doesn't exist or you don't have access to it
+            </p>
+            <Link href="/agents">
+              <button className="px-6 py-2 rounded-lg font-medium bg-[#0066FF] hover:bg-[#2952d9] text-white transition-colors">
+                Back to Agents
+              </button>
+            </Link>
+          </div>
         </div>
-      </div>
+      </PageContainer>
     )
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
-      {/* Header */}
-      <div className="mb-6">
-        <Link href="/agents">
-          <Button variant="ghost" size="sm" className="mb-4">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Agents
-          </Button>
-        </Link>
-      </div>
+    <PageContainer>
+      <div className="p-4 max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div>
+          <Link href="/agents">
+            <button className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4">
+              <ArrowLeft className="w-4 h-4" />
+              Back to Agents
+            </button>
+          </Link>
+        </div>
 
-      {/* Agent Info Card */}
-      <Card className="p-6 mb-6">
+        {/* Agent Info Card */}
+        <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-4">
             <Avatar
@@ -205,65 +233,56 @@ export default function AgentDetailPage() {
               </div>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/20"
+          <button
             onClick={handleDelete}
             disabled={deleting}
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Trash2 className="w-4 h-4 mr-2" />
+            <Trash2 className="w-4 h-4" />
             {deleting ? 'Deleting...' : 'Delete'}
-          </Button>
+          </button>
         </div>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-4 gap-4 mt-6 pt-6 border-t border-border">
+        <div className="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-border text-center place-items-center">
           <div>
-            <div className="text-xs text-gray-400 mb-1">Balance</div>
+            <div className="text-xs text-muted-foreground mb-1">Balance</div>
             <div className="text-xl font-semibold">{agent.pointsBalance} pts</div>
           </div>
           <div>
-            <div className="text-xs text-gray-400 mb-1">P&L</div>
-            <div className={`text-xl font-semibold ${
-              parseFloat(agent.lifetimePnL) >= 0 ? 'text-green-400' : 'text-red-400'
-            }`}>
+            <div className="text-xs text-muted-foreground mb-1">P&L</div>
+            <div className={cn(
+              'text-xl font-semibold',
+              parseFloat(agent.lifetimePnL) >= 0 ? 'text-green-600' : 'text-red-600'
+            )}>
               {parseFloat(agent.lifetimePnL).toFixed(2)}
             </div>
           </div>
-          <div>
-            <div className="text-xs text-gray-400 mb-1">Trades</div>
-            <div className="text-xl font-semibold">{agent.totalTrades}</div>
-          </div>
-          <div>
-            <div className="text-xs text-gray-400 mb-1">Win Rate</div>
-            <div className="text-xl font-semibold">{(agent.winRate * 100).toFixed(0)}%</div>
-          </div>
         </div>
-      </Card>
+        </div>
 
       {/* Tabs */}
       <Tabs defaultValue="chat" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="chat">
+        <TabsList className="grid w-full grid-cols-5 bg-muted/50">
+          <TabsTrigger value="chat" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">
             <MessageCircle className="w-4 h-4 mr-2" />
-            Chat
+            <span className="hidden sm:inline">Chat</span>
           </TabsTrigger>
-          <TabsTrigger value="performance">
+          <TabsTrigger value="performance" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">
             <TrendingUp className="w-4 h-4 mr-2" />
-            Performance
+            <span className="hidden sm:inline">Performance</span>
           </TabsTrigger>
-          <TabsTrigger value="logs">
+          <TabsTrigger value="logs" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">
             <FileText className="w-4 h-4 mr-2" />
-            Logs
+            <span className="hidden sm:inline">Logs</span>
           </TabsTrigger>
-          <TabsTrigger value="settings">
+          <TabsTrigger value="settings" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">
             <Settings className="w-4 h-4 mr-2" />
-            Settings
+            <span className="hidden sm:inline">Settings</span>
           </TabsTrigger>
-          <TabsTrigger value="wallet">
+          <TabsTrigger value="wallet" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">
             <Bot className="w-4 h-4 mr-2" />
-            Wallet
+            <span className="hidden sm:inline">Wallet</span>
           </TabsTrigger>
         </TabsList>
 
@@ -289,7 +308,8 @@ export default function AgentDetailPage() {
           </TabsContent>
         </div>
       </Tabs>
-    </div>
+      </div>
+    </PageContainer>
   )
 }
 

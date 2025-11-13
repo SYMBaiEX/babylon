@@ -1,4 +1,4 @@
-import { AgentCapabilitiesSchema, type AgentCapabilities } from '@/a2a/types';
+import { AgentCapabilitiesSchema, type AgentCapabilities } from '@/types/a2a';
 
 const DefaultCapabilities: AgentCapabilities = {
   strategies: [],

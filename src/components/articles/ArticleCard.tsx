@@ -98,29 +98,22 @@ export const ArticleCard = memo(function ArticleCard({
         </div>
       </div>
 
-      {/* Article Badge */}
-      <div className="mb-2">
-        <span className="inline-flex items-center px-2 py-0.5 bg-[#0066FF]/20 text-[#0066FF] rounded text-xs font-semibold uppercase">
-          Article
-        </span>
+      {/* Article Title with Read More Button */}
+      <div className="flex items-start justify-between gap-4 mb-3">
+        <h2 className="text-lg sm:text-xl font-bold text-foreground leading-tight flex-1">
+          {post.articleTitle || 'Untitled Article'}
+        </h2>
+        <button
+          className="inline-flex items-center gap-2 px-3 py-2 bg-[#0066FF] hover:bg-[#2952d9] text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0"
+          onClick={handleClick}
+        >
+          Read Full Article →
+        </button>
       </div>
-
-      {/* Article Title */}
-      <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-3 leading-tight">
-        {post.articleTitle || 'Untitled Article'}
-      </h2>
 
       {/* Article Metadata */}
       <div className="flex flex-wrap items-center gap-3 mb-3 text-sm text-muted-foreground">
         {post.byline && <span>{post.byline}</span>}
-        {post.category && (
-          <>
-            {post.byline && <span>·</span>}
-            <span className="px-2 py-0.5 bg-[#0066FF]/20 text-[#0066FF] rounded text-xs font-semibold uppercase">
-              {post.category}
-            </span>
-          </>
-        )}
         {post.biasScore !== null && post.biasScore !== undefined && Math.abs(post.biasScore) >= 0.3 && (
           <>
             <span>·</span>
@@ -138,14 +131,6 @@ export const ArticleCard = memo(function ArticleCard({
       <div className="text-foreground leading-relaxed whitespace-pre-wrap break-words mb-3">
         {post.content}
       </div>
-
-      {/* Read More Button */}
-      <button
-        className="inline-flex items-center gap-3 px-4 py-3 bg-[#0066FF] hover:bg-[#2952d9] text-white font-semibold rounded-lg transition-colors"
-        onClick={handleClick}
-      >
-        Read Full Article →
-      </button>
     </article>
   );
 });

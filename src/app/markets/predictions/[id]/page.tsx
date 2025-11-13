@@ -59,7 +59,7 @@ export default function PredictionDetailPage() {
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user, authenticated, login } = useAuth()
+  const { user, authenticated, login, getAccessToken } = useAuth()
   const marketId = params.id as string
   const { trackMarketView } = useMarketTracking()
   const from = searchParams.get('from')
@@ -148,7 +148,7 @@ export default function PredictionDetailPage() {
     setSubmitting(true)
     setConfirmDialogOpen(false)
 
-    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    const token = await getAccessToken()
     if (!token) {
       toast.error('Authentication required. Please log in.')
       setSubmitting(false)

@@ -267,6 +267,7 @@ export class AgentWalletService {
         throw new Error('Agent not found')
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const privyWalletId = (agent as any).privyWalletId
       if (!privyWalletId) {
         throw new Error('Agent does not have Privy wallet')

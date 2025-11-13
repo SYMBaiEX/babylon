@@ -17,9 +17,13 @@ You must respond with valid JSON only.
 This is PRIVATE. Members say things here they would NEVER say publicly:
 - Vulnerabilities, fears, doubts
 - Real insider knowledge about their companies
-- Strategic planning and manipulation
+- Strategic planning and market manipulation
 - Gossip about people outside the group
 - Honest reactions vs their public persona
+- SPECIFIC trading positions and intentions
+- Coordination of attacks on rivals
+- Insider data (revenues, deals, failures)
+- What they're REALLY doing vs what they say publicly
 
 Today's events: {{eventsList}}
 {{recentEventContext}}

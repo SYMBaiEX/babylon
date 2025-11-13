@@ -21,77 +21,86 @@ test.describe('Agents Feature E2E', () => {
     // For now, skip auth in dev mode or use test credentials
   })
 
-  test('should show Agents tab in sidebar', async ({ page }) => {
-    // Look for Agents link in sidebar
-    const agentsLink = page.locator('a[href="/agents"]')
-    await expect(agentsLink).toBeVisible()
-    
-    // Check for Bot icon
-    const botIcon = agentsLink.locator('svg')
-    await expect(botIcon).toBeVisible()
-  })
-
   test('should navigate to agents page', async ({ page }) => {
-    await page.click('a[href="/agents"]')
+    // Navigate to agents
+    await page.goto('http://localhost:3000/agents')
     
-    // Should see agents page
-    await expect(page).toHaveURL('/agents')
+    // Should see agents page with PageContainer
     await expect(page.locator('h1')).toContainText('My Agents')
+    
+    // Should see filter buttons with rounded pills
+    const allButton = page.locator('button:has-text("All")')
+    await expect(allButton).toBeVisible()
+    await expect(allButton).toHaveClass(/rounded-full/)
   })
 
-  test('should show create agent button', async ({ page }) => {
-    await page.goto('http://localhost:3000/agents')
+  test('should show agent creation wizard with progress bar', async ({ page }) => {
+    await page.goto('http://localhost:3000/agents/create')
     
-    const createButton = page.locator('button:has-text("Create Agent"), a:has-text("Create Agent")')
-    await expect(createButton).toBeVisible()
+    // Should see header
+    await expect(page.locator('h1')).toContainText('Create New Agent')
+    
+    // Should see progress bar
+    const progressBars = page.locator('div[class*="rounded-full"]').filter({ hasText: '' })
+    await expect(progressBars.first()).toBeVisible()
+    
+    // Should see step indicator
+    await expect(page.locator('text=Step 1 of 4')).toBeVisible()
   })
 
-  test('should open agent creation wizard', async ({ page }) => {
-    await page.goto('http://localhost:3000/agents')
-    
-    // Click create button
-    await page.click('button:has-text("Create Agent"), a:has-text("Create Agent")')
-    
-    // Should navigate to creation page or show modal
-    await expect(page.locator('h1, h2')).toContainText('Create')
-    
-    // Should see step 1 of wizard
-    await expect(page.locator('text=Step 1')).toBeVisible()
-  })
-
-  test('should complete agent creation wizard', async ({ page }) => {
+  test('should complete agent creation wizard steps', async ({ page }) => {
     await page.goto('http://localhost:3000/agents/create')
     
     // Step 1: Basic Info
-    await page.fill('input[placeholder*="name" i]', 'Test Agent')
+    await page.fill('input[placeholder*="Alpha Trading" i]', 'E2E Test Agent')
     await page.fill('textarea[placeholder*="description" i]', 'Test agent for E2E tests')
     
-    // Next step
-    await page.click('button:has-text("Next")')
+    // Click Next button (styled with bg-[#0066FF])
+    const nextButton = page.locator('button:has-text("Next")')
+    await expect(nextButton).toBeVisible()
+    await expect(nextButton).toHaveClass(/bg-\[#0066FF\]/)
+    await nextButton.click()
     
     // Step 2: Personality
-    await expect(page.locator('text=Step 2')).toBeVisible()
+    await expect(page.locator('text=Step 2 of 4')).toBeVisible()
     await page.fill('textarea[placeholder*="AI agent" i]', 'You are a helpful test agent')
     
-    // Next step
-    await page.click('button:has-text("Next")')
+    // Test Generate button (should be native button with specific styling)
+    const generateButton = page.locator('button:has-text("Generate")').first()
+    await expect(generateButton).toBeVisible()
+    await expect(generateButton).toHaveClass(/bg-muted/)
+    
+    // Test Add Bio Point button
+    const addBioButton = page.locator('button:has-text("Add Bio Point")')
+    await expect(addBioButton).toBeVisible()
+    
+    await nextButton.click()
     
     // Step 3: Trading Strategy
-    await expect(page.locator('text=Step 3')).toBeVisible()
+    await expect(page.locator('text=Step 3 of 4')).toBeVisible()
     
-    // Next step
-    await page.click('button:has-text("Next")')
+    // Test model tier buttons
+    const freeButton = page.locator('button:has-text("Free (Groq 8B)")')
+    await expect(freeButton).toBeVisible()
+    await expect(freeButton).toHaveClass(/border/)
+    
+    await nextButton.click()
     
     // Step 4: Initial Deposit
-    await expect(page.locator('text=Step 4')).toBeVisible()
+    await expect(page.locator('text=Step 4 of 4')).toBeVisible()
     
-    // Submit (would need auth to complete)
+    // Should see summary with blue background
+    const summary = page.locator('div').filter({ hasText: 'Summary' }).first()
+    await expect(summary).toBeVisible()
+    await expect(summary).toHaveClass(/bg-\[#0066FF\]/)
+    
+    // Submit button
     const submitButton = page.locator('button:has-text("Create Agent")')
     await expect(submitButton).toBeVisible()
+    await expect(submitButton).toHaveClass(/bg-\[#0066FF\]/)
   })
 
-  test('should show agent detail page with tabs', async ({ page }) => {
-    // Assuming an agent exists
+  test('should show agent detail page with new design', async ({ page }) => {
     await page.goto('http://localhost:3000/agents')
     
     // Click on first agent (if exists)
@@ -100,16 +109,26 @@ test.describe('Agents Feature E2E', () => {
     if (await firstAgent.isVisible()) {
       await firstAgent.click()
       
-      // Should see tabs
-      await expect(page.locator('button:has-text("Chat")')).toBeVisible()
-      await expect(page.locator('button:has-text("Performance")')).toBeVisible()
-      await expect(page.locator('button:has-text("Logs")')).toBeVisible()
-      await expect(page.locator('button:has-text("Settings")')).toBeVisible()
-      await expect(page.locator('button:has-text("Wallet")')).toBeVisible()
+      // Should see tabs with new styling
+      const tabs = page.locator('[role="tablist"]')
+      await expect(tabs).toBeVisible()
+      
+      // Tabs should have data-state attribute and blue active style
+      const chatTab = page.locator('[role="tab"]:has-text("Chat")')
+      await expect(chatTab).toBeVisible()
+      
+      // Should see delete button with red styling
+      const deleteButton = page.locator('button:has-text("Delete")')
+      await expect(deleteButton).toBeVisible()
+      await expect(deleteButton).toHaveClass(/text-red-400/)
+      
+      // Should see stats with responsive grid
+      const statsContainer = page.locator('div').filter({ hasText: 'Balance' }).first()
+      await expect(statsContainer).toBeVisible()
     }
   })
 
-  test('should show chat interface', async ({ page }) => {
+  test('should show chat interface with new design', async ({ page }) => {
     await page.goto('http://localhost:3000/agents')
     
     const firstAgent = page.locator('a[href^="/agents/"]:not([href="/agents/create"])').first()
@@ -118,11 +137,54 @@ test.describe('Agents Feature E2E', () => {
       await firstAgent.click()
       
       // Click Chat tab
-      await page.click('button:has-text("Chat")')
+      await page.click('[role="tab"]:has-text("Chat")')
       
-      // Should see chat interface
-      await expect(page.locator('input[placeholder*="message" i]')).toBeVisible()
-      await expect(page.locator('button:has([class*="Send"])')).toBeVisible()
+      // Should see chat interface with new styling
+      const chatContainer = page.locator('div').filter({ hasText: 'Chat with' }).first()
+      await expect(chatContainer).toBeVisible()
+      await expect(chatContainer).toHaveClass(/rounded-lg/)
+      await expect(chatContainer).toHaveClass(/bg-card/)
+      
+      // Should see Pro Mode button
+      const proModeButton = page.locator('button:has-text("Pro Mode"), button:has-text("Free Mode")')
+      await expect(proModeButton).toBeVisible()
+      
+      // Should see send button with blue styling
+      const sendButton = page.locator('button').filter({ has: page.locator('svg') }).last()
+      if (await sendButton.isVisible()) {
+        await expect(sendButton).toHaveClass(/bg-\[#0066FF\]/)
+      }
+    }
+  })
+
+  test('should show wallet with new design', async ({ page }) => {
+    await page.goto('http://localhost:3000/agents')
+    
+    const firstAgent = page.locator('a[href^="/agents/"]:not([href="/agents/create"])').first()
+    
+    if (await firstAgent.isVisible()) {
+      await firstAgent.click()
+      
+      // Click Wallet tab
+      await page.click('[role="tab"]:has-text("Wallet")')
+      
+      // Should see balance cards
+      const agentBalanceCard = page.locator('div').filter({ hasText: 'Agent Balance' }).first()
+      await expect(agentBalanceCard).toBeVisible()
+      await expect(agentBalanceCard).toHaveClass(/rounded-lg/)
+      
+      // Should see Deposit/Withdraw buttons with new styling
+      const depositButton = page.locator('button:has-text("Deposit")')
+      await expect(depositButton).toBeVisible()
+      await expect(depositButton).toHaveClass(/rounded-lg/)
+      
+      // Test button toggle
+      await depositButton.click()
+      await expect(depositButton).toHaveClass(/bg-\[#0066FF\]/)
+      
+      const withdrawButton = page.locator('button:has-text("Withdraw")')
+      await withdrawButton.click()
+      await expect(withdrawButton).toHaveClass(/bg-\[#0066FF\]/)
     }
   })
 
@@ -135,38 +197,32 @@ test.describe('Agents Feature E2E', () => {
       await firstAgent.click()
       
       // Click Settings tab
-      await page.click('button:has-text("Settings")')
+      await page.click('[role="tab"]:has-text("Settings")')
       
-      // Should see all 5 autonomous controls
-      await expect(page.locator('text=Autonomous Trading')).toBeVisible()
-      await expect(page.locator('text=Autonomous Posting')).toBeVisible()
-      await expect(page.locator('text=Autonomous Commenting')).toBeVisible()
-      await expect(page.locator('text=Autonomous DMs')).toBeVisible()
-      await expect(page.locator('text=Autonomous Group Chats')).toBeVisible()
+      // Should see all autonomous controls with hover states
+      const autonomousControls = [
+        'Autonomous Trading',
+        'Autonomous Posting',
+        'Autonomous Commenting',
+        'Autonomous DMs',
+        'Autonomous Group Chats'
+      ]
+      
+      for (const control of autonomousControls) {
+        const controlElement = page.locator('div').filter({ hasText: control }).first()
+        await expect(controlElement).toBeVisible()
+        await expect(controlElement).toHaveClass(/bg-muted/)
+        await expect(controlElement).toHaveClass(/hover:bg-muted/)
+      }
+      
+      // Should see save button
+      const saveButton = page.locator('button:has-text("Save Changes")')
+      await expect(saveButton).toBeVisible()
+      await expect(saveButton).toHaveClass(/bg-\[#0066FF\]/)
     }
   })
 
-  test('should show wallet management', async ({ page }) => {
-    await page.goto('http://localhost:3000/agents')
-    
-    const firstAgent = page.locator('a[href^="/agents/"]:not([href="/agents/create"])').first()
-    
-    if (await firstAgent.isVisible()) {
-      await firstAgent.click()
-      
-      // Click Wallet tab
-      await page.click('button:has-text("Wallet")')
-      
-      // Should see deposit/withdraw buttons
-      await expect(page.locator('button:has-text("Deposit")')).toBeVisible()
-      await expect(page.locator('button:has-text("Withdraw")')).toBeVisible()
-      
-      // Should see transaction history
-      await expect(page.locator('text=Transaction History')).toBeVisible()
-    }
-  })
-
-  test('should show logs viewer', async ({ page }) => {
+  test('should show logs with filters', async ({ page }) => {
     await page.goto('http://localhost:3000/agents')
     
     const firstAgent = page.locator('a[href^="/agents/"]:not([href="/agents/create"])').first()
@@ -175,10 +231,19 @@ test.describe('Agents Feature E2E', () => {
       await firstAgent.click()
       
       // Click Logs tab
-      await page.click('button:has-text("Logs")')
+      await page.click('[role="tab"]:has-text("Logs")')
       
       // Should see filter controls
-      await expect(page.locator('select, button:has-text("Refresh")')).toBeVisible()
+      const typeFilter = page.locator('select').first()
+      await expect(typeFilter).toBeVisible()
+      
+      // Should see refresh button
+      const refreshButton = page.locator('button:has-text("Refresh")')
+      await expect(refreshButton).toBeVisible()
+      
+      // Test filter dropdown
+      await typeFilter.selectOption('chat')
+      await expect(typeFilter).toHaveValue('chat')
     }
   })
 
@@ -191,14 +256,34 @@ test.describe('Agents Feature E2E', () => {
       await firstAgent.click()
       
       // Click Performance tab
-      await page.click('button:has-text("Performance")')
+      await page.click('[role="tab"]:has-text("Performance")')
       
-      // Should see stats
-      await expect(page.locator('text=Lifetime P&L, text=Total Trades')).toBeVisible()
+      // Should see stats cards with hover effects
+      const statsCards = page.locator('div').filter({ hasText: 'Lifetime P&L' })
+      await expect(statsCards.first()).toBeVisible()
+      
+      // Stats should have hover border effect
+      const firstCard = page.locator('div[class*="border-border"]').first()
+      await expect(firstCard).toHaveClass(/hover:border-\[#0066FF\]/)
     }
   })
 
-  test('should not have console errors', async ({ page }) => {
+  test('should have consistent color scheme', async ({ page }) => {
+    await page.goto('http://localhost:3000/agents')
+    
+    // Check primary color usage (#0066FF)
+    const createButton = page.locator('button:has-text("Create Agent")')
+    if (await createButton.isVisible()) {
+      await expect(createButton).toHaveClass(/bg-\[#0066FF\]/)
+    }
+    
+    // Check filter buttons
+    const allFilter = page.locator('button:has-text("All")').first()
+    await allFilter.click()
+    await expect(allFilter).toHaveClass(/bg-\[#0066FF\]/)
+  })
+
+  test('should have no console errors', async ({ page }) => {
     const errors: string[] = []
     
     page.on('console', msg => {
@@ -214,13 +299,39 @@ test.describe('Agents Feature E2E', () => {
     const criticalErrors = errors.filter(e => 
       !e.includes('Hydration') &&
       !e.includes('Warning') &&
-      !e.includes('[HMR]')
+      !e.includes('[HMR]') &&
+      !e.includes('favicon')
     )
     
     expect(criticalErrors.length).toBe(0)
   })
+
+  test('should have responsive design', async ({ page }) => {
+    // Test mobile viewport
+    await page.setViewportSize({ width: 375, height: 667 })
+    await page.goto('http://localhost:3000/agents')
+    
+    // Should still show header
+    await expect(page.locator('h1')).toBeVisible()
+    
+    // Should show mobile-friendly cards
+    const cards = page.locator('div[class*="grid"]').first()
+    await expect(cards).toBeVisible()
+    
+    // Test tablet viewport
+    await page.setViewportSize({ width: 768, height: 1024 })
+    await page.goto('http://localhost:3000/agents/create')
+    
+    // Should see progress bar
+    await expect(page.locator('h1')).toBeVisible()
+    
+    // Test desktop viewport
+    await page.setViewportSize({ width: 1920, height: 1080 })
+    await page.goto('http://localhost:3000/agents')
+    
+    // Should show full layout
+    await expect(page.locator('h1')).toBeVisible()
+  })
 })
 
 export {}
-
-

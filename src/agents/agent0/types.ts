@@ -4,7 +4,7 @@
  * Type-safe interfaces for Agent0 SDK integration
  */
 
-import type { AgentProfile, AgentCapabilities } from '@/a2a/types'
+import type { AgentProfile, AgentCapabilities } from '@/types/a2a'
 
 /**
  * Agent0 Client Interface

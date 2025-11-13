@@ -446,7 +446,7 @@ export class AgentServiceV2 {
         prompt: log.prompt,
         completion: log.completion,
         thinking: log.thinking,
-        metadata: log.metadata || null
+        metadata: log.metadata || undefined
       }
     })
   }

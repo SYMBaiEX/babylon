@@ -12,11 +12,12 @@
     "test:a2a": "tsx scripts/test-a2a-connection.ts",
     "test:a2a:unit": "bun test ./src/a2a/tests/integration/points-service-integration.test.ts",
     "test:a2a:live": "bun run src/a2a/tests/live-server.test.ts",
-    "test:plugin": "tsx scripts/test-plugin-local.ts",
+    "test:plugin": "bun run scripts/test-plugin-functionality.ts",
     "test:plugin:complete": "tsx scripts/test-babylon-plugin-complete.ts",
     "verify:a2a": "tsx scripts/verify-a2a-required.ts",
     "verify:separation": "tsx scripts/verify-agent-separation.ts",
-    "a2a:server": "tsx scripts/start-a2a-server.ts",
+    "a2a:server": "tsx scripts/start-a2a-server-sdk.ts",
+    "a2a:server:legacy": "tsx scripts/start-a2a-server.ts",
     "test:testnet": "bun test tests/deployment/testnet.test.ts tests/integration/agent0-testnet.test.ts",
     "test:mainnet": "bun test tests/deployment/mainnet.test.ts",
     "test:e2e": "playwright test tests/e2e && playwright test --config=synpress.config.ts",
@@ -41,6 +42,7 @@
     "testnet:setup": "bun run scripts/post-deploy/testnet-setup.ts"
   },
   "dependencies": {
+    "@a2a-js/sdk": "^0.3.5",
     "@ai-sdk/groq": "^2.0.29",
     "@anthropic-ai/sdk": "^0.68.0",
     "@aws-sdk/client-s3": "^3.928.0",

@@ -1,75 +1,118 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Bot, ArrowLeft, ArrowRight, Sparkles } from 'lucide-react'
+import { PageContainer } from '@/components/shared/PageContainer'
+import { Bot, ArrowLeft, Sparkles, Dices } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 
+const STORAGE_KEY = 'babylon_agent_draft'
+
 export default function CreateAgentPage() {
   const router = useRouter()
-  const { user, authenticated, ready } = useAuth()
-  const [step, setStep] = useState(1)
+  const { user, authenticated, ready, getAccessToken } = useAuth()
   const [loading, setLoading] = useState(false)
-  const [generating, setGenerating] = useState<string | null>(null)
+  const [generatingField, setGeneratingField] = useState<string | null>(null)
+  const [isInitialized, setIsInitialized] = useState(false)
 
-  // Form state
+  // Form state with pre-filled defaults
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     profileImageUrl: '',
     system: '',
-    bio: [''],
+    bio: ['Strategic thinker', 'Data-driven analyst', 'Market expert'],
     personality: '',
     tradingStrategy: '',
     initialDeposit: 100,
     modelTier: 'free' as 'free' | 'pro'
   })
 
+  // Load form data from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedData = localStorage.getItem(STORAGE_KEY)
+      if (savedData) {
+        const parsed = JSON.parse(savedData)
+        setFormData(prev => ({ ...prev, ...parsed }))
+      }
+    } catch (error) {
+      console.error('Error loading saved form data:', error)
+    }
+    setIsInitialized(true)
+  }, [])
+
+  // Save form data to localStorage whenever it changes
+  useEffect(() => {
+    if (!isInitialized) return
+    
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(formData))
+    } catch (error) {
+      console.error('Error saving form data:', error)
+    }
+  }, [formData, isInitialized])
+
   const updateField = (field: string, value: string | string[] | number) => {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
-  const generateField = async (field: 'system' | 'bio' | 'personality' | 'tradingStrategy') => {
-    setGenerating(field)
+  const handleRandomName = () => {
+    const prefixes = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Omega', 'Sigma', 'Zeta']
+    const suffixes = ['Trader', 'Bot', 'Agent', 'AI', 'Pro', 'Mind', 'Core']
+    const name = `${prefixes[Math.floor(Math.random() * prefixes.length)]} ${suffixes[Math.floor(Math.random() * suffixes.length)]}`
+    updateField('name', name)
+  }
+
+  const handleGenerateField = async (field: string) => {
+    setGeneratingField(field)
     try {
-      // Simple generation based on name and description
-      let generated = ''
-      switch (field) {
-        case 'system':
-          generated = `You are ${formData.name}, ${formData.description || 'an AI agent'}. You are helpful, analytical, and focused on achieving the best outcomes. You communicate clearly and concisely.`
-          break
-        case 'bio':
-          generated = `Expert in ${formData.description || 'trading and analysis'}|Data-driven decision maker|Strategic thinker`
-          break
-        case 'personality':
-          generated = `Analytical, strategic, and focused. ${formData.name} approaches problems methodically and values data-driven insights.`
-          break
-        case 'tradingStrategy':
-          generated = `Focus on high-probability opportunities with moderate risk. Analyze market trends and sentiment before making decisions. Prioritize capital preservation while seeking consistent returns.`
-          break
+      const response = await fetch('/api/agents/generate-field', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fieldName: field,
+          currentValue: formData[field as keyof typeof formData],
+          context: {
+            name: formData.name,
+            description: formData.description,
+            system: formData.system,
+            personality: formData.personality,
+            tradingStrategy: formData.tradingStrategy,
+          },
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate field')
       }
 
+      const result = await response.json()
+      
       if (field === 'bio') {
-        updateField('bio', generated.split('|'))
+        updateField('bio', result.value.split('|').map((s: string) => s.trim()))
       } else {
-        updateField(field, generated)
+        updateField(field, result.value)
       }
 
       toast.success(`Generated ${field}!`)
-    } catch {
-      toast.error(`Failed to generate ${field}`)
+    } catch (error) {
+      console.error('Error generating field:', error)
+      toast.error('Failed to generate. Please try again.')
     } finally {
-      setGenerating(null)
+      setGeneratingField(null)
     }
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
     // Validate
     if (!formData.name.trim()) {
       toast.error('Agent name is required')
@@ -82,7 +125,14 @@ export default function CreateAgentPage() {
 
     setLoading(true)
     try {
-      const token = window.__privyAccessToken
+      const token = await getAccessToken()
+      
+      if (!token) {
+        toast.error('Authentication required')
+        setLoading(false)
+        return
+      }
+      
       const res = await fetch('/api/agents', {
         method: 'POST',
         headers: {
@@ -101,6 +151,10 @@ export default function CreateAgentPage() {
       }
 
       const data = await res.json() as { agent: { id: string } }
+      
+      // Clear draft
+      localStorage.removeItem(STORAGE_KEY)
+      
       toast.success('Agent created successfully!')
       router.push(`/agents/${data.agent.id}`)
     } catch (error: unknown) {
@@ -112,41 +166,57 @@ export default function CreateAgentPage() {
 
   if (!ready || !authenticated) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="text-center py-12">
-          <Bot className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-          <p className="text-gray-400">Please sign in to create an agent.</p>
+      <PageContainer>
+        <div className="p-4">
+          <div className="flex flex-col items-center justify-center py-16 px-4 bg-gradient-to-br from-[#0066FF]/10 to-purple-500/10 rounded-lg border border-[#0066FF]/20">
+            <Bot className="w-16 h-16 mb-4 text-[#0066FF]" />
+            <h3 className="text-2xl font-bold mb-2">Create an Agent</h3>
+            <p className="text-sm text-muted-foreground mb-6 text-center max-w-md">
+              Please sign in to create an AI agent
+            </p>
+          </div>
         </div>
-      </div>
+      </PageContainer>
     )
   }
 
   const totalPoints = user?.reputationPoints || 0
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
-      {/* Header */}
-      <div className="mb-8">
-        <Link href="/agents">
-          <Button variant="ghost" size="sm" className="mb-4">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Agents
-          </Button>
-        </Link>
-        <h1 className="text-3xl font-bold mb-2">Create New Agent</h1>
-        <p className="text-gray-400">
-          Step {step} of 4 - Build your AI agent
-        </p>
-      </div>
+    <PageContainer>
+      <div className="p-4 max-w-4xl mx-auto space-y-6">
+        {/* Header */}
+        <div>
+          <Link href="/agents">
+            <button className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4">
+              <ArrowLeft className="w-4 h-4" />
+              Back to Agents
+            </button>
+          </Link>
+          <h1 className="text-3xl font-bold mb-2">Create New Agent</h1>
+          <p className="text-muted-foreground">
+            Build your AI agent with powerful automation tools
+          </p>
+        </div>
 
-      <Card className="p-6">
-        {/* Step 1: Basic Info */}
-        {step === 1 && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-semibold mb-4">Basic Information</h2>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Basic Info Card */}
+          <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border space-y-6">
+            <h2 className="text-xl font-semibold">Basic Information</h2>
             
             <div>
-              <label className="block text-sm font-medium mb-2">Name *</label>
+              <label className="block text-sm font-medium mb-2 flex items-center justify-between">
+                <span>Name <span className="text-red-500">*</span></span>
+                <button
+                  type="button"
+                  onClick={handleRandomName}
+                  className="flex items-center gap-1 text-xs text-[#0066FF] hover:text-[#2952d9] transition-colors"
+                  title="Random name"
+                >
+                  <Dices className="w-3 h-3" />
+                  Random
+                </button>
+              </label>
               <Input
                 value={formData.name}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('name', e.target.value)}
@@ -156,7 +226,27 @@ export default function CreateAgentPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Description</label>
+              <label className="block text-sm font-medium mb-2 flex items-center justify-between">
+                <span>Description</span>
+                <button
+                  type="button"
+                  onClick={() => handleGenerateField('description')}
+                  disabled={generatingField === 'description'}
+                  className="flex items-center gap-1 text-xs text-[#0066FF] hover:text-[#2952d9] transition-colors disabled:opacity-50"
+                >
+                  {generatingField === 'description' ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-[#0066FF] border-t-transparent rounded-full animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3 h-3" />
+                      Generate
+                    </>
+                  )}
+                </button>
+              </label>
               <Textarea
                 value={formData.description}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateField('description', e.target.value)}
@@ -175,50 +265,66 @@ export default function CreateAgentPage() {
               />
             </div>
           </div>
-        )}
 
-        {/* Step 2: Personality */}
-        {step === 2 && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-semibold mb-4">Personality & Character</h2>
+          {/* Personality Card */}
+          <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border space-y-6">
+            <h2 className="text-xl font-semibold">Personality & Character</h2>
 
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium">System Prompt *</label>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => generateField('system')}
-                  disabled={generating === 'system'}
+              <label className="block text-sm font-medium mb-2 flex items-center justify-between">
+                <span>System Prompt <span className="text-red-500">*</span></span>
+                <button
+                  type="button"
+                  onClick={() => handleGenerateField('system')}
+                  disabled={generatingField === 'system'}
+                  className="flex items-center gap-1 text-xs text-[#0066FF] hover:text-[#2952d9] transition-colors disabled:opacity-50"
                 >
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  {generating === 'system' ? 'Generating...' : 'Generate'}
-                </Button>
-              </div>
+                  {generatingField === 'system' ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-[#0066FF] border-t-transparent rounded-full animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3 h-3" />
+                      Generate
+                    </>
+                  )}
+                </button>
+              </label>
               <Textarea
                 value={formData.system}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateField('system', e.target.value)}
                 placeholder="You are an AI agent who..."
                 rows={4}
               />
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Defines how your agent thinks and behaves
               </p>
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium">Bio Points</label>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => generateField('bio')}
-                  disabled={generating === 'bio'}
+              <label className="block text-sm font-medium mb-2 flex items-center justify-between">
+                <span>Bio Points</span>
+                <button
+                  type="button"
+                  onClick={() => handleGenerateField('bio')}
+                  disabled={generatingField === 'bio'}
+                  className="flex items-center gap-1 text-xs text-[#0066FF] hover:text-[#2952d9] transition-colors disabled:opacity-50"
                 >
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  {generating === 'bio' ? 'Generating...' : 'Generate'}
-                </Button>
-              </div>
+                  {generatingField === 'bio' ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-[#0066FF] border-t-transparent rounded-full animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3 h-3" />
+                      Generate
+                    </>
+                  )}
+                </button>
+              </label>
               {formData.bio.map((bio, idx) => (
                 <Input
                   key={idx}
@@ -232,28 +338,37 @@ export default function CreateAgentPage() {
                   className="mb-2"
                 />
               ))}
-              <Button
-                variant="outline"
-                size="sm"
+              <button
+                type="button"
                 onClick={() => updateField('bio', [...formData.bio, ''])}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-all bg-muted hover:bg-muted/80"
               >
                 Add Bio Point
-              </Button>
+              </button>
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium">Personality</label>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => generateField('personality')}
-                  disabled={generating === 'personality'}
+              <label className="block text-sm font-medium mb-2 flex items-center justify-between">
+                <span>Personality</span>
+                <button
+                  type="button"
+                  onClick={() => handleGenerateField('personality')}
+                  disabled={generatingField === 'personality'}
+                  className="flex items-center gap-1 text-xs text-[#0066FF] hover:text-[#2952d9] transition-colors disabled:opacity-50"
                 >
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  {generating === 'personality' ? 'Generating...' : 'Generate'}
-                </Button>
-              </div>
+                  {generatingField === 'personality' ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-[#0066FF] border-t-transparent rounded-full animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3 h-3" />
+                      Generate
+                    </>
+                  )}
+                </button>
+              </label>
               <Textarea
                 value={formData.personality}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateField('personality', e.target.value)}
@@ -262,33 +377,40 @@ export default function CreateAgentPage() {
               />
             </div>
           </div>
-        )}
 
-        {/* Step 3: Trading Strategy */}
-        {step === 3 && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-semibold mb-4">Trading Strategy</h2>
+          {/* Trading Strategy Card */}
+          <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border space-y-6">
+            <h2 className="text-xl font-semibold">Trading Configuration</h2>
 
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium">Strategy Description</label>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => generateField('tradingStrategy')}
-                  disabled={generating === 'tradingStrategy'}
+              <label className="block text-sm font-medium mb-2 flex items-center justify-between">
+                <span>Trading Strategy</span>
+                <button
+                  type="button"
+                  onClick={() => handleGenerateField('tradingStrategy')}
+                  disabled={generatingField === 'tradingStrategy'}
+                  className="flex items-center gap-1 text-xs text-[#0066FF] hover:text-[#2952d9] transition-colors disabled:opacity-50"
                 >
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  {generating === 'tradingStrategy' ? 'Generating...' : 'Generate'}
-                </Button>
-              </div>
+                  {generatingField === 'tradingStrategy' ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-[#0066FF] border-t-transparent rounded-full animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3 h-3" />
+                      Generate
+                    </>
+                  )}
+                </button>
+              </label>
               <Textarea
                 value={formData.tradingStrategy}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateField('tradingStrategy', e.target.value)}
                 placeholder="Describe your agent's trading approach and strategy..."
                 rows={5}
               />
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 This will guide autonomous trading decisions
               </p>
             </div>
@@ -297,40 +419,40 @@ export default function CreateAgentPage() {
               <label className="block text-sm font-medium mb-2">Model Tier</label>
               <div className="flex gap-4">
                 <button
+                  type="button"
                   onClick={() => updateField('modelTier', 'free')}
                   className={`flex-1 p-4 border rounded-lg transition-colors ${
                     formData.modelTier === 'free'
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border hover:border-primary/50'
+                      ? 'border-[#0066FF] bg-[#0066FF]/10'
+                      : 'border-border hover:border-[#0066FF]/50'
                   }`}
                 >
                   <div className="font-medium">Free (Groq 8B)</div>
-                  <div className="text-sm text-gray-400">1 point per message</div>
+                  <div className="text-sm text-muted-foreground">1 point per message</div>
                 </button>
                 <button
+                  type="button"
                   onClick={() => updateField('modelTier', 'pro')}
                   className={`flex-1 p-4 border rounded-lg transition-colors ${
                     formData.modelTier === 'pro'
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border hover:border-primary/50'
+                      ? 'border-[#0066FF] bg-[#0066FF]/10'
+                      : 'border-border hover:border-[#0066FF]/50'
                   }`}
                 >
                   <div className="font-medium">Pro (Groq 70B)</div>
-                  <div className="text-sm text-gray-400">1 point per message</div>
+                  <div className="text-sm text-muted-foreground">1 point per message</div>
                 </button>
               </div>
             </div>
           </div>
-        )}
 
-        {/* Step 4: Initial Deposit */}
-        {step === 4 && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-semibold mb-4">Initial Deposit</h2>
+          {/* Initial Deposit Card */}
+          <div className="p-6 rounded-lg bg-card/50 backdrop-blur border border-border space-y-6">
+            <h2 className="text-xl font-semibold">Initial Deposit</h2>
 
             <div className="bg-muted/50 p-4 rounded-lg mb-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-400">Your Balance</span>
+                <span className="text-sm text-muted-foreground">Your Balance</span>
                 <span className="font-semibold">{totalPoints} points</span>
               </div>
             </div>
@@ -346,65 +468,54 @@ export default function CreateAgentPage() {
                 min={0}
                 max={totalPoints}
               />
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Your agent will need points to chat and trade. You can add more later.
               </p>
             </div>
 
-            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+            <div className="bg-[#0066FF]/10 border border-[#0066FF]/20 rounded-lg p-4">
               <h3 className="font-medium mb-2">Summary</h3>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Agent Name:</span>
-                  <span>{formData.name}</span>
+                  <span className="text-muted-foreground">Agent Name:</span>
+                  <span>{formData.name || 'Not set'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Model Tier:</span>
+                  <span className="text-muted-foreground">Model Tier:</span>
                   <span className="capitalize">{formData.modelTier}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Initial Deposit:</span>
+                  <span className="text-muted-foreground">Initial Deposit:</span>
                   <span>{formData.initialDeposit} points</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Remaining Balance:</span>
+                  <span className="text-muted-foreground">Remaining Balance:</span>
                   <span>{totalPoints - formData.initialDeposit} points</span>
                 </div>
               </div>
             </div>
           </div>
-        )}
 
-        {/* Navigation */}
-        <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
-          <Button
-            variant="outline"
-            onClick={() => setStep(Math.max(1, step - 1))}
-            disabled={step === 1 || loading}
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={loading || formData.initialDeposit > totalPoints}
+            className="w-full px-6 py-4 rounded-lg font-medium transition-all bg-[#0066FF] hover:bg-[#2952d9] text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Previous
-          </Button>
-
-          {step < 4 ? (
-            <Button
-              onClick={() => setStep(Math.min(4, step + 1))}
-              disabled={loading}
-            >
-              Next
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-          ) : (
-            <Button
-              onClick={handleSubmit}
-              disabled={loading || formData.initialDeposit > totalPoints}
-            >
-              {loading ? 'Creating...' : 'Create Agent'}
-            </Button>
-          )}
-        </div>
-      </Card>
-    </div>
+            {loading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Creating Agent...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-5 h-5" />
+                Create Agent
+              </>
+            )}
+          </button>
+        </form>
+      </div>
+    </PageContainer>
   )
 }
-

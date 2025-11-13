@@ -17,7 +17,7 @@ import { authenticate } from '@/lib/api/auth-middleware'
 import { asUser } from '@/lib/db/context'
 import { logger } from '@/lib/logger'
 import { Agent0Client } from '@/agents/agent0/Agent0Client'
-import type { AgentCapabilities } from '@/a2a/types'
+import type { AgentCapabilities } from '@/types/a2a'
 import { syncAfterAgent0Registration } from '@/lib/reputation/agent0-reputation-sync'
 import { generateSnowflakeId } from '@/lib/snowflake'
 

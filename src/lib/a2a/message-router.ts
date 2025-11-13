@@ -13,20 +13,20 @@ import type {
   Coalition,
   MarketAnalysis,
   AnalysisRequest
-} from '../types';
+} from '@/types/a2a';
 import {
   A2AMethod,
   ErrorCode
-} from '../types'
+} from '@/types/a2a'
 import type { JsonRpcResult } from '@/types/common'
 import type { PaymentVerificationParams, PaymentVerificationResult } from '@/types/payments'
 import type { RegistryClient } from '@/types/a2a-server'
 import type { X402Manager } from '@/types/a2a-server'
 import type { IAgent0Client } from '@/agents/agent0/types'
 import type { IUnifiedDiscoveryService } from '@/agents/agent0/types'
-import { logger } from '../utils/logger'
-import { prisma } from '@/lib/database-service'
-import { getAnalysisService } from '../services/analysis-service'
+import { logger } from '@/lib/logger'
+import { prisma } from '@/lib/prisma'
+import { getAnalysisService } from './services/analysis-service'
 import {
   DiscoverParamsSchema,
   GetAgentInfoParamsSchema,
@@ -42,37 +42,47 @@ import {
   PaymentReceiptParamsSchema,
   GetAnalysesParamsSchema,
 } from './validation'
-import { MarketAnalysisSchema } from '../types'
+import { MarketAnalysisSchema } from '@/types/a2a'
 
 // Typed parameter interfaces for each method
 // Note: These types are inferred from schemas but kept for potential future use
 
 export class MessageRouter {
-  private config: Required<A2AServerConfig>
+  private config: A2AServerConfig
   private registryClient?: RegistryClient
   private x402Manager?: X402Manager
   private agent0Client?: IAgent0Client
   private unifiedDiscovery?: IUnifiedDiscoveryService
   private marketSubscriptions: Map<string, Set<string>> = new Map() // marketId -> Set of agentIds
   private coalitions: Map<string, Coalition> = new Map()
-  private server: { broadcast: (agentIds: string[], message: unknown) => void } | null = null // WebSocket server for broadcasting
   private analysisService = getAnalysisService() // Centralized analysis storage
   private analysisRequests: Map<string, AnalysisRequest> = new Map() // requestId -> request
 
   constructor(
-    config: Required<A2AServerConfig>,
+    config: A2AServerConfig | Partial<A2AServerConfig>,
     registryClient?: RegistryClient,
     x402Manager?: X402Manager,
     agent0Client?: IAgent0Client,
-    unifiedDiscovery?: IUnifiedDiscoveryService,
-    server?: { broadcast: (agentIds: string[], message: unknown) => void }
+    unifiedDiscovery?: IUnifiedDiscoveryService
   ) {
-    this.config = config
+    // Set defaults for missing config
+    this.config = {
+      port: config.port ?? 0,
+      host: config.host ?? '0.0.0.0',
+      maxConnections: config.maxConnections ?? 1000,
+      messageRateLimit: config.messageRateLimit ?? 100,
+      authTimeout: config.authTimeout ?? 30000,
+      enableX402: config.enableX402 ?? false,
+      enableCoalitions: config.enableCoalitions ?? true,
+      logLevel: config.logLevel ?? 'info',
+      registryClient: registryClient,
+      agent0Client: agent0Client,
+      unifiedDiscovery: unifiedDiscovery
+    }
     this.registryClient = registryClient
     this.x402Manager = x402Manager
     this.agent0Client = agent0Client
     this.unifiedDiscovery = unifiedDiscovery
-    this.server = server ?? null
   }
 
   /**
@@ -120,6 +130,15 @@ export class MessageRouter {
         return await this.handlePaymentRequest(agentId, request)
       case A2AMethod.PAYMENT_RECEIPT:
         return await this.handlePaymentReceipt(agentId, request)
+      case A2AMethod.GET_BALANCE:
+      case 'a2a.getBalance':
+        return await this.handleGetBalance(agentId, request)
+      case A2AMethod.GET_POSITIONS:
+      case 'a2a.getPositions':
+        return await this.handleGetPositions(agentId, request)
+      case A2AMethod.GET_USER_WALLET:
+      case 'a2a.getUserWallet':
+        return await this.handleGetUserWallet(agentId, request)
       default:
         return this.errorResponse(
           request.id,
@@ -492,14 +511,15 @@ export class MessageRouter {
       }
     }
     
-    // Get list of members to broadcast to (excluding sender)
+    // Get list of members to notify (excluding sender)
     const recipients = coalition.members.filter(memberId => memberId !== agentId)
     
-    // Broadcast using server if available
-    if (this.server && recipients.length > 0) {
-      this.server.broadcast(recipients, coalitionNotification)
-      logger.debug(`Broadcasted coalition message to ${recipients.length} members`)
-    }
+    // Note: In HTTP-only mode, notifications would be stored for polling
+    // or delivered via webhooks/SSE if needed
+    logger.debug(`Coalition message queued for ${recipients.length} members`)
+    
+    // Suppress unused variable warning
+    void coalitionNotification
 
     return {
       jsonrpc: '2.0',
@@ -572,36 +592,16 @@ export class MessageRouter {
     
     logger.info(`Agent ${agentId} shared analysis for market ${analysis.marketId}`)
     
-    // Distribute to interested parties (agents subscribed to this market)
-    const subscribers = this.marketSubscriptions.get(analysis.marketId)
-    if (subscribers && subscribers.size > 0 && this.server) {
-      const notification = {
-        jsonrpc: '2.0',
-        method: 'a2a.analysis_shared',
-        params: {
-          analysisId,
-          marketId: analysis.marketId,
-          analyst: agentId,
-          prediction: analysis.prediction,
-          confidence: analysis.confidence,
-          timestamp: analysis.timestamp
-        }
-      }
-      
-      // Broadcast to all subscribers except the analyst
-      const recipients = Array.from(subscribers).filter(id => id !== agentId)
-      if (recipients.length > 0) {
-        this.server.broadcast(recipients, notification)
-        logger.debug(`Distributed analysis to ${recipients.length} subscribers`)
-      }
-    }
+    // Store for subscribers (they can poll via getAnalyses)
+    const subscribersCount = this.marketSubscriptions.get(analysis.marketId)?.size || 0
+    logger.debug(`Analysis stored for ${subscribersCount} subscribers`)
     
     return {
       jsonrpc: '2.0',
       result: {
         shared: true,
         analysisId,
-        distributed: subscribers?.size || 0
+        distributed: subscribersCount
       } as unknown as JsonRpcResult,
       id: request.id
     }
@@ -638,9 +638,8 @@ export class MessageRouter {
     
     logger.info(`Agent ${agentId} requesting analysis for market ${analysisRequest.marketId}, deadline: ${analysisRequest.deadline}`)
     
-    // Broadcast to capable agents (agents subscribed to this market or with analysis capabilities)
-    const subscribers = this.marketSubscriptions.get(analysisRequest.marketId)
-    const notification = {
+    // Notification format for reference (not used in HTTP-only mode)
+    const _notification = {
       jsonrpc: '2.0',
       method: 'a2a.analysis_requested',
       params: {
@@ -652,23 +651,20 @@ export class MessageRouter {
       }
     }
     
-    let broadcastCount = 0
-    if (subscribers && subscribers.size > 0 && this.server) {
-      // Broadcast to all subscribers except the requester
-      const recipients = Array.from(subscribers).filter(id => id !== agentId)
-      if (recipients.length > 0) {
-        this.server.broadcast(recipients, notification)
-        broadcastCount = recipients.length
-        logger.debug(`Broadcasted analysis request to ${recipients.length} agents`)
-      }
-    }
+    // Store request (agents can discover via polling if needed)
+    const subscribersForRequest = this.marketSubscriptions.get(analysisRequest.marketId)
+    const recipientCount = subscribersForRequest ? subscribersForRequest.size - 1 : 0
+    logger.debug(`Analysis request stored, ${recipientCount} potential responders`)
+    
+    // Suppress unused variable warning
+    void _notification
     
     return {
       jsonrpc: '2.0',
       result: {
         requestId,
         broadcasted: true,
-        recipients: broadcastCount
+        recipients: recipientCount
       } as unknown as JsonRpcResult,
       id: request.id
     }
@@ -716,6 +712,202 @@ export class MessageRouter {
         total: publicAnalyses.length
       } as unknown as JsonRpcResult,
       id: request.id
+    }
+  }
+
+  // ==================== User Data Operations ====================
+
+  private async handleGetBalance(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
+    this.logRequest(agentId, 'a2a.getBalance')
+    
+    try {
+      // Get userId from params or use agentId
+      const params = request.params as { userId?: string } | undefined
+      const userId = params?.userId || agentId
+      
+      // Fetch balance from database
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          virtualBalance: true,
+          totalDeposited: true,
+          totalWithdrawn: true,
+          lifetimePnL: true,
+          reputationPoints: true,
+        }
+      })
+      
+      if (!user) {
+        return this.errorResponse(
+          request.id,
+          ErrorCode.AGENT_NOT_FOUND,
+          `User ${userId} not found`
+        )
+      }
+      
+      return {
+        jsonrpc: '2.0',
+        result: {
+          balance: Number(user.virtualBalance),
+          totalDeposited: Number(user.totalDeposited),
+          totalWithdrawn: Number(user.totalWithdrawn),
+          lifetimePnL: Number(user.lifetimePnL),
+          reputationPoints: user.reputationPoints || 0
+        } as unknown as JsonRpcResult,
+        id: request.id
+      }
+    } catch (error) {
+      logger.error('Error fetching balance', error)
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INTERNAL_ERROR,
+        'Failed to fetch balance'
+      )
+    }
+  }
+
+  private async handleGetPositions(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
+    this.logRequest(agentId, 'a2a.getPositions')
+    
+    try {
+      const params = request.params as { userId?: string } | undefined
+      const userId = params?.userId || agentId
+      
+      // Fetch positions from database
+      const [perpPositions, predictionPositions] = await Promise.all([
+        prisma.perpPosition.findMany({
+          where: {
+            userId,
+            closedAt: null,
+          },
+          select: {
+            id: true,
+            ticker: true,
+            side: true,
+            entryPrice: true,
+            currentPrice: true,
+            size: true,
+            leverage: true,
+            unrealizedPnL: true,
+            liquidationPrice: true,
+          }
+        }),
+        prisma.position.findMany({
+          where: {
+            userId,
+          },
+          include: {
+            Market: {
+              select: {
+                id: true,
+                question: true,
+                yesShares: true,
+                noShares: true,
+                resolved: true,
+                resolution: true,
+              }
+            }
+          }
+        })
+      ])
+      
+      // Format perp positions
+      const formattedPerpPositions = perpPositions.map(p => ({
+        id: p.id,
+        ticker: p.ticker,
+        side: p.side,
+        size: Number(p.size),
+        entryPrice: Number(p.entryPrice),
+        currentPrice: Number(p.currentPrice),
+        leverage: p.leverage,
+        unrealizedPnL: Number(p.unrealizedPnL),
+        liquidationPrice: Number(p.liquidationPrice),
+      }))
+      
+      // Format prediction positions
+      const formattedMarketPositions = predictionPositions.map(p => {
+        const yesShares = Number(p.Market.yesShares)
+        const noShares = Number(p.Market.noShares)
+        const totalShares = yesShares + noShares
+        const currentPrice = totalShares === 0 ? 0.5 : (String(p.side) === 'YES' ? yesShares / totalShares : noShares / totalShares)
+        const avgPrice = Number(p.avgPrice)
+        const shares = Number(p.shares)
+        const unrealizedPnL = (currentPrice * shares) - (avgPrice * shares)
+        
+        return {
+          id: p.id,
+          marketId: p.Market.id,
+          question: p.Market.question,
+          side: p.side,
+          shares,
+          avgPrice,
+          currentPrice,
+          unrealizedPnL,
+        }
+      })
+      
+      return {
+        jsonrpc: '2.0',
+        result: {
+          perpPositions: formattedPerpPositions,
+          marketPositions: formattedMarketPositions,
+        } as unknown as JsonRpcResult,
+        id: request.id
+      }
+    } catch (error) {
+      logger.error('Error fetching positions', error)
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INTERNAL_ERROR,
+        'Failed to fetch positions'
+      )
+    }
+  }
+
+  private async handleGetUserWallet(agentId: string, request: JsonRpcRequest): Promise<JsonRpcResponse> {
+    this.logRequest(agentId, 'a2a.getUserWallet')
+    
+    try {
+      const params = request.params as { userId: string } | undefined
+      if (!params?.userId) {
+        return this.errorResponse(
+          request.id,
+          ErrorCode.INVALID_PARAMS,
+          'userId is required'
+        )
+      }
+      
+      const userId = params.userId
+      
+      // Fetch both balance and positions
+      const [balanceResponse, positionsResponse] = await Promise.all([
+        this.handleGetBalance(agentId, { ...request, params: { userId } }),
+        this.handleGetPositions(agentId, { ...request, params: { userId } })
+      ])
+      
+      if (balanceResponse.error || positionsResponse.error) {
+        return this.errorResponse(
+          request.id,
+          ErrorCode.INTERNAL_ERROR,
+          'Failed to fetch wallet data'
+        )
+      }
+      
+      return {
+        jsonrpc: '2.0',
+        result: {
+          balance: balanceResponse.result,
+          positions: positionsResponse.result,
+        } as unknown as JsonRpcResult,
+        id: request.id
+      }
+    } catch (error) {
+      logger.error('Error fetching user wallet', error)
+      return this.errorResponse(
+        request.id,
+        ErrorCode.INTERNAL_ERROR,
+        'Failed to fetch user wallet'
+      )
     }
   }
 

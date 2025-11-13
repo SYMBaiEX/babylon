@@ -37,7 +37,7 @@ export function WidgetSidebar() {
   return (
     <div
       ref={sidebarRef}
-      className="hidden xl:flex flex-col w-96 flex-shrink-0 bg-sidebar sidebar"
+      className="hidden xl:flex flex-col w-96 flex-shrink-0 sidebar"
     >
       <div className="sidebar__inner flex flex-col px-4 py-6 gap-6">
         <div className="flex-shrink-0">

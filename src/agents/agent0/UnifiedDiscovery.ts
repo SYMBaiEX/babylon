@@ -5,7 +5,7 @@
  * to provide comprehensive agent search.
  */
 
-import type { AgentProfile } from '@/a2a/types'
+import type { AgentProfile } from '@/types/a2a'
 import { AgentRegistry } from '../AgentRegistry'
 import { ReputationBridge } from './ReputationBridge'
 import { SubgraphClient, type SubgraphAgent } from './SubgraphClient'
@@ -45,7 +45,7 @@ export class UnifiedDiscoveryService implements IUnifiedDiscoveryService {
       minReputation: filters.minReputation
     })
     
-    results.push(...localAgents.map(r => r.profile))
+    results.push(...localAgents.map((r: { profile: AgentProfile }) => r.profile))
     
     if (filters.includeExternal && process.env.AGENT0_ENABLED === 'true') {
       const externalAgents = await this.subgraphClient.searchAgents({

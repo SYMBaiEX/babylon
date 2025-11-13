@@ -3,14 +3,14 @@
  * Type definitions for the Babylon A2A plugin
  */
 
-import type { IAgentRuntime, Memory, State } from '@elizaos/core'
-import type { A2AClient } from '@/a2a/client/a2a-client'
+import type { IAgentRuntime } from '@elizaos/core'
+import type { BabylonA2AClient } from '@/lib/a2a/client/babylon-a2a-client'
 
 /**
- * Extended runtime with A2A client
+ * Extended runtime with A2A client (Official SDK)
  */
 export interface BabylonRuntime extends IAgentRuntime {
-  a2aClient?: A2AClient
+  a2aClient?: BabylonA2AClient
 }
 
 /**

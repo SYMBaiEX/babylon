@@ -42,7 +42,7 @@ interface GroupInvite {
 }
 
 export default function NotificationsPage() {
-  const { authenticated, user } = useAuth()
+  const { authenticated, user, getAccessToken } = useAuth()
   const router = useRouter()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [groupInvites, setGroupInvites] = useState<GroupInvite[]>([])
@@ -53,7 +53,7 @@ export default function NotificationsPage() {
     if (showLoading) {
       setLoading(true)
     }
-    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    const token = await getAccessToken()
 
     if (!token) {
       if (showLoading) {
@@ -98,7 +98,7 @@ export default function NotificationsPage() {
     if (showLoading) {
       setLoading(false)
     }
-  }, [])
+  }, [getAccessToken])
 
   const handleRefresh = useCallback(async () => {
     await fetchNotifications(false, false) // Show loading via pull-to-refresh indicator, show toast on complete
@@ -139,7 +139,7 @@ export default function NotificationsPage() {
       return
     }
     
-    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    const token = await getAccessToken()
 
     if (!token) return
 
@@ -169,7 +169,7 @@ export default function NotificationsPage() {
       )
       setUnreadCount(prev => prev + 1)
     }
-  }, [])
+  }, [getAccessToken])
 
   // Intersection Observer removed - notifications should only be marked as read when clicked, not when viewed
 

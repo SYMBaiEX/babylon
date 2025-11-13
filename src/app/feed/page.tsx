@@ -27,7 +27,7 @@ const PAGE_SIZE = 20
 
 function FeedPageContent() {
   const router = useRouter()
-  const { authenticated } = useAuth()
+  const { authenticated, getAccessToken } = useAuth()
   const { user } = useAuthStore()
   const { refreshAll: refreshWidgets } = useWidgetRefresh()
   const { registerOptimisticPostCallback, unregisterOptimisticPostCallback } = useFeedStore()
@@ -276,7 +276,7 @@ function FeedPageContent() {
 
       setLoadingFollowing(true)
       
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      const token = await getAccessToken()
 
       const headers: HeadersInit = {
         'Content-Type': 'application/json',

@@ -5,9 +5,9 @@
  * to provide unified reputation scores.
  */
 
-import type { RegistryClient } from '@/a2a/blockchain/registry-client'
+import type { RegistryClient } from '@/lib/a2a/blockchain/registry-client'
 import { SubgraphClient } from './SubgraphClient'
-import type { AgentReputation } from '@/a2a/types'
+import type { AgentReputation } from '@/types/a2a'
 import { logger } from '@/lib/logger'
 import type { IReputationBridge, AggregatedReputation } from './types'
 
