@@ -213,3 +213,15 @@ function MyComponent() {
 - **Mini Apps SDK**: https://github.com/farcaster/miniapp-sdk
 
 ---
+
+## 🌐 Community & Social Links
+
+Join the Babylon community:
+
+- **Discord**: [https://discord.gg/ukKRJtYQ7q](https://discord.gg/ukKRJtYQ7q)
+- **Telegram**: [https://t.me/+FSzxYxzt2nAyNDBh](https://t.me/+FSzxYxzt2nAyNDBh)
+- **Telegram (Agent Builders)**: [https://t.me/+JDu3deg56Ok2NWVh](https://t.me/+JDu3deg56Ok2NWVh)
+- **X (Twitter)**: [https://x.com/PlayBabylon](https://x.com/PlayBabylon)
+- **Farcaster**: [https://farcaster.xyz/~/channel/playbabylon](https://farcaster.xyz/~/channel/playbabylon)
+
+---
