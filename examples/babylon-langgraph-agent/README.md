@@ -99,12 +99,27 @@ uv run pytest tests/test_a2a_integration.py -v -s
 # Make sure Babylon server is running first!
 # In another terminal: cd /Users/shawwalters/babylon && npm run dev
 
-# Run the agent (uses official a2a-sdk)
-uv run python agent_v2.py
+# Run the HTTP agent (recommended for Babylon)
+uv run python agent_http.py
 
-# Or run original agent (custom WebSocket implementation)
-uv run python agent.py
+# Test mode: Run for 10 ticks with logging
+uv run python agent_http.py --test
+
+# Custom test: Run for 5 ticks with logs
+uv run python agent_http.py --ticks 5 --log test.jsonl
+
+# Fast test: 3 ticks with 5s intervals
+TICK_INTERVAL=5 uv run python agent_http.py --ticks 3
 ```
+
+**Test Mode Features:**
+- `--test` - Run for 10 ticks and exit (quick validation)
+- `--ticks N` - Run for N ticks and exit
+- `--log FILE` - Save comprehensive logs to FILE.jsonl
+- Auto-generates summary statistics
+- Perfect for development and debugging
+
+See [TEST_MODE_README.md](./TEST_MODE_README.md) for complete guide.
 
 ---
 

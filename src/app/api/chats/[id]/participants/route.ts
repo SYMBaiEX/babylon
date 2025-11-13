@@ -115,10 +115,10 @@ export const POST = withErrorHandling(async (
 
     // Add new participants
     await Promise.all(
-      newUsers.map((newUser) =>
+      newUsers.map(async (newUser) =>
         db.chatParticipant.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             chatId,
             userId: newUser.id,
           },

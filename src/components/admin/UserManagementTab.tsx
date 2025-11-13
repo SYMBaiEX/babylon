@@ -38,12 +38,26 @@ const UserSchema = z.object({
     positions: z.number(),
     following: z.number(),
     followedBy: z.number(),
+    reportsReceived: z.number().optional(),
+    blocksReceived: z.number().optional(),
+    mutesReceived: z.number().optional(),
+    reportsSent: z.number().optional(),
+  }).optional(),
+  _moderation: z.object({
+    reportsReceived: z.number(),
+    blocksReceived: z.number(),
+    mutesReceived: z.number(),
+    reportsSent: z.number(),
+    reportRatio: z.number(),
+    blockRatio: z.number(),
+    muteRatio: z.number(),
+    badUserScore: z.number(),
   }).optional(),
 });
 type User = z.infer<typeof UserSchema>;
 
 type FilterType = 'all' | 'actors' | 'users' | 'banned' | 'admins'
-type SortByType = 'created' | 'balance' | 'reputation' | 'username'
+type SortByType = 'created' | 'balance' | 'reputation' | 'username' | 'reports_received' | 'blocks_received' | 'mutes_received' | 'report_ratio' | 'block_ratio' | 'bad_user_score'
 
 export function UserManagementTab() {
   const [users, setUsers] = useState<User[]>([])
@@ -63,29 +77,23 @@ export function UserManagementTab() {
 
   const fetchUsers = (showRefreshing = false) => {
     const fetchLogic = async () => {
-      try {
-        const params = new URLSearchParams({
-          limit: '50',
-          filter,
-          sortBy,
-          sortOrder: 'desc',
-        });
-        if (searchQuery) params.set('search', searchQuery);
+      const params = new URLSearchParams({
+        limit: '50',
+        filter,
+        sortBy,
+        sortOrder: 'desc',
+      });
+      if (searchQuery) params.set('search', searchQuery);
 
-        const response = await fetch(`/api/admin/users?${params}`);
-        if (!response.ok) throw new Error('Failed to fetch users');
-        const data = await response.json();
-        const validation = z.array(UserSchema).safeParse(data.users);
-        if (!validation.success) {
-          throw new Error('Invalid user data structure');
-        }
-        setUsers(validation.data || []);
-      } catch (error) {
-        console.error('Failed to fetch users:', error);
-        toast.error('Failed to load users');
-      } finally {
-        setLoading(false);
+      const response = await fetch(`/api/admin/users?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch users');
+      const data = await response.json();
+      const validation = z.array(UserSchema).safeParse(data.users);
+      if (!validation.success) {
+        throw new Error('Invalid user data structure');
       }
+      setUsers(validation.data || []);
+      setLoading(false);
     };
 
     if (showRefreshing) {
@@ -102,30 +110,25 @@ export function UserManagementTab() {
     }
 
     startBanning(async () => {
-      try {
-        const response = await fetch(`/api/admin/users/${user.id}/ban`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action,
-            reason: action === 'ban' ? banReason : undefined,
-          }),
-        });
+      const response = await fetch(`/api/admin/users/${user.id}/ban`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          reason: action === 'ban' ? banReason : undefined,
+        }),
+      });
 
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || 'Failed to update user');
-        }
-
-        toast.success(action === 'ban' ? 'User banned successfully' : 'User unbanned successfully');
-        setShowBanModal(false);
-        setBanReason('');
-        setSelectedUser(null);
-        fetchUsers(true);
-      } catch (error) {
-        console.error('Failed to ban/unban user:', error);
-        toast.error(error instanceof Error ? error.message : 'Failed to update user');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update user');
       }
+
+      toast.success(action === 'ban' ? 'User banned successfully' : 'User unbanned successfully');
+      setShowBanModal(false);
+      setBanReason('');
+      setSelectedUser(null);
+      fetchUsers(true);
     });
   };
 
@@ -221,6 +224,47 @@ export function UserManagementTab() {
               <span>Followers: {user._count?.followedBy ?? 0}</span>
               <span>Following: {user._count?.following ?? 0}</span>
             </div>
+
+            {/* Moderation Metrics */}
+            {user._moderation && (user._moderation.reportsReceived > 0 || user._moderation.blocksReceived > 0 || user._moderation.mutesReceived > 0) && (
+              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 space-y-2">
+                <div className="text-xs font-medium text-yellow-600 flex items-center gap-2">
+                  <Shield className="w-3 h-3" />
+                  Moderation Metrics
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                  <div>
+                    <div className="text-muted-foreground">Reports</div>
+                    <div className="font-bold text-red-500">{user._moderation.reportsReceived}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Blocks</div>
+                    <div className="font-bold text-orange-500">{user._moderation.blocksReceived}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Mutes</div>
+                    <div className="font-bold text-yellow-600">{user._moderation.mutesReceived}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Bad Score</div>
+                    <div className={cn(
+                      'font-bold',
+                      user._moderation.badUserScore > 10 ? 'text-red-500' :
+                      user._moderation.badUserScore > 5 ? 'text-orange-500' :
+                      'text-yellow-600'
+                    )}>
+                      {user._moderation.badUserScore.toFixed(1)}
+                    </div>
+                  </div>
+                </div>
+                {(user._moderation.reportRatio > 0 || user._moderation.blockRatio > 0) && (
+                  <div className="flex gap-3 text-xs text-muted-foreground pt-1 border-t border-yellow-500/20">
+                    <span>Report Ratio: {user._moderation.reportRatio.toFixed(2)}</span>
+                    <span>Block Ratio: {user._moderation.blockRatio.toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Wallet Address */}
             {user.walletAddress && (
@@ -329,10 +373,20 @@ export function UserManagementTab() {
               onChange={(e) => setSortBy(e.target.value as SortByType)}
               className="px-3 py-1.5 text-sm bg-card border border-border rounded-lg focus:outline-none focus:border-border"
             >
-              <option value="created">Join Date</option>
-              <option value="balance">Balance</option>
-              <option value="reputation">Reputation</option>
-              <option value="username">Username</option>
+              <optgroup label="General">
+                <option value="created">Join Date</option>
+                <option value="balance">Balance</option>
+                <option value="reputation">Reputation</option>
+                <option value="username">Username</option>
+              </optgroup>
+              <optgroup label="Moderation">
+                <option value="bad_user_score">Bad User Score</option>
+                <option value="reports_received">Reports Received</option>
+                <option value="blocks_received">Blocks Received</option>
+                <option value="mutes_received">Mutes Received</option>
+                <option value="report_ratio">Report Ratio</option>
+                <option value="block_ratio">Block Ratio</option>
+              </optgroup>
             </select>
           </div>
 

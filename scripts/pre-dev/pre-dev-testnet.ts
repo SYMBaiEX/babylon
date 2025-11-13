@@ -92,76 +92,71 @@ if (process.env.AGENT0_ENABLED === 'true') {
 logger.info('', undefined, 'Script')
 logger.info('Starting local database services...', undefined, 'Script')
 
-try {
-  await $`docker --version`.quiet()
-  await $`docker info`.quiet()
-
-  // Start PostgreSQL
-  const postgresRunning = await $`docker ps --filter name=babylon-postgres --format "{{.Names}}"`.quiet().text()
-
-  if (postgresRunning.trim() !== 'babylon-postgres') {
-    logger.info('Starting PostgreSQL...', undefined, 'Script')
-    await $`docker-compose up -d postgres`
-    await new Promise(resolve => setTimeout(resolve, 3000))
-    logger.info('✅ PostgreSQL started', undefined, 'Script')
-  } else {
-    logger.info('✅ PostgreSQL is running', undefined, 'Script')
-  }
-
-  // Start Redis (optional)
-  const redisRunning = await $`docker ps --filter name=babylon-redis --format "{{.Names}}"`.quiet().text()
-
-  if (redisRunning.trim() !== 'babylon-redis') {
-    try {
-      await $`docker-compose up -d redis`
-      logger.info('✅ Redis started', undefined, 'Script')
-    } catch {
-      logger.warn('⚠️  Redis start failed (optional)', undefined, 'Script')
-    }
-  } else {
-    logger.info('✅ Redis is running', undefined, 'Script')
-  }
-
-  // Run database migrations
-  const { PrismaClient } = await import('@prisma/client')
-  const prisma = new PrismaClient()
-
-  try {
-    await prisma.$connect()
-    logger.info('✅ Database connected', undefined, 'Script')
-
-    const actorCount = await prisma.actor.count()
-
-    if (actorCount === 0) {
-      logger.info('Running database seed...', undefined, 'Script')
-      await $`bun run db:seed`
-      logger.info('✅ Database seeded', undefined, 'Script')
-    } else {
-      logger.info(`✅ Database has ${actorCount} actors`, undefined, 'Script')
-    }
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    if (errorMessage.includes('does not exist') || errorMessage.includes('P2021')) {
-      logger.info('Running database migrations...', undefined, 'Script')
-      try {
-        await $`bunx prisma migrate deploy`.quiet()
-      } catch {
-        await $`bunx prisma db push --skip-generate`.quiet()
-      }
-
-      logger.info('Running database seed...', undefined, 'Script')
-      await $`bun run db:seed`
-      logger.info('✅ Database ready', undefined, 'Script')
-    } else {
-      throw error
-    }
-  } finally {
-    await prisma.$disconnect()
-  }
-} catch (error) {
-  logger.warn('⚠️  Could not start local services', error, 'Script')
+await $`docker --version`.quiet().catch(() => {
+  logger.warn('⚠️  Could not start local services', undefined, 'Script')
   logger.info('   Make sure Docker is running', undefined, 'Script')
+  throw new Error('Docker not available')
+})
+
+await $`docker info`.quiet()
+
+// Start PostgreSQL
+const postgresRunning = await $`docker ps --filter name=babylon-postgres --format "{{.Names}}"`.quiet().text()
+
+if (postgresRunning.trim() !== 'babylon-postgres') {
+  logger.info('Starting PostgreSQL...', undefined, 'Script')
+  await $`docker-compose up -d postgres`
+  await new Promise(resolve => setTimeout(resolve, 3000))
+  logger.info('✅ PostgreSQL started', undefined, 'Script')
+} else {
+  logger.info('✅ PostgreSQL is running', undefined, 'Script')
 }
+
+// Start Redis (optional)
+const redisRunning = await $`docker ps --filter name=babylon-redis --format "{{.Names}}"`.quiet().text()
+
+if (redisRunning.trim() !== 'babylon-redis') {
+  await $`docker-compose up -d redis`.then(() => {
+    logger.info('✅ Redis started', undefined, 'Script')
+  }).catch(() => {
+    logger.warn('⚠️  Redis start failed (optional)', undefined, 'Script')
+  })
+} else {
+  logger.info('✅ Redis is running', undefined, 'Script')
+}
+
+// Run database migrations
+const { PrismaClient } = await import('@prisma/client')
+const prisma = new PrismaClient()
+
+await prisma.$connect()
+logger.info('✅ Database connected', undefined, 'Script')
+
+const actorCount = await prisma.actor.count().catch(async (error: Error) => {
+  const errorMessage = error.message
+  if (errorMessage.includes('does not exist') || errorMessage.includes('P2021')) {
+    logger.info('Running database migrations...', undefined, 'Script')
+    await $`bunx prisma migrate deploy`.quiet().catch(async () => {
+      await $`bunx prisma db push --skip-generate`.quiet()
+    })
+
+    logger.info('Running database seed...', undefined, 'Script')
+    await $`bun run db:seed`
+    logger.info('✅ Database ready', undefined, 'Script')
+    return 0
+  }
+  throw error
+})
+
+if (actorCount === 0) {
+  logger.info('Running database seed...', undefined, 'Script')
+  await $`bun run db:seed`
+  logger.info('✅ Database seeded', undefined, 'Script')
+} else if (actorCount > 0) {
+  logger.info(`✅ Database has ${actorCount} actors`, undefined, 'Script')
+}
+
+await prisma.$disconnect()
 
 logger.info('', undefined, 'Script')
 logger.info('='.repeat(60), undefined, 'Script')

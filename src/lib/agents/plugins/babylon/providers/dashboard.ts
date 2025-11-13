@@ -1,5 +1,3 @@
-// @ts-nocheck
-// @ts-nocheck
 /**
  * Dashboard Provider
  * Provides comprehensive agent context and state via A2A protocol
@@ -7,7 +5,7 @@
  * A2A IS REQUIRED - This provider will not work without an active A2A connection
  */
 
-import type { Provider, IAgentRuntime, Memory, State } from '@elizaos/core'
+import type { Provider, IAgentRuntime, Memory, State, ProviderResult } from '@elizaos/core'
 import { logger } from '@/lib/logger'
 import type { BabylonRuntime } from '../types'
 
@@ -20,37 +18,36 @@ export const dashboardProvider: Provider = {
   name: 'BABYLON_DASHBOARD',
   description: 'Get comprehensive agent dashboard with portfolio, markets, social feed, and pending interactions via A2A protocol',
   
-  get: async (runtime: IAgentRuntime, _message: Memory, _state: State) => {
-    try {
-      const babylonRuntime = runtime as BabylonRuntime
-      const agentUserId = runtime.agentId
-      
-      // A2A is REQUIRED
-      if (!babylonRuntime.a2aClient?.isConnected()) {
-        logger.error('A2A client not connected - dashboard provider requires A2A protocol', { 
-          agentId: runtime.agentId 
-        })
-        return 'ERROR: A2A client not connected. Cannot load dashboard. Please ensure A2A server is running.'
-      }
-      
-      // Fetch all dashboard data via A2A protocol
-      const [balance, positions, predictions, feed, unreadCount] = await Promise.all([
-        babylonRuntime.a2aClient.sendRequest('a2a.getBalance', {}),
-        babylonRuntime.a2aClient.sendRequest('a2a.getPositions', { userId: agentUserId }),
-        babylonRuntime.a2aClient.sendRequest('a2a.getPredictions', { status: 'active' }),
-        babylonRuntime.a2aClient.sendRequest('a2a.getFeed', { limit: 5, offset: 0 }),
-        babylonRuntime.a2aClient.sendRequest('a2a.getUnreadCount', {})
-      ])
-      
-      const balanceData = balance as { balance?: number; reputationPoints?: number }
-      const positionsData = positions as { marketPositions?: any[]; perpPositions?: any[] }
-      const predictionsData = predictions as { predictions?: any[] }
-      const feedData = feed as { posts?: any[] }
-      const unreadData = unreadCount as { unreadCount?: number }
-      
-      const totalPositions = (positionsData.marketPositions?.length || 0) + (positionsData.perpPositions?.length || 0)
-      
-      const result = `📊 AGENT DASHBOARD
+  get: async (runtime: IAgentRuntime, _message: Memory, _state: State): Promise<ProviderResult> => {
+    const babylonRuntime = runtime as BabylonRuntime
+    const agentUserId = runtime.agentId
+    
+    // A2A is REQUIRED
+    if (!babylonRuntime.a2aClient?.isConnected()) {
+      logger.error('A2A client not connected - dashboard provider requires A2A protocol', { 
+        agentId: runtime.agentId 
+      })
+      return { text: 'ERROR: A2A client not connected. Cannot load dashboard. Please ensure A2A server is running.' }
+    }
+    
+    // Fetch all dashboard data via A2A protocol
+    const [balance, positions, predictions, feed, unreadCount] = await Promise.all([
+      babylonRuntime.a2aClient.sendRequest('a2a.getBalance', {}),
+      babylonRuntime.a2aClient.sendRequest('a2a.getPositions', { userId: agentUserId }),
+      babylonRuntime.a2aClient.sendRequest('a2a.getPredictions', { status: 'active' }),
+      babylonRuntime.a2aClient.sendRequest('a2a.getFeed', { limit: 5, offset: 0 }),
+      babylonRuntime.a2aClient.sendRequest('a2a.getUnreadCount', {})
+    ])
+    
+    const balanceData = balance as { balance?: number; reputationPoints?: number }
+    const positionsData = positions as { marketPositions?: unknown[]; perpPositions?: unknown[] }
+    const predictionsData = predictions as { predictions?: unknown[] }
+    const feedData = feed as { posts?: unknown[] }
+    const unreadData = unreadCount as { unreadCount?: number }
+    
+    const totalPositions = (positionsData.marketPositions?.length || 0) + (positionsData.perpPositions?.length || 0)
+    
+    const result = `📊 AGENT DASHBOARD
 
 💰 PORTFOLIO
 Balance: $${balanceData.balance || 0}
@@ -78,10 +75,6 @@ Unread Messages: ${unreadData.unreadCount || 0}
 - ${feedData.posts && feedData.posts.length > 0 ? 'Engage with recent posts' : 'Create new post'}
 - ${unreadData.unreadCount && unreadData.unreadCount > 0 ? 'Respond to messages' : 'All messages read'}`
 
-      return result
-    } catch (error) {
-      logger.error('Failed to fetch dashboard via A2A', error, 'BabylonPlugin')
-      return 'ERROR: Failed to load dashboard via A2A protocol'
-    }
+    return { text: result }
   }
 }

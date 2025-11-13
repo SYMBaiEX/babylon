@@ -37,66 +37,56 @@ export const buySharesAction: Action = {
     runtime: IAgentRuntime,
     message: Memory,
     _state?: State,
-    _options?: any,
+    _options?: unknown,
     callback?: HandlerCallback
   ): Promise<void> => {
-    try {
-      const babylonRuntime = runtime as BabylonRuntime
-      
-      if (!babylonRuntime.a2aClient?.isConnected()) {
-        if (callback) {
-          callback({
-            text: 'A2A client not connected. Cannot execute trade.',
-            action: 'BUY_PREDICTION_SHARES'
-          })
-        }
-        return
-      }
-      
-      // Parse message to extract parameters
-      const content = message.content.text || ''
-      const marketIdMatch = content.match(/market[:\s-]+([a-zA-Z0-9-]+)/)
-      const amountMatch = content.match(/(\d+(?:\.\d+)?)\s*(?:shares|dollars|\$)/)
-      const sideMatch = content.match(/\b(YES|NO)\b/i)
-      
-      if (!marketIdMatch || !amountMatch) {
-        if (callback) {
-          callback({
-            text: 'Could not parse trade parameters. Please specify market ID and amount.',
-            action: 'BUY_PREDICTION_SHARES'
-          })
-        }
-        return
-      }
-      
-      const marketId = marketIdMatch[1]!
-      const amount = parseFloat(amountMatch[1]!)
-      const side = (sideMatch?.[1]?.toUpperCase() || 'YES') as 'YES' | 'NO'
-      
-      // Execute trade via A2A
-      const result = await babylonRuntime.a2aClient.sendRequest('a2a.buyShares', {
-        marketId,
-        outcome: side,
-        amount
-      }) as { shares?: number; avgPrice?: number; costBasis?: number }
-      
+    const babylonRuntime = runtime as BabylonRuntime
+    
+    if (!babylonRuntime.a2aClient?.isConnected()) {
       if (callback) {
         callback({
-          text: `Successfully bought ${result.shares || 0} ${side} shares at avg price ${result.avgPrice || 0}. Cost: $${result.costBasis || 0}`,
+          text: 'A2A client not connected. Cannot execute trade.',
           action: 'BUY_PREDICTION_SHARES'
         })
       }
-      
-      logger.info('Agent executed prediction trade', { marketId, side, amount, result })
-    } catch (error) {
-      logger.error('Failed to execute buy shares action', error)
-      if (callback) {
-        callback({
-          text: `Failed to execute trade: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          action: 'BUY_PREDICTION_SHARES'
-        })
-      }
+      return
     }
+    
+    // Parse message to extract parameters
+    const content = message.content.text || ''
+    const marketIdMatch = content.match(/market[:\s-]+([a-zA-Z0-9-]+)/)
+    const amountMatch = content.match(/(\d+(?:\.\d+)?)\s*(?:shares|dollars|\$)/)
+    const sideMatch = content.match(/\b(YES|NO)\b/i)
+    
+    if (!marketIdMatch || !amountMatch) {
+      if (callback) {
+        callback({
+          text: 'Could not parse trade parameters. Please specify market ID and amount.',
+          action: 'BUY_PREDICTION_SHARES'
+        })
+      }
+      return
+    }
+    
+    const marketId = marketIdMatch[1]!
+    const amount = parseFloat(amountMatch[1]!)
+    const side = (sideMatch?.[1]?.toUpperCase() || 'YES') as 'YES' | 'NO'
+    
+    // Execute trade via A2A
+    const result = await babylonRuntime.a2aClient.sendRequest('a2a.buyShares', {
+      marketId,
+      outcome: side,
+      amount
+    }) as { shares?: number; avgPrice?: number; costBasis?: number }
+    
+    if (callback) {
+      callback({
+        text: `Successfully bought ${result.shares || 0} ${side} shares at avg price ${result.avgPrice || 0}. Cost: $${result.costBasis || 0}`,
+        action: 'BUY_PREDICTION_SHARES'
+      })
+    }
+    
+    logger.info('Agent executed prediction trade', { marketId, side, amount, result })
   }
 }
 
@@ -130,63 +120,53 @@ export const sellSharesAction: Action = {
     runtime: IAgentRuntime,
     message: Memory,
     _state?: State,
-    _options?: any,
+    _options?: unknown,
     callback?: HandlerCallback
   ): Promise<void> => {
-    try {
-      const babylonRuntime = runtime as BabylonRuntime
-      
-      if (!babylonRuntime.a2aClient?.isConnected()) {
-        if (callback) {
-          callback({
-            text: 'A2A client not connected. Cannot execute trade.',
-            action: 'SELL_PREDICTION_SHARES'
-          })
-        }
-        return
-      }
-      
-      // Parse message to extract parameters
-      const content = message.content.text || ''
-      const positionIdMatch = content.match(/position[:\s-]+([a-zA-Z0-9-]+)/)
-      const amountMatch = content.match(/(\d+(?:\.\d+)?)\s*(?:shares)/)
-      
-      if (!positionIdMatch || !amountMatch) {
-        if (callback) {
-          callback({
-            text: 'Could not parse trade parameters. Please specify position ID and share amount.',
-            action: 'SELL_PREDICTION_SHARES'
-          })
-        }
-        return
-      }
-      
-      const positionId = positionIdMatch[1]!
-      const shares = parseFloat(amountMatch[1]!)
-      
-      // Execute trade via A2A
-      const result = await babylonRuntime.a2aClient.sendRequest('a2a.sellShares', {
-        positionId,
-        shares
-      }) as { success?: boolean; remainingShares?: number; proceeds?: number }
-      
+    const babylonRuntime = runtime as BabylonRuntime
+    
+    if (!babylonRuntime.a2aClient?.isConnected()) {
       if (callback) {
         callback({
-          text: `Successfully sold ${shares} shares. Proceeds: $${result.proceeds || 0}. Remaining: ${result.remainingShares || 0} shares`,
+          text: 'A2A client not connected. Cannot execute trade.',
           action: 'SELL_PREDICTION_SHARES'
         })
       }
-      
-      logger.info('Agent executed prediction sell', { positionId, shares, result })
-    } catch (error) {
-      logger.error('Failed to execute sell shares action', error)
-      if (callback) {
-        callback({
-          text: `Failed to sell shares: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          action: 'SELL_PREDICTION_SHARES'
-        })
-      }
+      return
     }
+    
+    // Parse message to extract parameters
+    const content = message.content.text || ''
+    const positionIdMatch = content.match(/position[:\s-]+([a-zA-Z0-9-]+)/)
+    const amountMatch = content.match(/(\d+(?:\.\d+)?)\s*(?:shares)/)
+    
+    if (!positionIdMatch || !amountMatch) {
+      if (callback) {
+        callback({
+          text: 'Could not parse trade parameters. Please specify position ID and share amount.',
+          action: 'SELL_PREDICTION_SHARES'
+        })
+      }
+      return
+    }
+    
+    const positionId = positionIdMatch[1]!
+    const shares = parseFloat(amountMatch[1]!)
+    
+    // Execute trade via A2A
+    const result = await babylonRuntime.a2aClient.sendRequest('a2a.sellShares', {
+      positionId,
+      shares
+    }) as { success?: boolean; remainingShares?: number; proceeds?: number }
+    
+    if (callback) {
+      callback({
+        text: `Successfully sold ${shares} shares. Proceeds: $${result.proceeds || 0}. Remaining: ${result.remainingShares || 0} shares`,
+        action: 'SELL_PREDICTION_SHARES'
+      })
+    }
+    
+    logger.info('Agent executed prediction sell', { positionId, shares, result })
   }
 }
 
@@ -221,69 +201,59 @@ export const openPerpPositionAction: Action = {
     runtime: IAgentRuntime,
     message: Memory,
     _state?: State,
-    _options?: any,
+    _options?: unknown,
     callback?: HandlerCallback
   ): Promise<void> => {
-    try {
-      const babylonRuntime = runtime as BabylonRuntime
-      
-      if (!babylonRuntime.a2aClient?.isConnected()) {
-        if (callback) {
-          callback({
-            text: 'A2A client not connected. Cannot execute trade.',
-            action: 'OPEN_PERP_POSITION'
-          })
-        }
-        return
-      }
-      
-      // Parse message to extract parameters
-      const content = message.content.text || ''
-      const tickerMatch = content.match(/\b([A-Z]{2,5})\b/)
-      const amountMatch = content.match(/\$?(\d+(?:\.\d+)?)\s*(?:dollars|\$)?/)
-      const leverageMatch = content.match(/(\d+)x/)
-      const sideMatch = content.match(/\b(long|short)\b/i)
-      
-      if (!tickerMatch || !amountMatch) {
-        if (callback) {
-          callback({
-            text: 'Could not parse trade parameters. Please specify ticker and amount.',
-            action: 'OPEN_PERP_POSITION'
-          })
-        }
-        return
-      }
-      
-      const ticker = tickerMatch[1]!
-      const amount = parseFloat(amountMatch[1]!)
-      const leverage = leverageMatch ? parseInt(leverageMatch[1]!) : 1
-      const side = (sideMatch?.[1]?.toLowerCase() || 'long') as 'long' | 'short'
-      
-      // Execute trade via A2A
-      const result = await babylonRuntime.a2aClient.sendRequest('a2a.openPosition', {
-        ticker,
-        side,
-        amount,
-        leverage
-      }) as { success?: boolean; positionId?: string; entryPrice?: number }
-      
+    const babylonRuntime = runtime as BabylonRuntime
+    
+    if (!babylonRuntime.a2aClient?.isConnected()) {
       if (callback) {
         callback({
-          text: `Successfully opened ${leverage}x ${side} position on ${ticker}. Entry price: $${result.entryPrice || 0}. Position ID: ${result.positionId || 'unknown'}`,
+          text: 'A2A client not connected. Cannot execute trade.',
           action: 'OPEN_PERP_POSITION'
         })
       }
-      
-      logger.info('Agent opened perpetual position', { ticker, side, amount, leverage, result })
-    } catch (error) {
-      logger.error('Failed to execute open position action', error)
-      if (callback) {
-        callback({
-          text: `Failed to open position: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          action: 'OPEN_PERP_POSITION'
-        })
-      }
+      return
     }
+    
+    // Parse message to extract parameters
+    const content = message.content.text || ''
+    const tickerMatch = content.match(/\b([A-Z]{2,5})\b/)
+    const amountMatch = content.match(/\$?(\d+(?:\.\d+)?)\s*(?:dollars|\$)?/)
+    const leverageMatch = content.match(/(\d+)x/)
+    const sideMatch = content.match(/\b(long|short)\b/i)
+    
+    if (!tickerMatch || !amountMatch) {
+      if (callback) {
+        callback({
+          text: 'Could not parse trade parameters. Please specify ticker and amount.',
+          action: 'OPEN_PERP_POSITION'
+        })
+      }
+      return
+    }
+    
+    const ticker = tickerMatch[1]!
+    const amount = parseFloat(amountMatch[1]!)
+    const leverage = leverageMatch ? parseInt(leverageMatch[1]!) : 1
+    const side = (sideMatch?.[1]?.toLowerCase() || 'long') as 'long' | 'short'
+    
+    // Execute trade via A2A
+    const result = await babylonRuntime.a2aClient.sendRequest('a2a.openPosition', {
+      ticker,
+      side,
+      amount,
+      leverage
+    }) as { success?: boolean; positionId?: string; entryPrice?: number }
+    
+    if (callback) {
+      callback({
+        text: `Successfully opened ${leverage}x ${side} position on ${ticker}. Entry price: $${result.entryPrice || 0}. Position ID: ${result.positionId || 'unknown'}`,
+        action: 'OPEN_PERP_POSITION'
+      })
+    }
+    
+    logger.info('Agent opened perpetual position', { ticker, side, amount, leverage, result })
   }
 }
 
@@ -317,60 +287,50 @@ export const closePerpPositionAction: Action = {
     runtime: IAgentRuntime,
     message: Memory,
     _state?: State,
-    _options?: any,
+    _options?: unknown,
     callback?: HandlerCallback
   ): Promise<void> => {
-    try {
-      const babylonRuntime = runtime as BabylonRuntime
-      
-      if (!babylonRuntime.a2aClient?.isConnected()) {
-        if (callback) {
-          callback({
-            text: 'A2A client not connected. Cannot close position.',
-            action: 'CLOSE_PERP_POSITION'
-          })
-        }
-        return
-      }
-      
-      // Parse message to extract ticker or position ID
-      const content = message.content.text || ''
-      const tickerMatch = content.match(/\b([A-Z]{2,5})\b/)
-      const positionIdMatch = content.match(/position[:\s-]+([a-zA-Z0-9-]+)/)
-      
-      if (!tickerMatch && !positionIdMatch) {
-        if (callback) {
-          callback({
-            text: 'Could not parse position. Please specify ticker or position ID.',
-            action: 'CLOSE_PERP_POSITION'
-          })
-        }
-        return
-      }
-      
-      // Execute close via A2A
-      const result = await babylonRuntime.a2aClient.sendRequest('a2a.closePosition', {
-        ticker: tickerMatch?.[1] || '',
-        positionId: positionIdMatch?.[1] || ''
-      }) as any
-      
+    const babylonRuntime = runtime as BabylonRuntime
+    
+    if (!babylonRuntime.a2aClient?.isConnected()) {
       if (callback) {
         callback({
-          text: `Successfully closed position. Exit price: $${result?.exitPrice || 0}. P&L: ${result?.pnl >= 0 ? '+' : ''}$${result?.pnl || 0}`,
+          text: 'A2A client not connected. Cannot close position.',
           action: 'CLOSE_PERP_POSITION'
         })
       }
-      
-      logger.info('Agent closed perpetual position', { result })
-    } catch (error) {
-      logger.error('Failed to close position', error)
-      if (callback) {
-        callback({
-          text: `Failed to close position: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          action: 'CLOSE_PERP_POSITION'
-        })
-      }
+      return
     }
+    
+    // Parse message to extract ticker or position ID
+    const content = message.content.text || ''
+    const tickerMatch = content.match(/\b([A-Z]{2,5})\b/)
+    const positionIdMatch = content.match(/position[:\s-]+([a-zA-Z0-9-]+)/)
+    
+    if (!tickerMatch && !positionIdMatch) {
+      if (callback) {
+        callback({
+          text: 'Could not parse position. Please specify ticker or position ID.',
+          action: 'CLOSE_PERP_POSITION'
+        })
+      }
+      return
+    }
+    
+    // Execute close via A2A
+    const result = await babylonRuntime.a2aClient.sendRequest('a2a.closePosition', {
+      ticker: tickerMatch?.[1] || '',
+      positionId: positionIdMatch?.[1] || ''
+    }) as { exitPrice?: number; pnl?: number }
+    
+    if (callback) {
+      callback({
+        text: `Successfully closed position. Exit price: $${result?.exitPrice || 0}. P&L: ${result?.pnl && result.pnl >= 0 ? '+' : ''}$${result?.pnl || 0}`,
+        action: 'CLOSE_PERP_POSITION'
+      })
+    }
+    
+    logger.info('Agent closed perpetual position', { result })
   }
 }
 

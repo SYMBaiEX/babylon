@@ -67,7 +67,10 @@ export class AgentMemory {
     const recent = this.getRecent(5)
     return recent.map(entry => {
       const time = new Date(entry.timestamp).toLocaleTimeString()
-      return `[${time}] ${entry.action}: ${JSON.stringify(entry.result).substring(0, 100)}`
+      const resultStr = typeof entry.result === 'string' 
+        ? entry.result 
+        : JSON.stringify(entry.result)
+      return `[${time}] ${entry.action}: ${resultStr.substring(0, 100)}`
     }).join('\n')
   }
 }

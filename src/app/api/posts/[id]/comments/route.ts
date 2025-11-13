@@ -331,7 +331,7 @@ export const POST = withErrorHandling(async (
     const now = new Date();
     const comment = await prisma.comment.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         content: content.trim(),
         postId,
         authorId: canonicalUserId,
@@ -400,51 +400,33 @@ export const POST = withErrorHandling(async (
       }
     }
 
-    // Extract and notify mentioned users (@username)
-    try {
-      const mentions = content.match(/@(\w+)/g);
-      if (mentions && mentions.length > 0) {
-        const usernames = [...new Set(mentions.map(m => m.substring(1)))]; // Remove @ and deduplicate
-        
-        // Look up users by username
-        const mentionedUsers = await prisma.user.findMany({
-          where: {
-            username: { in: usernames },
-          },
-          select: { id: true, username: true },
-        });
+    const mentions = content.match(/@(\w+)/g)!
+    const usernames = [...new Set(mentions.map(m => m.substring(1)))]
+    
+    const mentionedUsers = await prisma.user.findMany({
+      where: {
+        username: { in: usernames },
+      },
+      select: { id: true, username: true },
+    })
 
-        // Send notifications to mentioned users
-        await Promise.all(
-          mentionedUsers.map(mentionedUser =>
-            notifyMention(
-              mentionedUser.id,
-              canonicalUserId,
-              postId,
-              comment.id
-            ).catch(error => {
-              logger.warn('Failed to send mention notification', { 
-                error, 
-                mentionedUserId: mentionedUser.id,
-                mentionedUsername: mentionedUser.username,
-                postId,
-                commentId: comment.id
-              }, 'POST /api/posts/[id]/comments');
-            })
-          )
-        );
+    await Promise.all(
+      mentionedUsers.map(mentionedUser =>
+        notifyMention(
+          mentionedUser.id,
+          canonicalUserId,
+          postId,
+          comment.id
+        )
+      )
+    )
 
-        logger.info('Sent mention notifications from comment', { 
-          postId, 
-          commentId: comment.id,
-          mentionCount: mentionedUsers.length,
-          mentionedUsernames: mentionedUsers.map(u => u.username)
-        }, 'POST /api/posts/[id]/comments');
-      }
-    } catch (error) {
-      logger.error('Failed to process mentions in comment:', error, 'POST /api/posts/[id]/comments');
-      // Don't fail the request if mention processing fails
-    }
+    logger.info('Sent mention notifications from comment', { 
+      postId, 
+      commentId: comment.id,
+      mentionCount: mentionedUsers.length,
+      mentionedUsernames: mentionedUsers.map(u => u.username)
+    }, 'POST /api/posts/[id]/comments')
 
   logger.info('Comment created successfully', { postId, userId: canonicalUserId, commentId: comment.id, parentCommentId }, 'POST /api/posts/[id]/comments');
 

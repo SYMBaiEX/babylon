@@ -108,7 +108,7 @@ export class FeeService {
       // Create trading fee record
       await tx.tradingFee.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           userId,
           tradeType,
           tradeId: tradeId || null,
@@ -203,7 +203,7 @@ export class FeeService {
     // Create balance transaction
     await tx.balanceTransaction.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         userId: referrerId,
         type: FEE_CONFIG.TRANSACTION_TYPES.REFERRAL_FEE_EARNED,
         amount: new Prisma.Decimal(feeAmount),

@@ -57,33 +57,25 @@ export function EntitySearchAutocomplete({
       }
 
       setLoading(true)
-      try {
-        const response = await fetch(`/api/registry/all?search=${encodeURIComponent(value)}`)
-        if (response.ok) {
-          const data = await response.json()
-          const users: RegistryEntity[] = (data.users || []).map((u: ApiEntity) => ({
-            id: u.id,
-            name: u.name,
-            username: u.username,
-            bio: u.bio,
-            imageUrl: u.imageUrl,
-          }))
-          setSuggestions(users.slice(0, 10))
-          setIsOpen(true)
-          setSelectedIndex(users.length ? 0 : -1)
-        } else {
-          setSuggestions([])
-          setIsOpen(false)
-          setSelectedIndex(-1)
-        }
-      } catch (error) {
-        console.error('Failed to fetch suggestions:', error)
+      const response = await fetch(`/api/registry/all?search=${encodeURIComponent(value)}`)
+      if (response.ok) {
+        const data = await response.json()
+        const users: RegistryEntity[] = (data.users || []).map((u: ApiEntity) => ({
+          id: u.id,
+          name: u.name,
+          username: u.username,
+          bio: u.bio,
+          imageUrl: u.imageUrl,
+        }))
+        setSuggestions(users.slice(0, 10))
+        setIsOpen(true)
+        setSelectedIndex(users.length ? 0 : -1)
+      } else {
         setSuggestions([])
         setIsOpen(false)
         setSelectedIndex(-1)
-      } finally {
-        setLoading(false)
       }
+      setLoading(false)
     }
 
     const timer = setTimeout(fetchSuggestions, 250)

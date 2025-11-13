@@ -122,7 +122,7 @@ export class PointsService {
 
       await tx.pointsTransaction.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           userId,
           amount,
           pointsBefore,
@@ -290,7 +290,7 @@ export class PointsService {
       // Create transaction record with payment details
       await tx.pointsTransaction.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           userId,
           amount: pointsAmount,
           pointsBefore,

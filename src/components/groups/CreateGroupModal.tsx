@@ -51,23 +51,18 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
 
     const searchUsers = async () => {
       setSearching(true)
-      try {
-        const token = await getAccessToken()
-        const response = await fetch(`/api/users/search?q=${encodeURIComponent(searchQuery)}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        })
+      const token = await getAccessToken()
+      const response = await fetch(`/api/users/search?q=${encodeURIComponent(searchQuery)}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
 
-        if (response.ok) {
-          const data = await response.json()
-          setSearchResults(data.users || [])
-        }
-      } catch (error) {
-        console.error('Error searching users:', error)
-      } finally {
-        setSearching(false)
+      if (response.ok) {
+        const data = await response.json()
+        setSearchResults(data.users || [])
       }
+      setSearching(false)
     }
 
     const debounce = setTimeout(searchUsers, 300)
@@ -110,34 +105,28 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
     setCreating(true)
     setError(null)
 
-    try {
-      const token = await getAccessToken()
-      const response = await fetch('/api/groups', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name: finalGroupName,
-          memberIds: selectedUsers.map((u) => u.id),
-        }),
-      })
+    const token = await getAccessToken()
+    const response = await fetch('/api/groups', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        name: finalGroupName,
+        memberIds: selectedUsers.map((u) => u.id),
+      }),
+    })
 
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to create group')
-      }
-
+    if (!response.ok) {
       const data = await response.json()
-      onGroupCreated(data.group.id, data.group.chatId)
-      onClose()
-    } catch (error) {
-      console.error('Error creating group:', error)
-      setError(error instanceof Error ? error.message : 'Failed to create group')
-    } finally {
       setCreating(false)
+      throw new Error(data.error || 'Failed to create group')
     }
+
+    const data = await response.json()
+    onGroupCreated(data.group.id, data.group.chatId)
+    onClose()
   }
 
   if (!isOpen) return null

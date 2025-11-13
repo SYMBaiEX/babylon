@@ -106,7 +106,7 @@ export const POST = withErrorHandling(async (
     // Create like reaction
     await prisma.reaction.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         postId,
         userId: canonicalUserId,
         type: 'like',

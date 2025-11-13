@@ -36,35 +36,35 @@ export default function DebugPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const loadGameState = async () => {
-    try {
-      // Check database first
-      const envResponse = await fetch('/debug/env');
-      const envData = await envResponse.json();
-      if (envData.checks) {
-        setDbCheck(envData.checks);
-      }
-
-      // If database is not configured, show error and stop
-      if (envData.checks?.databaseUrl?.isPlaceholder) {
-        setMessage({ 
-          type: 'error', 
-          text: '⚠️ Database not configured. See instructions below.' 
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Load game state
-      const response = await fetch('/api/game/control');
-      const data = await response.json();
-      if (data.success && data.game) {
-        setGame(data.game);
-      }
-    } catch (error) {
+    // Check database first
+    const envResponse = await fetch('/debug/env').catch((error: Error) => {
       console.error('Failed to load game state:', error);
-    } finally {
       setLoading(false);
+      throw error;
+    });
+    const envData = await envResponse.json();
+    if (envData.checks) {
+      setDbCheck(envData.checks);
     }
+
+    // If database is not configured, show error and stop
+    if (envData.checks?.databaseUrl?.isPlaceholder) {
+      setMessage({ 
+        type: 'error', 
+        text: '⚠️ Database not configured. See instructions below.' 
+      });
+      setLoading(false);
+      return;
+    }
+
+    // Load game state
+    const response = await fetch('/api/game/control');
+    const data = await response.json();
+    if (data.success && data.game) {
+      setGame(data.game);
+    }
+    
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -76,41 +76,47 @@ export default function DebugPage() {
   const handleStart = async () => {
     setActionLoading(true);
     setMessage(null);
-    try {
-      const response = await fetch('/debug/start');
-      const data = await response.json();
-      if (data.success) {
-        setMessage({ type: 'success', text: data.message });
-        setGame(data.game);
-      } else {
-        setMessage({ type: 'error', text: data.message || 'Failed to start game' });
-      }
-    } catch {
+    
+    const response = await fetch('/debug/start').catch(() => {
       setMessage({ type: 'error', text: 'Network error' });
-    } finally {
       setActionLoading(false);
       setTimeout(() => setMessage(null), 3000);
+      throw new Error('Network error');
+    });
+    
+    const data = await response.json();
+    if (data.success) {
+      setMessage({ type: 'success', text: data.message });
+      setGame(data.game);
+    } else {
+      setMessage({ type: 'error', text: data.message || 'Failed to start game' });
     }
+    
+    setActionLoading(false);
+    setTimeout(() => setMessage(null), 3000);
   };
 
   const handlePause = async () => {
     setActionLoading(true);
     setMessage(null);
-    try {
-      const response = await fetch('/debug/pause');
-      const data = await response.json();
-      if (data.success) {
-        setMessage({ type: 'success', text: data.message });
-        setGame(data.game);
-      } else {
-        setMessage({ type: 'error', text: data.message || 'Failed to pause game' });
-      }
-    } catch {
+    
+    const response = await fetch('/debug/pause').catch(() => {
       setMessage({ type: 'error', text: 'Network error' });
-    } finally {
       setActionLoading(false);
       setTimeout(() => setMessage(null), 3000);
+      throw new Error('Network error');
+    });
+    
+    const data = await response.json();
+    if (data.success) {
+      setMessage({ type: 'success', text: data.message });
+      setGame(data.game);
+    } else {
+      setMessage({ type: 'error', text: data.message || 'Failed to pause game' });
     }
+    
+    setActionLoading(false);
+    setTimeout(() => setMessage(null), 3000);
   };
 
   if (loading) {

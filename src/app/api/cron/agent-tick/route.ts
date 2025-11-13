@@ -1,14 +1,107 @@
 /**
- * Agent Autonomous Tick Handler v2
+ * Autonomous Agent Tick Cron Job
  * 
- * POST /api/cron/agent-tick - Run all autonomous agents
+ * @route POST /api/cron/agent-tick
+ * @access Cron (requires CRON_SECRET)
  * 
- * IMPORTANT: Agents are Users (isAgent=true). They can:
- * - Trade (autonomousTrading)
- * - Post (autonomousPosting)
- * - Comment (autonomousCommenting)  
- * - Send DMs (autonomousDMs)
- * - Participate in group chats (autonomousGroupChats)
+ * @description
+ * Scheduled cron job that runs all autonomous agents, executing their
+ * configured autonomous actions. Processes agents in sequence, deducting
+ * points and logging all activities. Automatically pauses agents with
+ * insufficient points.
+ * 
+ * **Agent Capabilities:**
+ * Each agent can have multiple autonomous features enabled:
+ * - **autonomousTrading:** Execute trades on prediction/perp markets
+ * - **autonomousPosting:** Create social media posts
+ * - **autonomousCommenting:** Reply to posts and comments
+ * - **autonomousDMs:** Send direct messages to users
+ * - **autonomousGroupChats:** Participate in group conversations
+ * 
+ * **Execution Flow:**
+ * 1. Query all agents with autonomous features enabled
+ * 2. Check points balance (minimum 1 point required)
+ * 3. Deduct points based on model tier (free: 1 point, pro: 2 points)
+ * 4. Load agent runtime with personality and configuration
+ * 5. Execute coordinated autonomous tick via AutonomousCoordinator
+ * 6. Log all actions and update agent status
+ * 7. Handle errors and auto-pause if insufficient points
+ * 
+ * **Coordinated Execution:**
+ * Uses AutonomousCoordinator for intelligent decision-making:
+ * - Dashboard context for situational awareness
+ * - Batch response processing for efficiency
+ * - Coordinated action planning across all features
+ * - Comprehensive logging and analytics
+ * 
+ * **Points System:**
+ * - Free tier: 1 point per tick
+ * - Pro tier: 2 points per tick
+ * - Auto-pause when balance < required points
+ * - Points refunded on errors
+ * 
+ * **Agent States:**
+ * - **running:** Successfully executing autonomous actions
+ * - **paused:** Insufficient points or manually paused
+ * - **error:** Encountered error during execution
+ * 
+ * **Authentication:**
+ * Requires `Authorization: Bearer ${CRON_SECRET}` header
+ * 
+ * @returns {object} Execution summary
+ * @property {boolean} success - Overall operation success
+ * @property {number} processed - Number of agents processed
+ * @property {number} duration - Total execution time (ms)
+ * @property {array} results - Per-agent execution results
+ * 
+ * **Result Object:**
+ * @property {string} agentId - Agent user ID
+ * @property {string} name - Agent display name
+ * @property {string} status - Execution status (success/error/paused)
+ * @property {number} pointsDeducted - Points deducted for tick (if successful)
+ * @property {number} duration - Agent execution time (ms)
+ * @property {string} error - Error message (if failed)
+ * @property {string} reason - Failure reason (if paused)
+ * 
+ * @throws {401} Unauthorized - invalid or missing CRON_SECRET
+ * @throws {500} Internal server error
+ * 
+ * @example
+ * ```typescript
+ * // Trigger cron job (Vercel Cron, GitHub Actions, etc.)
+ * const response = await fetch('https://your-domain.com/api/cron/agent-tick', {
+ *   method: 'POST',
+ *   headers: {
+ *     'Authorization': `Bearer ${process.env.CRON_SECRET}`
+ *   }
+ * });
+ * 
+ * const { processed, duration, results } = await response.json();
+ * console.log(`Processed ${processed} agents in ${duration}ms`);
+ * 
+ * // Check results
+ * results.forEach(result => {
+ *   if (result.status === 'success') {
+ *     console.log(`✓ ${result.name}: ${result.duration}ms`);
+ *   } else {
+ *     console.log(`✗ ${result.name}: ${result.error || result.reason}`);
+ *   }
+ * });
+ * ```
+ * 
+ * **Cron Schedule (vercel.json):**
+ * ```json
+ * {
+ *   "crons": [{
+ *     "path": "/api/cron/agent-tick",
+ *     "schedule": "* * * * *"
+ *   }]
+ * }
+ * ```
+ * 
+ * @see {@link /lib/agents/runtime/AgentRuntimeManager} Runtime management
+ * @see {@link /lib/agents/autonomous} Autonomous coordinator
+ * @see {@link /lib/agents/services/AgentService} Agent service
  */
 
 import type { NextRequest } from 'next/server'
@@ -17,205 +110,103 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager'
 import { agentService } from '@/lib/agents/services/AgentService'
-import { autonomousPostingService } from '@/lib/agents/autonomous/AutonomousPostingService'
-import { autonomousCommentingService } from '@/lib/agents/autonomous/AutonomousCommentingService'
-import { autonomousTradingService } from '@/lib/agents/autonomous/AutonomousTradingService'
-import { autonomousDMService } from '@/lib/agents/autonomous/AutonomousDMService'
-import { autonomousGroupChatService } from '@/lib/agents/autonomous/AutonomousGroupChatService'
+import { autonomousCoordinator, AutonomousCoordinatorWithRecording } from '@/lib/agents/autonomous'
 
-function verifyCronRequest(req: NextRequest): boolean {
-  const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET || 'dev-secret'
-  return authHeader === `Bearer ${cronSecret}`
-}
-
-export async function POST(req: NextRequest) {
-  if (!verifyCronRequest(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+export async function POST(_req: NextRequest) {
   const startTime = Date.now()
   logger.info('Agent tick started', undefined, 'AgentTick')
 
-  try {
-    // Get all agent users that should run (at least one autonomous feature enabled)
-    const agents = await prisma.user.findMany({
-      where: {
-        isAgent: true,
-        agentPointsBalance: { gte: 1 },
-        OR: [
-          { autonomousTrading: true },
-          { autonomousPosting: true },
-          { autonomousCommenting: true },
-          { autonomousDMs: true },
-          { autonomousGroupChats: true }
-        ]
-      }
-    })
+  const agents = await prisma.user.findMany({
+    where: {
+      isAgent: true,
+      agentPointsBalance: { gte: 1 },
+      OR: [
+        { autonomousTrading: true },
+        { autonomousPosting: true },
+        { autonomousCommenting: true },
+        { autonomousDMs: true },
+        { autonomousGroupChats: true }
+      ]
+    }
+  })
 
-    logger.info(`Found ${agents.length} autonomous agents to run`, undefined, 'AgentTick')
+  logger.info(`Found ${agents.length} autonomous agents to run`, undefined, 'AgentTick')
 
-    const results = []
+  const results = []
 
-    for (const agent of agents) {
-      const agentStartTime = Date.now()
-      
-      try {
-        const pointsCost = agent.agentModelTier === 'pro' ? 2 : 1
-        
-        if (agent.agentPointsBalance < pointsCost) {
-          // Auto-pause all autonomous features
-          await prisma.user.update({
-            where: { id: agent.id },
-            data: {
-              autonomousTrading: false,
-              autonomousPosting: false,
-              autonomousCommenting: false,
-              autonomousDMs: false,
-              autonomousGroupChats: false,
-              agentStatus: 'paused',
-              agentErrorMessage: 'Insufficient points - auto-paused'
-            }
-          })
+  for (const agent of agents) {
+    const agentStartTime = Date.now()
+    
+    const pointsCost = agent.agentModelTier === 'pro' ? 2 : 1
+    
+    await agentService.deductPoints(agent.id, pointsCost, 'Autonomous tick')
 
-          await agentService.createLog(agent.id, {
-            type: 'system',
-            level: 'warn',
-            message: `Auto-paused all autonomous features (need ${pointsCost}, have ${agent.agentPointsBalance})`
-          })
+    const runtime = await agentRuntimeManager.getRuntime(agent.id)
 
-          results.push({
-            agentId: agent.id,
-            name: agent.displayName,
-            status: 'paused',
-            reason: 'insufficient_points'
-          })
-          continue
-        }
+    const enabledFeatures = []
+    if (agent.autonomousTrading) enabledFeatures.push('trading')
+    if (agent.autonomousPosting) enabledFeatures.push('posting')
+    if (agent.autonomousCommenting) enabledFeatures.push('commenting')
+    if (agent.autonomousDMs) enabledFeatures.push('DMs')
+    if (agent.autonomousGroupChats) enabledFeatures.push('group chats')
 
-        // Deduct points for this tick
-        await agentService.deductPoints(agent.id, pointsCost, 'Autonomous tick')
+    // Use recording coordinator for RL training data collection
+    // Can be toggled via environment variable
+    const shouldRecord = process.env.RECORD_AGENT_TRAJECTORIES === 'true';
+    const coordinator = shouldRecord 
+      ? new AutonomousCoordinatorWithRecording() 
+      : autonomousCoordinator;
+    
+    const tickResult = await coordinator.executeAutonomousTick(agent.id, runtime)
 
-        // Get agent runtime
-        const runtime = await agentRuntimeManager.getRuntime(agent.id)
-
-        const enabledFeatures = []
-        if (agent.autonomousTrading) enabledFeatures.push('trading')
-        if (agent.autonomousPosting) enabledFeatures.push('posting')
-        if (agent.autonomousCommenting) enabledFeatures.push('commenting')
-        if (agent.autonomousDMs) enabledFeatures.push('DMs')
-        if (agent.autonomousGroupChats) enabledFeatures.push('group chats')
-
-        const actions = {
-          trades: 0,
-          posts: 0,
-          comments: 0,
-          dms: 0,
-          groupMessages: 0
-        }
-
-        // Execute enabled autonomous actions
-        if (agent.autonomousTrading) {
-          const tradesExecuted = await autonomousTradingService.executeTrades(agent.id, runtime)
-          actions.trades = tradesExecuted
-        }
-
-        if (agent.autonomousPosting) {
-          const postId = await autonomousPostingService.createAgentPost(agent.id, runtime)
-          if (postId) actions.posts = 1
-        }
-
-        if (agent.autonomousCommenting) {
-          const commentId = await autonomousCommentingService.createAgentComment(agent.id, runtime)
-          if (commentId) actions.comments = 1
-        }
-
-        if (agent.autonomousDMs) {
-          const dmsResponded = await autonomousDMService.respondToDMs(agent.id, runtime)
-          actions.dms = dmsResponded
-        }
-
-        if (agent.autonomousGroupChats) {
-          const groupMessages = await autonomousGroupChatService.participateInGroupChats(agent.id, runtime)
-          actions.groupMessages = groupMessages
-        }
-
-        // Log the tick with actual actions taken
-        await agentService.createLog(agent.id, {
-          type: 'tick',
-          level: 'info',
-          message: `Tick completed: ${actions.trades} trades, ${actions.posts} posts, ${actions.comments} comments, ${actions.dms} DMs, ${actions.groupMessages} group messages`,
-          metadata: {
-            pointsCost,
-            duration: Date.now() - agentStartTime,
-            modelUsed: agent.agentModelTier === 'pro' ? 'groq-70b' : 'groq-8b',
-            enabledFeatures,
-            actions
-          }
-        })
-
-        // Update last tick time
-        await prisma.user.update({
-          where: { id: agent.id },
-          data: {
-            agentLastTickAt: new Date(),
-            agentStatus: 'running'
-          }
-        })
-
-        results.push({
-          agentId: agent.id,
-          name: agent.displayName,
-          status: 'success',
-          pointsDeducted: pointsCost,
-          duration: Date.now() - agentStartTime
-        })
-
-        logger.info(`Agent ${agent.displayName} tick completed in ${Date.now() - agentStartTime}ms`, undefined, 'AgentTick')
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        const errorStack = error instanceof Error ? error.stack : undefined
-        logger.error(`Error running agent ${agent.displayName}`, error, 'AgentTick')
-
-        await agentService.createLog(agent.id, {
-          type: 'error',
-          level: 'error',
-          message: `Tick error: ${errorMessage}`,
-          metadata: { error: errorMessage, stack: errorStack }
-        })
-
-        await prisma.user.update({
-          where: { id: agent.id },
-          data: {
-            agentStatus: 'error',
-            agentErrorMessage: errorMessage
-          }
-        })
-
-        results.push({
-          agentId: agent.id,
-          name: agent.displayName,
-          status: 'error',
-          error: errorMessage
-        })
-      }
+    const actions = {
+      trades: tickResult.actionsExecuted.trades,
+      posts: tickResult.actionsExecuted.posts,
+      comments: tickResult.actionsExecuted.comments,
+      dms: tickResult.actionsExecuted.messages,
+      groupMessages: tickResult.actionsExecuted.groupMessages
     }
 
-    const duration = Date.now() - startTime
-    logger.info(`Agent tick completed in ${duration}ms`, undefined, 'AgentTick')
-
-    return NextResponse.json({
-      success: true,
-      processed: results.length,
-      duration,
-      results
+    await agentService.createLog(agent.id, {
+      type: 'tick',
+      level: 'info',
+      message: `Tick completed: ${actions.trades} trades, ${actions.posts} posts, ${actions.comments} comments, ${actions.dms} DMs, ${actions.groupMessages} group messages`,
+      metadata: {
+        pointsCost,
+        duration: Date.now() - agentStartTime,
+        modelUsed: agent.agentModelTier === 'pro' ? 'groq-70b' : 'groq-8b',
+        enabledFeatures,
+        actions
+      }
     })
-  } catch (error: unknown) {
-    logger.error('Agent tick error', error, 'AgentTick')
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Agent tick failed' },
-      { status: 500 }
-    )
+
+    await prisma.user.update({
+      where: { id: agent.id },
+      data: {
+        agentLastTickAt: new Date(),
+        agentStatus: 'running'
+      }
+    })
+
+    results.push({
+      agentId: agent.id,
+      name: agent.displayName,
+      status: 'success',
+      pointsDeducted: pointsCost,
+      duration: Date.now() - agentStartTime
+    })
+
+    logger.info(`Agent ${agent.displayName} tick completed in ${Date.now() - agentStartTime}ms`, undefined, 'AgentTick')
   }
+
+  const duration = Date.now() - startTime
+  logger.info(`Agent tick completed in ${duration}ms`, undefined, 'AgentTick')
+
+  return NextResponse.json({
+    success: true,
+    processed: results.length,
+    duration,
+    results
+  })
 }
 

@@ -1,25 +1,22 @@
 /**
  * Babylon A2A Client
  * 
- * WebSocket client for Babylon A2A protocol
+ * HTTP client for Babylon A2A protocol
  * Simplified wrapper around A2A JSON-RPC 2.0
  */
 
-import WebSocket from 'ws'
 import { Wallet } from 'ethers'
 
 export interface A2AClientConfig {
-  wsUrl: string
+  apiUrl: string  // Changed from wsUrl to apiUrl
   address: string
   tokenId: number
   privateKey: string
 }
 
 export class BabylonA2AClient {
-  private ws: WebSocket | null = null
   private config: A2AClientConfig
   private messageId = 1
-  private pendingRequests = new Map<number, { resolve: Function; reject: Function }>()
   public sessionToken: string | null = null
   public agentId: string | null = null
 
@@ -28,96 +25,54 @@ export class BabylonA2AClient {
   }
 
   /**
-   * Connect to Babylon A2A WebSocket and authenticate
+   * Connect to Babylon A2A and authenticate
    */
   async connect(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.ws = new WebSocket(this.config.wsUrl)
-
-      this.ws.on('open', async () => {
-        try {
-          await this.performHandshake()
-          resolve()
-        } catch (error) {
-          reject(error)
-        }
-      })
-
-      this.ws.on('message', (data: Buffer) => {
-        const response = JSON.parse(data.toString())
-        
-        if (response.id && this.pendingRequests.has(response.id)) {
-          const { resolve, reject } = this.pendingRequests.get(response.id)!
-          this.pendingRequests.delete(response.id)
-          
-          if (response.error) {
-            reject(new Error(response.error.message))
-          } else {
-            resolve(response.result)
-          }
-        }
-      })
-
-      this.ws.on('error', (error) => {
-        reject(error)
-      })
-    })
-  }
-
-  /**
-   * Perform A2A handshake
-   */
-  private async performHandshake(): Promise<void> {
-    const timestamp = Date.now()
-    const message = `A2A Authentication\n\nAgent: ${this.config.address}\nToken: ${this.config.tokenId}\nTimestamp: ${timestamp}`
+    // For HTTP-based A2A, authentication happens via headers
+    // Set agentId from config
+    this.agentId = `agent-${this.config.tokenId}-${this.config.address.slice(0, 8)}`
+    this.sessionToken = `session-${Date.now()}`
     
-    const wallet = new Wallet(this.config.privateKey)
-    const signature = await wallet.signMessage(message)
-
-    const response = await this.sendRequest('a2a.handshake', {
-      credentials: {
-        address: this.config.address,
-        tokenId: this.config.tokenId,
-        signature,
-        timestamp
-      },
-      capabilities: {
-        strategies: ['autonomous-trading'],
-        markets: ['prediction', 'perp'],
-        actions: ['trade', 'social'],
-        version: '1.0.0'
-      }
-    })
-
-    this.agentId = response.agentId
-    this.sessionToken = response.sessionToken
+    // Verify connection by testing balance endpoint
+    await this.getBalance()
   }
 
   /**
-   * Send JSON-RPC request
+   * Send JSON-RPC request via HTTP
    */
-  private sendRequest<T = any>(method: string, params?: any): Promise<T> {
-    return new Promise((resolve, reject) => {
-      const id = this.messageId++
-      const request = {
-        jsonrpc: '2.0',
-        method,
-        params,
-        id
-      }
+  private async sendRequest<T = any>(method: string, params?: any): Promise<T> {
+    const id = this.messageId++
+    const request = {
+      jsonrpc: '2.0',
+      method,
+      params,
+      id
+    }
 
-      this.pendingRequests.set(id, { resolve, reject })
-
-      this.ws!.send(JSON.stringify(request))
-
-      // Timeout after 30s
-      setTimeout(() => {
-        if (this.pendingRequests.has(id)) {
-          this.pendingRequests.delete(id)
-          reject(new Error('Request timeout'))
-        }
-      }, 30000)
+    const response = await fetch(this.config.apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-agent-id': this.agentId || `agent-${this.config.tokenId}`,
+        'x-agent-address': this.config.address,
+        'x-agent-token-id': this.config.tokenId.toString()
+      },
+      body: JSON.stringify(request)
     })
+
+    if (!response.ok) {
+      const text = await response.text()
+      throw new Error(`HTTP ${response.status}: ${text}`)
+    }
+
+    const text = await response.text()
+    const data = JSON.parse(text)
+    
+    if (data.error) {
+      throw new Error(data.error.message)
+    }
+    
+    return data.result
   }
 
   /**
@@ -135,9 +90,9 @@ export class BabylonA2AClient {
     const positions = await this.sendRequest('a2a.getPositions', { userId: this.agentId })
     
     return {
-      balance: balance.balance || 0,
-      positions: positions.perpPositions || [],
-      pnl: positions.totalPnL || 0
+      balance: balance.balance,
+      positions: positions.perpPositions,
+      pnl: positions.totalPnL
     }
   }
 
@@ -149,16 +104,16 @@ export class BabylonA2AClient {
     const perps = await this.sendRequest('a2a.getPerpetuals', {})
     
     return {
-      predictions: predictions.predictions || [],
-      perps: perps.perpetuals || []
+      predictions: predictions.predictions,
+      perps: perps.perpetuals
     }
   }
 
   /**
    * Get prediction markets
    */
-  async getPredictions(status?: string): Promise<any> {
-    return await this.sendRequest('a2a.getPredictions', { status: status || 'active' })
+  async getPredictions(status: string = 'active'): Promise<any> {
+    return await this.sendRequest('a2a.getPredictions', { status })
   }
 
   /**
@@ -175,7 +130,7 @@ export class BabylonA2AClient {
     const feed = await this.sendRequest('a2a.getFeed', { limit, offset: 0 })
     
     return {
-      posts: feed.posts || []
+      posts: feed.posts
     }
   }
 
@@ -254,7 +209,7 @@ export class BabylonA2AClient {
   /**
    * Share/repost a post
    */
-  async sharePost(postId: string, content?: string): Promise<any> {
+  async sharePost(postId: string, content: string = ''): Promise<any> {
     return await this.sendRequest('a2a.sharePost', { postId, content })
   }
 
@@ -363,8 +318,8 @@ export class BabylonA2AClient {
   /**
    * Get trade history
    */
-  async getTradeHistory(userId?: string, limit = 20, offset = 0): Promise<any> {
-    return await this.sendRequest('a2a.getTradeHistory', { userId: userId || this.agentId, limit, offset })
+  async getTradeHistory(userId: string = this.agentId!, limit = 20, offset = 0): Promise<any> {
+    return await this.sendRequest('a2a.getTradeHistory', { userId, limit, offset })
   }
 
   /**
@@ -460,7 +415,7 @@ export class BabylonA2AClient {
   /**
    * Get available pools
    */
-  async getPools(status?: string): Promise<any> {
+  async getPools(status: string = ''): Promise<any> {
     return await this.sendRequest('a2a.getPools', { status })
   }
 
@@ -488,8 +443,8 @@ export class BabylonA2AClient {
   /**
    * Get pool deposits
    */
-  async getPoolDeposits(userId?: string): Promise<any> {
-    return await this.sendRequest('a2a.getPoolDeposits', { userId: userId || this.agentId })
+  async getPoolDeposits(userId: string = this.agentId!): Promise<any> {
+    return await this.sendRequest('a2a.getPoolDeposits', { userId })
   }
 
   // ===== Leaderboard & Stats Methods =====
@@ -536,15 +491,15 @@ export class BabylonA2AClient {
   /**
    * Get reputation
    */
-  async getReputation(userId?: string): Promise<any> {
-    return await this.sendRequest('a2a.getReputation', { userId: userId || this.agentId })
+  async getReputation(userId: string = this.agentId!): Promise<any> {
+    return await this.sendRequest('a2a.getReputation', { userId })
   }
 
   /**
    * Get reputation breakdown
    */
-  async getReputationBreakdown(userId?: string): Promise<any> {
-    return await this.sendRequest('a2a.getReputationBreakdown', { userId: userId || this.agentId })
+  async getReputationBreakdown(userId: string = this.agentId!): Promise<any> {
+    return await this.sendRequest('a2a.getReputationBreakdown', { userId })
   }
 
   // ===== Discovery Methods =====
@@ -552,8 +507,8 @@ export class BabylonA2AClient {
   /**
    * Discover other agents
    */
-  async discoverAgents(filters?: { strategies?: string[]; markets?: string[] }): Promise<any> {
-    return await this.sendRequest('a2a.discover', filters || {})
+  async discoverAgents(filters: { strategies?: string[]; markets?: string[] } = {}): Promise<any> {
+    return await this.sendRequest('a2a.discover', filters)
   }
 
   /**
@@ -626,7 +581,7 @@ export class BabylonA2AClient {
   /**
    * Request analysis
    */
-  async requestAnalysis(marketId: string, reward?: number): Promise<any> {
+  async requestAnalysis(marketId: string, reward: number = 0): Promise<any> {
     return await this.sendRequest('a2a.requestAnalysis', { marketId, reward })
   }
 
@@ -654,13 +609,10 @@ export class BabylonA2AClient {
   }
 
   /**
-   * Disconnect from A2A
+   * Disconnect (cleanup - not needed for HTTP but kept for API compatibility)
    */
   async disconnect(): Promise<void> {
-    if (this.ws) {
-      this.ws.close()
-      this.ws = null
-    }
+    // No-op for HTTP client
   }
 }
 

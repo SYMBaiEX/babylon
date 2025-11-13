@@ -35,31 +35,26 @@ export function useUnreadMessages() {
 
     // Fetch unread counts
     const fetchCounts = async () => {
-      try {
-        const token = await getAccessToken();
-        if (!token) return;
+      const token = await getAccessToken();
+      if (!token) return;
 
-        const response = await fetch('/api/chats/unread-count', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+      const response = await fetch('/api/chats/unread-count', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-        if (!response.ok) {
-          console.error('Failed to fetch unread counts:', response.status);
-          return;
-        }
-
-        const data = await response.json();
-        setCounts({
-          pendingDMs: data.pendingDMs || 0,
-          hasNewMessages: data.hasNewMessages || false,
-        });
-      } catch (error) {
-        console.error('Error fetching unread counts:', error);
-      } finally {
+      if (!response.ok) {
         setIsLoading(false);
+        return;
       }
+
+      const data = await response.json();
+      setCounts({
+        pendingDMs: data.pendingDMs || 0,
+        hasNewMessages: data.hasNewMessages || false,
+      });
+      setIsLoading(false);
     };
 
     // Initial fetch

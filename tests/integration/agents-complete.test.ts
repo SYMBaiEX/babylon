@@ -19,7 +19,7 @@ describe('Agents Feature - Complete Integration Tests', () => {
 
   beforeAll(async () => {
     // Create test user
-    testUserId = generateSnowflakeId()
+    testUserId = await generateSnowflakeId()
     await prisma.user.create({
       data: {
         id: testUserId,
@@ -28,6 +28,7 @@ describe('Agents Feature - Complete Integration Tests', () => {
         reputationPoints: 10000,
         profileComplete: true,
         hasUsername: true,
+          isTest: true,
         updatedAt: new Date()
       }
     })
@@ -45,7 +46,7 @@ describe('Agents Feature - Complete Integration Tests', () => {
     it('should create a new agent user', async () => {
       const agent = await prisma.user.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           username: `agent_test_bot_${Date.now()}`,
           displayName: 'Test Bot',
           bio: 'AI agent for testing',
@@ -59,6 +60,7 @@ describe('Agents Feature - Complete Integration Tests', () => {
           reputationPoints: 0,
           virtualBalance: 0,
           totalDeposited: 0,
+          isTest: true,
           updatedAt: new Date()
         }
       })
@@ -132,7 +134,7 @@ describe('Agents Feature - Complete Integration Tests', () => {
     })
 
     it('should record points transaction', async () => {
-      const txId = generateSnowflakeId()
+      const txId = await generateSnowflakeId()
       
       await prisma.agentPointsTransaction.create({
         data: {
@@ -157,7 +159,7 @@ describe('Agents Feature - Complete Integration Tests', () => {
 
   describe('Agent Logging', () => {
     it('should create agent log', async () => {
-      const logId = generateSnowflakeId()
+      const logId = await generateSnowflakeId()
       
       await prisma.agentLog.create({
         data: {
@@ -188,7 +190,7 @@ describe('Agents Feature - Complete Integration Tests', () => {
 
   describe('Agent Messages', () => {
     it('should create agent message', async () => {
-      const msgId = generateSnowflakeId()
+      const msgId = await generateSnowflakeId()
       
       await prisma.agentMessage.create({
         data: {
@@ -265,7 +267,7 @@ describe('Agents Feature - Complete Integration Tests', () => {
 
   describe('Agent Trading', () => {
     it('should record agent trade', async () => {
-      const tradeId = generateSnowflakeId()
+      const tradeId = await generateSnowflakeId()
       
       await prisma.agentTrade.create({
         data: {
@@ -305,7 +307,7 @@ describe('Agents Feature - Complete Integration Tests', () => {
 
   describe('Agent as User', () => {
     it('should be able to create posts', async () => {
-      const postId = generateSnowflakeId()
+      const postId = await generateSnowflakeId()
       
       await prisma.post.create({
         data: {
@@ -326,7 +328,7 @@ describe('Agents Feature - Complete Integration Tests', () => {
 
     it('should be able to create comments', async () => {
       // First create a post to comment on
-      const postId = generateSnowflakeId()
+      const postId = await generateSnowflakeId()
       await prisma.post.create({
         data: {
           id: postId,
@@ -339,7 +341,7 @@ describe('Agents Feature - Complete Integration Tests', () => {
       })
 
       // Agent creates comment
-      const commentId = generateSnowflakeId()
+      const commentId = await generateSnowflakeId()
       await prisma.comment.create({
         data: {
           id: commentId,

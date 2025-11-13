@@ -55,22 +55,17 @@ describe('Agent0 Testnet Integration', () => {
       return
     }
 
-    try {
-      const discovery = new GameDiscoveryService()
-      const games = await discovery.discoverGames({
-        type: 'game-platform',
-        markets: ['prediction']
-      })
+    const discovery = new GameDiscoveryService()
+    const games = await discovery.discoverGames({
+      type: 'game-platform',
+      markets: ['prediction']
+    })
 
-      expect(Array.isArray(games)).toBe(true)
-      console.log(`✅ Found ${games.length} game(s) on testnet Agent0 network`)
+    expect(Array.isArray(games)).toBe(true)
+    console.log(`✅ Found ${games.length} game(s) on testnet Agent0 network`)
 
-      if (games.length > 0) {
-        console.log('   Example game:', games[0]?.name)
-      }
-    } catch (error) {
-      console.log('⚠️  Discovery query failed (subgraph may not be configured)')
-      console.log('   This is expected if AGENT0_SUBGRAPH_URL is not set')
+    if (games.length > 0) {
+      console.log('   Example game:', games[0]?.name)
     }
   })
 
@@ -80,23 +75,18 @@ describe('Agent0 Testnet Integration', () => {
       return
     }
 
-    try {
-      const discovery = new GameDiscoveryService()
-      const babylon = await discovery.findBabylon()
+    const discovery = new GameDiscoveryService()
+    const babylon = await discovery.findBabylon()
 
-      if (babylon) {
-        expect(babylon.name).toContain('Babylon')
-        expect(babylon.endpoints).toBeDefined()
-        console.log('✅ Babylon found in Agent0 network')
-        console.log(`   Name: ${babylon.name}`)
-        console.log(`   Endpoints: ${Object.keys(babylon.endpoints).join(', ')}`)
-      } else {
-        console.log('⚠️  Babylon not found in Agent0 network')
-        console.log('   Run registration: bun run agent0:register')
-      }
-    } catch (error) {
-      console.log('⚠️  Babylon discovery failed')
-      console.log('   Ensure Babylon is registered: bun run agent0:register')
+    if (babylon) {
+      expect(babylon.name).toContain('Babylon')
+      expect(babylon.endpoints).toBeDefined()
+      console.log('✅ Babylon found in Agent0 network')
+      console.log(`   Name: ${babylon.name}`)
+      console.log(`   Endpoints: ${Object.keys(babylon.endpoints).join(', ')}`)
+    } else {
+      console.log('⚠️  Babylon not found in Agent0 network')
+      console.log('   Run registration: bun run agent0:register')
     }
   })
 
@@ -106,20 +96,14 @@ describe('Agent0 Testnet Integration', () => {
       return
     }
 
-    try {
-      const client = new Agent0Client({
-        network: 'sepolia',
-        rpcUrl: process.env.BASE_SEPOLIA_RPC_URL!,
-        privateKey: process.env.BABYLON_GAME_PRIVATE_KEY!
-      })
+    const client = new Agent0Client({
+      network: 'sepolia',
+      rpcUrl: process.env.BASE_SEPOLIA_RPC_URL!,
+      privateKey: process.env.BABYLON_GAME_PRIVATE_KEY!
+    })
 
-      // Try to get agent profile (would return null if not registered)
-      // This is a non-destructive check
-      expect(client.isAvailable()).toBe(true)
-      console.log('✅ Agent0Client ready for registration')
-    } catch (error) {
-      console.log('⚠️  Agent0Client setup failed:', error)
-    }
+    expect(client.isAvailable()).toBe(true)
+    console.log('✅ Agent0Client ready for registration')
   })
 
   test('IPFS configuration is valid', () => {

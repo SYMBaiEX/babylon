@@ -49,18 +49,12 @@ export function AdminManagementTab() {
 
   const fetchAdmins = async (showRefreshing = false) => {
     if (showRefreshing) setRefreshing(true)
-    try {
-      const response = await fetch('/api/admin/admins')
-      if (!response.ok) throw new Error('Failed to fetch admins')
-      const data = await response.json()
-      setAdmins(data.admins || [])
-    } catch (error) {
-      console.error('Failed to fetch admins:', error)
-      toast.error('Failed to load admins')
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
+    const response = await fetch('/api/admin/admins')
+    if (!response.ok) throw new Error('Failed to fetch admins')
+    const data = await response.json()
+    setAdmins(data.admins || [])
+    setLoading(false)
+    setRefreshing(false)
   }
 
   const searchUsers = async (query: string) => {
@@ -70,85 +64,67 @@ export function AdminManagementTab() {
     }
 
     setLoadingUsers(true)
-    try {
-      const params = new URLSearchParams({
-        search: query,
-        limit: '10',
-        filter: 'users', // Only real users, not actors
-      })
-      const response = await fetch(`/api/admin/users?${params}`)
-      if (!response.ok) throw new Error('Failed to search users')
-      const data = await response.json()
-      
-      // Filter out users who are already admins
-      const adminIds = new Set(admins.map(a => a.id))
-      const nonAdminUsers = (data.users || [])
-        .filter((u: AvailableUser) => !adminIds.has(u.id) && !u.isActor)
-      
-      setAvailableUsers(nonAdminUsers)
-    } catch (error) {
-      console.error('Failed to search users:', error)
-      toast.error('Failed to search users')
-    } finally {
-      setLoadingUsers(false)
-    }
+    const params = new URLSearchParams({
+      search: query,
+      limit: '10',
+      filter: 'users', // Only real users, not actors
+    })
+    const response = await fetch(`/api/admin/users?${params}`)
+    if (!response.ok) throw new Error('Failed to search users')
+    const data = await response.json()
+    
+    // Filter out users who are already admins
+    const adminIds = new Set(admins.map(a => a.id))
+    const nonAdminUsers = (data.users || [])
+      .filter((u: AvailableUser) => !adminIds.has(u.id) && !u.isActor)
+    
+    setAvailableUsers(nonAdminUsers)
+    setLoadingUsers(false)
   }
 
   const handleAddAdmin = async (userId: string) => {
     setProcessing(true)
-    try {
-      const response = await fetch(`/api/admin/admins/${userId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'promote' }),
-      })
+    const response = await fetch(`/api/admin/admins/${userId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'promote' }),
+    })
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to add admin')
-      }
-
-      const result = await response.json()
-      toast.success(`${result.user.displayName || result.user.username || 'User'} is now an admin`)
-      setShowAddModal(false)
-      setSearchQuery('')
-      setAvailableUsers([])
-      fetchAdmins(true)
-    } catch (error) {
-      console.error('Failed to add admin:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to add admin')
-    } finally {
-      setProcessing(false)
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to add admin')
     }
+
+    const result = await response.json()
+    toast.success(`${result.user.displayName || result.user.username || 'User'} is now an admin`)
+    setShowAddModal(false)
+    setSearchQuery('')
+    setAvailableUsers([])
+    fetchAdmins(true)
+    setProcessing(false)
   }
 
   const handleRemoveAdmin = async () => {
     if (!selectedUser) return
 
     setProcessing(true)
-    try {
-      const response = await fetch(`/api/admin/admins/${selectedUser.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'demote' }),
-      })
+    const response = await fetch(`/api/admin/admins/${selectedUser.id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'demote' }),
+    })
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to remove admin')
-      }
-
-      const result = await response.json()
-      toast.success(`${result.user.displayName || result.user.username || 'User'} is no longer an admin`)
-      setShowRemoveModal(false)
-      setSelectedUser(null)
-      fetchAdmins(true)
-    } catch (error) {
-      console.error('Failed to remove admin:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to remove admin')
-    } finally {
-      setProcessing(false)
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to remove admin')
     }
+
+    const result = await response.json()
+    toast.success(`${result.user.displayName || result.user.username || 'User'} is no longer an admin`)
+    setShowRemoveModal(false)
+    setSelectedUser(null)
+    fetchAdmins(true)
+    setProcessing(false)
   }
 
   const formatDate = (date: string) => {

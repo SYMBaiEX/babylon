@@ -26,15 +26,11 @@ import { clearReferralCode, getReferralCode } from './ReferralCaptureProvider';
 
 type OnboardingStage = 'PROFILE' | 'ONCHAIN' | 'COMPLETED';
 
-function extractErrorMessage(error: unknown): string {
-  if (!error) return 'Unknown error';
+function extractErrorMessage(error: Error | { message: string } | string): string {
   if (typeof error === 'string') return error;
   if (error instanceof Error) return error.message;
-  if (typeof error === 'object' && error && 'message' in error) {
-    const maybe = error as { message?: unknown };
-    if (typeof maybe.message === 'string') {
-      return maybe.message;
-    }
+  if (typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+    return error.message;
   }
   return 'Unknown error';
 }
@@ -378,17 +374,17 @@ export function OnboardingProvider({
 
       const body = {
         walletAddress: smartWalletAddress ?? null,
-        referralCode: referralCode ?? undefined,
+        referralCode: referralCode ?? null,
       };
 
-      const callEndpoint = async (payload: Record<string, unknown>) => {
+      const callEndpoint = async (payload: Record<string, string | null>) => {
         const response = await apiFetch('/api/users/onboarding/onchain', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
 
-        const data = await response.json().catch(() => ({}));
+        const data = await response.json();
         if (!response.ok) {
           const rawError = data?.error;
           const message =
@@ -398,14 +394,13 @@ export function OnboardingProvider({
                 ? rawError.message
                 : null) ??
             `Failed to complete on-chain onboarding (status ${response.status})`;
-          const error = new Error(message);
-          throw error;
+          throw new Error(message);
         }
-        return data as { onchain: unknown; user: StoreUser | null };
+        return data as { onchain: Record<string, unknown>; user: StoreUser | null };
       };
 
       const applyResponse = (data: {
-        onchain: unknown;
+        onchain: Record<string, unknown>;
         user: StoreUser | null;
       }) => {
         if (data.user) {
@@ -451,18 +446,8 @@ export function OnboardingProvider({
 
         // Check if wallet is already registered before submitting transaction
         // If already registered, the server will handle syncing the state
-        let txHash: string | undefined;
-        try {
-          txHash = await registerAgent(profile);
-          logger.info(
-            'Client-submitted on-chain registration transaction',
-            { txHash },
-            'OnboardingProvider'
-          );
-        } catch (txError: unknown) {
-          const errorMessage = String(
-            txError instanceof Error ? txError.message : txError
-          ).toLowerCase();
+        const registrationResult = await registerAgent(profile).catch((txError: Error) => {
+          const errorMessage = txError.message.toLowerCase();
           // If the error is "already registered", don't throw - let the server handle it
           if (errorMessage.includes('already registered')) {
             logger.info(
@@ -470,33 +455,46 @@ export function OnboardingProvider({
               { address: smartWalletAddress },
               'OnboardingProvider'
             );
-            // Call the endpoint without a txHash - server will detect existing registration
-            const data = await callEndpoint(body);
-            return data;
+            return 'already-registered';
           }
           // For other errors, re-throw
           throw txError;
+        });
+        
+        if (registrationResult === 'already-registered') {
+          // Call the endpoint without a txHash - server will detect existing registration
+          const data = await callEndpoint(body);
+          applyResponse(data);
+          return;
         }
+        
+        const txHash = registrationResult as string;
+        logger.info(
+          'Client-submitted on-chain registration transaction',
+          { txHash },
+          'OnboardingProvider'
+        );
         
         const data = await callEndpoint({
           ...body,
           txHash,
         });
-        return data;
+        applyResponse(data);
       };
-      try {
-        const response = await completeWithClient();
-        applyResponse(response);
-      } catch (rawError) {
+      
+      const response = await completeWithClient().catch((rawError: Error) => {
         // Use wallet-aware error message
         const userFriendlyMessage = getWalletErrorMessage(rawError);
         setError(userFriendlyMessage);
         logger.error(
           'Failed to complete on-chain onboarding',
-          { error: rawError },
+          { error: rawError.message },
           'OnboardingProvider'
         );
-      }
+        return null;
+      });
+      
+      if (!response) return;
     },
     [
       smartWalletReady,
@@ -515,84 +513,74 @@ export function OnboardingProvider({
       setIsSubmitting(true);
       setError(null);
 
-      try {
-        const referralCode = getReferralCode();
+      const referralCode = getReferralCode();
 
-        logger.info(
-          'Identity token state during signup',
-          {
-            present: Boolean(identityToken),
-            tokenPreview: identityToken
-              ? `${identityToken.slice(0, 12)}...`
-              : null,
-          },
-          'OnboardingProvider'
-        );
+      logger.info(
+        'Identity token state during signup',
+        {
+          present: Boolean(identityToken),
+          tokenPreview: identityToken
+            ? `${identityToken.slice(0, 12)}...`
+            : null,
+        },
+        'OnboardingProvider'
+      );
 
-        const response = await apiFetch('/api/users/signup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...payload,
-            referralCode: referralCode ?? undefined,
-            identityToken: identityToken ?? undefined,
-          }),
-        });
+      const response = await apiFetch('/api/users/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...payload,
+          referralCode: referralCode ?? undefined,
+          identityToken: identityToken ?? undefined,
+        }),
+      });
 
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          const message =
-            data?.error ||
-            `Failed to complete signup (status ${response.status})`;
-          throw new Error(message);
-        }
-
-        if (data.user) {
-          setUser({
-            id: data.user.id,
-            walletAddress:
-              data.user.walletAddress ?? smartWalletAddress ?? undefined,
-            displayName: data.user.displayName ?? payload.displayName,
-            email: user?.email,
-            username: data.user.username ?? payload.username,
-            bio: data.user.bio ?? payload.bio,
-            profileImageUrl:
-              data.user.profileImageUrl ?? payload.profileImageUrl ?? undefined,
-            coverImageUrl:
-              data.user.coverImageUrl ?? payload.coverImageUrl ?? undefined,
-            profileComplete: data.user.profileComplete ?? true,
-            reputationPoints:
-              data.user.reputationPoints ?? user?.reputationPoints,
-            hasFarcaster: data.user.hasFarcaster ?? user?.hasFarcaster,
-            hasTwitter: data.user.hasTwitter ?? user?.hasTwitter,
-            farcasterUsername:
-              data.user.farcasterUsername ?? user?.farcasterUsername,
-            twitterUsername: data.user.twitterUsername ?? user?.twitterUsername,
-            nftTokenId: data.user.nftTokenId ?? undefined,
-            createdAt: data.user.createdAt ?? user?.createdAt,
-            onChainRegistered:
-              data.user.onChainRegistered ?? user?.onChainRegistered,
-          });
-        }
-        setNeedsOnboarding(false);
-        setNeedsOnchain(true);
-
-        clearReferralCode();
-        setSubmittedProfile(payload);
-        setStage('ONCHAIN');
-
-        await submitOnchain(payload, referralCode);
-      } catch (rawError) {
-        const message = extractErrorMessage(rawError);
-        setError(message);
-        logger.error(
-          'Failed to complete profile onboarding',
-          { error: rawError },
-          'OnboardingProvider'
-        );
-      } finally {
+      const data = await response.json();
+      if (!response.ok) {
+        const message =
+          data?.error ||
+          `Failed to complete signup (status ${response.status})`;
         setIsSubmitting(false);
+        throw new Error(message);
       }
+
+      if (data.user) {
+        setUser({
+          id: data.user.id,
+          walletAddress:
+            data.user.walletAddress ?? smartWalletAddress ?? undefined,
+          displayName: data.user.displayName ?? payload.displayName,
+          email: user?.email,
+          username: data.user.username ?? payload.username,
+          bio: data.user.bio ?? payload.bio,
+          profileImageUrl:
+            data.user.profileImageUrl ?? payload.profileImageUrl ?? undefined,
+          coverImageUrl:
+            data.user.coverImageUrl ?? payload.coverImageUrl ?? undefined,
+          profileComplete: data.user.profileComplete ?? true,
+          reputationPoints:
+            data.user.reputationPoints ?? user?.reputationPoints,
+          hasFarcaster: data.user.hasFarcaster ?? user?.hasFarcaster,
+          hasTwitter: data.user.hasTwitter ?? user?.hasTwitter,
+          farcasterUsername:
+            data.user.farcasterUsername ?? user?.farcasterUsername,
+          twitterUsername: data.user.twitterUsername ?? user?.twitterUsername,
+          nftTokenId: data.user.nftTokenId ?? undefined,
+          createdAt: data.user.createdAt ?? user?.createdAt,
+          onChainRegistered:
+            data.user.onChainRegistered ?? user?.onChainRegistered,
+        });
+      }
+      setNeedsOnboarding(false);
+      setNeedsOnchain(true);
+
+      clearReferralCode();
+      setSubmittedProfile(payload);
+      setStage('ONCHAIN');
+
+      await submitOnchain(payload, referralCode);
+      setIsSubmitting(false);
     },
     [
       submitOnchain,
@@ -610,19 +598,16 @@ export function OnboardingProvider({
     setIsSubmitting(true);
     setError(null);
 
-    try {
-      await submitOnchain(submittedProfile, getReferralCode());
-    } catch (rawError) {
+    await submitOnchain(submittedProfile, getReferralCode()).catch((rawError: Error) => {
       const message = extractErrorMessage(rawError);
       setError(message);
       logger.error(
         'Failed to retry on-chain onboarding',
-        { error: rawError },
+        { error: rawError.message },
         'OnboardingProvider'
       );
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
+    setIsSubmitting(false);
   }, [submittedProfile, submitOnchain]);
 
   const handleSkipOnchain = useCallback(() => {

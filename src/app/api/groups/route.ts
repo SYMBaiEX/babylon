@@ -1,6 +1,149 @@
 /**
- * API Route: /api/groups
- * Methods: GET (list user's groups), POST (create group)
+ * User Groups API
+ * 
+ * @description
+ * Manages user-created groups for organizing communities, trading clubs,
+ * discussion groups, etc. Provides group listing, creation, and automatic
+ * chat integration for each group.
+ * 
+ * **Features:**
+ * - Create custom groups
+ * - Multi-member support
+ * - Admin role assignment
+ * - Automatic chat creation for each group
+ * - Member and admin tracking
+ * - Group discovery
+ * 
+ * **Group Roles:**
+ * - **Creator:** Original group creator (also admin)
+ * - **Admin:** Can manage group settings and members
+ * - **Member:** Can participate in group chat
+ * 
+ * **Automatic Features:**
+ * - Group creator automatically becomes admin
+ * - Group creator automatically becomes member
+ * - Group gets dedicated chat room
+ * - All members added to chat automatically
+ * 
+ * @openapi
+ * /api/groups:
+ *   get:
+ *     tags:
+ *       - Groups
+ *     summary: List user's groups
+ *     description: Returns all groups where user is a member or admin
+ *     security:
+ *       - PrivyAuth: []
+ *     responses:
+ *       200:
+ *         description: User's groups
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 groups:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       name:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ *                       memberCount:
+ *                         type: integer
+ *                       isAdmin:
+ *                         type: boolean
+ *                       isCreator:
+ *                         type: boolean
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *       401:
+ *         description: Unauthorized
+ *   post:
+ *     tags:
+ *       - Groups
+ *     summary: Create new group
+ *     description: Creates a new group with optional initial members and automatic chat
+ *     security:
+ *       - PrivyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 100
+ *                 description: Group name
+ *               memberIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Initial member user IDs (optional)
+ *     responses:
+ *       200:
+ *         description: Group created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 group:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     createdAt:
+ *                       type: string
+ *                       format: date-time
+ *                     chatId:
+ *                       type: string
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ * 
+ * @example
+ * ```typescript
+ * // List user's groups
+ * const response = await fetch('/api/groups', {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * const { groups } = await response.json();
+ * 
+ * groups.forEach(group => {
+ *   console.log(`${group.name}: ${group.memberCount} members`);
+ *   if (group.isAdmin) console.log('  (You are admin)');
+ * });
+ * 
+ * // Create new group
+ * const newGroup = await fetch('/api/groups', {
+ *   method: 'POST',
+ *   headers: { 'Authorization': `Bearer ${token}` },
+ *   body: JSON.stringify({
+ *     name: 'Trading Strategy Group',
+ *     memberIds: ['user1', 'user2', 'user3']
+ *   })
+ * });
+ * 
+ * const { group } = await newGroup.json();
+ * console.log(`Created group: ${group.id}, Chat: ${group.chatId}`);
+ * ```
+ * 
+ * @see {@link /lib/db/context} RLS context
+ * @see {@link /src/app/groups/page.tsx} Groups UI
  */
 
 import type { NextRequest } from 'next/server'

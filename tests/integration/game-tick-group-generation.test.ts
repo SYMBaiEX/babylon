@@ -17,9 +17,9 @@ describe('Game Tick Group Generation', () => {
 
   beforeAll(async () => {
     // Create test NPCs with positive relationships
-    testNpc1Id = generateSnowflakeId();
-    testNpc2Id = generateSnowflakeId();
-    testNpc3Id = generateSnowflakeId();
+    testNpc1Id = await generateSnowflakeId();
+    testNpc2Id = await generateSnowflakeId();
+    testNpc3Id = await generateSnowflakeId();
 
     await prisma.actor.createMany({
       data: [
@@ -27,18 +27,21 @@ describe('Game Tick Group Generation', () => {
           id: testNpc1Id,
           name: 'Group Test Alice',
           hasPool: true,
+          isTest: true,
           updatedAt: new Date(),
         },
         {
           id: testNpc2Id,
           name: 'Group Test Bob',
           hasPool: true,
+          isTest: true,
           updatedAt: new Date(),
         },
         {
           id: testNpc3Id,
           name: 'Group Test Charlie',
           hasPool: true,
+          isTest: true,
           updatedAt: new Date(),
         },
       ],
@@ -48,7 +51,7 @@ describe('Game Tick Group Generation', () => {
     await prisma.actorRelationship.createMany({
       data: [
         {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           actor1Id: testNpc1Id,
           actor2Id: testNpc2Id,
           relationshipType: 'ally',
@@ -57,7 +60,7 @@ describe('Game Tick Group Generation', () => {
           updatedAt: new Date(),
         },
         {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           actor1Id: testNpc1Id,
           actor2Id: testNpc3Id,
           relationshipType: 'friend',
@@ -66,7 +69,7 @@ describe('Game Tick Group Generation', () => {
           updatedAt: new Date(),
         },
         {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           actor1Id: testNpc2Id,
           actor2Id: testNpc3Id,
           relationshipType: 'ally',

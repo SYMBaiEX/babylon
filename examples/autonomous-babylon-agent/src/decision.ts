@@ -42,8 +42,8 @@ export class AgentDecisionMaker {
     // Initialize provider in order: Groq -> Claude -> OpenAI
     if (config.groqApiKey) {
       const groq = createGroq({ apiKey: config.groqApiKey })
-      this.model = groq.languageModel('llama-3.1-8b-instant')
-      this.providerName = 'Groq (llama-3.1-8b-instant)'
+      this.model = groq.languageModel('openai/gpt-oss-120b')  // Fast evaluation model
+      this.providerName = 'Groq (openai/gpt-oss-120b)'
     } else if (config.anthropicApiKey) {
       const anthropic = createAnthropic({ apiKey: config.anthropicApiKey })
       this.model = anthropic('claude-3-5-sonnet-20241022')
@@ -148,22 +148,13 @@ Your decision (JSON only):`
    * Parse LLM response into Decision
    */
   private parseDecision(text: string): Decision {
-    try {
-      // Extract JSON from response
-      const jsonMatch = text.match(/\{[\s\S]*\}/)
-      if (!jsonMatch) {
-        return { action: 'HOLD', reasoning: 'Failed to parse decision' }
-      }
-
-      const decision = JSON.parse(jsonMatch[0])
-      return {
-        action: decision.action || 'HOLD',
-        params: decision.params,
-        reasoning: decision.reasoning
-      }
-    } catch (error) {
-      console.error('Failed to parse decision:', error)
-      return { action: 'HOLD', reasoning: 'Parse error' }
+    // Extract JSON from response
+    const jsonMatch = text.match(/\{[\s\S]*\}/)!
+    const decision = JSON.parse(jsonMatch[0])
+    return {
+      action: decision.action,
+      params: decision.params,
+      reasoning: decision.reasoning
     }
   }
 }

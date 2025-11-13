@@ -43,43 +43,34 @@ export class AlphaGroupInviteService {
     const startTime = Date.now();
     const invites: AlphaInviteResult[] = [];
 
-    try {
-      // Get all NPCs (actors)
-      const npcs = await prisma.actor.findMany({
-        where: {
-          hasPool: true, // Only NPCs with active pools
-        },
-        select: {
-          id: true,
-          name: true,
-        },
-      });
+    // Get all NPCs (actors)
+    const npcs = await prisma.actor.findMany({
+      where: {
+        hasPool: true, // Only NPCs with active pools
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
 
-      logger.info(`Processing alpha invites for ${npcs.length} NPCs`, undefined, 'AlphaGroupInviteService');
+    logger.info(`Processing alpha invites for ${npcs.length} NPCs`, undefined, 'AlphaGroupInviteService');
 
-      // Process each NPC
-      for (const npc of npcs) {
-        if (invites.length >= this.MAX_INVITES_PER_TICK) {
-          logger.info('Reached max invites per tick', { count: invites.length }, 'AlphaGroupInviteService');
-          break;
-        }
-
-        try {
-          const npcInvites = await this.processNPCInvites(npc.id, npc.name);
-          invites.push(...npcInvites);
-        } catch (error) {
-          logger.error(`Error processing invites for NPC ${npc.name}`, { error, npcId: npc.id }, 'AlphaGroupInviteService');
-        }
+    // Process each NPC
+    for (const npc of npcs) {
+      if (invites.length >= this.MAX_INVITES_PER_TICK) {
+        logger.info('Reached max invites per tick', { count: invites.length }, 'AlphaGroupInviteService');
+        break;
       }
 
-      const duration = Date.now() - startTime;
-      logger.info(`Alpha invite tick complete: ${invites.length} invites sent`, { duration, invites: invites.length }, 'AlphaGroupInviteService');
-
-      return invites;
-    } catch (error) {
-      logger.error('Error in alpha invite tick', { error }, 'AlphaGroupInviteService');
-      return invites;
+      const npcInvites = await this.processNPCInvites(npc.id, npc.name);
+      invites.push(...npcInvites);
     }
+
+    const duration = Date.now() - startTime;
+    logger.info(`Alpha invite tick complete: ${invites.length} invites sent`, { duration, invites: invites.length }, 'AlphaGroupInviteService');
+
+    return invites;
   }
 
   /**
@@ -120,45 +111,37 @@ export class AlphaGroupInviteService {
       
       if (roll < inviteProbability) {
         // User wins the lottery! Invite them
-        try {
-          const chatId = `${npcId}-alpha-chat`;
-          const chatName = `${npcName}'s Alpha Group`;
+        const chatId = `${npcId}-alpha-chat`;
+        const chatName = `${npcName}'s Alpha Group`;
 
-          await GroupChatInvite.recordInvite(
-            userScore.userId,
-            npcId,
-            chatId,
-            chatName
-          );
+        await GroupChatInvite.recordInvite(
+          userScore.userId,
+          npcId,
+          chatId,
+          chatName
+        );
 
-          invites.push({
-            npcId,
-            npcName,
-            userId: userScore.userId,
-            invitedToChat: chatName,
-            engagementScore: userScore.engagementScore,
-            probability: inviteProbability,
-          });
+        invites.push({
+          npcId,
+          npcName,
+          userId: userScore.userId,
+          invitedToChat: chatName,
+          engagementScore: userScore.engagementScore,
+          probability: inviteProbability,
+        });
 
-          logger.info(`User invited to alpha group`, {
-            userId: userScore.userId,
-            npcId,
-            npcName,
-            chatName,
-            engagementScore: userScore.engagementScore,
-            probability: inviteProbability,
-            roll,
-          }, 'AlphaGroupInviteService');
+        logger.info(`User invited to alpha group`, {
+          userId: userScore.userId,
+          npcId,
+          npcName,
+          chatName,
+          engagementScore: userScore.engagementScore,
+          probability: inviteProbability,
+          roll,
+        }, 'AlphaGroupInviteService');
 
-          // Only one invite per NPC per tick
-          break;
-        } catch (error) {
-          logger.error('Failed to record invite', {
-            error,
-            userId: userScore.userId,
-            npcId,
-          }, 'AlphaGroupInviteService');
-        }
+        // Only one invite per NPC per tick
+        break;
       }
     }
 

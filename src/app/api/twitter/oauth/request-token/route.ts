@@ -145,7 +145,7 @@ export async function GET(request: NextRequest) {
     // Store the token secret temporarily (with user ID for later retrieval)
     await prisma.oAuthState.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         state: oauthToken,
         codeVerifier: oauthTokenSecret, // Store token secret here
         userId,

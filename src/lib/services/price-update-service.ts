@@ -123,27 +123,12 @@ export class PriceUpdateService {
       perpsEngine.updatePositions(priceMap);
 
       // Write prices to blockchain
-      await this.writePricesToChain(appliedUpdates).catch((error) => {
-        logger.error(
-          'Failed to write prices to chain',
-          { error, count: appliedUpdates.length },
-          'PriceUpdateService'
-        );
-        // Continue execution even if blockchain write fails
-      });
+      await this.writePricesToChain(appliedUpdates);
 
-      try {
-        broadcastToChannel('markets', {
-          type: 'price_update',
-          updates: appliedUpdates,
-        });
-      } catch (error) {
-        logger.debug(
-          'Failed to broadcast price updates',
-          { error },
-          'PriceUpdateService'
-        );
-      }
+      broadcastToChannel('markets', {
+        type: 'price_update',
+        updates: appliedUpdates,
+      });
 
       logger.info(
         `Applied ${appliedUpdates.length} organization price updates`,
@@ -174,74 +159,54 @@ export class PriceUpdateService {
       return;
     }
 
-    try {
-      const publicClient = createPublicClient({
-        chain: baseSepolia,
-        transport: http(rpcUrl),
-      });
+    const publicClient = createPublicClient({
+      chain: baseSepolia,
+      transport: http(rpcUrl),
+    });
 
-      const account = privateKeyToAccount(deployerPrivateKey);
-      const walletClient = createWalletClient({
-        account,
-        chain: baseSepolia,
-        transport: http(rpcUrl),
-      });
+    const account = privateKeyToAccount(deployerPrivateKey);
+    const walletClient = createWalletClient({
+      account,
+      chain: baseSepolia,
+      transport: http(rpcUrl),
+    });
 
-      // Get current tick counter
-      let currentTick: bigint;
-      try {
-        currentTick = await publicClient.readContract({
-          address: diamondAddress,
-          abi: PRICE_STORAGE_FACET_ABI,
-          functionName: 'getGlobalTickCounter',
-        });
-      } catch (error) {
-        logger.warn(
-          'Failed to get tick counter, using timestamp-based tick',
-          { error },
-          'PriceUpdateService'
-        );
-        // Fallback: use timestamp-based tick
-        currentTick = BigInt(Math.floor(Date.now() / 1000));
-      }
+    // Get current tick counter
+    const currentTick: bigint = await publicClient.readContract({
+      address: diamondAddress,
+      abi: PRICE_STORAGE_FACET_ABI,
+      functionName: 'getGlobalTickCounter',
+    }) as bigint;
 
-      // Prepare market IDs and prices
-      const marketIds: `0x${string}`[] = [];
-      const prices: bigint[] = [];
+    // Prepare market IDs and prices
+    const marketIds: `0x${string}`[] = [];
+    const prices: bigint[] = [];
 
-      for (const update of updates) {
-        const marketId = deriveMarketId(update.organizationId);
-        const price = toChainlinkFormat(update.newPrice);
-        marketIds.push(marketId);
-        prices.push(price);
-      }
-
-      // Batch update prices
-      const txHash = await walletClient.writeContract({
-        address: diamondAddress,
-        abi: PRICE_STORAGE_FACET_ABI,
-        functionName: 'updatePrices',
-        args: [marketIds, currentTick, prices],
-      });
-
-      // Wait for confirmation
-      await publicClient.waitForTransactionReceipt({
-        hash: txHash,
-        confirmations: 1,
-      });
-
-      logger.info(
-        `Successfully wrote ${updates.length} prices to chain`,
-        { txHash, tick: currentTick.toString(), count: updates.length },
-        'PriceUpdateService'
-      );
-    } catch (error) {
-      logger.error(
-        'Failed to write prices to chain',
-        { error, count: updates.length },
-        'PriceUpdateService'
-      );
-      throw error;
+    for (const update of updates) {
+      const marketId = deriveMarketId(update.organizationId);
+      const price = toChainlinkFormat(update.newPrice);
+      marketIds.push(marketId);
+      prices.push(price);
     }
+
+    // Batch update prices
+    const txHash = await walletClient.writeContract({
+      address: diamondAddress,
+      abi: PRICE_STORAGE_FACET_ABI,
+      functionName: 'updatePrices',
+      args: [marketIds, currentTick, prices],
+    });
+
+    // Wait for confirmation
+    await publicClient.waitForTransactionReceipt({
+      hash: txHash,
+      confirmations: 1,
+    });
+
+    logger.info(
+      `Successfully wrote ${updates.length} prices to chain`,
+      { txHash, tick: currentTick.toString(), count: updates.length },
+      'PriceUpdateService'
+    );
   }
 }

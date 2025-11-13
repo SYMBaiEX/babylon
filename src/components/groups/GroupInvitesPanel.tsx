@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from 'react';
 import { GroupInviteNotification } from './GroupInviteNotification';
-import { toast } from 'sonner';
+// import { toast } from 'sonner';
 
 interface GroupInvite {
   id: string;
@@ -33,21 +33,15 @@ export function GroupInvitesPanel() {
   const [isLoading, setIsLoading] = useState(true);
 
   const loadInvites = async () => {
-    try {
-      const response = await fetch('/api/user-groups/invites');
-      const data = await response.json();
+    const response = await fetch('/api/user-groups/invites');
+    const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to load invites');
-      }
-
-      setInvites(data.data.invites);
-    } catch (error) {
-      console.error('Error loading invites:', error);
-      toast.error('Failed to load invites');
-    } finally {
-      setIsLoading(false);
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to load invites');
     }
+
+    setInvites(data.data.invites);
+    setIsLoading(false);
   };
 
   useEffect(() => {

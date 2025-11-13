@@ -51,7 +51,11 @@ export const GET = withErrorHandling(async (
   const { id: postId } = PostIdParamSchema.parse(await context.params);
 
   // Optional authentication (to show liked status for logged-in users)
-  const user = await optionalAuth(request).catch(() => null);
+  // Errors during auth check are non-critical - treat as unauthenticated
+  const user = await optionalAuth(request).catch((error) => {
+    logger.debug('Optional auth failed for GET post request', { postId, error }, 'GET /api/posts/[id]');
+    return null;
+  });
 
   // Get post with RLS - use asPublic for unauthenticated requests
   let post = user

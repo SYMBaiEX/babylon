@@ -34,57 +34,47 @@ export function GroupInviteCard({
     setLoading(true)
     setError(null)
 
-    try {
-      const token = await getAccessToken()
-      const response = await fetch(`/api/groups/invites/${inviteId}/accept`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+    const token = await getAccessToken()
+    const response = await fetch(`/api/groups/invites/${inviteId}/accept`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
 
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to accept invite')
-      }
-
+    if (!response.ok) {
       const data = await response.json()
-      setStatus('accepted')
-      onAccepted?.(groupId, data.chatId)
-    } catch (error) {
-      console.error('Error accepting invite:', error)
-      setError(error instanceof Error ? error.message : 'Failed to accept invite')
-    } finally {
       setLoading(false)
+      throw new Error(data.error || 'Failed to accept invite')
     }
+
+    const data = await response.json()
+    setStatus('accepted')
+    onAccepted?.(groupId, data.chatId)
+    setLoading(false)
   }
 
   const handleDecline = async () => {
     setLoading(true)
     setError(null)
 
-    try {
-      const token = await getAccessToken()
-      const response = await fetch(`/api/groups/invites/${inviteId}/decline`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+    const token = await getAccessToken()
+    const response = await fetch(`/api/groups/invites/${inviteId}/decline`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
 
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to decline invite')
-      }
-
-      setStatus('declined')
-      onDeclined?.()
-    } catch (error) {
-      console.error('Error declining invite:', error)
-      setError(error instanceof Error ? error.message : 'Failed to decline invite')
-    } finally {
+    if (!response.ok) {
+      const data = await response.json()
       setLoading(false)
+      throw new Error(data.error || 'Failed to decline invite')
     }
+
+    setStatus('declined')
+    onDeclined?.()
+    setLoading(false)
   }
 
   if (status === 'accepted') {

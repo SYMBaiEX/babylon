@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Babylon Plugin Providers
  * Export all providers

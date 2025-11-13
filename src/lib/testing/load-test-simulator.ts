@@ -207,46 +207,30 @@ export class LoadTestSimulator {
     const startTime = Date.now();
     const url = `${this.baseUrl}${endpoint.path}`;
 
-    try {
-      const response = await fetch(url, {
-        method: endpoint.method,
-        headers: {
-          'Content-Type': 'application/json',
-          ...endpoint.headers,
-        },
-        body: endpoint.body ? JSON.stringify(endpoint.body) : undefined,
-      });
+    const response = await fetch(url, {
+      method: endpoint.method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...endpoint.headers,
+      },
+      body: endpoint.body ? JSON.stringify(endpoint.body) : undefined,
+    });
 
-      const responseTime = Date.now() - startTime;
-      const success = response.ok;
+    const responseTime = Date.now() - startTime;
+    const success = response.ok;
 
-      if (!success) {
-        const errorKey = `${endpoint.path}:${response.status}`;
-        this.errorCounts.set(errorKey, (this.errorCounts.get(errorKey) || 0) + 1);
-      }
-
-      this.results.push({
-        endpoint: endpoint.path,
-        success,
-        responseTime,
-        error: success ? undefined : `HTTP ${response.status}`,
-        timestamp: new Date(),
-      });
-    } catch (error) {
-      const responseTime = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorKey = `${endpoint.path}:${errorMessage}`;
-      
+    if (!success) {
+      const errorKey = `${endpoint.path}:${response.status}`;
       this.errorCounts.set(errorKey, (this.errorCounts.get(errorKey) || 0) + 1);
-
-      this.results.push({
-        endpoint: endpoint.path,
-        success: false,
-        responseTime,
-        error: errorMessage,
-        timestamp: new Date(),
-      });
     }
+
+    this.results.push({
+      endpoint: endpoint.path,
+      success,
+      responseTime,
+      error: success ? undefined : `HTTP ${response.status}`,
+      timestamp: new Date(),
+    });
   }
 
   /**
@@ -349,6 +333,28 @@ export class LoadTestSimulator {
 }
 
 /**
+ * Helper to generate A2A endpoint for mixed testing
+ */
+function generateA2AEndpoint(method: string, params: Record<string, unknown> = {}) {
+  return {
+    jsonrpc: '2.0',
+    method,
+    params,
+    id: Math.floor(Math.random() * 1000000)
+  };
+}
+
+/**
+ * A2A headers for testing
+ */
+const A2A_HEADERS = {
+  'Content-Type': 'application/json',
+  'x-agent-id': 'load-test-agent',
+  'x-agent-address': '0x1234567890123456789012345678901234567890',
+  'x-agent-token-id': '1'
+};
+
+/**
  * Predefined test scenarios
  */
 export const TEST_SCENARIOS = {
@@ -359,11 +365,14 @@ export const TEST_SCENARIOS = {
     rampUpSeconds: 10,
     thinkTimeMs: 1000,
     endpoints: [
-      { path: '/api/posts', method: 'GET' as const, weight: 0.4 },
-      { path: '/api/feed/widgets/trending-posts', method: 'GET' as const, weight: 0.2 },
-      { path: '/api/users/me', method: 'GET' as const, weight: 0.2 },
+      { path: '/api/posts', method: 'GET' as const, weight: 0.35 },
+      { path: '/api/feed/widgets/trending-posts', method: 'GET' as const, weight: 0.18 },
+      { path: '/api/users/me', method: 'GET' as const, weight: 0.17 },
       { path: '/api/leaderboard', method: 'GET' as const, weight: 0.1 },
       { path: '/api/notifications', method: 'GET' as const, weight: 0.1 },
+      // A2A endpoints (10% of traffic)
+      { path: '/api/a2a', method: 'POST' as const, weight: 0.05, headers: A2A_HEADERS, body: generateA2AEndpoint('a2a.getBalance') },
+      { path: '/api/a2a', method: 'POST' as const, weight: 0.05, headers: A2A_HEADERS, body: generateA2AEndpoint('a2a.getPositions') },
     ],
   },
 
@@ -374,12 +383,16 @@ export const TEST_SCENARIOS = {
     rampUpSeconds: 20,
     thinkTimeMs: 500,
     endpoints: [
-      { path: '/api/posts', method: 'GET' as const, weight: 0.35 },
-      { path: '/api/posts/feed/favorites', method: 'GET' as const, weight: 0.15 },
-      { path: '/api/feed/widgets/trending-posts', method: 'GET' as const, weight: 0.15 },
-      { path: '/api/users/me', method: 'GET' as const, weight: 0.15 },
-      { path: '/api/leaderboard', method: 'GET' as const, weight: 0.1 },
-      { path: '/api/notifications', method: 'GET' as const, weight: 0.1 },
+      { path: '/api/posts', method: 'GET' as const, weight: 0.30 },
+      { path: '/api/posts/feed/favorites', method: 'GET' as const, weight: 0.13 },
+      { path: '/api/feed/widgets/trending-posts', method: 'GET' as const, weight: 0.12 },
+      { path: '/api/users/me', method: 'GET' as const, weight: 0.13 },
+      { path: '/api/leaderboard', method: 'GET' as const, weight: 0.09 },
+      { path: '/api/notifications', method: 'GET' as const, weight: 0.08 },
+      // A2A endpoints (15% of traffic)
+      { path: '/api/a2a', method: 'POST' as const, weight: 0.05, headers: A2A_HEADERS, body: generateA2AEndpoint('a2a.getBalance') },
+      { path: '/api/a2a', method: 'POST' as const, weight: 0.05, headers: A2A_HEADERS, body: generateA2AEndpoint('a2a.getPositions') },
+      { path: '/api/a2a', method: 'POST' as const, weight: 0.05, headers: A2A_HEADERS, body: generateA2AEndpoint('a2a.getFeed') },
     ],
   },
 
@@ -392,11 +405,15 @@ export const TEST_SCENARIOS = {
     maxRps: 1000,
     endpoints: [
       // Public endpoints only to avoid 401 errors
-      { path: '/api/posts?limit=20', method: 'GET' as const, weight: 0.35 },
-      { path: '/api/feed/widgets/trending-posts', method: 'GET' as const, weight: 0.25 },
-      { path: '/api/leaderboard', method: 'GET' as const, weight: 0.20 },
-      { path: '/api/feed/widgets/stats', method: 'GET' as const, weight: 0.10 },
-      { path: '/api/feed/widgets/markets', method: 'GET' as const, weight: 0.10 },
+      { path: '/api/posts?limit=20', method: 'GET' as const, weight: 0.30 },
+      { path: '/api/feed/widgets/trending-posts', method: 'GET' as const, weight: 0.22 },
+      { path: '/api/leaderboard', method: 'GET' as const, weight: 0.18 },
+      { path: '/api/feed/widgets/stats', method: 'GET' as const, weight: 0.08 },
+      { path: '/api/feed/widgets/markets', method: 'GET' as const, weight: 0.07 },
+      // A2A endpoints (15% of traffic)
+      { path: '/api/a2a', method: 'POST' as const, weight: 0.05, headers: A2A_HEADERS, body: generateA2AEndpoint('a2a.getBalance') },
+      { path: '/api/a2a', method: 'POST' as const, weight: 0.05, headers: A2A_HEADERS, body: generateA2AEndpoint('a2a.getPositions') },
+      { path: '/api/a2a', method: 'POST' as const, weight: 0.05, headers: A2A_HEADERS, body: generateA2AEndpoint('a2a.getLeaderboard') },
     ],
   },
 
@@ -409,11 +426,15 @@ export const TEST_SCENARIOS = {
     maxRps: 2000,
     endpoints: [
       // Public endpoints only for now (no 401 errors)
-      { path: '/api/posts', method: 'GET' as const, weight: 0.30 },
-      { path: '/api/feed/widgets/trending-posts', method: 'GET' as const, weight: 0.20 },
-      { path: '/api/leaderboard', method: 'GET' as const, weight: 0.20 },
-      { path: '/api/feed/widgets/stats', method: 'GET' as const, weight: 0.15 },
-      { path: '/api/feed/widgets/markets', method: 'GET' as const, weight: 0.15 },
+      { path: '/api/posts', method: 'GET' as const, weight: 0.25 },
+      { path: '/api/feed/widgets/trending-posts', method: 'GET' as const, weight: 0.17 },
+      { path: '/api/leaderboard', method: 'GET' as const, weight: 0.18 },
+      { path: '/api/feed/widgets/stats', method: 'GET' as const, weight: 0.13 },
+      { path: '/api/feed/widgets/markets', method: 'GET' as const, weight: 0.12 },
+      // A2A endpoints (15% of traffic)
+      { path: '/api/a2a', method: 'POST' as const, weight: 0.05, headers: A2A_HEADERS, body: generateA2AEndpoint('a2a.getBalance') },
+      { path: '/api/a2a', method: 'POST' as const, weight: 0.05, headers: A2A_HEADERS, body: generateA2AEndpoint('a2a.getPositions') },
+      { path: '/api/a2a', method: 'POST' as const, weight: 0.05, headers: A2A_HEADERS, body: generateA2AEndpoint('a2a.getSystemStats') },
     ],
   },
 };

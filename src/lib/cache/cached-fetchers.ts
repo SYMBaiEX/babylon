@@ -17,35 +17,26 @@ import { ReputationService } from '@/lib/services/reputation-service'
  * Calculate 24h trading volume for an organization
  */
 async function calculateVolume24h(organizationId: string): Promise<number> {
-  try {
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
-    
-    const volumeTransactions = await prisma.balanceTransaction.findMany({
-      where: {
-        type: {
-          in: ['PERP_OPEN', 'PERP_CLOSE'],
-        },
-        createdAt: {
-          gte: twentyFourHoursAgo,
-        },
-        description: {
-          contains: organizationId,
-        },
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  
+  const volumeTransactions = await prisma.balanceTransaction.findMany({
+    where: {
+      type: {
+        in: ['PERP_OPEN', 'PERP_CLOSE'],
       },
-      select: {
-        amount: true,
+      createdAt: {
+        gte: twentyFourHoursAgo,
       },
-    })
-    
-    return volumeTransactions.reduce((sum, tx) => sum + Math.abs(Number(tx.amount)), 0)
-  } catch (error) {
-    logger.error(
-      `Failed to calculate volume24h for ${organizationId}: ${error instanceof Error ? error.message : String(error)}`,
-      undefined,
-      'VolumeTracking'
-    )
-    return 0
-  }
+      description: {
+        contains: organizationId,
+      },
+    },
+    select: {
+      amount: true,
+    },
+  })
+  
+  return volumeTransactions.reduce((sum, tx) => sum + Math.abs(Number(tx.amount)), 0)
 }
 
 /**
@@ -98,7 +89,7 @@ export async function getCachedPerpMarkets() {
             size: true,
             leverage: true,
           },
-        }).catch(() => [])
+        })
         
         const openInterest = positions.reduce(
           (sum, p) => sum + (Number(p.size) * Number(p.leverage)),

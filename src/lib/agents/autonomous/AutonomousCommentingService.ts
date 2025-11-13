@@ -8,18 +8,17 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import type { IAgentRuntime } from '@elizaos/core'
-import { ModelType } from '@elizaos/core'
+import { callGroqDirect } from '../llm/direct-groq'
 
 export class AutonomousCommentingService {
   /**
    * Find relevant posts and create comments
    */
-  async createAgentComment(agentUserId: string, runtime: IAgentRuntime): Promise<string | null> {
-    try {
-      const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
-      if (!agent || !agent.isAgent) {
-        throw new Error('Agent not found')
-      }
+  async createAgentComment(agentUserId: string, _runtime: IAgentRuntime): Promise<string | null> {
+    const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
+    if (!agent?.isAgent) {
+      throw new Error('Agent not found')
+    }
 
       // Get recent posts that agent hasn't commented on
       const recentPosts = await prisma.post.findMany({
@@ -66,9 +65,11 @@ Keep it under 200 characters.
 
 Generate ONLY the comment text, nothing else.`
 
-      const modelType = agent.agentModelTier === 'pro' ? ModelType.TEXT_LARGE : ModelType.TEXT_SMALL
-      const commentContent = await runtime.useModel(modelType, {
+      // Use small model (gpt-oss-120b) for fast comment generation
+      const commentContent = await callGroqDirect({
         prompt,
+        system: agent.agentSystem || undefined,
+        modelSize: 'small',  // Frequent operation, use fast model
         temperature: 0.8,
         maxTokens: 80
       })
@@ -80,7 +81,7 @@ Generate ONLY the comment text, nothing else.`
       }
 
       // Create the comment
-      const commentId = generateSnowflakeId()
+      const commentId = await generateSnowflakeId()
       await prisma.comment.create({
         data: {
           id: commentId,
@@ -95,10 +96,6 @@ Generate ONLY the comment text, nothing else.`
       logger.info(`Agent ${agent.displayName} commented on post ${post.id}`, undefined, 'AutonomousCommenting')
 
       return commentId
-    } catch (error: unknown) {
-      logger.error(`Failed to create agent comment for ${agentUserId}`, error, 'AutonomousCommenting')
-      return null
-    }
   }
 }
 

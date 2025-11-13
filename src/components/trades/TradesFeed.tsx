@@ -31,72 +31,61 @@ export function TradesFeed({
 
   // Fetch trades from API
   const fetchTrades = useCallback(async (requestOffset: number, append = false) => {
-    try {
-      const params = new URLSearchParams({
-        limit: PAGE_SIZE.toString(),
-        offset: requestOffset.toString(),
-      })
-      
-      if (userId) {
-        params.append('userId', userId)
-      }
-
-      const response = await fetch(`/api/trades?${params.toString()}`)
-      if (!response.ok) throw new Error('Failed to fetch trades')
-      
-      const data = await response.json()
-      const newTrades = data.trades || []
-
-      if (append) {
-        setTrades(prev => {
-          // Deduplicate trades by ID
-          const existingIds = new Set(prev.map(t => t.id))
-          const uniqueNewTrades = newTrades.filter((t: Trade) => !existingIds.has(t.id))
-          return [...prev, ...uniqueNewTrades]
-        })
-        setLoadingMore(false)
-      } else {
-        setTrades(newTrades)
-        setLoading(false)
-      }
-
-      setHasMore(data.hasMore || false)
-      setOffset(requestOffset + newTrades.length)
-    } catch (error) {
-      console.error('Failed to fetch trades:', error)
-      setLoading(false)
-      setLoadingMore(false)
+    const params = new URLSearchParams({
+      limit: PAGE_SIZE.toString(),
+      offset: requestOffset.toString(),
+    })
+    
+    if (userId) {
+      params.append('userId', userId)
     }
+
+    const response = await fetch(`/api/trades?${params.toString()}`)
+    if (!response.ok) throw new Error('Failed to fetch trades')
+    
+    const data = await response.json()
+    const newTrades = data.trades || []
+
+    if (append) {
+      setTrades(prev => {
+        // Deduplicate trades by ID
+        const existingIds = new Set(prev.map(t => t.id))
+        const uniqueNewTrades = newTrades.filter((t: Trade) => !existingIds.has(t.id))
+        return [...prev, ...uniqueNewTrades]
+      })
+      setLoadingMore(false)
+    } else {
+      setTrades(newTrades)
+      setLoading(false)
+    }
+
+    setHasMore(data.hasMore || false)
+    setOffset(requestOffset + newTrades.length)
   }, [userId])
 
   // Refresh trades (used by polling and pull-to-refresh)
   const refreshTrades = useCallback(async () => {
     // Silent refresh - don't show loading state
-    try {
-      const params = new URLSearchParams({
-        limit: PAGE_SIZE.toString(),
-        offset: '0',
-      })
-      
-      if (userId) {
-        params.append('userId', userId)
-      }
+    const params = new URLSearchParams({
+      limit: PAGE_SIZE.toString(),
+      offset: '0',
+    })
+    
+    if (userId) {
+      params.append('userId', userId)
+    }
 
-      const response = await fetch(`/api/trades?${params.toString()}`)
-      if (!response.ok) return
-      
-      const data = await response.json()
-      const newTrades = data.trades || []
+    const response = await fetch(`/api/trades?${params.toString()}`)
+    if (!response.ok) return
+    
+    const data = await response.json()
+    const newTrades = data.trades || []
 
-      // Only update if we have new trades
-      if (newTrades.length > 0) {
-        setTrades(newTrades)
-        setHasMore(data.hasMore || false)
-        setOffset(newTrades.length)
-      }
-    } catch (error) {
-      // Silent fail for polling
-      console.error('Failed to refresh trades:', error)
+    // Only update if we have new trades
+    if (newTrades.length > 0) {
+      setTrades(newTrades)
+      setHasMore(data.hasMore || false)
+      setOffset(newTrades.length)
     }
   }, [userId])
 

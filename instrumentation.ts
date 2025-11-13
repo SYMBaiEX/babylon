@@ -24,17 +24,15 @@ export async function register() {
   // Temporarily disabled to prevent blocking dev server
   // Re-enable when agent0-sdk is properly installed
   if (false && process.env.NEXT_RUNTIME === 'nodejs') {
-    try {
-      // Register Babylon game (will skip if already registered or disabled)
-      await registerBabylonGame()
-    } catch (error) {
+    // Register Babylon game (will skip if already registered or disabled)
+    await registerBabylonGame().catch((error: Error) => {
       // Don't fail startup if registration fails
       console.error('Failed to register Babylon game on startup:', error)
       // Capture error in Sentry if available
       if (process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN) {
         Sentry.captureException(error)
       }
-    }
+    })
   }
 }
 

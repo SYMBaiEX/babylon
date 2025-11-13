@@ -28,54 +28,50 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
         
         setLinking('farcaster')
         
-        try {
-          const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-          const state = `${user?.id}:${Date.now()}:${Math.random().toString(36).substring(7)}`
-          
-          const response = await fetch('/api/auth/farcaster/callback', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({
-              message: event.data.message,
-              signature: event.data.signature,
-              fid,
-              username,
-              displayName,
-              pfpUrl,
-              state,
-            }),
-          })
+        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+        const state = `${user?.id}:${Date.now()}:${Math.random().toString(36).substring(7)}`
+        
+        const response = await fetch('/api/auth/farcaster/callback', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            message: event.data.message,
+            signature: event.data.signature,
+            fid,
+            username,
+            displayName,
+            pfpUrl,
+            state,
+          }),
+        })
 
-          const data = await response.json()
+        const data = await response.json()
 
-          if (response.ok && data.success) {
-            if (user) {
-              setUser({
-                ...user,
-                hasFarcaster: true,
-                farcasterUsername: username,
-                reputationPoints: data.newTotal || user.reputationPoints,
-              })
-            }
-
-            if (data.pointsAwarded > 0) {
-              toast.success(`Farcaster linked! +${data.pointsAwarded} points awarded`)
-            } else {
-              toast.success('Farcaster account linked successfully!')
-            }
-
-            onClose()
-          } else {
-            throw new Error(data.error || 'Failed to link account')
+        if (response.ok && data.success) {
+          if (user) {
+            setUser({
+              ...user,
+              hasFarcaster: true,
+              farcasterUsername: username,
+              reputationPoints: data.newTotal || user.reputationPoints,
+            })
           }
-        } catch (error) {
-          toast.error(error instanceof Error ? error.message : 'Failed to link Farcaster')
-        } finally {
+
+          if (data.pointsAwarded > 0) {
+            toast.success(`Farcaster linked! +${data.pointsAwarded} points awarded`)
+          } else {
+            toast.success('Farcaster account linked successfully!')
+          }
+
+          onClose()
+        } else {
           setLinking(null)
+          throw new Error(data.error || 'Failed to link account')
         }
+        setLinking(null)
       }
     }
 
@@ -90,18 +86,13 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
     
     setLinking('twitter')
 
-    try {
-      // Redirect to OAuth initiation endpoint
-      const initiateUrl = `/api/auth/twitter/initiate`
-      
-      // Store current URL to return to
-      sessionStorage.setItem('oauth_return_url', window.location.pathname)
-      
-      window.location.href = initiateUrl
-    } catch {
-      toast.error('Failed to initiate Twitter authentication')
-      setLinking(null)
-    }
+    // Redirect to OAuth initiation endpoint
+    const initiateUrl = `/api/auth/twitter/initiate`
+    
+    // Store current URL to return to
+    sessionStorage.setItem('oauth_return_url', window.location.pathname)
+    
+    window.location.href = initiateUrl
   }
 
   const handleFarcasterAuth = () => {
@@ -109,39 +100,34 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
     
     setLinking('farcaster')
 
-    try {
-      // Open Farcaster Auth in popup
-      const state = `${user.id}:${Date.now()}:${Math.random().toString(36).substring(7)}`
-      const authUrl = `https://warpcast.com/~/sign-in-with-farcaster?channelToken=${state}`
-      
-      const width = 600
-      const height = 700
-      const left = (window.screen.width - width) / 2
-      const top = (window.screen.height - height) / 2
-      
-      const popup = window.open(
-        authUrl,
-        'farcaster-auth',
-        `width=${width},height=${height},left=${left},top=${top}`
-      )
+    // Open Farcaster Auth in popup
+    const state = `${user.id}:${Date.now()}:${Math.random().toString(36).substring(7)}`
+    const authUrl = `https://warpcast.com/~/sign-in-with-farcaster?channelToken=${state}`
+    
+    const width = 600
+    const height = 700
+    const left = (window.screen.width - width) / 2
+    const top = (window.screen.height - height) / 2
+    
+    const popup = window.open(
+      authUrl,
+      'farcaster-auth',
+      `width=${width},height=${height},left=${left},top=${top}`
+    )
 
-      if (!popup) {
-        toast.error('Please allow popups to connect Farcaster')
-        setLinking(null)
-        return
-      }
-
-      // Monitor popup
-      const checkPopup = setInterval(() => {
-        if (popup.closed) {
-          clearInterval(checkPopup)
-          setLinking(null)
-        }
-      }, 1000)
-    } catch {
-      toast.error('Failed to initiate Farcaster authentication')
+    if (!popup) {
+      toast.error('Please allow popups to connect Farcaster')
       setLinking(null)
+      return
     }
+
+    // Monitor popup
+    const checkPopup = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checkPopup)
+        setLinking(null)
+      }
+    }, 1000)
   }
 
   return (

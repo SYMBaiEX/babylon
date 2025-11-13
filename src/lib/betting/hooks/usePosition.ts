@@ -16,15 +16,18 @@ export function usePosition(sessionId: string, address: string | undefined) {
 
   useEffect(() => {
     async function fetchPosition() {
-      if (!address) {
+      if (!address || !sessionId) {
+        setPosition(null)
         setIsLoading(false)
         return
       }
 
       setIsLoading(true)
-      try {
-        // TODO: Implement actual position fetching logic
-        // For now, return empty position
+      
+      const response = await fetch(`/api/betting/position?sessionId=${sessionId}&address=${address}`)
+      
+      if (!response.ok) {
+        console.error('Failed to fetch position:', response.statusText)
         setPosition({
           yesShares: BigInt(0),
           noShares: BigInt(0),
@@ -32,15 +35,24 @@ export function usePosition(sessionId: string, address: string | undefined) {
           totalReceived: BigInt(0),
           hasClaimed: false
         })
-      } catch (error) {
-        console.error('Failed to fetch position:', error)
-        setPosition(null)
-      } finally {
         setIsLoading(false)
+        return
       }
+      
+      const data = await response.json()
+      
+      setPosition({
+        yesShares: BigInt(data.yesShares || 0),
+        noShares: BigInt(data.noShares || 0),
+        totalSpent: BigInt(data.totalSpent || 0),
+        totalReceived: BigInt(data.totalReceived || 0),
+        hasClaimed: data.hasClaimed || false
+      })
+      
+      setIsLoading(false)
     }
 
-    fetchPosition()
+    void fetchPosition()
   }, [sessionId, address])
 
   return { position, isLoading }

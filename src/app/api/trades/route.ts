@@ -1,8 +1,105 @@
 /**
- * Public API: Trading Feed
- * GET /api/trades
+ * Trading Activity Feed API
  * 
- * Returns recent trades across all markets or for a specific user
+ * @route GET /api/trades
+ * @access Public
+ * 
+ * @description
+ * Public trading feed showing recent trading activity across all market types:
+ * - Prediction market positions (YES/NO binary predictions)
+ * - Perpetual futures positions (long/short leveraged trades)
+ * - NPC/agent trades with sentiment and reasoning
+ * - Balance transactions (buys, sells, deposits, withdrawals)
+ * 
+ * **Trade Types:**
+ * - **balance:** User balance transactions (pred_buy, pred_sell, perp operations)
+ * - **npc:** Agent/NPC trades with AI reasoning and sentiment
+ * - **position:** Prediction market positions with shares and pricing
+ * - **perp:** Perpetual futures positions with leverage and PnL
+ * 
+ * **Features:**
+ * - Unified feed across all market types
+ * - User-specific filtering
+ * - Pagination support
+ * - Rich trader profiles (users, agents, actors)
+ * - Market metadata (questions, tickers, organizations)
+ * - Real-time pricing and PnL calculations
+ * 
+ * **Query Parameters:**
+ * @query {number} limit - Trades per page (1-100, default: 50)
+ * @query {number} offset - Pagination offset (default: 0)
+ * @query {string} userId - Filter by specific user/agent/actor
+ * 
+ * **Trade Object Types:**
+ * 
+ * **Balance Transaction:**
+ * @property {string} type - 'balance'
+ * @property {object} user - Trader profile
+ * @property {string} transactionType - Transaction type (pred_buy, pred_sell, etc.)
+ * @property {string} amount - Transaction amount
+ * @property {string} balanceBefore - Balance before transaction
+ * @property {string} balanceAfter - Balance after transaction
+ * 
+ * **NPC/Agent Trade:**
+ * @property {string} type - 'npc'
+ * @property {object} user - Agent profile
+ * @property {string} marketType - Market type
+ * @property {string} ticker - Trading symbol
+ * @property {string} action - Trade action
+ * @property {string} side - Trade side (long/short, YES/NO)
+ * @property {string} sentiment - AI sentiment analysis
+ * @property {string} reason - AI reasoning for trade
+ * 
+ * **Position:**
+ * @property {string} type - 'position'
+ * @property {object} market - Market details
+ * @property {string} side - Position side (YES/NO)
+ * @property {string} shares - Number of shares
+ * @property {string} avgPrice - Average entry price
+ * 
+ * **Perpetual Position:**
+ * @property {string} type - 'perp'
+ * @property {object} organization - Company being traded
+ * @property {string} side - Position side (long/short)
+ * @property {number} leverage - Leverage multiplier
+ * @property {string} entryPrice - Entry price
+ * @property {string} currentPrice - Current price
+ * @property {string} unrealizedPnL - Unrealized profit/loss
+ * @property {string} liquidationPrice - Liquidation price
+ * 
+ * @returns {object} Trading feed response
+ * @property {array} trades - Array of trade objects (mixed types)
+ * @property {number} total - Total trades before limit
+ * @property {boolean} hasMore - Whether more trades available
+ * 
+ * @throws {500} Internal server error
+ * 
+ * @example
+ * ```typescript
+ * // Get recent trades
+ * const feed = await fetch('/api/trades?limit=20');
+ * const { trades } = await feed.json();
+ * 
+ * // Get user's trades
+ * const userTrades = await fetch(`/api/trades?userId=${userId}&limit=50`);
+ * 
+ * // Process different trade types
+ * trades.forEach(trade => {
+ *   switch(trade.type) {
+ *     case 'npc':
+ *       console.log(`${trade.user.displayName}: ${trade.reason}`);
+ *       break;
+ *     case 'perp':
+ *       console.log(`Perp ${trade.side} ${trade.ticker} @${trade.entryPrice}`);
+ *       break;
+ *     // ... handle other types
+ *   }
+ * });
+ * ```
+ * 
+ * @see {@link /lib/database-service} Database queries
+ * @see {@link /src/app/trades/page.tsx} Trading feed UI
+ * @see {@link /src/components/trading} Trading components
  */
 
 import type { NextRequest } from 'next/server';

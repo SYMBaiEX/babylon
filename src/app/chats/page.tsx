@@ -124,11 +124,9 @@ export default function ChatsPage() {
   } = usePullToRefresh({
     onRefresh: async () => {
       if (!selectedChatId) return
-      try {
-        await loadChatDetails(selectedChatId)
-      } catch (error) {
+      await loadChatDetails(selectedChatId).catch((error: Error) => {
         console.error('Error refreshing chat details:', error)
-      }
+      })
     },
   })
 
@@ -274,6 +272,10 @@ export default function ChatsPage() {
       headers: {
         Authorization: `Bearer ${token}`,
       },
+    }).catch(() => {
+      console.error('Failed to load chat details')
+      setLoadingChat(false)
+      throw new Error('Failed to load chat details')
     })
     
     // If chat doesn't exist yet (404), it's a new DM that hasn't been persisted
@@ -302,23 +304,19 @@ export default function ChatsPage() {
   const handleGroupCreated = useCallback(async (groupId: string, chatId: string) => {
     console.log('[ChatsPage] Group created:', groupId, chatId)
     
-    try {
-      // Reload chats to show the new group
-      await loadChats()
-      
-      // Wait a moment for state to update
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      // Select the new chat
-      setSelectedChatId(chatId)
-      
-      // Load the chat details immediately
-      await loadChatDetails(chatId)
-      
-      console.log('[ChatsPage] Group created and loaded successfully')
-    } catch (error) {
-      console.error('[ChatsPage] Error after group creation:', error)
-    }
+    // Reload chats to show the new group
+    await loadChats()
+    
+    // Wait a moment for state to update
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    // Select the new chat
+    setSelectedChatId(chatId)
+    
+    // Load the chat details immediately
+    await loadChatDetails(chatId)
+    
+    console.log('[ChatsPage] Group created and loaded successfully')
   }, [loadChats, loadChatDetails])
 
   const handleGroupUpdated = useCallback(async () => {
@@ -333,29 +331,32 @@ export default function ChatsPage() {
   const loadNewDMChat = useCallback(async (chatId: string, targetUserId: string) => {
     setLoadingChat(true)
     
-    try {
-      const token = await getAccessToken()
-      if (!token) {
-        console.error('Failed to get access token')
-        setLoadingChat(false)
-        return
-      }
+    const token = await getAccessToken()
+    if (!token) {
+      console.error('Failed to get access token')
+      setLoadingChat(false)
+      return
+    }
 
-      // Fetch target user info
-      const response = await fetch(`/api/users/${targetUserId}/profile`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      
-      if (!response.ok) {
-        console.error('Failed to load user info')
-        setLoadingChat(false)
-        return
-      }
+    // Fetch target user info
+    const response = await fetch(`/api/users/${targetUserId}/profile`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }).catch(() => {
+      console.error('Failed to load user info')
+      setLoadingChat(false)
+      throw new Error('Failed to load user info')
+    })
+    
+    if (!response.ok) {
+      console.error('Failed to load user info')
+      setLoadingChat(false)
+      return
+    }
 
-      const userData = await response.json()
-      const targetUser = userData.user
+    const userData = await response.json()
+    const targetUser = userData.user
       
       // Create a virtual chat details object for new DM
       setChatDetails({
@@ -405,11 +406,8 @@ export default function ChatsPage() {
         }
         return [newChat, ...prev]
       })
-    } catch (error) {
-      console.error('Error loading new DM:', error)
-    } finally {
+      
       setLoadingChat(false)
-    }
   }, [getAccessToken, user])
   
   // Check for chat ID in URL query params
@@ -477,28 +475,29 @@ export default function ChatsPage() {
       return
     }
 
-    try {
-      const response = await fetch(`/api/chats/${selectedChatId}/participants/me`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to leave chat')
-      }
-
-      setLeaveConfirmOpen(false)
-      setSelectedChatId(null)
-      await loadChats() // Refresh the chat list
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.'
-      setLeaveChatError(errorMessage)
-    } finally {
+    const response = await fetch(`/api/chats/${selectedChatId}/participants/me`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }).catch((error: Error) => {
+      setLeaveChatError(error.message)
       setIsLeavingChat(false)
+      throw error
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      const errorMessage = errorData.message || 'Failed to leave chat'
+      setLeaveChatError(errorMessage)
+      setIsLeavingChat(false)
+      throw new Error(errorMessage)
     }
+
+    setLeaveConfirmOpen(false)
+    setSelectedChatId(null)
+    await loadChats() // Refresh the chat list
+    setIsLeavingChat(false)
   }
 
   // Invite users handler (currently disabled)
@@ -546,33 +545,33 @@ export default function ChatsPage() {
       return
     }
 
-    try {
-      const response = await fetch(`/api/chats/${selectedChatId}/message`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ content: messageInput.trim() }),
-      })
-
-      const data = await response.json()
-
-      if (data.warnings && data.warnings.length > 0) {
-        setSendError(data.warnings.join('. '))
-        setTimeout(() => setSendError(null), 5000)
-      } else {
-        setSendSuccess(true)
-        setTimeout(() => setSendSuccess(false), 2000)
-      }
-
-      // SSE will handle adding the message in real-time
-      setMessageInput('')
-      void loadChats() // Refresh chat list to update last message
-    } catch (error) {
+    const response = await fetch(`/api/chats/${selectedChatId}/message`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ content: messageInput.trim() }),
+    }).catch((error: Error) => {
       setSendError('Failed to send message. Please try again.')
       console.error('Send message error:', error)
+      setSending(false)
+      throw error
+    })
+
+    const data = await response.json()
+
+    if (data.warnings && data.warnings.length > 0) {
+      setSendError(data.warnings.join('. '))
+      setTimeout(() => setSendError(null), 5000)
+    } else {
+      setSendSuccess(true)
+      setTimeout(() => setSendSuccess(false), 2000)
     }
+
+    // SSE will handle adding the message in real-time
+    setMessageInput('')
+    void loadChats() // Refresh chat list to update last message
     
     setSending(false)
   }
@@ -857,22 +856,22 @@ export default function ChatsPage() {
                             size="icon"
                             onClick={async () => {
                               // Fetch the group ID from the chat
-                              try {
-                                const token = await getAccessToken()
-                                const response = await fetch(`/api/chats/${chatDetails.chat.id}/group`, {
-                                  headers: {
-                                    Authorization: `Bearer ${token}`,
-                                  },
-                                })
-                                if (response.ok) {
-                                  const data = await response.json()
-                                  setSelectedGroupId(data.groupId)
-                                  setIsGroupManagementModalOpen(true)
-                                } else {
-                                  console.error('Failed to get group ID')
-                                }
-                              } catch (error) {
+                              const token = await getAccessToken()
+                              const response = await fetch(`/api/chats/${chatDetails.chat.id}/group`, {
+                                headers: {
+                                  Authorization: `Bearer ${token}`,
+                                },
+                              }).catch((error: Error) => {
                                 console.error('Error fetching group ID:', error)
+                                throw error
+                              })
+                              
+                              if (response.ok) {
+                                const data = await response.json()
+                                setSelectedGroupId(data.groupId)
+                                setIsGroupManagementModalOpen(true)
+                              } else {
+                                console.error('Failed to get group ID')
                               }
                             }}
                             title="Manage Group"
@@ -1347,22 +1346,22 @@ export default function ChatsPage() {
                             size="icon"
                             onClick={async () => {
                               // Fetch the group ID from the chat
-                              try {
-                                const token = await getAccessToken()
-                                const response = await fetch(`/api/chats/${chatDetails.chat.id}/group`, {
-                                  headers: {
-                                    Authorization: `Bearer ${token}`,
-                                  },
-                                })
-                                if (response.ok) {
-                                  const data = await response.json()
-                                  setSelectedGroupId(data.groupId)
-                                  setIsGroupManagementModalOpen(true)
-                                } else {
-                                  console.error('Failed to get group ID')
-                                }
-                              } catch (error) {
+                              const token = await getAccessToken()
+                              const response = await fetch(`/api/chats/${chatDetails.chat.id}/group`, {
+                                headers: {
+                                  Authorization: `Bearer ${token}`,
+                                },
+                              }).catch((error: Error) => {
                                 console.error('Error fetching group ID:', error)
+                                throw error
+                              })
+                              
+                              if (response.ok) {
+                                const data = await response.json()
+                                setSelectedGroupId(data.groupId)
+                                setIsGroupManagementModalOpen(true)
+                              } else {
+                                console.error('Failed to get group ID')
                               }
                             }}
                             title="Manage Group"

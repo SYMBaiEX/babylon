@@ -46,6 +46,7 @@ describe('Notification System', () => {
         id: 'test-user-1-' + timestamp,
         displayName: 'Test User 1',
         username: `testuser1-${timestamp}`,
+          isTest: true,
         updatedAt: new Date(),
       },
     });
@@ -55,6 +56,7 @@ describe('Notification System', () => {
         id: 'test-user-2-' + timestamp,
         displayName: 'Test User 2',
         username: `testuser2-${timestamp}`,
+          isTest: true,
         updatedAt: new Date(),
       },
     });

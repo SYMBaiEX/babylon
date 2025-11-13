@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { X as XIcon, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { logger } from '@/lib/logger'
 
 interface ShareVerificationModalProps {
   isOpen: boolean
@@ -34,45 +33,39 @@ export function ShareVerificationModal({
 
     setVerifying(true)
 
-    try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      }
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
-      }
-
-      const response = await fetch(`/api/users/${encodeURIComponent(userId)}/verify-share`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          shareId,
-          platform,
-          postUrl: postUrl.trim(),
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Failed to verify share' }))
-        throw new Error(error.error || 'Failed to verify share')
-      }
-
-      const data = await response.json()
-
-      if (data.verified) {
-        toast.success('Share verified! Thank you for sharing!')
-        onClose()
-      } else {
-        toast.error(data.message || 'Could not verify your post. Please check the URL.')
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to verify share'
-      toast.error(message)
-      logger.error('Failed to verify share', { error, shareId, platform }, 'ShareVerificationModal')
-    } finally {
-      setVerifying(false)
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
     }
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
+    const response = await fetch(`/api/users/${encodeURIComponent(userId)}/verify-share`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        shareId,
+        platform,
+        postUrl: postUrl.trim(),
+      }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to verify share' }))
+      setVerifying(false)
+      throw new Error(error.error || 'Failed to verify share')
+    }
+
+    const data = await response.json()
+
+    if (data.verified) {
+      toast.success('Share verified! Thank you for sharing!')
+      onClose()
+    } else {
+      toast.error(data.message || 'Could not verify your post. Please check the URL.')
+    }
+    setVerifying(false)
   }
 
   const platformName = platform === 'twitter' ? 'X' : 'Farcaster'

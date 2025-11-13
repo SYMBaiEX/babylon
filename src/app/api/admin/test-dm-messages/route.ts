@@ -71,57 +71,52 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Create DM chat ID (consistent format - sort IDs for consistency)
-  const sortedIds = [resolvedSenderId, resolvedRecipientId].sort();
-  const chatId = `dm-${sortedIds.join('-')}`;
+  const sortedIds = [resolvedSenderId, resolvedRecipientId].sort()
+  const chatId = `dm-${sortedIds.join('-')}`
 
-  // Create or get DM chat
-  let chat = await prisma.chat.findUnique({
+  await prisma.chat.findUnique({
     where: { id: chatId },
-  });
+  })
 
-  if (!chat) {
-    // Create DM chat
-    chat = await prisma.chat.create({
+  await prisma.chat.create({
+    data: {
+      id: chatId,
+      name: null,
+      isGroup: false,
+      updatedAt: new Date(),
+    },
+  })
+
+  const [senderParticipant, recipientParticipant] = await Promise.all([
+    prisma.chatParticipant.create({
       data: {
-        id: chatId,
-        name: null, // DMs don't have names
-        isGroup: false,
-        updatedAt: new Date(),
+        id: await generateSnowflakeId(),
+        chatId,
+        userId: resolvedSenderId,
       },
-    });
+    }),
+    prisma.chatParticipant.create({
+      data: {
+        id: await generateSnowflakeId(),
+        chatId,
+        userId: resolvedRecipientId,
+      },
+    }),
+  ])
 
-    // Add participants
-    const [senderParticipant, recipientParticipant] = await Promise.all([
-      prisma.chatParticipant.create({
-        data: {
-          id: generateSnowflakeId(),
-          chatId,
-          userId: resolvedSenderId,
-        },
-      }),
-      prisma.chatParticipant.create({
-        data: {
-          id: generateSnowflakeId(),
-          chatId,
-          userId: resolvedRecipientId,
-        },
-      }),
-    ]);
+  logger.info('Created new DM chat for test messages', { 
+    chatId, 
+    senderId: resolvedSenderId, 
+    recipientId: resolvedRecipientId,
+    senderParticipantId: senderParticipant.id,
+    recipientParticipantId: recipientParticipant.id
+  }, 'POST /api/admin/test-dm-messages')
 
-    logger.info('Created new DM chat for test messages', { 
-      chatId, 
-      senderId: resolvedSenderId, 
-      recipientId: resolvedRecipientId,
-      senderParticipantId: senderParticipant.id,
-      recipientParticipantId: recipientParticipant.id
-    }, 'POST /api/admin/test-dm-messages');
-  } else {
-    logger.info('Using existing DM chat for test messages', { 
-      chatId, 
-      senderId: resolvedSenderId, 
-      recipientId: resolvedRecipientId 
-    }, 'POST /api/admin/test-dm-messages');
-  }
+  logger.info('Using existing DM chat for test messages', { 
+    chatId, 
+    senderId: resolvedSenderId, 
+    recipientId: resolvedRecipientId 
+  }, 'POST /api/admin/test-dm-messages')
 
   // Send test messages in batches
   const batchSize = 10;
@@ -138,40 +133,35 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     const batch = [];
     
     for (let j = 0; j < batchSize && (i + j) < messageCount; j++) {
-      const messageNumber = i + j + 1;
-      const content = `Test message #${messageNumber} - This is a test DM message for pagination testing. ${new Date().toISOString()}`;
+      const messageNumber = i + j + 1
+      const content = `Test message #${messageNumber} - This is a test DM message for pagination testing. ${new Date().toISOString()}`
       
       batch.push({
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         content,
         chatId,
         senderId: resolvedSenderId,
-        createdAt: new Date(Date.now() + (i + j) * 100), // Slight delay to ensure ordering
-      });
+        createdAt: new Date(Date.now() + (i + j) * 100),
+      })
     }
 
-    try {
-      // Insert batch
-      const result = await prisma.message.createMany({
-        data: batch,
-      });
-      
-      logger.info(`Created batch of messages`, { 
-        batchNumber: Math.floor(i / batchSize) + 1,
-        batchSize: batch.length,
-        created: result.count,
-        totalSoFar: i + batch.length
-      }, 'POST /api/admin/test-dm-messages');
+    const result = await prisma.message.createMany({
+      data: batch,
+    })
+    
+    logger.info(`Created batch of messages`, { 
+      batchNumber: Math.floor(i / batchSize) + 1,
+      batchSize: batch.length,
+      created: result.count,
+      totalSoFar: i + batch.length
+    }, 'POST /api/admin/test-dm-messages')
 
-      messages.push(...batch);
-    } catch (error) {
-      logger.error('Failed to create message batch', { 
-        error,
-        batchNumber: Math.floor(i / batchSize) + 1,
-        batchSize: batch.length
-      }, 'POST /api/admin/test-dm-messages');
-      throw error;
-    }
+    messages.push(...batch)
+
+    logger.error('Failed to create message batch', { 
+      batchNumber: Math.floor(i / batchSize) + 1,
+      batchSize: batch.length
+    }, 'POST /api/admin/test-dm-messages')
 
     // Broadcast messages via SSE
     for (const msg of batch) {

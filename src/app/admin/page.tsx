@@ -11,12 +11,15 @@ import { NotificationsTab } from '@/components/admin/NotificationsTab'
 import { GroupsTab } from '@/components/admin/GroupsTab'
 import { FeesTab } from '@/components/admin/FeesTab'
 import { AdminManagementTab } from '@/components/admin/AdminManagementTab'
-import { Shield, Activity, Users, BarChart, Bell, MessageSquare, DollarSign, Layers, ShieldCheck } from 'lucide-react'
+import { ReportsTab } from '@/components/admin/ReportsTab'
+import { Shield, Activity, Users, BarChart, Bell, MessageSquare, DollarSign, Layers, ShieldCheck, Flag, Sparkles, Database } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { RegistryTab } from '@/components/admin/RegistryTab'
+import { AIModelsTab } from '@/components/admin/AIModelsTab'
+import { TrainingDataTab } from '@/components/admin/TrainingDataTab'
 
-type Tab = 'stats' | 'fees' | 'trades' | 'users' | 'registry' | 'groups' | 'notifications' | 'admins'
+type Tab = 'stats' | 'fees' | 'trades' | 'users' | 'registry' | 'groups' | 'notifications' | 'admins' | 'reports' | 'ai-models' | 'training-data'
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -41,21 +44,22 @@ export default function AdminDashboard() {
       return
     }
 
-    try {
-      // Check if user is admin by trying to fetch admin stats
-      const response = await fetch('/api/admin/stats')
-      if (!response.ok) {
-        setIsAuthorized(false)
-        setLoading(false)
-        return
-      }
-      setIsAuthorized(true)
-      setLoading(false)
-    } catch (error) {
+    // Check if user is admin by trying to fetch admin stats
+    const response = await fetch('/api/admin/stats').catch((error: Error) => {
       console.error('Admin access check failed:', error)
       setIsAuthorized(false)
       setLoading(false)
+      throw error
+    })
+    
+    if (!response.ok) {
+      setIsAuthorized(false)
+      setLoading(false)
+      return
     }
+    
+    setIsAuthorized(true)
+    setLoading(false)
   }, [authenticated, router, user])
 
   useEffect(() => {
@@ -92,9 +96,12 @@ export default function AdminDashboard() {
     { id: 'fees' as const, label: 'Fees', icon: DollarSign },
     { id: 'trades' as const, label: 'Trading Feed', icon: Activity },
     { id: 'users' as const, label: 'Users', icon: Users },
+    { id: 'reports' as const, label: 'Reports', icon: Flag },
     { id: 'admins' as const, label: 'Admins', icon: ShieldCheck },
     { id: 'registry' as const, label: 'Registry', icon: Layers },
     { id: 'groups' as const, label: 'Groups', icon: MessageSquare },
+    { id: 'ai-models' as const, label: 'AI Models', icon: Sparkles },
+    { id: 'training-data' as const, label: 'Training Data', icon: Database },
     { id: 'notifications' as const, label: 'Notifications', icon: Bell },
   ]
 
@@ -138,9 +145,12 @@ export default function AdminDashboard() {
         {activeTab === 'fees' && <FeesTab />}
         {activeTab === 'trades' && <TradingFeedTab />}
         {activeTab === 'users' && <UserManagementTab />}
+        {activeTab === 'reports' && <ReportsTab />}
         {activeTab === 'admins' && <AdminManagementTab />}
         {activeTab === 'registry' && <RegistryTab />}
         {activeTab === 'groups' && <GroupsTab />}
+        {activeTab === 'ai-models' && <AIModelsTab />}
+        {activeTab === 'training-data' && <TrainingDataTab />}
         {activeTab === 'notifications' && <NotificationsTab />}
       </div>
     </PageContainer>

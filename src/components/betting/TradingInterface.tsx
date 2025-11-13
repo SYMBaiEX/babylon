@@ -14,12 +14,8 @@ export function TradingInterface({ market }: { market: Market }) {
   const handleTrade = async () => {
     if (!amount || parseFloat(amount) <= 0) return
 
-    try {
-      await buyShares(side === 'yes', parseFloat(amount))
-      setAmount('')
-    } catch (error) {
-      console.error('Trade failed:', error)
-    }
+    await buyShares(side === 'yes', parseFloat(amount))
+    setAmount('')
   }
 
   if (market.resolved) {

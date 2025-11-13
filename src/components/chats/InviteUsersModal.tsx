@@ -51,35 +51,31 @@ export function InviteUsersModal({
     setIsSearching(true)
     setError(null)
 
-    try {
-      const token = await getAccessToken()
-      if (!token) {
-        setError('Authentication required')
-        return
-      }
-
-      const response = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to search users')
-      }
-
-      const data = await response.json()
-      // Filter out users already in the chat
-      const filteredUsers = data.users.filter(
-        (user: User) => !currentParticipantIds.includes(user.id)
-      )
-      setSearchResults(filteredUsers)
-    } catch (err) {
-      console.error('Error searching users:', err)
-      setError('Failed to search users')
-    } finally {
+    const token = await getAccessToken()
+    if (!token) {
+      setError('Authentication required')
       setIsSearching(false)
+      return
     }
+
+    const response = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+
+    if (!response.ok) {
+      setIsSearching(false)
+      throw new Error('Failed to search users')
+    }
+
+    const data = await response.json()
+    // Filter out users already in the chat
+    const filteredUsers = data.users.filter(
+      (user: User) => !currentParticipantIds.includes(user.id)
+    )
+    setSearchResults(filteredUsers)
+    setIsSearching(false)
   }, [getAccessToken, currentParticipantIds])
 
   // Debounced search
@@ -105,19 +101,13 @@ export function InviteUsersModal({
     setIsInviting(true)
     setError(null)
 
-    try {
-      await onInvite(selectedUsers.map((u) => u.id))
-      // Reset and close
-      setSelectedUsers([])
-      setSearchQuery('')
-      setSearchResults([])
-      onClose()
-    } catch (err) {
-      console.error('Error inviting users:', err)
-      setError(err instanceof Error ? err.message : 'Failed to invite users')
-    } finally {
-      setIsInviting(false)
-    }
+    await onInvite(selectedUsers.map((u) => u.id))
+    // Reset and close
+    setSelectedUsers([])
+    setSearchQuery('')
+    setSearchResults([])
+    onClose()
+    setIsInviting(false)
   }
 
   const handleClose = () => {

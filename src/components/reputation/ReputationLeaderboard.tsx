@@ -57,20 +57,15 @@ export function ReputationLeaderboard({
   useEffect(() => {
     const fetchLeaderboard = async () => {
       setLoading(true)
-      try {
-        const response = await fetch(
-          `/api/reputation/leaderboard?limit=${limit}&minGames=${minGames}`
-        )
-        const result = await response.json()
+      const response = await fetch(
+        `/api/reputation/leaderboard?limit=${limit}&minGames=${minGames}`
+      )
+      const result = await response.json()
 
-        if (result.success) {
-          setData(result)
-        }
-      } catch (error) {
-        console.error('Failed to fetch reputation leaderboard:', error)
-      } finally {
-        setLoading(false)
+      if (result.success) {
+        setData(result)
       }
+      setLoading(false)
     }
 
     fetchLeaderboard()

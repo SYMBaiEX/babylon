@@ -15,7 +15,7 @@ describe('Autonomous Coordinator', () => {
   let mockRuntime: IAgentRuntime
 
   beforeAll(async () => {
-    testAgentId = generateSnowflakeId()
+    testAgentId = await generateSnowflakeId()
 
     // Create test agent
     await prisma.user.create({
@@ -36,6 +36,7 @@ describe('Autonomous Coordinator', () => {
         virtualBalance: 10000,
         reputationPoints: 1000,
         agentPointsBalance: 1000,
+        isTest: true,
         updatedAt: new Date()
       }
     })

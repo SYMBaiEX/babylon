@@ -25,7 +25,7 @@
 
 import type { Plugin } from '@elizaos/core'
 import { logger } from '@/lib/logger'
-import { BabylonA2AClient } from '@/lib/a2a/client/babylon-a2a-client'
+import { createHttpA2AClient } from '@/lib/a2a/client'
 // Import all providers
 import {
   marketsProvider,
@@ -206,29 +206,16 @@ export async function initializeBabylonPlugin(
   }
 ) {
   
-  const defaultCapabilities = {
-    strategies: ['momentum', 'contrarian', 'value'],
-    markets: ['prediction', 'perpetual'],
-    actions: ['trade', 'social', 'chat'],
-    version: '1.0.0'
-  }
-  
   logger.info('Initializing Babylon plugin with A2A protocol', { endpoint: config.endpoint })
   
-  const a2aClient = new BabylonA2AClient({
+  const a2aClient = createHttpA2AClient({
     endpoint: config.endpoint,
-    credentials: config.credentials,
-    capabilities: {
-      strategies: config.capabilities?.strategies || defaultCapabilities.strategies,
-      markets: config.capabilities?.markets || defaultCapabilities.markets,
-      actions: config.capabilities?.actions || defaultCapabilities.actions,
-      version: config.capabilities?.version || defaultCapabilities.version
-    }
+    agentId: config.credentials.tokenId?.toString() || config.credentials.address,
+    address: config.credentials.address,
+    tokenId: config.credentials.tokenId
   })
   
-  // Connect to A2A server (REQUIRED - will throw on failure)
-  await a2aClient.connect()
-  logger.info('✅ A2A client connected successfully')
+  logger.info('✅ HTTP A2A client ready (no connection needed)')
   
   // Inject into runtime
   runtime.a2aClient = a2aClient

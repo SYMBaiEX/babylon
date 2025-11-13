@@ -76,81 +76,72 @@ export async function updateProfileBackendSigned({
     'BackendSigner'
   );
 
-  try {
-    // Create wallet client with server's private key
-    const account = privateKeyToAccount(PROFILE_MANAGER_PRIVATE_KEY as `0x${string}`);
-    const walletClient = createWalletClient({
-      account,
-      chain: baseSepolia,
-      transport: http(RPC_URL),
-    });
+  // Create wallet client with server's private key
+  const account = privateKeyToAccount(PROFILE_MANAGER_PRIVATE_KEY as `0x${string}`);
+  const walletClient = createWalletClient({
+    account,
+    chain: baseSepolia,
+    transport: http(RPC_URL),
+  });
 
-    const publicClient = createPublicClient({
-      chain: baseSepolia,
-      transport: http(RPC_URL),
-    });
+  const publicClient = createPublicClient({
+    chain: baseSepolia,
+    transport: http(RPC_URL),
+  });
 
-    const registryAddress = getIdentityRegistryAddress();
+  const registryAddress = getIdentityRegistryAddress();
 
-    // Prepare metadata JSON
-    const metadataJson = JSON.stringify({
-      ...metadata,
-      type: metadata.type || 'user',
-      updated: metadata.updated || new Date().toISOString(),
-    });
+  // Prepare metadata JSON
+  const metadataJson = JSON.stringify({
+    ...metadata,
+    type: metadata.type || 'user',
+    updated: metadata.updated || new Date().toISOString(),
+  });
 
-    logger.debug(
-      'Submitting on-chain update',
-      { 
-        registry: registryAddress, 
-        endpoint,
-        signer: account.address 
-      },
-      'BackendSigner'
-    );
+  logger.debug(
+    'Submitting on-chain update',
+    { 
+      registry: registryAddress, 
+      endpoint,
+      signer: account.address 
+    },
+    'BackendSigner'
+  );
 
-    // Sign and submit transaction
-    const txHash = await walletClient.writeContract({
-      address: registryAddress,
-      abi: identityRegistryAbi,
-      functionName: 'updateAgent',
-      args: [endpoint, CAPABILITIES_HASH, metadataJson],
-    });
+  // Sign and submit transaction
+  const txHash = await walletClient.writeContract({
+    address: registryAddress,
+    abi: identityRegistryAbi,
+    functionName: 'updateAgent',
+    args: [endpoint, CAPABILITIES_HASH, metadataJson],
+  });
 
-    logger.info(
-      'Profile update transaction submitted',
-      { txHash, userAddress },
-      'BackendSigner'
-    );
+  logger.info(
+    'Profile update transaction submitted',
+    { txHash, userAddress },
+    'BackendSigner'
+  );
 
-    // Wait for transaction confirmation
-    const receipt = await publicClient.waitForTransactionReceipt({
-      hash: txHash,
-      confirmations: 1,
-    });
+  // Wait for transaction confirmation
+  const receipt = await publicClient.waitForTransactionReceipt({
+    hash: txHash,
+    confirmations: 1,
+  });
 
-    if (receipt.status !== 'success') {
-      throw new Error('Transaction failed on-chain');
-    }
-
-    logger.info(
-      'Profile update confirmed on-chain',
-      { txHash, blockNumber: receipt.blockNumber },
-      'BackendSigner'
-    );
-
-    return {
-      txHash,
-      metadata,
-    };
-  } catch (error) {
-    logger.error(
-      'Backend signing failed',
-      { error, userAddress },
-      'BackendSigner'
-    );
-    throw error;
+  if (receipt.status !== 'success') {
+    throw new Error('Transaction failed on-chain');
   }
+
+  logger.info(
+    'Profile update confirmed on-chain',
+    { txHash, blockNumber: receipt.blockNumber },
+    'BackendSigner'
+  );
+
+  return {
+    txHash,
+    metadata,
+  };
 }
 
 /**
@@ -162,17 +153,12 @@ export async function updateProfileBackendSigned({
 export async function verifyBackendSignedUpdate(
   txHash: `0x${string}`
 ): Promise<boolean> {
-  try {
-    const publicClient = createPublicClient({
-      chain: baseSepolia,
-      transport: http(RPC_URL),
-    });
+  const publicClient = createPublicClient({
+    chain: baseSepolia,
+    transport: http(RPC_URL),
+  });
 
-    const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
-    return receipt.status === 'success';
-  } catch (error) {
-    logger.error('Failed to verify transaction', { error, txHash }, 'BackendSigner');
-    return false;
-  }
+  const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
+  return receipt.status === 'success';
 }
 

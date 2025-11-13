@@ -10,7 +10,7 @@
 import type { PrismaClient } from '@prisma/client';
 
 import { cachedDb } from '@/lib/cached-database-service';
-import { logger } from '@/lib/logger';
+// import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { EarnedPointsService } from '@/lib/services/earned-points-service';
 import { generateSnowflakeId } from '@/lib/snowflake';
@@ -51,7 +51,7 @@ export class WalletService {
     });
 
     if (!user) {
-      throw new Error('User not found');
+      throw new Error(`User not found: ${userId}`);
     }
 
     return {
@@ -74,7 +74,9 @@ export class WalletService {
       select: { virtualBalance: true },
     });
 
-    if (!user) return false;
+    if (!user) {
+      return false;
+    }
 
     return Number(user.virtualBalance) >= requiredAmount;
   }
@@ -94,20 +96,12 @@ export class WalletService {
     });
 
     if (!user) {
-      throw new Error('User not found');
+      throw new Error(`User not found: ${userId}`);
     }
 
     const currentBalance = Number(user.virtualBalance);
-
-    if (currentBalance < amount) {
-      throw new Error(
-        `Insufficient balance. Need ${amount}, have ${currentBalance}`
-      );
-    }
-
     const newBalance = currentBalance - amount;
 
-    // Update balance and record transaction in a single transaction
     await prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => {
       await tx.user.update({
         where: { id: userId },
@@ -118,10 +112,10 @@ export class WalletService {
 
       await tx.balanceTransaction.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           userId,
           type,
-          amount: -amount, // Negative for debit
+          amount: -amount,
           balanceBefore: currentBalance,
           balanceAfter: newBalance,
           relatedId,
@@ -130,14 +124,7 @@ export class WalletService {
       });
     });
 
-    // Invalidate user cache after balance change
-    await cachedDb.invalidateUserCache(userId).catch((err) => {
-      logger.error(
-        'Failed to invalidate user cache after debit',
-        { userId, error: err },
-        'WalletService'
-      );
-    });
+    await cachedDb.invalidateUserCache(userId);
   }
 
   /**
@@ -155,13 +142,12 @@ export class WalletService {
     });
 
     if (!user) {
-      throw new Error('User not found');
+      throw new Error(`User not found: ${userId}`);
     }
 
     const currentBalance = Number(user.virtualBalance);
     const newBalance = currentBalance + amount;
 
-    // Update balance and record transaction
     await prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => {
       await tx.user.update({
         where: { id: userId },
@@ -172,10 +158,10 @@ export class WalletService {
 
       await tx.balanceTransaction.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           userId,
           type,
-          amount: amount, // Positive for credit
+          amount: amount,
           balanceBefore: currentBalance,
           balanceAfter: newBalance,
           relatedId,
@@ -184,14 +170,7 @@ export class WalletService {
       });
     });
 
-    // Invalidate user cache after balance change
-    await cachedDb.invalidateUserCache(userId).catch((err) => {
-      logger.error(
-        'Failed to invalidate user cache after credit',
-        { userId, error: err },
-        'WalletService'
-      );
-    });
+    await cachedDb.invalidateUserCache(userId);
   }
 
   /**
@@ -212,7 +191,7 @@ export class WalletService {
     });
 
     if (!user) {
-      throw new Error('User not found');
+      throw new Error(`User not found: ${userId}`);
     }
 
     const previousLifetimePnL = Number(user.lifetimePnL);
@@ -225,29 +204,13 @@ export class WalletService {
       },
     });
 
-    let earnedPointsDelta = 0;
-    try {
-      earnedPointsDelta = await EarnedPointsService.awardEarnedPointsForPnL(
-        userId,
-        previousLifetimePnL,
-        newLifetimePnL,
-        tradeType,
-        relatedId
-      );
-    } catch (error) {
-      logger.warn(
-        'Failed to award earned points for PnL change',
-        {
-          userId,
-          previousLifetimePnL,
-          newLifetimePnL,
-          tradeType,
-          relatedId,
-          error,
-        },
-        'WalletService'
-      );
-    }
+    const earnedPointsDelta = await EarnedPointsService.awardEarnedPointsForPnL(
+      userId,
+      previousLifetimePnL,
+      newLifetimePnL,
+      tradeType,
+      relatedId
+    );
 
     return {
       previousLifetimePnL,
@@ -291,10 +254,9 @@ export class WalletService {
     });
 
     if (!user) {
-      throw new Error('User not found');
+      throw new Error(`User not found: ${userId}`);
     }
 
-    // Only initialize if balance is 0 (new user)
     if (Number(user.virtualBalance) === 0) {
       await prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => {
         await tx.user.update({
@@ -307,7 +269,7 @@ export class WalletService {
 
         await tx.balanceTransaction.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             userId,
             type: 'deposit',
             amount: this.STARTING_BALANCE,

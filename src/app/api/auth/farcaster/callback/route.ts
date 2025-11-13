@@ -1,6 +1,73 @@
 /**
- * Farcaster Auth Callback Handler
- * Handles the Farcaster Sign-In With Farcaster (SIWF) flow
+ * Farcaster Authentication Callback API
+ * 
+ * @route POST /api/auth/farcaster/callback
+ * @access Public
+ * 
+ * @description
+ * Handles the Farcaster "Sign-In With Farcaster" (SIWF) authentication flow.
+ * Verifies Farcaster signatures, links Farcaster accounts to user profiles,
+ * and awards bonus points for first-time linkage. Uses Neynar API for
+ * signature verification.
+ * 
+ * **Authentication Flow:**
+ * 1. User initiates Farcaster authentication on frontend
+ * 2. Farcaster app signs message with user's FID
+ * 3. Frontend sends signature and message to this callback
+ * 4. Server verifies signature using Neynar API
+ * 5. Farcaster account linked to user profile
+ * 6. Bonus points awarded on first link
+ * 
+ * **Security Features:**
+ * - Cryptographic signature verification via Neynar
+ * - State parameter with timestamp expiration (10 minutes)
+ * - Prevention of duplicate account linking
+ * - Validation against signature replay attacks
+ * 
+ * **POST /api/auth/farcaster/callback - Link Farcaster Account**
+ * 
+ * @param {string} message - Signed message from Farcaster
+ * @param {string} signature - Cryptographic signature
+ * @param {number} fid - Farcaster ID (FID)
+ * @param {string} username - Farcaster username
+ * @param {string} [displayName] - Display name from Farcaster
+ * @param {string} [pfpUrl] - Profile picture URL
+ * @param {string} state - State parameter (userId:timestamp)
+ * 
+ * @returns {object} Link result
+ * @property {boolean} success - Link success status
+ * @property {number} pointsAwarded - Bonus points awarded
+ * @property {number} newTotal - New total points balance
+ * 
+ * @throws {400} Bad Request - Invalid payload or expired state
+ * @throws {401} Unauthorized - Invalid signature
+ * @throws {404} Not Found - User not found
+ * @throws {409} Conflict - Farcaster account already linked
+ * @throws {500} Internal Server Error
+ * 
+ * @example
+ * ```typescript
+ * // Link Farcaster account
+ * const result = await fetch('/api/auth/farcaster/callback', {
+ *   method: 'POST',
+ *   headers: { 'Content-Type': 'application/json' },
+ *   body: JSON.stringify({
+ *     message: '0x...',
+ *     signature: '0x...',
+ *     fid: 12345,
+ *     username: 'alice',
+ *     displayName: 'Alice',
+ *     pfpUrl: 'https://...',
+ *     state: 'user-123:1234567890'
+ *   })
+ * });
+ * 
+ * const { pointsAwarded, newTotal } = await result.json();
+ * console.log(`Earned ${pointsAwarded} points!`);
+ * ```
+ * 
+ * @see {@link /lib/services/points-service} Points service
+ * @see {@link https://docs.neynar.com} Neynar API documentation
  */
 
 import type { NextRequest} from 'next/server';
@@ -143,55 +210,27 @@ async function verifyFarcasterSignature(
   signature: string,
   fid: number
 ): Promise<boolean> {
-  try {
-    // Use Neynar API for verification
-    if (process.env.NEYNAR_API_KEY) {
-      const response = await fetch('https://api.neynar.com/v2/farcaster/verification', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'api_key': process.env.NEYNAR_API_KEY,
-        },
-        body: JSON.stringify({
-          message,
-          signature,
-          fid,
-        }),
-      })
-
-      if (response.ok) {
-        const data = await response.json() as { valid?: boolean }
-        return data.valid === true
-      }
-
-      const errorText = await response.text()
-      logger.error('Neynar verification failed', { 
-        status: response.status, 
-        error: errorText,
-        fid 
-      }, 'verifyFarcasterSignature')
-      return false
-    }
-
-    // For development/MVP without Neynar API key
-    // TODO: Implement proper Farcaster signature verification or require Neynar in production
-    logger.warn('Farcaster verification skipped - no Neynar API key configured', { fid }, 'verifyFarcasterSignature')
-    
-    // Only allow in development
-    if (process.env.NODE_ENV === 'production') {
-      logger.error('Farcaster verification attempted in production without Neynar API key', { fid }, 'verifyFarcasterSignature')
-      return false
-    }
-    
-    return true
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    logger.error('Failed to verify Farcaster signature', { 
-      error: errorMessage, 
+  const response = await fetch('https://api.neynar.com/v2/farcaster/verification', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'api_key': process.env.NEYNAR_API_KEY!,
+    },
+    body: JSON.stringify({
+      message,
+      signature,
       fid,
-      stack: error instanceof Error ? error.stack : undefined 
-    }, 'verifyFarcasterSignature')
-    return false
-  }
+    }),
+  })
+
+  const errorText = await response.text()
+  logger.error('Neynar verification failed', { 
+    status: response.status, 
+    error: errorText,
+    fid 
+  }, 'verifyFarcasterSignature')
+
+  const data = await response.json() as { valid: boolean }
+  return data.valid
 }
 

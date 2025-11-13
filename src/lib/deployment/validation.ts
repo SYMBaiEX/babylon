@@ -57,58 +57,48 @@ export interface ValidationResult {
  * Load deployment info from JSON file
  */
 export async function loadDeployment(env: DeploymentEnv): Promise<DeploymentInfo | null> {
-  try {
-    const fs = await import('fs')
-    const path = await import('path')
+  const fs = await import('fs')
+  const path = await import('path')
 
-    const deploymentPaths = {
-      localnet: 'deployments/local/latest.json',
-      testnet: 'deployments/base-sepolia/latest.json',
-      mainnet: 'deployments/base/latest.json'
-    }
+  const deploymentPaths = {
+    localnet: 'deployments/local/latest.json',
+    testnet: 'deployments/base-sepolia/latest.json',
+    mainnet: 'deployments/base/latest.json'
+  }
 
-    const filepath = path.join(process.cwd(), deploymentPaths[env])
+  const filepath = path.join(process.cwd(), deploymentPaths[env])
 
-    if (!fs.existsSync(filepath)) {
-      return null
-    }
-
-    const data = fs.readFileSync(filepath, 'utf-8')
-    return JSON.parse(data) as DeploymentInfo
-  } catch (error) {
-    logger.error('Failed to load deployment info:', error, 'DeploymentValidation')
+  if (!fs.existsSync(filepath)) {
     return null
   }
+
+  const data = fs.readFileSync(filepath, 'utf-8')
+  return JSON.parse(data) as DeploymentInfo
 }
 
 /**
  * Save deployment info to JSON file
  */
 export async function saveDeployment(env: DeploymentEnv, deployment: DeploymentInfo): Promise<void> {
-  try {
-    const fs = await import('fs')
-    const path = await import('path')
+  const fs = await import('fs')
+  const path = await import('path')
 
-    const deploymentPaths = {
-      localnet: 'deployments/local',
-      testnet: 'deployments/base-sepolia',
-      mainnet: 'deployments/base'
-    }
-
-    const dirpath = path.join(process.cwd(), deploymentPaths[env])
-    const filepath = path.join(dirpath, 'latest.json')
-
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(dirpath)) {
-      fs.mkdirSync(dirpath, { recursive: true })
-    }
-
-    fs.writeFileSync(filepath, JSON.stringify(deployment, null, 2))
-    logger.info(`Deployment saved to ${filepath}`, undefined, 'DeploymentValidation')
-  } catch (error) {
-    logger.error('Failed to save deployment info:', error, 'DeploymentValidation')
-    throw error
+  const deploymentPaths = {
+    localnet: 'deployments/local',
+    testnet: 'deployments/base-sepolia',
+    mainnet: 'deployments/base'
   }
+
+  const dirpath = path.join(process.cwd(), deploymentPaths[env])
+  const filepath = path.join(dirpath, 'latest.json')
+
+  // Create directory if it doesn't exist
+  if (!fs.existsSync(dirpath)) {
+    fs.mkdirSync(dirpath, { recursive: true })
+  }
+
+  fs.writeFileSync(filepath, JSON.stringify(deployment, null, 2))
+  logger.info(`Deployment saved to ${filepath}`, undefined, 'DeploymentValidation')
 }
 
 /**
@@ -202,7 +192,7 @@ export async function validateDeployment(
           await diamondContract.getBalance(ethers.ZeroAddress)
         }
         logger.info('✅ Diamond contract is functional', undefined, 'DeploymentValidation')
-      } catch (error: unknown) {
+      } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         warnings.push(`Diamond contract may not be fully functional: ${errorMessage}`)
       }
@@ -215,7 +205,7 @@ export async function validateDeployment(
       warnings,
       contracts
     }
-  } catch (error: unknown) {
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     return {
       valid: false,
@@ -231,13 +221,9 @@ export async function validateDeployment(
  * Check if a contract is deployed at an address
  */
 export async function isContractDeployed(rpcUrl: string, address: string): Promise<boolean> {
-  try {
-    const provider = new ethers.JsonRpcProvider(rpcUrl)
-    const code = await provider.getCode(address)
-    return code !== '0x' && code !== '0x0'
-  } catch {
-    return false
-  }
+  const provider = new ethers.JsonRpcProvider(rpcUrl)
+  const code = await provider.getCode(address)
+  return code !== '0x' && code !== '0x0'
 }
 
 /**
@@ -382,7 +368,7 @@ export async function waitForTransaction(
         logger.info(`Transaction has ${confirmedBlocks}/${confirmations} confirmations`, undefined, 'DeploymentValidation')
       }
     } catch (error) {
-      logger.warn('Error checking transaction:', error, 'DeploymentValidation')
+      logger.warn('Error checking transaction', { error }, 'DeploymentValidation')
     }
 
     await new Promise(resolve => setTimeout(resolve, 5000))

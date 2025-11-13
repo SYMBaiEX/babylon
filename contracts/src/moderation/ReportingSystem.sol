@@ -280,7 +280,7 @@ contract ReportingSystem is Ownable, Pausable, ReentrancyGuard {
             targetAgentId: targetAgentId,
             sourceAppId: sourceAppId,
             reporter: msg.sender,
-            reporterAgentId: 0, // TODO: Need to track address->agentId mapping or use balanceOf
+            reporterAgentId: 0, // NOTE: Requires address->agentId mapping or ERC-8004 balanceOf query
             evidenceHash: evidenceHash,
             details: details,
             marketId: marketId,

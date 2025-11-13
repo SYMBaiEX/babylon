@@ -171,7 +171,61 @@ export default function NotificationsPage() {
     }
   }, [getAccessToken])
 
-  // Intersection Observer removed - notifications should only be marked as read when clicked, not when viewed
+  // Intersection Observer - marks notifications as read after viewing for 3 seconds
+  useEffect(() => {
+    if (!authenticated || notifications.length === 0) return
+
+    const timers = new Map<string, NodeJS.Timeout>()
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const notificationId = entry.target.getAttribute('data-notification-id')
+          if (!notificationId) return
+
+          const notification = notifications.find(n => n.id === notificationId)
+          if (!notification || notification.read) return
+
+          if (entry.isIntersecting) {
+            // Clear any existing timer first (in case notification re-enters viewport)
+            const existingTimer = timers.get(notificationId)
+            if (existingTimer) {
+              clearTimeout(existingTimer)
+            }
+            
+            // Start a timer when notification becomes visible
+            const timer = setTimeout(() => {
+              markAsRead(notificationId, false)
+            }, 3000) // 3 seconds delay
+            
+            timers.set(notificationId, timer)
+          } else {
+            // Cancel timer if notification leaves viewport before 3 seconds
+            const timer = timers.get(notificationId)
+            if (timer) {
+              clearTimeout(timer)
+              timers.delete(notificationId)
+            }
+          }
+        })
+      },
+      {
+        threshold: 0.5, // At least 50% of notification must be visible
+        rootMargin: '-50px' // Adds margin to trigger when fully in view
+      }
+    )
+
+    // Observe all notification elements
+    const notificationElements = document.querySelectorAll('[data-notification-id]')
+    notificationElements.forEach((el) => observer.observe(el))
+
+    // Cleanup
+    return () => {
+      observer.disconnect()
+      timers.forEach((timer) => clearTimeout(timer))
+      timers.clear()
+    }
+  }, [notifications, authenticated, markAsRead])
 
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString)
@@ -348,6 +402,7 @@ export default function NotificationsPage() {
                 key={notification.id}
                 href={getNotificationLink(notification)}
                 onClick={() => markAsRead(notification.id, notification.read)}
+                data-notification-id={notification.id}
                 className={cn(
                   'block px-4 py-4 border-b border-border',
                   'hover:bg-muted/30 transition-colors',

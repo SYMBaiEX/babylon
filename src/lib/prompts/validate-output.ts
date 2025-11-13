@@ -109,7 +109,7 @@ export function validateFeedPost(
   }
 
   // Check for common mistakes
-  if (text.includes('Elon') || text.includes('Sam Altman') || text.includes('Mark Zuckerberg')) {
+  if (text.includes('AIlon') || text.includes('Sam AIltman') || text.includes('Mark Zuckerborg')) {
     violations.push('CRITICAL: Contains partial real name - use full parody name');
   }
 

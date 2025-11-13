@@ -24,8 +24,8 @@ describe('NPC Groups', () => {
 
   beforeAll(async () => {
     // Create test NPCs
-    testNpc1Id = generateSnowflakeId();
-    testNpc2Id = generateSnowflakeId();
+    testNpc1Id = await generateSnowflakeId();
+    testNpc2Id = await generateSnowflakeId();
 
     await prisma.actor.createMany({
       data: [
@@ -33,12 +33,14 @@ describe('NPC Groups', () => {
           id: testNpc1Id,
           name: 'Test Trader Alice',
           hasPool: true,
+          isTest: true,
           updatedAt: new Date(),
         },
         {
           id: testNpc2Id,
           name: 'Test Analyst Bob',
           hasPool: true,
+          isTest: true,
           updatedAt: new Date(),
         },
       ],
@@ -47,7 +49,7 @@ describe('NPC Groups', () => {
     // Create positive relationship
     await prisma.actorRelationship.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         actor1Id: testNpc1Id,
         actor2Id: testNpc2Id,
         relationshipType: 'ally',
@@ -58,19 +60,20 @@ describe('NPC Groups', () => {
     });
 
     // Create test user
-    testUserId = generateSnowflakeId();
+    testUserId = await generateSnowflakeId();
     await prisma.user.create({
       data: {
         id: testUserId,
         username: `testuser_${Date.now()}`,
         displayName: 'Test User',
         isActor: false,
+        isTest: true,
         updatedAt: new Date(),
       },
     });
 
     // Create test post by NPC
-    testPostId = generateSnowflakeId();
+    testPostId = await generateSnowflakeId();
     await prisma.post.create({
       data: {
         id: testPostId,
@@ -143,7 +146,7 @@ describe('NPC Groups', () => {
       // Create a like
       await prisma.reaction.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           userId: testUserId,
           postId: testPostId,
           type: 'like',
@@ -167,7 +170,7 @@ describe('NPC Groups', () => {
       // Create a share
       await prisma.share.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           userId: testUserId,
           postId: testPostId,
         },
@@ -188,10 +191,10 @@ describe('NPC Groups', () => {
 
     it('should calculate engagement scores correctly', async () => {
       // Create multiple interactions
-      const commentId = generateSnowflakeId();
+      const commentId = await generateSnowflakeId();
       await prisma.userInteraction.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           userId: testUserId,
           npcId: testNpc1Id,
           postId: testPostId,

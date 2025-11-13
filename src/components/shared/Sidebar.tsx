@@ -86,13 +86,9 @@ function SidebarContent() {
   const copyReferralCode = async () => {
     if (!user?.referralCode) return
     
-    try {
-      await navigator.clipboard.writeText(user.referralCode)
-      setCopiedReferral(true)
-      setTimeout(() => setCopiedReferral(false), 2000)
-    } catch (err) {
-      console.error('Failed to copy referral code:', err)
-    }
+    await navigator.clipboard.writeText(user.referralCode)
+    setCopiedReferral(true)
+    setTimeout(() => setCopiedReferral(false), 2000)
   }
 
   // Render nothing if sidebar should be hidden (after all hooks)

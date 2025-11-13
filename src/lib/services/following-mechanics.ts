@@ -166,7 +166,7 @@ export class FollowingMechanics {
         followReason: reason,
       },
       create: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         userId,
         npcId,
         followReason: reason,

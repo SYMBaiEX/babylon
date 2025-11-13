@@ -8,18 +8,17 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import type { IAgentRuntime } from '@elizaos/core'
-import { ModelType } from '@elizaos/core'
+import { callGroqDirect } from '../llm/direct-groq'
 
 export class AutonomousGroupChatService {
   /**
    * Participate in group chats agent is member of
    */
-  async participateInGroupChats(agentUserId: string, runtime: IAgentRuntime): Promise<number> {
-    try {
-      const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
-      if (!agent || !agent.isAgent) {
-        throw new Error('Agent not found')
-      }
+  async participateInGroupChats(agentUserId: string, _runtime: IAgentRuntime): Promise<number> {
+    const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
+    if (!agent?.isAgent) {
+      throw new Error('Agent not found')
+    }
 
       // Get agent's group chats
       const groupChats = await prisma.chatParticipant.findMany({
@@ -77,9 +76,11 @@ Only respond if you have something valuable to add.
 
 Generate ONLY the message text, or "SKIP" if you shouldn't respond.`
 
-        const modelType = agent.agentModelTier === 'pro' ? ModelType.TEXT_LARGE : ModelType.TEXT_SMALL
-        const responseContent = await runtime.useModel(modelType, {
+        // Use large model (qwen3-32b) for quality group chat content
+        const responseContent = await callGroqDirect({
           prompt,
+          system: agent.agentSystem || undefined,
+          modelSize: 'large',  // Important social content
           temperature: 0.8,
           maxTokens: 80
         })
@@ -93,7 +94,7 @@ Generate ONLY the message text, or "SKIP" if you shouldn't respond.`
         // Create group message
         await prisma.message.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             chatId: chat.id,
             senderId: agentUserId,
             content: cleanContent,
@@ -109,10 +110,6 @@ Generate ONLY the message text, or "SKIP" if you shouldn't respond.`
       }
 
       return messagesCreated
-    } catch (error: unknown) {
-      logger.error(`Failed to participate in group chats for ${agentUserId}`, error, 'AutonomousGroupChat')
-      return 0
-    }
   }
 }
 

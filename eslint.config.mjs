@@ -9,13 +9,16 @@ export default [
       "dist/**",
       "out/**",
       "build/**",
-      "plugin-babylon/**",
       "**/*.config.*",
       "**/*.test.ts",
-      "src/a2a/**",
+      "**/__tests__/**",
       "src/lib/agents/plugins/babylon/**",
+      "src/lib/agents/plugins/plugin-trajectory-logger/**",
+      "src/lib/training/**",
+      "src/lib/benchmark/**",
+      "src/lib/agents/examples/**",
       "src/lib/agents/autonomous/a2a-only/**",
-      "src/lib/prompts/complete-example.ts"
+      "src/a2a/**"
     ]
   },
   {

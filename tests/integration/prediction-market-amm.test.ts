@@ -17,7 +17,7 @@ describe('Prediction Market AMM Integration', () => {
   beforeAll(async () => {
     // Create test question
     const questionNumber = Math.floor(Math.random() * 1000000);
-    testQuestionId = generateSnowflakeId();
+    testQuestionId = await generateSnowflakeId();
     
     await prisma.question.create({
       data: {

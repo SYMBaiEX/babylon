@@ -18,7 +18,7 @@ describe('Autonomous Features Tests', () => {
 
   beforeAll(async () => {
     // Create test agent
-    testAgentId = generateSnowflakeId()
+    testAgentId = await generateSnowflakeId()
     await prisma.user.create({
       data: {
         id: testAgentId,
@@ -38,6 +38,7 @@ describe('Autonomous Features Tests', () => {
         reputationPoints: 0,
         virtualBalance: 1000,
         totalDeposited: 0,
+          isTest: true,
         updatedAt: new Date()
       }
     })
@@ -73,7 +74,7 @@ describe('Autonomous Features Tests', () => {
     })
 
     it('should be able to create posts', async () => {
-      const postId = generateSnowflakeId()
+      const postId = await generateSnowflakeId()
       
       await prisma.post.create({
         data: {
@@ -101,12 +102,12 @@ describe('Autonomous Features Tests', () => {
 
     it('should be able to create comments', async () => {
       // Create post to comment on
-      const postId = generateSnowflakeId()
+      const postId = await generateSnowflakeId()
       await prisma.post.create({
         data: {
           id: postId,
           content: 'Post for testing',
-          authorId: generateSnowflakeId(),
+          authorId: await generateSnowflakeId(),
           type: 'post',
           timestamp: new Date(),
           createdAt: new Date()
@@ -114,7 +115,7 @@ describe('Autonomous Features Tests', () => {
       })
 
       // Create comment
-      const commentId = generateSnowflakeId()
+      const commentId = await generateSnowflakeId()
       await prisma.comment.create({
         data: {
           id: commentId,
@@ -141,7 +142,7 @@ describe('Autonomous Features Tests', () => {
 
     it('should be able to send messages', async () => {
       // Create DM chat
-      const chatId = generateSnowflakeId()
+      const chatId = await generateSnowflakeId()
       await prisma.chat.create({
         data: {
           id: chatId,
@@ -154,7 +155,7 @@ describe('Autonomous Features Tests', () => {
       // Add agent as participant
       await prisma.chatParticipant.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           chatId,
           userId: testAgentId,
           joinedAt: new Date()
@@ -162,7 +163,7 @@ describe('Autonomous Features Tests', () => {
       })
 
       // Create test message
-      const msgId = generateSnowflakeId()
+      const msgId = await generateSnowflakeId()
       await prisma.message.create({
         data: {
           id: msgId,
@@ -188,7 +189,7 @@ describe('Autonomous Features Tests', () => {
 
     it('should be able to participate in groups', async () => {
       // Create group chat
-      const chatId = generateSnowflakeId()
+      const chatId = await generateSnowflakeId()
       await prisma.chat.create({
         data: {
           id: chatId,
@@ -202,7 +203,7 @@ describe('Autonomous Features Tests', () => {
       // Add agent as participant
       await prisma.chatParticipant.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           chatId,
           userId: testAgentId,
           joinedAt: new Date()
@@ -210,7 +211,7 @@ describe('Autonomous Features Tests', () => {
       })
 
       // Create test message
-      const msgId = generateSnowflakeId()
+      const msgId = await generateSnowflakeId()
       await prisma.message.create({
         data: {
           id: msgId,

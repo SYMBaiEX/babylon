@@ -90,16 +90,11 @@ export function useAuth(): UseAuthReturn {
       return null;
     }
 
-    try {
-      const token = await getAccessToken();
-      if (typeof window !== 'undefined') {
-        window.__privyAccessToken = token;
-      }
-      return token ?? null;
-    } catch (error) {
-      logger.warn('Failed to obtain Privy access token', { error }, 'useAuth');
-      return null;
+    const token = await getAccessToken();
+    if (typeof window !== 'undefined') {
+      window.__privyAccessToken = token;
     }
+    return token ?? null;
   };
 
   const fetchCurrentUser = async () => {
@@ -115,35 +110,27 @@ export function useAuth(): UseAuthReturn {
       setIsLoadingProfile(true);
       setLoadedUserId(privyUser.id);
 
-      try {
-        const token = await persistAccessToken();
-        if (!token) {
-          logger.warn(
-            'Privy access token unavailable; delaying /api/users/me fetch',
-            { userId: privyUser.id },
-            'useAuth'
-          );
-          setIsLoadingProfile(false);
-          if (typeof window !== 'undefined') {
-            if (globalTokenRetryTimeout) {
-              window.clearTimeout(globalTokenRetryTimeout);
-            }
-            globalTokenRetryTimeout = window.setTimeout(() => {
-              void fetchCurrentUser();
-            }, 200);
+      const token = await persistAccessToken();
+      if (!token) {
+        logger.warn(
+          'Privy access token unavailable; delaying /api/users/me fetch',
+          { userId: privyUser.id },
+          'useAuth'
+        );
+        setIsLoadingProfile(false);
+        if (typeof window !== 'undefined') {
+          if (globalTokenRetryTimeout) {
+            window.clearTimeout(globalTokenRetryTimeout);
           }
-          return;
+          globalTokenRetryTimeout = window.setTimeout(() => {
+            void fetchCurrentUser();
+          }, 200);
         }
+        return;
+      }
 
-        const response = await apiFetch('/api/users/me');
-        const data = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          const message =
-            data?.error ||
-            `Failed to load authenticated user (status ${response.status})`;
-          throw new Error(message);
-        }
+      const response = await apiFetch('/api/users/me');
+      const data = await response.json();
 
         const me = data as {
           authenticated: boolean;
@@ -213,7 +200,6 @@ export function useAuth(): UseAuthReturn {
             setUser(hydratedUser);
           }
         } else {
-          // Only set user if not already set to prevent re-render loops
           if (!user || user.id !== privyUser.id) {
             setUser({
               id: privyUser.id,
@@ -225,31 +211,8 @@ export function useAuth(): UseAuthReturn {
             });
           }
         }
-      } catch (error) {
-        logger.error(
-          'Failed to resolve authenticated user via /api/users/me',
-          { error },
-          'useAuth'
-        );
-        setNeedsOnboarding(true);
-        setNeedsOnchain(false);
 
-        // Only set user if not already set to prevent re-render loops
-        if (!user || user.id !== privyUser.id) {
-          setUser({
-            id: privyUser.id,
-            walletAddress: wallet?.address,
-            displayName:
-              privyUser.email?.address ?? wallet?.address ?? 'Anonymous',
-            email: privyUser.email?.address,
-            profileImageUrl: user?.profileImageUrl ?? undefined,
-            coverImageUrl: user?.coverImageUrl ?? undefined,
-            onChainRegistered: false,
-          });
-        }
-      } finally {
         setIsLoadingProfile(false);
-      }
     };
 
     const promise = run().finally(() => {
@@ -293,73 +256,69 @@ export function useAuth(): UseAuthReturn {
       twitter?: { username?: string };
     };
 
-    try {
-      if (userWithFarcaster.farcaster) {
-        const farcaster = userWithFarcaster.farcaster;
-        await apiFetch(
-          `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              platform: 'farcaster',
-              username: farcaster.username || farcaster.displayName,
-            }),
-          }
-        );
-        logger.info(
-          'Linked Farcaster account during auth sync',
-          { username: farcaster.username },
-          'useAuth'
-        );
-      }
+    if (userWithFarcaster.farcaster) {
+      const farcaster = userWithFarcaster.farcaster;
+      await apiFetch(
+        `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            platform: 'farcaster',
+            username: farcaster.username || farcaster.displayName,
+          }),
+        }
+      );
+      logger.info(
+        'Linked Farcaster account during auth sync',
+        { username: farcaster.username },
+        'useAuth'
+      );
+    }
 
-      if (userWithTwitter.twitter) {
-        const twitter = userWithTwitter.twitter;
-        await apiFetch(
-          `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              platform: 'twitter',
-              username: twitter.username,
-            }),
-          }
-        );
-        logger.info(
-          'Linked Twitter account during auth sync',
-          { username: twitter.username },
-          'useAuth'
-        );
-      }
+    if (userWithTwitter.twitter) {
+      const twitter = userWithTwitter.twitter;
+      await apiFetch(
+        `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            platform: 'twitter',
+            username: twitter.username,
+          }),
+        }
+      );
+      logger.info(
+        'Linked Twitter account during auth sync',
+        { username: twitter.username },
+        'useAuth'
+      );
+    }
 
-      if (wallet?.address) {
-        await apiFetch(
-          `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              platform: 'wallet',
-              address: wallet.address.toLowerCase(),
-            }),
-          }
-        );
-        logger.info(
-          'Linked wallet during auth sync',
-          { address: wallet.address },
-          'useAuth'
-        );
-      }
-    } catch (error) {
-      logger.warn('Failed to auto-link social accounts', { error }, 'useAuth');
+    if (wallet?.address) {
+      await apiFetch(
+        `/api/users/${encodeURIComponent(privyUser.id)}/link-social`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            platform: 'wallet',
+            address: wallet.address.toLowerCase(),
+          }),
+        }
+      );
+      logger.info(
+        'Linked wallet during auth sync',
+        { address: wallet.address },
+        'useAuth'
+      );
     }
   };
 
@@ -403,33 +362,24 @@ export function useAuth(): UseAuthReturn {
       clearAuth();
       // Clear any stale localStorage cache
       if (typeof window !== 'undefined') {
-        try {
-          const stored = localStorage.getItem('babylon-auth');
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            // Clear if it's for a different user
-            if (
-              parsed.state?.user?.id &&
-              privyUser &&
-              parsed.state.user.id !== privyUser.id
-            ) {
-              logger.info(
-                'Clearing stale auth cache for different user',
-                {
-                  cachedUserId: parsed.state.user.id,
-                  currentUserId: privyUser?.id,
-                },
-                'useAuth'
-              );
-              localStorage.removeItem('babylon-auth');
-            }
+        const stored = localStorage.getItem('babylon-auth');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (
+            parsed.state?.user?.id &&
+            privyUser &&
+            parsed.state.user.id !== privyUser.id
+          ) {
+            logger.info(
+              'Clearing stale auth cache for different user',
+              {
+                cachedUserId: parsed.state.user.id,
+                currentUserId: privyUser?.id,
+              },
+              'useAuth'
+            );
+            localStorage.removeItem('babylon-auth');
           }
-        } catch (e) {
-          logger.warn(
-            'Failed to check localStorage cache',
-            { error: e },
-            'useAuth'
-          );
         }
       }
       return;

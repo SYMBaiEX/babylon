@@ -101,21 +101,14 @@ export function useUserPositions(
     setLoading(true);
     setError(null);
 
-    try {
-      const response = await fetch(
-        `/api/markets/positions/${encodeURIComponent(userId)}`,
-        { signal: controller.signal }
-      );
+    const response = await fetch(
+      `/api/markets/positions/${encodeURIComponent(userId)}`,
+      { signal: controller.signal }
+    );
 
-      const data = await response.json().catch(() => ({}));
+    const data = await response.json();
 
-      if (!response.ok) {
-        const message =
-          data?.error || `Failed to load positions (${response.status})`;
-        throw new Error(message);
-      }
-
-      if (controller.signal.aborted) return;
+    if (controller.signal.aborted) return;
 
       const perpetuals = data?.perpetuals ?? {};
       const predictions = data?.predictions ?? {};
@@ -154,20 +147,14 @@ export function useUserPositions(
         })
       ) as UserPredictionPosition[];
 
-      setState({
-        perpPositions: normalizedPerps,
-        predictionPositions: normalizedPredictions,
-        perpStats: perpetuals.stats ?? { ...DEFAULT_STATS },
-      });
-    } catch (err) {
-      if (controller.signal.aborted) return;
-      setError(
-        err instanceof Error ? err : new Error('Failed to load positions')
-      );
-    } finally {
-      if (!controller.signal.aborted) {
-        setLoading(false);
-      }
+    setState({
+      perpPositions: normalizedPerps,
+      predictionPositions: normalizedPredictions,
+      perpStats: perpetuals.stats ?? { ...DEFAULT_STATS },
+    });
+
+    if (!controller.signal.aborted) {
+      setLoading(false);
     }
   }, [userId, enabled]);
 

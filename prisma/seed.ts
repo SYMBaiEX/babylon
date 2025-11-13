@@ -56,31 +56,29 @@ async function main() {
     
     if (hasPool) poolActorsCount++;
     
-    try {
-      await prisma.actor.create({
-        data: {
-          id: actor.id,
-          name: actor.name,
-          description: actor.description || null,
-          domain: actor.domain || [],
-          personality: actor.personality || null,
-          tier: actor.tier || null,
-          affiliations: actor.affiliations || [],
-          postStyle: actor.postStyle || null,
-          postExample: actor.postExample || [],
-          hasPool: hasPool,
-          tradingBalance: hasPool ? new Prisma.Decimal(10000) : new Prisma.Decimal(0),
-          reputationPoints: hasPool ? 10000 : 0,
-          profileImageUrl: profileImageUrl,
-          updatedAt: new Date(),
-        },
-      });
-    } catch (error: any) {
+    await prisma.actor.create({
+      data: {
+        id: actor.id,
+        name: actor.name,
+        description: actor.description || null,
+        domain: actor.domain || [],
+        personality: actor.personality || null,
+        tier: actor.tier || null,
+        affiliations: actor.affiliations || [],
+        postStyle: actor.postStyle || null,
+        postExample: actor.postExample || [],
+        hasPool: hasPool,
+        tradingBalance: hasPool ? new Prisma.Decimal(10000) : new Prisma.Decimal(0),
+        reputationPoints: hasPool ? 10000 : 0,
+        profileImageUrl: profileImageUrl,
+        updatedAt: new Date(),
+      },
+    }).catch((error: { code?: string }) => {
       // Skip if actor already exists (P2002 = unique constraint violation)
       if (error.code !== 'P2002') {
         throw error;
       }
-    }
+    });
   }
   
   logger.info(`Seeded ${actorsData.actors.length} actors (${poolActorsCount} with trading pools)`, undefined, 'Script');
@@ -100,28 +98,25 @@ async function main() {
     const orgImagePath = join(process.cwd(), 'public', 'images', 'organizations', `${org.id}.jpg`);
     const imageUrl = existsSync(orgImagePath) ? `/images/organizations/${org.id}.jpg` : null;
     
-    try {
-      await prisma.organization.create({
-        data: {
-          id: org.id,
-          name: org.name,
-          description: org.description || '',
-          type: org.type,
-          canBeInvolved: org.canBeInvolved !== false,
-          initialPrice: org.initialPrice || null,
-          currentPrice: org.initialPrice || null,
-          imageUrl: imageUrl,
-          updatedAt: new Date(),
-        },
-      });
-      orgCount++;
-    } catch (error: any) {
+    await prisma.organization.create({
+      data: {
+        id: org.id,
+        name: org.name,
+        description: org.description || '',
+        type: org.type,
+        canBeInvolved: org.canBeInvolved !== false,
+        initialPrice: org.initialPrice || null,
+        currentPrice: org.initialPrice || null,
+        imageUrl: imageUrl,
+        updatedAt: new Date(),
+      },
+    }).catch((error: { code?: string }) => {
       // Skip if organization already exists (P2002 = unique constraint violation)
       if (error.code !== 'P2002') {
         throw error;
       }
-      orgCount++;
-    }
+    });
+    orgCount++;
   }
   
   logger.info(`Seeded ${orgCount} organizations`, undefined, 'Script');
@@ -136,7 +131,7 @@ async function main() {
     const now = new Date();
     await prisma.game.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         isContinuous: true,
         isRunning: true,
         currentDate: now,
@@ -160,12 +155,13 @@ async function main() {
   let poolsCreated = 0;
   let totalCapitalAllocated = 0;
   
-  for (const actor of poolActors) {
+  // Process pools in parallel batches
+  await Promise.all(poolActors.map(async (actor) => {
     // Calculate realistic capital allocation
     const actorData = actorsData.actors.find(a => a.id === actor.id);
     if (!actorData) {
       logger.warn(`Actor ${actor.id} not found in actors.json`, undefined, 'Script');
-      continue;
+      return;
     }
 
     const capitalAllocation = CapitalAllocationService.calculateCapital(actorData);
@@ -213,7 +209,7 @@ async function main() {
       const existingPool = await prisma.pool.findFirst({ where: { npcActorId: actor.id } });
       if (!existingPool) {
         poolsCreated++;
-        continue;
+        return;
       }
 
       const currentBalance = Number(existingPool.availableBalance);
@@ -244,7 +240,7 @@ async function main() {
         newBalance: capitalAllocation.initialPoolBalance,
       }, 'Script');
     }
-  }
+  }));
   
   logger.info(`Initialized ${poolsCreated} pools with $${totalCapitalAllocated.toLocaleString()} total capital`, undefined, 'Script');
 
@@ -253,9 +249,16 @@ async function main() {
   
   if (actorsData.relationships && actorsData.relationships.length > 0) {
     logger.info(`Found ${actorsData.relationships.length} relationships in actors.json`, { count: actorsData.relationships.length }, 'Script');
-    await FollowInitializer.importRelationships(actorsData.relationships);
-    await FollowInitializer.createFollows(actorsData.relationships);
-    logger.info('Relationships loaded successfully', undefined, 'Script');
+    
+    try {
+      await FollowInitializer.importRelationships(actorsData.relationships);
+      logger.info('✅ Relationships imported', undefined, 'Script');
+      
+      await FollowInitializer.createFollows(actorsData.relationships);
+      logger.info('✅ Follows created from relationships', undefined, 'Script');
+    } catch (error) {
+      logger.error('Failed to seed relationships', { error }, 'Script');
+    }
   } else {
     logger.warn('No relationships in actors.json', undefined, 'Script');
     logger.warn('Generate: npx tsx scripts/init-actor-relationships.ts', undefined, 'Script');
@@ -268,8 +271,13 @@ async function main() {
   
   if (existingFollows === 0) {
     logger.info('No NPC follows found, initializing...', undefined, 'Script');
-    await FollowInitializer.initializeActorFollows();
-    logger.info('NPC follow relationships initialized', undefined, 'Script');
+    
+    try {
+      await FollowInitializer.initializeActorFollows();
+      logger.info('✅ NPC follow relationships initialized', undefined, 'Script');
+    } catch (error) {
+      logger.error('Failed to initialize NPC follows', { error }, 'Script');
+    }
   } else {
     logger.info(`Found ${existingFollows} existing NPC follow relationships`, { count: existingFollows }, 'Script');
   }
@@ -312,26 +320,22 @@ async function main() {
 
   let usersCreated = 0;
   for (const userData of defaultUsers) {
-    try {
-      await prisma.user.upsert({
-        where: { id: userData.id },
-        update: {
-          username: userData.username,
-          displayName: userData.displayName,
-          bio: userData.bio,
-          profileImageUrl: userData.profileImageUrl,
-          profileComplete: userData.profileComplete,
-          hasUsername: userData.hasUsername,
-          hasBio: userData.hasBio,
-          hasProfileImage: userData.hasProfileImage,
-          reputationPoints: userData.reputationPoints,
-        },
-        create: userData,
-      });
-      usersCreated++;
-    } catch (error: any) {
-      logger.error(`Failed to create user ${userData.username}`, error, 'Script');
-    }
+    await prisma.user.upsert({
+      where: { id: userData.id },
+      update: {
+        username: userData.username,
+        displayName: userData.displayName,
+        bio: userData.bio,
+        profileImageUrl: userData.profileImageUrl,
+        profileComplete: userData.profileComplete,
+        hasUsername: userData.hasUsername,
+        hasBio: userData.hasBio,
+        hasProfileImage: userData.hasProfileImage,
+        reputationPoints: userData.reputationPoints,
+      },
+      create: userData,
+    });
+    usersCreated++;
   }
 
   logger.info(`Created/updated ${usersCreated} default real users for DM testing`, undefined, 'Script');
@@ -368,10 +372,11 @@ async function main() {
 
 main()
   .then(() => {
+    logger.info('✅ Seed completed successfully', undefined, 'Script');
     process.exit(0);
   })
   .catch((error) => {
-    logger.error('Seed failed:', error, 'Script');
+    logger.error('❌ Seed failed', { error }, 'Script');
     process.exit(1);
   })
   .finally(async () => {

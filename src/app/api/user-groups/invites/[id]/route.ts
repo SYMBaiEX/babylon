@@ -62,7 +62,7 @@ export const POST = withErrorHandling(async (
   // Add user to group
   await prisma.userGroupMember.create({
     data: {
-      id: generateSnowflakeId(),
+      id: await generateSnowflakeId(),
       groupId: invite.groupId,
       userId: user.userId,
       addedBy: invite.invitedBy,
@@ -93,7 +93,7 @@ export const POST = withErrorHandling(async (
       },
       update: {},
       create: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         chatId: chat.id,
         userId: user.userId,
       },

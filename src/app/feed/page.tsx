@@ -332,7 +332,7 @@ function FeedPageContent() {
       })
   }, [allGames, startTime, currentTimeMs])
 
-  // Choose data source: always use API posts for latest tab (GameEngine persists to database)
+  // Choose data source: always use API posts for latest tab (game tick persists to database)
   // For following tab, use followingPosts
   // Only use timelinePosts if we have no API posts (fallback for viewer mode)
   const apiPosts = (tab === 'following') 
@@ -434,7 +434,7 @@ function FeedPageContent() {
                   <div className="text-muted-foreground py-8 sm:py-12">
                     <h2 className="text-lg sm:text-xl font-semibold mb-2 text-foreground">⏱️ No Posts Yet</h2>
                     <p className="mb-4 text-sm sm:text-base">
-                      Game is running in the background via realtime-daemon. Content will appear here as it&apos;s generated.
+                      Game tick runs every 60 seconds. Content will appear here as it&apos;s generated.
                     </p>
                   </div>
                 </div>

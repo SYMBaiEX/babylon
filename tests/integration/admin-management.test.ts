@@ -23,6 +23,7 @@ describe('Admin Management API', () => {
         displayName: 'Test Admin',
         isAdmin: true,
         isActor: false,
+          isTest: true,
         updatedAt: new Date(),
       },
     });
@@ -36,6 +37,7 @@ describe('Admin Management API', () => {
         displayName: 'Test User',
         isAdmin: false,
         isActor: false,
+          isTest: true,
         updatedAt: new Date(),
       },
     });
@@ -49,6 +51,7 @@ describe('Admin Management API', () => {
         displayName: 'Test Actor',
         isAdmin: false,
         isActor: true,
+          isTest: true,
         updatedAt: new Date(),
       },
     });
@@ -209,6 +212,7 @@ describe('Admin Management API', () => {
           isAdmin: false,
           isActor: false,
           isBanned: true,
+          isTest: true,
           updatedAt: new Date(),
         },
       });

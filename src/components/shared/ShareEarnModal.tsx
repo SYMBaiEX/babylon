@@ -63,22 +63,12 @@ export function ShareEarnModal({
   }, [isOpen, authenticated, user])
 
   const checkConfiguration = async () => {
-    try {
-      const response = await fetch('/api/auth/credentials/status')
-      if (response.ok) {
-        const data = await response.json() as { twitter?: boolean; farcaster?: boolean }
-        setIsTwitterConfigured(data.twitter || false)
-      } else {
-        logger.warn('Failed to check credentials status', { status: response.status }, 'ShareEarnModal')
-        // Default to true to not block users if check fails
-        setIsTwitterConfigured(true)
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      logger.error('Failed to check credentials status', { 
-        error: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined 
-      }, 'ShareEarnModal')
+    const response = await fetch('/api/auth/credentials/status')
+    if (response.ok) {
+      const data = await response.json() as { twitter?: boolean; farcaster?: boolean }
+      setIsTwitterConfigured(data.twitter || false)
+    } else {
+      logger.warn('Failed to check credentials status', { status: response.status }, 'ShareEarnModal')
       // Default to true to not block users if check fails
       setIsTwitterConfigured(true)
     }
@@ -90,17 +80,9 @@ export function ShareEarnModal({
     const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
     if (!token) return
 
-    try {
-      // Check for existing share actions
-      // This would require a new API endpoint or passing this data in
-      // For now, we'll check locally based on the response when sharing
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      logger.error('Failed to check existing shares', { 
-        error: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined 
-      }, 'ShareEarnModal')
-    }
+    // Check for existing share actions
+    // This would require a new API endpoint or passing this data in
+    // For now, we'll check locally based on the response when sharing
   }
 
   const trackShare = async (platform: 'twitter' | 'farcaster'): Promise<boolean> => {
@@ -115,38 +97,34 @@ export function ShareEarnModal({
       return false
     }
 
-    try {
-      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/share`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          platform,
-          contentType,
-          contentId,
-          url: shareUrl,
-        }),
-      })
+    const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/share`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        platform,
+        contentType,
+        contentId,
+        url: shareUrl,
+      }),
+    })
 
-      if (response.ok) {
-        const data = await response.json()
-        const pointsAwarded = data.points?.awarded > 0
-        const alreadyAwarded = data.points?.alreadyAwarded
-        
-        if (pointsAwarded) {
-          logger.info(
-            `Earned ${data.points.awarded} points for sharing to ${platform}`,
-            { platform, points: data.points.awarded },
-            'ShareEarnModal'
-          )
-        }
-        
-        return pointsAwarded || alreadyAwarded
+    if (response.ok) {
+      const data = await response.json()
+      const pointsAwarded = data.points?.awarded > 0
+      const alreadyAwarded = data.points?.alreadyAwarded
+      
+      if (pointsAwarded) {
+        logger.info(
+          `Earned ${data.points.awarded} points for sharing to ${platform}`,
+          { platform, points: data.points.awarded },
+          'ShareEarnModal'
+        )
       }
-    } catch (error) {
-      logger.error('Failed to track share', { error, platform }, 'ShareEarnModal')
+      
+      return pointsAwarded || alreadyAwarded
     }
     
     return false

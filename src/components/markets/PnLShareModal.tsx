@@ -119,20 +119,14 @@ export function PnLShareModal({
 
     const generatePreview = async () => {
       setIsGeneratingImage(true)
-      try {
-        const htmlToImage = await import('html-to-image')
-        const dataUrl = await htmlToImage.toPng(offscreenCardRef.current!, {
-          pixelRatio: 2,
-          cacheBust: true,
-          backgroundColor: '#050816',
-        })
-        setPreviewImageUrl(dataUrl)
-      } catch (error) {
-        console.error('Failed to generate preview:', error)
-        toast.error('Failed to generate preview')
-      } finally {
-        setIsGeneratingImage(false)
-      }
+      const htmlToImage = await import('html-to-image')
+      const dataUrl = await htmlToImage.toPng(offscreenCardRef.current!, {
+        pixelRatio: 2,
+        cacheBust: true,
+        backgroundColor: '#050816',
+      })
+      setPreviewImageUrl(dataUrl)
+      setIsGeneratingImage(false)
     }
 
     // Small delay to ensure DOM is ready

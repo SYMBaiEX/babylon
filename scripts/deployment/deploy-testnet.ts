@@ -54,13 +54,8 @@ async function main() {
 
   // 2. Compile contracts
   logger.info('Compiling contracts...', undefined, 'Script')
-  try {
-    await $`forge build`.quiet()
-    logger.info('✅ Contracts compiled', undefined, 'Script')
-  } catch (error) {
-    logger.error('❌ Compilation failed', error, 'Script')
-    process.exit(1)
-  }
+  await $`forge build`.quiet()
+  logger.info('✅ Contracts compiled', undefined, 'Script')
 
   // 3. Confirm deployment
   logger.info('', undefined, 'Script')
@@ -94,21 +89,20 @@ async function main() {
   const scriptPath = 'scripts/DeployBabylon.s.sol:DeployBabylon'
   const verifyFlag = process.env.ETHERSCAN_API_KEY ? '--verify' : ''
 
-  try {
-    const output = await $`forge script ${scriptPath} \
-      --rpc-url ${BASE_SEPOLIA_RPC_URL} \
-      --broadcast \
-      ${verifyFlag} \
-      -vvv`.text()
+  const output = await $`forge script ${scriptPath} \
+    --rpc-url ${BASE_SEPOLIA_RPC_URL} \
+    --broadcast \
+    ${verifyFlag} \
+    -vvv`.text()
 
-    logger.info('✅ Deployment transaction sent', undefined, 'Script')
+  logger.info('✅ Deployment transaction sent', undefined, 'Script')
 
-    // Parse output for contract addresses
-    const addresses = parseDeploymentOutput(output)
+  // Parse output for contract addresses
+  const addresses = parseDeploymentOutput(output)
 
-    if (!addresses.diamond) {
-      throw new Error('Failed to parse deployment addresses from output')
-    }
+  if (!addresses.diamond) {
+    throw new Error('Failed to parse deployment addresses from output')
+  }
 
     logger.info('Contract addresses:', undefined, 'Script')
     logger.info(`  Diamond: ${addresses.diamond}`, undefined, 'Script')
@@ -227,14 +221,13 @@ async function attemptAgent0Registration(): Promise<void> {
   // Try to register
   logger.info('Attempting Agent0 registration...', undefined, 'Script')
 
-  try {
-    const result = await $`bun run agent0:register`.quiet()
+  await $`bun run agent0:register`.quiet().then(() => {
     logger.info('✅ Agent0 registration successful!', undefined, 'Script')
     logger.info('   Your game is now discoverable in the Agent0 network', undefined, 'Script')
-  } catch (error) {
+  }).catch(() => {
     logger.warn('⚠️  Agent0 registration failed (you can register manually later)', undefined, 'Script')
     logger.info('   Run: bun run agent0:register', undefined, 'Script')
-  }
+  })
 }
 
 /**

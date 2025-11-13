@@ -27,49 +27,41 @@ async function main() {
   logger.info('='.repeat(60), undefined, 'Script')
 
   // 1. Check Anvil is running
-  try {
-    await $`cast block-number --rpc-url ${ANVIL_RPC_URL}`.quiet()
-    logger.info('✅ Anvil is running', undefined, 'Script')
-  } catch (error) {
+  await $`cast block-number --rpc-url ${ANVIL_RPC_URL}`.quiet().catch(() => {
     logger.error('❌ Anvil is not running', undefined, 'Script')
     logger.info('Start Anvil with: docker-compose up -d anvil', undefined, 'Script')
     process.exit(1)
-  }
+  })
+  logger.info('✅ Anvil is running', undefined, 'Script')
 
   // 2. Compile contracts
   logger.info('Compiling contracts...', undefined, 'Script')
-  try {
-    await $`forge build`.quiet()
-    logger.info('✅ Contracts compiled', undefined, 'Script')
-  } catch (error) {
-    logger.error('❌ Compilation failed', error, 'Script')
-    process.exit(1)
-  }
+  await $`forge build`.quiet()
+  logger.info('✅ Contracts compiled', undefined, 'Script')
 
   // 3. Deploy using forge script
   logger.info('Deploying contracts...', undefined, 'Script')
 
   const scriptPath = 'scripts/DeployBabylon.s.sol:DeployBabylon'
 
-  try {
-    // Set environment variables for the forge script
-    process.env.DEPLOYER_PRIVATE_KEY = ANVIL_PRIVATE_KEY
-    process.env.ETHERSCAN_API_KEY = 'dummy' // Not used for local deployment
-    
-    const output = await $`forge script ${scriptPath} \
-      --rpc-url ${ANVIL_RPC_URL} \
-      --private-key ${ANVIL_PRIVATE_KEY} \
-      --broadcast \
-      --legacy`.text()
+  // Set environment variables for the forge script
+  process.env.DEPLOYER_PRIVATE_KEY = ANVIL_PRIVATE_KEY
+  process.env.ETHERSCAN_API_KEY = 'dummy' // Not used for local deployment
+  
+  const output = await $`forge script ${scriptPath} \
+    --rpc-url ${ANVIL_RPC_URL} \
+    --private-key ${ANVIL_PRIVATE_KEY} \
+    --broadcast \
+    --legacy`.text()
 
-    logger.info('✅ Deployment transaction sent', undefined, 'Script')
+  logger.info('✅ Deployment transaction sent', undefined, 'Script')
 
-    // Parse output for contract addresses
-    const addresses = parseDeploymentOutput(output)
+  // Parse output for contract addresses
+  const addresses = parseDeploymentOutput(output)
 
-    if (!addresses.diamond) {
-      throw new Error('Failed to parse deployment addresses from output')
-    }
+  if (!addresses.diamond) {
+    throw new Error('Failed to parse deployment addresses from output')
+  }
 
     logger.info('Contract addresses:', undefined, 'Script')
     logger.info('\n--- Diamond System ---', undefined, 'Script')

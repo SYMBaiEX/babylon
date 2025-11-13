@@ -172,18 +172,19 @@ export class NPCGroupDynamicsService {
         const chatName = `${npc.name}'s Circle`;
 
         await prisma.chat.create({
-          data: {
-            id: chatId,
-            name: chatName,
-            isGroup: true,
-            updatedAt: new Date(),
-            ChatParticipant: {
-              create: Array.from(memberIds).map(memberId => ({
-                id: generateSnowflakeId(),
-                userId: memberId,
-              })),
-            },
+        data: {
+          id: chatId,
+          name: chatName,
+          isGroup: true,
+          updatedAt: new Date(),
+          ChatParticipant: {
+            // @ts-expect-error - Array map with async is a known pattern
+            create: Array.from(memberIds).map(memberId => ({
+              id: await generateSnowflakeId(),
+              userId: memberId,
+            })),
           },
+        },
         });
 
         groupsCreated++;
@@ -275,7 +276,7 @@ export class NPCGroupDynamicsService {
             // Add to group
             await prisma.chatParticipant.create({
               data: {
-                id: generateSnowflakeId(),
+                id: await generateSnowflakeId(),
                 chatId: group.id,
                 userId: candidate.id,
               },
@@ -512,7 +513,7 @@ Return your response as JSON in this exact format:
           // Create the message
           await prisma.message.create({
             data: {
-              id: generateSnowflakeId(),
+              id: await generateSnowflakeId(),
               content: messageContent,
               chatId: group.id,
               senderId: randomNpc.id,
@@ -727,20 +728,19 @@ Return your response as JSON in this exact format:
   private static async inviteUsersToGroups(): Promise<number> {
     let usersInvited = 0;
 
-    try {
-      // Get groups with space for more members
-      const groups = await prisma.chat.findMany({
-        where: {
-          isGroup: true,
-        },
-        include: {
-          ChatParticipant: {
-            select: {
-              userId: true,
-            },
+    // Get groups with space for more members
+    const groups = await prisma.chat.findMany({
+      where: {
+        isGroup: true,
+      },
+      include: {
+        ChatParticipant: {
+          select: {
+            userId: true,
           },
         },
-      });
+      },
+    });
 
       for (const group of groups) {
         // Check if group has space
@@ -851,7 +851,7 @@ Return your response as JSON in this exact format:
         // Create the invitation
         await prisma.userGroupInvite.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             groupId: group.id,
             invitedUserId: selectedCandidate.user.id,
             invitedBy: invitingNpc.id,
@@ -872,9 +872,6 @@ Return your response as JSON in this exact format:
           breakdown: selectedCandidate.breakdown,
         }, 'NPCGroupDynamicsService');
       }
-    } catch (error) {
-      logger.error('Error inviting users to groups', { error }, 'NPCGroupDynamicsService');
-    }
 
     return usersInvited;
   }
@@ -890,31 +887,30 @@ Return your response as JSON in this exact format:
   private static async kickUsersWithWeightedLogic(): Promise<number> {
     let usersKicked = 0;
 
-    try {
-      // Only check for kicks some of the time
-      if (Math.random() > this.KICK_CHECK_CHANCE) {
-        return 0;
-      }
+    // Only check for kicks some of the time
+    if (Math.random() > this.KICK_CHECK_CHANCE) {
+      return 0;
+    }
 
-      // Get all group chats
-      const groups = await prisma.chat.findMany({
-        where: {
-          isGroup: true,
-        },
-        include: {
-          ChatParticipant: true,
-          Message: {
-            where: {
-              createdAt: {
-                gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
-              },
-            },
-            select: {
-              senderId: true,
+    // Get all group chats
+    const groups = await prisma.chat.findMany({
+      where: {
+        isGroup: true,
+      },
+      include: {
+        ChatParticipant: true,
+        Message: {
+          where: {
+            createdAt: {
+              gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
             },
           },
+          select: {
+            senderId: true,
+          },
         },
-      });
+      },
+    });
 
       for (const group of groups) {
         // Get user details for participants
@@ -977,53 +973,41 @@ Return your response as JSON in this exact format:
 
           // Apply the probability (make kicks rare per tick)
           if (kickProbability > 0 && Math.random() < kickProbability * 0.05) { // 5% multiplier to make it rare per tick
-            try {
-              // Remove from chat participants
-              await prisma.chatParticipant.deleteMany({
-                where: {
-                  chatId: group.id,
-                  userId: userId,
-                },
-              });
-
-              // If GroupChatMembership exists, mark as removed
-              await prisma.groupChatMembership.updateMany({
-                where: {
-                  chatId: group.id,
-                  userId: userId,
-                },
-                data: {
-                  isActive: false,
-                  removedAt: new Date(),
-                  sweepReason: reason,
-                },
-              });
-
-              usersKicked++;
-              logger.info(`User kicked from group with weighted logic`, {
-                userId,
-                userName: participant.displayName,
+            // Remove from chat participants
+            await prisma.chatParticipant.deleteMany({
+              where: {
                 chatId: group.id,
-                chatName: group.name,
-                reason,
-                kickProbability: kickProbability.toFixed(2),
-                messageCount: userMessageCount,
-                totalMessages,
-              }, 'NPCGroupDynamicsService');
+                userId: userId,
+              },
+            });
 
-            } catch (error) {
-              logger.warn('Failed to kick user from group', {
-                error,
-                userId,
+            // If GroupChatMembership exists, mark as removed
+            await prisma.groupChatMembership.updateMany({
+              where: {
                 chatId: group.id,
-              }, 'NPCGroupDynamicsService');
-            }
+                userId: userId,
+              },
+              data: {
+                isActive: false,
+                removedAt: new Date(),
+                sweepReason: reason,
+              },
+            });
+
+            usersKicked++;
+            logger.info(`User kicked from group with weighted logic`, {
+              userId,
+              userName: participant.displayName,
+              chatId: group.id,
+              chatName: group.name,
+              reason,
+              kickProbability: kickProbability.toFixed(2),
+              messageCount: userMessageCount,
+              totalMessages,
+            }, 'NPCGroupDynamicsService');
           }
         }
       }
-    } catch (error) {
-      logger.error('Error in weighted kick logic', { error }, 'NPCGroupDynamicsService');
-    }
 
     return usersKicked;
   }

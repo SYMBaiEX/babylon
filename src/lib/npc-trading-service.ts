@@ -261,7 +261,7 @@ export class NPCTradingService {
 
     await prisma.nPCTrade.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         npcActorId: actor.id,
         poolId,
         marketType: signal.type,
@@ -305,7 +305,7 @@ export class NPCTradingService {
 
       await tx.poolPosition.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           poolId,
           marketType: 'prediction',
           marketId,
@@ -352,7 +352,7 @@ export class NPCTradingService {
 
       await tx.poolPosition.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           poolId,
           marketType: 'perp',
           ticker,

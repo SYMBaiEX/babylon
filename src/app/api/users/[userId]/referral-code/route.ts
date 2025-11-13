@@ -110,7 +110,7 @@ export const GET = withErrorHandling(async (
   if (!existingReferral) {
     await prisma.referral.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         referrerId: canonicalUserId,
         referralCode: user.referralCode!,
         status: 'pending',

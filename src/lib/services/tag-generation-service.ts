@@ -73,8 +73,9 @@ Return ONLY a JSON array of objects with this exact format:
 
 If no good tags can be extracted, return an empty array: []`
 
+  // Use fast evaluation model for tag extraction (data processing)
   const model = process.env.GROQ_API_KEY 
-    ? 'llama-3.3-70b-versatile' // Updated Groq model
+    ? 'openai/gpt-oss-120b' // Fast model for tag generation
     : 'gpt-4o-mini'
 
   const response = await openai.chat.completions.create({
@@ -99,80 +100,36 @@ If no good tags can be extracted, return an empty array: []`
     return []
   }
 
-  // Parse JSON response
-  // Remove markdown code blocks and other formatting
   let jsonContent = content_text
     .replace(/```json\n?/g, '')
     .replace(/```\n?/g, '')
     .trim()
   
-  // Try to extract JSON array if LLM added extra text
   const arrayMatch = jsonContent.match(/\[[\s\S]*\]/)
   if (arrayMatch) {
     jsonContent = arrayMatch[0]
   }
   
-  let tags: Array<{ displayName: string; category?: string }>
-  try {
-    tags = JSON.parse(jsonContent)
-  } catch (parseError) {
-    // Try one more time with more aggressive cleaning
-    try {
-      // Remove any text before [ and after ]
-      const cleanedContent = jsonContent
-        .replace(/^[^[]*/, '') // Remove text before first [
-        .replace(/[^\]]*$/, '') // Remove text after last ]
+  const tags: Array<{ displayName: string; category?: string }> = JSON.parse(jsonContent)
+
+  const generatedTags: GeneratedTag[] = tags
+    .filter(tag => tag.displayName && typeof tag.displayName === 'string')
+    .map(tag => {
+      const displayName = tag.displayName.trim()
+      const name = displayName
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
         .trim()
       
-      tags = JSON.parse(cleanedContent)
-    } catch {
-      logger.warn('Failed to parse tag generation response as JSON after retry', { 
-        content: content.slice(0, 200),
-        response: content_text.slice(0, 500),
-        error: parseError instanceof Error ? parseError.message : String(parseError)
-      }, 'TagGenerationService')
-      return [] // Return empty tags on parse failure
-    }
-  }
-
-  // Ensure tags is an array
-  if (!Array.isArray(tags)) {
-    logger.warn('Tag generation response is not an array', { 
-      content: content.slice(0, 200),
-      response: content_text.slice(0, 500),
-      received: typeof tags
-    }, 'TagGenerationService')
-    return []
-  }
-
-  // Validate and normalize tags
-  const generatedTags: GeneratedTag[] = []
-  for (const tag of tags) {
-    if (!tag.displayName || typeof tag.displayName !== 'string') {
-      continue
-    }
-
-    const displayName = tag.displayName.trim()
-    if (displayName.length === 0 || displayName.length > 50) {
-      continue
-    }
-
-    // Normalize to lowercase, replace spaces with hyphens
-    const name = displayName
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, '') // Remove special chars except hyphens
-      .replace(/\s+/g, '-')     // Replace spaces with hyphens
-      .replace(/-+/g, '-')      // Collapse multiple hyphens
-      .trim()
-
-    if (name.length > 0) {
-    generatedTags.push({
-      name,
-      displayName,
-      category: tag.category || undefined,
+      return {
+        name,
+        displayName,
+        category: tag.category,
+      }
     })
-    }
-  }
+    .filter(tag => tag.name.length > 0 && tag.displayName.length <= 50)
 
   logger.debug('Generated tags from post', {
     content: content.slice(0, 100),

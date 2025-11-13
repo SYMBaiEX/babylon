@@ -50,41 +50,38 @@ export function PredictionPositionsList({ positions, onPositionSold }: Predictio
     setSellingId(position.id)
     setConfirmDialogOpen(false)
 
-    try {
-      const response = await fetch(`/api/markets/predictions/${position.marketId}/sell`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
-        },
-        body: JSON.stringify({
-          shares: position.shares,
-        }),
-      })
+    const response = await fetch(`/api/markets/predictions/${position.marketId}/sell`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${window.__privyAccessToken || ''}`,
+      },
+      body: JSON.stringify({
+        shares: position.shares,
+      }),
+    })
 
-      const data = await response.json()
+    const data = await response.json()
 
-      if (!response.ok) {
-        // Handle error response - extract message from error object
-        const errorMessage = typeof data.error === 'object' 
-          ? data.error.message || 'Failed to sell shares'
-          : data.error || data.message || 'Failed to sell shares'
-        toast.error(errorMessage)
-        return
-      }
-
-      const pnl = data.pnl || 0
-      toast.success('Shares sold!', {
-        description: `Sold ${position.shares.toFixed(2)} ${position.side} shares for ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} PnL`,
-      })
-
-      if (onPositionSold) onPositionSold()
-    } catch {
-      toast.error('Failed to sell shares')
-    } finally {
+    if (!response.ok) {
+      // Handle error response - extract message from error object
+      const errorMessage = typeof data.error === 'object' 
+        ? data.error.message || 'Failed to sell shares'
+        : data.error || data.message || 'Failed to sell shares'
       setSellingId(null)
       setPendingSell(null)
+      toast.error(errorMessage)
+      return
     }
+
+    const pnl = data.pnl || 0
+    toast.success('Shares sold!', {
+      description: `Sold ${position.shares.toFixed(2)} ${position.side} shares for ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} PnL`,
+    })
+
+    if (onPositionSold) onPositionSold()
+    setSellingId(null)
+    setPendingSell(null)
   }
 
   const formatPrice = (price: number) => `$${price.toFixed(3)}`

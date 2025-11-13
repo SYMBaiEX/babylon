@@ -18,7 +18,7 @@ export interface TestUser {
  * Returns user ID and a mock auth token
  */
 export async function createTestUser(username: string): Promise<TestUser> {
-  const userId = generateSnowflakeId();
+  const userId = await generateSnowflakeId();
 
   // Create user in database
   await prisma.user.create({
@@ -31,6 +31,7 @@ export async function createTestUser(username: string): Promise<TestUser> {
       reputationPoints: 1000,
       updatedAt: new Date(),
       profileComplete: true,
+      isTest: true, // Mark as test user to exclude from public feed
     },
   });
 

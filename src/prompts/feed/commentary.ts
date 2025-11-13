@@ -24,7 +24,7 @@ WORLD CONTEXT:
 
 IMPORTANT RULES:
 - NO HASHTAGS OR EMOJIS IN POSTS
-- NEVER use real names (Elon Musk, Sam Altman, Mark Zuckerberg, etc.)
+- NEVER use real names (AIlon Musk, Sam AIltman, Mark Zuckerborg, etc.)
 - ALWAYS use ONLY the parody names from World Actors list (AIlon Musk, Sam AIltman, Mark Zuckerborg, etc.)
 - Use @username or parody name/nickname/alias ONLY
 - You may reference current markets, predictions, or recent trades naturally if relevant
@@ -37,7 +37,7 @@ Respond with ONLY this JSON format (example for 2 commentators):
 {
   "commentary": [
     {
-      "post": "Interesting move by Tesla. Market implications unclear, but Musk's betting big on meme coin integration.",
+      "post": "Interesting move by TeslAI. Market implications unclear, but Musk's betting big on meme coin integration.",
       "sentiment": 0.1, // number between -1 and 1
       "clueStrength": 0.3, // number between 0 and 1
       "pointsToward": null // true (suggests positive outcome), false (suggests negative), null (unclear)

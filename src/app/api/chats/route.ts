@@ -1,6 +1,92 @@
 /**
- * API Route: /api/chats
- * Methods: GET (list user's chats), POST (create new chat)
+ * Chat Management API
+ * 
+ * @route GET /api/chats - List user's chats
+ * @route POST /api/chats - Create new chat
+ * @access Authenticated
+ * 
+ * @description
+ * Manages both group chats and direct messages (DMs). Provides chat listings
+ * with participant information, message counts, and last message previews.
+ * Supports both user-specific chats and all game chats retrieval.
+ * 
+ * **GET - List User's Chats**
+ * 
+ * Returns all chats the authenticated user participates in, separated into:
+ * - **Group Chats:** Multi-participant group conversations
+ * - **Direct Messages:** One-on-one chats with other real users
+ * 
+ * **Features:**
+ * - Quality scoring for group chats
+ * - Last message preview
+ * - Message count tracking
+ * - Participant metadata
+ * - DM participant profile details
+ * - Filters out NPC/actor DMs (only real user DMs shown)
+ * 
+ * @query {boolean} all - Get all game chats (public, no auth required)
+ * @query {boolean} debug - Enable debug logging
+ * 
+ * **All Game Chats Mode (all=true):**
+ * Returns all group chats for the game without authentication.
+ * Used for public game chat discovery.
+ * 
+ * @returns {object} Chat listings
+ * @property {array} groupChats - User's group chat memberships
+ * @property {array} directChats - User's direct message chats
+ * @property {number} total - Total chat count
+ * 
+ * **POST - Create New Chat**
+ * 
+ * Creates a new chat (group or DM) and adds participants.
+ * Creator is automatically added as the first participant.
+ * 
+ * @param {string} name - Chat name (optional for DMs)
+ * @param {boolean} isGroup - Whether chat is a group chat (default: false)
+ * @param {array} participantIds - Array of user IDs to add (optional)
+ * 
+ * @returns {object} Created chat
+ * @property {object} chat - Created chat object
+ * 
+ * @throws {400} Invalid input parameters
+ * @throws {401} Unauthorized - authentication required
+ * @throws {500} Internal server error
+ * 
+ * @example
+ * ```typescript
+ * // Get user's chats
+ * const chats = await fetch('/api/chats', {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * const { groupChats, directChats } = await chats.json();
+ * 
+ * // Get all game chats (public)
+ * const gameChats = await fetch('/api/chats?all=true');
+ * const { chats } = await gameChats.json();
+ * 
+ * // Create group chat
+ * const newGroup = await fetch('/api/chats', {
+ *   method: 'POST',
+ *   body: JSON.stringify({
+ *     name: 'Strategy Discussion',
+ *     isGroup: true,
+ *     participantIds: ['user1', 'user2', 'user3']
+ *   })
+ * });
+ * 
+ * // Create DM
+ * const newDM = await fetch('/api/chats', {
+ *   method: 'POST',
+ *   body: JSON.stringify({
+ *     isGroup: false,
+ *     participantIds: ['otherUserId']
+ *   })
+ * });
+ * ```
+ * 
+ * @see {@link /lib/db/context} Database context with RLS
+ * @see {@link /lib/validation/schemas} Request validation schemas
+ * @see {@link /src/app/chats/page.tsx} Chat list UI
  */
 
 import { authenticate } from '@/lib/api/auth-middleware';
@@ -241,7 +327,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     const now = new Date();
     const newChat = await db.chat.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         name: name || null,
         isGroup: isGroup || false,
         createdAt: now,
@@ -252,7 +338,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     // Add creator as participant
     await db.chatParticipant.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         chatId: newChat.id,
         userId: user.userId,
       },
@@ -260,17 +346,15 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
     // Add other participants if provided
     if (participantIds && Array.isArray(participantIds)) {
-      await Promise.all(
-        participantIds.map((participantId: string) =>
-          db.chatParticipant.create({
-            data: {
-              id: generateSnowflakeId(),
-              chatId: newChat.id,
-              userId: participantId,
-            },
-          })
-        )
-      );
+      for (const participantId of participantIds) {
+        await db.chatParticipant.create({
+          data: {
+            id: await generateSnowflakeId(),
+            chatId: newChat.id,
+            userId: participantId,
+          },
+        });
+      }
     }
 
     return newChat;

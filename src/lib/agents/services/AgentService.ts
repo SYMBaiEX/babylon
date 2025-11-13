@@ -10,7 +10,6 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import type { User } from '@prisma/client'
 import type { CreateAgentParams, AgentPerformance } from '../types'
-import { v4 as uuidv4 } from 'uuid'
 import { agentRuntimeManager } from '../runtime/AgentRuntimeManager'
 import { generateSnowflakeId } from '@/lib/snowflake'
 
@@ -34,7 +33,7 @@ export class AgentServiceV2 {
     const baseUsername = name.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 20)
     const randomSuffix = Math.random().toString(36).substring(2, 8)
     const agentUsername = `agent_${baseUsername}_${randomSuffix}`
-    const agentUserId = generateSnowflakeId()
+    const agentUserId = await generateSnowflakeId()
 
     const agent = await prisma.$transaction(async (tx) => {
       const newAgent = await tx.user.create({
@@ -77,7 +76,7 @@ export class AgentServiceV2 {
 
         await tx.agentPointsTransaction.create({
           data: {
-            id: uuidv4(),
+            id: await generateSnowflakeId(),
             agentUserId,
             managerUserId,
             type: 'deposit',
@@ -90,7 +89,7 @@ export class AgentServiceV2 {
 
         await tx.pointsTransaction.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             userId: managerUserId,
             amount: -initialDeposit,
             pointsBefore: initialManagerPoints,
@@ -108,7 +107,7 @@ export class AgentServiceV2 {
 
       await tx.agentLog.create({
         data: {
-          id: uuidv4(),
+          id: await generateSnowflakeId(),
           agentUserId,
           type: 'system',
           level: 'info',
@@ -183,7 +182,7 @@ export class AgentServiceV2 {
 
     await prisma.agentLog.create({
       data: {
-        id: uuidv4(),
+        id: await generateSnowflakeId(),
         agentUserId,
         type: 'system',
         level: 'info',
@@ -210,7 +209,7 @@ export class AgentServiceV2 {
 
         await tx.pointsTransaction.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             userId: managerUserId,
             amount: agent.agentPointsBalance,
             pointsBefore: 0,
@@ -265,7 +264,7 @@ export class AgentServiceV2 {
 
       await tx.agentPointsTransaction.create({
         data: {
-          id: uuidv4(),
+          id: await generateSnowflakeId(),
           agentUserId,
           managerUserId,
           type: 'deposit',
@@ -278,7 +277,7 @@ export class AgentServiceV2 {
 
       await tx.pointsTransaction.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           userId: managerUserId,
           amount: -amount,
           pointsBefore: totalPoints,
@@ -319,7 +318,7 @@ export class AgentServiceV2 {
 
       await tx.agentPointsTransaction.create({
         data: {
-          id: uuidv4(),
+          id: await generateSnowflakeId(),
           agentUserId,
           managerUserId,
           type: 'withdraw',
@@ -332,7 +331,7 @@ export class AgentServiceV2 {
 
       await tx.pointsTransaction.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           userId: managerUserId,
           amount,
           pointsBefore: 0,
@@ -365,17 +364,18 @@ export class AgentServiceV2 {
         }
       })
 
+      // Create points transaction with proper relations
       await tx.agentPointsTransaction.create({
         data: {
-          id: uuidv4(),
-          agentUserId,
-          managerUserId: agent.managedBy!,
+          id: await generateSnowflakeId(),
           type: reason.includes('chat') ? 'spend_chat' : reason.includes('post') ? 'spend_post' : 'spend_tick',
           amount: -amount,
           balanceBefore: agent.agentPointsBalance,
           balanceAfter: agent.agentPointsBalance - amount,
           description: reason,
-          relatedId
+          relatedId,
+          agentUserId: agentUserId,
+          managerUserId: agent.managedBy || agentUserId
         }
       })
 
@@ -438,7 +438,7 @@ export class AgentServiceV2 {
   }) {
     return prisma.agentLog.create({
       data: {
-        id: uuidv4(),
+        id: await generateSnowflakeId(),
         agentUserId,
         type: log.type,
         level: log.level,

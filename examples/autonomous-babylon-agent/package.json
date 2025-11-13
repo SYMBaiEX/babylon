@@ -9,7 +9,8 @@
     "test:integration": "bun test tests/integration.test.ts",
     "test:e2e": "bun test tests/e2e.test.ts",
     "test:actions": "bun test tests/actions-comprehensive.test.ts",
-    "register": "bun run src/registration.ts"
+    "register": "bun run src/registration.ts",
+    "benchmark": "bun run src/benchmark-runner.ts"
   },
   "dependencies": {
     "agent0-sdk": "^0.2.4",

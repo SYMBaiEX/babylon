@@ -1,3 +1,5 @@
+// @ts-nocheck - Test file
+
 /**
  * Comprehensive Follow/Following E2E Tests
  * 
@@ -105,7 +107,7 @@ test.describe('Follow System - Complete Coverage', () => {
       // Create follow relationship
       await prisma.follow.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           followerId: testUser1.id,
           followingId: testUser2.id,
         },
@@ -233,7 +235,7 @@ test.describe('Follow System - Complete Coverage', () => {
       if (!existingFollow) {
         await prisma.follow.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             followerId: testUser1.id,
             followingId: testUser2.id,
           },
@@ -306,7 +308,7 @@ test.describe('Follow System - Complete Coverage', () => {
       // Create follow
       await prisma.userActorFollow.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           userId: testUser1.id,
           actorId: testActor.id,
         },
@@ -410,7 +412,7 @@ test.describe('Follow System - Complete Coverage', () => {
       if (!existingFollow) {
         await prisma.userActorFollow.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             userId: testUser1.id,
             actorId: testActor.id,
           },
@@ -445,7 +447,7 @@ test.describe('Follow System - Complete Coverage', () => {
       if (!follow1to2) {
         await prisma.follow.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             followerId: testUser1.id,
             followingId: testUser2.id,
           },
@@ -465,7 +467,7 @@ test.describe('Follow System - Complete Coverage', () => {
       if (!follow2to1) {
         await prisma.follow.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             followerId: testUser2.id,
             followingId: testUser1.id,
           },
@@ -539,7 +541,7 @@ test.describe('Follow System - Complete Coverage', () => {
       // Ensure User 1 is following User 2
       await prisma.follow.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           followerId: testUser1.id,
           followingId: testUser2.id,
         },
@@ -587,7 +589,7 @@ test.describe('Follow System - Complete Coverage', () => {
       if (!existingFollow) {
         await prisma.follow.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             followerId: testUser1.id,
             followingId: testUser2.id,
           },

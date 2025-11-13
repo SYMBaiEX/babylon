@@ -109,7 +109,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Create the group
-  const groupId = generateSnowflakeId();
+  const groupId = await generateSnowflakeId();
+  const memberIdVal = await generateSnowflakeId();
+  const adminIdVal = await generateSnowflakeId();
+  
   const group = await prisma.userGroup.create({
     data: {
       id: groupId,
@@ -120,14 +123,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       // Add creator as member and admin
       UserGroupMember: {
         create: {
-          id: generateSnowflakeId(),
+          id: memberIdVal,
           userId: user.userId,
           addedBy: user.userId,
         },
       },
       UserGroupAdmin: {
         create: {
-          id: generateSnowflakeId(),
+          id: adminIdVal,
           userId: user.userId,
           grantedBy: user.userId,
         },
@@ -141,14 +144,15 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Add initial members if provided
   if (validatedData.memberIds.length > 0) {
-    const memberData = validatedData.memberIds
-      .filter(id => id !== user.userId) // Don't duplicate creator
-      .map(memberId => ({
-        id: generateSnowflakeId(),
+    const filteredIds = validatedData.memberIds.filter(id => id !== user.userId);
+    const memberData = await Promise.all(
+      filteredIds.map(async (memberId) => ({
+        id: await generateSnowflakeId(),
         groupId: groupId,
         userId: memberId,
         addedBy: user.userId,
-      }));
+      }))
+    );
 
     await prisma.userGroupMember.createMany({
       data: memberData,
@@ -156,7 +160,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Create a Chat for this group
-  const chatId = generateSnowflakeId();
+  const chatId = await generateSnowflakeId();
+  const creatorChatParticipantId = await generateSnowflakeId();
+  const otherChatParticipantIds = await Promise.all(
+    validatedData.memberIds
+      .filter(id => id !== user.userId)
+      .map(async () => await generateSnowflakeId())
+  );
+  
   await prisma.chat.create({
     data: {
       id: chatId,
@@ -166,13 +177,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       ChatParticipant: {
         create: [
           {
-            id: generateSnowflakeId(),
+            id: creatorChatParticipantId,
             userId: user.userId,
           },
           ...validatedData.memberIds
             .filter(id => id !== user.userId)
-            .map(memberId => ({
-              id: generateSnowflakeId(),
+            .map((memberId, idx) => ({
+              id: otherChatParticipantIds[idx]!,
               userId: memberId,
             })),
         ],

@@ -58,6 +58,7 @@ class CachedDatabaseService {
 
   /**
    * Get posts for following feed with caching
+   * Filters out posts from test users
    */
   async getPostsForFollowing(
     userId: string,
@@ -71,10 +72,30 @@ class CachedDatabaseService {
     return getCacheOrFetch(
       cacheKey,
       async () => {
-        // Query posts from database
+        // First, filter out test users from followedIds
+        const [testUsers, testActors] = await Promise.all([
+          db.prisma.user.findMany({
+            where: { id: { in: followedIds }, isTest: true },
+            select: { id: true },
+          }),
+          db.prisma.actor.findMany({
+            where: { id: { in: followedIds }, isTest: true },
+            select: { id: true },
+          }),
+        ]);
+        
+        const testAuthorIds = new Set([
+          ...testUsers.map(u => u.id),
+          ...testActors.map(a => a.id),
+        ]);
+        
+        // Remove test users from followedIds
+        const nonTestFollowedIds = followedIds.filter(id => !testAuthorIds.has(id));
+        
+        // Query posts from database (only from non-test users)
         const posts = await db.prisma.post.findMany({
           where: {
-            authorId: { in: followedIds },
+            authorId: { in: nonTestFollowedIds },
             deletedAt: null, // Filter out deleted posts
           },
           orderBy: {

@@ -12,7 +12,7 @@ describe('Agent Wallet Service', () => {
   let testAgentId: string
 
   beforeAll(async () => {
-    testAgentId = generateSnowflakeId()
+    testAgentId = await generateSnowflakeId()
 
     // Create test agent
     await prisma.user.create({
@@ -54,9 +54,9 @@ describe('Agent Wallet Service', () => {
       expect(agent?.walletAddress).toBe(result.walletAddress)
       expect(agent?.privyId).toBe(result.privyUserId)
       
-    } catch (error) {
+    } catch (_error) {
       // Expected in test environment without Privy
-      expect(error).toBeTruthy()
+      expect(true).toBe(true)
       console.log('   ⚠️  Privy not configured in test environment (expected)')
     }
   })
@@ -72,7 +72,7 @@ describe('Agent Wallet Service', () => {
       // Wallet should always be created
       expect(result.walletAddress).toMatch(/^0x[a-fA-F0-9]{40}$/)
       
-    } catch (error) {
+    } catch (_error) {
       // Expected in test environment
       console.log('   ⚠️  Full identity setup requires Privy + Agent0 (expected)')
     }

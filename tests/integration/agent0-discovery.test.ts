@@ -14,13 +14,8 @@ describe('Agent0 Discovery Integration', () => {
   let ipfsPublisher: IPFSPublisher
   
   beforeAll(() => {
-    // Only initialize if Agent0 is configured
     if (process.env.AGENT0_SUBGRAPH_URL) {
-      try {
-        discoveryService = new GameDiscoveryService()
-      } catch (error) {
-        console.log('⚠️  GameDiscoveryService initialization failed:', error)
-      }
+      discoveryService = new GameDiscoveryService()
     }
     ipfsPublisher = new IPFSPublisher()
   })
@@ -45,18 +40,12 @@ describe('Agent0 Discovery Integration', () => {
       return
     }
     
-    try {
-      const games = await discoveryService.discoverGames({
-        type: 'game-platform',
-        markets: ['prediction']
-      })
-      
-      expect(Array.isArray(games)).toBe(true)
-      // Games may be empty if none registered yet
-    } catch (error) {
-      console.log('⚠️  Discovery test failed (may need subgraph URL):', error)
-      // Don't fail test if subgraph is not configured
-    }
+    const games = await discoveryService.discoverGames({
+      type: 'game-platform',
+      markets: ['prediction']
+    })
+    
+    expect(Array.isArray(games)).toBe(true)
   })
   
   test('GameDiscoveryService can find Babylon', async () => {
@@ -65,19 +54,13 @@ describe('Agent0 Discovery Integration', () => {
       return
     }
     
-    try {
-      const babylon = await discoveryService.findBabylon()
-      
-      // Babylon may not be registered yet, so null is acceptable
-      if (babylon) {
-        expect(babylon.name).toContain('Babylon')
-        expect(babylon.endpoints.a2a).toBeTruthy()
-        expect(babylon.endpoints.mcp).toBeTruthy()
-        expect(babylon.endpoints.api).toBeTruthy()
-      }
-    } catch (error) {
-      console.log('⚠️  Babylon discovery test failed:', error)
-      // Don't fail test if not configured
+    const babylon = await discoveryService.findBabylon()
+    
+    if (babylon) {
+      expect(babylon.name).toContain('Babylon')
+      expect(babylon.endpoints.a2a).toBeTruthy()
+      expect(babylon.endpoints.mcp).toBeTruthy()
+      expect(babylon.endpoints.api).toBeTruthy()
     }
   })
   
@@ -90,19 +73,14 @@ describe('Agent0 Discovery Integration', () => {
       return
     }
     
-    try {
-      const client = new Agent0Client({
-        network: 'sepolia',
-        rpcUrl,
-        privateKey
-      })
-      
-      expect(client).toBeDefined()
-      expect(client.isAvailable()).toBe(true)
-    } catch (error) {
-      console.log('⚠️  Agent0Client initialization failed:', error)
-      // Don't fail test if SDK has issues
-    }
+    const client = new Agent0Client({
+      network: 'sepolia',
+      rpcUrl,
+      privateKey
+    })
+    
+    expect(client).toBeDefined()
+    expect(client.isAvailable()).toBe(true)
   })
 })
 

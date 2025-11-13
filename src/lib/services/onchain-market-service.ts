@@ -6,7 +6,7 @@ import { createPublicClient, createWalletClient, http, type Address } from 'viem
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 import { logger } from '../logger'
-import { PREDICTION_MARKET_ABI } from '../web3/abis'
+import { PREDICTION_MARKET_ABI as _PREDICTION_MARKET_ABI } from '../web3/abis'
 import { prisma } from '../prisma'
 
 /**
@@ -130,11 +130,6 @@ export async function createMarketOnChain(
         // Fallback: try to read the return value from the transaction
         // The createMarket function returns bytes32 marketId
         try {
-          const returnData = await publicClient.call({
-            to: diamondAddress,
-            data: receipt.transactionHash as `0x${string}`, // This won't work, need different approach
-          })
-          
           // Alternative: Read from contract state by querying recent MarketCreated events
           const events = await publicClient.getLogs({
             address: diamondAddress,
@@ -152,8 +147,8 @@ export async function createMarketOnChain(
             toBlock: receipt.blockNumber,
           })
           
-          if (events.length > 0 && events[0].args.marketId) {
-            const marketId = events[0].args.marketId as `0x${string}`
+           if (events.length > 0 && events[0]?.args.marketId) {
+             const marketId = events[0].args.marketId as `0x${string}`
             logger.info(
               'Market created on-chain successfully (from event logs)',
               { marketId, txHash },
@@ -232,8 +227,8 @@ export async function getMarketIdFromTx(txHash: `0x${string}`): Promise<`0x${str
         toBlock: receipt.blockNumber,
       })
       
-      if (events.length > 0 && events[0].args.marketId) {
-        return events[0].args.marketId as `0x${string}`
+       if (events.length > 0 && events[0]?.args.marketId) {
+         return events[0].args.marketId as `0x${string}`
       }
     } catch (error) {
       logger.debug('Could not read events using getLogs', { error }, 'OnChainMarketService')

@@ -8,18 +8,18 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import type { IAgentRuntime } from '@elizaos/core'
-import { ModelType } from '@elizaos/core'
+import { callGroqDirect } from '../llm/direct-groq'
+import { generateRandomMarketContext, formatRandomContext } from '@/lib/prompts/random-context'
 
 export class AutonomousPostingService {
   /**
    * Generate and create a post for an agent
    */
-  async createAgentPost(agentUserId: string, runtime: IAgentRuntime): Promise<string | null> {
-    try {
-      const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
-      if (!agent || !agent.isAgent) {
-        throw new Error('Agent not found')
-      }
+  async createAgentPost(agentUserId: string, _runtime: IAgentRuntime): Promise<string | null> {
+    const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
+    if (!agent?.isAgent) {
+      throw new Error('Agent not found')
+    }
 
       // Get recent agent activity for context
       const recentTrades = await prisma.agentTrade.findMany({
@@ -33,6 +33,16 @@ export class AutonomousPostingService {
         orderBy: { createdAt: 'desc' },
         take: 3
       })
+
+      // Get random market context for variety
+      const marketContext = await generateRandomMarketContext({
+        includeGainers: true,
+        includeLosers: true,
+        includeQuestions: true,
+        includePosts: true,
+        includeEvents: false,
+      })
+      const contextString = formatRandomContext(marketContext)
 
       // Build prompt for post generation
       const prompt = `${agent.agentSystem}
@@ -56,12 +66,16 @@ Keep it:
 - Authentic to your personality
 - Valuable to the community
 - Not repetitive of recent posts
+${contextString}
 
 Generate ONLY the post text, nothing else.`
 
-      const modelType = agent.agentModelTier === 'pro' ? ModelType.TEXT_LARGE : ModelType.TEXT_SMALL
-      const postContent = await runtime.useModel(modelType, {
+      // Use kimi for user-visible post generation (high quality content)
+      // Note: This still calls through callGroqDirect but the model will be routed appropriately
+      const postContent = await callGroqDirect({
         prompt,
+        system: agent.agentSystem || undefined,
+        modelSize: 'large',  // Use large model (qwen3-32b) for quality posts
         temperature: 0.8,
         maxTokens: 100
       })
@@ -69,13 +83,23 @@ Generate ONLY the post text, nothing else.`
       // Clean up the response
       const cleanContent = postContent.trim().replace(/^["']|["']$/g, '')
 
+      logger.info(`LLM generated post`, { 
+        agentUserId, 
+        raw: postContent, 
+        cleaned: cleanContent,
+        length: cleanContent.length 
+      }, 'AutonomousPosting')
+
       if (!cleanContent || cleanContent.length < 10) {
-        logger.warn(`Generated post too short or empty for agent ${agentUserId}`, undefined, 'AutonomousPosting')
+        logger.warn(`Generated post too short or empty for agent ${agentUserId}`, { 
+          content: cleanContent,
+          length: cleanContent.length 
+        }, 'AutonomousPosting')
         return null
       }
 
       // Create the post
-      const postId = generateSnowflakeId()
+      const postId = await generateSnowflakeId()
       await prisma.post.create({
         data: {
           id: postId,
@@ -90,10 +114,6 @@ Generate ONLY the post text, nothing else.`
       logger.info(`Agent ${agent.displayName} created post: ${postId}`, undefined, 'AutonomousPosting')
 
       return postId
-    } catch (error: unknown) {
-      logger.error(`Failed to create agent post for ${agentUserId}`, error, 'AutonomousPosting')
-      return null
-    }
   }
 }
 

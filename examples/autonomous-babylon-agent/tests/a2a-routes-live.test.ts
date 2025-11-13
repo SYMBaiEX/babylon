@@ -5,74 +5,39 @@
  * Verifies data is returned correctly
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
+import { describe, it, expect } from 'bun:test'
 import { BabylonA2AClient } from '../src/a2a-client'
 import dotenv from 'dotenv'
-import WebSocket from 'ws'
 
 dotenv.config({ path: '.env.local' })
 
 const TEST_CONFIG = {
-  wsUrl: process.env.BABYLON_WS_URL || 'ws://localhost:3000/a2a',
+  apiUrl: 'http://localhost:3000/api/a2a',
   address: '0x' + '1'.repeat(40),
   tokenId: 999999,
   privateKey: '0x' + '1'.repeat(64)
 }
 
 describe('A2A Routes Live Verification', () => {
-  let client: BabylonA2AClient
-  let wsAvailable = false
+  const client = new BabylonA2AClient(TEST_CONFIG)
 
-  beforeAll(async () => {
-    console.log('\n🔍 Testing A2A WebSocket Connection...')
+  it('should connect to server and authenticate', async () => {
+    console.log('\n🔍 Testing A2A HTTP Connection...')
     
-    // Check if WebSocket endpoint is accessible
-    try {
-      const ws = new WebSocket(TEST_CONFIG.wsUrl)
-      await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          ws.close()
-          reject(new Error('Connection timeout'))
-        }, 5000)
-        
-        ws.on('open', () => {
-          clearTimeout(timeout)
-          console.log('✅ WebSocket endpoint accessible')
-          ws.close()
-          wsAvailable = true
-          resolve(true)
-        })
-        
-        ws.on('error', (err) => {
-          clearTimeout(timeout)
-          console.log('❌ WebSocket connection failed:', err.message)
-          reject(err)
-        })
-      })
-    } catch (error: any) {
-      console.log('⚠️  WebSocket not accessible:', error.message)
-    }
+    // Check if server is accessible
+    const response = await fetch('http://localhost:3000/api/health')
+    const health = await response.json()
+    expect(health.status).toBe('ok')
+    console.log('✅ Server is running:', health.status)
 
-    // Create client
-    client = new BabylonA2AClient(TEST_CONFIG)
-  }, 30000)
-
-  afterAll(async () => {
-    if (client) {
-      await client.disconnect()
-    }
+    // Connect A2A client
+    await client.connect()
+    expect(client.agentId).toBeDefined()
+    expect(client.sessionToken).toBeDefined()
+    console.log('✅ A2A Client connected:', client.agentId)
   })
 
-  it('should have WebSocket endpoint available', () => {
-    if (wsAvailable) {
-      console.log('   ✅ A2A WebSocket endpoint is running')
-    } else {
-      console.log('   ⚠️  A2A WebSocket endpoint not accessible')
-    }
-    expect(true).toBe(true)
-  })
-
-  it('should have all 74 A2A methods available', () => {
+  it('should have all 70 A2A methods available', () => {
     const methods = [
       'getMarkets', 'getPredictions', 'getPerpetuals', 'getMarketData',
       'getMarketPrices', 'subscribeMarket', 'buyShares', 'sellShares',

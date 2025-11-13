@@ -122,7 +122,7 @@ export async function updateGameMetrics(userId: string, gameScore: number, won: 
   if (!metrics) {
     metrics = await prisma.agentPerformanceMetrics.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         userId,
         gamesPlayed: 0,
         gamesWon: 0,
@@ -196,7 +196,7 @@ export async function updateTradingMetrics(
   if (!metrics) {
     metrics = await prisma.agentPerformanceMetrics.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         userId,
         normalizedPnL: normalized,
         totalTrades: 0,
@@ -253,7 +253,7 @@ export async function updateFeedbackMetrics(userId: string, score: number) {
   if (!metrics) {
     metrics = await prisma.agentPerformanceMetrics.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         userId,
         totalFeedbackCount: 0,
         averageFeedbackScore: 50, // Start at neutral
@@ -531,7 +531,7 @@ export async function generateGameCompletionFeedback(
   // Create feedback record
   const feedback = await prisma.feedback.create({
     data: {
-      id: generateSnowflakeId(),
+      id: await generateSnowflakeId(),
       toUserId: agentId,
       score,
       comment,
@@ -591,7 +591,7 @@ export async function CompletionFormat(
   // Create feedback record
   const feedback = await prisma.feedback.create({
     data: {
-      id: generateSnowflakeId(),
+      id: await generateSnowflakeId(),
       toUserId: agentId,
       score,
       comment,

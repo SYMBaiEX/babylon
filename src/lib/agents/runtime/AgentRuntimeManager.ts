@@ -52,17 +52,55 @@ export class AgentRuntimeManager {
       throw new Error(`User ${agentUserId} is not an agent`)
     }
 
-    // Helper to safely parse JSON fields
-    const safeParseJSON = (value: string | null | undefined, fallback: any): any => {
-      if (!value) return fallback
+    const parseBio = (): string[] => {
+      if (!agentUser.agentMessageExamples) {
+        return [agentUser.bio || '']
+      }
+      
       try {
-        return JSON.parse(value as string)
+        const parsed = JSON.parse(agentUser.agentMessageExamples as string)
+        if (Array.isArray(parsed)) {
+          return parsed
+        }
+        logger.warn('agentMessageExamples is not an array, using bio', {
+          agentId: agentUser.id,
+          type: typeof parsed
+        }, 'AgentRuntimeManager')
+        return [agentUser.bio || '']
       } catch (error) {
-        logger.warn('Failed to parse JSON field', { 
-          value: value?.substring(0, 50),
+        const exampleValue = agentUser.agentMessageExamples
+        const displayValue = typeof exampleValue === 'string' 
+          ? exampleValue.substring(0, 50) 
+          : String(exampleValue)
+        
+        logger.warn('Failed to parse agentMessageExamples, using bio', {
+          agentId: agentUser.id,
+          value: displayValue,
           error: error instanceof Error ? error.message : String(error)
         }, 'AgentRuntimeManager')
-        return fallback
+        return [agentUser.bio || '']
+      }
+    }
+
+    const parseStyle = (): Record<string, unknown> | undefined => {
+      if (!agentUser.agentStyle) {
+        return undefined
+      }
+      
+      try {
+        return JSON.parse(agentUser.agentStyle as string) as Record<string, unknown>
+      } catch (error) {
+        const styleValue = agentUser.agentStyle
+        const displayValue = typeof styleValue === 'string' 
+          ? styleValue.substring(0, 50) 
+          : String(styleValue)
+        
+        logger.warn('Failed to parse agentStyle, using defaults', {
+          agentId: agentUser.id,
+          value: displayValue,
+          error: error instanceof Error ? error.message : String(error)
+        }, 'AgentRuntimeManager')
+        return undefined
       }
     }
 
@@ -70,23 +108,17 @@ export class AgentRuntimeManager {
     const character: Character = {
       name: agentUser.displayName || agentUser.username || 'Agent',
       system: agentUser.agentSystem || 'You are a helpful AI agent',
-      bio: safeParseJSON(
-        typeof agentUser.agentMessageExamples === 'string' ? agentUser.agentMessageExamples : null,
-        [agentUser.bio || '']
-      ),
+      bio: parseBio(),
       messageExamples: [],
-      style: safeParseJSON(
-        typeof agentUser.agentStyle === 'string' ? agentUser.agentStyle : null,
-        undefined
-      ),
+      style: parseStyle(),
       plugins: [],
       settings: {
         GROQ_API_KEY: process.env.GROQ_API_KEY || '',
-        SMALL_GROQ_MODEL: 'llama-3.1-8b-instant',
-        LARGE_GROQ_MODEL: agentUser.agentModelTier === 'pro' ? 'llama-3.3-70b-versatile' : 'llama-3.1-8b-instant',
+        SMALL_GROQ_MODEL: 'openai/gpt-oss-120b',  // Fast evaluation model
+        LARGE_GROQ_MODEL: agentUser.agentModelTier === 'pro' ? 'qwen/qwen3-32b' : 'openai/gpt-oss-120b',
         ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
       },
-    } as Character
+    }
 
     // Database configuration
     const dbPort = process.env.POSTGRES_DEV_PORT || 5432
@@ -100,7 +132,7 @@ export class AgentRuntimeManager {
     // Initialize Groq plugin (no-op for this version)
     // groqPlugin.init requires runtime context in some versions
 
-    // Create runtime with plugins
+    // Create runtime with groq plugin only (no SQL - we use Prisma)
     const runtimeConfig = {
       character,
       agentId: agentUserId as UUID,
@@ -130,11 +162,23 @@ export class AgentRuntimeManager {
         clear: () => console.clear ? console.clear() : undefined,
         child: () => customLogger
       }
-      runtime.logger = customLogger as any
+      runtime.logger = customLogger as unknown as typeof runtime.logger
     }
 
-    // Initialize runtime
-    await runtime.initialize()
+    // Cannot call initialize() without SQL plugin - manually register models instead
+    // CRITICAL: Must set modelDelegates, not models Map  
+    // This is what runtime.initialize() does internally
+    if (groqPlugin.models) {
+      const modelDelegates = (runtime as unknown as Record<string, unknown>).modelDelegates as Record<string, unknown> || {}
+      for (const [type, handler] of Object.entries(groqPlugin.models)) {
+        modelDelegates[type] = handler
+      }
+      (runtime as unknown as Record<string, unknown>).modelDelegates = modelDelegates
+      logger.info(`Registered ${Object.keys(modelDelegates).length} Groq model handlers`, { 
+        agentUserId,
+        types: Object.keys(modelDelegates)
+      })
+    }
 
     // Enhance with Babylon plugin
     await enhanceRuntimeWithBabylon(runtime, agentUserId)

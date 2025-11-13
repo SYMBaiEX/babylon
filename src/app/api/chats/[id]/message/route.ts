@@ -110,14 +110,14 @@ export const POST = withErrorHandling(async (
       await Promise.all([
         db.chatParticipant.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             chatId,
             userId: user.userId,
           },
         }),
         db.chatParticipant.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             chatId,
             userId: otherUserId,
           },
@@ -205,7 +205,7 @@ export const POST = withErrorHandling(async (
       const result = await asUser(user, async (db) => {
         const msg = await db.message.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             content: content.trim(),
             chatId,
             senderId: user.userId,

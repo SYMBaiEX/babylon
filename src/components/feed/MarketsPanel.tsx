@@ -35,43 +35,38 @@ export function MarketsPanel() {
   const { registerRefresh, unregisterRefresh } = useWidgetRefresh()
 
   const fetchMarkets = useCallback(async () => {
-    try {
-      // Fetch prediction markets
-      const response = await fetch('/api/feed/widgets/markets')
-      const data = await response.json()
-      if (data.success) {
-        setMarkets(data.markets || [])
-      }
-
-      // Fetch perp markets for trending tokens
-      const perpResponse = await fetch('/api/markets/perps')
-      const perpData = await perpResponse.json()
-      
-      if (perpData.markets && Array.isArray(perpData.markets)) {
-        // Map and normalize the data (same as TopMoversPanel)
-        const normalizedMarkets = perpData.markets.map((m: {
-          ticker: string
-          name: string
-          currentPrice?: number
-          change24h?: number
-          changePercent24h?: number
-          volume24h?: number
-        }) => ({
-          ticker: m.ticker,
-          name: m.name,
-          currentPrice: m.currentPrice || 0,
-          change24h: m.change24h || 0,
-          changePercent24h: m.changePercent24h || 0,
-          volume24h: m.volume24h,
-        }))
-        
-        setPerpMarkets(normalizedMarkets)
-      }
-    } catch {
-      // Silently handle errors - empty arrays are fine
-    } finally {
-      setLoading(false)
+    // Fetch prediction markets
+    const response = await fetch('/api/feed/widgets/markets')
+    const data = await response.json()
+    if (data.success) {
+      setMarkets(data.markets || [])
     }
+
+    // Fetch perp markets for trending tokens
+    const perpResponse = await fetch('/api/markets/perps')
+    const perpData = await perpResponse.json()
+    
+    if (perpData.markets && Array.isArray(perpData.markets)) {
+      // Map and normalize the data (same as TopMoversPanel)
+      const normalizedMarkets = perpData.markets.map((m: {
+        ticker: string
+        name: string
+        currentPrice?: number
+        change24h?: number
+        changePercent24h?: number
+        volume24h?: number
+      }) => ({
+        ticker: m.ticker,
+        name: m.name,
+        currentPrice: m.currentPrice || 0,
+        change24h: m.change24h || 0,
+        changePercent24h: m.changePercent24h || 0,
+        volume24h: m.volume24h,
+      }))
+      
+      setPerpMarkets(normalizedMarkets)
+    }
+    setLoading(false)
   }, [])
 
   useEffect(() => {

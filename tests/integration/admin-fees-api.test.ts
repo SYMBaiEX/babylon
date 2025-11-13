@@ -30,8 +30,8 @@ describe('Admin Fees API', () => {
 
   it('should return platform-wide fee statistics', async () => {
     // Create minimal test data
-    const testReferrerId = generateSnowflakeId();
-    const testUserId = generateSnowflakeId();
+    const testReferrerId = await generateSnowflakeId();
+    const testUserId = await generateSnowflakeId();
     createdUserIds.push(testReferrerId, testUserId);
 
     await prisma.user.create({
@@ -40,6 +40,7 @@ describe('Admin Fees API', () => {
         username: `ref-${Date.now()}`,
         virtualBalance: 1000,
         totalDeposited: 1000,
+          isTest: true,
         updatedAt: new Date(),
       },
     });
@@ -51,6 +52,7 @@ describe('Admin Fees API', () => {
         virtualBalance: 10000,
         totalDeposited: 10000,
         referredBy: testReferrerId,
+          isTest: true,
         updatedAt: new Date(),
       },
     });
@@ -58,7 +60,7 @@ describe('Admin Fees API', () => {
     // Create fee record
     await prisma.tradingFee.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         userId: testUserId,
         tradeType: 'pred_buy',
         feeAmount: 0.10,
@@ -87,8 +89,8 @@ describe('Admin Fees API', () => {
   });
 
   it('should process fees and distribute to referrers', async () => {
-    const testReferrerId = generateSnowflakeId();
-    const testUserId = generateSnowflakeId();
+    const testReferrerId = await generateSnowflakeId();
+    const testUserId = await generateSnowflakeId();
     createdUserIds.push(testReferrerId, testUserId);
 
     await prisma.user.create({
@@ -97,6 +99,7 @@ describe('Admin Fees API', () => {
         username: `ref2-${Date.now()}`,
         virtualBalance: 1000,
         totalDeposited: 1000,
+          isTest: true,
         updatedAt: new Date(),
       },
     });
@@ -108,6 +111,7 @@ describe('Admin Fees API', () => {
         virtualBalance: 10000,
         totalDeposited: 10000,
         referredBy: testReferrerId,
+          isTest: true,
         updatedAt: new Date(),
       },
     });
@@ -134,7 +138,7 @@ describe('Admin Fees API', () => {
   });
 
   it('should handle users without referrers', async () => {
-    const testUserId = generateSnowflakeId();
+    const testUserId = await generateSnowflakeId();
     createdUserIds.push(testUserId);
 
     await prisma.user.create({
@@ -144,6 +148,7 @@ describe('Admin Fees API', () => {
         virtualBalance: 10000,
         totalDeposited: 10000,
         referredBy: null,
+          isTest: true,
         updatedAt: new Date(),
       },
     });
@@ -161,7 +166,7 @@ describe('Admin Fees API', () => {
   });
 
   it('should skip fees below minimum', async () => {
-    const testUserId = generateSnowflakeId();
+    const testUserId = await generateSnowflakeId();
     createdUserIds.push(testUserId);
 
     await prisma.user.create({
@@ -170,6 +175,7 @@ describe('Admin Fees API', () => {
         username: `tiny-${Date.now()}`,
         virtualBalance: 100,
         totalDeposited: 100,
+          isTest: true,
         updatedAt: new Date(),
       },
     });
@@ -187,8 +193,8 @@ describe('Admin Fees API', () => {
   });
 
   it('should track referral earnings', async () => {
-    const testReferrerId = generateSnowflakeId();
-    const testUserId = generateSnowflakeId();
+    const testReferrerId = await generateSnowflakeId();
+    const testUserId = await generateSnowflakeId();
     createdUserIds.push(testReferrerId, testUserId);
 
     await prisma.user.create({
@@ -197,6 +203,7 @@ describe('Admin Fees API', () => {
         username: `earn-ref-${Date.now()}`,
         virtualBalance: 1000,
         totalDeposited: 1000,
+          isTest: true,
         updatedAt: new Date(),
       },
     });
@@ -208,6 +215,7 @@ describe('Admin Fees API', () => {
         virtualBalance: 10000,
         totalDeposited: 10000,
         referredBy: testReferrerId,
+          isTest: true,
         updatedAt: new Date(),
       },
     });

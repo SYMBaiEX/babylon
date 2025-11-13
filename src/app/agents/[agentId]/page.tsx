@@ -59,35 +59,36 @@ export default function AgentDetailPage() {
   const [deleting, setDeleting] = useState(false)
 
   const fetchAgent = useCallback(async () => {
-    try {
-      setLoading(true)
-      const token = await getAccessToken()
-      
-      if (!token) {
-        console.error('No access token available')
-        toast.error('Authentication required')
-        router.push('/agents')
-        return
-      }
-      
-      const res = await fetch(`/api/agents/${agentId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (res.ok) {
-        const data = await res.json()
-        setAgent(data.agent)
-      } else {
-        toast.error('Agent not found')
-        router.push('/agents')
-      }
-    } catch {
-      toast.error('Failed to load agent')
-    } finally {
+    setLoading(true)
+    const token = await getAccessToken()
+    
+    if (!token) {
+      console.error('No access token available')
+      toast.error('Authentication required')
+      router.push('/agents')
       setLoading(false)
+      return
     }
+    
+    const res = await fetch(`/api/agents/${agentId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    }).catch(() => {
+      toast.error('Failed to load agent')
+      setLoading(false)
+      throw new Error('Failed to load agent')
+    })
+
+    if (res.ok) {
+      const data = await res.json()
+      setAgent(data.agent)
+    } else {
+      toast.error('Agent not found')
+      router.push('/agents')
+    }
+    
+    setLoading(false)
   }, [agentId, getAccessToken, router])
 
   useEffect(() => {
@@ -102,34 +103,34 @@ export default function AgentDetailPage() {
     }
 
     setDeleting(true)
-    try {
-      const token = await getAccessToken()
-      
-      if (!token) {
-        toast.error('Authentication required')
-        setDeleting(false)
-        return
-      }
-      
-      const res = await fetch(`/api/agents/${agentId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (res.ok) {
-        toast.success('Agent deleted successfully')
-        router.push('/agents')
-      } else {
-        const error = await res.json()
-        toast.error(error.error || 'Failed to delete agent')
-      }
-    } catch {
-      toast.error('Failed to delete agent')
-    } finally {
+    const token = await getAccessToken()
+    
+    if (!token) {
+      toast.error('Authentication required')
       setDeleting(false)
+      return
     }
+    
+    const res = await fetch(`/api/agents/${agentId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    }).catch(() => {
+      toast.error('Failed to delete agent')
+      setDeleting(false)
+      throw new Error('Failed to delete agent')
+    })
+
+    if (res.ok) {
+      toast.success('Agent deleted successfully')
+      router.push('/agents')
+    } else {
+      const error = await res.json()
+      toast.error(error.error || 'Failed to delete agent')
+    }
+    
+    setDeleting(false)
   }
 
   if (!ready || !authenticated) {

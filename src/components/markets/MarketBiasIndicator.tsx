@@ -44,18 +44,13 @@ export function MarketBiasIndicator({
   useEffect(() => {
     const fetchBiases = async () => {
       setLoading(true)
-      try {
-        const response = await fetch('/api/markets/bias/active')
-        const result = await response.json()
+      const response = await fetch('/api/markets/bias/active')
+      const result = await response.json()
 
-        if (result.success) {
-          setData(result)
-        }
-      } catch (error) {
-        console.error('Failed to fetch market biases:', error)
-      } finally {
-        setLoading(false)
+      if (result.success) {
+        setData(result)
       }
+      setLoading(false)
     }
 
     fetchBiases()

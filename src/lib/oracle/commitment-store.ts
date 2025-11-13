@@ -66,63 +66,46 @@ export class CommitmentStore {
    * Store commitment with encrypted salt
    */
   static async store(commitment: StoredCommitment): Promise<void> {
-    try {
-      const encryptedSalt = this.encryptSalt(commitment.salt)
+    const encryptedSalt = this.encryptSalt(commitment.salt)
 
-      await prisma.oracleCommitment.create({
-        data: {
-          questionId: commitment.questionId,
-          sessionId: commitment.sessionId,
-          saltEncrypted: encryptedSalt,
-          commitment: commitment.commitment,
-          createdAt: commitment.createdAt
-        }
-      })
+    await prisma.oracleCommitment.create({
+      data: {
+        id: `commitment-${commitment.questionId}-${Date.now()}`,
+        questionId: commitment.questionId,
+        sessionId: commitment.sessionId,
+        saltEncrypted: encryptedSalt,
+        commitment: commitment.commitment,
+        createdAt: commitment.createdAt
+      }
+    })
 
-      logger.info(
-        `Stored commitment for question ${commitment.questionId}`,
-        { sessionId: commitment.sessionId },
-        'CommitmentStore'
-      )
-    } catch (error) {
-      logger.error(
-        'Failed to store commitment',
-        { error, questionId: commitment.questionId },
-        'CommitmentStore'
-      )
-      throw error
-    }
+    logger.info(
+      `Stored commitment for question ${commitment.questionId}`,
+      { sessionId: commitment.sessionId },
+      'CommitmentStore'
+    )
   }
 
   /**
    * Retrieve commitment and decrypt salt
    */
   static async retrieve(questionId: string): Promise<StoredCommitment | null> {
-    try {
-      const stored = await prisma.oracleCommitment.findUnique({
-        where: { questionId }
-      })
+    const stored = await prisma.oracleCommitment.findUnique({
+      where: { questionId }
+    })
 
-      if (!stored) {
-        return null
-      }
-
-      const salt = this.decryptSalt(stored.saltEncrypted)
-
-      return {
-        questionId: stored.questionId,
-        sessionId: stored.sessionId,
-        salt,
-        commitment: stored.commitment,
-        createdAt: stored.createdAt
-      }
-    } catch (error) {
-      logger.error(
-        'Failed to retrieve commitment',
-        { error, questionId },
-        'CommitmentStore'
-      )
+    if (!stored) {
       return null
+    }
+
+    const salt = this.decryptSalt(stored.saltEncrypted)
+
+    return {
+      questionId: stored.questionId,
+      sessionId: stored.sessionId,
+      salt,
+      commitment: stored.commitment,
+      createdAt: stored.createdAt
     }
   }
 
@@ -130,42 +113,28 @@ export class CommitmentStore {
    * Delete commitment after reveal (cleanup)
    */
   static async delete(questionId: string): Promise<void> {
-    try {
-      await prisma.oracleCommitment.delete({
-        where: { questionId }
-      })
+    await prisma.oracleCommitment.delete({
+      where: { questionId }
+    })
 
-      logger.info(`Deleted commitment for question ${questionId}`, undefined, 'CommitmentStore')
-    } catch (error) {
-      // Not critical if deletion fails
-      logger.warn(
-        'Failed to delete commitment',
-        { error, questionId },
-        'CommitmentStore'
-      )
-    }
+    logger.info(`Deleted commitment for question ${questionId}`, undefined, 'CommitmentStore')
   }
 
   /**
    * List all pending commitments (for recovery/debugging)
    */
   static async listPending(): Promise<StoredCommitment[]> {
-    try {
-      const stored = await prisma.oracleCommitment.findMany({
-        orderBy: { createdAt: 'asc' }
-      })
+    const stored = await prisma.oracleCommitment.findMany({
+      orderBy: { createdAt: 'asc' }
+    })
 
-      return stored.map(s => ({
-        questionId: s.questionId,
-        sessionId: s.sessionId,
-        salt: this.decryptSalt(s.saltEncrypted),
-        commitment: s.commitment,
-        createdAt: s.createdAt
-      }))
-    } catch (error) {
-      logger.error('Failed to list pending commitments', { error }, 'CommitmentStore')
-      return []
-    }
+    return stored.map(s => ({
+      questionId: s.questionId,
+      sessionId: s.sessionId,
+      salt: this.decryptSalt(s.saltEncrypted),
+      commitment: s.commitment,
+      createdAt: s.createdAt
+    }))
   }
 }
 

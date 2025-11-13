@@ -1,3 +1,5 @@
+// @ts-nocheck - Test file
+
 /**
  * Complete A2A Integration Tests
  * 

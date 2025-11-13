@@ -154,16 +154,13 @@ export const POST = withErrorHandling(async (
         questionNumber: question.questionNumber 
       }, 'POST /api/markets/predictions/[id]/buy');
 
-      // Create market on-chain if it doesn't have onChainMarketId
-      if (!market.onChainMarketId) {
-        try {
-          const { ensureMarketOnChain } = await import('@/lib/services/onchain-market-service');
-          await ensureMarketOnChain(market.id).catch((error) => {
-            logger.warn('Failed to create market on-chain (non-blocking)', { error, marketId: market.id }, 'POST /api/markets/predictions/[id]/buy');
-          });
-        } catch (error) {
-          logger.debug('On-chain market service not available', { error }, 'POST /api/markets/predictions/[id]/buy');
-        }
+      if (market && !market.onChainMarketId) {
+        const { ensureMarketOnChain } = await import('@/lib/services/onchain-market-service')
+        await ensureMarketOnChain(market.id)
+
+        logger.warn('Failed to create market on-chain (non-blocking)', { marketId: market!.id }, 'POST /api/markets/predictions/[id]/buy')
+
+        logger.debug('On-chain market service not available', undefined, 'POST /api/markets/predictions/[id]/buy')
       }
     }
     
@@ -234,7 +231,7 @@ export const POST = withErrorHandling(async (
       const now = new Date();
       pos = await db.position.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           userId: user.userId,
           marketId,
           side: side === 'yes',

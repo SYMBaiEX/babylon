@@ -77,35 +77,34 @@ export class X402Manager {
   private async getPayment(requestId: string): Promise<PendingPayment | null> {
     const key = `${REDIS_PREFIX}${requestId}`
     
-    try {
-      if (redis && redisClientType) {
-        const cached = await redis.get(key)
-        
-        if (cached) {
-          const paymentData = JSON.parse(cached as string)
-          const validation = PendingPaymentSchema.safeParse(paymentData)
-          if (!validation.success) {
-            logger.error('[X402Manager] Invalid payment data in Redis', { requestId, error: validation.error })
-            // Consider deleting the invalid entry
-            await this.deletePayment(requestId)
-            return null
-          }
-          logger.debug('[X402Manager] Retrieved payment from Redis', { requestId })
-          return {
-            ...validation.data,
-          request: {
-            ...validation.data.request,
-            metadata: validation.data.request.metadata as Record<string, string | number | boolean | null>
-          }
-          }
-        }
-      }
-      
+    if (!redis || !redisClientType) {
+      logger.debug('[X402Manager] Redis not available', { requestId })
+      return null
+    }
+
+    const cached = await redis.get(key)
+    
+    if (!cached) {
       logger.debug('[X402Manager] Payment not found in Redis', { requestId })
       return null
-    } catch (error) {
-      logger.error('[X402Manager] Failed to retrieve payment from Redis', { requestId, error })
+    }
+
+    const paymentData = JSON.parse(cached as string)
+    const validation = PendingPaymentSchema.safeParse(paymentData)
+    
+    if (!validation.success) {
+      logger.error('[X402Manager] Invalid payment data in Redis', { requestId, error: validation.error })
+      await this.deletePayment(requestId)
       return null
+    }
+    
+    logger.debug('[X402Manager] Retrieved payment from Redis', { requestId })
+    return {
+      ...validation.data,
+      request: {
+        ...validation.data.request,
+        metadata: validation.data.request.metadata as Record<string, string | number | boolean | null>
+      }
     }
   }
 
@@ -203,77 +202,72 @@ export class X402Manager {
       return { verified: false, error: 'Payment request expired' }
     }
 
-    try {
-      const tx = await this.provider.getTransaction(verificationData.txHash)
-      if (!tx) {
-        return { verified: false, error: 'Transaction not found on blockchain' }
-      }
-  
-      const txReceipt = await this.provider.getTransactionReceipt(verificationData.txHash)
-      if (!txReceipt) {
-        return { verified: false, error: 'Transaction not yet confirmed' }
-      }
-  
-      if (txReceipt.status !== 1) {
-        return { verified: false, error: 'Transaction failed on blockchain' }
-      }
-  
-      const errors: string[] = []
-  
-      // For smart wallets (account abstraction), the tx.from might be the paymaster or smart wallet
-      // We need to be more lenient with sender validation
-      const fromMatch = tx.from.toLowerCase() === pending.request.from.toLowerCase()
-      
-      // Check if this might be a smart wallet transaction (has different from address)
-      const isSmartWallet = !fromMatch
-      
-      if (!fromMatch) {
-        logger.warn(`[X402Manager] Sender mismatch: expected ${pending.request.from}, got ${tx.from}, treating as smart wallet`)
-        // For production, you may want to implement more sophisticated verification:
-        // - Check transaction trace for internal calls to the sender's smart wallet
-        // - Verify the smart wallet contract code/factory
-      }
-  
-      // Recipient validation - should be strict
-      const recipientMatch = tx.to?.toLowerCase() === pending.request.to.toLowerCase()
-      
-      if (!recipientMatch) {
-        // For smart wallets, tx.to could be an entrypoint. A robust solution would involve:
-        // 1. Decoding the transaction data to find the ultimate recipient.
-        // 2. Tracing the transaction to see internal calls.
-        // For now, we will reject if there is a direct mismatch, to be safe.
-        errors.push(`Recipient mismatch: expected ${pending.request.to}, got ${tx.to}`)
-      }
-  
-      // Verify amount (with some tolerance for gas and fees)
-      const requestedAmount = BigInt(pending.request.amount)
-      const paidAmount = tx.value
-      
-      // Allow for 1% tolerance for gas fees in smart wallet transactions
-      const minAcceptableAmount = requestedAmount * 99n / 100n
-      
-      if (paidAmount < minAcceptableAmount) {
-        errors.push(`Insufficient payment: expected at least ${minAcceptableAmount}, got ${paidAmount}`)
-      }
-  
-      if (errors.length > 0) {
-        return { verified: false, error: errors.join('; ') }
-      }
-  
-      // Mark as verified in Redis
-      pending.verified = true
-      await this.updatePayment(verificationData.requestId, pending)
-  
-      logger.info(`[X402Manager] Payment verified successfully: ${verificationData.txHash}`, { 
-        requestId: verificationData.requestId, 
-        isSmartWallet 
-      })
-  
-      return { verified: true }
-    } catch (error) {
-      logger.error('[X402Manager] Payment verification error', { error })
-      return { verified: false, error: error instanceof Error ? error.message : 'Verification failed' }
+    const tx = await this.provider.getTransaction(verificationData.txHash)
+    if (!tx) {
+      return { verified: false, error: 'Transaction not found on blockchain' }
     }
+
+    const txReceipt = await this.provider.getTransactionReceipt(verificationData.txHash)
+    if (!txReceipt) {
+      return { verified: false, error: 'Transaction not yet confirmed' }
+    }
+
+    if (txReceipt.status !== 1) {
+      return { verified: false, error: 'Transaction failed on blockchain' }
+    }
+
+    const errors: string[] = []
+
+    // For smart wallets (account abstraction), the tx.from might be the paymaster or smart wallet
+    // We need to be more lenient with sender validation
+    const fromMatch = tx.from.toLowerCase() === pending.request.from.toLowerCase()
+    
+    // Check if this might be a smart wallet transaction (has different from address)
+    const isSmartWallet = !fromMatch
+    
+    if (!fromMatch) {
+      logger.warn(`[X402Manager] Sender mismatch: expected ${pending.request.from}, got ${tx.from}, treating as smart wallet`)
+      // For production, you may want to implement more sophisticated verification:
+      // - Check transaction trace for internal calls to the sender's smart wallet
+      // - Verify the smart wallet contract code/factory
+    }
+
+    // Recipient validation - should be strict
+    const recipientMatch = tx.to?.toLowerCase() === pending.request.to.toLowerCase()
+    
+    if (!recipientMatch) {
+      // For smart wallets, tx.to could be an entrypoint. A robust solution would involve:
+      // 1. Decoding the transaction data to find the ultimate recipient.
+      // 2. Tracing the transaction to see internal calls.
+      // For now, we will reject if there is a direct mismatch, to be safe.
+      errors.push(`Recipient mismatch: expected ${pending.request.to}, got ${tx.to}`)
+    }
+
+    // Verify amount (with some tolerance for gas and fees)
+    const requestedAmount = BigInt(pending.request.amount)
+    const paidAmount = tx.value
+    
+    // Allow for 1% tolerance for gas fees in smart wallet transactions
+    const minAcceptableAmount = requestedAmount * 99n / 100n
+    
+    if (paidAmount < minAcceptableAmount) {
+      errors.push(`Insufficient payment: expected at least ${minAcceptableAmount}, got ${paidAmount}`)
+    }
+
+    if (errors.length > 0) {
+      return { verified: false, error: errors.join('; ') }
+    }
+
+    // Mark as verified in Redis
+    pending.verified = true
+    await this.updatePayment(verificationData.requestId, pending)
+
+    logger.info(`[X402Manager] Payment verified successfully: ${verificationData.txHash}`, { 
+      requestId: verificationData.requestId, 
+      isSmartWallet 
+    })
+
+    return { verified: true }
   }
 
   /**

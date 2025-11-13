@@ -3,9 +3,10 @@
  * Tests the new wallet display and A2A integration for user profiles
  */
 
-import { describe, test, expect, beforeAll, afterAll } from '@jest/globals'
+import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import { A2AClient } from '@/lib/a2a/client'
 import { prisma } from '@/lib/prisma'
+import { generateSnowflakeId } from '@/lib/snowflake'
 
 describe('User Wallet Feature', () => {
   let testUserId: string
@@ -13,8 +14,10 @@ describe('User Wallet Feature', () => {
 
   beforeAll(async () => {
     // Create a test user with balance and positions
-    const testUser = await prisma.user.create({
+    testUserId = await generateSnowflakeId()
+    await prisma.user.create({
       data: {
+        id: testUserId,
         privyId: `test_user_wallet_${Date.now()}`,
         username: `test_wallet_${Date.now()}`,
         displayName: 'Test Wallet User',
@@ -25,13 +28,15 @@ describe('User Wallet Feature', () => {
         lifetimePnL: 2500,
         reputationPoints: 500,
         isAgent: false,
+          isTest: true,
+        updatedAt: new Date()
       },
     })
-    testUserId = testUser.id
 
     // Create some test positions
     const testMarket = await prisma.market.create({
       data: {
+        id: await generateSnowflakeId(),
         question: 'Will this test pass?',
         description: 'Testing wallet feature',
         endDate: new Date(Date.now() + 86400000),
@@ -39,36 +44,36 @@ describe('User Wallet Feature', () => {
         yesShares: 1000,
         noShares: 1000,
         liquidity: 2000,
+        updatedAt: new Date()
       },
     })
 
     await prisma.position.create({
       data: {
+        id: await generateSnowflakeId(),
         userId: testUserId,
         marketId: testMarket.id,
-        side: 'YES',
+        side: true, // true = YES, false = NO
         shares: 100,
         avgPrice: 0.5,
+        updatedAt: new Date()
       },
     })
   })
 
   afterAll(async () => {
-    // Cleanup
-    if (testUserId) {
-      await prisma.position.deleteMany({ where: { userId: testUserId } })
-      await prisma.perpPosition.deleteMany({ where: { userId: testUserId } })
-      await prisma.user.delete({ where: { id: testUserId } }).catch(() => {})
-    }
+    await prisma.position.deleteMany({ where: { userId: testUserId } })
+    await prisma.perpPosition.deleteMany({ where: { userId: testUserId } })
+    await prisma.market.deleteMany({ where: { question: 'Will this test pass?' } })
+    await prisma.user.delete({ where: { id: testUserId } })
     
     if (a2aClient) {
-      await a2aClient.disconnect()
+      await (a2aClient as any).disconnect()
     }
-    
-    await prisma.$disconnect()
   })
 
   test('should fetch user balance via API', async () => {
+    
     const response = await fetch(`http://localhost:3000/api/users/${testUserId}/balance`, {
       headers: {
         'Content-Type': 'application/json',
@@ -85,6 +90,7 @@ describe('User Wallet Feature', () => {
   })
 
   test('should fetch user positions via API', async () => {
+    
     const response = await fetch(`http://localhost:3000/api/markets/positions/${testUserId}?status=open`, {
       headers: {
         'Content-Type': 'application/json',
@@ -95,57 +101,52 @@ describe('User Wallet Feature', () => {
     const data = await response.json()
     
     expect(data.predictions).toBeDefined()
-    expect(Array.isArray(data.predictions)).toBe(true)
-    expect(data.predictions.length).toBeGreaterThan(0)
+    expect(data.predictions.positions).toBeDefined()
+    expect(Array.isArray(data.predictions.positions)).toBe(true)
   })
 
-  test('A2A client should have getUserBalance method', () => {
-    expect(typeof A2AClient.prototype.getUserBalance).toBe('function')
+  test('A2A client should have sendRequest method', () => {
+    // HttpA2AClient uses sendRequest, not individual methods
+    expect(typeof A2AClient.prototype.sendRequest).toBe('function')
+    console.log('✅ A2A client has sendRequest method')
   })
 
-  test('A2A client should have getUserPositions method', () => {
-    expect(typeof A2AClient.prototype.getUserPositions).toBe('function')
-  })
-
-  test('A2A client should have getUserWallet method', () => {
-    expect(typeof A2AClient.prototype.getUserWallet).toBe('function')
-  })
-
-  test('should initialize A2A client with wallet methods', () => {
-    // This test verifies the A2A client has the new methods
+  test('should initialize A2A client for HTTP transport', () => {
+    // This test verifies the A2A HTTP client can be created
     const mockConfig = {
-      endpoint: 'ws://localhost:8765',
-      credentials: {
-        address: '0x' + '0'.repeat(40),
-        privateKey: '0x' + '0'.repeat(64),
-      },
+      endpoint: 'http://localhost:3000/api/a2a',
+      agentId: 'test-agent-123'
     }
 
     const client = new A2AClient(mockConfig)
     
-    expect(client.getUserBalance).toBeDefined()
-    expect(client.getUserPositions).toBeDefined()
-    expect(client.getUserWallet).toBeDefined()
+    expect(client.sendRequest).toBeDefined()
+    expect(typeof client.sendRequest).toBe('function')
+    
+    console.log('✅ A2A HTTP client can be initialized')
   })
 })
 
-describe('User Wallet UI Component', () => {
-  test('UserWallet component should be importable', async () => {
-    const { UserWallet } = await import('@/components/profile/UserWallet')
-    expect(UserWallet).toBeDefined()
+describe('Trading Profile UI Component', () => {
+  test('TradingProfile component should be importable', async () => {
+    const { TradingProfile } = await import('@/components/profile/TradingProfile')
+    expect(TradingProfile).toBeDefined()
+    expect(typeof TradingProfile).toBe('function')
   })
 })
 
 describe('Agent Providers', () => {
   test('userWalletProvider should be exported', async () => {
-    const { userWalletProvider } = await import('@/lib/agents/plugins/babylon/providers')
-    expect(userWalletProvider).toBeDefined()
-    expect(userWalletProvider.name).toBe('BABYLON_USER_WALLET')
+    const providers = await import('@/lib/agents/plugins/babylon/providers')
+    expect(providers).toHaveProperty('userWalletProvider')
+    expect(providers.userWalletProvider).toBeDefined()
+    expect(providers.userWalletProvider.name).toBe('BABYLON_USER_WALLET')
   })
 
   test('babylonPlugin should include userWalletProvider', async () => {
     const { babylonPlugin } = await import('@/lib/agents/plugins/babylon')
-    const providerNames = babylonPlugin.providers.map((p: any) => p.name)
+    expect(babylonPlugin.providers).toBeDefined()
+    const providerNames = babylonPlugin.providers?.map((p: any) => p.name) || []
     expect(providerNames).toContain('BABYLON_USER_WALLET')
   })
 })

@@ -106,72 +106,66 @@ export default function SettingsPage() {
     setSaved(false);
     setErrorMessage(null);
 
-    try {
-      const trimmedDisplayName = (displayName ?? '').trim();
-      const trimmedUsername = (username ?? '').trim();
-      const trimmedBio = (bio ?? '').trim();
+    const trimmedDisplayName = (displayName ?? '').trim();
+    const trimmedUsername = (username ?? '').trim();
+    const trimmedBio = (bio ?? '').trim();
 
-      // Backend now handles ALL signing automatically - no user popups!
-      // This includes username changes, bio updates, display name changes.
-      // The server signs the transaction on-chain for a seamless UX.
-      
-      const token = await getAccessToken();
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(user.id)}/update-profile`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            displayName: trimmedDisplayName,
-            username: trimmedUsername,
-            bio: trimmedBio,
-          }),
-        }
-      );
-
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const message = payload?.error || 'Unable to save your changes.';
-        throw new Error(message);
-      }
-
-      if (payload.user) {
-        setUser({
-          ...user,
-          username: payload.user.username,
-          displayName: payload.user.displayName,
-          bio: payload.user.bio,
-          usernameChangedAt: payload.user.usernameChangedAt,
-          referralCode: payload.user.referralCode,
-          onChainRegistered:
-            payload.user.onChainRegistered ?? user.onChainRegistered,
-        });
-      }
-
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-      await refresh().catch(() => undefined);
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'An error occurred while updating the profile.';
-      setErrorMessage(message);
-      logger.error(
-        'Failed to save profile settings',
-        { error },
-        'SettingsPage'
-      );
-    } finally {
-      setSaving(false);
+    // Backend now handles ALL signing automatically - no user popups!
+    // This includes username changes, bio updates, display name changes.
+    // The server signs the transaction on-chain for a seamless UX.
+    
+    const token = await getAccessToken();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
+
+    const response = await fetch(
+      `/api/users/${encodeURIComponent(user.id)}/update-profile`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          displayName: trimmedDisplayName,
+          username: trimmedUsername,
+          bio: trimmedBio,
+        }),
+      }
+    ).catch((error: Error) => {
+      const message = error.message;
+      setErrorMessage(message);
+      logger.error('Failed to save profile settings', { error }, 'SettingsPage');
+      setSaving(false);
+      throw error;
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = payload?.error || 'Unable to save your changes.';
+      setErrorMessage(message);
+      setSaving(false);
+      throw new Error(message);
+    }
+
+    if (payload.user) {
+      setUser({
+        ...user,
+        username: payload.user.username,
+        displayName: payload.user.displayName,
+        bio: payload.user.bio,
+        usernameChangedAt: payload.user.usernameChangedAt,
+        referralCode: payload.user.referralCode,
+        onChainRegistered:
+          payload.user.onChainRegistered ?? user.onChainRegistered,
+      });
+    }
+
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+    await refresh().catch(() => undefined);
+    setSaving(false);
   };
 
   if (!ready) {

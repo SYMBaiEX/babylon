@@ -482,7 +482,7 @@ export async function registerBabylonGame(): Promise<BabylonRegistrationResult |
   await prisma.gameConfig.upsert({
     where: { key: 'agent0_registration' },
     create: {
-      id: generateSnowflakeId(),
+      id: await generateSnowflakeId(),
       key: 'agent0_registration',
       value: {
         registered: true,

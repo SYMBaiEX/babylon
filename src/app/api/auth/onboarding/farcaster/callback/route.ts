@@ -134,54 +134,27 @@ async function verifyFarcasterSignature(
   signature: string,
   fid: number
 ): Promise<boolean> {
-  try {
-    // Use Neynar API for verification if available
-    if (process.env.NEYNAR_API_KEY) {
-      const response = await fetch('https://api.neynar.com/v2/farcaster/verification', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'api_key': process.env.NEYNAR_API_KEY,
-        },
-        body: JSON.stringify({
-          message,
-          signature,
-          fid,
-        }),
-      })
-
-      if (response.ok) {
-        const data = await response.json() as { valid?: boolean }
-        return data.valid === true
-      }
-
-      const errorText = await response.text()
-      logger.error('Neynar verification failed', { 
-        status: response.status, 
-        error: errorText,
-        fid 
-      }, 'verifyFarcasterSignature')
-      return false
-    }
-
-    // For development without Neynar API key
-    logger.warn('Farcaster verification skipped - no Neynar API key configured', { fid }, 'verifyFarcasterSignature')
-    
-    // Only allow in development
-    if (process.env.NODE_ENV === 'production') {
-      logger.error('Farcaster verification attempted in production without Neynar API key', { fid }, 'verifyFarcasterSignature')
-      return false
-    }
-    
-    return true
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    logger.error('Failed to verify Farcaster signature', { 
-      error: errorMessage,
+  const response = await fetch('https://api.neynar.com/v2/farcaster/verification', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'api_key': process.env.NEYNAR_API_KEY!,
+    },
+    body: JSON.stringify({
+      message,
+      signature,
       fid,
-      stack: error instanceof Error ? error.stack : undefined 
-    }, 'verifyFarcasterSignature')
-    return false
-  }
+    }),
+  })
+
+  const errorText = await response.text()
+  logger.error('Neynar verification failed', { 
+    status: response.status, 
+    error: errorText,
+    fid 
+  }, 'verifyFarcasterSignature')
+
+  const data = await response.json() as { valid: boolean }
+  return data.valid
 }
 

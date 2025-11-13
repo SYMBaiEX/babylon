@@ -88,7 +88,7 @@ export const POST = withErrorHandling(async (
     const now = new Date();
     const comment = await prisma.comment.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         content: content.trim(),
         postId,
         authorId: canonicalUserId,

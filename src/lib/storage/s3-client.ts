@@ -115,41 +115,41 @@ class S3StorageClient {
         key: blob.pathname,
         size: buffer.length,
       }
-    } else {
-      // Upload to MinIO/S3
-      if (!this.client) {
-        throw new Error('S3 client not initialized')
-      }
+    }
+    
+    // Upload to MinIO/S3
+    if (!this.client) {
+      throw new Error('S3 client not initialized')
+    }
 
-      const upload = new Upload({
-        client: this.client,
-        params: {
-          Bucket: this.bucket,
-          Key: pathname,
-          Body: buffer,
-          ContentType: options.contentType,
-          CacheControl: 'public, max-age=31536000, immutable',
-        },
-      })
+    const upload = new Upload({
+      client: this.client,
+      params: {
+        Bucket: this.bucket,
+        Key: pathname,
+        Body: buffer,
+        ContentType: options.contentType,
+        CacheControl: 'public, max-age=31536000, immutable',
+      },
+    })
 
-      await upload.done()
+    await upload.done()
 
-      // Generate public URL
-      const url = this.publicUrl 
-        ? `${this.publicUrl}/${this.bucket}/${pathname}`
-        : `http://localhost:9000/${this.bucket}/${pathname}`
+    // Generate public URL
+    const url = this.publicUrl 
+      ? `${this.publicUrl}/${this.bucket}/${pathname}`
+      : `http://localhost:9000/${this.bucket}/${pathname}`
 
-      logger.info('Image uploaded successfully to MinIO', {
-        key: pathname,
-        size: buffer.length,
-        bucket: this.bucket,
-      })
+    logger.info('Image uploaded successfully to MinIO', {
+      key: pathname,
+      size: buffer.length,
+      bucket: this.bucket,
+    })
 
-      return {
-        url,
-        key: pathname,
-        size: buffer.length,
-      }
+    return {
+      url,
+      key: pathname,
+      size: buffer.length,
     }
   }
 
@@ -157,37 +157,32 @@ class S3StorageClient {
    * Delete an image file
    */
   async deleteImage(url: string): Promise<void> {
-    try {
-      if (this.useVercel) {
-        // Delete from Vercel Blob
-        await vercelBlobDel(url)
-        logger.info('Image deleted successfully from Vercel Blob', { url })
-      } else {
-        // Delete from MinIO/S3
-        if (!this.client) {
-          throw new Error('S3 client not initialized')
-        }
-
-        // Extract key from URL if full URL is provided
-        let key = url
-        if (url.startsWith('http')) {
-          // URL format: http://localhost:9000/babylon-uploads/folder/file.jpg
-          // Extract: folder/file.jpg
-          const urlParts = url.split(`/${this.bucket}/`)
-          key = urlParts.length > 1 ? (urlParts[1] || url) : url
-        }
-
-        const command = new DeleteObjectCommand({
-          Bucket: this.bucket,
-          Key: key,
-        })
-
-        await this.client.send(command)
-        logger.info('Image deleted successfully from MinIO', { key })
+    if (this.useVercel) {
+      // Delete from Vercel Blob
+      await vercelBlobDel(url)
+      logger.info('Image deleted successfully from Vercel Blob', { url })
+    } else {
+      // Delete from MinIO/S3
+      if (!this.client) {
+        throw new Error('S3 client not initialized')
       }
-    } catch (error) {
-      logger.error('Failed to delete image', { url, error: error instanceof Error ? error.message : String(error) })
-      throw error
+
+      // Extract key from URL if full URL is provided
+      let key = url
+      if (url.startsWith('http')) {
+        // URL format: http://localhost:9000/babylon-uploads/folder/file.jpg
+        // Extract: folder/file.jpg
+        const urlParts = url.split(`/${this.bucket}/`)
+        key = urlParts.length > 1 ? (urlParts[1] || url) : url
+      }
+
+      const command = new DeleteObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+      })
+
+      await this.client.send(command)
+      logger.info('Image deleted successfully from MinIO', { key })
     }
   }
 
@@ -234,17 +229,8 @@ class S3StorageClient {
       return
     }
 
-    try {
-      await this.client!.send(new CreateBucketCommand({ Bucket: this.bucket }))
-      logger.info(`Created bucket: ${this.bucket}`)
-    } catch (error) {
-      const err = error as { name?: string; Code?: string; message?: string }
-      if (err.name === 'BucketAlreadyOwnedByYou' || err.Code === 'BucketAlreadyOwnedByYou') {
-        logger.info(`Bucket ${this.bucket} already exists`)
-      } else {
-        throw error
-      }
-    }
+    await this.client!.send(new CreateBucketCommand({ Bucket: this.bucket }))
+    logger.info(`Created bucket: ${this.bucket}`)
 
     const policy = {
       Version: '2012-10-17',
@@ -258,18 +244,13 @@ class S3StorageClient {
       ],
     }
 
-    try {
-      await this.client!.send(
-        new PutBucketPolicyCommand({
-          Bucket: this.bucket,
-          Policy: JSON.stringify(policy),
-        })
-      )
-      logger.info(`Set public policy for bucket: ${this.bucket}`)
-    } catch (error) {
-      const err = error as { message?: string }
-      logger.warn(`Failed to set bucket policy (may already be set): ${err.message || 'Unknown error'}`)
-    }
+    await this.client!.send(
+      new PutBucketPolicyCommand({
+        Bucket: this.bucket,
+        Policy: JSON.stringify(policy),
+      })
+    )
+    logger.info(`Set public policy for bucket: ${this.bucket}`)
   }
 
   /**
@@ -297,23 +278,15 @@ class S3StorageClient {
   async exists(key: string): Promise<boolean> {
     if (this.useVercel) {
       const { head } = await import('@vercel/blob')
-      try {
-        await head(key)
-        return true
-      } catch {
-        return false
-      }
+      await head(key)
+      return true
     } else {
       const { HeadObjectCommand } = await import('@aws-sdk/client-s3')
-      try {
-        await this.client!.send(new HeadObjectCommand({
-          Bucket: this.bucket,
-          Key: key,
-        }))
-        return true
-      } catch {
-        return false
-      }
+      await this.client!.send(new HeadObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+      }))
+      return true
     }
   }
 }

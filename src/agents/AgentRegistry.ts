@@ -40,49 +40,44 @@ export class AgentRegistry {
    * Get all registered agents
    */
   async getAllAgents(): Promise<AgentResult[]> {
-    try {
-      const agents = await prisma.user.findMany({
-        where: {
-          isAgent: true,
-          managedBy: { not: null }
-        },
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-          walletAddress: true,
-          reputationPoints: true
-        }
-      })
+    const agents = await prisma.user.findMany({
+      where: {
+        isAgent: true,
+        managedBy: { not: null }
+      },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        walletAddress: true,
+        reputationPoints: true
+      }
+    })
 
-      return agents.map(agent => ({
-        profile: {
-          agentId: agent.id,
-          tokenId: 0, // Default tokenId
-          address: agent.walletAddress || '',
-          name: agent.displayName || agent.username || 'Unknown',
-          endpoint: '',
-          capabilities: {
-            strategies: [],
-            markets: [],
-            actions: [],
-            version: '1.0.0'
-          },
-          reputation: {
-            totalBets: 0,
-            winningBets: 0,
-            accuracyScore: 0,
-            trustScore: agent.reputationPoints / 1000,
-            totalVolume: '0',
-            profitLoss: 0,
-            isBanned: false
-          },
-          isActive: true
-        }
-      }))
-    } catch (error) {
-      console.error('Error fetching agents:', error)
-      return []
-    }
+    return agents.map(agent => ({
+      profile: {
+        agentId: agent.id,
+        tokenId: 0,
+        address: agent.walletAddress!,
+        name: agent.displayName!,
+        endpoint: '',
+        capabilities: {
+          strategies: [],
+          markets: [],
+          actions: [],
+          version: '1.0.0'
+        },
+        reputation: {
+          totalBets: 0,
+          winningBets: 0,
+          accuracyScore: 0,
+          trustScore: agent.reputationPoints / 1000,
+          totalVolume: '0',
+          profitLoss: 0,
+          isBanned: false
+        },
+        isActive: true
+      }
+    }))
   }
 }

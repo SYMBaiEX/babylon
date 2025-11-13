@@ -38,24 +38,7 @@ export function wrapServerActionWithSentry<T extends unknown[], R>(
         },
       },
       async () => {
-        try {
-          return await action(...args)
-        } catch (error) {
-          // Capture error with context
-          Sentry.withScope((scope) => {
-            scope.setTag('serverAction', actionName)
-            scope.setContext('serverAction', {
-              name: actionName,
-              args: args.map((arg) =>
-                typeof arg === 'object' && arg !== null
-                  ? JSON.stringify(arg).substring(0, 1000) // Limit size
-                  : String(arg)
-              ),
-            })
-            Sentry.captureException(error)
-          })
-          throw error // Re-throw to maintain original behavior
-        }
+        return await action(...args)
       }
     )
   }

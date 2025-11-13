@@ -4,7 +4,11 @@
  */
 
 // Main coordinator (use this for all autonomous operations)
+// Using regular coordinator - trajectory recording handled separately for agents that need it
 export { autonomousCoordinator, type AutonomousTickResult } from './AutonomousCoordinator'
+
+// With trajectory recording (for RL training)
+export { AutonomousCoordinatorWithRecording } from '@/lib/autonomous/AutonomousCoordinatorWithRecording'
 
 // Individual services (for specific use cases)
 export { autonomousA2AService } from './AutonomousA2AService'

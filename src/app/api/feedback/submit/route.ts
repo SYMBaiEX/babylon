@@ -37,72 +37,42 @@ const FeedbackSubmitSchema = z.object({
 )
 
 export async function POST(request: NextRequest) {
-  try {
-    const json = await request.json()
-    const parsed = FeedbackSubmitSchema.safeParse(json)
+  const json = await request.json()
+  const parsed = FeedbackSubmitSchema.parse(json)
 
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'Invalid request payload', details: parsed.error.flatten() },
-        { status: 400 }
-      )
-    }
+  const body = parsed
 
-    const body = parsed.data
+  const score = body.stars !== undefined ? body.stars * 20 : body.score!
 
-    // Calculate score from stars if provided, otherwise use provided score
-    const score = body.stars !== undefined ? body.stars * 20 : (body.score as number)
+  const fromUser = await requireUserByIdentifier(body.fromUserId)
+  const toUser = await requireUserByIdentifier(body.toUserId)
 
-    // Verify both users exist
-    const fromUser = await requireUserByIdentifier(body.fromUserId)
-    const toUser = await requireUserByIdentifier(body.toUserId)
-
-    // Prevent self-feedback
-    if (fromUser.id === toUser.id) {
-      return NextResponse.json(
-        { error: 'Cannot submit feedback to yourself' },
-        { status: 400 }
-      )
-    }
-
-    // Create feedback record
-    const now = new Date();
-    const feedback = await prisma.feedback.create({
-      data: {
-        id: generateSnowflakeId(),
-        fromUserId: fromUser.id,
-        toUserId: toUser.id,
-        score,
-        comment: body.comment ?? null,
-        category: body.category ?? 'general',
-        interactionType: 'user_to_agent', // Manual user feedback
-        createdAt: now,
-        updatedAt: now,
-      },
-    })
-
-    logger.info('Feedback submitted successfully', {
-      feedbackId: feedback.id,
+  const now = new Date()
+  const feedback = await prisma.feedback.create({
+    data: {
+      id: await generateSnowflakeId(),
       fromUserId: fromUser.id,
       toUserId: toUser.id,
       score,
-    })
+      comment: body.comment ?? null,
+      category: body.category ?? 'general',
+      interactionType: 'user_to_agent',
+      createdAt: now,
+      updatedAt: now,
+    },
+  })
 
-    return NextResponse.json({
-      success: true,
-      feedbackId: feedback.id,
-      score,
-      message: 'Feedback submitted successfully',
-    }, { status: 201 })
-  } catch (error) {
-    logger.error('Failed to submit feedback', error)
+  logger.info('Feedback submitted successfully', {
+    feedbackId: feedback.id,
+    fromUserId: fromUser.id,
+    toUserId: toUser.id,
+    score,
+  })
 
-    if (error instanceof Error) {
-      if (error.message.includes('not found')) {
-        return NextResponse.json({ error: 'User not found' }, { status: 404 })
-      }
-    }
-
-    return NextResponse.json({ error: 'Failed to submit feedback' }, { status: 500 })
-  }
+  return NextResponse.json({
+    success: true,
+    feedbackId: feedback.id,
+    score,
+    message: 'Feedback submitted successfully',
+  }, { status: 201 })
 }

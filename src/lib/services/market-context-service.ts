@@ -3,10 +3,13 @@
  * 
  * Builds complete market context for NPCs to make trading decisions.
  * Gathers: feed posts, group chats, events, market data, current positions.
+ * 
+ * Token-aware: Limits context size to prevent LLM token overflows
  */
 
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+// import { truncateToTokenLimitSync, countTokensSync } from '@/lib/token-counter';
 import type {
   NPCMarketContext,
   MarketSnapshots,
@@ -202,7 +205,7 @@ export class MarketContextService {
 
   
   /**
-   * Get insider information from group chats this NPC is in
+   * Get insider information from group chats this NPC is in (token-limited)
    */
   private async getInsiderInfo(npcId: string): Promise<GroupChatContext[]> {
     const groupChats = await prisma.chat.findMany({
@@ -212,7 +215,7 @@ export class MarketContextService {
       include: {
         Message: {
           orderBy: { createdAt: 'desc' },
-          take: 50,
+          take: 20, // Reduced from 50 to limit tokens
         },
         ChatParticipant: {
           select: {
@@ -228,19 +231,27 @@ export class MarketContextService {
     );
     
     return npcChats.flatMap(chat =>
-      chat.Message.map(msg => ({
-        chatId: chat.id,
-        chatName: chat.name || 'Group Chat',
-        from: msg.senderId,
-        fromName: msg.senderId,
-        message: msg.content,
-        timestamp: msg.createdAt.toISOString(),
-      }))
+      chat.Message.slice(0, 15).map(msg => { // Limit to 15 messages per chat
+        // Truncate long messages
+        const maxMsgLength = 120;
+        const message = msg.content.length > maxMsgLength
+          ? msg.content.slice(0, maxMsgLength) + '...'
+          : msg.content;
+        
+        return {
+          chatId: chat.id,
+          chatName: chat.name || 'Group Chat',
+          from: msg.senderId,
+          fromName: msg.senderId,
+          message,
+          timestamp: msg.createdAt.toISOString(),
+        };
+      })
     );
   }
   
   /**
-   * Get recent feed posts
+   * Get recent feed posts (token-limited)
    */
   private async getRecentFeed(): Promise<FeedPostContext[]> {
     const posts = await prisma.post.findMany({
@@ -248,35 +259,56 @@ export class MarketContextService {
         deletedAt: null, // Filter out deleted posts
       },
       orderBy: { createdAt: 'desc' },
-      take: 100,
+      take: 50, // Reduced from 100 to limit tokens
     });
     
-    return posts.map(post => ({
-      author: post.authorId,
-      authorName: post.authorId,
-      content: post.content,
-      timestamp: post.createdAt.toISOString(),
-      articleTitle: post.articleTitle || undefined,
-    }));
+    return posts.map(post => {
+      // Truncate long posts to save tokens
+      const maxContentLength = 200;
+      const content = post.content.length > maxContentLength
+        ? post.content.slice(0, maxContentLength) + '...'
+        : post.content;
+      
+      const maxTitleLength = 80;
+      const articleTitle = post.articleTitle && post.articleTitle.length > maxTitleLength
+        ? post.articleTitle.slice(0, maxTitleLength) + '...'
+        : post.articleTitle;
+      
+      return {
+        author: post.authorId,
+        authorName: post.authorId,
+        content,
+        timestamp: post.createdAt.toISOString(),
+        articleTitle: articleTitle || undefined,
+      };
+    });
   }
   
   /**
-   * Get recent events with actor involvement
+   * Get recent events with actor involvement (token-limited)
    */
   private async getRecentEvents(): Promise<EventContext[]> {
     const events = await prisma.worldEvent.findMany({
       orderBy: { timestamp: 'desc' },
-      take: 50,
+      take: 30, // Reduced from 50 to limit tokens
     });
     
-    return events.map(event => ({
-      type: event.eventType,
-      description: event.description,
-      actors: event.actors as string[] | undefined,
-      timestamp: event.timestamp.toISOString(),
-      relatedQuestion: event.relatedQuestion || undefined,
-      pointsToward: event.pointsToward || undefined,
-    }));
+    return events.map(event => {
+      // Truncate long descriptions
+      const maxDescLength = 150;
+      const description = event.description.length > maxDescLength
+        ? event.description.slice(0, maxDescLength) + '...'
+        : event.description;
+      
+      return {
+        type: event.eventType,
+        description,
+        actors: event.actors as string[] | undefined,
+        timestamp: event.timestamp.toISOString(),
+        relatedQuestion: event.relatedQuestion || undefined,
+        pointsToward: event.pointsToward || undefined,
+      };
+    });
   }
   
   /**
@@ -335,9 +367,10 @@ export class MarketContextService {
         }
         
         // Get open interest from pool positions
+        // Use raw org ID since TradeExecutionService now stores raw IDs
         const positions = await prisma.poolPosition.findMany({
           where: {
-            ticker: company.id.toUpperCase().replace(/-/g, ''),
+            ticker: company.id,
             closedAt: null,
           },
         });
@@ -345,8 +378,9 @@ export class MarketContextService {
         const openInterest = positions.reduce((sum, pos) => sum + pos.size, 0);
         const volume24h = positions.reduce((sum, pos) => sum + pos.size, 0);
         
+        // Provide raw org ID as ticker so LLM uses the correct format
         return {
-          ticker: company.id.toUpperCase().replace(/-/g, ''),
+          ticker: company.id,
           organizationId: company.id,
           name: company.name || 'Unknown',
           currentPrice,
@@ -362,7 +396,7 @@ export class MarketContextService {
   }
   
   /**
-   * Get prediction market snapshots
+   * Get prediction market snapshots (token-limited)
    */
   private async getPredictionMarketSnapshots(): Promise<PredictionMarketSnapshot[]> {
     const markets = await prisma.market.findMany({
@@ -370,6 +404,10 @@ export class MarketContextService {
         resolved: false,
         endDate: { gte: new Date() },
       },
+      orderBy: [
+        { yesShares: 'desc' }, // Prioritize markets with more activity
+      ],
+      take: 15, // Limit to top 15 most active markets
     });
     
     return markets.map(market => {
@@ -388,9 +426,15 @@ export class MarketContextService {
         Math.ceil((market.endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
       );
       
+      // Truncate long question text
+      const maxQuestionLength = 120;
+      const text = market.question.length > maxQuestionLength
+        ? market.question.slice(0, maxQuestionLength) + '...'
+        : market.question;
+      
       return {
         id: market.id, // Keep as Snowflake string
-        text: market.question,
+        text,
         yesPrice,
         noPrice,
         totalVolume,

@@ -101,10 +101,7 @@ async function executeAsSystem<T>(
 
     return result
   } catch (error) {
-    logger.error('System operation failed', {
-      operation: operationName || 'unknown',
-      error: error instanceof Error ? error.message : String(error),
-    }, 'RLS Security')
+    logger.error('System operation failed', error, 'RLS Security')
     throw error
   }
 }

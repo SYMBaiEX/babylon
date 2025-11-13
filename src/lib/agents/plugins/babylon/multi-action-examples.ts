@@ -1,8 +1,11 @@
-// @ts-nocheck
 /**
  * Multi-Action Workflow Examples for Babylon Agents
  * Demonstrates complex agent behaviors using multiple A2A methods
  */
+
+// @ts-nocheck - Example file with illustrative code
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 
 import type { BabylonRuntime } from './types'
 import { logger } from '@/lib/logger'

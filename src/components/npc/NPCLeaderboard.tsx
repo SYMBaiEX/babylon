@@ -58,20 +58,15 @@ export function NPCLeaderboard({
   useEffect(() => {
     const fetchLeaderboard = async () => {
       setLoading(true)
-      try {
-        const response = await fetch(
-          `/api/npc/performance/leaderboard?limit=${limit}&minValue=${minValue}`
-        )
-        const result = await response.json()
+      const response = await fetch(
+        `/api/npc/performance/leaderboard?limit=${limit}&minValue=${minValue}`
+      )
+      const result = await response.json()
 
-        if (result.success) {
-          setData(result)
-        }
-      } catch (error) {
-        console.error('Failed to fetch NPC leaderboard:', error)
-      } finally {
-        setLoading(false)
+      if (result.success) {
+        setData(result)
       }
+      setLoading(false)
     }
 
     fetchLeaderboard()

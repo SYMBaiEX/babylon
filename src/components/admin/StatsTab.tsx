@@ -104,34 +104,25 @@ export function StatsTab() {
   }, [])
 
   const fetchStats = async () => {
-    try {
-      const response = await fetch('/api/admin/stats')
-      if (!response.ok) throw new Error('Failed to fetch stats')
-      const data = await response.json()
-      const validation = SystemStatsSchema.safeParse(data);
-      if (!validation.success) {
-        throw new Error('Invalid system stats data structure');
-      }
-      setStats(validation.data)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load stats')
-    } finally {
-      setLoading(false)
+    const response = await fetch('/api/admin/stats')
+    if (!response.ok) throw new Error('Failed to fetch stats')
+    const data = await response.json()
+    const validation = SystemStatsSchema.safeParse(data);
+    if (!validation.success) {
+      throw new Error('Invalid system stats data structure');
     }
+    setStats(validation.data)
+    setError(null)
+    setLoading(false)
   }
 
   const fetchFeeStats = async () => {
-    try {
-      const response = await fetch('/api/admin/fees')
-      if (!response.ok) return // Fail silently for fees
-      const data = await response.json()
-      const validation = FeeStatsSchema.safeParse(data.platformStats);
-      if (validation.success) {
-        setFeeStats(validation.data);
-      }
-    } catch {
-      // Fail silently for fee stats
+    const response = await fetch('/api/admin/fees')
+    if (!response.ok) return // Fail silently for fees
+    const data = await response.json()
+    const validation = FeeStatsSchema.safeParse(data.platformStats);
+    if (validation.success) {
+      setFeeStats(validation.data);
     }
   }
 

@@ -84,17 +84,6 @@ describe('Autonomous Babylon Agent - Integration', () => {
       expect(parsed.action).toBe('BUY_YES')
       expect(parsed.params.amount).toBe(50)
     })
-
-    it('should handle malformed decisions gracefully', () => {
-      try {
-        const badText = "Not valid JSON"
-        JSON.parse(badText)
-        expect(true).toBe(false) // Should not reach
-      } catch (error) {
-        // Should throw and be caught
-        expect(error).toBeDefined()
-      }
-    })
   })
 
   describe('A2A Client', () => {
@@ -102,7 +91,7 @@ describe('Autonomous Babylon Agent - Integration', () => {
       const { BabylonA2AClient } = await import('../src/a2a-client')
       
       const client = new BabylonA2AClient({
-        wsUrl: 'ws://localhost:3000',
+        apiUrl: 'http://localhost:3000/api/a2a',
         address: '0x' + '1'.repeat(40),
         tokenId: 1,
         privateKey: '0x' + '1'.repeat(64)

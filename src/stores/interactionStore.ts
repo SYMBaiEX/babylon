@@ -235,34 +235,28 @@ export const useInteractionStore = create<InteractionStore>()(
 
         setLoading(loadingKey, true);
 
-        try {
-          const response = await apiCall<CommentData>(
-            `/api/posts/${postId}/comments`,
-            {
-              method: 'POST',
-              body: JSON.stringify({ content, parentCommentId: parentId }),
-            }
-          );
-
-          if (!parentId) {
-            const currentInteraction = postInteractions.get(postId);
-            if (currentInteraction) {
-              set((state) => ({
-                postInteractions: new Map(state.postInteractions).set(postId, {
-                  ...currentInteraction,
-                  commentCount: currentInteraction.commentCount + 1,
-                }),
-              }));
-            }
+        const response = await apiCall<CommentData>(
+          `/api/posts/${postId}/comments`,
+          {
+            method: 'POST',
+            body: JSON.stringify({ content, parentCommentId: parentId }),
           }
+        );
 
-          setLoading(loadingKey, false);
-          return response;
-        } catch (error) {
-          console.error('Failed to add comment:', error);
-          setLoading(loadingKey, false);
-          return null;
+        if (!parentId) {
+          const currentInteraction = postInteractions.get(postId);
+          if (currentInteraction) {
+            set((state) => ({
+              postInteractions: new Map(state.postInteractions).set(postId, {
+                ...currentInteraction,
+                commentCount: currentInteraction.commentCount + 1,
+              }),
+            }));
+          }
         }
+
+        setLoading(loadingKey, false);
+        return response;
       },
 
       editComment: async (commentId: string, content: string) => {

@@ -84,13 +84,11 @@ async function main() {
   // 4. Compile contracts
   logger.info('', undefined, 'Script')
   logger.info('Compiling contracts...', undefined, 'Script')
-  try {
-    await $`forge build`.quiet()
-    logger.info('✅ Contracts compiled', undefined, 'Script')
-  } catch (error) {
+  await $`forge build`.quiet().catch((error: Error) => {
     logger.error('❌ Compilation failed', error, 'Script')
     process.exit(1)
-  }
+  })
+  logger.info('✅ Contracts compiled', undefined, 'Script')
 
   // 5. Dry run simulation
   logger.info('', undefined, 'Script')
@@ -98,17 +96,15 @@ async function main() {
 
   const scriptPath = 'scripts/DeployBabylon.s.sol:DeployBabylon'
 
-  try {
-    await $`forge script ${scriptPath} \
-      --rpc-url ${BASE_MAINNET_RPC_URL} \
-      -vvv`.quiet()
-
-    logger.info('✅ Simulation successful', undefined, 'Script')
-  } catch (error) {
+  await $`forge script ${scriptPath} \
+    --rpc-url ${BASE_MAINNET_RPC_URL} \
+    -vvv`.quiet().catch((error) => {
     logger.error('❌ Simulation failed', undefined, 'Script')
     logger.error('   Fix issues before deploying to mainnet', error, 'Script')
     process.exit(1)
-  }
+  })
+
+  logger.info('✅ Simulation successful', undefined, 'Script')
 
   // 6. Final confirmation
   logger.info('', undefined, 'Script')
@@ -141,21 +137,20 @@ async function main() {
   logger.info('', undefined, 'Script')
   logger.info('Deploying contracts to Base mainnet...', undefined, 'Script')
 
-  try {
-    const output = await $`forge script ${scriptPath} \
-      --rpc-url ${BASE_MAINNET_RPC_URL} \
-      --broadcast \
-      --verify \
-      -vvv`.text()
+  const output = await $`forge script ${scriptPath} \
+    --rpc-url ${BASE_MAINNET_RPC_URL} \
+    --broadcast \
+    --verify \
+    -vvv`.text()
 
-    logger.info('✅ Deployment transaction sent', undefined, 'Script')
+  logger.info('✅ Deployment transaction sent', undefined, 'Script')
 
-    // Parse output for contract addresses
-    const addresses = parseDeploymentOutput(output)
+  // Parse output for contract addresses
+  const addresses = parseDeploymentOutput(output)
 
-    if (!addresses.diamond) {
-      throw new Error('Failed to parse deployment addresses from output')
-    }
+  if (!addresses.diamond) {
+    throw new Error('Failed to parse deployment addresses from output')
+  }
 
     logger.info('Contract addresses:', undefined, 'Script')
     logger.info(`  Diamond: ${addresses.diamond}`, undefined, 'Script')

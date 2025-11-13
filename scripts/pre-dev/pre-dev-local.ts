@@ -32,15 +32,13 @@ process.env.NEXT_PUBLIC_CHAIN_ID = '31337'
 process.env.NEXT_PUBLIC_RPC_URL = 'http://localhost:8545'
 
 // 1. Check Docker
-try {
-  await $`docker --version`.quiet()
-  await $`docker info`.quiet()
-  logger.info('✅ Docker is running', undefined, 'Script')
-} catch (error) {
+await $`docker --version`.quiet()
+await $`docker info`.quiet().catch(() => {
   logger.error('❌ Docker is not running', undefined, 'Script')
   logger.info('Please start Docker Desktop or Docker daemon', undefined, 'Script')
   process.exit(1)
-}
+})
+logger.info('✅ Docker is running', undefined, 'Script')
 
 // 2. Check/create .env file
 const envPath = join(process.cwd(), '.env')
@@ -66,14 +64,10 @@ if (anvilRunning.trim() !== ANVIL_CONTAINER) {
   // Wait for health check
   let attempts = 0
   while (attempts < 30) {
-    try {
-      const health = await $`docker inspect --format='{{.State.Health.Status}}' ${ANVIL_CONTAINER}`.quiet().text()
-      if (health.trim() === 'healthy') {
-        logger.info('✅ Anvil is ready', undefined, 'Script')
-        break
-      }
-    } catch {
-      // Not ready yet
+    const health = await $`docker inspect --format='{{.State.Health.Status}}' ${ANVIL_CONTAINER}`.quiet().text().catch(() => '')
+    if (health.trim() === 'healthy') {
+      logger.info('✅ Anvil is ready', undefined, 'Script')
+      break
     }
 
     await new Promise(resolve => setTimeout(resolve, 1000))
@@ -95,20 +89,23 @@ if (anvilRunning.trim() !== ANVIL_CONTAINER) {
 logger.info('Verifying Anvil RPC endpoint...', undefined, 'Script')
 let rpcAttempts = 0
 while (rpcAttempts < 30) {
-  try {
-    await $`cast block-number --rpc-url http://localhost:8545`.text()
-    logger.info('✅ Anvil RPC is ready', undefined, 'Script')
-    break
-  } catch (error: any) {
+  const rpcSuccess = await $`cast block-number --rpc-url http://localhost:8545`.text().then(() => true).catch((error: Error & { stderr?: Buffer }) => {
     // Not ready yet
     if (rpcAttempts === 0) { // Log the error only on the first attempt
       const stderr = error.stderr ? error.stderr.toString() : 'No stderr output'
       logger.error(`Initial RPC connection error: ${error.message}`, undefined, 'Script')
       logger.error(`Stderr: ${stderr}`, undefined, 'Script')
     }
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    rpcAttempts++
+    return false
+  })
+  
+  if (rpcSuccess) {
+    logger.info('✅ Anvil RPC is ready', undefined, 'Script')
+    break
   }
+  
+  await new Promise(resolve => setTimeout(resolve, 1000))
+  rpcAttempts++
 }
 
 if (rpcAttempts === 30) {
@@ -125,16 +122,12 @@ if (!deployment || !deployment.contracts.diamond) {
   logger.info('No contracts deployed yet', undefined, 'Script')
 } else {
   // Verify contracts are still there
-  try {
-    const code = await $`cast code ${deployment.contracts.diamond} --rpc-url http://localhost:8545`.quiet().text()
-    if (code.trim() === '0x' || code.trim() === '0x0') {
-      needsDeployment = true
-      logger.warn('⚠️  Contracts not found (Anvil may have been reset)', undefined, 'Script')
-    } else {
-      logger.info('✅ Contracts are deployed', undefined, 'Script')
-    }
-  } catch {
+  const code = await $`cast code ${deployment.contracts.diamond} --rpc-url http://localhost:8545`.quiet().text().catch(() => '0x')
+  if (code.trim() === '0x' || code.trim() === '0x0') {
     needsDeployment = true
+    logger.warn('⚠️  Contracts not found (Anvil may have been reset)', undefined, 'Script')
+  } else {
+    logger.info('✅ Contracts are deployed', undefined, 'Script')
   }
 }
 
@@ -144,21 +137,16 @@ if (needsDeployment) {
   logger.info('  - Diamond system', undefined, 'Script')
   logger.info('  - Oracle system (BabylonGameOracle, Predimarket)', undefined, 'Script')
   logger.info('  - Moderation system', undefined, 'Script')
-  try {
-    await $`bun run deploy:local`
-    logger.info('✅ Contracts deployed', undefined, 'Script')
-    
-    // Verify oracle contracts deployed
-    const updatedDeployment = await loadDeployment('localnet')
-    if (updatedDeployment?.contracts.babylonOracle) {
-      logger.info('✅ Oracle contracts deployed:', undefined, 'Script')
-      logger.info(`   BabylonOracle: ${updatedDeployment.contracts.babylonOracle}`, undefined, 'Script')
-      logger.info(`   Predimarket:   ${updatedDeployment.contracts.predimarket}`, undefined, 'Script')
-      logger.info(`   TestToken:     ${updatedDeployment.contracts.testToken}`, undefined, 'Script')
-    }
-  } catch (error) {
-    logger.error('❌ Contract deployment failed', error, 'Script')
-    process.exit(1)
+  await $`bun run deploy:local`
+  logger.info('✅ Contracts deployed', undefined, 'Script')
+  
+  // Verify oracle contracts deployed
+  const updatedDeployment = await loadDeployment('localnet')
+  if (updatedDeployment?.contracts.babylonOracle) {
+    logger.info('✅ Oracle contracts deployed:', undefined, 'Script')
+    logger.info(`   BabylonOracle: ${updatedDeployment.contracts.babylonOracle}`, undefined, 'Script')
+    logger.info(`   Predimarket:   ${updatedDeployment.contracts.predimarket}`, undefined, 'Script')
+    logger.info(`   TestToken:     ${updatedDeployment.contracts.testToken}`, undefined, 'Script')
   }
 }
 
@@ -171,14 +159,10 @@ if (postgresRunning.trim() !== POSTGRES_CONTAINER) {
 
   let attempts = 0
   while (attempts < 30) {
-    try {
-      const health = await $`docker inspect --format='{{.State.Health.Status}}' ${POSTGRES_CONTAINER}`.quiet().text()
-      if (health.trim() === 'healthy') {
-        logger.info('✅ PostgreSQL is ready', undefined, 'Script')
-        break
-      }
-    } catch {
-      // Not ready yet
+    const health = await $`docker inspect --format='{{.State.Health.Status}}' ${POSTGRES_CONTAINER}`.quiet().text().catch(() => '')
+    if (health.trim() === 'healthy') {
+      logger.info('✅ PostgreSQL is ready', undefined, 'Script')
+      break
     }
 
     await new Promise(resolve => setTimeout(resolve, 1000))
@@ -198,13 +182,12 @@ const redisRunning = await $`docker ps --filter name=${REDIS_CONTAINER} --format
 
 if (redisRunning.trim() !== REDIS_CONTAINER) {
   logger.info('Starting Redis...', undefined, 'Script')
-  try {
-    await $`docker-compose up -d redis`
+  await $`docker-compose up -d redis`.then(async () => {
     await new Promise(resolve => setTimeout(resolve, 2000))
     logger.info('✅ Redis started', undefined, 'Script')
-  } catch (error) {
+  }).catch(() => {
     logger.warn('⚠️  Redis start failed (optional, continuing)', undefined, 'Script')
-  }
+  })
 } else {
   logger.info('✅ Redis is running', undefined, 'Script')
 }
@@ -214,13 +197,12 @@ const minioRunning = await $`docker ps --filter name=${MINIO_CONTAINER} --format
 
 if (minioRunning.trim() !== MINIO_CONTAINER) {
   logger.info('Starting MinIO...', undefined, 'Script')
-  try {
-    await $`docker-compose up -d minio`
+  await $`docker-compose up -d minio`.then(async () => {
     await new Promise(resolve => setTimeout(resolve, 2000))
     logger.info('✅ MinIO started', undefined, 'Script')
-  } catch (error) {
+  }).catch(() => {
     logger.warn('⚠️  MinIO start failed (optional, continuing)', undefined, 'Script')
-  }
+  })
 } else {
   logger.info('✅ MinIO is running', undefined, 'Script')
 }
@@ -229,38 +211,34 @@ if (minioRunning.trim() !== MINIO_CONTAINER) {
 const { PrismaClient } = await import('@prisma/client')
 const prisma = new PrismaClient()
 
-try {
-  await prisma.$connect()
-  logger.info('✅ Database connected', undefined, 'Script')
+await prisma.$connect()
+logger.info('✅ Database connected', undefined, 'Script')
 
-  const actorCount = await prisma.actor.count()
-
-  if (actorCount === 0) {
-    logger.info('Running database seed...', undefined, 'Script')
-    await $`bun run db:seed`
-    logger.info('✅ Database seeded', undefined, 'Script')
-  } else {
-    logger.info(`✅ Database has ${actorCount} actors`, undefined, 'Script')
-  }
-} catch (error: unknown) {
-  const errorMessage = error instanceof Error ? error.message : String(error)
+const actorCount = await prisma.actor.count().catch(async (error: Error) => {
+  const errorMessage = error.message
   if (errorMessage.includes('does not exist') || errorMessage.includes('P2021')) {
     logger.info('Running database migrations...', undefined, 'Script')
-    try {
-      await $`bunx prisma migrate deploy`.quiet()
-    } catch {
+    await $`bunx prisma migrate deploy`.quiet().catch(async () => {
       await $`bunx prisma db push --skip-generate`.quiet()
-    }
+    })
 
     logger.info('Running database seed...', undefined, 'Script')
     await $`bun run db:seed`
     logger.info('✅ Database ready', undefined, 'Script')
-  } else {
-    throw error
+    return 0
   }
-} finally {
-  await prisma.$disconnect()
+  throw error
+})
+
+if (actorCount === 0) {
+  logger.info('Running database seed...', undefined, 'Script')
+  await $`bun run db:seed`
+  logger.info('✅ Database seeded', undefined, 'Script')
+} else if (actorCount > 0) {
+  logger.info(`✅ Database has ${actorCount} actors`, undefined, 'Script')
 }
+
+await prisma.$disconnect()
 
 // 10. Validate environment
 logger.info('', undefined, 'Script')

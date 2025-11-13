@@ -67,35 +67,32 @@ export function RewardsWidget({ userId }: RewardsWidgetProps) {
       if (rewardsWidgetFetchInFlight) return
       rewardsWidgetFetchInFlight = true
 
-      try {
-        setLoading(true)
+      setLoading(true)
 
-        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-        if (!token) {
-          setLoading(false)
-          rewardsWidgetFetchInFlight = false
-          return
-        }
-
-        const response = await fetch(`/api/users/${encodeURIComponent(userId)}/referrals`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        })
-
-        if (!response.ok) {
-          setLoading(false)
-          rewardsWidgetFetchInFlight = false
-          throw new Error('Failed to fetch referral data')
-        }
-
-        const result = await response.json()
-        setData(result)
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      if (!token) {
         setLoading(false)
-        lastFetchedUserIdRef.current = userId
-      } finally {
         rewardsWidgetFetchInFlight = false
+        return
       }
+
+      const response = await fetch(`/api/users/${encodeURIComponent(userId)}/referrals`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        setLoading(false)
+        rewardsWidgetFetchInFlight = false
+        throw new Error('Failed to fetch referral data')
+      }
+
+      const result = await response.json()
+      setData(result)
+      setLoading(false)
+      lastFetchedUserIdRef.current = userId
+      rewardsWidgetFetchInFlight = false
     }
 
     // Clear any existing interval

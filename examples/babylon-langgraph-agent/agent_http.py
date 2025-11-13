@@ -9,8 +9,10 @@ import json
 import time
 import asyncio
 import httpx
+import sys
+import argparse
 from datetime import datetime
-from typing import Any, Dict, List, Literal
+from typing import Any, Dict, List, Literal, Optional
 from dotenv import load_dotenv
 
 # LangChain & LangGraph
@@ -245,18 +247,101 @@ Use the available tools to gather information and execute actions.
             'state': result
         }
 
+# ==================== Logging ====================
+
+class AgentLogger:
+    """Comprehensive logger for agent activity"""
+    
+    def __init__(self, log_file: Optional[str] = None):
+        self.log_file = log_file
+        self.logs = []
+        
+    def log(self, level: str, message: str, data: Dict = None):
+        """Log a message with optional data"""
+        timestamp = datetime.now().isoformat()
+        log_entry = {
+            'timestamp': timestamp,
+            'level': level,
+            'message': message,
+            'data': data
+        }
+        self.logs.append(log_entry)
+        
+        # Print to console
+        prefix = {
+            'INFO': '📝',
+            'SUCCESS': '✅',
+            'ERROR': '❌',
+            'WARNING': '⚠️',
+            'DEBUG': '🔍'
+        }.get(level, '•')
+        
+        print(f"{prefix} [{timestamp}] {message}")
+        if data:
+            print(f"   Data: {json.dumps(data, indent=2)[:200]}...")
+        
+        # Write to file if specified
+        if self.log_file:
+            with open(self.log_file, 'a') as f:
+                f.write(json.dumps(log_entry) + '\n')
+    
+    def info(self, message: str, data: Dict = None):
+        self.log('INFO', message, data)
+    
+    def success(self, message: str, data: Dict = None):
+        self.log('SUCCESS', message, data)
+    
+    def error(self, message: str, data: Dict = None):
+        self.log('ERROR', message, data)
+    
+    def warning(self, message: str, data: Dict = None):
+        self.log('WARNING', message, data)
+    
+    def debug(self, message: str, data: Dict = None):
+        self.log('DEBUG', message, data)
+    
+    def save_summary(self, filename: str):
+        """Save log summary to file"""
+        with open(filename, 'w') as f:
+            json.dump({
+                'total_logs': len(self.logs),
+                'by_level': {
+                    level: len([l for l in self.logs if l['level'] == level])
+                    for level in ['INFO', 'SUCCESS', 'ERROR', 'WARNING', 'DEBUG']
+                },
+                'logs': self.logs
+            }, f, indent=2)
+
+# Global logger
+logger: AgentLogger = None
+
 # ==================== Main Loop ====================
 
-async def main():
-    """Main autonomous loop"""
-    global a2a_client
+async def main(max_ticks: Optional[int] = None, log_file: Optional[str] = None):
+    """Main autonomous loop
     
-    print("🤖 Starting Babylon Autonomous Agent (Python + LangGraph + HTTP A2A)...")
+    Args:
+        max_ticks: Maximum number of ticks to run (None = infinite)
+        log_file: Path to log file (None = no file logging)
+    """
+    global a2a_client, logger
+    
+    # Initialize logger
+    logger = AgentLogger(log_file=log_file)
+    
+    logger.info("🤖 Starting Babylon Autonomous Agent (Python + LangGraph + HTTP A2A)")
+    if max_ticks:
+        logger.info(f"🧪 TEST MODE: Running for {max_ticks} ticks")
+    if log_file:
+        logger.info(f"📋 Logging to file: {log_file}")
     print("")
     
     # Phase 1: Agent Identity
+    print("━" * 60)
     print("📝 Phase 1: Agent Identity Setup")
+    print("━" * 60)
     try:
+        logger.info("Loading private key from environment")
         account = Account.from_key(os.getenv('AGENT0_PRIVATE_KEY'))
         token_id = int(time.time()) % 100000
         
@@ -267,20 +352,24 @@ async def main():
             'name': os.getenv('AGENT_NAME', 'Python Babylon Agent')
         }
         
-        print(f"✅ Agent Identity Ready")
+        logger.success("Agent Identity Ready", identity)
         print(f"   Token ID: {identity['tokenId']}")
         print(f"   Address: {identity['address']}")
         print(f"   Agent ID: {identity['agentId']}")
         print("")
         
     except Exception as e:
-        print(f"❌ Identity setup failed: {e}")
+        logger.error(f"Identity setup failed: {e}")
         return
     
     # Phase 2: Connect to Babylon A2A (HTTP)
+    print("━" * 60)
     print("🔌 Phase 2: Babylon A2A Connection (HTTP)")
+    print("━" * 60)
     try:
         a2a_url = os.getenv('BABYLON_A2A_URL', 'http://localhost:3000/api/a2a')
+        logger.info(f"Connecting to A2A endpoint: {a2a_url}")
+        
         a2a_client = BabylonA2AClient(
             http_url=a2a_url,
             address=identity['address'],
@@ -288,62 +377,179 @@ async def main():
             private_key=os.getenv('AGENT0_PRIVATE_KEY')
         )
         
-        # Test connection with a simple health check
-        print(f"✅ Connected to Babylon A2A: {a2a_url}")
+        logger.success("Connected to Babylon A2A", {
+            'url': a2a_url,
+            'agent_id': a2a_client.agent_id
+        })
         print(f"   Agent ID: {a2a_client.agent_id}")
         print(f"   Ready to interact with Babylon!")
         print("")
         
     except Exception as e:
-        print(f"❌ A2A connection failed: {e}")
+        logger.error(f"A2A connection failed: {e}")
         return
     
     # Phase 3: Initialize LangGraph Agent
+    print("━" * 60)
     print("🧠 Phase 3: LangGraph Agent Initialization")
+    print("━" * 60)
     try:
         strategy = os.getenv('AGENT_STRATEGY', 'balanced')
+        logger.info(f"Initializing LangGraph agent with strategy: {strategy}")
+        
         babylon_agent = BabylonAgent(strategy=strategy)
         
-        print(f"✅ LangGraph Agent Ready")
+        logger.success("LangGraph Agent Ready", {
+            'strategy': strategy,
+            'model': 'llama-3.1-8b-instant',
+            'tools': len(babylon_agent.tools)
+        })
         print(f"   Model: llama-3.1-8b-instant (Groq)")
         print(f"   Tools: {len(babylon_agent.tools)} Babylon actions")
         print("")
         
     except Exception as e:
-        print(f"❌ LangGraph init failed: {e}")
+        logger.error(f"LangGraph init failed: {e}")
         return
     
     # Phase 4: Autonomous Loop
+    print("━" * 60)
     print("🔄 Phase 4: Autonomous Loop Started")
+    print("━" * 60)
     tick_interval = int(os.getenv('TICK_INTERVAL', '30'))
     tick_count = 0
+    
+    if max_ticks:
+        logger.info(f"Will run for {max_ticks} ticks, then exit")
+    else:
+        logger.info("Will run indefinitely (Ctrl+C to stop)")
+    
+    tick_start_time = time.time()
     
     try:
         while True:
             tick_count += 1
-            print("━" * 50)
-            print(f"🔄 TICK #{tick_count}")
-            print("━" * 50)
+            
+            # Check if we've reached max ticks
+            if max_ticks and tick_count > max_ticks:
+                logger.success(f"✅ Completed {max_ticks} ticks, exiting test mode")
+                break
+            
+            print("\n" + "━" * 60)
+            print(f"🔄 TICK #{tick_count}" + (f" / {max_ticks}" if max_ticks else ""))
+            print("━" * 60)
+            
+            tick_start = time.time()
+            logger.info(f"Starting tick #{tick_count}")
             
             try:
+                # Log memory state
+                logger.debug(f"Memory: {len(action_memory)} actions stored")
+                
+                # Make decision
+                logger.info("Calling LangGraph agent for decision...")
                 result = await babylon_agent.decide(session_id=identity['agentId'])
-                print(f"✅ Tick #{tick_count} complete")
+                
+                tick_duration = time.time() - tick_start
+                
+                logger.success(f"Tick #{tick_count} complete", {
+                    'duration_seconds': round(tick_duration, 2),
+                    'decision_preview': result['decision'][:100],
+                    'memory_size': len(action_memory)
+                })
+                
+                print(f"   Duration: {tick_duration:.2f}s")
                 print(f"   Decision: {result['decision'][:100]}...")
                 print("")
                 
             except Exception as e:
-                print(f"❌ Tick #{tick_count} error: {e}")
+                logger.error(f"Tick #{tick_count} error", {'error': str(e), 'type': type(e).__name__})
                 print("")
             
-            print(f"⏳ Sleeping {tick_interval}s...")
-            print("")
-            await asyncio.sleep(tick_interval)
+            # Sleep between ticks (skip on last tick)
+            if not max_ticks or tick_count < max_ticks:
+                logger.info(f"Sleeping {tick_interval}s until next tick...")
+                print(f"⏳ Sleeping {tick_interval}s...")
+                print("")
+                await asyncio.sleep(tick_interval)
+        
+        # Test mode complete
+        if max_ticks:
+            total_duration = time.time() - tick_start_time
+            print("\n" + "=" * 60)
+            print("🎉 TEST COMPLETE")
+            print("=" * 60)
+            logger.success("Test run complete", {
+                'total_ticks': tick_count,
+                'total_duration_seconds': round(total_duration, 2),
+                'avg_tick_duration': round(total_duration / tick_count, 2),
+                'total_actions_in_memory': len(action_memory)
+            })
+            
+            # Save logs if log file specified
+            if log_file:
+                summary_file = log_file.replace('.jsonl', '_summary.json')
+                logger.save_summary(summary_file)
+                logger.info(f"Logs saved to: {log_file}")
+                logger.info(f"Summary saved to: {summary_file}")
             
     except KeyboardInterrupt:
-        print("\n🛑 Shutting down gracefully...")
+        logger.warning("\n🛑 Interrupted by user")
         await a2a_client.close()
+        logger.info("Disconnected from Babylon")
         print("👋 Goodbye!")
+    finally:
+        await a2a_client.close()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(
+        description='Babylon Autonomous Agent - Python + LangGraph + HTTP A2A',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Run indefinitely
+  python agent_http.py
+  
+  # Test mode: Run for 10 ticks
+  python agent_http.py --test
+  
+  # Run for 5 ticks with logging
+  python agent_http.py --ticks 5 --log test.jsonl
+  
+  # Run with custom tick interval
+  TICK_INTERVAL=10 python agent_http.py --ticks 10
+        """
+    )
+    
+    parser.add_argument(
+        '--test',
+        action='store_true',
+        help='Test mode: Run for 10 ticks and exit'
+    )
+    
+    parser.add_argument(
+        '--ticks',
+        type=int,
+        metavar='N',
+        help='Run for N ticks and exit (default: infinite)'
+    )
+    
+    parser.add_argument(
+        '--log',
+        type=str,
+        metavar='FILE',
+        help='Save logs to file (JSONL format)'
+    )
+    
+    args = parser.parse_args()
+    
+    # Determine max ticks
+    max_ticks = None
+    if args.test:
+        max_ticks = 10
+    elif args.ticks:
+        max_ticks = args.ticks
+    
+    # Run agent
+    asyncio.run(main(max_ticks=max_ticks, log_file=args.log))
 

@@ -520,7 +520,7 @@ export class NPCInvestmentManager {
         // Record the rebalance trade
         await prisma.nPCTrade.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             npcActorId: npcUserId,
             poolId,
             marketType: action.marketType,
@@ -537,12 +537,7 @@ export class NPCInvestmentManager {
       }
       // Add other action types (open, resize) as needed
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(
-        `Failed to execute rebalance action: ${errorMessage}`,
-        { error, action },
-        'NPCInvestmentManager'
-      );
+      logger.error('Error executing NPC action', { error, action });
       throw error;
     }
   }
@@ -569,23 +564,14 @@ export class NPCInvestmentManager {
     for (const pool of activePools) {
       if (!pool.Actor) continue;
 
-      try {
-        // Determine strategy from actor personality
-        const strategy = this.determineStrategyFromPersonality(pool.Actor.personality);
+      // Determine strategy from actor personality
+      const strategy = this.determineStrategyFromPersonality(pool.Actor.personality);
 
-        const actions = await this.monitorPortfolio(pool.id, pool.Actor.id, strategy);
+      const actions = await this.monitorPortfolio(pool.id, pool.Actor.id, strategy);
 
-        // Execute rebalance actions
-        for (const action of actions) {
-          await this.executeRebalanceAction(pool.Actor.id, pool.id, action);
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error(
-          `Error monitoring portfolio for ${pool.Actor.name}: ${errorMessage}`,
-          { error, poolId: pool.id },
-          'NPCInvestmentManager'
-        );
+      // Execute rebalance actions
+      for (const action of actions) {
+        await this.executeRebalanceAction(pool.Actor.id, pool.id, action);
       }
     }
   }
@@ -630,61 +616,50 @@ export class NPCInvestmentManager {
     npcUserId: string,
     baseAmount: number
   ): Promise<number> {
-    try {
-      // Get NPC's reputation breakdown
-      const reputation = await getReputationBreakdown(npcUserId);
+    // Get NPC's reputation breakdown
+    const reputation = await getReputationBreakdown(npcUserId);
 
-      if (!reputation) {
-        logger.warn(
-          `No reputation data for NPC ${npcUserId}, using base allocation`,
-          { npcUserId, baseAmount },
-          'NPCInvestmentManager'
-        );
-        return baseAmount;
-      }
-
-      const reputationScore = reputation.reputationScore;
-
-      // Calculate multiplier based on reputation tiers
-      let multiplier: number;
-
-      if (reputationScore < 40) {
-        // Low reputation: cautious allocation (50-75%)
-        multiplier = 0.5 + (reputationScore / 40) * 0.25;
-      } else if (reputationScore < 70) {
-        // Medium reputation: standard allocation (75-100%)
-        multiplier = 0.75 + ((reputationScore - 40) / 30) * 0.25;
-      } else {
-        // High reputation: confident allocation (100-150%)
-        multiplier = 1.0 + ((reputationScore - 70) / 30) * 0.5;
-      }
-
-      const adjustedAmount = baseAmount * multiplier;
-
-      logger.info(
-        `Reputation-adjusted allocation: ${baseAmount} → ${adjustedAmount.toFixed(2)} (score: ${reputationScore}, multiplier: ${multiplier.toFixed(2)}x)`,
-        {
-          npcUserId,
-          reputationScore,
-          multiplier,
-          baseAmount,
-          adjustedAmount,
-          trustLevel: reputation.trustLevel,
-        },
+    if (!reputation) {
+      logger.warn(
+        `No reputation data for NPC ${npcUserId}, using base allocation`,
+        { npcUserId, baseAmount },
         'NPCInvestmentManager'
       );
-
-      return adjustedAmount;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(
-        `Failed to calculate reputation-adjusted allocation: ${errorMessage}`,
-        { error, npcUserId, baseAmount },
-        'NPCInvestmentManager'
-      );
-      // Fallback to base amount on error
       return baseAmount;
     }
+
+    const reputationScore = reputation.reputationScore;
+
+    // Calculate multiplier based on reputation tiers
+    let multiplier: number;
+
+    if (reputationScore < 40) {
+      // Low reputation: cautious allocation (50-75%)
+      multiplier = 0.5 + (reputationScore / 40) * 0.25;
+    } else if (reputationScore < 70) {
+      // Medium reputation: standard allocation (75-100%)
+      multiplier = 0.75 + ((reputationScore - 40) / 30) * 0.25;
+    } else {
+      // High reputation: confident allocation (100-150%)
+      multiplier = 1.0 + ((reputationScore - 70) / 30) * 0.5;
+    }
+
+    const adjustedAmount = baseAmount * multiplier;
+
+    logger.info(
+      `Reputation-adjusted allocation: ${baseAmount} → ${adjustedAmount.toFixed(2)} (score: ${reputationScore}, multiplier: ${multiplier.toFixed(2)}x)`,
+      {
+        npcUserId,
+        reputationScore,
+        multiplier,
+        baseAmount,
+        adjustedAmount,
+        trustLevel: reputation.trustLevel,
+      },
+      'NPCInvestmentManager'
+    );
+
+    return adjustedAmount;
   }
 
   /**

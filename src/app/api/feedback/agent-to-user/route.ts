@@ -32,170 +32,116 @@ const AgentToUserFeedbackQuerySchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  try {
-    const json = await request.json()
-    const parsed = AgentToUserFeedbackSchema.safeParse(json)
+  const json = await request.json()
+  const parsed = AgentToUserFeedbackSchema.parse(json)
 
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'Invalid request payload', details: parsed.error.flatten() },
-        { status: 400 }
-      )
-    }
+  const body = parsed
 
-    const body = parsed.data
+  const fromAgent = await requireUserByIdentifier(body.agentId)
+  const toUser = await requireUserByIdentifier(body.toUserId)
 
-    // Verify agent and user exist
-    const fromAgent = await requireUserByIdentifier(body.agentId)
-    const toUser = await requireUserByIdentifier(body.toUserId)
-
-    // Prevent self-rating
-    if (fromAgent.id === toUser.id) {
-      return NextResponse.json({ error: 'Cannot rate yourself' }, { status: 400 })
-    }
-
-    // Create feedback record
-    const now = new Date();
-    const feedback = await prisma.feedback.create({
-      data: {
-        id: generateSnowflakeId(),
-        fromUserId: fromAgent.id,
-        toUserId: toUser.id,
-        score: body.score,
-        rating: body.rating,
-        comment: body.comment,
-        category: body.category,
-        interactionType: body.interactionType ?? 'agent_to_user',
-        metadata: body.metadata as Prisma.InputJsonValue | undefined,
-        createdAt: now,
-        updatedAt: now,
-      },
-    })
-
-    logger.info('Agent-to-user feedback created', {
-      feedbackId: feedback.id,
-      fromAgentId: fromAgent.id,
+  const now = new Date()
+  const feedback = await prisma.feedback.create({
+    data: {
+      id: await generateSnowflakeId(),
+      fromUserId: fromAgent.id,
       toUserId: toUser.id,
       score: body.score,
       rating: body.rating,
-    })
+      comment: body.comment,
+      category: body.category,
+      interactionType: body.interactionType ?? 'agent_to_user',
+      metadata: body.metadata as Prisma.InputJsonValue | undefined,
+      createdAt: now,
+      updatedAt: now,
+    },
+  })
 
-    return NextResponse.json(
-      {
-        success: true,
-        feedbackId: feedback.id,
-        feedback: {
-          id: feedback.id,
-          score: feedback.score,
-          rating: feedback.rating,
-          comment: feedback.comment,
-          category: feedback.category,
-          createdAt: feedback.createdAt,
-        },
+  logger.info('Agent-to-user feedback created', {
+    feedbackId: feedback.id,
+    fromAgentId: fromAgent.id,
+    toUserId: toUser.id,
+    score: body.score,
+    rating: body.rating,
+  })
+
+  return NextResponse.json(
+    {
+      success: true,
+      feedbackId: feedback.id,
+      feedback: {
+        id: feedback.id,
+        score: feedback.score,
+        rating: feedback.rating,
+        comment: feedback.comment,
+        category: feedback.category,
+        createdAt: feedback.createdAt,
       },
-      { status: 201 }
-    )
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    const errorStack = error instanceof Error ? error.stack : undefined
-    logger.error('Failed to create agent-to-user feedback', { 
-      error: errorMessage,
-      stack: errorStack 
-    }, 'AgentToUserFeedback')
-
-    if (error instanceof Error && error.message.includes('not found')) {
-      return NextResponse.json({ error: 'Agent or user not found' }, { status: 404 })
-    }
-
-    return NextResponse.json({ error: 'Failed to create feedback' }, { status: 500 })
-  }
+    },
+    { status: 201 }
+  )
 }
 
 /**
  * GET endpoint to retrieve feedback for a user from agents
  */
 export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url)
-    const userIdParam = searchParams.get('userId') ?? undefined
-    const limitParam = searchParams.get('limit')
-    const offsetParam = searchParams.get('offset')
+  const { searchParams } = new URL(request.url)
+  const userIdParam = searchParams.get('userId')!
+  const limitParam = searchParams.get('limit')
+  const offsetParam = searchParams.get('offset')
 
-    const queryParse = AgentToUserFeedbackQuerySchema.safeParse({
-      userId: userIdParam,
-      limit: limitParam ? Number(limitParam) : undefined,
-      offset: offsetParam ? Number(offsetParam) : undefined,
-    })
+  const queryParse = AgentToUserFeedbackQuerySchema.parse({
+    userId: userIdParam,
+    limit: limitParam ? Number(limitParam) : undefined,
+    offset: offsetParam ? Number(offsetParam) : undefined,
+  })
 
-    if (!queryParse.success) {
-      return NextResponse.json(
-        { error: 'Invalid query parameters', details: queryParse.error.flatten() },
-        { status: 400 }
-      )
-    }
+  const { userId, limit, offset } = queryParse
 
-    const { userId, limit, offset } = queryParse.data
+  const user = await requireUserByIdentifier(userId)
 
-    // Verify user exists
-    const user = await requireUserByIdentifier(userId)
-
-    // Get feedback for this user
-    const feedback = await prisma.feedback.findMany({
-      where: {
-        toUserId: user.id,
-        interactionType: {
-          in: ['agent_to_user', 'game', 'trade', 'chat'],
+  const feedback = await prisma.feedback.findMany({
+    where: {
+      toUserId: user.id,
+      interactionType: {
+        in: ['agent_to_user', 'game', 'trade', 'chat'],
+      },
+    },
+    include: {
+      User_Feedback_fromUserIdToUser: {
+        select: {
+          id: true,
+          username: true,
+          displayName: true,
+          profileImageUrl: true,
+          isActor: true,
         },
       },
-      include: {
-        User_Feedback_fromUserIdToUser: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            profileImageUrl: true,
-            isActor: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: limit,
-      skip: offset,
-    })
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+    take: limit,
+    skip: offset,
+  })
 
-    // Get total count
-    const total = await prisma.feedback.count({
-      where: {
-        toUserId: user.id,
-        interactionType: {
-          in: ['agent_to_user', 'game', 'trade', 'chat'],
-        },
+  const total = await prisma.feedback.count({
+    where: {
+      toUserId: user.id,
+      interactionType: {
+        in: ['agent_to_user', 'game', 'trade', 'chat'],
       },
-    })
+    },
+  })
 
-    return NextResponse.json({
-      feedback,
-      pagination: {
-        total,
-        limit,
-        offset,
-        hasMore: offset + limit < total,
-      },
-    })
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    const errorStack = error instanceof Error ? error.stack : undefined
-    logger.error('Failed to get agent-to-user feedback', { 
-      error: errorMessage,
-      stack: errorStack 
-    }, 'AgentToUserFeedback')
-
-    if (error instanceof Error && error.message.includes('not found')) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
-
-    return NextResponse.json({ error: 'Failed to get feedback' }, { status: 500 })
-  }
+  return NextResponse.json({
+    feedback,
+    pagination: {
+      total,
+      limit,
+      offset,
+      hasMore: offset + limit < total,
+    },
+  })
 }

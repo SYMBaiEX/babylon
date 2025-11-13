@@ -77,13 +77,7 @@ import { REPUTATION_SYSTEM_ABI } from '@/lib/web3/abis'
  * Register an agent to the on-chain identity system
  */
 export const POST = withErrorHandling(async (request: NextRequest) => {
-  // Validate environment variables
-  const IDENTITY_REGISTRY = getRequiredEnvVar('NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA') as Address
-  const REPUTATION_SYSTEM = getRequiredEnvVar('NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA') as Address
-  const DEPLOYER_PRIVATE_KEY = getRequiredEnvVar('DEPLOYER_PRIVATE_KEY') as `0x${string}`
-  const RPC_URL = getRequiredEnvVar('NEXT_PUBLIC_RPC_URL')
-
-  // Authenticate agent
+  // Authenticate agent FIRST
   const user = await authenticate(request)
   if (!user.isAgent || !user.userId) {
     throw new AuthorizationError('Only agents can use this endpoint', 'agent', 'onboard')
@@ -91,9 +85,15 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   const agentId = user.userId
 
-  // Parse and validate request body
+  // Parse and validate request body BEFORE checking env
   const body = await request.json()
   const { agentName, endpoint } = AgentOnboardSchema.parse(body)
+
+  // Now check environment variables (after validation)
+  const IDENTITY_REGISTRY = getRequiredEnvVar('NEXT_PUBLIC_IDENTITY_REGISTRY_BASE_SEPOLIA') as Address
+  const REPUTATION_SYSTEM = getRequiredEnvVar('NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA') as Address
+  const DEPLOYER_PRIVATE_KEY = getRequiredEnvVar('DEPLOYER_PRIVATE_KEY') as `0x${string}`
+  const RPC_URL = getRequiredEnvVar('NEXT_PUBLIC_RPC_URL')
 
     // Check if agent exists in database (use upsert to avoid race conditions) with RLS
     // Note: Agents don't have wallet addresses - they're registered via server wallet
@@ -108,7 +108,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         bio: `Autonomous AI agent: ${agentId}`,
       },
       create: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         privyId: agentId,
         username: agentId,
         displayName: agentName || agentId,
@@ -184,18 +184,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     throw new InternalServerError('Agent registration transaction failed', { txHash, receipt: receipt.status })
   }
 
-    // Get the token ID from the event logs
     const agentRegisteredLog = receipt.logs.find(log => {
-      try {
-        const decodedLog = decodeEventLog({
-          abi: IDENTITY_REGISTRY_ABI,
-          data: log.data,
-          topics: log.topics,
-        })
-        return decodedLog.eventName === 'AgentRegistered'
-      } catch {
-        return false
-      }
+      const decodedLog = decodeEventLog({
+        abi: IDENTITY_REGISTRY_ABI,
+        data: log.data,
+        topics: log.topics,
+      })
+      return decodedLog.eventName === 'AgentRegistered'
     })
 
     if (!agentRegisteredLog) {
@@ -376,24 +371,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         metadataCID: agent0MetadataCID
       }, 'AgentOnboard')
 
-      // Sync on-chain reputation to local database
-      try {
-        await syncAfterAgent0Registration(dbUser.id, agent0Result.tokenId)
-        logger.info('Agent0 reputation synced successfully', {
-          userId: dbUser.id,
-          agent0TokenId: agent0Result.tokenId
-        }, 'AgentOnboard')
-      } catch (syncError) {
-        // Log error but don't fail registration
-        const errorMessage = syncError instanceof Error ? syncError.message : String(syncError)
-        const errorStack = syncError instanceof Error ? syncError.stack : undefined
-        logger.error('Failed to sync Agent0 reputation after registration', {
-          userId: dbUser.id,
-          agent0TokenId: agent0Result.tokenId,
-          error: errorMessage,
-          stack: errorStack
-        }, 'AgentOnboard')
-      }
+      await syncAfterAgent0Registration(dbUser.id, agent0Result.tokenId)
+      logger.info('Agent0 reputation synced successfully', {
+        userId: dbUser.id,
+        agent0TokenId: agent0Result.tokenId
+      }, 'AgentOnboard')
     } else {
       logger.info('Agent0 integration disabled, skipping agent registration', { agentId }, 'AgentOnboard')
     }

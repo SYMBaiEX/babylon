@@ -1551,7 +1551,7 @@ ${req.members.map((m, j) => {
 }).join('\n')}${getRelationshipContext(req.members)}
    
    PEOPLE NOT IN THIS CHAT (you can gossip):
-   ${allActors.filter(a => !req.members.find(m => m.actorId === a.id)).slice(0, 12).map(a => a.name).join(', ')}
+   ${shuffleArray(allActors.filter(a => !req.members.find(m => m.actorId === a.id))).slice(0, 12).map(a => a.name).join(', ')}
    
    ${req.previousMessages.length > 0 ? `CONVERSATION HISTORY:
 ${req.previousMessages.map(pm => `   [Day ${pm.day}] ${pm.actorName}: "${pm.message}"`).join('\n')}

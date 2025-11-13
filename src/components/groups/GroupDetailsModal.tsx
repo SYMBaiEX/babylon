@@ -42,22 +42,17 @@ export function GroupDetailsModal({ groupId, onClose, onGroupUpdated }: GroupDet
   const [isLoading, setIsLoading] = useState(true);
 
   const loadGroup = async () => {
-    try {
-      const response = await fetch(`/api/user-groups/${groupId}`);
-      const data = await response.json();
+    const response = await fetch(`/api/user-groups/${groupId}`);
+    const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to load group');
-      }
-
-      setGroup(data.data);
-    } catch (error) {
-      console.error('Error loading group:', error);
+    if (!response.ok) {
       toast.error('Failed to load group details');
       onClose();
-    } finally {
-      setIsLoading(false);
+      throw new Error(data.error || 'Failed to load group');
     }
+
+    setGroup(data.data);
+    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -69,51 +64,41 @@ export function GroupDetailsModal({ groupId, onClose, onGroupUpdated }: GroupDet
       return;
     }
 
-    try {
-      const response = await fetch(`/api/user-groups/${groupId}/members/${userId}`, {
-        method: 'DELETE',
-      });
+    const response = await fetch(`/api/user-groups/${groupId}/members/${userId}`, {
+      method: 'DELETE',
+    });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to remove member');
-      }
-
-      toast.success('Member removed');
-      loadGroup();
-      onGroupUpdated();
-    } catch (error) {
-      console.error('Error removing member:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to remove member');
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || 'Failed to remove member');
     }
+
+    toast.success('Member removed');
+    loadGroup();
+    onGroupUpdated();
   };
 
   const handleToggleAdmin = async (userId: string, isCurrentlyAdmin: boolean) => {
-    try {
-      const url = isCurrentlyAdmin
-        ? `/api/user-groups/${groupId}/admins/${userId}`
-        : `/api/user-groups/${groupId}/admins`;
+    const url = isCurrentlyAdmin
+      ? `/api/user-groups/${groupId}/admins/${userId}`
+      : `/api/user-groups/${groupId}/admins`;
 
-      const response = await fetch(url, {
-        method: isCurrentlyAdmin ? 'DELETE' : 'POST',
-        headers: isCurrentlyAdmin ? undefined : {
-          'Content-Type': 'application/json',
-        },
-        body: isCurrentlyAdmin ? undefined : JSON.stringify({ userId }),
-      });
+    const response = await fetch(url, {
+      method: isCurrentlyAdmin ? 'DELETE' : 'POST',
+      headers: isCurrentlyAdmin ? undefined : {
+        'Content-Type': 'application/json',
+      },
+      body: isCurrentlyAdmin ? undefined : JSON.stringify({ userId }),
+    });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to update admin status');
-      }
-
-      toast.success(isCurrentlyAdmin ? 'Admin privileges revoked' : 'Admin privileges granted');
-      loadGroup();
-      onGroupUpdated();
-    } catch (error) {
-      console.error('Error updating admin status:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to update admin status');
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || 'Failed to update admin status');
     }
+
+    toast.success(isCurrentlyAdmin ? 'Admin privileges revoked' : 'Admin privileges granted');
+    loadGroup();
+    onGroupUpdated();
   };
 
   return (

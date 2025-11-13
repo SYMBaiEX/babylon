@@ -20,9 +20,9 @@ describe('Group Invites Workflow', () => {
 
   beforeAll(async () => {
     // Create test users
-    testUser1Id = generateSnowflakeId();
-    testUser2Id = generateSnowflakeId();
-    testUser3Id = generateSnowflakeId();
+    testUser1Id = await generateSnowflakeId();
+    testUser2Id = await generateSnowflakeId();
+    testUser3Id = await generateSnowflakeId();
 
     await prisma.user.createMany({
       data: [
@@ -51,7 +51,7 @@ describe('Group Invites Workflow', () => {
     });
 
     // Create a test group
-    testGroupId = generateSnowflakeId();
+    testGroupId = await generateSnowflakeId();
     await prisma.userGroup.create({
       data: {
         id: testGroupId,
@@ -61,14 +61,14 @@ describe('Group Invites Workflow', () => {
         updatedAt: new Date(),
         UserGroupMember: {
           create: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             userId: testUser1Id,
             addedBy: testUser1Id,
           },
         },
         UserGroupAdmin: {
           create: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             userId: testUser1Id,
             grantedBy: testUser1Id,
           },
@@ -77,7 +77,7 @@ describe('Group Invites Workflow', () => {
     });
 
     // Create chat for the group
-    const chatId = generateSnowflakeId();
+    const chatId = await generateSnowflakeId();
     await prisma.chat.create({
       data: {
         id: chatId,
@@ -86,7 +86,7 @@ describe('Group Invites Workflow', () => {
         updatedAt: new Date(),
         ChatParticipant: {
           create: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             userId: testUser1Id,
           },
         },
@@ -115,7 +115,7 @@ describe('Group Invites Workflow', () => {
 
   describe('Sending Invites', () => {
     it('should create a pending invite', async () => {
-      const inviteId = generateSnowflakeId();
+      const inviteId = await generateSnowflakeId();
       
       const invite = await prisma.userGroupInvite.create({
         data: {
@@ -134,7 +134,7 @@ describe('Group Invites Workflow', () => {
     });
 
     it('should create a notification for the invitee', async () => {
-      const notificationId = generateSnowflakeId();
+      const notificationId = await generateSnowflakeId();
       
       const notification = await prisma.notification.create({
         data: {
@@ -171,7 +171,7 @@ describe('Group Invites Workflow', () => {
       await expect(
         prisma.userGroupInvite.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             groupId: testGroupId,
             invitedUserId: testUser2Id,
             invitedBy: testUser1Id,
@@ -210,7 +210,7 @@ describe('Group Invites Workflow', () => {
     it('should add user to group members', async () => {
       const member = await prisma.userGroupMember.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           groupId: testGroupId,
           userId: testUser2Id,
           addedBy: testUser1Id,
@@ -239,7 +239,7 @@ describe('Group Invites Workflow', () => {
 
       const participant = await prisma.chatParticipant.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           chatId: chat!.id,
           userId: testUser2Id,
         },
@@ -274,7 +274,7 @@ describe('Group Invites Workflow', () => {
 
   describe('Declining Invites', () => {
     it('should send invite to third user', async () => {
-      const inviteId = generateSnowflakeId();
+      const inviteId = await generateSnowflakeId();
       
       const invite = await prisma.userGroupInvite.create({
         data: {
@@ -342,7 +342,7 @@ describe('Group Invites Workflow', () => {
 
       // Only create if doesn't exist
       if (!existing) {
-        const newInviteId = generateSnowflakeId();
+        const newInviteId = await generateSnowflakeId();
         await prisma.userGroupInvite.create({
           data: {
             id: newInviteId,

@@ -20,9 +20,9 @@ describe('User Groups', () => {
 
   beforeAll(async () => {
     // Create test users
-    testUser1Id = generateSnowflakeId();
-    testUser2Id = generateSnowflakeId();
-    testUser3Id = generateSnowflakeId();
+    testUser1Id = await generateSnowflakeId();
+    testUser2Id = await generateSnowflakeId();
+    testUser3Id = await generateSnowflakeId();
 
     await prisma.user.createMany({
       data: [
@@ -69,7 +69,7 @@ describe('User Groups', () => {
   });
 
   it('should create a user group', async () => {
-    testGroupId = generateSnowflakeId();
+    testGroupId = await generateSnowflakeId();
 
     const group = await prisma.userGroup.create({
       data: {
@@ -80,14 +80,14 @@ describe('User Groups', () => {
         updatedAt: new Date(),
         UserGroupMember: {
           create: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             userId: testUser1Id,
             addedBy: testUser1Id,
           },
         },
         UserGroupAdmin: {
           create: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             userId: testUser1Id,
             grantedBy: testUser1Id,
           },
@@ -109,7 +109,7 @@ describe('User Groups', () => {
     // Add user 2
     await prisma.userGroupMember.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         groupId: testGroupId,
         userId: testUser2Id,
         addedBy: testUser1Id,
@@ -119,7 +119,7 @@ describe('User Groups', () => {
     // Add user 3
     await prisma.userGroupMember.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         groupId: testGroupId,
         userId: testUser3Id,
         addedBy: testUser1Id,
@@ -136,7 +136,7 @@ describe('User Groups', () => {
   it('should grant admin privileges', async () => {
     await prisma.userGroupAdmin.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         groupId: testGroupId,
         userId: testUser2Id,
         grantedBy: testUser1Id,
@@ -191,7 +191,7 @@ describe('User Groups', () => {
     await expect(
       prisma.userGroupMember.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           groupId: testGroupId,
           userId: testUser2Id, // Already a member
           addedBy: testUser1Id,

@@ -26,22 +26,18 @@ export function NotificationsTab() {
   // Fetch current user ID on mount
   useEffect(() => {
     const fetchCurrentUser = async () => {
-      try {
-        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-        if (!token) return
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      if (!token) return
 
-        const response = await fetch('/api/users/me', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          setCurrentUserId(data.user?.id || null)
-        }
-      } catch (error) {
-        console.error('Failed to fetch current user:', error)
+      const response = await fetch('/api/users/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setCurrentUserId(data.user?.id || null)
       }
     }
     
@@ -60,40 +56,34 @@ export function NotificationsTab() {
     }
 
     startSending(async () => {
-      try {
-        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null;
 
-        if (!token) {
-          toast.error('Not authenticated');
-          return;
-        }
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
 
-        const response = await fetch('/api/admin/notifications', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            message: message.trim(),
-            type,
-            ...(recipientType === 'specific' ? { userId: userId.trim() } : { sendToAll: true }),
-          }),
-        });
+      const response = await fetch('/api/admin/notifications', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: message.trim(),
+          type,
+          ...(recipientType === 'specific' ? { userId: userId.trim() } : { sendToAll: true }),
+        }),
+      });
 
-        const data = await response.json();
+      const data = await response.json();
 
-        if (response.ok && data.success) {
-          toast.success(data.message || 'Notification sent successfully');
-          // Reset form
-          setMessage('');
-          setUserId('');
-        } else {
-          toast.error(data.message || 'Failed to send notification');
-        }
-      } catch (error) {
-        console.error('Failed to send notification:', error);
-        toast.error('Failed to send notification');
+      if (response.ok && data.success) {
+        toast.success(data.message || 'Notification sent successfully');
+        // Reset form
+        setMessage('');
+        setUserId('');
+      } else {
+        toast.error(data.message || 'Failed to send notification');
       }
     });
   }, [message, userId, type, recipientType, startSending])
@@ -105,32 +95,26 @@ export function NotificationsTab() {
     }
 
     startSendingDm(async () => {
-      try {
-        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null;
 
-        if (!token) {
-          toast.error('Not authenticated');
-          return;
-        }
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
 
-        const response = await fetch(`/api/admin/debug-dm?userId=${encodeURIComponent(dmRecipientId.trim())}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
+      const response = await fetch(`/api/admin/debug-dm?userId=${encodeURIComponent(dmRecipientId.trim())}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
-        const data = await response.json();
-        console.log('[Debug DM]', data)
-        setDebugInfo(data);
-        
-        if (data.participantRecords?.length === 0) {
-          toast.error(`No DM chats found for user ${dmRecipientId}`)
-        } else {
-          toast.success(`Found ${data.participantRecords?.length || 0} DM participant records and ${data.chats?.length || 0} chats`)
-        }
-      } catch (error) {
-        console.error('Debug DM error:', error)
-        toast.error('Failed to debug DMs')
+      const data = await response.json();
+      console.log('[Debug DM]', data)
+      setDebugInfo(data);
+      
+      if (data.participantRecords?.length === 0) {
+        toast.error(`No DM chats found for user ${dmRecipientId}`)
+      } else {
+        toast.success(`Found ${data.participantRecords?.length || 0} DM participant records and ${data.chats?.length || 0} chats`)
       }
     });
   }, [dmRecipientId, startSendingDm])
@@ -152,48 +136,42 @@ export function NotificationsTab() {
     }
 
     startSendingDm(async () => {
-      try {
-        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null;
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null;
 
-        if (!token) {
-          toast.error('Not authenticated');
-          return;
-        }
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
 
-        toast.info('Sending 100 test DM messages... This may take a moment.');
+      toast.info('Sending 100 test DM messages... This may take a moment.');
 
-        const response = await fetch('/api/admin/test-dm-messages', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            senderId: dmSenderId.trim(),
-            recipientId: dmRecipientId.trim(),
-            messageCount: 100,
-          }),
+      const response = await fetch('/api/admin/test-dm-messages', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          senderId: dmSenderId.trim(),
+          recipientId: dmRecipientId.trim(),
+          messageCount: 100,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        const chatId = data.chatId;
+        console.log('[Admin] Test DM messages sent. Chat ID:', chatId, 'Data:', data);
+        toast.success(data.message || 'Test DM messages sent successfully', {
+          duration: 10000,
+          action: {
+            label: 'Go to Chats',
+            onClick: () => window.location.href = '/chats'
+          }
         });
-
-        const data = await response.json();
-
-        if (response.ok && data.success) {
-          const chatId = data.chatId;
-          console.log('[Admin] Test DM messages sent. Chat ID:', chatId, 'Data:', data);
-          toast.success(data.message || 'Test DM messages sent successfully', {
-            duration: 10000,
-            action: {
-              label: 'Go to Chats',
-              onClick: () => window.location.href = '/chats'
-            }
-          });
-        } else {
-          console.error('[Admin] Failed to send messages:', data);
-          toast.error(data.message || 'Failed to send test DM messages');
-        }
-      } catch (error) {
-        console.error('Failed to send test DM messages:', error);
-        toast.error('Failed to send test DM messages');
+      } else {
+        console.error('[Admin] Failed to send messages:', data);
+        toast.error(data.message || 'Failed to send test DM messages');
       }
     });
   }, [dmSenderId, dmRecipientId, startSendingDm])
@@ -575,46 +553,38 @@ function GroupInviteSection() {
 
     setSending(true)
 
-    try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
 
-      if (!token) {
-        toast.error('Not authenticated')
-        setSending(false)
-        return
-      }
-
-      const response = await fetch('/api/admin/group-invite', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          npcId: npcId.trim(),
-          userId: userId.trim(),
-          chatId: chatId.trim() || undefined,
-          chatName: chatName.trim() || undefined,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok && data.success) {
-        toast.success(data.message || 'Group invite sent successfully')
-        // Reset form
-        setUserId('')
-        setChatId('')
-        setChatName('')
-      } else {
-        toast.error(data.error || data.message || 'Failed to send group invite')
-      }
-    } catch (error) {
-      console.error('Failed to send group invite:', error)
-      toast.error('Failed to send group invite')
-    } finally {
-      setSending(false)
+    if (!token) {
+      throw new Error('Not authenticated')
     }
+
+    const response = await fetch('/api/admin/group-invite', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        npcId: npcId.trim(),
+        userId: userId.trim(),
+        chatId: chatId.trim() || undefined,
+        chatName: chatName.trim() || undefined,
+      }),
+    })
+
+    const data = await response.json()
+
+    if (response.ok && data.success) {
+      toast.success(data.message || 'Group invite sent successfully')
+      // Reset form
+      setUserId('')
+      setChatId('')
+      setChatName('')
+    } else {
+      toast.error(data.error || data.message || 'Failed to send group invite')
+    }
+    setSending(false)
   }, [npcId, userId, chatId, chatName])
 
   return (

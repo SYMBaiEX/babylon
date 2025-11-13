@@ -1,12 +1,89 @@
 /**
  * Perpetuals Trading Engine
  *
- * Manages perpetual futures trading:
- * - Positions (long/short with leverage)
- * - Funding rate calculations
- * - Liquidations
- * - PnL tracking
- * - Daily price snapshots
+ * @module engine/PerpetualsEngine
+ * 
+ * @description
+ * Manages perpetual futures contracts trading system for Babylon. Handles position
+ * lifecycle, funding rate calculations, liquidations, PnL tracking, and market data.
+ * 
+ * **Core Functionality:**
+ * - Open/close leveraged long/short positions
+ * - Calculate funding payments every 8 hours
+ * - Monitor and execute liquidations
+ * - Track unrealized and realized PnL
+ * - Record daily price snapshots
+ * - Sync position state to database
+ * 
+ * **Key Concepts:**
+ * 
+ * **Perpetual Futures:**
+ * - Derivative contracts with no expiry date
+ * - Track underlying company stock prices
+ * - Leverage: 1-100x (configurable per market)
+ * - Two sides: Long (bet price up) or Short (bet price down)
+ * 
+ * **Funding Rates:**
+ * - Periodic payments between longs and shorts (every 8 hours)
+ * - Keeps perpetual price aligned with spot price
+ * - Longs pay shorts when funding positive
+ * - Shorts pay longs when funding negative
+ * 
+ * **Liquidations:**
+ * - Triggered when position reaches liquidation price
+ * - Trader loses entire margin (collateral)
+ * - Position automatically closed
+ * - Liquidation price depends on leverage and side
+ * 
+ * **Position Sizing:**
+ * - Size measured in USD notional value
+ * - Margin = Size / Leverage
+ * - Example: $1000 position at 10x = $100 margin
+ * 
+ * **Database Sync:**
+ * - Periodic sync of dirty positions (every 10 seconds)
+ * - Tracks which positions changed since last sync
+ * - Batch updates for efficiency
+ * - Final sync on engine stop
+ * 
+ * **Events Emitted:**
+ * - `position:opened` - New position created
+ * - `position:closed` - Position closed manually
+ * - `position:liquidated` - Position liquidated
+ * - `funding:processed` - Funding payments processed
+ * - `funding:rate:updated` - Funding rate updated
+ * - `market:updated` - Market price updated
+ * - `daily:snapshot` - Daily snapshot recorded
+ * 
+ * @see {@link /shared/perps-types.ts} - Core perpetuals types and calculations
+ * @see {@link TradeExecutionService} - Executes NPC perp trades
+ * @see {@link GameEngine} - Uses PerpetualsEngine for price updates
+ * 
+ * @example
+ * ```typescript
+ * const perps = new PerpetualsEngine();
+ * 
+ * // Initialize markets
+ * perps.initializeMarkets(organizations);
+ * 
+ * // Open position
+ * const position = perps.openPosition('user-1', {
+ *   ticker: 'TECH',
+ *   side: 'long',
+ *   size: 1000,
+ *   leverage: 10,
+ *   orderType: 'market'
+ * });
+ * 
+ * // Update prices
+ * perps.updatePositions(new Map([['org-tech', 105]]));
+ * 
+ * // Process funding
+ * perps.processFunding();
+ * 
+ * // Close position
+ * const { realizedPnL } = perps.closePosition(position.id);
+ * ```
  */
 import { EventEmitter } from 'events';
 
@@ -75,27 +152,119 @@ interface HydratablePerpPosition {
 
 type PriceUpdateMap = Map<string, number>;
 
+/**
+ * Perpetuals Trading Engine
+ * 
+ * @class PerpetualsEngine
+ * @extends EventEmitter
+ * 
+ * @description
+ * Complete perpetual futures trading system with position management, funding
+ * rates, liquidation engine, and database persistence. Handles all aspects of
+ * leveraged trading for both players and NPCs.
+ * 
+ * **State Management:**
+ * - In-memory state for fast operations
+ * - Periodic database sync (every 10 seconds)
+ * - Dirty tracking for efficient updates
+ * - Hydration from database on startup
+ * 
+ * **Position Lifecycle:**
+ * 1. Open: Create position with entry price and leverage
+ * 2. Update: Price changes update unrealized PnL
+ * 3. Funding: Periodic payments every 8 hours
+ * 4. Close/Liquidate: Realize PnL and settle position
+ * 
+ * **Risk Management:**
+ * - Automatic liquidation monitoring on price updates
+ * - Liquidation price calculated on open
+ * - Margin loss on liquidation (full collateral)
+ * - Position limits via min order size
+ * 
+ * **Market Data:**
+ * - Current price, 24h change, high/low
+ * - Volume and open interest tracking
+ * - Funding rate and next funding time
+ * - Mark price vs index price
+ * 
+ * @usage
+ * Instantiated once by GameEngine and persists for entire game lifecycle.
+ */
 export class PerpetualsEngine extends EventEmitter {
   private positions: Map<string, PerpPosition> = new Map();
   private markets: Map<string, PerpMarket> = new Map();
   private fundingRates: Map<string, FundingRate> = new Map();
-  private dailySnapshots: Map<string, DailyPriceSnapshot[]> = new Map(); // ticker -> snapshots
+  private dailySnapshots: Map<string, DailyPriceSnapshot[]> = new Map();
   private liquidations: Liquidation[] = [];
   private closedPositions: ClosedPosition[] = [];
   private tradeHistory: TradeRecord[] = [];
   private lastFundingTime: string = new Date().toISOString();
   private currentDate: string = new Date().toISOString().split('T')[0]!;
-  private syncInterval: number = 10000; // Sync to DB every 10 seconds
+  private syncInterval: number = 10000;
   private syncTimer: NodeJS.Timeout | null = null;
-  private dirtyPositions: Set<string> = new Set(); // Track positions that need DB sync
+  private dirtyPositions: Set<string> = new Set();
 
+  /**
+   * Create a new PerpetualsEngine
+   * 
+   * @description
+   * Initializes the engine and starts periodic database synchronization.
+   * 
+   * **Automatic Processes:**
+   * - Starts 10-second sync timer for position updates
+   * - Initializes all state maps
+   * - Sets up event emitter
+   * 
+   * @example
+   * ```typescript
+   * const perps = new PerpetualsEngine();
+   * perps.on('position:liquidated', (liq) => {
+   *   console.log(`Liquidation: ${liq.ticker} at $${liq.actualPrice}`);
+   * });
+   * ```
+   */
   constructor() {
     super();
     this.startPeriodicSync();
   }
 
   /**
-   * Initialize markets from organizations
+   * Initialize perpetual futures markets from organizations
+   * 
+   * @param organizations - Array of organizations (filters to companies with prices)
+   * 
+   * @description
+   * Creates perpetual futures markets for all companies with initial prices.
+   * Sets up market data, funding rates, and initial state.
+   * 
+   * **Market Initialization:**
+   * - Filters to organizations with type='company' and initialPrice
+   * - Generates ticker symbols (max 12 chars, uppercase, no dashes)
+   * - Sets current price from organization's current or initial price
+   * - Initializes 24h stats (change, high, low, volume)
+   * - Sets default funding rate (1% annual)
+   * - Configures max leverage (100x) and min order size
+   * 
+   * **Funding Schedule:**
+   * - Every 8 hours: 00:00, 08:00, 16:00 UTC
+   * - Next funding time calculated and set
+   * 
+   * @usage
+   * Called once by GameEngine during initialization.
+   * 
+   * @example
+   * ```typescript
+   * const orgs = [
+   *   { id: 'tech-corp', type: 'company', initialPrice: 100, ... },
+   *   { id: 'mega-inc', type: 'company', currentPrice: 250, ... }
+   * ];
+   * 
+   * perps.initializeMarkets(orgs);
+   * // Creates markets: TECHCORP, MEGAINC
+   * 
+   * const markets = perps.getMarkets();
+   * console.log(`Initialized ${markets.length} markets`);
+   * ```
    */
   initializeMarkets(organizations: Organization[]): void {
     const companies = organizations.filter(

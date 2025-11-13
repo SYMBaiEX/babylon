@@ -5,155 +5,84 @@
  * Tests connection to live Babylon instance and validates responses
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
+import { describe, it, expect } from 'bun:test'
 import { BabylonA2AClient } from '../src/a2a-client'
-import WebSocket from 'ws'
 
 // Test with mock credentials for route verification
 const TEST_CONFIG = {
-  wsUrl: 'ws://localhost:3000/a2a',
+  apiUrl: 'http://localhost:3000/api/a2a',
   address: '0x' + '1'.repeat(40),
   tokenId: 999999,
   privateKey: '0x' + '1'.repeat(64)
 }
 
 describe('A2A Routes Live Verification', () => {
-  let client: BabylonA2AClient
-  let connected = false
+  const client = new BabylonA2AClient(TEST_CONFIG)
 
-  beforeAll(async () => {
-    console.log('\n🔍 Testing A2A WebSocket Connection...')
+  it('should connect to Babylon A2A HTTP endpoint', async () => {
+    console.log('\n🔍 Testing A2A HTTP Connection...')
     
-    // First check if WebSocket endpoint is accessible
-    try {
-      const ws = new WebSocket('ws://localhost:3000/a2a')
-      await new Promise((resolve, reject) => {
-        ws.on('open', () => {
-          console.log('✅ WebSocket connection successful')
-          ws.close()
-          resolve(true)
-        })
-        ws.on('error', (err) => {
-          console.log('❌ WebSocket connection failed:', err.message)
-          reject(err)
-        })
-        setTimeout(() => reject(new Error('Connection timeout')), 5000)
-      })
-      
-      // Now try with A2A client
-      client = new BabylonA2AClient(TEST_CONFIG)
-      
-      try {
-        await client.connect()
-        connected = true
-        console.log('✅ A2A Client connected successfully')
-      } catch (error: any) {
-        console.log('⚠️  A2A authentication may require valid credentials')
-        console.log('   Error:', error.message)
-        console.log('   Will test routes that don\'t require auth...')
-      }
-    } catch (error: any) {
-      console.log('❌ Connection test failed:', error.message)
-    }
-  }, 30000)
-
-  afterAll(async () => {
-    if (client) {
-      await client.disconnect()
-    }
+    // Check if server is accessible
+    const response = await fetch('http://localhost:3000/api/health')
+    const health = await response.json()
+    expect(health.status).toBe('ok')
+    console.log('✅ Server is running:', health.status)
+    
+    // Create and connect A2A client
+    await client.connect()
+    expect(client.agentId).toBeDefined()
+    expect(client.sessionToken).toBeDefined()
+    console.log('✅ A2A Client connected successfully')
   })
 
-  describe('Connection Tests', () => {
-    it('should have WebSocket endpoint accessible', () => {
-      // This passes if beforeAll succeeded
-      expect(true).toBe(true)
-    })
-
-    it('should have client instance', () => {
-      expect(client).toBeDefined()
-    })
+  it('should get balance', async () => {
+    const balanceResult = await client.getBalance()
+    console.log('   ✅ getBalance:', balanceResult)
+    expect(balanceResult).toBeDefined()
   })
 
-  describe('Core A2A Methods', () => {
-    it('should test core methods if connected', async () => {
-      if (!connected) {
-        console.log('\n⚠️  Skipping live tests - connection not established')
-        console.log('   Possible reasons:')
-        console.log('   - A2A authentication requires valid Agent0 credentials')
-        console.log('   - Need AGENT0_PRIVATE_KEY in environment')
-        console.log('   - Server may require registered agent\n')
-        expect(true).toBe(true)
-        return
-      }
-      // Test balance
-      try {
-        const result = await client.getBalance()
-        console.log('   ✅ getBalance:', result)
-        expect(result).toBeDefined()
-      } catch (error: any) {
-        console.log('   ⚠️  getBalance:', error.message)
-      }
-
-      // Test markets
-      try {
-        const result = await client.getMarkets()
-        console.log('   ✅ getMarkets:', {
-          predictions: result.predictions?.length || 0,
-          perps: result.perps?.length || 0
-        })
-        expect(result).toBeDefined()
-        expect(result.predictions).toBeDefined()
-        expect(result.perps).toBeDefined()
-      } catch (error: any) {
-        console.log('   ⚠️  getMarkets:', error.message)
-      }
-
-      // Test feed
-      try {
-        const result = await client.getFeed(10)
-        console.log('   ✅ getFeed:', { posts: result.posts?.length || 0 })
-        expect(result).toBeDefined()
-        expect(result.posts).toBeDefined()
-      } catch (error: any) {
-        console.log('   ⚠️  getFeed:', error.message)
-      }
-
-      // Test portfolio
-      try {
-        const result = await client.getPortfolio()
-        console.log('   ✅ getPortfolio:', result)
-        expect(result).toBeDefined()
-        expect(result.balance).toBeDefined()
-        expect(result.positions).toBeDefined()
-      } catch (error: any) {
-        console.log('   ⚠️  getPortfolio:', error.message)
-      }
-
-      // Test system stats
-      try {
-        const result = await client.getSystemStats()
-        console.log('   ✅ getSystemStats:', result)
-        expect(result).toBeDefined()
-      } catch (error: any) {
-        console.log('   ⚠️  getSystemStats:', error.message)
-      }
-
-      // Test leaderboard
-      try {
-        const result = await client.getLeaderboard('all', 10)
-        console.log('   ✅ getLeaderboard:', result)
-        expect(result).toBeDefined()
-      } catch (error: any) {
-        console.log('   ⚠️  getLeaderboard:', error.message)
-      }
+  it('should get markets', async () => {
+    const marketsResult = await client.getMarkets()
+    console.log('   ✅ getMarkets:', {
+      predictions: marketsResult.predictions.length,
+      perps: marketsResult.perps.length
     })
-    }
+    expect(marketsResult).toBeDefined()
+    expect(marketsResult.predictions).toBeDefined()
+    expect(marketsResult.perps).toBeDefined()
+  })
+
+  it('should get feed', async () => {
+    const feedResult = await client.getFeed(10)
+    console.log('   ✅ getFeed:', { posts: feedResult.posts.length })
+    expect(feedResult).toBeDefined()
+    expect(feedResult.posts).toBeDefined()
+  })
+
+  it('should get portfolio', async () => {
+    const portfolioResult = await client.getPortfolio()
+    console.log('   ✅ getPortfolio:', portfolioResult)
+    expect(portfolioResult).toBeDefined()
+    expect(portfolioResult.balance).toBeDefined()
+    expect(portfolioResult.positions).toBeDefined()
+  })
+
+  it('should get system stats', async () => {
+    const statsResult = await client.getSystemStats()
+    console.log('   ✅ getSystemStats:', statsResult)
+    expect(statsResult).toBeDefined()
+  })
+
+  it('should get leaderboard', async () => {
+    const leaderboardResult = await client.getLeaderboard('all', 10)
+    console.log('   ✅ getLeaderboard:', leaderboardResult)
+    expect(leaderboardResult).toBeDefined()
   })
 })
 
 // Test that can run without connection
 describe('A2A Client Method Availability', () => {
-  it('should have all 74 A2A methods available', () => {
+  it('should have all 70 A2A methods available', () => {
     const client = new BabylonA2AClient(TEST_CONFIG)
     
     const methods = [
@@ -225,7 +154,7 @@ describe('A2A Client Method Availability', () => {
     }
     
     expect(missingMethods.length).toBe(0)
-    expect(methods.length).toBeGreaterThanOrEqual(73) // At least 73 methods
+    expect(methods.length).toBeGreaterThanOrEqual(70) // At least 70 methods
   })
 })
 

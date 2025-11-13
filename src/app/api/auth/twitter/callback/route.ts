@@ -1,6 +1,72 @@
 /**
- * Twitter OAuth 2.0 Callback Handler
- * Handles the OAuth redirect from Twitter and links the account
+ * Twitter OAuth 2.0 Callback API
+ * 
+ * @route GET /api/auth/twitter/callback
+ * @access Public (with state validation)
+ * 
+ * @description
+ * Handles the OAuth 2.0 callback redirect from Twitter after user authorization.
+ * Exchanges authorization code for access token, fetches user profile data,
+ * links Twitter account to user profile, and awards bonus points for first-time
+ * linkage. Includes comprehensive error handling and security validation.
+ * 
+ * **Callback Flow:**
+ * 1. Twitter redirects user back with authorization code
+ * 2. Server validates state parameter and expiration
+ * 3. Authorization code exchanged for access token
+ * 4. User profile data fetched from Twitter API
+ * 5. Twitter account linked to Babylon user profile
+ * 6. Bonus points awarded on first link
+ * 7. User redirected to rewards page with status
+ * 
+ * **Security Features:**
+ * - State parameter validation with 10-minute expiration
+ * - Prevention of duplicate account linking
+ * - Secure token exchange with Basic Auth
+ * - Access token encrypted storage (production)
+ * - Comprehensive error handling and logging
+ * 
+ * **Twitter Profile Data Retrieved:**
+ * - Twitter User ID
+ * - Username (@handle)
+ * - Display name
+ * - Profile image URL
+ * - Bio/description
+ * 
+ * **GET /api/auth/twitter/callback - Handle OAuth Callback**
+ * 
+ * @query {string} code - Authorization code from Twitter
+ * @query {string} state - State parameter (userId:timestamp:nonce)
+ * @query {string} [error] - OAuth error if authorization failed
+ * 
+ * @returns {redirect} Redirect to rewards page with status
+ * - Success: `/rewards?success=twitter_linked&points={amount}`
+ * - Error: `/rewards?error={error_code}`
+ * 
+ * **Error Codes:**
+ * - `missing_params` - Missing code or state parameter
+ * - `invalid_state` - Malformed state parameter
+ * - `state_expired` - State timestamp older than 10 minutes
+ * - `token_exchange_failed` - Failed to exchange code for token
+ * - `failed_to_get_user` - Failed to fetch Twitter profile
+ * - `invalid_twitter_data` - Invalid data from Twitter API
+ * - `twitter_already_linked` - Twitter account linked to different user
+ * 
+ * @example
+ * ```typescript
+ * // Twitter redirects to:
+ * // /api/auth/twitter/callback?code=abc123&state=user-id:timestamp:nonce
+ * 
+ * // On success, user redirected to:
+ * // /rewards?success=twitter_linked&points=100
+ * 
+ * // On error, user redirected to:
+ * // /rewards?error=twitter_already_linked
+ * ```
+ * 
+ * @see {@link /api/auth/twitter/initiate} OAuth initiation
+ * @see {@link /lib/services/points-service} Points service
+ * @see {@link https://developer.twitter.com/en/docs/authentication/oauth-2-0} Twitter OAuth 2.0
  */
 
 import type { NextRequest} from 'next/server';
@@ -80,7 +146,24 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     )
   }
 
-  // Exchange code for access token
+  // Retrieve PKCE code verifier from database
+  const oauthState = await prisma.oAuthState.findFirst({
+    where: {
+      state,
+      returnPath: 'twitter', // Provider stored in returnPath
+      userId,
+      expiresAt: { gte: new Date() },
+    },
+  })
+
+  if (!oauthState || !oauthState.codeVerifier) {
+    logger.warn('Twitter callback missing or expired PKCE state', { state, userId }, 'TwitterCallback')
+    return NextResponse.redirect(
+      new URL('/rewards?error=invalid_state', request.url)
+    )
+  }
+
+  // Exchange code for access token with PKCE verifier
   const tokenResponse = await fetch('https://api.twitter.com/2/oauth2/token', {
     method: 'POST',
     headers: {
@@ -93,8 +176,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       code,
       grant_type: 'authorization_code',
       redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/twitter/callback`,
-      code_verifier: 'challenge', // TODO: Implement PKCE properly
+      code_verifier: oauthState.codeVerifier,
     }),
+  })
+  
+  // Clean up OAuth state after use
+  await prisma.oAuthState.delete({
+    where: { id: oauthState.id },
+  }).catch((error) => {
+    logger.warn('Failed to delete OAuth state', { error, stateId: oauthState.id }, 'TwitterCallback')
   })
 
   if (!tokenResponse.ok) {

@@ -1,0 +1,287 @@
+name: CI - Test All
+
+on:
+  pull_request:
+    branches: [production, staging]
+  push:
+    branches: [production, staging]
+
+env:
+  NODE_ENV: test
+  CI: true
+
+jobs:
+  # Step 1: Build production bundle
+  build:
+    name: Build Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            .next/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}-
+            ${{ runner.os }}-bun-
+      
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      
+      - name: Setup environment variables
+        run: |
+          # Create .env file with test configuration
+          cat > .env.test << EOF
+          DATABASE_URL=${{ secrets.TEST_DATABASE_URL }}
+          POSTGRES_PRISMA_URL=${{ secrets.TEST_DATABASE_URL }}
+          POSTGRES_URL_NON_POOLING=${{ secrets.TEST_DATABASE_URL }}
+          NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}
+          PRIVY_APP_ID=${{ secrets.PRIVY_APP_ID }}
+          PRIVY_APP_SECRET=${{ secrets.PRIVY_APP_SECRET }}
+          PRIVY_TEST_EMAIL=${{ secrets.PRIVY_TEST_EMAIL }}
+          PRIVY_TEST_PASSWORD=${{ secrets.PRIVY_TEST_PASSWORD }}
+          NEXT_PUBLIC_PRIVY_APP_ID=${{ secrets.PRIVY_APP_ID }}
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          WALLET_SEED_PHRASE=${{ secrets.WALLET_SEED_PHRASE }}
+          WALLET_PASSWORD=${{ secrets.WALLET_PASSWORD }}
+          EOF
+          
+          # Use test env for build
+          cp .env.test .env.local
+      
+      - name: Run Prisma Generate
+        run: bun prisma generate
+      
+      - name: Type Check
+        run: bun typecheck
+      
+      - name: Lint
+        run: bun lint
+      
+      - name: Build Production
+        run: bun run build
+        env:
+          NODE_OPTIONS: '--max-old-space-size=8192'
+          SKIP_ENV_VALIDATION: true
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            .next
+            node_modules
+            .env.test
+          retention-days: 1
+
+  # Step 2: Run unit and integration tests
+  test-unit-integration:
+    name: Unit & Integration Tests
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+      
+      - name: Setup test database
+        run: |
+          # Use test environment
+          cp .env.test .env.local
+          
+          # Run migrations
+          bun prisma migrate deploy || true
+      
+      - name: Run Unit Tests
+        run: bun test tests/unit/ --coverage
+        continue-on-error: false
+      
+      - name: Run Integration Tests
+        run: bun test tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts
+        continue-on-error: false
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-integration-test-results
+          path: |
+            coverage/
+            test-results/
+          retention-days: 7
+
+  # Step 3: Run E2E tests (Playwright)
+  test-e2e:
+    name: E2E Tests (Playwright)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+      
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+      
+      - name: Setup test environment
+        run: |
+          cp .env.test .env.local
+          bun prisma migrate deploy || true
+      
+      - name: Start production server
+        run: |
+          bun start &
+          
+          # Wait for server to be ready
+          timeout 120 bash -c 'until curl -f http://localhost:3000/api/health; do sleep 2; done' || exit 1
+        env:
+          PORT: 3000
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+      
+      - name: Run Playwright E2E tests
+        run: bunx playwright test tests/e2e --reporter=list,json
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+      
+      - name: Upload E2E test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+
+  # Step 4: Run Synpress tests (crypto wallet E2E)
+  test-synpress:
+    name: Synpress Tests (Wallet E2E)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+      
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+      
+      - name: Setup test environment
+        run: |
+          cp .env.test .env.local
+          bun prisma migrate deploy || true
+      
+      - name: Start production server
+        run: |
+          bun start &
+          
+          # Wait for server to be ready
+          timeout 120 bash -c 'until curl -f http://localhost:3000/api/health; do sleep 2; done' || exit 1
+        env:
+          PORT: 3000
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+      
+      - name: Run Synpress tests
+        run: bunx playwright test --config=synpress.config.ts --reporter=list,json
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+          WALLET_SEED_PHRASE: ${{ secrets.WALLET_SEED_PHRASE }}
+          WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD }}
+          PRIVY_TEST_EMAIL: ${{ secrets.PRIVY_TEST_EMAIL }}
+          PRIVY_TEST_PASSWORD: ${{ secrets.PRIVY_TEST_PASSWORD }}
+      
+      - name: Upload Synpress test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synpress-results
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+
+  # Step 5: All tests must pass
+  all-tests-passed:
+    name: ✅ All Tests Passed
+    needs: [build, test-unit-integration, test-e2e, test-synpress]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Check all test results
+        run: |
+          if [[ "${{ needs.build.result }}" != "success" ]]; then
+            echo "❌ Build failed"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.test-unit-integration.result }}" != "success" ]]; then
+            echo "❌ Unit/Integration tests failed"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.test-e2e.result }}" != "success" ]]; then
+            echo "❌ E2E tests failed"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.test-synpress.result }}" != "success" ]]; then
+            echo "❌ Synpress tests failed"
+            exit 1
+          fi
+          
+          echo "✅ All tests passed successfully!"
+      
+      - name: Summary
+        run: |
+          echo "## 🎉 Test Suite Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All tests have passed:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Build" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Unit & Integration Tests" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ E2E Tests (Playwright)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Synpress Tests (Wallet E2E)" >> $GITHUB_STEP_SUMMARY
+

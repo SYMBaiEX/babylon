@@ -44,36 +44,30 @@ export function DeleteButton({
 
   const handleDelete = async () => {
     setIsDeleting(true);
-    try {
-      const response = await fetch(`/api/posts/${postId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+    const response = await fetch(`/api/posts/${postId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to delete post');
-      }
-
-      logger.info('Post deleted successfully', { postId, userId: user.id }, 'DeleteButton');
-      
-      // Call callback if provided
-      if (onDeleted) {
-        onDeleted();
-      }
-
-      // Refresh the page to remove the post from view
-      window.location.reload();
-    } catch (error) {
-      logger.error('Failed to delete post', { postId, error }, 'DeleteButton');
-      alert('Failed to delete post. Please try again.');
-    } finally {
+    if (!response.ok) {
       setIsDeleting(false);
       setShowConfirmation(false);
+      throw new Error(data.error || 'Failed to delete post');
     }
+
+    logger.info('Post deleted successfully', { postId, userId: user.id }, 'DeleteButton');
+    
+    // Call callback if provided
+    if (onDeleted) {
+      onDeleted();
+    }
+
+    // Refresh the page to remove the post from view
+    window.location.reload();
   };
 
   const handleClick = () => {

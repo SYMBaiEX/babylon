@@ -109,7 +109,10 @@ export class OracleService {
       })
 
       // Call contract
-      const tx = await this.contract!.commitBabylonGame(
+      if (!this.contract?.commitBabylonGame) {
+        throw new Error('commitBabylonGame not available on contract');
+      }
+      const tx = await this.contract.commitBabylonGame(
         questionId,
         questionNumber,
         question,
@@ -204,7 +207,10 @@ export class OracleService {
       }
 
       // Call contract
-      const tx = await this.contract!.revealBabylonGame(
+      if (!this.contract?.revealBabylonGame) {
+        throw new Error('revealBabylonGame not available on contract');
+      }
+      const tx = await this.contract.revealBabylonGame(
         stored.sessionId,
         outcome,
         stored.salt,
@@ -322,7 +328,10 @@ export class OracleService {
 
     try {
       // Call batch contract method
-      const tx = await this.contract!.batchCommitBabylonGames(
+      if (!this.contract?.batchCommitBabylonGames) {
+        throw new Error('batchCommitBabylonGames not available on contract');
+      }
+      const tx = await this.contract.batchCommitBabylonGames(
         questionIds,
         questionNumbers,
         questions,
@@ -453,7 +462,10 @@ export class OracleService {
 
     try {
       // Call batch contract method
-      const tx = await this.contract!.batchRevealBabylonGames(
+      if (!this.contract?.batchRevealBabylonGames) {
+        throw new Error('batchRevealBabylonGames not available on contract');
+      }
+      const tx = await this.contract.batchRevealBabylonGames(
         sessionIds,
         outcomes,
         salts,
@@ -513,7 +525,10 @@ export class OracleService {
    */
   async getGameInfo(sessionId: string) {
     try {
-      const info = await this.contract!.getCompleteGameInfo(sessionId)
+      if (!this.contract?.getCompleteGameInfo) {
+        throw new Error('getCompleteGameInfo not available on contract');
+      }
+      const info = await this.contract.getCompleteGameInfo(sessionId)
       return info
     } catch (error) {
       logger.error('Failed to get game info', { error, sessionId }, 'OracleService')
@@ -526,7 +541,10 @@ export class OracleService {
    */
   async getStatistics() {
     try {
-      const stats = await this.contract!.getStatistics()
+      if (!this.contract?.getStatistics) {
+        throw new Error('getStatistics not available on contract');
+      }
+      const stats = await this.contract.getStatistics()
       return {
         committed: stats.committed.toString(),
         revealed: stats.revealed.toString(),
@@ -562,7 +580,9 @@ export class OracleService {
       }
 
       // Try to read from contract
-      await this.contract!.version()
+      if (this.contract?.version) {
+        await this.contract.version();
+      }
 
       return { healthy: true }
     } catch (error) {

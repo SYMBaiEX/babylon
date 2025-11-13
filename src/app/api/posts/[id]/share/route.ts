@@ -42,10 +42,9 @@ export const POST = withErrorHandling(async (
     return rateLimitError;
   }
   
-  // Parse and validate request body (optional comment for quote post)
-  const body = await request.json().catch(() => ({}));
-  const validatedBody = Object.keys(body).length > 0 ? SharePostSchema.parse(body) : { comment: undefined };
-  const quoteComment = validatedBody.comment?.trim();
+  const body = await request.json()
+  const validatedBody = Object.keys(body).length > 0 ? SharePostSchema.parse(body) : { comment: undefined }
+  const quoteComment = validatedBody.comment?.trim()
 
   const fallbackDisplayName = user.walletAddress
     ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
@@ -106,20 +105,17 @@ export const POST = withErrorHandling(async (
     // Create share record
     await prisma.share.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         userId: canonicalUserId,
         postId,
       },
     });
 
-    // Track interaction with NPC (if post author is NPC)
-    await NPCInteractionTracker.trackShare(canonicalUserId, postId).catch((error) => {
-      logger.warn('Failed to track NPC interaction', { error });
-    });
+    await NPCInteractionTracker.trackShare(canonicalUserId, postId)
 
     // Create a repost post (like a retweet) that shows on user's profile and feed
     // Use Snowflake ID for repost
-    const repostId = generateSnowflakeId();
+    const repostId = await generateSnowflakeId();
     
     // Get original post content and author for repost
     const originalPost = await prisma.post.findUnique({
@@ -191,26 +187,15 @@ export const POST = withErrorHandling(async (
         quoteComment: quoteComment || null,
       };
 
-      // Invalidate post caches so repost appears in feeds immediately
-      try {
-        await cachedDb.invalidatePostsCache();
-        await cachedDb.invalidateActorPostsCache(canonicalUserId);
-        logger.info('Invalidated post caches after repost', { repostId }, 'POST /api/posts/[id]/share');
-      } catch (error) {
-        logger.error('Failed to invalidate post caches:', error, 'POST /api/posts/[id]/share');
-      }
+      await cachedDb.invalidatePostsCache()
+      await cachedDb.invalidateActorPostsCache(canonicalUserId)
+      logger.info('Invalidated post caches after repost', { repostId }, 'POST /api/posts/[id]/share')
 
-      // Broadcast repost to feed channel for real-time updates
-      try {
-        broadcastToChannel('feed', {
-          type: 'new_post',
-          post: repostPostData,
-        });
-        logger.info('Broadcast repost to feed channel', { repostId, postId }, 'POST /api/posts/[id]/share');
-      } catch (error) {
-        logger.error('Failed to broadcast repost to SSE:', error, 'POST /api/posts/[id]/share');
-        // Don't fail the request if SSE broadcast fails
-      }
+      broadcastToChannel('feed', {
+        type: 'new_post',
+        post: repostPostData,
+      })
+      logger.info('Broadcast repost to feed channel', { repostId, postId }, 'POST /api/posts/[id]/share')
     }
 
     // Create notification for post author (if not self-share)
@@ -251,15 +236,12 @@ export const POST = withErrorHandling(async (
 
   logger.info('Post shared successfully', { postId, userId: canonicalUserId, shareCount }, 'POST /api/posts/[id]/share');
 
-  // Track post shared event
   trackServerEvent(canonicalUserId, 'post_shared', {
     postId,
     originalAuthorId: postAuthor?.authorId,
     shareCount,
     repostId,
-  }).catch((error) => {
-    logger.warn('Failed to track post_shared event', { error });
-  });
+  })
 
   return successResponse(
     {
@@ -374,24 +356,16 @@ export const DELETE = withErrorHandling(async (
       },
     });
 
-  // Invalidate caches after unshare
-  try {
-    await cachedDb.invalidatePostsCache();
-    await cachedDb.invalidateActorPostsCache(canonicalUserId);
-    logger.info('Invalidated post caches after unshare', { postId }, 'DELETE /api/posts/[id]/share');
-  } catch (error) {
-    logger.error('Failed to invalidate post caches:', error, 'DELETE /api/posts/[id]/share');
-  }
+  await cachedDb.invalidatePostsCache()
+  await cachedDb.invalidateActorPostsCache(canonicalUserId)
+  logger.info('Invalidated post caches after unshare', { postId }, 'DELETE /api/posts/[id]/share')
 
-  logger.info('Post unshared successfully', { postId, userId: canonicalUserId, shareCount }, 'DELETE /api/posts/[id]/share');
+  logger.info('Post unshared successfully', { postId, userId: canonicalUserId, shareCount }, 'DELETE /api/posts/[id]/share')
 
-  // Track post unshared event
   trackServerEvent(canonicalUserId, 'post_unshared', {
     postId,
     shareCount,
-  }).catch((error) => {
-    logger.warn('Failed to track post_unshared event', { error });
-  });
+  })
 
   return successResponse({
     data: {

@@ -41,35 +41,22 @@ export function useWalletBalance(
     setLoading(true);
     setError(null);
 
-    try {
-      const response = await fetch(
-        `/api/users/${encodeURIComponent(userId)}/balance`,
-        { signal: controller.signal }
-      );
+    const response = await fetch(
+      `/api/users/${encodeURIComponent(userId)}/balance`,
+      { signal: controller.signal }
+    );
 
-      const data = await response.json().catch(() => ({}));
+    const data = await response.json();
 
-      if (!response.ok) {
-        const message =
-          data?.error || `Failed to fetch balance (${response.status})`;
-        throw new Error(message);
-      }
+    if (controller.signal.aborted) return;
 
-      if (controller.signal.aborted) return;
+    setState({
+      balance: Number(data.balance) || 0,
+      lifetimePnL: Number(data.lifetimePnL) || 0,
+    });
 
-      setState({
-        balance: Number(data.balance) || 0,
-        lifetimePnL: Number(data.lifetimePnL) || 0,
-      });
-    } catch (err) {
-      if (controller.signal.aborted) return;
-      setError(
-        err instanceof Error ? err : new Error('Failed to fetch balance')
-      );
-    } finally {
-      if (!controller.signal.aborted) {
-        setLoading(false);
-      }
+    if (!controller.signal.aborted) {
+      setLoading(false);
     }
   }, [userId, enabled]);
 

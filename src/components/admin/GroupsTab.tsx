@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useTransition } from 'react'
 import { Users, Search, Calendar, MessageCircle, User as UserIcon, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { toast } from 'sonner'
+// import { toast } from 'sonner'
 import { z } from 'zod'
 
 const ParticipantSchema = z.object({
@@ -54,40 +54,33 @@ export function GroupsTab() {
 
   const fetchGroups = useCallback(async () => {
     startRefresh(async () => {
-      try {
-        setIsLoading(true)
-        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      setIsLoading(true)
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
 
-        if (!token) {
-          toast.error('Not authenticated')
-          return
-        }
-
-        const response = await fetch(
-          `/api/admin/groups?sortBy=${sortBy}&sortOrder=${sortOrder}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          }
-        )
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch groups')
-        }
-
-        const data = await response.json()
-        const validation = z.array(GroupChatSchema).safeParse(data.data.groups);
-        if (!validation.success) {
-          throw new Error('Invalid group data structure');
-        }
-        setGroups(validation.data || [])
-      } catch (error) {
-        console.error('Failed to fetch groups:', error)
-        toast.error('Failed to load group chats')
-      } finally {
-        setIsLoading(false)
+      if (!token) {
+        throw new Error('Not authenticated')
       }
+
+      const response = await fetch(
+        `/api/admin/groups?sortBy=${sortBy}&sortOrder=${sortOrder}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch groups')
+      }
+
+      const data = await response.json()
+      const validation = z.array(GroupChatSchema).safeParse(data.data.groups);
+      if (!validation.success) {
+        throw new Error('Invalid group data structure');
+      }
+      setGroups(validation.data || [])
+      setIsLoading(false)
     });
   }, [sortBy, sortOrder, startRefresh])
 

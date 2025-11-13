@@ -43,7 +43,7 @@ export async function createNotification(params: CreateNotificationParams): Prom
 
   await prisma.notification.create({
     data: {
-      id: generateSnowflakeId(),
+      id: await generateSnowflakeId(),
       userId: params.userId,
       type: params.type,
       actorId: params.actorId,
@@ -379,7 +379,7 @@ export async function notifyUserGroupInvite(
   // Create notification with groupId and inviteId for proper linking
   await prisma.notification.create({
     data: {
-      id: generateSnowflakeId(),
+      id: await generateSnowflakeId(),
       userId,
       type: 'group_invite',
       actorId: inviterId,

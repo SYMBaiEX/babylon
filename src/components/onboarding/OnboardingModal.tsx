@@ -146,43 +146,40 @@ export function OnboardingModal({
     const initializeProfile = async () => {
       setIsLoadingDefaults(true)
 
-      try {
-        const [profileResult, assetsResult] = await Promise.allSettled([
-          apiFetch('/api/onboarding/generate-profile', { auth: false }),
-          apiFetch('/api/onboarding/random-assets', { auth: false }),
-        ])
-
-        if (profileResult.status === 'fulfilled' && profileResult.value.ok) {
-          const generated = (await profileResult.value.json()) as GeneratedProfileResponse
-          setDisplayName(generated.name)
-          setUsername(generated.username)
-          setBio(generated.bio)
-        } else {
-          setDisplayName('New Babylonian')
-          setUsername(`user_${Math.random().toString(36).slice(2, 10)}`)
-          setBio('Just joined Babylon!')
-        }
-
-        if (assetsResult.status === 'fulfilled' && assetsResult.value.ok) {
-          const assets = (await assetsResult.value.json()) as RandomAssetsResponse
-          setProfilePictureIndex(assets.profilePictureIndex)
-          setBannerIndex(assets.bannerIndex)
-        } else {
-          setProfilePictureIndex(Math.floor(Math.random() * TOTAL_PROFILE_PICTURES) + 1)
-          setBannerIndex(Math.floor(Math.random() * TOTAL_BANNERS) + 1)
-        }
-      } catch (initError) {
+      const [profileResult, assetsResult] = await Promise.allSettled([
+        apiFetch('/api/onboarding/generate-profile', { auth: false }),
+        apiFetch('/api/onboarding/random-assets', { auth: false }),
+      ]).catch((initError: Error) => {
         logger.warn('Failed to initialize onboarding defaults', { error: initError }, 'OnboardingModal')
+        return [
+          { status: 'rejected' as const, reason: initError },
+          { status: 'rejected' as const, reason: initError }
+        ]
+      })
+
+      if (profileResult.status === 'fulfilled' && profileResult.value.ok) {
+        const generated = (await profileResult.value.json()) as GeneratedProfileResponse
+        setDisplayName(generated.name)
+        setUsername(generated.username)
+        setBio(generated.bio)
+      } else {
         setDisplayName('New Babylonian')
         setUsername(`user_${Math.random().toString(36).slice(2, 10)}`)
         setBio('Just joined Babylon!')
+      }
+
+      if (assetsResult.status === 'fulfilled' && assetsResult.value.ok) {
+        const assets = (await assetsResult.value.json()) as RandomAssetsResponse
+        setProfilePictureIndex(assets.profilePictureIndex)
+        setBannerIndex(assets.bannerIndex)
+      } else {
         setProfilePictureIndex(Math.floor(Math.random() * TOTAL_PROFILE_PICTURES) + 1)
         setBannerIndex(Math.floor(Math.random() * TOTAL_BANNERS) + 1)
-      } finally {
-        setUploadedProfileImage(null)
-        setUploadedBanner(null)
-        setIsLoadingDefaults(false)
       }
+      
+      setUploadedProfileImage(null)
+      setUploadedBanner(null)
+      setIsLoadingDefaults(false)
     }
 
     void initializeProfile()
@@ -203,18 +200,18 @@ export function OnboardingModal({
       let status: 'available' | 'taken' | null = null
       let suggestion: string | null = null
 
-      try {
-        const response = await apiFetch(`/api/onboarding/check-username?username=${encodeURIComponent(username)}`, { auth: false })
-        if (response.ok) {
-          const result = (await response.json()) as { available?: boolean; suggestion?: string }
-          status = result.available ? 'available' : 'taken'
-          suggestion = result.available ? null : result.suggestion ?? null
-        } else {
-          const body = await response.json().catch(() => null)
-          logger.warn('Username availability check failed', { status: response.status, body }, 'OnboardingModal')
-        }
-      } catch (checkError) {
+      const response = await apiFetch(`/api/onboarding/check-username?username=${encodeURIComponent(username)}`, { auth: false }).catch((checkError: Error) => {
         logger.warn('Username availability check error', { error: checkError }, 'OnboardingModal')
+        return null
+      })
+      
+      if (response?.ok) {
+        const result = (await response.json()) as { available?: boolean; suggestion?: string }
+        status = result.available ? 'available' : 'taken'
+        suggestion = result.available ? null : result.suggestion ?? null
+      } else if (response) {
+        const body = await response.json().catch(() => null)
+        logger.warn('Username availability check failed', { status: response.status, body }, 'OnboardingModal')
       }
 
       if (!cancelled) {

@@ -37,39 +37,36 @@ export function UserMenu() {
       if (userMenuFetchInFlight) return
       userMenuFetchInFlight = true
 
-      try {
-        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-        if (!token) {
-          userMenuFetchInFlight = false
-          return
-        }
-
-        const headers: HeadersInit = {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-
-        // Fetch points
-        const balanceResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/balance`, { headers })
-        if (balanceResponse.ok) {
-          const data = await balanceResponse.json()
-          setPointsData({
-            available: Number(data.balance || 0),
-            total: Number(data.totalDeposited || 0),
-          })
-        }
-
-        // Fetch referral code
-        const referralResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/referrals`, { headers })
-        if (referralResponse.ok) {
-          const data = await referralResponse.json()
-          setReferralCode(data.user?.referralCode || null)
-        }
-
-        lastFetchedUserIdRef.current = user.id
-      } finally {
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      if (!token) {
         userMenuFetchInFlight = false
+        return
       }
+
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+
+      // Fetch points
+      const balanceResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/balance`, { headers })
+      if (balanceResponse.ok) {
+        const data = await balanceResponse.json()
+        setPointsData({
+          available: Number(data.balance || 0),
+          total: Number(data.totalDeposited || 0),
+        })
+      }
+
+      // Fetch referral code
+      const referralResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/referrals`, { headers })
+      if (referralResponse.ok) {
+        const data = await referralResponse.json()
+        setReferralCode(data.user?.referralCode || null)
+      }
+
+      lastFetchedUserIdRef.current = user.id
+      userMenuFetchInFlight = false
     }
 
     // Clear any existing interval

@@ -17,8 +17,8 @@ CRITICAL: Each question must be PROVABLE and DEFINABLE:
 - Must have a clear, observable outcome (announcement, product launch, public event, measurable metric)
 - AVOID vague emotional states ("emotions stabilize", "feelings change")
 - AVOID abstract concepts ("collapse", "apocalypse" without clear definition)
-- GOOD: "Will X announce Y?" "Will X's product launch?" "Will X and Y have a public meeting?"
-- BAD: "Will X's emotions stabilize?" "Will the apocalypse occur?" "Will things collapse?"
+- GOOD: "Will AIX announce Y?" "Will AIX's product launch?" "Will AIX and Y have a public meeting?"
+- BAD: "Will AIX's emotions stabilize?" "Will the apocalypse occur?" "Will things collapse?"
 
 Each question must:
 - Be a CONCRETE, OBSERVABLE yes/no prediction
@@ -30,9 +30,9 @@ Each question must:
 - Reference specific actors and events
 
 Examples of GOOD questions (including organizations):
-- "Will Ailon Muskannounce Tesla's brain upload feature?"
-- "Will Scam Altman's AGI pass the Turing test publicly?"
-- "Will Vitamin Uterin fork Ethereum before Day 30?"
+- "Will Ailon Muskannounce TeslAI's brain upload feature?"
+- "Will Scam AIltman's AGI pass the Turing test publicly?"
+- "Will Vitamin Uterin fork Etherai-foundation before Day 30?"
 - "Will MSDNC break story about leaked OpenLIE documents?"
 - "Will The Fud raise interest rates in response to the crisis?"
 - "Will Xitter announce new content moderation policy?"

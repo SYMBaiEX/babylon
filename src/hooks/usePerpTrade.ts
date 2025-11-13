@@ -70,14 +70,14 @@ async function resolveToken(
   return window.__privyAccessToken ?? null;
 }
 
-function extractErrorMessage(payload: unknown, status: number): string {
+function extractErrorMessage(payload: Record<string, unknown> | null, status: number): string {
   if (
     payload &&
     typeof payload === 'object' &&
     'error' in payload &&
     payload.error !== undefined
   ) {
-    const errorPayload = (payload as { error: unknown }).error;
+    const errorPayload = payload.error;
 
     if (typeof errorPayload === 'string') {
       return errorPayload;
@@ -87,16 +87,12 @@ function extractErrorMessage(payload: unknown, status: number): string {
       errorPayload &&
       typeof errorPayload === 'object' &&
       'message' in errorPayload &&
-      typeof (errorPayload as { message?: unknown }).message === 'string'
+      typeof (errorPayload as { message?: string }).message === 'string'
     ) {
       return (errorPayload as { message: string }).message;
     }
 
-    try {
-      return JSON.stringify(errorPayload);
-    } catch {
-      return `Request failed with status ${status}`;
-    }
+    return JSON.stringify(errorPayload);
   }
 
   return `Request failed with status ${status}`;
@@ -118,7 +114,7 @@ export function usePerpTrade(options: UsePerpTradeOptions = {}) {
         headers,
       });
 
-      const data = (await response.json().catch(() => null)) as unknown;
+      const data = await response.json() as Record<string, unknown>;
 
       if (!response.ok) {
         throw new Error(extractErrorMessage(data, response.status));

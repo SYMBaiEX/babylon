@@ -195,28 +195,26 @@ async function initializeTrending() {
       for (const tagName of matchingTags.slice(0, 2)) {
         const tag = createdTags.find(t => t.name === tagName)
         if (tag) {
-          try {
-            // Check if link already exists
-            const existing = await prisma.postTag.findUnique({
-              where: {
-                postId_tagId: {
-                  postId: post.id,
-                  tagId: tag.id,
-                },
+          // Check if link already exists
+          const existing = await prisma.postTag.findUnique({
+            where: {
+              postId_tagId: {
+                postId: post.id,
+                tagId: tag.id,
               },
+            },
+          })
+          
+          if (!existing) {
+            await prisma.postTag.create({
+              data: {
+                postId: post.id,
+                tagId: tag.id,
+              },
+            }).catch(() => {
+              // Skip if already exists (race condition)
             })
-            
-            if (!existing) {
-              await prisma.postTag.create({
-                data: {
-                  postId: post.id,
-                  tagId: tag.id,
-                },
-              })
-              linksCreated++
-            }
-          } catch {
-            // Skip if already exists (race condition)
+            linksCreated++
           }
         }
       }
@@ -263,24 +261,22 @@ async function initializeTrending() {
     const { tagId, count } = tagCounts[i]
     const score = Number(count) * (10 - i) * (0.5 + Math.random())
 
-    try {
-      await prisma.trendingTag.create({
-        data: {
-          tagId,
-          score,
-          postCount: Number(count),
-          rank: i + 1,
-          windowStart: weekAgo,
-          windowEnd: now,
-          relatedContext: i < 3 && Math.random() > 0.5 
-            ? `Trending with ${SAMPLE_TAGS[Math.floor(Math.random() * SAMPLE_TAGS.length)].displayName}` 
-            : null,
-        },
-      })
-      trendingCreated++
-    } catch {
+    await prisma.trendingTag.create({
+      data: {
+        tagId,
+        score,
+        postCount: Number(count),
+        rank: i + 1,
+        windowStart: weekAgo,
+        windowEnd: now,
+        relatedContext: i < 3 && Math.random() > 0.5 
+          ? `Trending with ${SAMPLE_TAGS[Math.floor(Math.random() * SAMPLE_TAGS.length)].displayName}` 
+          : null,
+      },
+    }).catch(() => {
       // Skip if already exists
-    }
+    })
+    trendingCreated++
   }
 
   // If we don't have enough trending from real data, create some with sample tags
@@ -291,24 +287,22 @@ async function initializeTrending() {
       const tag = createdTags[i]
       const score = (MIN_TRENDING_TAGS - i) * 10 * Math.random()
       
-      try {
-        await prisma.trendingTag.create({
-          data: {
-            tagId: tag.id,
-            score,
-            postCount: Math.floor(Math.random() * 20) + 5,
-            rank: i + 1,
-            windowStart: weekAgo,
-            windowEnd: now,
-            relatedContext: Math.random() > 0.6
-              ? `Trending with ${SAMPLE_TAGS[Math.floor(Math.random() * SAMPLE_TAGS.length)].displayName}`
-              : null,
-          },
-        })
-        trendingCreated++
-      } catch {
+      await prisma.trendingTag.create({
+        data: {
+          tagId: tag.id,
+          score,
+          postCount: Math.floor(Math.random() * 20) + 5,
+          rank: i + 1,
+          windowStart: weekAgo,
+          windowEnd: now,
+          relatedContext: Math.random() > 0.6
+            ? `Trending with ${SAMPLE_TAGS[Math.floor(Math.random() * SAMPLE_TAGS.length)].displayName}`
+            : null,
+        },
+      }).catch(() => {
         // Skip if already exists
-      }
+      })
+      trendingCreated++
     }
   }
 
@@ -355,27 +349,23 @@ async function initializeNews() {
     const hoursAgo = Math.floor(Math.random() * 24)
     const timestamp = new Date(Date.now() - hoursAgo * 60 * 60 * 1000)
 
-    try {
-      await prisma.post.create({
-        data: {
-          id: generateSnowflakeId(),
-          type: 'article',
-          content: article.summary,
-          articleTitle: article.title,
-          category: article.category,
-          sentiment: article.sentiment,
-          slant: article.slant,
-          biasScore: article.biasScore,
-          authorId: org.id,
-          gameId: 'continuous',
-          dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
-          timestamp,
-        },
-      })
-      articlesCreated++
-    } catch (error) {
-      logger.error('Failed to create article', error, 'InitTrendingNews')
-    }
+    await prisma.post.create({
+      data: {
+        id: await generateSnowflakeId(),
+        type: 'article',
+        content: article.summary,
+        articleTitle: article.title,
+        category: article.category,
+        sentiment: article.sentiment,
+        slant: article.slant,
+        biasScore: article.biasScore,
+        authorId: org.id,
+        gameId: 'continuous',
+        dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+        timestamp,
+      },
+    })
+    articlesCreated++
   }
 
   logger.info(`✅ Created ${articlesCreated} news articles`, undefined, 'InitTrendingNews')
@@ -384,48 +374,37 @@ async function initializeNews() {
 async function main() {
   logger.info('🚀 Initializing Trending and News...', undefined, 'InitTrendingNews')
 
-  try {
-    // Initialize trending
-    await initializeTrending()
+  // Initialize trending
+  await initializeTrending()
 
-    // Initialize news
-    await initializeNews()
+  // Initialize news
+  await initializeNews()
 
-    // Show results
-    const trendingCount = await prisma.trendingTag.count()
-    const newsCount = await prisma.post.count({ where: { type: 'article' } })
+  // Show results
+  const trendingCount = await prisma.trendingTag.count()
+  const newsCount = await prisma.post.count({ where: { type: 'article' } })
 
-    logger.info('', undefined, 'InitTrendingNews')
-    logger.info('📊 Summary:', undefined, 'InitTrendingNews')
-    logger.info(`  Trending tags: ${trendingCount}`, undefined, 'InitTrendingNews')
-    logger.info(`  News articles: ${newsCount}`, undefined, 'InitTrendingNews')
-    logger.info('', undefined, 'InitTrendingNews')
+  logger.info('', undefined, 'InitTrendingNews')
+  logger.info('📊 Summary:', undefined, 'InitTrendingNews')
+  logger.info(`  Trending tags: ${trendingCount}`, undefined, 'InitTrendingNews')
+  logger.info(`  News articles: ${newsCount}`, undefined, 'InitTrendingNews')
+  logger.info('', undefined, 'InitTrendingNews')
 
-    if (trendingCount >= MIN_TRENDING_TAGS && newsCount >= MIN_NEWS_ARTICLES) {
-      logger.info('✅ System ready! Trending and news are populated.', undefined, 'InitTrendingNews')
-    } else {
-      logger.warn('⚠️  Minimum thresholds not met:', undefined, 'InitTrendingNews')
-      if (trendingCount < MIN_TRENDING_TAGS) {
-        logger.warn(`  Trending: ${trendingCount}/${MIN_TRENDING_TAGS}`, undefined, 'InitTrendingNews')
-      }
-      if (newsCount < MIN_NEWS_ARTICLES) {
-        logger.warn(`  News: ${newsCount}/${MIN_NEWS_ARTICLES}`, undefined, 'InitTrendingNews')
-      }
-      logger.info('💡 More content will be generated by game ticks', undefined, 'InitTrendingNews')
+  if (trendingCount >= MIN_TRENDING_TAGS && newsCount >= MIN_NEWS_ARTICLES) {
+    logger.info('✅ System ready! Trending and news are populated.', undefined, 'InitTrendingNews')
+  } else {
+    logger.warn('⚠️  Minimum thresholds not met:', undefined, 'InitTrendingNews')
+    if (trendingCount < MIN_TRENDING_TAGS) {
+      logger.warn(`  Trending: ${trendingCount}/${MIN_TRENDING_TAGS}`, undefined, 'InitTrendingNews')
     }
-
-  } catch (error) {
-    logger.error('❌ Initialization failed:', error, 'InitTrendingNews')
-    process.exit(1)
-  } finally {
-    await prisma.$disconnect()
+    if (newsCount < MIN_NEWS_ARTICLES) {
+      logger.warn(`  News: ${newsCount}/${MIN_NEWS_ARTICLES}`, undefined, 'InitTrendingNews')
+    }
+    logger.info('💡 More content will be generated by game ticks', undefined, 'InitTrendingNews')
   }
+
+  await prisma.$disconnect()
 }
 
 main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    logger.error('Fatal error:', error, 'InitTrendingNews')
-    process.exit(1)
-  })
 

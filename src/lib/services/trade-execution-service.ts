@@ -227,7 +227,7 @@ export class TradeExecutionService {
       // Store the raw organization ID as ticker for database consistency
       const pos = await tx.poolPosition.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           poolId,
           marketType: 'perp',
           ticker: org.id, // Use raw org ID for database storage
@@ -245,7 +245,7 @@ export class TradeExecutionService {
       // Record trade
       await tx.nPCTrade.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           npcActorId: decision.npcId,
           poolId,
           marketType: 'perp',
@@ -263,37 +263,30 @@ export class TradeExecutionService {
     });
 
     // Add position to perpetuals engine for real-time tracking
-    try {
-      const engine = await getReadyPerpsEngine();
-      engine.hydratePosition({
-        id: position.id,
-        userId: poolId,
-        ticker: decision.ticker!,
-        organizationId: org.id,
-        side,
-        entryPrice: currentPrice,
-        currentPrice,
-        size: positionSize,
-        leverage,
-        liquidationPrice: _liquidationPrice,
-        unrealizedPnL: 0,
-        unrealizedPnLPercent: 0,
-        fundingPaid: 0,
-        openedAt: position.updatedAt,
-        lastUpdated: position.updatedAt,
-      });
-      logger.info('Added NPC position to perpetuals engine', {
-        positionId: position.id,
-        ticker: decision.ticker,
-        poolId,
-      });
-    } catch (error) {
-      logger.error('Failed to add NPC position to perpetuals engine', {
-        error,
-        positionId: position.id,
-      });
-      // Don't fail the trade if engine tracking fails
-    }
+    // Use the transformed ticker that matches PerpsEngine's market indexing
+    const engine = await getReadyPerpsEngine();
+    engine.hydratePosition({
+      id: position.id,
+      userId: poolId,
+      ticker: engineTicker, // Use transformed ticker for engine
+      organizationId: org.id,
+      side,
+      entryPrice: currentPrice,
+      currentPrice,
+      size: positionSize,
+      leverage,
+      liquidationPrice: _liquidationPrice,
+      unrealizedPnL: 0,
+      unrealizedPnLPercent: 0,
+      fundingPaid: 0,
+      openedAt: position.updatedAt,
+      lastUpdated: position.updatedAt,
+    });
+    logger.info('Added NPC position to perpetuals engine', {
+      positionId: position.id,
+      ticker: decision.ticker,
+      poolId,
+    });
 
     return {
       npcId: decision.npcId,
@@ -383,7 +376,7 @@ export class TradeExecutionService {
       // Create position
       const pos = await tx.poolPosition.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           poolId,
           marketType: 'prediction',
           marketId: decision.marketId!.toString(),
@@ -400,7 +393,7 @@ export class TradeExecutionService {
       // Record trade
       await tx.nPCTrade.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           npcActorId: decision.npcId,
           poolId,
           marketType: 'prediction',
@@ -532,7 +525,7 @@ export class TradeExecutionService {
       // Record trade
       await tx.nPCTrade.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           npcActorId: decision.npcId,
           poolId,
           marketType: position.marketType,
@@ -550,22 +543,14 @@ export class TradeExecutionService {
 
     // Remove position from perpetuals engine if it's a perp position
     if (position.marketType === 'perp') {
-      try {
-        const engine = await getReadyPerpsEngine();
-        if (engine.hasPosition(position.id)) {
-          engine.closePosition(position.id);
-          logger.info('Removed NPC position from perpetuals engine', {
-            positionId: position.id,
-            ticker: position.ticker,
-            poolId,
-          });
-        }
-      } catch (error) {
-        logger.error('Failed to remove NPC position from perpetuals engine', {
-          error,
+      const engine = await getReadyPerpsEngine();
+      if (engine.hasPosition(position.id)) {
+        engine.closePosition(position.id);
+        logger.info('Removed NPC position from perpetuals engine', {
           positionId: position.id,
+          ticker: position.ticker,
+          poolId,
         });
-        // Don't fail the trade if engine tracking fails
       }
     }
 

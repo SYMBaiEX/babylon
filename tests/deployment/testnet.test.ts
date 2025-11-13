@@ -69,9 +69,6 @@ describe('Testnet Deployment', () => {
 
     const checkEnv = path.join(scriptsDir, 'check-environment.ts')
     expect(fs.existsSync(checkEnv)).toBe(true)
-
-    const checkAgent0 = path.join(scriptsDir, 'check-agent0.ts')
-    expect(fs.existsSync(checkAgent0)).toBe(true)
   })
 })
 

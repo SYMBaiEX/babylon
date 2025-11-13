@@ -30,7 +30,7 @@ interface AgentWalletProps {
 }
 
 export function AgentWallet({ agent, onUpdate }: AgentWalletProps) {
-  const { user } = useAuth()
+  const { user, getAccessToken } = useAuth()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(false)
   const [amount, setAmount] = useState('')
@@ -42,25 +42,21 @@ export function AgentWallet({ agent, onUpdate }: AgentWalletProps) {
   }, [agent.id])
 
   const fetchTransactions = async () => {
-    try {
-      setLoading(true)
-      const token = window.__privyAccessToken
-      
-      const res = await fetch(`/api/agents/${agent.id}/wallet`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (res.ok) {
-        const data = await res.json()
-        setTransactions(data.transactions)
+    setLoading(true)
+    const token = await getAccessToken()
+    if (!token) return
+    
+    const res = await fetch(`/api/agents/${agent.id}/wallet`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
       }
-    } catch (error) {
-      console.error('Failed to fetch transactions:', error)
-    } finally {
-      setLoading(false)
+    })
+
+    if (res.ok) {
+      const data = await res.json()
+      setTransactions(data.transactions)
     }
+    setLoading(false)
   }
 
   const handleTransaction = async () => {
@@ -84,33 +80,33 @@ export function AgentWallet({ agent, onUpdate }: AgentWalletProps) {
     }
 
     setProcessing(true)
-    try {
-      const token = window.__privyAccessToken
-      
-      const res = await fetch(`/api/agents/${agent.id}/wallet`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ action, amount: amountNum })
-      })
-
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || 'Transaction failed')
-      }
-
-      const data = await res.json()
-      toast.success(data.message)
-      setAmount('')
-      fetchTransactions()
-      onUpdate()
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Transaction failed')
-    } finally {
+    const token = await getAccessToken()
+    if (!token) {
       setProcessing(false)
+      throw new Error('Authentication required')
     }
+    
+    const res = await fetch(`/api/agents/${agent.id}/wallet`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ action, amount: amountNum })
+    })
+
+    if (!res.ok) {
+      const error = await res.json()
+      setProcessing(false)
+      throw new Error(error.error || 'Transaction failed')
+    }
+
+    const data = await res.json()
+    toast.success(data.message)
+    setAmount('')
+    fetchTransactions()
+    onUpdate()
+    setProcessing(false)
   }
 
   const userTotalPoints = user?.reputationPoints || 0

@@ -59,6 +59,8 @@ export async function setupBasicAutonomousAgent(agentUserId: string): Promise<{ 
     bio: agent.bio ? JSON.parse(agent.bio) : [],
     
     settings: {
+      // Use TEXT_SMALL for most operations (routes to openai/gpt-oss-120b)
+      // Use TEXT_LARGE for quality content (routes to qwen/qwen3-32b)
       model: agent.agentModelTier === 'pro' 
         ? ModelType.TEXT_LARGE 
         : ModelType.TEXT_SMALL,
@@ -77,7 +79,6 @@ export async function setupBasicAutonomousAgent(agentUserId: string): Promise<{ 
     agentId: agent.id as `${string}-${string}-${string}-${string}-${string}`,
     character,
     databaseAdapter: undefined // Using our own Prisma setup
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any)
 
   // CRITICAL: Set logger on runtime (use console.bind pattern from otc-agent working implementation)
@@ -89,7 +90,7 @@ export async function setupBasicAutonomousAgent(agentUserId: string): Promise<{ 
       warn: console.warn.bind(console),
       error: console.error.bind(console),
       debug: console.debug.bind(console),
-      trace: console.trace ? console.trace.bind(console) : (..._args: any[]) => {},
+      trace: console.trace ? console.trace.bind(console) : (..._args: unknown[]) => {},
       fatal: console.error.bind(console),
       success: console.info.bind(console),
       progress: console.info.bind(console),
@@ -154,37 +155,32 @@ export async function startAutonomousTickLoop(
  * Helper: Execute tick with comprehensive logging
  */
 async function executeTickWithLogging(agentUserId: string, runtime: AgentRuntime) {
-  try {
-    logger.info(`Starting tick for agent ${agentUserId}`, undefined, 'AgentTick')
+  logger.info(`Starting tick for agent ${agentUserId}`, undefined, 'AgentTick')
 
-    const result = await autonomousCoordinator.executeAutonomousTick(
-      agentUserId,
-      runtime
-    )
+  const result = await autonomousCoordinator.executeAutonomousTick(
+    agentUserId,
+    runtime
+  )
 
-    logger.info(
-      `Tick completed for agent ${agentUserId}`,
-      {
-        success: result.success,
-        trades: result.actionsExecuted.trades,
-        posts: result.actionsExecuted.posts,
-        comments: result.actionsExecuted.comments,
-        messages: result.actionsExecuted.messages,
-        engagements: result.actionsExecuted.engagements
-      },
-      'AgentTick'
-    )
+  logger.info(
+    `Tick completed for agent ${agentUserId}`,
+    {
+      success: result.success,
+      trades: result.actionsExecuted.trades,
+      posts: result.actionsExecuted.posts,
+      comments: result.actionsExecuted.comments,
+      messages: result.actionsExecuted.messages,
+      engagements: result.actionsExecuted.engagements
+    },
+    'AgentTick'
+  )
 
-    // Alert on anomalies
-    if (result.duration > 30000) {
-      logger.warn(`Slow tick detected: ${result.duration}ms`, { agentUserId }, 'AgentTick')
-    }
-
-    return result
-  } catch (error) {
-    logger.error(`Tick failed for agent ${agentUserId}`, error, 'AgentTick')
-    throw error
+  // Alert on anomalies
+  if (result.duration > 30000) {
+    logger.warn(`Slow tick detected: ${result.duration}ms`, { agentUserId }, 'AgentTick')
   }
+
+  return result
 }
 
 /**
@@ -202,34 +198,27 @@ export async function setupAdvancedAutonomousAgent(
 ) {
   const { agent, runtime } = await setupBasicAutonomousAgent(agentUserId)
 
-  // Custom tick function with configuration
   async function customTick() {
-    try {
+    logger.info(`Dashboard loaded for ${agent.displayName}`, undefined, 'AgentTick')
 
-      logger.info(`Dashboard loaded for ${agent.displayName}`, undefined, 'AgentTick')
+    // Execute coordinated tick
+    const result = await autonomousCoordinator.executeAutonomousTick(
+      agentUserId,
+      runtime
+    )
 
-      // Execute coordinated tick
-      const result = await autonomousCoordinator.executeAutonomousTick(
-        agentUserId,
-        runtime
+    // Check limits
+    const totalActions = Object.values(result.actionsExecuted).reduce((sum, count) => sum + count, 0)
+
+    if (config.maxActionsPerTick && totalActions > config.maxActionsPerTick) {
+      logger.warn(
+        `Agent exceeded max actions per tick: ${totalActions} > ${config.maxActionsPerTick}`,
+        { agentUserId },
+        'AgentTick'
       )
-
-      // Check limits
-      const totalActions = Object.values(result.actionsExecuted).reduce((sum, count) => sum + count, 0)
-
-      if (config.maxActionsPerTick && totalActions > config.maxActionsPerTick) {
-        logger.warn(
-          `Agent exceeded max actions per tick: ${totalActions} > ${config.maxActionsPerTick}`,
-          { agentUserId },
-          'AgentTick'
-        )
-      }
-
-      return result
-    } catch (error) {
-      logger.error('Custom tick failed', error, 'AgentTick')
-      throw error
     }
+
+    return result
   }
 
   // Start with custom config

@@ -15,7 +15,7 @@ describe('Article Generation Integration', () => {
     // Create test news organization
     const org = await prisma.organization.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         name: 'Test News Network',
         description: 'A test news organization',
         type: 'media',
@@ -58,7 +58,7 @@ The third paragraph continues with additional information, quotes from industry 
 Finally, the fourth paragraph concludes the article with actionable insights and a summary of key takeaways for readers.
     `.trim()
 
-    testArticleId = generateSnowflakeId()
+    testArticleId = await generateSnowflakeId()
 
     const article = await db.createPostWithAllFields({
       id: testArticleId,
@@ -108,33 +108,28 @@ Finally, the fourth paragraph concludes the article with actionable insights and
   })
 
   it('should reject articles with short fullContent', async () => {
-    const shortArticleId = generateSnowflakeId()
+    const shortArticleId = await generateSnowflakeId()
     const shortContent = 'This is too short.'
 
-    try {
-      // In production, the game tick would skip articles < 400 chars
-      // This test validates the expected behavior
-      const article = await db.createPostWithAllFields({
-        id: shortArticleId,
-        type: 'article',
-        content: 'Short summary',
-        fullContent: shortContent,
-        articleTitle: 'Short Article',
-        authorId: testOrgId,
-        gameId: 'continuous',
-        dayNumber: 1,
-        timestamp: new Date(),
-      })
+    // In production, the game tick would skip articles < 400 chars
+    // This test validates the expected behavior
+    const article = await db.createPostWithAllFields({
+      id: shortArticleId,
+      type: 'article',
+      content: 'Short summary',
+      fullContent: shortContent,
+      articleTitle: 'Short Article',
+      authorId: testOrgId,
+      gameId: 'continuous',
+      dayNumber: 1,
+      timestamp: new Date(),
+    })
 
-      // Article is created in DB, but in game tick it would be skipped
-      expect(article.fullContent!.length).toBeLessThan(400)
+    // Article is created in DB, but in game tick it would be skipped
+    expect(article.fullContent!.length).toBeLessThan(400)
 
-      // Cleanup
-      await prisma.post.delete({ where: { id: shortArticleId } })
-    } catch (error) {
-      // This is acceptable - some validation might prevent short articles
-      expect(error).toBeDefined()
-    }
+    // Cleanup
+    await prisma.post.delete({ where: { id: shortArticleId } })
   })
 
   it('should verify article has proper structure for display', async () => {

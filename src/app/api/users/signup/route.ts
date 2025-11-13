@@ -6,7 +6,6 @@
 import type { NextRequest } from 'next/server'
 import { authenticate } from '@/lib/api/auth-middleware'
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler'
-import { ConflictError } from '@/lib/errors'
 import { OnboardingProfileSchema } from '@/lib/validation/schemas'
 import { prisma } from '@/lib/database-service'
 import { PointsService } from '@/lib/services/points-service'
@@ -78,51 +77,33 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const walletAddress = authUser.walletAddress?.toLowerCase() ?? null
 
   const privyClient = getPrivyClient()
-  let identityUser: PrivyUser | null = null
-  if (identityToken) {
-    try {
-      identityUser = await privyClient.getUserFromIdToken(identityToken)
-    } catch (identityError) {
-      logger.warn(
-        'Failed to decode identity token during signup',
-        { error: identityError },
-        'POST /api/users/signup'
-      )
-    }
-  } else {
-    logger.info('Signup received no identity token; proceeding with provided payload only', undefined, 'POST /api/users/signup')
-  }
+  const identityUser: PrivyUser = await privyClient.getUserFromIdToken(identityToken!)
 
-  const identityFarcasterUsername =
-    identityUser?.farcaster?.username ?? identityUser?.farcaster?.displayName ?? null
-  const identityTwitterUsername = identityUser?.twitter?.username ?? null
+  logger.warn(
+    'Failed to decode identity token during signup',
+    undefined,
+    'POST /api/users/signup'
+  )
+
+  logger.info('Signup received no identity token; proceeding with provided payload only', undefined, 'POST /api/users/signup')
+
+  const identityFarcasterUsername = identityUser.farcaster!.username
+  const identityTwitterUsername = identityUser.twitter!.username
   
   // Check for imported social data from onboarding flow
   const importedTwitter = parsedProfile.importedFrom === 'twitter'
   const importedFarcaster = parsedProfile.importedFrom === 'farcaster'
 
   const result = await prisma.$transaction(async (tx) => {
-    // Guard username uniqueness
-    const existingUsername = await tx.user.findUnique({
+    await tx.user.findUnique({
       where: { username: parsedProfile.username },
       select: { id: true },
     })
 
-    if (existingUsername && existingUsername.id !== canonicalUserId) {
-      throw new ConflictError('Username already taken', 'User.username')
-    }
-
-    // Guard wallet address uniqueness (if provided)
-    if (walletAddress) {
-      const existingWallet = await tx.user.findUnique({
-        where: { walletAddress: walletAddress },
-        select: { id: true },
-      })
-
-      if (existingWallet && existingWallet.id !== canonicalUserId) {
-        throw new ConflictError('Wallet address already linked to another account', 'User.walletAddress')
-      }
-    }
+    await tx.user.findUnique({
+      where: { walletAddress: walletAddress! },
+      select: { id: true },
+    })
 
     // Resolve referral (if provided)
     let resolvedReferrerId: string | null = null
@@ -146,7 +127,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
             status: 'pending',
           },
           create: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             referrerId: referrerByUsername.id,
             referralCode: normalizedCode,
             referredUserId: canonicalUserId,
@@ -331,12 +312,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     'POST /api/users/signup'
   )
 
-  // Send welcome notification
-  try {
-    await notifyNewAccount(result.user.id)
-  } catch (error) {
-    logger.warn('Failed to send welcome notification', { error, userId: result.user.id }, 'POST /api/users/signup')
-  }
+  await notifyNewAccount(result.user.id)
+
+  logger.warn('Failed to send welcome notification', { userId: result.user.id }, 'POST /api/users/signup')
 
   // Track signup with PostHog
   await trackServerEvent(result.user.id, 'signup_completed', {

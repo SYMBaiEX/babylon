@@ -87,34 +87,36 @@ export default function RewardsPage() {
     setLoading(true)
     setError(null)
 
-    try {
-      const token = await getAccessToken()
-      if (!token) {
-        console.error('Failed to get access token')
-        setError('Authentication required')
-        setLoading(false)
-        return
-      }
-
-      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/referrals`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch referral data')
-      }
-
-      const data = await response.json()
-      setReferralData(data)
+    const token = await getAccessToken()
+    if (!token) {
+      console.error('Failed to get access token')
+      setError('Authentication required')
       setLoading(false)
-    } catch (error) {
-      console.error('Failed to fetch referral data:', error)
-      setError(error instanceof Error ? error.message : 'Failed to load referral data')
-      setLoading(false)
+      return
     }
-  }, [user?.id, authenticated])
+
+    const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/referrals`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    }).catch((error: Error) => {
+      console.error('Failed to fetch referral data:', error)
+      setError(error.message)
+      setLoading(false)
+      throw error
+    })
+
+    if (!response.ok) {
+      const error = new Error('Failed to fetch referral data')
+      setError(error.message)
+      setLoading(false)
+      throw error
+    }
+
+    const data = await response.json()
+    setReferralData(data)
+    setLoading(false)
+  }, [user?.id, authenticated, getAccessToken])
 
   useEffect(() => {
     if (ready && authenticated && user?.id) {

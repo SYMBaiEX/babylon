@@ -85,7 +85,7 @@ export const POST = withErrorHandling(async (
   // Grant admin
   await prisma.userGroupAdmin.create({
     data: {
-      id: generateSnowflakeId(),
+      id: await generateSnowflakeId(),
       groupId,
       userId: targetUserId,
       grantedBy: user.userId,

@@ -20,20 +20,22 @@ describe('Feedback API Integration', () => {
     // Create test users
     const user1 = await prisma.user.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         privyId: `test-feedback-${Date.now()}-1`,
         username: `testuser1-${Date.now()}`,
         displayName: 'Test User 1',
+          isTest: true,
         updatedAt: new Date(),
       },
     })
 
     const user2 = await prisma.user.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         privyId: `test-feedback-${Date.now()}-2`,
         username: `testuser2-${Date.now()}`,
         displayName: 'Test User 2',
+          isTest: true,
         updatedAt: new Date(),
       },
     })

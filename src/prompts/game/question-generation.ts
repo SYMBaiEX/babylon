@@ -39,7 +39,7 @@ REQUIREMENTS:
 
 QUESTION TYPES (examples):
 - "Will [ACTOR] and [ACTOR] have a public feud?"
-- "Will [COMPANY] stock price reach $X?"
+- "Will [COMPANY] stock price reach $AIX?"
 - "Will [ACTOR] announce [PRODUCT/EVENT]?"
 - "Will [SCANDAL] force [ACTOR] to resign?"
 - "Will [COMPANY] acquire [COMPANY]?"

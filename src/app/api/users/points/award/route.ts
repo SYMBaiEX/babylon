@@ -40,7 +40,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Award points by creating a deposit transaction
   const transaction = await prisma.balanceTransaction.create({
     data: {
-      id: generateSnowflakeId(),
+      id: await generateSnowflakeId(),
       userId: user.id,
       type: 'deposit',
       amount: amountDecimal,

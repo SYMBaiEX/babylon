@@ -56,60 +56,56 @@ export function ComingSoon() {
     if (!authenticated || !dbUser || !dbUser.id) return
 
     const setupWaitlist = async (userId: string) => {
-      try {
-        // Check if already on waitlist
-        const existingPosition = await fetchWaitlistPosition(userId)
-        if (existingPosition) {
-          // Already setup, just refresh data
-          return
-        }
+      // Check if already on waitlist
+      const existingPosition = await fetchWaitlistPosition(userId)
+      if (existingPosition) {
+        // Already setup, just refresh data
+        return
+      }
 
-        // Mark user as waitlisted (they completed onboarding)
-        const referralCode = searchParams.get('ref') || undefined
-        
-        logger.info('Marking user as waitlisted', { 
-          userId, 
-          hasReferralCode: !!referralCode,
-          referralCode 
-        }, 'ComingSoon')
+      // Mark user as waitlisted (they completed onboarding)
+      const referralCode = searchParams.get('ref') || undefined
+      
+      logger.info('Marking user as waitlisted', { 
+        userId, 
+        hasReferralCode: !!referralCode,
+        referralCode 
+      }, 'ComingSoon')
 
-        const response = await fetch('/api/waitlist/mark', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId,
-            referralCode,
-          }),
-        })
+      const response = await fetch('/api/waitlist/mark', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          referralCode,
+        }),
+      })
 
-        if (!response.ok) {
-          const errorText = await response.text()
-          logger.error('Failed to mark as waitlisted', { errorText }, 'ComingSoon')
-          throw new Error('Failed to mark as waitlisted')
-        }
+      if (!response.ok) {
+        const errorText = await response.text()
+        logger.error('Failed to mark as waitlisted', { errorText }, 'ComingSoon')
+        throw new Error('Failed to mark as waitlisted')
+      }
 
-        const result = await response.json()
-        logger.info('User marked as waitlisted', { 
-          position: result.waitlistPosition,
-          inviteCode: result.inviteCode 
-        }, 'ComingSoon')
+      const result = await response.json()
+      logger.info('User marked as waitlisted', { 
+        position: result.waitlistPosition,
+        inviteCode: result.inviteCode 
+      }, 'ComingSoon')
 
-        // Fetch position data to get complete info
-        await fetchWaitlistPosition(userId)
+      // Fetch position data to get complete info
+      await fetchWaitlistPosition(userId)
 
-        // Award bonuses if available
-        const googleEmail = privyUser && 'google' in privyUser ? (privyUser as { google?: { email?: string } }).google?.email : undefined
-        const emailFromOAuth = privyUser?.email?.address || googleEmail
-        if (emailFromOAuth) {
-          await awardEmailBonus(userId, emailFromOAuth)
-        }
+      // Award bonuses if available
+      const googleEmail = privyUser && 'google' in privyUser ? (privyUser as { google?: { email?: string } }).google?.email : undefined
+      const emailFromOAuth = privyUser?.email?.address || googleEmail
+      if (emailFromOAuth) {
+        await awardEmailBonus(userId, emailFromOAuth)
+      }
 
-        const walletAddress = privyUser?.wallet?.address
-        if (walletAddress) {
-          await awardWalletBonus(userId, walletAddress)
-        }
-      } catch (error) {
-        logger.error('Error setting up waitlist', error, 'ComingSoon')
+      const walletAddress = privyUser?.wallet?.address
+      if (walletAddress) {
+        await awardWalletBonus(userId, walletAddress)
       }
     }
 
@@ -117,73 +113,60 @@ export function ComingSoon() {
   }, [authenticated, dbUser?.id, privyUser, searchParams])
 
   const fetchWaitlistPosition = async (userId: string): Promise<boolean> => {
-    try {
-      const [positionResponse, leaderboardResponse] = await Promise.all([
-        fetch(`/api/waitlist/position?userId=${userId}`),
-        fetch('/api/waitlist/leaderboard?limit=10'),
-      ])
+    const [positionResponse, leaderboardResponse] = await Promise.all([
+      fetch(`/api/waitlist/position?userId=${userId}`),
+      fetch('/api/waitlist/leaderboard?limit=10'),
+    ])
 
-      if (!positionResponse.ok) {
-        // User might not be on waitlist yet
-        return false
-      }
-
-      const data = await positionResponse.json()
-      
-      // Log if invite code is missing for debugging
-      if (!data.inviteCode) {
-        logger.warn('Invite code missing in waitlist data', { userId }, 'ComingSoon')
-      }
-      
-      // Check if rank improved
-      if (previousRank !== null && data.leaderboardRank < previousRank) {
-        setShowRankImprovement(true)
-        setTimeout(() => setShowRankImprovement(false), 5000)
-      }
-      setPreviousRank(data.leaderboardRank)
-      
-      setWaitlistData(data)
-
-      // Fetch leaderboard
-      if (leaderboardResponse.ok) {
-        const leaderboardData = await leaderboardResponse.json()
-        setTopUsers(leaderboardData.leaderboard || [])
-      }
-
-      return true
-    } catch (error) {
-      logger.error('Error fetching waitlist position', error, 'ComingSoon')
+    if (!positionResponse.ok) {
+      // User might not be on waitlist yet
       return false
     }
+
+    const data = await positionResponse.json()
+    
+    // Log if invite code is missing for debugging
+    if (!data.inviteCode) {
+      logger.warn('Invite code missing in waitlist data', { userId }, 'ComingSoon')
+    }
+    
+    // Check if rank improved
+    if (previousRank !== null && data.leaderboardRank < previousRank) {
+      setShowRankImprovement(true)
+      setTimeout(() => setShowRankImprovement(false), 5000)
+    }
+    setPreviousRank(data.leaderboardRank)
+    
+    setWaitlistData(data)
+
+    // Fetch leaderboard
+    if (leaderboardResponse.ok) {
+      const leaderboardData = await leaderboardResponse.json()
+      setTopUsers(leaderboardData.leaderboard || [])
+    }
+
+    return true
   }
 
   const awardEmailBonus = async (userId: string, email: string) => {
-    try {
-      const response = await fetch('/api/waitlist/bonus/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, email }),
-      })
-      if (response.ok) {
-        await fetchWaitlistPosition(userId)
-      }
-    } catch (error) {
-      logger.error('Error awarding email bonus', error, 'ComingSoon')
+    const response = await fetch('/api/waitlist/bonus/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, email }),
+    })
+    if (response.ok) {
+      await fetchWaitlistPosition(userId)
     }
   }
 
   const awardWalletBonus = async (userId: string, walletAddress: string) => {
-    try {
-      const response = await fetch('/api/waitlist/bonus/wallet', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, walletAddress }),
-      })
-      if (response.ok) {
-        await fetchWaitlistPosition(userId)
-      }
-    } catch (error) {
-      logger.error('Error awarding wallet bonus', error, 'ComingSoon')
+    const response = await fetch('/api/waitlist/bonus/wallet', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, walletAddress }),
+    })
+    if (response.ok) {
+      await fetchWaitlistPosition(userId)
     }
   }
 
@@ -199,15 +182,10 @@ export function ComingSoon() {
   const handleAddEmail = async () => {
     if (!emailInput || !dbUser?.id) return
     setIsLoading(true)
-    try {
-      await awardEmailBonus(dbUser.id, emailInput)
-      setShowEmailModal(false)
-      setEmailInput('')
-    } catch (error) {
-      logger.error('Error adding email', error, 'ComingSoon')
-    } finally {
-      setIsLoading(false)
-    }
+    await awardEmailBonus(dbUser.id, emailInput)
+    setShowEmailModal(false)
+    setEmailInput('')
+    setIsLoading(false)
   }
 
   const handleJoinWaitlist = () => {

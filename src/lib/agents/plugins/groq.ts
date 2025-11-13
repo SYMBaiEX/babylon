@@ -28,8 +28,8 @@ function getBaseURL(runtime: { getSetting: (key: string) => string | undefined }
 function findModelName(model: ModelTypeName): TiktokenModel {
   const name =
     model === ModelType.TEXT_SMALL
-      ? (process.env.SMALL_GROQ_MODEL ?? 'llama-3.1-8b-instant')
-      : (process.env.LARGE_GROQ_MODEL ?? 'llama-3.3-70b-versatile')
+      ? (process.env.SMALL_GROQ_MODEL ?? 'openai/gpt-oss-120b')
+      : (process.env.LARGE_GROQ_MODEL ?? 'qwen/qwen3-32b')
   return name as TiktokenModel
 }
 
@@ -90,8 +90,8 @@ export const groqPlugin: Plugin = {
   description: 'Groq plugin for Babylon agents',
   config: {
     GROQ_API_KEY: process.env.GROQ_API_KEY,
-    SMALL_GROQ_MODEL: process.env.SMALL_GROQ_MODEL || 'llama-3.1-8b-instant',
-    LARGE_GROQ_MODEL: process.env.LARGE_GROQ_MODEL || 'llama-3.3-70b-versatile',
+    SMALL_GROQ_MODEL: process.env.SMALL_GROQ_MODEL || 'openai/gpt-oss-120b',
+    LARGE_GROQ_MODEL: process.env.LARGE_GROQ_MODEL || 'qwen/qwen3-32b',
   },
   async init() {
     if (!process.env.GROQ_API_KEY) {
@@ -129,7 +129,7 @@ export const groqPlugin: Plugin = {
       const model =
         runtime.getSetting('GROQ_SMALL_MODEL') ??
         runtime.getSetting('SMALL_MODEL') ??
-        'llama-3.1-8b-instant'
+        'openai/gpt-oss-120b'
 
       return await generateGroqText(groq, model, {
         prompt,
@@ -155,7 +155,7 @@ export const groqPlugin: Plugin = {
       const model =
         runtime.getSetting('GROQ_LARGE_MODEL') ??
         runtime.getSetting('LARGE_MODEL') ??
-        'llama-3.3-70b-versatile'
+        'qwen/qwen3-32b'
       const baseURL = getBaseURL(runtime)
       const groq = createGroq({
         apiKey: runtime.getSetting('GROQ_API_KEY'),
@@ -185,7 +185,7 @@ export const groqPlugin: Plugin = {
       const model =
         runtime.getSetting('GROQ_SMALL_MODEL') ??
         runtime.getSetting('SMALL_MODEL') ??
-        'llama-3.1-8b-instant'
+        'openai/gpt-oss-120b'
 
       return await generateGroqObject(groq, model, params)
     },
@@ -201,7 +201,7 @@ export const groqPlugin: Plugin = {
       const model =
         runtime.getSetting('GROQ_LARGE_MODEL') ??
         runtime.getSetting('LARGE_MODEL') ??
-        'llama-3.3-70b-versatile'
+        'qwen/qwen3-32b'
 
       return await generateGroqObject(groq, model, params)
     },

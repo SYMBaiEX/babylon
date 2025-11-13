@@ -20,7 +20,7 @@ async function testWorldEventValidation() {
     // Test 1: Valid values should work
     console.log('Test 1: Creating event with valid INT4 values...');
     const validEvent = await db.createEvent({
-      id: generateSnowflakeId(),
+      id: await generateSnowflakeId(),
       eventType: 'announcement',
       description: 'Test event with valid values',
       actors: [],
@@ -43,7 +43,7 @@ async function testWorldEventValidation() {
 
     try {
       const invalidEvent = await db.createEvent({
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         eventType: 'announcement',
         description: 'Test event with invalid relatedQuestion',
         actors: [],
@@ -67,7 +67,7 @@ async function testWorldEventValidation() {
     console.log('\nTest 3: Attempting to create event with overflow dayNumber...');
     try {
       const invalidDayEvent = await db.createEvent({
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         eventType: 'announcement',
         description: 'Test event with invalid dayNumber',
         actors: [],
@@ -90,7 +90,7 @@ async function testWorldEventValidation() {
     // Test 4: Edge case - exactly INT4 max
     console.log('\nTest 4: Creating event with INT4 maximum value...');
     const maxInt4Event = await db.createEvent({
-      id: generateSnowflakeId(),
+      id: await generateSnowflakeId(),
       eventType: 'announcement',
       description: 'Test event with INT4 max',
       actors: [],

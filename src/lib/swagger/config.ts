@@ -32,6 +32,11 @@ export const swaggerDefinition = {
         bearerFormat: 'JWT',
         description: 'Privy authentication token',
       },
+      CronSecret: {
+        type: 'http',
+        scheme: 'bearer',
+        description: 'Cron secret for scheduled jobs (CRON_SECRET environment variable)',
+      },
     },
   },
 };

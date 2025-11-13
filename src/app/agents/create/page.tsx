@@ -34,14 +34,10 @@ export default function CreateAgentPage() {
 
   // Load form data from localStorage on mount
   useEffect(() => {
-    try {
-      const savedData = localStorage.getItem(STORAGE_KEY)
-      if (savedData) {
-        const parsed = JSON.parse(savedData)
-        setFormData(prev => ({ ...prev, ...parsed }))
-      }
-    } catch (error) {
-      console.error('Error loading saved form data:', error)
+    const savedData = localStorage.getItem(STORAGE_KEY)
+    if (savedData) {
+      const parsed = JSON.parse(savedData)
+      setFormData(prev => ({ ...prev, ...parsed }))
     }
     setIsInitialized(true)
   }, [])
@@ -50,11 +46,7 @@ export default function CreateAgentPage() {
   useEffect(() => {
     if (!isInitialized) return
     
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(formData))
-    } catch (error) {
-      console.error('Error saving form data:', error)
-    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(formData))
   }, [formData, isInitialized])
 
   const updateField = (field: string, value: string | string[] | number) => {
@@ -70,44 +62,47 @@ export default function CreateAgentPage() {
 
   const handleGenerateField = async (field: string) => {
     setGeneratingField(field)
-    try {
-      const response = await fetch('/api/agents/generate-field', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+    
+    const response = await fetch('/api/agents/generate-field', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        fieldName: field,
+        currentValue: formData[field as keyof typeof formData],
+        context: {
+          name: formData.name,
+          description: formData.description,
+          system: formData.system,
+          personality: formData.personality,
+          tradingStrategy: formData.tradingStrategy,
         },
-        body: JSON.stringify({
-          fieldName: field,
-          currentValue: formData[field as keyof typeof formData],
-          context: {
-            name: formData.name,
-            description: formData.description,
-            system: formData.system,
-            personality: formData.personality,
-            tradingStrategy: formData.tradingStrategy,
-          },
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to generate field')
-      }
-
-      const result = await response.json()
-      
-      if (field === 'bio') {
-        updateField('bio', result.value.split('|').map((s: string) => s.trim()))
-      } else {
-        updateField(field, result.value)
-      }
-
-      toast.success(`Generated ${field}!`)
-    } catch (error) {
+      }),
+    }).catch((error: Error) => {
       console.error('Error generating field:', error)
-      toast.error('Failed to generate. Please try again.')
-    } finally {
+      toast.error(error.message)
       setGeneratingField(null)
+      throw error
+    })
+
+    if (!response.ok) {
+      const error = new Error('Failed to generate field')
+      toast.error(error.message)
+      setGeneratingField(null)
+      throw error
     }
+
+    const result = await response.json()
+    
+    if (field === 'bio') {
+      updateField('bio', result.value.split('|').map((s: string) => s.trim()))
+    } else {
+      updateField(field, result.value)
+    }
+
+    toast.success(`Generated ${field}!`)
+    setGeneratingField(null)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -124,44 +119,47 @@ export default function CreateAgentPage() {
     }
 
     setLoading(true)
-    try {
-      const token = await getAccessToken()
-      
-      if (!token) {
-        toast.error('Authentication required')
-        setLoading(false)
-        return
-      }
-      
-      const res = await fetch('/api/agents', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ...formData,
-          bio: formData.bio.filter(b => b.trim())
-        })
-      })
-
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || 'Failed to create agent')
-      }
-
-      const data = await res.json() as { agent: { id: string } }
-      
-      // Clear draft
-      localStorage.removeItem(STORAGE_KEY)
-      
-      toast.success('Agent created successfully!')
-      router.push(`/agents/${data.agent.id}`)
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create agent')
-    } finally {
+    
+    const token = await getAccessToken()
+    
+    if (!token) {
+      toast.error('Authentication required')
       setLoading(false)
+      return
     }
+    
+    const res = await fetch('/api/agents', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        ...formData,
+        bio: formData.bio.filter(b => b.trim())
+      })
+    }).catch((error: Error) => {
+      toast.error(error.message)
+      setLoading(false)
+      throw error
+    })
+
+    if (!res.ok) {
+      const error = await res.json()
+      const errorMsg = error.error || 'Failed to create agent'
+      toast.error(errorMsg)
+      setLoading(false)
+      throw new Error(errorMsg)
+    }
+
+    const data = await res.json() as { agent: { id: string } }
+    
+    // Clear draft
+    localStorage.removeItem(STORAGE_KEY)
+    
+    toast.success('Agent created successfully!')
+    setLoading(false)
+    router.push(`/agents/${data.agent.id}`)
   }
 
   if (!ready || !authenticated) {

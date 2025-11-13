@@ -70,7 +70,7 @@ export const POST = withErrorHandling(async (
     // Create favorite
     const fav = await db.favorite.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         userId: user.userId,
         targetUserId,
       },

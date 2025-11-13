@@ -62,25 +62,18 @@ export function CommentInput({
     setContent('');
     setIsFocused(false);
 
-    try {
-      const comment = await addComment(postId, trimmedContent, parentCommentId);
+    const comment = await addComment(postId, trimmedContent, parentCommentId);
 
-      if (comment) {
-        // Clear optimistic state on success
-        setOptimisticComment(null);
+    if (comment) {
+      // Clear optimistic state on success
+      setOptimisticComment(null);
 
-        // Call onSubmit callback if provided (await if it returns a promise)
-        if (onSubmit) {
-          await Promise.resolve(onSubmit(comment));
-        }
-      } else {
-        // Restore content if failed
-        setContent(originalContent);
-        setOptimisticComment(null);
+      // Call onSubmit callback if provided (await if it returns a promise)
+      if (onSubmit) {
+        await Promise.resolve(onSubmit(comment));
       }
-    } catch (error) {
-      // Restore content if error occurred
-      console.error('Failed to add comment:', error);
+    } else {
+      // Restore content if failed
       setContent(originalContent);
       setOptimisticComment(null);
     }

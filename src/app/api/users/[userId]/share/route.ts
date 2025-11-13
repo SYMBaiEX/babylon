@@ -52,7 +52,7 @@ export const POST = withErrorHandling(async (
   // Create share action record
   const shareAction = await prisma.shareAction.create({
     data: {
-      id: generateSnowflakeId(),
+      id: await generateSnowflakeId(),
       userId: canonicalUserId,
       platform,
       contentType,

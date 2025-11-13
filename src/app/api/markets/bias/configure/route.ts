@@ -15,7 +15,6 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { biasEngine } from '@/lib/feedback/bias-engine'
-import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
 const SetBiasSchema = z.object({
@@ -53,74 +52,50 @@ const BiasConfigSchema = z.discriminatedUnion('action', [
 
 
 export async function POST(request: NextRequest) {
-  try {
-    const json = await request.json()
-    const parsed = BiasConfigSchema.safeParse(json)
+  const json = await request.json()
+  const parsed = BiasConfigSchema.parse(json)
 
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'Invalid request payload', details: parsed.error.flatten() },
-        { status: 400 }
-      )
-    }
+  const body = parsed
 
-    const body = parsed.data
-
-    if (body.action === 'set') {
-      // Set the bias
-      biasEngine.setBias(
-        body.entityId,
-        body.entityName,
-        body.direction,
-        body.strength,
-        {
-          durationHours: body.durationHours,
-          decayRate: body.decayRate,
-        }
-      )
-
-      // Get the configured bias with current adjustment
-      const adjustment = biasEngine.getBiasAdjustment(body.entityId)
-
-      return NextResponse.json({
-        success: true,
-        message: `Bias configured: ${body.direction} ${body.entityName}`,
-        bias: {
-          entityId: body.entityId,
-          entityName: body.entityName,
-          direction: body.direction,
-          strength: body.strength ?? 0.5,
-          adjustment,
-        },
-      }, { status: 201 })
-    } else if (body.action === 'remove') {
-      // Remove the bias
-      const removed = biasEngine.removeBias(body.entityId)
-
-      if (!removed) {
-        return NextResponse.json(
-          { error: 'Bias not found for entity' },
-          { status: 404 }
-        )
+  if (body.action === 'set') {
+    biasEngine.setBias(
+      body.entityId,
+      body.entityName,
+      body.direction,
+      body.strength,
+      {
+        durationHours: body.durationHours,
+        decayRate: body.decayRate,
       }
+    )
 
-      return NextResponse.json({
-        success: true,
-        message: `Bias removed for entity: ${body.entityId}`,
-      })
-    } else {
-      // action === 'bulk-set'
-      // Set all biases
-      biasEngine.setBulkBiases(body.biases)
+    const adjustment = biasEngine.getBiasAdjustment(body.entityId)
 
-      return NextResponse.json({
-        success: true,
-        message: `${body.biases.length} biases configured`,
-        count: body.biases.length,
-      }, { status: 201 })
-    }
-  } catch (error) {
-    logger.error('Failed to configure market bias', error)
-    return NextResponse.json({ error: 'Failed to configure bias' }, { status: 500 })
+    return NextResponse.json({
+      success: true,
+      message: `Bias configured: ${body.direction} ${body.entityName}`,
+      bias: {
+        entityId: body.entityId,
+        entityName: body.entityName,
+        direction: body.direction,
+        strength: body.strength ?? 0.5,
+        adjustment,
+      },
+    }, { status: 201 })
+  } else if (body.action === 'remove') {
+    biasEngine.removeBias(body.entityId)
+
+    return NextResponse.json({
+      success: true,
+      message: `Bias removed for entity: ${body.entityId}`,
+    })
+  } else {
+    biasEngine.setBulkBiases(body.biases)
+
+    return NextResponse.json({
+      success: true,
+      message: `${body.biases.length} biases configured`,
+      count: body.biases.length,
+    }, { status: 201 })
   }
 }

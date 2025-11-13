@@ -131,28 +131,21 @@ export function PerpTradingModal({
 
     setLoading(true);
 
-    try {
-      await openPosition({
-        ticker: market.ticker,
-        side,
-        size: sizeNum,
-        leverage,
-      });
+    await openPosition({
+      ticker: market.ticker,
+      side,
+      size: sizeNum,
+      leverage,
+    });
 
-      toast.success('Position opened!', {
-        description: `Opened ${leverage}x ${side} on ${market.ticker} at $${market.currentPrice.toFixed(2)}`,
-      });
+    toast.success('Position opened!', {
+      description: `Opened ${leverage}x ${side} on ${market.ticker} at $${market.currentPrice.toFixed(2)}`,
+    });
 
-      await refreshBalance();
-      onSuccess?.();
-      onClose();
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to open position';
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
+    await refreshBalance();
+    onSuccess?.();
+    onClose();
+    setLoading(false);
   };
 
   const formatPrice = (price: number) => {

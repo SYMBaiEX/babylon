@@ -68,7 +68,7 @@ export const POST = withErrorHandling(async (
     const now = new Date();
     const newReply = await db.comment.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         content: content.trim(),
         postId: parentComment.postId,
         authorId: user.userId,

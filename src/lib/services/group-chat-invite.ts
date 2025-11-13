@@ -228,7 +228,7 @@ export class GroupChatInvite {
       },
       update: {},
       create: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         chatId,
         userId,
       },
@@ -237,7 +237,7 @@ export class GroupChatInvite {
     // Record membership
     await prisma.groupChatMembership.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         userId,
         chatId,
         npcAdminId: npcId,

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
 import { generateSnowflakeId } from '../../src/lib/snowflake'
-import { WaitlistService } from '../../src/lib/services/waitlist-service'
+import { WaitlistService } from '@/lib/services/waitlist-service'
 import { prisma } from '../../src/lib/database-service'
 
 describe('Referral System - Service Integration', () => {
@@ -30,12 +30,13 @@ describe('Referral System - Service Integration', () => {
     // Create User 1
     const user1 = await prisma.user.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         username: 'api_test_user1',
         displayName: 'API Test User 1',
         bio: 'Test user',
         privyId: 'api-test-privy-1',
         reputationPoints: 1000,
+        isTest: true,
         updatedAt: new Date(),
       }
     })
@@ -44,12 +45,13 @@ describe('Referral System - Service Integration', () => {
     // Create User 2
     const user2 = await prisma.user.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         username: 'api_test_user2',
         displayName: 'API Test User 2',
         bio: 'Test user',
         privyId: 'api-test-privy-2',
         reputationPoints: 1000,
+        isTest: true,
         updatedAt: new Date(),
       }
     })

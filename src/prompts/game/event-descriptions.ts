@@ -28,7 +28,7 @@ Return JSON with events and whether they point toward outcomes:
     },
     {
       "eventNumber": 2,
-      "event": "Ethereum Foundation delays security patch citing testing issues",
+      "event": "Etherai-foundation FoundAItion delays security patch citing testing issues",
       "pointsToward": "NO"
     }
   ]

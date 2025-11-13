@@ -8,18 +8,17 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import type { IAgentRuntime } from '@elizaos/core'
-import { ModelType } from '@elizaos/core'
+import { callGroqDirect } from '../llm/direct-groq'
 
 export class AutonomousDMService {
   /**
    * Check for unread DMs and respond
    */
-  async respondToDMs(agentUserId: string, runtime: IAgentRuntime): Promise<number> {
-    try {
-      const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
-      if (!agent || !agent.isAgent) {
-        throw new Error('Agent not found')
-      }
+  async respondToDMs(agentUserId: string, _runtime: IAgentRuntime): Promise<number> {
+    const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
+    if (!agent?.isAgent) {
+      throw new Error('Agent not found')
+    }
 
       // Get agent's DM chats (non-group chats)
       const dmChats = await prisma.chatParticipant.findMany({
@@ -78,9 +77,11 @@ Keep it under 200 characters.
 
 Generate ONLY the response text, nothing else.`
 
-        const modelType = agent.agentModelTier === 'pro' ? ModelType.TEXT_LARGE : ModelType.TEXT_SMALL
-        const responseContent = await runtime.useModel(modelType, {
+        // Use small model (gpt-oss-120b) for fast DM responses
+        const responseContent = await callGroqDirect({
           prompt,
+          system: agent.agentSystem || undefined,
+          modelSize: 'small',  // Frequent operation, use fast model
           temperature: 0.8,
           maxTokens: 80
         })
@@ -94,7 +95,7 @@ Generate ONLY the response text, nothing else.`
         // Create response message
         await prisma.message.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             chatId: chat.id,
             senderId: agentUserId,
             content: cleanContent,
@@ -110,10 +111,6 @@ Generate ONLY the response text, nothing else.`
       }
 
       return responsesCreated
-    } catch (error: unknown) {
-      logger.error(`Failed to respond to DMs for ${agentUserId}`, error, 'AutonomousDM')
-      return 0
-    }
   }
 }
 

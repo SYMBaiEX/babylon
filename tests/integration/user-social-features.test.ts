@@ -57,7 +57,7 @@ describe('Complete User Social Features Integration', () => {
       // Create test users
       testUser1 = await prisma.user.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           privyId: `did:privy:test-social-1-${Date.now()}`,
           username: `socialtest1_${Date.now()}`,
           displayName: 'Social Test User 1',
@@ -65,6 +65,7 @@ describe('Complete User Social Features Integration', () => {
           isActor: false,
           profileComplete: true,
           hasUsername: true,
+          isTest: true,
           updatedAt: new Date(),
         },
         select: {
@@ -76,7 +77,7 @@ describe('Complete User Social Features Integration', () => {
 
       testUser2 = await prisma.user.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           privyId: `did:privy:test-social-2-${Date.now()}`,
           username: `socialtest2_${Date.now()}`,
           displayName: 'Social Test User 2',
@@ -84,6 +85,7 @@ describe('Complete User Social Features Integration', () => {
           isActor: false,
           profileComplete: true,
           hasUsername: true,
+          isTest: true,
           updatedAt: new Date(),
         },
         select: {
@@ -121,7 +123,7 @@ describe('Complete User Social Features Integration', () => {
       // Create the follow
       const follow = await prisma.follow.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           followerId: testUser1.id,
           followingId: testUser2.id,
         },
@@ -145,7 +147,7 @@ describe('Complete User Social Features Integration', () => {
       // Create the follow
       const follow = await prisma.follow.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           followerId: testUser2.id,
           followingId: testUser1.id,
         },
@@ -253,14 +255,14 @@ describe('Complete User Social Features Integration', () => {
         await Promise.all([
           prisma.chatParticipant.create({
             data: {
-              id: generateSnowflakeId(),
+              id: await generateSnowflakeId(),
               chatId: dmChatId,
               userId: testUser1.id,
             },
           }),
           prisma.chatParticipant.create({
             data: {
-              id: generateSnowflakeId(),
+              id: await generateSnowflakeId(),
               chatId: dmChatId,
               userId: testUser2.id,
             },
@@ -275,7 +277,7 @@ describe('Complete User Social Features Integration', () => {
       // Now send the message
       const message = await prisma.message.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           chatId: dmChatId,
           senderId: testUser1.id,
           content: 'Hello from User 1! This is a test message.',
@@ -305,7 +307,7 @@ describe('Complete User Social Features Integration', () => {
     it('should allow User 2 to send reply message', async () => {
       const message = await prisma.message.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           chatId: dmChatId,
           senderId: testUser2.id,
           content: 'Hi User 1! Got your message, replying now.',
@@ -394,7 +396,7 @@ describe('Complete User Social Features Integration', () => {
     it('should add User 1 as initial participant', async () => {
       const participant = await prisma.chatParticipant.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           chatId: groupChatId,
           userId: testUser1.id,
         },
@@ -410,7 +412,7 @@ describe('Complete User Social Features Integration', () => {
     it('should add User 2 to the group chat', async () => {
       const participant = await prisma.chatParticipant.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           chatId: groupChatId,
           userId: testUser2.id,
         },
@@ -467,7 +469,7 @@ describe('Complete User Social Features Integration', () => {
     it('should allow User 1 to send message to group', async () => {
       const message = await prisma.message.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           chatId: groupChatId,
           senderId: testUser1.id,
           content: 'Hello everyone! This is User 1 posting to the group.',
@@ -483,7 +485,7 @@ describe('Complete User Social Features Integration', () => {
     it('should allow User 2 to send message to group', async () => {
       const message = await prisma.message.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           chatId: groupChatId,
           senderId: testUser2.id,
           content: 'Hey User 1! I can see your message. Replying from User 2.',

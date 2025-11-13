@@ -66,6 +66,7 @@ describe('NPC Perpetual Positions Integration', () => {
         domain: [],
         affiliations: [],
         postExample: [],
+        isTest: true,
         updatedAt: new Date(),
       },
     });

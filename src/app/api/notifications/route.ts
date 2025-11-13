@@ -1,8 +1,99 @@
 /**
- * Notifications API Route
- *
- * GET /api/notifications - Get user notifications
- * PATCH /api/notifications - Mark notifications as read
+ * User Notifications API
+ * 
+ * @route GET /api/notifications - Get user notifications
+ * @route PATCH /api/notifications - Mark notifications as read
+ * @access Authenticated
+ * 
+ * @description
+ * Manages user notifications for social interactions, mentions, trades,
+ * and system events. Supports filtering, pagination, and batch read marking.
+ * Optimized for high-frequency polling with short TTL caching.
+ * 
+ * **Notification Types:**
+ * - **mention:** User mentioned in post/comment (@username)
+ * - **reply:** Comment reply to user's post/comment
+ * - **like:** Post/comment liked by another user
+ * - **follow:** New follower
+ * - **trade:** Trade execution or settlement
+ * - **system:** System announcements and alerts
+ * 
+ * **GET - Retrieve Notifications**
+ * 
+ * Returns paginated notifications with actor (sender) details and metadata.
+ * Results are cached for 10 seconds to balance freshness with performance.
+ * 
+ * @query {number} limit - Notifications per page (1-100, default: 50)
+ * @query {number} page - Page number (default: 1, currently not implemented)
+ * @query {boolean} unreadOnly - Show only unread notifications
+ * @query {string} type - Filter by notification type
+ * 
+ * **Notification Object:**
+ * @property {string} id - Notification ID
+ * @property {string} type - Notification type
+ * @property {string} actorId - User who triggered notification
+ * @property {object} actor - Actor profile details
+ * @property {string} postId - Related post ID (if applicable)
+ * @property {string} commentId - Related comment ID (if applicable)
+ * @property {string} message - Notification message
+ * @property {boolean} read - Read status
+ * @property {string} createdAt - ISO timestamp
+ * 
+ * @returns {object} Notifications response
+ * @property {array} notifications - Array of notification objects
+ * @property {number} unreadCount - Total unread notifications
+ * 
+ * **PATCH - Mark Notifications as Read**
+ * 
+ * Marks specific notifications or all notifications as read.
+ * Automatically invalidates cached notifications after update.
+ * 
+ * @param {array} notificationIds - Array of notification IDs to mark (optional)
+ * @param {boolean} markAllAsRead - Mark all notifications as read (optional)
+ * 
+ * **Note:** Must provide either `notificationIds` array or `markAllAsRead: true`
+ * 
+ * @returns {object} Success response
+ * @property {boolean} success - Operation success
+ * @property {string} message - Confirmation message
+ * 
+ * @throws {400} Invalid request (missing both parameters)
+ * @throws {401} Unauthorized - authentication required
+ * @throws {500} Internal server error
+ * 
+ * @example
+ * ```typescript
+ * // Get unread notifications
+ * const response = await fetch('/api/notifications?unreadOnly=true&limit=20', {
+ *   headers: { 'Authorization': `Bearer ${token}` }
+ * });
+ * const { notifications, unreadCount } = await response.json();
+ * 
+ * // Display notifications
+ * notifications.forEach(notif => {
+ *   console.log(`${notif.actor.displayName}: ${notif.message}`);
+ * });
+ * 
+ * // Mark specific notifications as read
+ * await fetch('/api/notifications', {
+ *   method: 'PATCH',
+ *   body: JSON.stringify({
+ *     notificationIds: ['id1', 'id2', 'id3']
+ *   })
+ * });
+ * 
+ * // Mark all as read
+ * await fetch('/api/notifications', {
+ *   method: 'PATCH',
+ *   body: JSON.stringify({
+ *     markAllAsRead: true
+ *   })
+ * });
+ * ```
+ * 
+ * @see {@link /lib/services/notification-service} Notification creation
+ * @see {@link /lib/cache-service} Caching layer
+ * @see {@link /src/components/NotificationBell.tsx} Notification UI
  */
 
 import type { NextRequest } from 'next/server';

@@ -19,8 +19,8 @@ test.describe('Trading Fee System E2E', () => {
 
   test.beforeEach(async () => {
     // Create test users
-    testReferrerId = generateSnowflakeId();
-    testUserId = generateSnowflakeId();
+    testReferrerId = await generateSnowflakeId();
+    testUserId = await generateSnowflakeId();
 
     await prisma.user.create({
       data: {
@@ -30,6 +30,7 @@ test.describe('Trading Fee System E2E', () => {
         virtualBalance: 1000,
         totalDeposited: 1000,
         referralCode: `REF-${Date.now()}`,
+          isTest: true,
         updatedAt: new Date(),
       },
     });
@@ -42,12 +43,13 @@ test.describe('Trading Fee System E2E', () => {
         virtualBalance: 10000,
         totalDeposited: 10000,
         referredBy: testReferrerId, // Has a referrer
+          isTest: true,
         updatedAt: new Date(),
       },
     });
 
     // Create test prediction market
-    testMarketId = generateSnowflakeId();
+    testMarketId = await generateSnowflakeId();
     await prisma.market.create({
       data: {
         id: testMarketId,
@@ -122,7 +124,7 @@ test.describe('Trading Fee System E2E', () => {
     // Create position
     const position = await prisma.position.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         userId: testUserId,
         marketId: testMarketId,
         side: true, // YES
@@ -197,7 +199,7 @@ test.describe('Trading Fee System E2E', () => {
 
   test('should handle user with no referrer (100% to platform)', async () => {
     // Create user without referrer
-    const noReferrerUserId = generateSnowflakeId();
+    const noReferrerUserId = await generateSnowflakeId();
     await prisma.user.create({
       data: {
         id: noReferrerUserId,
@@ -206,6 +208,7 @@ test.describe('Trading Fee System E2E', () => {
         virtualBalance: 10000,
         totalDeposited: 10000,
         referredBy: null, // No referrer
+          isTest: true,
         updatedAt: new Date(),
       },
     });

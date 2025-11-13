@@ -38,22 +38,14 @@ interface LeaderboardResponse {
   pointsCategory: 'all' | 'earned' | 'referral'
 }
 
-// Helper function to safely call API endpoints
-async function safeApiFetch(url: string): Promise<Response | null> {
-  try {
-    return await fetch(url)
-  } catch (error) {
-    console.log(`   ⚠️  Server not available (expected in test environment)`)
-    return null
-  }
-}
+// No defensive programming - let tests fail if server is not running
 
 describe('Leaderboard API', () => {
   let testUserId: string
 
   beforeAll(async () => {
     // Create a test user with points
-    testUserId = generateSnowflakeId()
+    testUserId = await generateSnowflakeId()
     
     // Check if user already exists
     const existing = await prisma.user.findUnique({ where: { id: testUserId } })
@@ -75,23 +67,20 @@ describe('Leaderboard API', () => {
         referralCount: 2,
         virtualBalance: new Prisma.Decimal(10000),
         lifetimePnL: new Prisma.Decimal(4000), // $4000 P&L = 400 earned points
+          isTest: true,
         updatedAt: new Date(),
         isActor: false, // Explicitly set as real user
       },
     })
   })
 
-  // Clean up test user after all tests
   afterAll(async () => {
-    if (testUserId) {
-      await prisma.user.delete({ where: { id: testUserId } }).catch(() => {})
-    }
+    await prisma.user.delete({ where: { id: testUserId } })
   })
 
   describe('GET /api/leaderboard', () => {
     it('should return leaderboard with default "all" points type', async () => {
-      const response = await safeApiFetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&minPoints=500')
-      if (!response) return // Server not available
+      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&minPoints=500')
       
       expect(response.status).toBe(200)
 
@@ -105,8 +94,7 @@ describe('Leaderboard API', () => {
     })
 
     it('should filter by "earned" points type', async () => {
-      const response = await safeApiFetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&pointsType=earned')
-      if (!response) return // Server not available
+      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&pointsType=earned')
       
       expect(response.status).toBe(200)
 
@@ -125,8 +113,7 @@ describe('Leaderboard API', () => {
     })
 
     it('should filter by "referral" points type', async () => {
-      const response = await safeApiFetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&pointsType=referral')
-      if (!response) return // Server not available
+      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&pointsType=referral')
       
       expect(response.status).toBe(200)
 
@@ -145,8 +132,7 @@ describe('Leaderboard API', () => {
     })
 
     it('should include all expected fields in leaderboard entries', async () => {
-      const response = await safeApiFetch('http://localhost:3000/api/leaderboard?page=1&pageSize=10&pointsType=all')
-      if (!response) return // Server not available
+      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=10&pointsType=all')
       
       expect(response.status).toBe(200)
 
@@ -171,6 +157,7 @@ describe('Leaderboard API', () => {
     it('should respect minPoints parameter for "all" type', async () => {
       const minPoints = 1000
       const response = await fetch(`http://localhost:3000/api/leaderboard?page=1&pageSize=100&minPoints=${minPoints}&pointsType=all`)
+      
       expect(response.status).toBe(200)
 
       const data = await response.json()
@@ -182,8 +169,7 @@ describe('Leaderboard API', () => {
     })
 
     it('should not apply minPoints for "earned" type', async () => {
-      const response = await safeApiFetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&minPoints=500&pointsType=earned')
-      if (!response) return // Server not available
+      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&minPoints=500&pointsType=earned')
       
       expect(response.status).toBe(200)
 
@@ -192,8 +178,7 @@ describe('Leaderboard API', () => {
     })
 
     it('should not apply minPoints for "referral" type', async () => {
-      const response = await safeApiFetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&minPoints=500&pointsType=referral')
-      if (!response) return // Server not available
+      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&minPoints=500&pointsType=referral')
       
       expect(response.status).toBe(200)
 
@@ -202,15 +187,11 @@ describe('Leaderboard API', () => {
     })
 
     it('should handle pagination correctly', async () => {
-      const response1 = await safeApiFetch('http://localhost:3000/api/leaderboard?page=1&pageSize=10&pointsType=all')
-      if (!response1) return // Server not available
-      
+      const response1 = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=10&pointsType=all')
       const data1 = await response1.json()
 
       if (data1.pagination.totalPages > 1) {
-        const response2 = await safeApiFetch('http://localhost:3000/api/leaderboard?page=2&pageSize=10&pointsType=all')
-        if (!response2) return // Server not available
-        
+        const response2 = await fetch('http://localhost:3000/api/leaderboard?page=2&pageSize=10&pointsType=all')
         const data2 = await response2.json()
 
         expect(data2.pagination.page).toBe(2)
@@ -225,35 +206,30 @@ describe('Leaderboard API', () => {
     })
 
     it('should return 400 for invalid pointsType', async () => {
-      const response = await safeApiFetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&pointsType=invalid')
-      if (!response) return // Server not available
+      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&pointsType=invalid')
       
       expect(response.status).toBe(400)
     })
 
     it('should return 400 for invalid page number', async () => {
-      const response = await safeApiFetch('http://localhost:3000/api/leaderboard?page=0&pageSize=100')
-      if (!response) return // Server not available
+      const response = await fetch('http://localhost:3000/api/leaderboard?page=0&pageSize=100')
       
       expect(response.status).toBe(400)
     })
 
     it('should return 400 for invalid pageSize', async () => {
-      const response = await safeApiFetch('http://localhost:3000/api/leaderboard?page=1&pageSize=0')
-      if (!response) return // Server not available
+      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=0')
       
       expect(response.status).toBe(400)
     })
 
     it('should cap pageSize at 100', async () => {
-      const response = await safeApiFetch('http://localhost:3000/api/leaderboard?page=1&pageSize=200')
-      if (!response) return // Server not available
+      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=200')
       expect(response.status).toBe(400) // Should reject pageSize > 100
     })
 
     it('should exclude NPCs from "earned" leaderboard', async () => {
-      const response = await safeApiFetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&pointsType=earned')
-      if (!response) return // Server not available
+      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&pointsType=earned')
       expect(response.status).toBe(200)
 
       const data = await response.json() as LeaderboardResponse
@@ -264,8 +240,7 @@ describe('Leaderboard API', () => {
     })
 
     it('should exclude NPCs from "referral" leaderboard', async () => {
-      const response = await safeApiFetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&pointsType=referral')
-      if (!response) return // Server not available
+      const response = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&pointsType=referral')
       expect(response.status).toBe(200)
 
       const data = await response.json() as LeaderboardResponse
@@ -294,7 +269,7 @@ describe('Leaderboard API', () => {
           const url = minPointsFilter > 0
             ? `http://localhost:3000/api/leaderboard?page=${page}&pageSize=100&minPoints=${minPointsFilter}&pointsType=${pointsType}`
             : `http://localhost:3000/api/leaderboard?page=${page}&pageSize=100&pointsType=${pointsType}`
-          const response = await safeApiFetch(url)
+          const response = await fetch(url)
           if (!response) return allEntries // Server not available
           
           const data = await response.json() as LeaderboardResponse

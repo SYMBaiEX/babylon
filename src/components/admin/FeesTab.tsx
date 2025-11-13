@@ -74,23 +74,18 @@ export function FeesTab() {
 
   const fetchStats = () => {
     startRefresh(async () => {
-      try {
-        const response = await fetch('/api/admin/fees');
-        if (!response.ok) {
-          throw new Error('Failed to fetch fee statistics');
-        }
-        const data = await response.json();
-        const validation = FeeStatsSchema.safeParse(data);
-        if (!validation.success) {
-          throw new Error('Invalid data structure for fee statistics');
-        }
-        setStats(validation.data);
-        setError(null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load fee statistics');
-      } finally {
-        setLoading(false);
+      const response = await fetch('/api/admin/fees');
+      if (!response.ok) {
+        throw new Error('Failed to fetch fee statistics');
       }
+      const data = await response.json();
+      const validation = FeeStatsSchema.safeParse(data);
+      if (!validation.success) {
+        throw new Error('Invalid data structure for fee statistics');
+      }
+      setStats(validation.data);
+      setError(null);
+      setLoading(false);
     });
   };
 

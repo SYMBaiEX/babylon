@@ -329,71 +329,92 @@ export default function ProfilePage() {
 
     setEditModal(prev => ({ ...prev, isSaving: true, error: null }))
 
-    try {
-      const token = await getAccessToken()
-      const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {}
+    const token = await getAccessToken()
+    const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {}
 
-      const updatedData = { ...editModal.formData }
+    const updatedData = { ...editModal.formData }
 
-      // Upload profile image if changed
-      if (editModal.profileImage.file) {
-        const formData = new FormData()
-        formData.append('file', editModal.profileImage.file)
-        formData.append('type', 'profile')
+    // Upload profile image if changed
+    if (editModal.profileImage.file) {
+      const formData = new FormData()
+      formData.append('file', editModal.profileImage.file)
+      formData.append('type', 'profile')
 
-        const uploadResponse = await fetch('/api/upload/image', {
-          method: 'POST',
-          headers,
-          body: formData,
-        })
-
-        if (!uploadResponse.ok) throw new Error('Failed to upload profile image')
-        const uploadData = await uploadResponse.json()
-        updatedData.profileImageUrl = uploadData.url
-      }
-
-      // Upload cover image if changed
-      if (editModal.coverImage.file) {
-        const formData = new FormData()
-        formData.append('file', editModal.coverImage.file)
-        formData.append('type', 'cover')
-
-        const uploadResponse = await fetch('/api/upload/image', {
-          method: 'POST',
-          headers,
-          body: formData,
-        })
-
-        if (!uploadResponse.ok) throw new Error('Failed to upload cover image')
-        const uploadData = await uploadResponse.json()
-        updatedData.coverImageUrl = uploadData.url
-      }
-
-      // Remove empty strings from updatedData (API expects valid URLs or undefined)
-      Object.keys(updatedData).forEach(key => {
-        if (updatedData[key as keyof ProfileFormData] === '') {
-          delete updatedData[key as keyof ProfileFormData]
-        }
-      })
-
-      // Backend now handles ALL signing automatically - no user interaction needed!
-      // This includes username changes, bio updates, everything.
-      // The server signs the transaction on-chain, providing a seamless UX.
-      
-      const updateResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/update-profile`, {
+      const uploadResponse = await fetch('/api/upload/image', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(updatedData),
+        headers,
+        body: formData,
       })
 
-      if (!updateResponse.ok) {
-        const errorData = await updateResponse.json().catch(() => ({}))
-        throw new Error(errorData?.error?.message || 'Failed to update profile')
+      if (!uploadResponse.ok) {
+        const error = new Error('Failed to upload profile image')
+        setEditModal(prev => ({
+          ...prev,
+          error: error.message,
+          isSaving: false,
+        }))
+        throw error
       }
-      const data = await updateResponse.json()
+      const uploadData = await uploadResponse.json()
+      updatedData.profileImageUrl = uploadData.url
+    }
+
+    // Upload cover image if changed
+    if (editModal.coverImage.file) {
+      const formData = new FormData()
+      formData.append('file', editModal.coverImage.file)
+      formData.append('type', 'cover')
+
+      const uploadResponse = await fetch('/api/upload/image', {
+        method: 'POST',
+        headers,
+        body: formData,
+      })
+
+      if (!uploadResponse.ok) {
+        const error = new Error('Failed to upload cover image')
+        setEditModal(prev => ({
+          ...prev,
+          error: error.message,
+          isSaving: false,
+        }))
+        throw error
+      }
+      const uploadData = await uploadResponse.json()
+      updatedData.coverImageUrl = uploadData.url
+    }
+
+    // Remove empty strings from updatedData (API expects valid URLs or undefined)
+    Object.keys(updatedData).forEach(key => {
+      if (updatedData[key as keyof ProfileFormData] === '') {
+        delete updatedData[key as keyof ProfileFormData]
+      }
+    })
+
+    // Backend now handles ALL signing automatically - no user interaction needed!
+    // This includes username changes, bio updates, everything.
+    // The server signs the transaction on-chain, providing a seamless UX.
+    
+    const updateResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/update-profile`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(updatedData),
+    })
+
+    if (!updateResponse.ok) {
+      const errorData = await updateResponse.json().catch(() => ({}))
+      const errorMessage = errorData?.error?.message || 'Failed to update profile'
+      setEditModal(prev => ({
+        ...prev,
+        error: errorMessage,
+        isSaving: false,
+      }))
+      throw new Error(errorMessage)
+    }
+    const data = await updateResponse.json()
 
       setFormData({
         username: data.user.username,
@@ -429,19 +450,6 @@ export default function ProfilePage() {
       setSaveSuccess(true)
       setTimeout(() => setSaveSuccess(false), 3000)
       closeEditModal()
-    } catch (error) {
-      console.error('Profile save error:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Failed to save profile'
-      
-      setEditModal(prev => ({
-        ...prev,
-        error: errorMessage,
-        isSaving: false,
-      }))
-      
-      // Don't let errors corrupt the UI state - ensure modal stays open so user can retry
-      // The auth state is preserved and user doesn't get logged out
-    }
   }
 
   const toggleSocialVisibility = async (platform: keyof SocialVisibility) => {

@@ -10,7 +10,7 @@ import { useLoginModal } from '@/hooks/useLoginModal';
 import type { RepostButtonProps } from '@/types/interactions';
 import type { FeedPost } from '@/shared/types';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { toast } from 'sonner';
+// // import { toast } from 'sonner';
 
 const sizeClasses = {
   sm: 'h-8 px-2 text-xs gap-1',
@@ -84,45 +84,38 @@ export function RepostButton({
     setIsAnimating(true);
     setTimeout(() => setIsAnimating(false), 300);
 
-    try {
-      const response = await toggleShare(postId, commentToSend);
+    const response = await toggleShare(postId, commentToSend);
+    
+    // If this is a quote post and we got repost data back, add it optimistically to the feed
+    if (response && response.repostPost && isQuote) {
+      const repostData = response.repostPost;
+      const optimisticPost: FeedPost = {
+        id: repostData.id,
+        content: repostData.content,
+        author: repostData.authorId,
+        authorId: repostData.authorId,
+        authorName: repostData.authorName,
+        authorUsername: repostData.authorUsername || undefined,
+        authorProfileImageUrl: repostData.authorProfileImageUrl || undefined,
+        timestamp: repostData.timestamp,
+        likeCount: 0,
+        commentCount: 0,
+        shareCount: 0,
+        isLiked: false,
+        isShared: false,
+        // Repost metadata
+        isRepost: repostData.isRepost || false,
+        originalPostId: repostData.originalPostId || null,
+        originalAuthorId: repostData.originalAuthorId || null,
+        originalAuthorName: repostData.originalAuthorName || null,
+        originalAuthorUsername: repostData.originalAuthorUsername || null,
+        originalAuthorProfileImageUrl: repostData.originalAuthorProfileImageUrl || null,
+        originalContent: repostData.originalContent || null,
+        quoteComment: repostData.quoteComment || null,
+      };
       
-      // If this is a quote post and we got repost data back, add it optimistically to the feed
-      if (response && response.repostPost && isQuote) {
-        const repostData = response.repostPost;
-        const optimisticPost: FeedPost = {
-          id: repostData.id,
-          content: repostData.content,
-          author: repostData.authorId,
-          authorId: repostData.authorId,
-          authorName: repostData.authorName,
-          authorUsername: repostData.authorUsername || undefined,
-          authorProfileImageUrl: repostData.authorProfileImageUrl || undefined,
-          timestamp: repostData.timestamp,
-          likeCount: 0,
-          commentCount: 0,
-          shareCount: 0,
-          isLiked: false,
-          isShared: false,
-          // Repost metadata
-          isRepost: repostData.isRepost || false,
-          originalPostId: repostData.originalPostId || null,
-          originalAuthorId: repostData.originalAuthorId || null,
-          originalAuthorName: repostData.originalAuthorName || null,
-          originalAuthorUsername: repostData.originalAuthorUsername || null,
-          originalAuthorProfileImageUrl: repostData.originalAuthorProfileImageUrl || null,
-          originalContent: repostData.originalContent || null,
-          quoteComment: repostData.quoteComment || null,
-        };
-        
-        // Add to feed optimistically
-        addOptimisticPost(optimisticPost);
-      }
-    } catch (error) {
-      console.error('Failed to share post:', error);
-      toast.error('Failed to share', {
-        description: 'Please try again.',
-      });
+      // Add to feed optimistically
+      addOptimisticPost(optimisticPost);
     }
     
     // Reset state

@@ -38,7 +38,6 @@ async function main() {
   log(`Strategy: ${process.env.AGENT_STRATEGY || 'balanced'}`)
   log(`Tick Interval: ${process.env.TICK_INTERVAL || 30000}ms`)
 
-  try {
     // Phase 1: Register with Agent0
     log('📝 Phase 1: Agent0 Registration...')
     const agentIdentity = await registerAgent()
@@ -49,15 +48,15 @@ async function main() {
     // Phase 2: Connect to Babylon A2A
     log('🔌 Phase 2: Connecting to Babylon A2A...')
     const a2aClient = new BabylonA2AClient({
-      wsUrl: process.env.BABYLON_WS_URL || 'ws://localhost:3000',
+      apiUrl: process.env.BABYLON_API_URL || 'http://localhost:3000/api/a2a',
       address: agentIdentity.address,
       tokenId: agentIdentity.tokenId,
       privateKey: process.env.AGENT0_PRIVATE_KEY!
     })
 
-    await a2aClient.connect()
-    log(`✅ Connected to Babylon A2A`)
-    log(`   Session: ${a2aClient.sessionToken?.substring(0, 16)}...`)
+  await a2aClient.connect()
+  log(`✅ Connected to Babylon A2A`)
+  log(`   Session: ${a2aClient.sessionToken!.substring(0, 16)}...`)
 
     // Phase 3: Initialize Memory & Decision Maker
     log('🧠 Phase 3: Initializing Memory & Decision System...')
@@ -84,7 +83,6 @@ async function main() {
       log(`🔄 TICK #${tickCount}`)
       log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
 
-      try {
         // 1. Gather context
         log('📊 Gathering context...')
         
@@ -141,11 +139,6 @@ async function main() {
         log('')
         log(`⏳ Next tick in ${process.env.TICK_INTERVAL || 30000}ms...`)
         log('')
-
-      } catch (error: any) {
-        log(`❌ Tick error: ${error.message}`, 'error')
-        log(error.stack, 'error')
-      }
     }
 
     // Run first tick immediately
@@ -166,12 +159,6 @@ async function main() {
     })
 
     log('✅ Autonomous agent running! Press Ctrl+C to stop.')
-
-  } catch (error: any) {
-    log(`💥 Fatal error: ${error.message}`, 'error')
-    log(error.stack, 'error')
-    process.exit(1)
-  }
 }
 
 main()

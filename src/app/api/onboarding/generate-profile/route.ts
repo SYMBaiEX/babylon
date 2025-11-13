@@ -7,6 +7,15 @@ import { BabylonLLMClient } from '@/generator/llm/openai-client';
 import { successResponse } from '@/lib/api/auth-middleware';
 import { logger } from '@/lib/logger';
 import type { NextRequest } from 'next/server';
+import { 
+  uniqueNamesGenerator, 
+  adjectives, 
+  animals, 
+  colors,
+  countries,
+  names,
+  starWars
+} from 'unique-names-generator';
 
 interface ProfileData {
   name: string;
@@ -21,6 +30,14 @@ interface ProfileData {
  */
 export async function GET(_request: NextRequest) {
   const llmClient = new BabylonLLMClient();
+  
+  // Generate random words for entropy/inspiration
+  const randomAnimal = uniqueNamesGenerator({ dictionaries: [animals], length: 1 });
+  const randomColor = uniqueNamesGenerator({ dictionaries: [colors], length: 1 });
+  const randomAdjective = uniqueNamesGenerator({ dictionaries: [adjectives], length: 1 });
+  const randomCountry = uniqueNamesGenerator({ dictionaries: [countries], length: 1 });
+  const randomName = uniqueNamesGenerator({ dictionaries: [names], length: 1 });
+  const randomStarWars = uniqueNamesGenerator({ dictionaries: [starWars], length: 1 });
   
   const prompt = `Generate a fun, memetic profile for a new social media user in the style of crypto/tech Twitter.
 
@@ -43,6 +60,14 @@ Examples:
 }
 
 Generate a UNIQUE profile (don't copy examples). Keep it fun and shareable!
+
+Here are some random words for inspiration (feel free to use or ignore):
+- Animal: ${randomAnimal}
+- Color: ${randomColor}
+- Adjective: ${randomAdjective}
+- Place: ${randomCountry}
+- Name: ${randomName}
+- Pop Culture: ${randomStarWars}
 
 Return ONLY a JSON object with name, username, and bio fields.`;
 

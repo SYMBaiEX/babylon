@@ -401,11 +401,7 @@ export async function setupAdminAuthState(page: any, navigateToUrl?: string) {
     }
 
     Object.entries(privyState).forEach(([key, value]) => {
-      try {
-        localStorage.setItem(key, value)
-      } catch (e) {
-        console.error('Failed to set localStorage item:', key, e)
-      }
+      localStorage.setItem(key, value)
     })
   }, { user: ADMIN_USER, token: MOCK_ADMIN_TOKEN })
 

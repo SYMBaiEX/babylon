@@ -21,7 +21,6 @@ export async function executeAction(
   client: BabylonA2AClient,
   decision: Decision
 ): Promise<ActionResult> {
-  try {
     switch (decision.action) {
       case 'BUY_YES':
       case 'BUY_NO': {
@@ -29,7 +28,7 @@ export async function executeAction(
         const result = await client.buyShares(
           decision.params.marketId,
           outcome,
-          decision.params.amount || 50
+        decision.params.amount
         )
         
         return {
@@ -42,7 +41,7 @@ export async function executeAction(
       case 'SELL': {
         const result = await client.sellShares(
           decision.params.marketId,
-          decision.params.shares || 100
+        decision.params.shares
         )
         
         return {
@@ -58,8 +57,8 @@ export async function executeAction(
         const result = await client.openPosition(
           decision.params.ticker,
           side,
-          decision.params.size || 50,
-          decision.params.leverage || 2
+        decision.params.size,
+        decision.params.leverage
         )
         
         return {
@@ -107,13 +106,6 @@ export async function executeAction(
         return {
           success: true,
           message: 'Holding - no action taken'
-        }
-    }
-  } catch (error: any) {
-    return {
-      success: false,
-      message: 'Action failed',
-      error: error.message
     }
   }
 }

@@ -43,23 +43,18 @@ class Logger {
     const contextStr = entry.context ? `[${entry.context}]` : ''
     let dataStr = ''
     if (entry.data) {
-      try {
-        // Handle cyclic structures and errors
-        dataStr = ` ${JSON.stringify(entry.data, (_key, value) => {
-          // Handle Error objects specially
-          if (value instanceof Error) {
-            return {
-              name: value.name,
-              message: value.message,
-              stack: value.stack,
-            }
+      // Handle cyclic structures and errors
+      dataStr = ` ${JSON.stringify(entry.data, (_key, value) => {
+        // Handle Error objects specially
+        if (value instanceof Error) {
+          return {
+            name: value.name,
+            message: value.message,
+            stack: value.stack,
           }
-          return value
-        })}`
-      } catch {
-        // Fallback if still can't serialize
-        dataStr = ` [Complex Object]`
-      }
+        }
+        return value
+      })}`
     }
     return `[${entry.timestamp}] ${contextStr} [${entry.level.toUpperCase()}] ${entry.message}${dataStr}`
   }

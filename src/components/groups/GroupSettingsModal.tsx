@@ -91,28 +91,25 @@ export function GroupSettingsModal({
     setLoading(true)
     setError(null)
 
-    try {
-      const token = await getAccessToken()
-      if (!token) throw new Error('Authentication required')
+    const token = await getAccessToken()
+    if (!token) throw new Error('Authentication required')
 
-      const response = await fetch(`/api/user-groups/${groupId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+    const response = await fetch(`/api/user-groups/${groupId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
 
-      if (!response.ok) throw new Error('Failed to load group details')
-
-      const data = await response.json()
-      setGroup(data.data)
-      setEditedName(data.data.name)
-      setEditedDescription(data.data.description || '')
-    } catch (err) {
-      console.error('Error loading group:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load group')
-    } finally {
+    if (!response.ok) {
       setLoading(false)
+      throw new Error('Failed to load group details')
     }
+
+    const data = await response.json()
+    setGroup(data.data)
+    setEditedName(data.data.name)
+    setEditedDescription(data.data.description || '')
+    setLoading(false)
   }
 
   const handleSaveDetails = async () => {
@@ -121,191 +118,179 @@ export function GroupSettingsModal({
     setSaving(true)
     setError(null)
 
-    try {
-      const token = await getAccessToken()
-      if (!token) throw new Error('Authentication required')
-
-      const response = await fetch(`/api/user-groups/${groupId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name: editedName,
-          description: editedDescription || null,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to update group')
-      }
-
-      // Reload group details
-      await loadGroupDetails()
-      setIsEditing(false)
-      onGroupUpdated?.()
-    } catch (err) {
-      console.error('Error updating group:', err)
-      setError(err instanceof Error ? err.message : 'Failed to update group')
-    } finally {
+    const token = await getAccessToken()
+    if (!token) {
       setSaving(false)
+      throw new Error('Authentication required')
     }
+
+    const response = await fetch(`/api/user-groups/${groupId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        name: editedName,
+        description: editedDescription || null,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      setSaving(false)
+      throw new Error(errorData.error || 'Failed to update group')
+    }
+
+    // Reload group details
+    await loadGroupDetails()
+    setIsEditing(false)
+    onGroupUpdated?.()
+    setSaving(false)
   }
 
   const handleDeleteGroup = async () => {
     setIsDeleting(true)
     setError(null)
 
-    try {
-      const token = await getAccessToken()
-      if (!token) throw new Error('Authentication required')
-
-      const response = await fetch(`/api/user-groups/${groupId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to delete group')
-      }
-
-      onGroupDeleted?.()
-      onClose()
-    } catch (err) {
-      console.error('Error deleting group:', err)
-      setError(err instanceof Error ? err.message : 'Failed to delete group')
-    } finally {
+    const token = await getAccessToken()
+    if (!token) {
       setIsDeleting(false)
       setIsDeleteConfirmOpen(false)
+      throw new Error('Authentication required')
     }
+
+    const response = await fetch(`/api/user-groups/${groupId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      setIsDeleting(false)
+      setIsDeleteConfirmOpen(false)
+      throw new Error(errorData.error || 'Failed to delete group')
+    }
+
+    onGroupDeleted?.()
+    onClose()
   }
 
   const handleLeaveGroup = async () => {
     setIsLeaving(true)
     setError(null)
 
-    try {
-      const token = await getAccessToken()
-      if (!token) throw new Error('Authentication required')
-
-      const response = await fetch(`/api/user-groups/${groupId}/members/${currentUserId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to leave group')
-      }
-
-      onGroupDeleted?.() // Treat as deleted from user's perspective
-      onClose()
-    } catch (err) {
-      console.error('Error leaving group:', err)
-      setError(err instanceof Error ? err.message : 'Failed to leave group')
-    } finally {
+    const token = await getAccessToken()
+    if (!token) {
       setIsLeaving(false)
       setIsLeaveConfirmOpen(false)
+      throw new Error('Authentication required')
     }
+
+    const response = await fetch(`/api/user-groups/${groupId}/members/${currentUserId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      setIsLeaving(false)
+      setIsLeaveConfirmOpen(false)
+      throw new Error(errorData.error || 'Failed to leave group')
+    }
+
+    onGroupDeleted?.() // Treat as deleted from user's perspective
+    onClose()
   }
 
   const handleRemoveMember = async (memberId: string) => {
     setManagingMemberId(memberId)
     setError(null)
 
-    try {
-      const token = await getAccessToken()
-      if (!token) throw new Error('Authentication required')
-
-      const response = await fetch(`/api/user-groups/${groupId}/members/${memberId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to remove member')
-      }
-
-      await loadGroupDetails()
-      onGroupUpdated?.()
-    } catch (err) {
-      console.error('Error removing member:', err)
-      setError(err instanceof Error ? err.message : 'Failed to remove member')
-    } finally {
+    const token = await getAccessToken()
+    if (!token) {
       setManagingMemberId(null)
+      throw new Error('Authentication required')
     }
+
+    const response = await fetch(`/api/user-groups/${groupId}/members/${memberId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      setManagingMemberId(null)
+      throw new Error(errorData.error || 'Failed to remove member')
+    }
+
+    await loadGroupDetails()
+    onGroupUpdated?.()
+    setManagingMemberId(null)
   }
 
   const handlePromoteToAdmin = async (memberId: string) => {
     setManagingMemberId(memberId)
     setError(null)
 
-    try {
-      const token = await getAccessToken()
-      if (!token) throw new Error('Authentication required')
-
-      const response = await fetch(`/api/user-groups/${groupId}/admins`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ userId: memberId }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to promote member')
-      }
-
-      await loadGroupDetails()
-      onGroupUpdated?.()
-    } catch (err) {
-      console.error('Error promoting member:', err)
-      setError(err instanceof Error ? err.message : 'Failed to promote member')
-    } finally {
+    const token = await getAccessToken()
+    if (!token) {
       setManagingMemberId(null)
+      throw new Error('Authentication required')
     }
+
+    const response = await fetch(`/api/user-groups/${groupId}/admins`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ userId: memberId }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      setManagingMemberId(null)
+      throw new Error(errorData.error || 'Failed to promote member')
+    }
+
+    await loadGroupDetails()
+    onGroupUpdated?.()
+    setManagingMemberId(null)
   }
 
   const handleDemoteFromAdmin = async (memberId: string) => {
     setManagingMemberId(memberId)
     setError(null)
 
-    try {
-      const token = await getAccessToken()
-      if (!token) throw new Error('Authentication required')
-
-      const response = await fetch(`/api/user-groups/${groupId}/admins/${memberId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to demote admin')
-      }
-
-      await loadGroupDetails()
-      onGroupUpdated?.()
-    } catch (err) {
-      console.error('Error demoting admin:', err)
-      setError(err instanceof Error ? err.message : 'Failed to demote admin')
-    } finally {
+    const token = await getAccessToken()
+    if (!token) {
       setManagingMemberId(null)
+      throw new Error('Authentication required')
     }
+
+    const response = await fetch(`/api/user-groups/${groupId}/admins/${memberId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      setManagingMemberId(null)
+      throw new Error(errorData.error || 'Failed to demote admin')
+    }
+
+    await loadGroupDetails()
+    onGroupUpdated?.()
+    setManagingMemberId(null)
   }
 
   const isCreator = group?.createdById === currentUserId

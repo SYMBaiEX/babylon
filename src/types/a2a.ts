@@ -97,6 +97,9 @@ export enum A2AMethod {
   // Trades
   GET_TRADES = 'a2a.getTrades',
   GET_TRADE_HISTORY = 'a2a.getTradeHistory',
+  GET_PREDICTION_TRADES = 'a2a.getPredictionTrades',
+  GET_PERP_TRADES = 'a2a.getPerpTrades',
+  GET_ASSET_TRADES = 'a2a.getAssetTrades',
 
   // Chats & Messaging
   GET_CHATS = 'a2a.getChats',
@@ -144,6 +147,18 @@ export enum A2AMethod {
   SHARE_ANALYSIS = 'a2a.shareAnalysis',
   REQUEST_ANALYSIS = 'a2a.requestAnalysis',
   GET_ANALYSES = 'a2a.getAnalyses',
+
+  // Moderation
+  BLOCK_USER = 'moderation.blockUser',
+  UNBLOCK_USER = 'moderation.unblockUser',
+  MUTE_USER = 'moderation.muteUser',
+  UNMUTE_USER = 'moderation.unmuteUser',
+  REPORT_USER = 'moderation.reportUser',
+  REPORT_POST = 'moderation.reportPost',
+  GET_BLOCKS = 'moderation.getBlocks',
+  GET_MUTES = 'moderation.getMutes',
+  CHECK_BLOCK_STATUS = 'moderation.checkBlockStatus',
+  CHECK_MUTE_STATUS = 'moderation.checkMuteStatus',
 
   // x402 Micropayments
   PAYMENT_REQUEST = 'a2a.paymentRequest',

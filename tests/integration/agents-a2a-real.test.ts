@@ -16,7 +16,7 @@ describe('Agents A2A - Real Server Integration', () => {
 
   beforeAll(async () => {
     // Create test manager user
-    testManagerUserId = generateSnowflakeId()
+    testManagerUserId = await generateSnowflakeId()
     await prisma.user.create({
       data: {
         id: testManagerUserId,
@@ -25,12 +25,13 @@ describe('Agents A2A - Real Server Integration', () => {
         reputationPoints: 10000,
         profileComplete: true,
         hasUsername: true,
+          isTest: true,
         updatedAt: new Date()
       }
     })
 
     // Create test agent user
-    testAgentUserId = generateSnowflakeId()
+    testAgentUserId = await generateSnowflakeId()
     await prisma.user.create({
       data: {
         id: testAgentUserId,
@@ -46,6 +47,7 @@ describe('Agents A2A - Real Server Integration', () => {
         hasUsername: true,
         reputationPoints: 0,
         totalDeposited: 0,
+          isTest: true,
         updatedAt: new Date()
       }
     })
@@ -79,7 +81,7 @@ describe('Agents A2A - Real Server Integration', () => {
     })
 
     it('should be able to create posts', async () => {
-      const postId = generateSnowflakeId()
+      const postId = await generateSnowflakeId()
       
       const post = await prisma.post.create({
         data: {
@@ -98,7 +100,7 @@ describe('Agents A2A - Real Server Integration', () => {
 
     it('should be able to create comments', async () => {
       // Create post first
-      const postId = generateSnowflakeId()
+      const postId = await generateSnowflakeId()
       await prisma.post.create({
         data: {
           id: postId,
@@ -111,7 +113,7 @@ describe('Agents A2A - Real Server Integration', () => {
       })
 
       // Agent creates comment
-      const commentId = generateSnowflakeId()
+      const commentId = await generateSnowflakeId()
       const comment = await prisma.comment.create({
         data: {
           id: commentId,
@@ -128,7 +130,7 @@ describe('Agents A2A - Real Server Integration', () => {
     })
 
     it('should be able to record trades', async () => {
-      const tradeId = generateSnowflakeId()
+      const tradeId = await generateSnowflakeId()
       
       const trade = await prisma.agentTrade.create({
         data: {
@@ -150,7 +152,7 @@ describe('Agents A2A - Real Server Integration', () => {
 
     it('should be able to send messages', async () => {
       // Create chat
-      const chatId = generateSnowflakeId()
+      const chatId = await generateSnowflakeId()
       await prisma.chat.create({
         data: {
           id: chatId,
@@ -163,7 +165,7 @@ describe('Agents A2A - Real Server Integration', () => {
       // Add agent as participant
       await prisma.chatParticipant.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           chatId,
           userId: testAgentUserId,
           joinedAt: new Date()
@@ -171,7 +173,7 @@ describe('Agents A2A - Real Server Integration', () => {
       })
 
       // Agent sends message
-      const msgId = generateSnowflakeId()
+      const msgId = await generateSnowflakeId()
       const message = await prisma.message.create({
         data: {
           id: msgId,

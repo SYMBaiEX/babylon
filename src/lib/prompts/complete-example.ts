@@ -1,10 +1,17 @@
 /**
- * Complete Integration Example
+ * Complete Integration Example - EXAMPLE/DOCUMENTATION ONLY
+ * 
+ * ⚠️  This file is for DEMONSTRATION purposes only. It shows how to integrate
+ * the prompt system but uses mock AI responses.
+ * 
+ * For production use, see:
+ * - src/generator/GameGenerator.ts (actual LLM integration)
+ * - src/engine/FeedGenerator.ts (production feed generation)
  * 
  * This demonstrates the full workflow:
  * 1. Generate world context from actors.json
  * 2. Render prompt with context
- * 3. Generate content (placeholder for your AI)
+ * 3. Generate content (MOCK - replace with real AI in production)
  * 4. Validate output
  * 5. Handle failures and regeneration
  */
@@ -212,11 +219,12 @@ export async function generateMixedFeedContent() {
     );
 
     // Only push if we have at least one result
-    if (validation.results.length > 0) {
+    const firstResult = validation.results[0]
+    if (firstResult) {
       allResults.push({
         name: task.name,
         posts,
-        validation: validation.results[0], // First result as example
+        validation: firstResult, // First result as example
       });
     }
   }
@@ -261,31 +269,39 @@ export function setupValidationMonitoring() {
 }
 
 // ============================================================================
-// Helper: Mock AI Generation (Replace with your actual AI call)
+// Helper: Mock AI Generation - EXAMPLE ONLY
 // ============================================================================
 
+/**
+ * ⚠️  MOCK FUNCTION - FOR DEMONSTRATION ONLY
+ * 
+ * This is NOT production code. For actual AI generation, use:
+ * - BabylonLLMClient (src/generator/llm/openai-client.ts) for Groq/OpenAI
+ * - GameGenerator methods for structured game content
+ * - FeedGenerator methods for feed posts
+ * 
+ * @param _prompt - The prompt to send (unused in mock)
+ * @returns Mock post content for demonstration
+ */
 async function mockAIGeneration(_prompt: string): Promise<string[]> {
-  // This is a placeholder - replace with your actual AI generation
-  // Example: OpenAI, Anthropic, local model, etc.
+  console.log('   ⚠️  [MOCK] This is example code - not calling real AI');
+  console.log('   For production, use BabylonLLMClient or GameGenerator');
 
-  console.log('   [Mock] Calling AI with prompt...');
-
-  // Simulate API delay
+  // Simulate API delay for realistic example
   await new Promise(resolve => setTimeout(resolve, 100));
 
-  // Return mock posts (replace with actual AI response)
+  // Return mock posts for demonstration purposes
   return [
     'AIlon just tweeted about Mars again. The man never stops.',
     'Sam AIltman talking about AGI timelines. Again.',
     'Mark Zuckerborg trying to explain the metaverse. Still failing.',
   ];
 
-  // Real implementation would look like:
-  // const response = await openai.chat.completions.create({
-  //   model: "gpt-4",
-  //   messages: [{ role: "user", content: prompt }],
-  // });
-  // return JSON.parse(response.choices[0].message.content).posts;
+  // Production implementation example:
+  // import { BabylonLLMClient } from '@/generator/llm/openai-client';
+  // const llm = new BabylonLLMClient();
+  // const response = await llm.generateText({ prompt, maxTokens: 500 });
+  // return JSON.parse(response).posts;
 }
 
 // ============================================================================

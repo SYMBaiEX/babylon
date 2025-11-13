@@ -45,26 +45,22 @@ export function FarcasterFrameProvider({ children }: { children: React.ReactNode
 
     // Check if we're in a Farcaster Mini App context
     const checkMiniApp = async () => {
-      try {
-        // Mini Apps have the SDK available and can interact with the parent
-        const context = await miniappSdk.context
-        if (context) {
-          setIsMiniApp(true)
-          if (context.user) {
-            setFid(context.user.fid)
-            setUsername(context.user.username)
-          }
-          logger.info('Detected Farcaster Mini App context', { 
-            fid: context.user?.fid,
+      const context = await miniappSdk.context.catch(() => null)
+      if (context) {
+        setIsMiniApp(true)
+        if (context.user) {
+          setFid(context.user.fid)
+          setUsername(context.user.username)
+        }
+        logger.info('Detected Farcaster Mini App context', { 
+          fid: context.user?.fid,
           username: context.user?.username 
         }, 'FarcasterMiniApp')
-        }
-      } catch {
+      } else {
         // Not in a Mini App context, that's fine
         logger.debug('Not in Farcaster Mini App context', {}, 'FarcasterMiniApp')
-      } finally {
-        setIsLoading(false)
       }
+      setIsLoading(false)
     }
 
     checkMiniApp()
@@ -77,42 +73,39 @@ export function FarcasterFrameProvider({ children }: { children: React.ReactNode
     }
 
     const attemptMiniAppLogin = async () => {
-      try {
-        logger.info('Attempting Farcaster Mini App auto-login', { fid, username }, 'FarcasterMiniApp')
+      logger.info('Attempting Farcaster Mini App auto-login', { fid, username }, 'FarcasterMiniApp')
 
-        // Initialize a new login attempt to get a nonce for the Farcaster wallet to sign
-        const { nonce } = await initLoginToMiniApp()
-        
-        logger.debug('Requesting signature from Farcaster', { nonce }, 'FarcasterMiniApp')
-        
-        // Request a signature from Farcaster using Mini App SDK
-        const result = await miniappSdk.actions.signIn({ nonce })
-        
-        logger.debug('Received signature, authenticating with Privy', {}, 'FarcasterMiniApp')
-        
-        // Send the received signature from Farcaster to Privy for authentication
-        await loginToMiniApp({
-          message: result.message,
-          signature: result.signature,
-        })
+      // Initialize a new login attempt to get a nonce for the Farcaster wallet to sign
+      const { nonce } = await initLoginToMiniApp()
+      
+      logger.debug('Requesting signature from Farcaster', { nonce }, 'FarcasterMiniApp')
+      
+      // Request a signature from Farcaster using Mini App SDK
+      const result = await miniappSdk.actions.signIn({ nonce })
+      
+      logger.debug('Received signature, authenticating with Privy', {}, 'FarcasterMiniApp')
+      
+      // Send the received signature from Farcaster to Privy for authentication
+      await loginToMiniApp({
+        message: result.message,
+        signature: result.signature,
+      })
 
-        logger.info('Farcaster Mini App auto-login successful', { 
-          fid,
-          username,
-          userId: user?.id 
-        }, 'FarcasterMiniApp')
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        logger.error('Farcaster Mini App auto-login failed', { 
-          error: errorMessage,
-          fid,
-          username
-        }, 'FarcasterMiniApp')
-        setError(errorMessage)
-      }
+      logger.info('Farcaster Mini App auto-login successful', { 
+        fid,
+        username,
+        userId: user?.id 
+      }, 'FarcasterMiniApp')
     }
 
-    attemptMiniAppLogin()
+    attemptMiniAppLogin().catch((error: Error) => {
+      logger.error('Farcaster Mini App auto-login failed', { 
+        error: error.message,
+        fid,
+        username
+      }, 'FarcasterMiniApp')
+      setError(error.message)
+    })
   }, [ready, authenticated, isMiniApp, isLoading, fid, username, initLoginToMiniApp, loginToMiniApp, user?.id])
 
   const value: FarcasterMiniAppContextType = {

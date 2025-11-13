@@ -6,7 +6,6 @@
  */
 
 import type { JsonRpcRequest, JsonRpcResponse, JsonRpcParams } from '@/types/a2a'
-import { logger } from '@/lib/logger'
 
 export interface HttpA2AClientConfig {
   /** A2A endpoint URL (e.g. http://localhost:3000/api/a2a) */
@@ -45,43 +44,34 @@ export class HttpA2AClient {
       id
     }
 
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), this.config.timeout)
 
-      const response = await fetch(this.config.endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Agent-Id': this.config.agentId,
-          ...(this.config.address && { 'X-Agent-Address': this.config.address }),
-          ...(this.config.tokenId && { 'X-Agent-Token-Id': this.config.tokenId.toString() })
-        },
-        body: JSON.stringify(request),
-        signal: controller.signal
-      })
+    const response = await fetch(this.config.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Agent-Id': this.config.agentId,
+        ...(this.config.address && { 'X-Agent-Address': this.config.address }),
+        ...(this.config.tokenId && { 'X-Agent-Token-Id': this.config.tokenId.toString() })
+      },
+      body: JSON.stringify(request),
+      signal: controller.signal
+    })
 
-      clearTimeout(timeoutId)
+    clearTimeout(timeoutId)
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-
-      const result: JsonRpcResponse = await response.json()
-
-      if (result.error) {
-        throw new Error(`A2A Error [${result.error.code}]: ${result.error.message}`)
-      }
-
-      return result.result
-
-    } catch (error) {
-      logger.error('A2A request failed', {
-        method,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      })
-      throw error
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
+
+    const result: JsonRpcResponse = await response.json()
+
+    if (result.error) {
+      throw new Error(`A2A Error [${result.error.code}]: ${result.error.message}`)
+    }
+
+    return result.result
   }
 
   /**
@@ -180,6 +170,22 @@ export class HttpA2AClient {
 
   async getAnalyses(marketId: string, limit?: number) {
     return this.request('a2a.getAnalyses', { marketId, limit })
+  }
+
+  /**
+   * Send a generic JSON-RPC request (alias for request)
+   * Kept for backward compatibility with old code
+   */
+  async sendRequest(method: string, params?: unknown): Promise<unknown> {
+    return this.request(method, params)
+  }
+
+  /**
+   * Check if client is connected (always true for HTTP)
+   * Kept for backward compatibility
+   */
+  isConnected(): boolean {
+    return true
   }
 
   /**

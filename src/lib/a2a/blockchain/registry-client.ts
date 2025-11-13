@@ -46,8 +46,8 @@ export interface RegistryConfig {
 
 export class RegistryClient {
   private readonly provider: ethers.Provider
-  private readonly identityRegistry: ethers.Contract
-  private readonly reputationSystem: ethers.Contract
+  private readonly identityRegistry: IdentityRegistryContract
+  private readonly reputationSystem: ReputationSystemContract
   private readonly logger: Logger
 
   constructor(config: RegistryConfig) {
@@ -58,13 +58,14 @@ export class RegistryClient {
       config.identityRegistryAddress,
       IDENTITY_ABI,
       this.provider
-    )
+    ) as unknown as IdentityRegistryContract
 
     this.reputationSystem = new ethers.Contract(
       config.reputationSystemAddress,
       REPUTATION_ABI,
       this.provider
-    )
+    ) as unknown as ReputationSystemContract
+    
     this.logger = new Logger('info')
   }
 
@@ -72,17 +73,9 @@ export class RegistryClient {
    * Get agent profile by token ID
    */
   async getAgentProfile(tokenId: number): Promise<AgentProfile | null> {
-    const identityRegistry = this.identityRegistry
-    const reputationSystem = this.reputationSystem
-
-    if (!identityRegistry || !reputationSystem) {
-      throw new Error('Registry client not properly initialized')
-    }
-
-    const contract = identityRegistry as unknown as IdentityRegistryContract
-    const profile = await contract.getAgentProfile(tokenId)
+    const profile = await this.identityRegistry.getAgentProfile(tokenId)
     const reputation = await this.getAgentReputation(tokenId)
-    const address = await contract.ownerOf(tokenId)
+    const address = await this.identityRegistry.ownerOf(tokenId)
 
     return {
       tokenId,
@@ -99,14 +92,7 @@ export class RegistryClient {
    * Get agent profile by address
    */
   async getAgentProfileByAddress(address: string): Promise<AgentProfile | null> {
-    const identityRegistry = this.identityRegistry
-
-    if (!identityRegistry) {
-      throw new Error('Registry client not properly initialized')
-    }
-
-    const contract = identityRegistry as unknown as IdentityRegistryContract
-    const tokenId = await contract.getTokenId(address)
+    const tokenId = await this.identityRegistry.getTokenId(address)
     if (tokenId === 0n) return null
     return this.getAgentProfile(Number(tokenId))
   }
@@ -115,14 +101,7 @@ export class RegistryClient {
    * Get agent reputation
    */
   async getAgentReputation(tokenId: number): Promise<AgentReputation> {
-    const reputationSystem = this.reputationSystem
-
-    if (!reputationSystem) {
-      throw new Error('Registry client not properly initialized')
-    }
-
-    const contract = reputationSystem as unknown as ReputationSystemContract
-    const rep = await contract.getReputation(tokenId)
+    const rep = await this.reputationSystem.getReputation(tokenId)
 
     return {
       totalBets: Number(rep[0] || 0),
@@ -143,22 +122,12 @@ export class RegistryClient {
     minReputation?: number
     markets?: string[]
   }): Promise<AgentProfile[]> {
-    const identityRegistry = this.identityRegistry
-    const reputationSystem = this.reputationSystem
-
-    if (!identityRegistry || !reputationSystem) {
-      throw new Error('Registry client not properly initialized')
-    }
-
     let tokenIds: bigint[]
-
-    const reputationContract = reputationSystem as unknown as ReputationSystemContract
-    const identityContract = identityRegistry as unknown as IdentityRegistryContract
     
     if (filters?.minReputation) {
-      tokenIds = await reputationContract.getAgentsByMinScore(filters.minReputation)
+      tokenIds = await this.reputationSystem.getAgentsByMinScore(filters.minReputation)
     } else {
-      tokenIds = await identityContract.getAllActiveAgents()
+      tokenIds = await this.identityRegistry.getAllActiveAgents()
     }
 
     const profiles: AgentProfile[] = []
@@ -220,37 +189,21 @@ export class RegistryClient {
     actions: string[]
     version: string
   } {
-    try {
-      const parsed = JSON.parse(metadata);
-      const validation = CapabilitiesSchema.safeParse(parsed);
-      if (!validation.success) {
-        this.logger.warn('Failed to parse capabilities metadata', { metadata, error: validation.error });
-        return { strategies: [], markets: [], actions: [], version: '1.0.0' };
-      }
-      return {
-        strategies: validation.data.strategies ?? [],
-        markets: validation.data.markets ?? [],
-        actions: validation.data.actions ?? [],
-        version: validation.data.version ?? '1.0.0',
-      };
-    } catch (error) {
-      this.logger.error('Invalid capabilities metadata JSON', { metadata, error });
-      return { strategies: [], markets: [], actions: [], version: '1.0.0' };
-    }
+    const parsed = JSON.parse(metadata);
+    const validation = CapabilitiesSchema.safeParse(parsed);
+    return {
+      strategies: validation.data?.strategies ?? [],
+      markets: validation.data?.markets ?? [],
+      actions: validation.data?.actions ?? [],
+      version: validation.data?.version ?? '1.0.0',
+    };
   }
 
   /**
    * Verify agent address owns the token ID
    */
   async verifyAgent(address: string, tokenId: number): Promise<boolean> {
-    const identityRegistry = this.identityRegistry
-
-    if (!identityRegistry) {
-      return false
-    }
-
-    const contract = identityRegistry as unknown as IdentityRegistryContract
-    const owner = await contract.ownerOf(tokenId)
+    const owner = await this.identityRegistry.ownerOf(tokenId)
     return owner.toLowerCase() === address.toLowerCase()
   }
 
@@ -258,14 +211,7 @@ export class RegistryClient {
    * Check if endpoint is active
    */
   async isEndpointActive(endpoint: string): Promise<boolean> {
-    const identityRegistry = this.identityRegistry
-
-    if (!identityRegistry) {
-      return false
-    }
-
-    const contract = identityRegistry as unknown as IdentityRegistryContract
-    return await contract.isEndpointActive(endpoint)
+    return await this.identityRegistry.isEndpointActive(endpoint)
   }
 
   /**

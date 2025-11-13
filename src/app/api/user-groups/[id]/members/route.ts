@@ -114,7 +114,7 @@ export const POST = withErrorHandling(async (
   // Create invite
   const invite = await prisma.userGroupInvite.create({
     data: {
-      id: generateSnowflakeId(),
+      id: await generateSnowflakeId(),
       groupId,
       invitedUserId: inviteeId,
       invitedBy: user.userId,

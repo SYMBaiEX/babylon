@@ -74,37 +74,23 @@ export async function loginWithPrivyEmail(
     }
   }
   
-  if (loginButton && await loginButton.isVisible().catch(() => false)) {
-    try {
-      // Wait a bit for any overlays to clear
-      await page.waitForTimeout(1000)
-      // Use force click to bypass overlay issues
-      await loginButton.click({ force: true, timeout: 10000 })
-      console.log('✅ Clicked login button')
-    } catch (error) {
-      console.log('⚠️ Could not click login button, trying alternative method')
-      // Try clicking via JavaScript as fallback
-      await page.evaluate(() => {
-        const btn = document.querySelector('button:has(text("Connect"))') ||
-                    document.querySelector('button:has(text("Login"))') ||
-                    document.querySelector('button:has(text("Sign in"))')
-        if (btn instanceof HTMLElement) btn.click()
-      })
-      await page.waitForTimeout(1000)
-    }
+  if (loginButton && await loginButton.isVisible()) {
+    // Wait a bit for any overlays to clear
+    await page.waitForTimeout(1000)
+    // Use force click to bypass overlay issues
+    await loginButton.click({ force: true, timeout: 10000 })
+    console.log('✅ Clicked login button')
   } else {
     console.log('ℹ️ No login button found - may already be logged in or on a public page')
   }
   
   // Wait for Privy modal to appear
-  await page.waitForSelector('[data-privy-modal]', { timeout: 10000 }).catch(() => {
-    console.log('⚠️ Privy modal did not appear - checking if already authenticated')
-  })
+  await page.waitForSelector('[data-privy-modal]', { timeout: 10000 })
   
   // Look for email input in Privy modal
   const emailInput = page.locator('input[type="email"], input[placeholder*="email" i]').first()
   
-  if (await emailInput.isVisible({ timeout: 5000 }).catch(() => false)) {
+  if (await emailInput.isVisible({ timeout: 5000 })) {
     // Enter email
     await emailInput.fill(testAccount.email)
     console.log(`✅ Entered test email: ${testAccount.email}`)
@@ -148,18 +134,15 @@ export async function loginWithPrivyEmail(
     const submitButton = page.locator('button:has-text("Submit"), button:has-text("Verify"), button:has-text("Continue"), button[type="submit"]').first()
     
     // Wait for button to be enabled
-    try {
-      await submitButton.waitFor({ state: 'visible', timeout: 5000 })
-      if (await submitButton.isEnabled({ timeout: 2000 })) {
-        await submitButton.click()
-        console.log('✅ Clicked submit')
-      } else {
-        console.log('ℹ️ Submit button disabled - OTP might auto-submit')
-        // OTP might auto-verify, just wait
-        await page.waitForTimeout(2000)
-      }
-    } catch (error) {
-      console.log('ℹ️ Submit button not found or detached - OTP likely auto-verified')
+    await submitButton.waitFor({ state: 'visible', timeout: 5000 })
+    const isEnabled = await submitButton.isEnabled({ timeout: 2000 })
+    if (isEnabled) {
+      await submitButton.click()
+      console.log('✅ Clicked submit')
+    } else {
+      console.log('ℹ️ Submit button disabled - OTP might auto-submit')
+      // OTP might auto-verify, just wait
+      await page.waitForTimeout(2000)
     }
     
     // Wait for authentication to complete
@@ -167,7 +150,8 @@ export async function loginWithPrivyEmail(
     
     // Check if we need to create embedded wallet
     const createWalletButton = page.locator('button:has-text("Create wallet"), button:has-text("Continue")').first()
-    if (await createWalletButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+    const walletButtonVisible = await createWalletButton.isVisible({ timeout: 5000 })
+    if (walletButtonVisible) {
       await createWalletButton.click()
       console.log('✅ Created embedded wallet')
       await page.waitForTimeout(2000)
@@ -242,7 +226,7 @@ export async function loginWithPrivyWallet(
   await walletButton.click()
   console.log('✅ Selected wallet login')
   
-  // Wait for MetaMask connection popup
+    // Wait for MetaMask connection popup
   await page.waitForTimeout(2000)
   
   // Connect MetaMask
@@ -250,12 +234,8 @@ export async function loginWithPrivyWallet(
   console.log('✅ Connected MetaMask')
   
   // Sign message if prompted
-  try {
-    await metamask.confirmSignature()
-    console.log('✅ Signed authentication message')
-  } catch (error) {
-    console.log('ℹ️ No signature required or already signed')
-  }
+  await metamask.confirmSignature()
+  console.log('✅ Signed authentication message')
   
   // Wait for authentication to complete
   await page.waitForLoadState('networkidle')
@@ -280,7 +260,8 @@ export async function logoutFromPrivy(page: Page): Promise<void> {
   
   for (const selector of logoutSelectors) {
     const logoutButton = page.locator(selector).first()
-    if (await logoutButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+    const isButtonVisible = await logoutButton.isVisible({ timeout: 5000 })
+    if (isButtonVisible) {
       await logoutButton.click()
       console.log('✅ Clicked logout button')
       await page.waitForTimeout(2000)
@@ -298,7 +279,8 @@ export async function logoutFromPrivy(page: Page): Promise<void> {
   
   for (const selector of profileMenuSelectors) {
     const menuButton = page.locator(selector).first()
-    if (await menuButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+    const isMenuVisible = await menuButton.isVisible({ timeout: 5000 })
+    if (isMenuVisible) {
       await menuButton.click()
       console.log('✅ Opened profile menu')
       await page.waitForTimeout(1000)
@@ -306,7 +288,8 @@ export async function logoutFromPrivy(page: Page): Promise<void> {
       // Look for logout in menu
       for (const logoutSelector of logoutSelectors) {
         const logoutButton = page.locator(logoutSelector).first()
-        if (await logoutButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+        const isLogoutVisible = await logoutButton.isVisible({ timeout: 5000 })
+        if (isLogoutVisible) {
           await logoutButton.click()
           console.log('✅ Clicked logout from menu')
           await page.waitForTimeout(2000)
@@ -333,7 +316,8 @@ export async function isAuthenticated(page: Page): Promise<boolean> {
   ]
   
   for (const selector of authenticatedIndicators) {
-    if (await page.locator(selector).isVisible({ timeout: 2000 }).catch(() => false)) {
+    const isVisible = await page.locator(selector).isVisible({ timeout: 2000 })
+    if (isVisible) {
       return true
     }
   }

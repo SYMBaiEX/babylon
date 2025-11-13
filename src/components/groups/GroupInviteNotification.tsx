@@ -37,50 +37,40 @@ export function GroupInviteNotification({
 
   const handleAccept = async () => {
     setIsLoading(true);
-    try {
-      const response = await fetch(`/api/user-groups/invites/${inviteId}`, {
-        method: 'POST',
-      });
+    const response = await fetch(`/api/user-groups/invites/${inviteId}`, {
+      method: 'POST',
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to accept invite');
-      }
-
-      toast.success(`You joined ${groupName}!`);
-      setIsResponded(true);
-      onAccept?.();
-    } catch (error) {
-      console.error('Error accepting invite:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to accept invite');
-    } finally {
+    if (!response.ok) {
       setIsLoading(false);
+      throw new Error(data.error || 'Failed to accept invite');
     }
+
+    toast.success(`You joined ${groupName}!`);
+    setIsResponded(true);
+    onAccept?.();
+    setIsLoading(false);
   };
 
   const handleDecline = async () => {
     setIsLoading(true);
-    try {
-      const response = await fetch(`/api/user-groups/invites/${inviteId}`, {
-        method: 'DELETE',
-      });
+    const response = await fetch(`/api/user-groups/invites/${inviteId}`, {
+      method: 'DELETE',
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to decline invite');
-      }
-
-      toast.success('Invite declined');
-      setIsResponded(true);
-      onDecline?.();
-    } catch (error) {
-      console.error('Error declining invite:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to decline invite');
-    } finally {
+    if (!response.ok) {
       setIsLoading(false);
+      throw new Error(data.error || 'Failed to decline invite');
     }
+
+    toast.success('Invite declined');
+    setIsResponded(true);
+    onDecline?.();
+    setIsLoading(false);
   };
 
   if (isResponded) {

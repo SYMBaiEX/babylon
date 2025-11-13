@@ -101,32 +101,26 @@ export function RegistryTab() {
   }, [search])
 
   const fetchRegistry = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const params = new URLSearchParams()
-      if (search) params.set('search', search)
-      if (onChainOnly) params.set('onChainOnly', 'true')
+    setLoading(true)
+    setError(null)
+    const params = new URLSearchParams()
+    if (search) params.set('search', search)
+    if (onChainOnly) params.set('onChainOnly', 'true')
 
-      const response = await fetch(`/api/registry/all?${params}`)
-      const result = await response.json()
+    const response = await fetch(`/api/registry/all?${params}`)
+    const result = await response.json()
 
-      if (result.success && result.data) {
-        const validation = RegistryDataSchema.safeParse(result.data);
-        if (validation.success) {
-          setData(validation.data);
-        } else {
-          setError('Invalid data structure for registry');
-        }
+    if (result.success && result.data) {
+      const validation = RegistryDataSchema.safeParse(result.data);
+      if (validation.success) {
+        setData(validation.data);
       } else {
-        setError(result.error?.message || 'Failed to fetch registry data')
+        setError('Invalid data structure for registry');
       }
-    } catch (err) {
-      console.error('Failed to fetch registry:', err)
-      setError('Failed to connect to the registry')
-    } finally {
-      setLoading(false)
+    } else {
+      setError(result.error?.message || 'Failed to fetch registry data')
     }
+    setLoading(false)
   }
 
   const renderBadge = (_type: string, label: string, icon: React.ReactNode, color: string) => {

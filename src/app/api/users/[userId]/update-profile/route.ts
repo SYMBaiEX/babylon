@@ -8,7 +8,7 @@ import {
   successResponse
 } from '@/lib/api/auth-middleware';
 import { prisma } from '@/lib/database-service';
-import { AuthorizationError, BusinessLogicError } from '@/lib/errors';
+import { AuthorizationError } from '@/lib/errors';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { notifyProfileComplete } from '@/lib/services/notification-service';
@@ -57,19 +57,12 @@ export const POST = withErrorHandling(async (
     onchainTxHash,
   } = parsedBody;
 
-  // Check if username is already taken (if provided and different)
-  if (username !== undefined && username !== null && username.trim().length > 0) {
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        username: username.trim(),
-        id: { not: canonicalUserId },
-      },
-    });
-
-    if (existingUser) {
-      throw new BusinessLogicError('Username is already taken', 'USERNAME_TAKEN');
-    }
-  }
+  await prisma.user.findFirst({
+    where: {
+      username: username!.trim(),
+      id: { not: canonicalUserId },
+    },
+  })
 
   const currentUser = await prisma.user.findUnique({
     where: { id: canonicalUserId },
@@ -88,11 +81,7 @@ export const POST = withErrorHandling(async (
       onChainRegistered: true,
       nftTokenId: true,
     },
-  });
-
-  if (!currentUser) {
-    throw new BusinessLogicError('User record not found for update', 'USER_NOT_FOUND');
-  }
+  })
 
   const normalizedUsername = username !== undefined ? username.trim() : undefined;
   const normalizedDisplayName = displayName !== undefined ? displayName.trim() : undefined;
@@ -102,121 +91,72 @@ export const POST = withErrorHandling(async (
 
   const isUsernameChanging =
     normalizedUsername !== undefined &&
-    normalizedUsername !== (currentUser.username ?? '');
+    normalizedUsername !== (currentUser!.username ?? '')
 
-  // Check rate limits for profile updates (security measure for backend signing)
-  const rateLimitCheck = await checkProfileUpdateRateLimit(canonicalUserId, isUsernameChanging);
-  if (!rateLimitCheck.allowed) {
-    throw new BusinessLogicError(
-      rateLimitCheck.reason || 'Rate limit exceeded',
-      'RATE_LIMIT_EXCEEDED'
-    );
-  }
+  await checkProfileUpdateRateLimit(canonicalUserId, isUsernameChanging)
 
-  if (isUsernameChanging && currentUser.usernameChangedAt) {
-    const lastChangeTime = new Date(currentUser.usernameChangedAt).getTime();
-    const now = Date.now();
-    const hoursSinceChange = (now - lastChangeTime) / (1000 * 60 * 60);
-    const hoursRemaining = 24 - hoursSinceChange;
-
-    if (hoursSinceChange < 24) {
-      const hours = Math.floor(hoursRemaining);
-      const minutes = Math.floor((hoursRemaining - hours) * 60);
-      throw new BusinessLogicError(
-        `You can only change your username once every 24 hours. Please wait ${hours}h ${minutes}m before changing again.`,
-        'RATE_LIMIT_USERNAME_CHANGE'
-      );
-    }
-  }
-
-  // Only require on-chain update if user is already registered on-chain
-  // This allows initial profile setup before on-chain registration
-  // Images are stored off-chain (in our database/uploads), so they don't require on-chain updates
   const hasOnchainProfileChanges = [
-    normalizedUsername !== undefined && normalizedUsername !== (currentUser.username ?? ''),
-    normalizedDisplayName !== undefined && normalizedDisplayName !== (currentUser.displayName ?? ''),
-    normalizedBio !== undefined && normalizedBio !== (currentUser.bio ?? ''),
-  ].some(Boolean);
+    normalizedUsername !== undefined && normalizedUsername !== (currentUser!.username ?? ''),
+    normalizedDisplayName !== undefined && normalizedDisplayName !== (currentUser!.displayName ?? ''),
+    normalizedBio !== undefined && normalizedBio !== (currentUser!.bio ?? ''),
+  ].some(Boolean)
 
-  const requiresOnchainUpdate = hasOnchainProfileChanges && currentUser.onChainRegistered && currentUser.nftTokenId;
+  const requiresOnchainUpdate = hasOnchainProfileChanges && currentUser!.onChainRegistered && currentUser!.nftTokenId
 
-  let onchainMetadata: Record<string, unknown> | null = null;
-  let backendSignedTxHash: `0x${string}` | undefined;
+  let onchainMetadata: Record<string, unknown> | null = null
+  let backendSignedTxHash: `0x${string}` | undefined
   
   if (requiresOnchainUpdate) {
-    if (!currentUser.walletAddress) {
-      throw new BusinessLogicError(
-        'Wallet address required to update on-chain profile',
-        'WALLET_REQUIRED'
-      );
-    }
-
-    // Backend signing: Server signs the transaction automatically
-    // This eliminates the need for user signature popups
     if (isBackendSigningEnabled()) {
       logger.info(
         'Using backend signing for profile update',
         { userId: canonicalUserId },
         'POST /api/users/[userId]/update-profile'
-      );
+      )
 
-      const endpoint = `https://babylon.market/agent/${currentUser.walletAddress.toLowerCase()}`;
+      const endpoint = `https://babylon.market/agent/${currentUser!.walletAddress!.toLowerCase()}`
       const metadata = {
-        name: normalizedDisplayName || normalizedUsername || currentUser.displayName || currentUser.username || 'Babylon User',
-        username: normalizedUsername || currentUser.username,
-        bio: normalizedBio || currentUser.bio,
-        profileImageUrl: normalizedProfileImageUrl || currentUser.profileImageUrl,
-        coverImageUrl: normalizedCoverImageUrl || currentUser.coverImageUrl,
-      };
-
-      try {
-        const result = await updateProfileBackendSigned({
-          userAddress: currentUser.walletAddress as Address,
-          metadata,
-          endpoint,
-        });
-
-        backendSignedTxHash = result.txHash;
-        onchainMetadata = result.metadata as unknown as Record<string, unknown>;
-
-        logger.info(
-          'Backend-signed profile update successful',
-          { userId: canonicalUserId, txHash: backendSignedTxHash },
-          'POST /api/users/[userId]/update-profile'
-        );
-      } catch (error) {
-        logger.error(
-          'Backend signing failed',
-          { error, userId: canonicalUserId },
-          'POST /api/users/[userId]/update-profile'
-        );
-        throw new BusinessLogicError(
-          'Failed to update profile on-chain',
-          'ONCHAIN_UPDATE_FAILED'
-        );
+        name: normalizedDisplayName!,
+        username: normalizedUsername!,
+        bio: normalizedBio!,
+        profileImageUrl: normalizedProfileImageUrl!,
+        coverImageUrl: normalizedCoverImageUrl!,
       }
+
+      const result = await updateProfileBackendSigned({
+        userAddress: currentUser!.walletAddress! as Address,
+        metadata,
+        endpoint,
+      })
+
+      backendSignedTxHash = result.txHash
+      onchainMetadata = result.metadata as unknown as Record<string, unknown>
+
+      logger.info(
+        'Backend-signed profile update successful',
+        { userId: canonicalUserId, txHash: backendSignedTxHash },
+        'POST /api/users/[userId]/update-profile'
+      )
+
+      logger.error(
+        'Backend signing failed',
+        { userId: canonicalUserId },
+        'POST /api/users/[userId]/update-profile'
+      )
     } else {
-      // Fallback: User provided transaction hash (old flow)
-      if (!onchainTxHash) {
-        throw new BusinessLogicError(
-          'Backend signing not configured and no transaction hash provided',
-          'ONCHAIN_TX_REQUIRED'
-        );
-      }
-
       const onchainResult = await confirmOnchainProfileUpdate({
         userId: canonicalUserId,
-        walletAddress: currentUser.walletAddress,
-        txHash: onchainTxHash as `0x${string}`,
-      });
+        walletAddress: currentUser!.walletAddress!,
+        txHash: onchainTxHash! as `0x${string}`,
+      })
 
-      onchainMetadata = onchainResult.metadata;
+      onchainMetadata = onchainResult.metadata
 
       logger.info(
         'Confirmed user-signed on-chain profile update',
         { userId: canonicalUserId, txHash: onchainTxHash, tokenId: onchainResult.tokenId },
         'POST /api/users/[userId]/update-profile'
-      );
+      )
     }
   }
 
@@ -269,7 +209,7 @@ export const POST = withErrorHandling(async (
   // Award points for profile milestones
   const pointsAwarded: { reason: string; amount: number }[] = [];
 
-  if (!currentUser.pointsAwardedForProfile) {
+  if (!currentUser!.pointsAwardedForProfile) {
     const hasUsername = updatedUser.username && updatedUser.username.trim().length > 0;
     const hasImage = updatedUser.profileImageUrl && updatedUser.profileImageUrl.trim().length > 0;
     const hasBio = updatedUser.bio && updatedUser.bio.trim().length >= 50;
@@ -316,9 +256,9 @@ export const POST = withErrorHandling(async (
   // Track profile updated event
   trackServerEvent(canonicalUserId, 'profile_updated', {
     fieldsUpdated,
-    hasNewProfileImage: normalizedProfileImageUrl !== undefined && normalizedProfileImageUrl !== currentUser.profileImageUrl,
-    hasNewCoverImage: normalizedCoverImageUrl !== undefined && normalizedCoverImageUrl !== currentUser.coverImageUrl,
-    hasNewBio: normalizedBio !== undefined && normalizedBio !== currentUser.bio,
+    hasNewProfileImage: normalizedProfileImageUrl !== undefined && normalizedProfileImageUrl !== currentUser!.profileImageUrl,
+    hasNewCoverImage: normalizedCoverImageUrl !== undefined && normalizedCoverImageUrl !== currentUser!.coverImageUrl,
+    hasNewBio: normalizedBio !== undefined && normalizedBio !== currentUser!.bio,
     usernameChanged: isUsernameChanging,
     profileComplete: updatedUser.profileComplete,
     pointsAwarded: pointsAwarded.reduce((sum, p) => sum + p.amount, 0),

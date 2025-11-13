@@ -7,7 +7,6 @@ import { PerpetualsEngine } from '@/engine/PerpetualsEngine';
 import type { Organization } from '@/shared/types';
 
 import { db } from './database-service';
-import { logger } from './logger';
 import { prisma } from './prisma';
 
 let perpsEngineInstance: PerpetualsEngine | null = null;
@@ -31,17 +30,7 @@ export function getPerpsEngine(): PerpetualsEngine {
   }
 
   if (!initializationPromise) {
-    initializationPromise = initializePerpsEngine().catch((error) => {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      logger.error(
-        'Failed to initialize PerpetualsEngine',
-        { error: errorMessage },
-        'PerpsService'
-      );
-      initializationPromise = null;
-      throw error;
-    });
+    initializationPromise = initializePerpsEngine();
   }
 
   return perpsEngineInstance;

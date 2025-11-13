@@ -166,7 +166,7 @@ export const POST = withErrorHandling(async (
     // Create follow relationship
     const follow = await prisma.follow.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         followerId: user.userId,
         followingId: targetId,
       },
@@ -244,7 +244,7 @@ export const POST = withErrorHandling(async (
       ? prisma.$transaction(async (tx) => {
           const created = await tx.userActorFollow.create({
             data: {
-              id: generateSnowflakeId(),
+              id: await generateSnowflakeId(),
               userId: user.userId,
               actorId: targetId,
             },
@@ -273,7 +273,7 @@ export const POST = withErrorHandling(async (
         })
       : prisma.userActorFollow.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             userId: user.userId,
             actorId: targetId,
           },

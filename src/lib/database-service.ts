@@ -37,7 +37,7 @@ class DatabaseService {
     // Create new game
     const game = await prisma.game.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         isContinuous: true,
         isRunning: true,
         currentDate: new Date(),
@@ -95,14 +95,7 @@ class DatabaseService {
       },
     });
 
-    // Generate and store tags for the post (async, don't wait)
-    this.tagPostAsync(post.id, post.content).catch(error => {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.warn('Failed to tag post', { 
-        postId: post.id,
-        error: errorMessage 
-      }, 'DatabaseService');
-    });
+    void this.tagPostAsync(post.id, post.content);
 
     return created;
   }
@@ -169,14 +162,7 @@ class DatabaseService {
       },
     });
 
-    // Generate and store tags for the post (async, don't wait)
-    this.tagPostAsync(data.id, data.content).catch(error => {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.warn('Failed to tag post', { 
-        postId: data.id,
-        error: errorMessage 
-      }, 'DatabaseService');
-    });
+    void this.tagPostAsync(data.id, data.content);
 
     return created;
   }
@@ -212,29 +198,20 @@ class DatabaseService {
     });
 
     if (posts.length > 0) {
-      try {
-        const postsForTagging = posts.map(p => ({
-          id: p.id,
-          content: p.content,
-        }));
+      const postsForTagging = posts.map(p => ({
+        id: p.id,
+        content: p.content,
+      }));
 
-        const tagMap = await generateTagsForPosts(postsForTagging);
+      const tagMap = await generateTagsForPosts(postsForTagging);
 
-        await Promise.all(
-          Array.from(tagMap.entries()).map(async ([postId, tags]) => {
-            if (tags.length > 0) {
-              await storeTagsForPost(postId, tags);
-            }
-          })
-        );
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        const errorStack = error instanceof Error ? error.stack : undefined
-        logger.error('Failed to generate/store tags for posts', { 
-          error: errorMessage,
-          stack: errorStack 
-        }, 'DatabaseService');
-      }
+      await Promise.all(
+        Array.from(tagMap.entries()).map(async ([postId, tags]) => {
+          if (tags.length > 0) {
+            await storeTagsForPost(postId, tags);
+          }
+        })
+      );
     }
 
     return result;
@@ -243,23 +220,52 @@ class DatabaseService {
   /**
    * Get recent posts (paginated)
    * Note: Not cached as this is real-time data that updates frequently
+   * Filters out posts from test users (isTest = true)
    */
   async getRecentPosts(limit = 100, offset = 0) {
     logger.debug('DatabaseService.getRecentPosts called', { limit, offset }, 'DatabaseService');
     
-    const posts = await prisma.post.findMany({
+    // Get posts with author information to filter out test users
+    // We need to check both User and Actor tables since authorId can reference either
+    const allPosts = await prisma.post.findMany({
       where: {
         deletedAt: null, // Filter out deleted posts
       },
-      take: limit,
+      take: limit * 2, // Fetch more than needed to account for filtering
       skip: offset,
       orderBy: { timestamp: 'desc' },
     });
+    
+    // Get all author IDs
+    const authorIds = [...new Set(allPosts.map(p => p.authorId))];
+    
+    // Check which authors are test users
+    const [testUsers, testActors] = await Promise.all([
+      prisma.user.findMany({
+        where: { id: { in: authorIds }, isTest: true },
+        select: { id: true },
+      }),
+      prisma.actor.findMany({
+        where: { id: { in: authorIds }, isTest: true },
+        select: { id: true },
+      }),
+    ]);
+    
+    const testAuthorIds = new Set([
+      ...testUsers.map(u => u.id),
+      ...testActors.map(a => a.id),
+    ]);
+    
+    // Filter out posts from test users
+    const posts = allPosts
+      .filter(post => !testAuthorIds.has(post.authorId))
+      .slice(0, limit); // Take only the requested limit after filtering
     
     logger.info('DatabaseService.getRecentPosts completed', {
       limit,
       offset,
       postCount: posts.length,
+      filteredTestPosts: allPosts.length - posts.length,
       firstPostId: posts[0]?.id,
       lastPostId: posts[posts.length - 1]?.id,
     }, 'DatabaseService');
@@ -269,9 +275,33 @@ class DatabaseService {
 
   /**
    * Get posts by actor
+   * Filters out posts if the actor is a test user
    */
   async getPostsByActor(authorId: string, limit = 100) {
     logger.debug('DatabaseService.getPostsByActor called', { authorId, limit }, 'DatabaseService');
+    
+    // Check if this actor/user is a test user
+    const [user, actor] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: authorId },
+        select: { isTest: true },
+      }),
+      prisma.actor.findUnique({
+        where: { id: authorId },
+        select: { isTest: true },
+      }),
+    ]);
+    
+    const isTestUser = user?.isTest || actor?.isTest || false;
+    
+    // If it's a test user, return empty array
+    if (isTestUser) {
+      logger.info('DatabaseService.getPostsByActor - test user filtered', {
+        authorId,
+        isTestUser: true,
+      }, 'DatabaseService');
+      return [];
+    }
     
     const posts = await prisma.post.findMany({
       where: { 
@@ -306,7 +336,7 @@ class DatabaseService {
   async createQuestion(question: GameQuestion & { questionNumber: number }) {
     return await prisma.question.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         questionNumber: question.questionNumber,
         text: question.text,
         scenarioId: question.scenario,
@@ -538,7 +568,7 @@ class DatabaseService {
   async recordPriceUpdate(organizationId: string, price: number, change: number, changePercent: number) {
     return await prisma.stockPrice.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         organizationId,
         price,
         change,
@@ -564,7 +594,7 @@ class DatabaseService {
   ) {
     return await prisma.stockPrice.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         organizationId,
         price: data.closePrice,
         change: data.closePrice - data.openPrice,

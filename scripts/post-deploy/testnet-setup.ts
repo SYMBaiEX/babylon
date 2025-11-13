@@ -43,34 +43,32 @@ async function main() {
 
   // Test Diamond contract
   if (validation.contracts.diamond) {
-    try {
-      const diamondContract = new ethers.Contract(
-        validation.contracts.diamond,
-        ['function getBalance(address) view returns (uint256)'],
-        provider
-      )
+    const diamondContract = new ethers.Contract(
+      validation.contracts.diamond,
+      ['function getBalance(address) view returns (uint256)'],
+      provider
+    )
 
-      await diamondContract.getBalance(ethers.ZeroAddress)
+    await diamondContract.getBalance(ethers.ZeroAddress).then(() => {
       logger.info('✅ Diamond contract functional', undefined, 'Script')
-    } catch (error) {
+    }).catch((error: Error) => {
       logger.warn('⚠️  Diamond smoke test failed', error, 'Script')
-    }
+    })
   }
 
   // Test Identity Registry
   if (validation.contracts.identityRegistry) {
-    try {
-      const registryContract = new ethers.Contract(
-        validation.contracts.identityRegistry,
-        ['function identityCount() view returns (uint256)'],
-        provider
-      )
+    const registryContract = new ethers.Contract(
+      validation.contracts.identityRegistry,
+      ['function identityCount() view returns (uint256)'],
+      provider
+    )
 
-      const count = await registryContract.identityCount()
+    await registryContract.identityCount().then((count: bigint) => {
       logger.info(`✅ Identity Registry functional (${count} identities)`, undefined, 'Script')
-    } catch (error) {
+    }).catch((error: Error) => {
       logger.warn('⚠️  Identity Registry smoke test failed', error, 'Script')
-    }
+    })
   }
 
   // 3. Check Agent0 configuration
@@ -78,22 +76,20 @@ async function main() {
   logger.info('3. Checking Agent0 configuration...', undefined, 'Script')
 
   if (process.env.AGENT0_ENABLED === 'true') {
-    try {
-      await $`bun run agent0:verify`.quiet()
+    await $`bun run agent0:verify`.quiet().then(async () => {
       logger.info('✅ Agent0 configured', undefined, 'Script')
 
       // Try to register if not already registered
       logger.info('Checking Agent0 registration...', undefined, 'Script')
-      try {
-        await $`bun run agent0:register`.quiet()
+      await $`bun run agent0:register`.quiet().then(() => {
         logger.info('✅ Registered with Agent0', undefined, 'Script')
-      } catch (error) {
+      }).catch(() => {
         logger.warn('⚠️  Agent0 registration failed or already registered', undefined, 'Script')
-      }
-    } catch (error) {
+      })
+    }).catch(() => {
       logger.warn('⚠️  Agent0 not fully configured', undefined, 'Script')
       logger.info('   Run: bun run agent0:configure', undefined, 'Script')
-    }
+    })
   } else {
     logger.info('ℹ️  Agent0 not enabled', undefined, 'Script')
     logger.info('   To enable: bun run agent0:configure', undefined, 'Script')
@@ -154,8 +150,5 @@ async function main() {
   logger.info('='.repeat(60), undefined, 'Script')
 }
 
-main().catch(error => {
-  logger.error('Setup failed:', error, 'Script')
-  process.exit(1)
-})
+main()
 

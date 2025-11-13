@@ -31,34 +31,19 @@ export function createMonitoredPrismaClient(baseClient: PrismaClient): PrismaCli
       const model = params.model ?? 'unknown';
       const operation = params.action;
       
-      try {
-        const result = await next(params);
-        const duration = Date.now() - startTime;
-        
-        // Record successful query metrics
-        queryMonitor.recordQuery({
-          query: `${model}.${operation}`,
-          duration,
-          timestamp: new Date(),
-          model,
-          operation,
-        });
-        
-        return result;
-      } catch (error) {
-        const duration = Date.now() - startTime;
-        
-        // Record failed query before re-throwing
-        queryMonitor.recordQuery({
-          query: `${model}.${operation} [FAILED]`,
-          duration,
-          timestamp: new Date(),
-          model,
-          operation,
-        });
-        
-        throw error;
-      }
+      const result = await next(params);
+      const duration = Date.now() - startTime;
+      
+      // Record query metrics
+      queryMonitor.recordQuery({
+        query: `${model}.${operation}`,
+        duration,
+        timestamp: new Date(),
+        model,
+        operation,
+      });
+      
+      return result;
     });
   }
 

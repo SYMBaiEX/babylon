@@ -72,28 +72,21 @@ export function PerpPositionsList({
     setClosingId(pendingClose.position.id);
     setConfirmDialogOpen(false);
 
-    try {
-      const data = await closePerpPosition(pendingClose.position.id);
-      const pnl =
-        typeof data?.pnl === 'number'
-          ? data.pnl
-          : typeof data?.realizedPnL === 'number'
-            ? data.realizedPnL
-            : 0;
+    const data = await closePerpPosition(pendingClose.position.id);
+    const pnl =
+      typeof data?.pnl === 'number'
+        ? data.pnl
+        : typeof data?.realizedPnL === 'number'
+          ? data.realizedPnL
+          : 0;
 
-      toast.success('Position closed!', {
-        description: `${pendingClose.position.ticker}: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} PnL`,
-      });
+    toast.success('Position closed!', {
+      description: `${pendingClose.position.ticker}: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} PnL`,
+    });
 
-      await onPositionClosed?.();
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to close position';
-      toast.error(message);
-    } finally {
-      setClosingId(null);
-      setPendingClose(null);
-    }
+    await onPositionClosed?.();
+    setClosingId(null);
+    setPendingClose(null);
   }, [closePerpPosition, onPositionClosed, pendingClose]);
 
   const formatPrice = (price: number) => {

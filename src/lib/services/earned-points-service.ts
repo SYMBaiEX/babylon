@@ -127,7 +127,7 @@ export class EarnedPointsService {
 
       await tx.pointsTransaction.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           userId,
           amount: earnedPointsDelta,
           pointsBefore: user.reputationPoints,
@@ -174,16 +174,11 @@ export class EarnedPointsService {
     logger.info(`Syncing earned points for ${users.length} users`, {}, 'EarnedPointsService')
 
     let successCount = 0
-    let errorCount = 0
+    const errorCount = 0
 
     for (const user of users) {
-      try {
-        await this.syncEarnedPointsFromPnL(user.id)
-        successCount++
-      } catch (error) {
-        errorCount++
-        logger.error(`Error syncing user ${user.id}`, error, 'EarnedPointsService')
-      }
+      await this.syncEarnedPointsFromPnL(user.id)
+      successCount++
     }
 
     logger.info(`Bulk sync complete`, {

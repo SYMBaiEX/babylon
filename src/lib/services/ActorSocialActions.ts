@@ -219,7 +219,7 @@ export class ActorSocialActions {
       where: { id: chatId },
       update: {},
       create: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         name: null, // DMs don't have names
         isGroup: false,
         updatedAt: new Date(),
@@ -241,7 +241,7 @@ export class ActorSocialActions {
       },
       update: {},
       create: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         chatId,
         userId: actorId,
       },
@@ -256,7 +256,7 @@ export class ActorSocialActions {
       },
       update: {},
       create: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         chatId,
         userId,
       },
@@ -267,7 +267,7 @@ export class ActorSocialActions {
     // Create initial message from actor
     await db.prisma.message.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         chatId,
         senderId: actorId,
         content: messageContent,

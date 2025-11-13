@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch'
 import { Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/hooks/useAuth'
 
 interface AgentSettingsProps {
   agent: {
@@ -30,6 +31,7 @@ interface AgentSettingsProps {
 }
 
 export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
+  const { getAccessToken } = useAuth()
   const [saving, setSaving] = useState(false)
   const [formData, setFormData] = useState({
     name: agent.name,
@@ -50,33 +52,32 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
 
   const handleSave = async () => {
     setSaving(true)
-    try {
-      const token = window.__privyAccessToken
-      
-      const res = await fetch(`/api/agents/${agent.id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ...formData,
-          bio: formData.bio.split('\n').filter(b => b.trim())
-        })
-      })
-
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || 'Failed to update agent')
-      }
-
-      toast.success('Agent updated successfully')
-      onUpdate()
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update agent')
-    } finally {
-      setSaving(false)
+    const token = await getAccessToken()
+    if (!token) {
+      throw new Error('Authentication required')
     }
+    
+    const res = await fetch(`/api/agents/${agent.id}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        ...formData,
+        bio: formData.bio.split('\n').filter(b => b.trim())
+      })
+    })
+
+    if (!res.ok) {
+      const error = await res.json()
+      setSaving(false)
+      throw new Error(error.error || 'Failed to update agent')
+    }
+
+    toast.success('Agent updated successfully')
+    onUpdate()
+    setSaving(false)
   }
 
   return (

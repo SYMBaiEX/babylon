@@ -51,6 +51,7 @@ describe('NPC Perpetual Trading Fees', () => {
         domain: [],
         affiliations: [],
         postExample: [],
+        isTest: true,
         updatedAt: new Date(),
       },
     });

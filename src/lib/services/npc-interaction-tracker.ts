@@ -46,69 +46,61 @@ export class NPCInteractionTracker {
    * Track a like interaction
    */
   static async trackLike(userId: string, postId: string): Promise<void> {
-    try {
-      // Get post author (should be an NPC)
-      const post = await prisma.post.findUnique({
-        where: { id: postId },
-        select: { authorId: true },
-      });
+    // Get post author (should be an NPC)
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { authorId: true },
+    });
 
-      if (!post) {
-        return;
-      }
-
-      // Check if author is an NPC
-      const author = await prisma.user.findUnique({
-        where: { id: post.authorId },
-        select: { isActor: true },
-      });
-
-      if (!author?.isActor) {
-        return; // Not an NPC post
-      }
-
-      // We don't need to store individual likes in UserInteraction
-      // They're already in the Reaction table
-      // This method is just for validation
-      
-      logger.debug(`User ${userId} liked NPC ${post.authorId}'s post`, undefined, 'NPCInteractionTracker');
-    } catch (error) {
-      logger.error('Error tracking like', { error, userId, postId }, 'NPCInteractionTracker');
+    if (!post) {
+      return;
     }
+
+    // Check if author is an NPC
+    const author = await prisma.user.findUnique({
+      where: { id: post.authorId },
+      select: { isActor: true },
+    });
+
+    if (!author?.isActor) {
+      return; // Not an NPC post
+    }
+
+    // We don't need to store individual likes in UserInteraction
+    // They're already in the Reaction table
+    // This method is just for validation
+    
+    logger.debug(`User ${userId} liked NPC ${post.authorId}'s post`, undefined, 'NPCInteractionTracker');
   }
 
   /**
    * Track a share/retweet interaction
    */
   static async trackShare(userId: string, postId: string): Promise<void> {
-    try {
-      // Get post author (should be an NPC)
-      const post = await prisma.post.findUnique({
-        where: { id: postId },
-        select: { authorId: true },
-      });
+    // Get post author (should be an NPC)
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { authorId: true },
+    });
 
-      if (!post) {
-        return;
-      }
-
-      // Check if author is an NPC
-      const author = await prisma.user.findUnique({
-        where: { id: post.authorId },
-        select: { isActor: true },
-      });
-
-      if (!author?.isActor) {
-        return; // Not an NPC post
-      }
-
-      // We don't need to store individual shares in UserInteraction
-      // They're already in the Share table
-      
-      logger.debug(`User ${userId} shared NPC ${post.authorId}'s post`, undefined, 'NPCInteractionTracker');
-    } catch (error) {
-      logger.error('Error tracking share', { error, userId, postId }, 'NPCInteractionTracker');
+    if (!post) {
+      return;
     }
+
+    // Check if author is an NPC
+    const author = await prisma.user.findUnique({
+      where: { id: post.authorId },
+      select: { isActor: true },
+    });
+
+    if (!author?.isActor) {
+      return; // Not an NPC post
+    }
+
+    // We don't need to store individual shares in UserInteraction
+    // They're already in the Share table
+    
+    logger.debug(`User ${userId} shared NPC ${post.authorId}'s post`, undefined, 'NPCInteractionTracker');
   }
 
   /**

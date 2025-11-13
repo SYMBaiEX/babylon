@@ -7,7 +7,8 @@ export default {
     }
   },
   authentication: 'Authentication',
-  'complete-api-reference': 'Complete API Reference (72 Methods)',
+  'complete-api-reference': 'Complete API Reference (73 Methods)',
+  'server-configuration': 'Server Configuration',
   examples: 'Code Examples',
   testing: 'Testing Guide'
 }

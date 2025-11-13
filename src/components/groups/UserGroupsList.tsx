@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 import { Users, Plus, Crown } from 'lucide-react';
 import { CreateGroupModal } from './CreateGroupModal';
 import { GroupDetailsModal } from './GroupDetailsModal';
-import { toast } from 'sonner';
+// import { toast } from 'sonner';
 
 interface UserGroup {
   id: string;
@@ -29,21 +29,15 @@ export function UserGroupsList() {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   const loadGroups = async () => {
-    try {
-      const response = await fetch('/api/user-groups');
-      const data = await response.json();
+    const response = await fetch('/api/user-groups');
+    const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to load groups');
-      }
-
-      setGroups(data.data);
-    } catch (error) {
-      console.error('Error loading groups:', error);
-      toast.error('Failed to load groups');
-    } finally {
-      setIsLoading(false);
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to load groups');
     }
+
+    setGroups(data.data);
+    setIsLoading(false);
   };
 
   useEffect(() => {

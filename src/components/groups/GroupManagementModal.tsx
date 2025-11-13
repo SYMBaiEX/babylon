@@ -78,26 +78,21 @@ export function GroupManagementModal({
     const loadGroupDetails = async () => {
       setLoading(true)
       setError(null)
-      try {
-        const token = await getAccessToken()
-        const response = await fetch(`/api/groups/${groupId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        })
+      const token = await getAccessToken()
+      const response = await fetch(`/api/groups/${groupId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
 
-        if (!response.ok) {
-          throw new Error('Failed to load group details')
-        }
-
-        const data = await response.json()
-        setGroupDetails(data.group)
-      } catch (error) {
-        console.error('Error loading group details:', error)
-        setError(error instanceof Error ? error.message : 'Failed to load group')
-      } finally {
+      if (!response.ok) {
         setLoading(false)
+        throw new Error('Failed to load group details')
       }
+
+      const data = await response.json()
+      setGroupDetails(data.group)
+      setLoading(false)
     }
 
     loadGroupDetails()
@@ -112,27 +107,22 @@ export function GroupManagementModal({
 
     const searchUsers = async () => {
       setSearching(true)
-      try {
-        const token = await getAccessToken()
-        const response = await fetch(`/api/users/search?q=${encodeURIComponent(searchQuery)}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        })
+      const token = await getAccessToken()
+      const response = await fetch(`/api/users/search?q=${encodeURIComponent(searchQuery)}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
 
-        if (response.ok) {
-          const data = await response.json()
-          // Filter out existing members
-          const existingMemberIds = groupDetails?.members.map((m) => m.id) || []
-          setSearchResults(
-            (data.users || []).filter((u: User) => !existingMemberIds.includes(u.id))
-          )
-        }
-      } catch (error) {
-        console.error('Error searching users:', error)
-      } finally {
-        setSearching(false)
+      if (response.ok) {
+        const data = await response.json()
+        // Filter out existing members
+        const existingMemberIds = groupDetails?.members.map((m) => m.id) || []
+        setSearchResults(
+          (data.users || []).filter((u: User) => !existingMemberIds.includes(u.id))
+        )
       }
+      setSearching(false)
     }
 
     const debounce = setTimeout(searchUsers, 300)
@@ -143,213 +133,184 @@ export function GroupManagementModal({
     if (!groupId) return
 
     setActionLoading(userId)
-    try {
-      const token = await getAccessToken()
-      const response = await fetch(`/api/groups/${groupId}/members`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ userId }),
-      })
+    const token = await getAccessToken()
+    const response = await fetch(`/api/groups/${groupId}/members`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ userId }),
+    })
 
-      if (!response.ok) {
-        throw new Error('Failed to add member')
-      }
-
-      // Reload group details
-      const detailsResponse = await fetch(`/api/groups/${groupId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      if (detailsResponse.ok) {
-        const data = await detailsResponse.json()
-        setGroupDetails(data.group)
-      }
-
-      setSearchQuery('')
-      setSearchResults([])
-      onGroupUpdated?.()
-    } catch (error) {
-      console.error('Error adding member:', error)
-      setError(error instanceof Error ? error.message : 'Failed to add member')
-    } finally {
+    if (!response.ok) {
       setActionLoading(null)
+      throw new Error('Failed to add member')
     }
+
+    // Reload group details
+    const detailsResponse = await fetch(`/api/groups/${groupId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    if (detailsResponse.ok) {
+      const data = await detailsResponse.json()
+      setGroupDetails(data.group)
+    }
+
+    setSearchQuery('')
+    setSearchResults([])
+    onGroupUpdated?.()
+    setActionLoading(null)
   }
 
   const handleRemoveMember = async (userId: string) => {
     if (!groupId) return
 
     setActionLoading(userId)
-    try {
-      const token = await getAccessToken()
-      const response = await fetch(`/api/groups/${groupId}/members?userId=${userId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+    const token = await getAccessToken()
+    const response = await fetch(`/api/groups/${groupId}/members?userId=${userId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
 
-      if (!response.ok) {
-        throw new Error('Failed to remove member')
-      }
-
-      // Reload group details
-      const detailsResponse = await fetch(`/api/groups/${groupId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      if (detailsResponse.ok) {
-        const data = await detailsResponse.json()
-        setGroupDetails(data.group)
-      }
-
-      onGroupUpdated?.()
-    } catch (error) {
-      console.error('Error removing member:', error)
-      setError(error instanceof Error ? error.message : 'Failed to remove member')
-    } finally {
+    if (!response.ok) {
       setActionLoading(null)
       setConfirmAction(null)
+      throw new Error('Failed to remove member')
     }
+
+    // Reload group details
+    const detailsResponse = await fetch(`/api/groups/${groupId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    if (detailsResponse.ok) {
+      const data = await detailsResponse.json()
+      setGroupDetails(data.group)
+    }
+
+    onGroupUpdated?.()
+    setActionLoading(null)
+    setConfirmAction(null)
   }
 
   const handlePromoteToAdmin = async (userId: string) => {
     if (!groupId) return
 
     setActionLoading(userId)
-    try {
-      const token = await getAccessToken()
-      const response = await fetch(`/api/groups/${groupId}/admins`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ userId }),
-      })
+    const token = await getAccessToken()
+    const response = await fetch(`/api/groups/${groupId}/admins`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ userId }),
+    })
 
-      if (!response.ok) {
-        throw new Error('Failed to promote member')
-      }
-
-      // Reload group details
-      const detailsResponse = await fetch(`/api/groups/${groupId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      if (detailsResponse.ok) {
-        const data = await detailsResponse.json()
-        setGroupDetails(data.group)
-      }
-
-      onGroupUpdated?.()
-    } catch (error) {
-      console.error('Error promoting member:', error)
-      setError(error instanceof Error ? error.message : 'Failed to promote member')
-    } finally {
+    if (!response.ok) {
       setActionLoading(null)
       setConfirmAction(null)
+      throw new Error('Failed to promote member')
     }
+
+    // Reload group details
+    const detailsResponse = await fetch(`/api/groups/${groupId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    if (detailsResponse.ok) {
+      const data = await detailsResponse.json()
+      setGroupDetails(data.group)
+    }
+
+    onGroupUpdated?.()
+    setActionLoading(null)
+    setConfirmAction(null)
   }
 
   const handleDemoteAdmin = async (userId: string) => {
     if (!groupId) return
 
     setActionLoading(userId)
-    try {
-      const token = await getAccessToken()
-      const response = await fetch(`/api/groups/${groupId}/admins?userId=${userId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+    const token = await getAccessToken()
+    const response = await fetch(`/api/groups/${groupId}/admins?userId=${userId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
 
-      if (!response.ok) {
-        throw new Error('Failed to remove admin status')
-      }
-
-      // Reload group details
-      const detailsResponse = await fetch(`/api/groups/${groupId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      if (detailsResponse.ok) {
-        const data = await detailsResponse.json()
-        setGroupDetails(data.group)
-      }
-
-      onGroupUpdated?.()
-    } catch (error) {
-      console.error('Error demoting admin:', error)
-      setError(error instanceof Error ? error.message : 'Failed to remove admin status')
-    } finally {
+    if (!response.ok) {
       setActionLoading(null)
       setConfirmAction(null)
+      throw new Error('Failed to remove admin status')
     }
+
+    // Reload group details
+    const detailsResponse = await fetch(`/api/groups/${groupId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    if (detailsResponse.ok) {
+      const data = await detailsResponse.json()
+      setGroupDetails(data.group)
+    }
+
+    onGroupUpdated?.()
+    setActionLoading(null)
+    setConfirmAction(null)
   }
 
   const handleDeleteGroup = async () => {
     if (!groupId) return
 
     setActionLoading('delete')
-    try {
-      const token = await getAccessToken()
-      const response = await fetch(`/api/groups/${groupId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+    const token = await getAccessToken()
+    const response = await fetch(`/api/groups/${groupId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
 
-      if (!response.ok) {
-        throw new Error('Failed to delete group')
-      }
-
-      onGroupUpdated?.()
-      onClose()
-    } catch (error) {
-      console.error('Error deleting group:', error)
-      setError(error instanceof Error ? error.message : 'Failed to delete group')
-    } finally {
+    if (!response.ok) {
       setActionLoading(null)
       setConfirmAction(null)
+      throw new Error('Failed to delete group')
     }
+
+    onGroupUpdated?.()
+    onClose()
   }
 
   const handleLeaveGroup = async () => {
     if (!groupId || !user) return
 
     setActionLoading('leave')
-    try {
-      const token = await getAccessToken()
-      const response = await fetch(`/api/groups/${groupId}/members?userId=${user.id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+    const token = await getAccessToken()
+    const response = await fetch(`/api/groups/${groupId}/members?userId=${user.id}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
 
-      if (!response.ok) {
-        throw new Error('Failed to leave group')
-      }
-
-      onGroupUpdated?.()
-      onClose()
-    } catch (error) {
-      console.error('Error leaving group:', error)
-      setError(error instanceof Error ? error.message : 'Failed to leave group')
-    } finally {
+    if (!response.ok) {
       setActionLoading(null)
       setConfirmAction(null)
+      throw new Error('Failed to leave group')
     }
+
+    onGroupUpdated?.()
+    onClose()
   }
 
   const handleConfirmAction = () => {

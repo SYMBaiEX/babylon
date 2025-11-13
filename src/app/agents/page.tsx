@@ -35,38 +35,38 @@ export default function AgentsPage() {
   const [filter, setFilter] = useState<'all' | 'active' | 'idle'>('all')
 
   const fetchAgents = useCallback(async () => {
-    try {
-      setLoading(true)
-      const token = await getAccessToken()
-      
-      if (!token) {
-        console.error('No access token available')
-        setLoading(false)
-        return
-      }
-      
-      let url = '/api/agents'
-      if (filter === 'active') {
-        url += '?autonomousEnabled=true'
-      } else if (filter === 'idle') {
-        url += '?autonomousEnabled=false'
-      }
-
-      const res = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (res.ok) {
-        const data = await res.json()
-        setAgents(data.agents || [])
-      }
-    } catch (error) {
-      console.error('Failed to fetch agents:', error)
-    } finally {
+    setLoading(true)
+    const token = await getAccessToken()
+    
+    if (!token) {
+      console.error('No access token available')
       setLoading(false)
+      return
     }
+    
+    let url = '/api/agents'
+    if (filter === 'active') {
+      url += '?autonomousTrading=true'
+    } else if (filter === 'idle') {
+      url += '?autonomousTrading=false'
+    }
+
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    }).catch((error: Error) => {
+      console.error('Failed to fetch agents:', error)
+      setLoading(false)
+      throw error
+    })
+
+    if (res.ok) {
+      const data = await res.json()
+      setAgents(data.agents || [])
+    }
+    
+    setLoading(false)
   }, [getAccessToken, filter])
 
   useEffect(() => {

@@ -3,13 +3,14 @@
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList'
 import { PredictionProbabilityChart } from '@/components/markets/PredictionProbabilityChart'
 import { TradeConfirmationDialog, type BuyPredictionDetails } from '@/components/markets/TradeConfirmationDialog'
+import { AssetTradesFeed } from '@/components/markets/AssetTradesFeed'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { useAuth } from '@/hooks/useAuth'
 import { PredictionPricing, calculateExpectedPayout } from '@/lib/prediction-pricing'
 import { cn } from '@/lib/utils'
 import { ArrowLeft, CheckCircle, Clock, Info, TrendingUp, Users, XCircle } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { useMarketTracking } from '@/hooks/usePostHog'
@@ -72,6 +73,7 @@ export default function PredictionDetailPage() {
   const [submitting, setSubmitting] = useState(false)
   const [userPosition, setUserPosition] = useState<PredictionPosition | null>(null)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const pageContainerRef = useRef<HTMLDivElement | null>(null)
 
   // Track market view
   useEffect(() => {
@@ -257,7 +259,7 @@ export default function PredictionDetailPage() {
   const totalTrades = Math.floor(totalVolume / 10) // Rough estimate
 
   return (
-    <PageContainer className="max-w-7xl mx-auto">
+    <PageContainer className="max-w-7xl mx-auto" ref={pageContainerRef}>
       {/* Header */}
       <div className="mb-6">
         <button
@@ -340,7 +342,7 @@ export default function PredictionDetailPage() {
         <div className="lg:col-span-2">
           <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
             <h2 className="text-lg font-bold mb-4">Probability Over Time</h2>
-            <PredictionProbabilityChart data={priceHistory} marketId={marketId} />
+            <PredictionProbabilityChart data={priceHistory} marketId={marketId} showBrush={true} />
           </div>
 
           {/* Market Info */}
@@ -387,6 +389,16 @@ export default function PredictionDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Recent Trades */}
+          <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border mt-4">
+            <h2 className="text-lg font-bold mb-4">Recent Trades</h2>
+            <AssetTradesFeed 
+              marketType="prediction" 
+              assetId={marketId} 
+              containerRef={pageContainerRef}
+            />
+          </div>
         </div>
 
         {/* Trading Panel */}

@@ -165,24 +165,12 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(tweetPayload),
     })
 
-    if (!tweetResponse.ok) {
-      const errorText = await tweetResponse.text()
-      logger.error(
-        'Tweet creation failed',
-        { error: errorText, status: tweetResponse.status },
-        'TwitterPost'
-      )
-      
-      let detailedError = `Failed to create tweet: ${tweetResponse.statusText}`
-      try {
-        const jsonError = JSON.parse(errorText) as { detail?: string; title?: string }
-        detailedError = jsonError.detail || jsonError.title || detailedError
-      } catch {
-        // Ignore if not JSON
-      }
-      
-      throw new Error(detailedError)
-    }
+    const errorText = await tweetResponse.text()
+    logger.error(
+      'Tweet creation failed',
+      { error: errorText, status: tweetResponse.status },
+      'TwitterPost'
+    )
 
     const responseData = await tweetResponse.json() as { 
       data?: { id: string; text: string } 
@@ -194,24 +182,23 @@ export async function POST(request: NextRequest) {
       'TwitterPost'
     )
 
-    // Track the share for points if contentType is provided
     if (contentType) {
-      const token = request.headers.get('authorization')?.replace('Bearer ', '')
-      if (token) {
-        await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/users/${user.id}/share`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            platform: 'twitter',
-            contentType,
-            contentId,
-            url: `https://twitter.com/${twitterToken.screenName || 'i'}/status/${responseData.data?.id}`,
-          }),
-        }).catch((error) => logger.warn('Failed to track share', { error }, 'TwitterPost'))
-      }
+      const token = request.headers.get('authorization')!.replace('Bearer ', '')
+      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/users/${user.id}/share`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          platform: 'twitter',
+          contentType,
+          contentId,
+          url: `https://twitter.com/${twitterToken.screenName}/status/${responseData.data!.id}`,
+        }),
+      })
+
+      logger.warn('Failed to track share', undefined, 'TwitterPost')
     }
 
   return NextResponse.json({

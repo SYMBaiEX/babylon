@@ -23,9 +23,9 @@ Each scenario should:
 - Be satirical/darkly funny
 
 Examples:
-- "Ailon Muskannounces plan to upload consciousness to Tesla, Xitter crashes from announcement traffic"
-- "Scam Altman's AGI becomes self-aware, OpenLIE issues crisis management statement"
-- "Vitamin Uterin proposes Ethereum runs for President, MSDNC breaks exclusive interview"
+- "Ailon Muskannounces plan to upload consciousness to TeslAI, Xitter crashes from announcement traffic"
+- "Scam AIltman's AGI becomes self-aware, OpenLIE issues crisis management statement"
+- "Vitamin Uterin proposes Etherai-foundation runs for President, MSDNC breaks exclusive interview"
 
 Return JSON:
 {

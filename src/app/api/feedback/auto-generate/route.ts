@@ -17,7 +17,6 @@ import {
   generateGameCompletionFeedback,
   CompletionFormat,
 } from '@/lib/reputation/reputation-service'
-import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
 const GameMetricsSchema = z.object({
@@ -60,62 +59,40 @@ const AutoGenerateFeedbackRequestSchema = z.discriminatedUnion('type', [
 ])
 
 export async function POST(request: NextRequest) {
-  try {
-    const json = await request.json()
-    const parsed = AutoGenerateFeedbackRequestSchema.safeParse(json)
+  const json = await request.json()
+  const parsed = AutoGenerateFeedbackRequestSchema.parse(json)
 
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'Invalid request payload', details: parsed.error.flatten() },
-        { status: 400 }
-      )
-    }
+  const body = parsed
 
-    const body = parsed.data
+  const agent = await requireUserByIdentifier(body.agentId)
 
-    // Verify agent exists
-    const agent = await requireUserByIdentifier(body.agentId)
+  if (body.type === 'game') {
+    const feedback = await generateGameCompletionFeedback(
+      agent.id,
+      body.gameId,
+      body.metrics
+    )
 
-    // Generate feedback based on type
-    if (body.type === 'game') {
-      const feedback = await generateGameCompletionFeedback(
-        agent.id,
-        body.gameId,
-        body.metrics
-      )
+    return NextResponse.json({
+      success: true,
+      feedbackId: feedback.id,
+      type: 'game',
+      score: feedback.score,
+      message: 'Game feedback generated successfully',
+    }, { status: 201 })
+  } else {
+    const feedback = await CompletionFormat(
+      agent.id,
+      body.tradeId,
+      body.metrics
+    )
 
-      return NextResponse.json({
-        success: true,
-        feedbackId: feedback.id,
-        type: 'game',
-        score: feedback.score,
-        message: 'Game feedback generated successfully',
-      }, { status: 201 })
-    } else {
-      // type === 'trade'
-      const feedback = await CompletionFormat(
-        agent.id,
-        body.tradeId,
-        body.metrics
-      )
-
-      return NextResponse.json({
-        success: true,
-        feedbackId: feedback.id,
-        type: 'trade',
-        score: feedback.score,
-        message: 'Trade feedback generated successfully',
-      }, { status: 201 })
-    }
-  } catch (error) {
-    logger.error('Failed to auto-generate feedback', error)
-
-    if (error instanceof Error) {
-      if (error.message.includes('not found')) {
-        return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
-      }
-    }
-
-    return NextResponse.json({ error: 'Failed to generate feedback' }, { status: 500 })
+    return NextResponse.json({
+      success: true,
+      feedbackId: feedback.id,
+      type: 'trade',
+      score: feedback.score,
+      message: 'Trade feedback generated successfully',
+    }, { status: 201 })
   }
 }

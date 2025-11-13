@@ -38,98 +38,92 @@ export async function checkProfileUpdateRateLimit(
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
-  try {
-    // Count recent updates
-    const [recentUpdates24h, recentUpdates1h, recentUsernameChanges] = await Promise.all([
-      // Updates in last 24 hours
-      prisma.profileUpdateLog.count({
-        where: {
-          userId,
-          createdAt: { gte: oneDayAgo },
-        },
-      }),
-      // Updates in last hour
-      prisma.profileUpdateLog.count({
-        where: {
-          userId,
-          createdAt: { gte: oneHourAgo },
-        },
-      }),
-      // Username changes in last 24 hours
-      isUsernameChange
-        ? prisma.profileUpdateLog.count({
-            where: {
-              userId,
-              createdAt: { gte: oneDayAgo },
-              changedFields: { has: 'username' },
-            },
-          })
-        : 0,
-    ]);
+  // Count recent updates
+  const [recentUpdates24h, recentUpdates1h, recentUsernameChanges] = await Promise.all([
+    // Updates in last 24 hours
+    prisma.profileUpdateLog.count({
+      where: {
+        userId,
+        createdAt: { gte: oneDayAgo },
+      },
+    }),
+    // Updates in last hour
+    prisma.profileUpdateLog.count({
+      where: {
+        userId,
+        createdAt: { gte: oneHourAgo },
+      },
+    }),
+    // Username changes in last 24 hours
+    isUsernameChange
+      ? prisma.profileUpdateLog.count({
+          where: {
+            userId,
+            createdAt: { gte: oneDayAgo },
+            changedFields: { has: 'username' },
+          },
+        })
+      : 0,
+  ]);
 
-    // Check hourly limit
-    if (recentUpdates1h >= DEFAULT_CONFIG.maxUpdatesPerHour) {
-      const oldestRecentUpdate = await prisma.profileUpdateLog.findFirst({
-        where: {
-          userId,
-          createdAt: { gte: oneHourAgo },
-        },
-        orderBy: { createdAt: 'asc' },
-      });
+  // Check hourly limit
+  if (recentUpdates1h >= DEFAULT_CONFIG.maxUpdatesPerHour) {
+    const oldestRecentUpdate = await prisma.profileUpdateLog.findFirst({
+      where: {
+        userId,
+        createdAt: { gte: oneHourAgo },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
 
-      const retryAfter = oldestRecentUpdate
-        ? Math.ceil((oldestRecentUpdate.createdAt.getTime() + 60 * 60 * 1000 - now.getTime()) / 1000)
-        : 3600;
+    const retryAfter = oldestRecentUpdate
+      ? Math.ceil((oldestRecentUpdate.createdAt.getTime() + 60 * 60 * 1000 - now.getTime()) / 1000)
+      : 3600;
 
-      logger.warn(
-        'Profile update rate limit exceeded (hourly)',
-        { userId, recentUpdates1h },
-        'RateLimiter'
-      );
+    logger.warn(
+      'Profile update rate limit exceeded (hourly)',
+      { userId, recentUpdates1h },
+      'RateLimiter'
+    );
 
-      return {
-        allowed: false,
-        reason: `Too many profile updates. Please wait ${Math.ceil(retryAfter / 60)} minutes.`,
-        retryAfter,
-      };
-    }
-
-    // Check daily limit
-    if (recentUpdates24h >= DEFAULT_CONFIG.maxUpdatesPerDay) {
-      logger.warn(
-        'Profile update rate limit exceeded (daily)',
-        { userId, recentUpdates24h },
-        'RateLimiter'
-      );
-
-      return {
-        allowed: false,
-        reason: 'Daily profile update limit reached. Try again tomorrow.',
-        retryAfter: 86400,
-      };
-    }
-
-    // Check username change limit
-    if (isUsernameChange && recentUsernameChanges >= DEFAULT_CONFIG.maxUsernameChangesPerDay) {
-      logger.warn(
-        'Username change rate limit exceeded',
-        { userId, recentUsernameChanges },
-        'RateLimiter'
-      );
-
-      return {
-        allowed: false,
-        reason: 'You can only change your username twice per day.',
-        retryAfter: 86400,
-      };
-    }
-
-    return { allowed: true };
-  } catch (error) {
-    logger.error('Rate limit check failed', { error, userId }, 'RateLimiter');
-    // Fail open - allow the update if rate limit check fails
-    return { allowed: true };
+    return {
+      allowed: false,
+      reason: `Too many profile updates. Please wait ${Math.ceil(retryAfter / 60)} minutes.`,
+      retryAfter,
+    };
   }
+
+  // Check daily limit
+  if (recentUpdates24h >= DEFAULT_CONFIG.maxUpdatesPerDay) {
+    logger.warn(
+      'Profile update rate limit exceeded (daily)',
+      { userId, recentUpdates24h },
+      'RateLimiter'
+    );
+
+    return {
+      allowed: false,
+      reason: 'Daily profile update limit reached. Try again tomorrow.',
+      retryAfter: 86400,
+    };
+  }
+
+  // Check username change limit
+  if (isUsernameChange && recentUsernameChanges >= DEFAULT_CONFIG.maxUsernameChangesPerDay) {
+    logger.warn(
+      'Username change rate limit exceeded',
+      { userId, recentUsernameChanges },
+      'RateLimiter'
+    );
+
+    return {
+      allowed: false,
+      reason: 'You can only change your username twice per day.',
+      retryAfter: 86400,
+    };
+  }
+
+  return { allowed: true };
 }
 
 /**
@@ -141,21 +135,16 @@ export async function logProfileUpdate(
   backendSigned: boolean,
   txHash?: string
 ): Promise<void> {
-  try {
-    await prisma.profileUpdateLog.create({
-      data: {
-        id: generateSnowflakeId(),
-        userId,
-        changedFields,
-        backendSigned,
-        txHash: txHash || null,
-        createdAt: new Date(),
-      },
-    });
-  } catch (error) {
-    logger.error('Failed to log profile update', { error, userId }, 'RateLimiter');
-    // Don't throw - logging failure shouldn't block the update
-  }
+  await prisma.profileUpdateLog.create({
+    data: {
+      id: await generateSnowflakeId(),
+      userId,
+      changedFields,
+      backendSigned,
+      txHash: txHash || null,
+      createdAt: new Date(),
+    },
+  });
 }
 
 /**
@@ -170,21 +159,16 @@ export async function getProfileUpdateHistory(
   txHash: string | null;
   createdAt: Date;
 }>> {
-  try {
-    return await prisma.profileUpdateLog.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      select: {
-        changedFields: true,
-        backendSigned: true,
-        txHash: true,
-        createdAt: true,
-      },
-    });
-  } catch (error) {
-    logger.error('Failed to fetch profile update history', { error, userId }, 'RateLimiter');
-    return [];
-  }
+  return await prisma.profileUpdateLog.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+    select: {
+      changedFields: true,
+      backendSigned: true,
+      txHash: true,
+      createdAt: true,
+    },
+  });
 }
 

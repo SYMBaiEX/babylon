@@ -62,18 +62,13 @@ export function NPCPortfolioCard({
   useEffect(() => {
     const fetchPortfolio = async () => {
       setLoading(true)
-      try {
-        const response = await fetch(`/api/npc/${encodeURIComponent(actorId)}/portfolio`)
-        const result = await response.json()
+      const response = await fetch(`/api/npc/${encodeURIComponent(actorId)}/portfolio`)
+      const result = await response.json()
 
-        if (result.success) {
-          setData(result)
-        }
-      } catch (error) {
-        console.error('Failed to fetch NPC portfolio:', error)
-      } finally {
-        setLoading(false)
+      if (result.success) {
+        setData(result)
       }
+      setLoading(false)
     }
 
     fetchPortfolio()

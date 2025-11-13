@@ -156,7 +156,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       },
       update: {},
       create: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         chatId: finalChatId,
         userId,
       },
@@ -165,7 +165,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     // Record membership
     await db.groupChatMembership.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         userId,
         chatId: finalChatId,
         npcAdminId: npcId,

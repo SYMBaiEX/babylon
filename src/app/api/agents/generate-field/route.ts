@@ -1,65 +1,120 @@
-import { NextRequest, NextResponse } from 'next/server'
+/**
+ * AI Field Generation API
+ * 
+ * @route POST /api/agents/generate-field
+ * @access Public
+ * 
+ * @description
+ * AI-powered content generation for agent configuration fields using Claude
+ * (Anthropic). Generates contextually appropriate content for agent profiles,
+ * personalities, system prompts, trading strategies, and other configuration
+ * fields. Used during agent creation and editing workflows.
+ * 
+ * **Supported Fields:**
+ * - `name` - Creative agent names
+ * - `description` - Agent descriptions (1-2 sentences)
+ * - `system` - System prompts defining behavior
+ * - `bio` - Three short bio points (pipe-separated)
+ * - `personality` - Personality descriptions
+ * - `tradingStrategy` - Trading strategy descriptions
+ * 
+ * **Features:**
+ * - Context-aware generation using existing field values
+ * - Field-specific prompts optimized for each use case
+ * - Temperature tuning for creative yet coherent output
+ * - Auto-completion and enhancement of partial inputs
+ * - Clean output without quotes or formatting artifacts
+ * 
+ * **POST /api/agents/generate-field - Generate Field Content**
+ * 
+ * @param {string} fieldName - Field to generate (required)
+ * @param {string} [currentValue] - Current/partial value for enhancement
+ * @param {object} [context] - Context for generation
+ * @param {string} [context.name] - Agent name
+ * @param {string} [context.description] - Agent description
+ * @param {string} [context.system] - System prompt
+ * 
+ * @returns {object} Generated content response
+ * @property {boolean} success - Generation success status
+ * @property {string} value - Generated content
+ * 
+ * @throws {400} Bad Request - Missing field name
+ * @throws {500} Internal Server Error - AI generation failed
+ * @throws {503} Service Unavailable - ANTHROPIC_API_KEY not configured
+ * 
+ * @example
+ * ```typescript
+ * // Generate agent name
+ * const name = await fetch('/api/agents/generate-field', {
+ *   method: 'POST',
+ *   headers: { 'Content-Type': 'application/json' },
+ *   body: JSON.stringify({ fieldName: 'name' })
+ * }).then(r => r.json());
+ * 
+ * // Generate system prompt with context
+ * const system = await fetch('/api/agents/generate-field', {
+ *   method: 'POST',
+ *   body: JSON.stringify({
+ *     fieldName: 'system',
+ *     context: {
+ *       name: 'TraderBot',
+ *       description: 'A conservative trading agent'
+ *     }
+ *   })
+ * }).then(r => r.json());
+ * 
+ * // Enhance partial input
+ * const enhanced = await fetch('/api/agents/generate-field', {
+ *   method: 'POST',
+ *   body: JSON.stringify({
+ *     fieldName: 'description',
+ *     currentValue: 'An agent that focuses on',
+ *     context: { name: 'MarketMaker' }
+ *   })
+ * }).then(r => r.json());
+ * ```
+ * 
+ * @see {@link /src/app/agents/create/page.tsx} Agent creation UI
+ * @see {@link https://www.anthropic.com/api} Anthropic API
+ */
+
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { logger } from '@/lib/logger'
 
 export async function POST(req: NextRequest) {
-  try {
-    const { fieldName, currentValue, context } = await req.json()
+  const { fieldName, currentValue, context } = await req.json()
 
-    if (!fieldName) {
-      return NextResponse.json(
-        { success: false, error: 'Field name required' },
-        { status: 400 }
-      )
-    }
+  const anthropicApiKey = process.env.ANTHROPIC_API_KEY!
+  const anthropic = new Anthropic({ apiKey: anthropicApiKey })
 
-    const anthropicApiKey = process.env.ANTHROPIC_API_KEY
-    if (!anthropicApiKey) {
-      return NextResponse.json(
-        { success: false, error: 'AI generation not configured' },
-        { status: 500 }
-      )
-    }
+  const prompt = buildPromptForField(fieldName, currentValue, context)
+  const systemPrompt = `You are a helpful assistant that generates agent configurations. Be concise, professional, and authentic.`
 
-    const anthropic = new Anthropic({ apiKey: anthropicApiKey })
+  const message = await anthropic.messages.create({
+    model: 'claude-3-5-sonnet-20241022',
+    max_tokens: 300,
+    temperature: 0.8,
+    system: systemPrompt,
+    messages: [
+      {
+        role: 'user',
+        content: prompt
+      }
+    ]
+  })
 
-    // Build context-aware prompt
-    const prompt = buildPromptForField(fieldName, currentValue, context)
+  const firstContent = message.content[0]!
+  logger.error('Unexpected Anthropic response format', { content: message.content }, 'generate-field')
 
-    const systemPrompt = `You are a helpful assistant that generates agent configurations. Be concise, professional, and authentic.`
+  const generatedValue = (firstContent as { text: string }).text.trim()
+  const cleanedValue = generatedValue.replace(/^["']|["']$/g, '')
 
-    // Generate using Anthropic
-    const message = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 300,
-      temperature: 0.8,
-      system: systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ]
-    })
-
-    const firstContent = message.content[0]
-    const generatedValue = firstContent && firstContent.type === 'text' 
-      ? ('text' in firstContent ? firstContent.text.trim() : '')
-      : ''
-
-    // Clean up quotes
-    const cleanedValue = generatedValue.replace(/^["']|["']$/g, '')
-
-    return NextResponse.json({
-      success: true,
-      value: cleanedValue
-    })
-  } catch (error) {
-    console.error('Error generating field:', error)
-    return NextResponse.json(
-      { success: false, error: 'Failed to generate field' },
-      { status: 500 }
-    )
-  }
+  return NextResponse.json({
+    success: true,
+    value: cleanedValue
+  })
 }
 
 function buildPromptForField(

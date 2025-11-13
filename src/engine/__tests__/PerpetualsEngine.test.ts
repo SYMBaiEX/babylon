@@ -1,12 +1,41 @@
 /**
- * Perpetuals Engine Tests
+ * PerpetualsEngine Test Suite
  *
- * Verifies:
- * - Position opening with correct liquidation prices
- * - PnL calculations (long/short)
+ * @module engine/__tests__/PerpetualsEngine.test
+ * 
+ * @description
+ * Comprehensive test suite for the PerpetualsEngine leveraged trading system.
+ * Tests position management, PnL calculations, funding rates, liquidations,
+ * and market data tracking.
+ * 
+ * **Test Coverage:**
+ * - Market initialization from organizations
+ * - Position opening (long/short with leverage)
+ * - Liquidation price calculations
+ * - Unrealized PnL calculations
+ * - Liquidation detection logic
  * - Funding payment calculations
- * - Liquidation detection
+ * - Position closing with realized PnL
+ * - Price updates and PnL tracking
  * - Daily snapshot recording
+ * - Exit price override functionality
+ * 
+ * **Key Features Tested:**
+ * - Correct liquidation prices for various leverages
+ * - Accurate PnL for both long and short positions
+ * - Proper funding rate application
+ * - Liquidation triggering at correct prices
+ * - Position state synchronization
+ * - Market data integrity
+ * 
+ * **Testing Approach:**
+ * - Unit tests for calculation functions
+ * - Integration tests for full position lifecycle
+ * - Edge case testing (high leverage, price movements)
+ * - State consistency verification
+ * 
+ * @see {@link PerpetualsEngine} - Class under test
+ * @see {@link /shared/perps-types.ts} - Calculation functions tested
  */
 import { describe, expect, test } from 'bun:test';
 

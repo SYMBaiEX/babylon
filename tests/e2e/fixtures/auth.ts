@@ -133,13 +133,9 @@ export async function setupAuthState(page: any, navigateToUrl?: string) {
       }),
     }
 
-    // Set each key in localStorage
+    // Set each key in localStorage - fail fast if localStorage unavailable
     Object.entries(privyState).forEach(([key, value]) => {
-      try {
-        localStorage.setItem(key, value)
-      } catch (e) {
-        console.error('Failed to set localStorage item:', key, e)
-      }
+      localStorage.setItem(key, value)
     })
   }, { user: TEST_USER, token: MOCK_ACCESS_TOKEN })
 

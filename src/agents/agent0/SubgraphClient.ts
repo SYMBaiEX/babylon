@@ -77,14 +77,9 @@ export class SubgraphClient {
     const result: Record<string, string> = {}
     
     for (const item of metadata) {
-      // Try to decode hex-encoded values
       let decoded = item.value
       if (item.value.startsWith('0x')) {
-        try {
-          decoded = Buffer.from(item.value.slice(2), 'hex').toString('utf8')
-        } catch {
-          decoded = item.value
-        }
+        decoded = Buffer.from(item.value.slice(2), 'hex').toString('utf8')
       }
       result[item.key] = decoded
     }
@@ -98,14 +93,11 @@ export class SubgraphClient {
   private transformAgent(raw: RawSubgraphAgent): SubgraphAgent {
     const meta = this.parseMetadata(raw.metadata)
     
-    // Parse capabilities if present
-    let capabilities: string | undefined
-    if (meta.capabilities) {
-      const validation = CapabilitiesSchema.safeParse(JSON.parse(meta.capabilities));
-      if (validation.success) {
-        capabilities = meta.capabilities;
-      }
-    }
+    const capabilities = meta.capabilities
+      ? CapabilitiesSchema.safeParse(JSON.parse(meta.capabilities)).success
+        ? meta.capabilities
+        : undefined
+      : undefined
 
     return {
       id: raw.id,
@@ -117,15 +109,15 @@ export class SubgraphClient {
       mcpEndpoint: meta.mcpEndpoint,
       a2aEndpoint: meta.a2aEndpoint,
       capabilities,
-      reputation: undefined, // Not available in current schema
-      feedbacks: [] // Not available in current schema
+      reputation: undefined,
+      feedbacks: []
     }
   }
   
   /**
    * Get agent by token ID
    */
-  async getAgent(tokenId: number): Promise<SubgraphAgent | null> {
+  async getAgent(tokenId: number): Promise<SubgraphAgent> {
     const query = `
       query GetAgent($agentId: String!) {
         agents(where: { agentId: $agentId }) {
@@ -148,12 +140,7 @@ export class SubgraphClient {
       agentId: tokenId.toString() 
     }) as { agents: RawSubgraphAgent[] }
     
-    const agent = data.agents[0]
-    if (!agent) {
-      return null
-    }
-    
-    return this.transformAgent(agent)
+    return this.transformAgent(data.agents[0]!)
   }
   
   /**
@@ -199,35 +186,21 @@ export class SubgraphClient {
       results = results.filter(agent => agent.type === filters.type)
     }
     
-    // Filter by strategies
     if (filters.strategies && filters.strategies.length > 0) {
       results = results.filter(agent => {
-        if (!agent.capabilities) return false
-        try {
-          const caps = JSON.parse(agent.capabilities)
-          const validation = CapabilitiesSchema.safeParse(caps);
-          if (!validation.success) return false;
-          const agentStrategies = validation.data.strategies ?? [];
-          return filters.strategies!.some(s => agentStrategies.includes(s))
-        } catch {
-          return false
-        }
+        const caps = JSON.parse(agent.capabilities!)
+        const validation = CapabilitiesSchema.parse(caps)
+        const agentStrategies = validation.strategies ?? []
+        return filters.strategies!.some(s => agentStrategies.includes(s))
       })
     }
     
-    // Filter by markets
     if (filters.markets && filters.markets.length > 0) {
       results = results.filter(agent => {
-        if (!agent.capabilities) return false
-        try {
-          const caps = JSON.parse(agent.capabilities)
-          const validation = CapabilitiesSchema.safeParse(caps);
-          if (!validation.success) return false;
-          const agentMarkets = validation.data.markets ?? [];
-          return filters.markets!.some(m => agentMarkets.includes(m))
-        } catch {
-          return false
-        }
+        const caps = JSON.parse(agent.capabilities!)
+        const validation = CapabilitiesSchema.parse(caps)
+        const agentMarkets = validation.markets ?? []
+        return filters.markets!.some(m => agentMarkets.includes(m))
       })
     }
     
@@ -259,7 +232,7 @@ export class SubgraphClient {
     timestamp: number
   }>> {
     const agent = await this.getAgent(tokenId)
-    return agent?.feedbacks || []
+    return agent.feedbacks!
   }
 }
 

@@ -46,15 +46,14 @@ async function main() {
   console.log('═══════════════════════════════════════\n');
 
   // Check if server is running (just verify it responds, don't check status)
-  try {
-    const response = await fetch(`${baseUrl}/api/stats`);
-    // Server responded (even if with error), so it's running
-    console.log(`✅ Server responding (status: ${response.status})\n`);
-  } catch (error) {
+  const response = await fetch(`${baseUrl}/api/stats`).catch(() => {
     console.error('❌ Could not connect to server');
     console.error(`   Make sure the server is running at ${baseUrl}`);
     process.exit(1);
-  }
+    throw new Error('Server not running');
+  });
+  // Server responded (even if with error), so it's running
+  console.log(`✅ Server responding (status: ${response.status})\n`);
 
   console.log('✅ Server is running\n');
   console.log('Starting load test...\n');
@@ -203,8 +202,5 @@ async function main() {
   console.log(`Results saved to: ${resultsFile}\n`);
 }
 
-main().catch(error => {
-  console.error('Error running load test:', error);
-  process.exit(1);
-});
+main();
 

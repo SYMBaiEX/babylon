@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { FileText, Filter } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/hooks/useAuth'
 
 interface Log {
   id: string
@@ -21,6 +22,7 @@ interface AgentLogsProps {
 }
 
 export function AgentLogs({ agentId }: AgentLogsProps) {
+  const { getAccessToken } = useAuth()
   const [logs, setLogs] = useState<Log[]>([])
   const [loading, setLoading] = useState(false)
   const [typeFilter, setTypeFilter] = useState<string>('all')
@@ -35,29 +37,25 @@ export function AgentLogs({ agentId }: AgentLogsProps) {
   }, [agentId, typeFilter, levelFilter])
 
   const fetchLogs = async () => {
-    try {
-      setLoading(true)
-      const token = window.__privyAccessToken
-      
-      let url = `/api/agents/${agentId}/logs?limit=100`
-      if (typeFilter !== 'all') url += `&type=${typeFilter}`
-      if (levelFilter !== 'all') url += `&level=${levelFilter}`
+    setLoading(true)
+    const token = await getAccessToken()
+    if (!token) return
+    
+    let url = `/api/agents/${agentId}/logs?limit=100`
+    if (typeFilter !== 'all') url += `&type=${typeFilter}`
+    if (levelFilter !== 'all') url += `&level=${levelFilter}`
 
-      const res = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (res.ok) {
-        const data = await res.json()
-        setLogs(data.logs)
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`
       }
-    } catch (error) {
-      console.error('Failed to fetch logs:', error)
-    } finally {
-      setLoading(false)
+    })
+
+    if (res.ok) {
+      const data = await res.json()
+      setLogs(data.logs)
     }
+    setLoading(false)
   }
 
   const toggleExpanded = (logId: string) => {

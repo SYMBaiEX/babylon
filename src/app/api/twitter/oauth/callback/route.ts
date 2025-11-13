@@ -164,16 +164,18 @@ export async function GET(request: NextRequest) {
     await prisma.twitterOAuthToken.upsert({
       where: { userId },
       create: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         userId,
         oauth1Token: accessToken,
         oauth1TokenSecret: accessTokenSecret,
         screenName: screenName || undefined,
+        updatedAt: new Date(),
       },
       update: {
         oauth1Token: accessToken,
         oauth1TokenSecret: accessTokenSecret,
         screenName: screenName || undefined,
+        updatedAt: new Date(),
       },
     })
 

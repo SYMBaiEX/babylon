@@ -39,12 +39,13 @@ describe('Spot Pricing Integration', () => {
         domain: ['tech'],
         hasPool: true,
         tradingBalance: new Prisma.Decimal(50000),
+        isTest: true,
         updatedAt: new Date(),
       },
     });
 
     // Create test pool
-    testPoolId = generateSnowflakeId();
+    testPoolId = await generateSnowflakeId();
     await prisma.pool.create({
       data: {
         id: testPoolId,
@@ -73,7 +74,7 @@ describe('Spot Pricing Integration', () => {
     // Create long position
     await prisma.poolPosition.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         poolId: testPoolId,
         marketType: 'perp',
         ticker,
@@ -150,7 +151,7 @@ describe('Spot Pricing Integration', () => {
     // Create multiple positions
     await prisma.poolPosition.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         poolId: testPoolId,
         marketType: 'perp',
         ticker,
@@ -168,7 +169,7 @@ describe('Spot Pricing Integration', () => {
 
     await prisma.poolPosition.create({
       data: {
-        id: generateSnowflakeId(),
+        id: await generateSnowflakeId(),
         poolId: testPoolId,
         marketType: 'perp',
         ticker,

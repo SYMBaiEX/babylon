@@ -38,23 +38,23 @@ function MobileHeaderContent() {
     const controller = new AbortController()
 
     const hydrateProfileImage = async () => {
-      try {
-        const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/profile`, {
-          signal: controller.signal,
+      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/profile`, {
+        signal: controller.signal,
+      }).catch((error: Error) => {
+        if (error.name === 'AbortError') return null
+        throw error
+      })
+      
+      if (!response || !response.ok) return
+      const data = await response.json()
+      const profileUrl = data?.user?.profileImageUrl as string | undefined
+      const coverUrl = data?.user?.coverImageUrl as string | undefined
+      if (profileUrl || coverUrl) {
+        setUser({
+          ...user,
+          profileImageUrl: profileUrl ?? user.profileImageUrl,
+          coverImageUrl: coverUrl ?? user.coverImageUrl,
         })
-        if (!response.ok) return
-        const data = await response.json().catch(() => ({}))
-        const profileUrl = data?.user?.profileImageUrl as string | undefined
-        const coverUrl = data?.user?.coverImageUrl as string | undefined
-        if (profileUrl || coverUrl) {
-          setUser({
-            ...user,
-            profileImageUrl: profileUrl ?? user.profileImageUrl,
-            coverImageUrl: coverUrl ?? user.coverImageUrl,
-          })
-        }
-      } catch (error) {
-        if ((error as DOMException).name === 'AbortError') return
       }
     }
 
@@ -132,15 +132,11 @@ function MobileHeaderContent() {
   const copyReferralCode = async () => {
     if (!user?.referralCode) return
     
-    try {
-      // Create full referral URL
-      const referralUrl = `${window.location.origin}?ref=${user.referralCode}`
-      await navigator.clipboard.writeText(referralUrl)
-      setCopiedReferral(true)
-      setTimeout(() => setCopiedReferral(false), 2000)
-    } catch (err) {
-      console.error('Failed to copy referral code:', err)
-    }
+    // Create full referral URL
+    const referralUrl = `${window.location.origin}?ref=${user.referralCode}`
+    await navigator.clipboard.writeText(referralUrl)
+    setCopiedReferral(true)
+    setTimeout(() => setCopiedReferral(false), 2000)
   }
 
   // Render nothing if should be hidden (after all hooks)

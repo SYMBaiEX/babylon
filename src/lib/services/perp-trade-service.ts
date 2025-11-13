@@ -169,7 +169,7 @@ export class PerpTradeService {
 
         await db.balanceTransaction.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             userId: authUser.userId,
             type: 'perp_open',
             amount: -totalCost,
@@ -227,20 +227,7 @@ export class PerpTradeService {
       size,
     };
 
-    try {
-      await applyPerpTradeImpacts([tradeImpact]);
-    } catch (error) {
-      logger.warn(
-        'Failed to apply price impact after opening perp position',
-        {
-          error,
-          ticker: input.ticker,
-          side: input.side,
-          size,
-        },
-        'PerpTradeService.openPosition'
-      );
-    }
+    await applyPerpTradeImpacts([tradeImpact]);
 
     const newBalance = (await WalletService.getBalance(authUser.userId))
       .balance;
@@ -422,20 +409,7 @@ export class PerpTradeService {
       size: position.size,
     };
 
-    try {
-      await applyPerpTradeImpacts([closingImpact]);
-    } catch (error) {
-      logger.warn(
-        'Failed to apply price impact after closing perp position',
-        {
-          error,
-          ticker: position.ticker,
-          side: closingImpact.side,
-          size: position.size,
-        },
-        'PerpTradeService.closePosition'
-      );
-    }
+    await applyPerpTradeImpacts([closingImpact]);
 
     const newBalance = (await WalletService.getBalance(authUser.userId))
       .balance;

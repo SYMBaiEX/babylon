@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Users, MessageSquare, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
-import { toast } from 'sonner';
+// import { toast } from 'sonner';
 import { z } from 'zod';
 
 const GroupParticipantSchema = z.object({
@@ -83,34 +83,28 @@ export function GroupChatsAdmin() {
 
   const loadGroups = async () => {
     setIsLoading(true);
-    try {
-      const params = new URLSearchParams({
-        sortBy,
-        sortOrder,
-      });
-      
-      if (creatorFilter) {
-        params.append('creator', creatorFilter);
-      }
-
-      const response = await fetch(`/api/admin/groups?${params}`);
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to load groups');
-      }
-
-      const validation = z.array(GroupChatSchema).safeParse(data.data.groups);
-      if (!validation.success) {
-        throw new Error('Invalid group data structure');
-      }
-      setGroups(validation.data);
-    } catch (error) {
-      console.error('Error loading groups:', error);
-      toast.error('Failed to load groups');
-    } finally {
-      setIsLoading(false);
+    const params = new URLSearchParams({
+      sortBy,
+      sortOrder,
+    });
+    
+    if (creatorFilter) {
+      params.append('creator', creatorFilter);
     }
+
+    const response = await fetch(`/api/admin/groups?${params}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to load groups');
+    }
+
+    const validation = z.array(GroupChatSchema).safeParse(data.data.groups);
+    if (!validation.success) {
+      throw new Error('Invalid group data structure');
+    }
+    setGroups(validation.data);
+    setIsLoading(false);
   };
 
   const loadMessages = async (groupId: string) => {
@@ -121,29 +115,23 @@ export function GroupChatsAdmin() {
 
     setLoadingMessages(prev => ({ ...prev, [groupId]: true }));
     
-    try {
-      const response = await fetch(`/api/admin/groups/${groupId}/messages?limit=100`);
-      const data = await response.json();
+    const response = await fetch(`/api/admin/groups/${groupId}/messages?limit=100`);
+    const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to load messages');
-      }
-
-      const validation = z.array(FullMessageSchema).safeParse(data.data.messages);
-      if (!validation.success) {
-        throw new Error('Invalid message data structure');
-      }
-
-      setFullMessages(prev => ({
-        ...prev,
-        [groupId]: validation.data,
-      }));
-    } catch (error) {
-      console.error('Error loading messages:', error);
-      toast.error('Failed to load messages');
-    } finally {
-      setLoadingMessages(prev => ({ ...prev, [groupId]: false }));
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to load messages');
     }
+
+    const validation = z.array(FullMessageSchema).safeParse(data.data.messages);
+    if (!validation.success) {
+      throw new Error('Invalid message data structure');
+    }
+
+    setFullMessages(prev => ({
+      ...prev,
+      [groupId]: validation.data,
+    }));
+    setLoadingMessages(prev => ({ ...prev, [groupId]: false }));
   };
 
   const toggleGroup = async (groupId: string) => {

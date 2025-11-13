@@ -39,11 +39,12 @@ describe('Follow System API Integration Tests', () => {
       // Create test users if needed
       testUser1 = await prisma.user.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           privyId: `test-follow-user-1-${Date.now()}`,
           username: `followtest1_${Date.now()}`,
           displayName: 'Follow Test User 1',
           walletAddress: `0x${Math.random().toString(16).substr(2, 40)}`,
+          isTest: true,
           updatedAt: new Date(),
         },
         select: {
@@ -55,11 +56,12 @@ describe('Follow System API Integration Tests', () => {
 
       testUser2 = await prisma.user.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           privyId: `test-follow-user-2-${Date.now()}`,
           username: `followtest2_${Date.now()}`,
           displayName: 'Follow Test User 2',
           walletAddress: `0x${Math.random().toString(16).substr(2, 40)}`,
+          isTest: true,
           updatedAt: new Date(),
         },
         select: {
@@ -93,6 +95,7 @@ describe('Follow System API Integration Tests', () => {
           domain: [],
           affiliations: [],
           postExample: [],
+          isTest: true,
           updatedAt: new Date(),
         },
         select: {
@@ -128,8 +131,6 @@ describe('Follow System API Integration Tests', () => {
         userId: { in: [testUser1.id, testUser2.id] },
       },
     })
-
-    await prisma.$disconnect()
   })
 
   describe('User-to-User Follow', () => {
@@ -145,7 +146,7 @@ describe('Follow System API Integration Tests', () => {
       // Create follow
       const follow = await prisma.follow.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           followerId: testUser1.id,
           followingId: testUser2.id,
         },
@@ -180,7 +181,7 @@ describe('Follow System API Integration Tests', () => {
       try {
         await prisma.follow.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             followerId: testUser1.id,
             followingId: testUser2.id,
           },
@@ -269,7 +270,7 @@ describe('Follow System API Integration Tests', () => {
       // Create follow first
       await prisma.follow.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           followerId: testUser1.id,
           followingId: testUser2.id,
         },
@@ -349,7 +350,7 @@ describe('Follow System API Integration Tests', () => {
       // Create follow
       const follow = await prisma.userActorFollow.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           userId: testUser1.id,
           actorId: testActor.id,
         },
@@ -382,7 +383,7 @@ describe('Follow System API Integration Tests', () => {
       try {
         await prisma.userActorFollow.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             userId: testUser1.id,
             actorId: testActor.id,
           },
@@ -442,11 +443,11 @@ describe('Follow System API Integration Tests', () => {
       // Create some follows
       await prisma.follow.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           followerId: testUser1.id,
           followingId: testUser2.id,
         },
-      }).catch(() => {}) // Ignore if already exists
+      })
 
       // Get followers
       const followers = await prisma.follow.findMany({
@@ -503,7 +504,7 @@ describe('Follow System API Integration Tests', () => {
       // Create follow
       await prisma.userActorFollow.create({
         data: {
-          id: generateSnowflakeId(),
+          id: await generateSnowflakeId(),
           userId: testUser1.id,
           actorId: testActor.id,
         },
@@ -536,7 +537,7 @@ describe('Follow System API Integration Tests', () => {
       try {
         await prisma.follow.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             followerId: testUser1.id,
             followingId: 'non-existent-user-id',
           },
@@ -555,7 +556,7 @@ describe('Follow System API Integration Tests', () => {
       try {
         await prisma.follow.create({
           data: {
-            id: generateSnowflakeId(),
+            id: await generateSnowflakeId(),
             followerId: testUser1.id,
             followingId: testUser1.id,
           },
@@ -578,14 +579,22 @@ describe('Follow System API Integration Tests', () => {
 
   describe('Profile API with Follow Counts', () => {
     it('should return correct follower/following counts in profile', async () => {
-      // Ensure User 1 is following User 2
-      await prisma.follow.create({
-        data: {
-          id: generateSnowflakeId(),
+      // Clean up any existing follows first
+      await prisma.follow.deleteMany({
+        where: {
           followerId: testUser1.id,
           followingId: testUser2.id,
         },
-      }).catch(() => {})
+      })
+      
+      // Ensure User 1 is following User 2
+      await prisma.follow.create({
+        data: {
+          id: await generateSnowflakeId(),
+          followerId: testUser1.id,
+          followingId: testUser2.id,
+        },
+      })
 
       // Get User 2 profile
       const user2Profile = await prisma.user.findUnique({

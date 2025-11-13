@@ -27,31 +27,26 @@ export function TrendingPanel() {
   const fetchTrendingRef = useRef<(() => void) | null>(null)
 
   const fetchTrending = useCallback(async (skipCache = false) => {
-    try {
-      // Check cache first (unless explicitly skipping)
-      if (!skipCache) {
-        const cached = getTrending()
-        // Only use cache if it has data (don't cache empty arrays)
-        if (cached && Array.isArray(cached) && cached.length > 0) {
-          setTrending(cached as TrendingItem[])
-          setLoading(false)
-          return
-        }
+    // Check cache first (unless explicitly skipping)
+    if (!skipCache) {
+      const cached = getTrending()
+      // Only use cache if it has data (don't cache empty arrays)
+      if (cached && Array.isArray(cached) && cached.length > 0) {
+        setTrending(cached as TrendingItem[])
+        setLoading(false)
+        return
       }
-
-      const response = await fetch('/api/feed/widgets/trending')
-      const data = await response.json()
-      
-      if (data.success) {
-        const trendingData = data.trending || []
-        setTrending(trendingData)
-        cacheTrending(trendingData) // Cache the data
-      }
-    } catch {
-      // Silently handle errors - empty array is fine
-    } finally {
-      setLoading(false)
     }
+
+    const response = await fetch('/api/feed/widgets/trending')
+    const data = await response.json()
+    
+    if (data.success) {
+      const trendingData = data.trending || []
+      setTrending(trendingData)
+      cacheTrending(trendingData) // Cache the data
+    }
+    setLoading(false)
   }, [getTrending, cacheTrending])
 
   // Update ref when fetchTrending changes

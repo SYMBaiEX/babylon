@@ -8,7 +8,6 @@ import {
   successResponse
 } from '@/lib/api/auth-middleware';
 import { prisma } from '@/lib/database-service';
-import { BusinessLogicError } from '@/lib/errors';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { UserFollowersQuerySchema, UserIdParamSchema } from '@/lib/validation/schemas';
@@ -47,26 +46,17 @@ export const GET = withErrorHandling(async (
   };
   UserFollowersQuerySchema.parse(queryParams);
 
-  // Try to find as user first, then actor
-  let targetId = targetIdentifier;
-  let targetUser = null;
+  let targetId = targetIdentifier
+  let targetUser = null
   
-  try {
-    targetUser = await requireUserByIdentifier(targetIdentifier, { id: true });
-    targetId = targetUser.id;
-  } catch {
-    // Not a user, might be an actor - continue with targetIdentifier
-    logger.debug('Target not found as user, checking if actor', { targetIdentifier }, 'GET /api/users/[userId]/followers');
-  }
+  targetUser = await requireUserByIdentifier(targetIdentifier, { id: true })
+  targetId = targetUser.id
 
-  // Check if target is an actor (NPC)
+  logger.debug('Target not found as user, checking if actor', { targetIdentifier }, 'GET /api/users/[userId]/followers')
+
   const targetActor = await prisma.actor.findUnique({
     where: { id: targetId },
-  });
-
-  if (!targetActor && !targetUser) {
-    throw new BusinessLogicError('User or actor not found', 'NOT_FOUND');
-  }
+  })
 
   let followers: FollowerResponse[] = [];
 

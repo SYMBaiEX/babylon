@@ -67,11 +67,7 @@ const hasBrowserEnv = () =>
 const notifyConnectionStatus = (connected: boolean, error: string | null) => {
   lastConnectionError = error;
   connectionListeners.forEach((listener) => {
-    try {
-      listener(connected, error);
-    } catch (err) {
-      logger.debug('SSE listener callback failed', { error: err }, 'useSSE');
-    }
+    listener(connected, error);
   });
 };
 
@@ -82,11 +78,7 @@ const closeEventSource = () => {
   }
 
   if (globalEventSource) {
-    try {
-      globalEventSource.close();
-    } catch (error) {
-      logger.debug('Error closing SSE connection', { error }, 'useSSE');
-    }
+    globalEventSource.close();
     globalEventSource = null;
   }
 
@@ -156,12 +148,10 @@ async function ensureConnection(forceReconnect = false) {
   connecting = true;
   closeEventSource();
 
-  let token: string | null = null;
-  try {
-    token = await getToken();
-  } catch (error) {
+  const token = await getToken().catch((error) => {
     logger.warn('SSE: failed to obtain access token', { error }, 'useSSE');
-  }
+    return null;
+  });
 
   if (!token) {
     connecting = false;
@@ -191,24 +181,12 @@ async function ensureConnection(forceReconnect = false) {
   };
 
   eventSource.addEventListener('message', (event) => {
-    try {
-      const message: SSEMessage = JSON.parse(event.data);
-      const subs = channelSubscribers.get(message.channel);
-      if (subs && subs.size > 0) {
-        subs.forEach((callback) => {
-          try {
-            callback(message);
-          } catch (error) {
-            logger.debug(
-              'SSE subscriber callback failed',
-              { channel: message.channel, error },
-              'useSSE'
-            );
-          }
-        });
-      }
-    } catch (error) {
-      logger.debug('Failed to parse SSE payload', { error }, 'useSSE');
+    const message: SSEMessage = JSON.parse(event.data);
+    const subs = channelSubscribers.get(message.channel);
+    if (subs && subs.size > 0) {
+      subs.forEach((callback) => {
+        callback(message);
+      });
     }
   });
 

@@ -6,31 +6,11 @@
 
 import { describe, test, expect } from 'bun:test'
 
-// Helper to check if server is available
-async function isServerAvailable(url: string): Promise<boolean> {
-  try {
-    const response = await fetch(url, { method: 'HEAD' })
-    return response.ok || response.status === 401 || response.status === 404
-  } catch {
-    return false
-  }
-}
-
-// Helper to assert validation or auth error
-function expectValidationOrAuthError(status: number) {
-  // Accept various error responses: 200 (success), 400 (validation), 401 (auth), 405 (method not allowed), 500 (server error)
-  expect([200, 400, 401, 405, 500]).toContain(status)
-}
-
 describe('API Validation Integration', () => {
   const BASE_URL = process.env.TEST_API_URL || 'http://localhost:3000'
 
   describe('User Routes Validation', () => {
     test('POST /api/users/[userId]/follow - should reject invalid userId', async () => {
-      if (!(await isServerAvailable(BASE_URL))) {
-        console.log('⚠️  Server not available, skipping HTTP test')
-        return
-      }
       const response = await fetch(`${BASE_URL}/api/users/invalid-uuid/follow`, {
         method: 'POST',
         headers: {
@@ -39,19 +19,14 @@ describe('API Validation Integration', () => {
         }
       })
 
-      expectValidationOrAuthError(response.status)
-      const data = await response.json()
-      // Only check for error if response is an error status
-      if (response.status >= 400 && data) {
+      expect([200, 400, 401, 404]).toContain(response.status)
+      if (response.status >= 400) {
+        const data = await response.json()
         expect(data.error).toBeDefined()
       }
     })
 
     test('PATCH /api/users/[userId]/update-profile - should reject invalid data', async () => {
-      if (!(await isServerAvailable(BASE_URL))) {
-        console.log('⚠️  Server not available, skipping HTTP test')
-        return
-      }
       const response = await fetch(`${BASE_URL}/api/users/test-user/update-profile`, {
         method: 'PATCH',
         headers: {
@@ -64,21 +39,23 @@ describe('API Validation Integration', () => {
         })
       })
 
-      expectValidationOrAuthError(response.status)
-      const data = await response.json()
-      // Only check for error if response is an error status
-      if (response.status >= 400 && data) {
-        expect(data.error).toBeDefined()
+      expect([400, 401, 405]).toContain(response.status)
+      if (response.status >= 400) {
+        try {
+          const data = await response.json()
+          if (data) {
+            expect(data.error || data.message).toBeDefined()
+          }
+        } catch {
+          // Response might not be JSON (HTML error page)
+          expect(response.ok).toBe(false)
+        }
       }
     })
   })
 
   describe('Post Routes Validation', () => {
     test('POST /api/posts - should reject empty content', async () => {
-      if (!(await isServerAvailable(BASE_URL))) {
-        console.log('⚠️  Server not available, skipping HTTP test')
-        return
-      }
       const response = await fetch(`${BASE_URL}/api/posts`, {
         method: 'POST',
         headers: {
@@ -90,19 +67,15 @@ describe('API Validation Integration', () => {
         })
       })
 
-      expectValidationOrAuthError(response.status)
-      const data = await response.json()
-      // Only check for error if response is an error status
-      if (response.status >= 400 && data) {
+      // Server may return 400, 401, or 500 for validation errors
+      expect([400, 401, 500]).toContain(response.status)
+      if (response.status >= 400) {
+        const data = await response.json()
         expect(data.error).toBeDefined()
       }
     })
 
     test('POST /api/posts - should reject content exceeding max length', async () => {
-      if (!(await isServerAvailable(BASE_URL))) {
-        console.log('⚠️  Server not available, skipping HTTP test')
-        return
-      }
       const response = await fetch(`${BASE_URL}/api/posts`, {
         method: 'POST',
         headers: {
@@ -114,10 +87,10 @@ describe('API Validation Integration', () => {
         })
       })
 
-      expectValidationOrAuthError(response.status)
-      const data = await response.json()
-      // Only check for error if response is an error status
-      if (response.status >= 400 && data) {
+      // Server may return 400, 401, or 500 for validation errors
+      expect([400, 401, 500]).toContain(response.status)
+      if (response.status >= 400) {
+        const data = await response.json()
         expect(data.error).toBeDefined()
       }
     })
@@ -125,10 +98,6 @@ describe('API Validation Integration', () => {
 
   describe('Market Routes Validation', () => {
     test('POST /api/markets/predictions/[id]/buy - should reject invalid amount', async () => {
-      if (!(await isServerAvailable(BASE_URL))) {
-        console.log('⚠️  Server not available, skipping HTTP test')
-        return
-      }
       const response = await fetch(`${BASE_URL}/api/markets/predictions/test-id/buy`, {
         method: 'POST',
         headers: {
@@ -141,19 +110,14 @@ describe('API Validation Integration', () => {
         })
       })
 
-      expectValidationOrAuthError(response.status)
-      const data = await response.json()
-      // Only check for error if response is an error status
-      if (response.status >= 400 && data) {
+      expect([400, 401, 404]).toContain(response.status)
+      if (response.status >= 400) {
+        const data = await response.json()
         expect(data.error).toBeDefined()
       }
     })
 
     test('POST /api/markets/perps/open - should reject invalid leverage', async () => {
-      if (!(await isServerAvailable(BASE_URL))) {
-        console.log('⚠️  Server not available, skipping HTTP test')
-        return
-      }
       const response = await fetch(`${BASE_URL}/api/markets/perps/open`, {
         method: 'POST',
         headers: {
@@ -168,36 +132,9 @@ describe('API Validation Integration', () => {
         })
       })
 
-      expectValidationOrAuthError(response.status)
-      const data = await response.json()
-      // Only check for error if response is an error status
-      if (response.status >= 400 && data) {
-        expect(data.error).toBeDefined()
-      }
-    })
-  })
-
-  describe('Pool Routes Validation', () => {
-    test.skip('POST /api/pools/[id]/deposit - should reject invalid deposit amount (API removed)', async () => {
-      if (!(await isServerAvailable(BASE_URL))) {
-        console.log('⚠️  Server not available, skipping HTTP test')
-        return
-      }
-      const response = await fetch(`${BASE_URL}/api/pools/test-pool/deposit`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
-        },
-        body: JSON.stringify({
-          amount: 0 // Zero or negative not allowed
-        })
-      })
-
-      expectValidationOrAuthError(response.status)
-      const data = await response.json()
-      // Only check for error if response is an error status
-      if (response.status >= 400 && data) {
+      expect([400, 401, 404]).toContain(response.status)
+      if (response.status >= 400) {
+        const data = await response.json()
         expect(data.error).toBeDefined()
       }
     })
@@ -205,10 +142,6 @@ describe('API Validation Integration', () => {
 
   describe('Agent Routes Validation', () => {
     test('POST /api/agents/auth - should reject missing credentials', async () => {
-      if (!(await isServerAvailable(BASE_URL))) {
-        console.log('⚠️  Server not available, skipping HTTP test')
-        return
-      }
       const response = await fetch(`${BASE_URL}/api/agents/auth`, {
         method: 'POST',
         headers: {
@@ -219,19 +152,13 @@ describe('API Validation Integration', () => {
         })
       })
 
-      expectValidationOrAuthError(response.status)
+      // Server may return 400, 401, or 500 for validation errors
+      expect([400, 401, 500]).toContain(response.status)
       const data = await response.json()
-      // Only check for error if response is an error status
-      if (response.status >= 400 && data) {
-        expect(data.error).toBeDefined()
-      }
+      expect(data.error).toBeDefined()
     })
 
     test('POST /api/agents/onboard - should reject invalid agent data', async () => {
-      if (!(await isServerAvailable(BASE_URL))) {
-        console.log('⚠️  Server not available, skipping HTTP test')
-        return
-      }
       const response = await fetch(`${BASE_URL}/api/agents/onboard`, {
         method: 'POST',
         headers: {
@@ -244,21 +171,15 @@ describe('API Validation Integration', () => {
         })
       })
 
-      expectValidationOrAuthError(response.status)
+      // Server may return 400, 401, or 500 for validation errors
+      expect([400, 401, 500]).toContain(response.status)
       const data = await response.json()
-      // Only check for error if response is an error status
-      if (response.status >= 400 && data) {
-        expect(data.error).toBeDefined()
-      }
+      expect(data.error).toBeDefined()
     })
   })
 
   describe('Chat Routes Validation', () => {
     test('POST /api/chats - should reject invalid chat name', async () => {
-      if (!(await isServerAvailable(BASE_URL))) {
-        console.log('⚠️  Server not available, skipping HTTP test')
-        return
-      }
       const response = await fetch(`${BASE_URL}/api/chats`, {
         method: 'POST',
         headers: {
@@ -271,19 +192,13 @@ describe('API Validation Integration', () => {
         })
       })
 
-      expectValidationOrAuthError(response.status)
+      // Server may return 400, 401, or 500 for validation errors
+      expect([400, 401, 500]).toContain(response.status)
       const data = await response.json()
-      // Only check for error if response is an error status
-      if (response.status >= 400 && data) {
-        expect(data.error).toBeDefined()
-      }
+      expect(data.error).toBeDefined()
     })
 
     test('POST /api/chats/[id]/message - should reject empty message', async () => {
-      if (!(await isServerAvailable(BASE_URL))) {
-        console.log('⚠️  Server not available, skipping HTTP test')
-        return
-      }
       const response = await fetch(`${BASE_URL}/api/chats/test-chat/message`, {
         method: 'POST',
         headers: {
@@ -295,21 +210,15 @@ describe('API Validation Integration', () => {
         })
       })
 
-      expectValidationOrAuthError(response.status)
+      // Server may return 400, 401, or 500 for validation errors
+      expect([400, 401, 500]).toContain(response.status)
       const data = await response.json()
-      // Only check for error if response is an error status
-      if (response.status >= 400 && data) {
-        expect(data.error).toBeDefined()
-      }
+      expect(data.error).toBeDefined()
     })
   })
 
   describe('Query Parameter Validation', () => {
     test('GET /api/users/[userId]/posts - should reject invalid pagination', async () => {
-      if (!(await isServerAvailable(BASE_URL))) {
-        console.log('⚠️  Server not available, skipping HTTP test')
-        return
-      }
       const response = await fetch(
         `${BASE_URL}/api/users/test-user/posts?limit=-1&page=0`,
         {
@@ -319,19 +228,14 @@ describe('API Validation Integration', () => {
         }
       )
 
-      expectValidationOrAuthError(response.status)
-      const data = await response.json()
-      // Only check for error if response is an error status
-      if (response.status >= 400 && data) {
+      expect([200, 400, 401]).toContain(response.status)
+      if (response.status >= 400) {
+        const data = await response.json()
         expect(data.error).toBeDefined()
       }
     })
 
     test('GET /api/feed/widgets/trending-posts - should reject invalid timeframe', async () => {
-      if (!(await isServerAvailable(BASE_URL))) {
-        console.log('⚠️  Server not available, skipping HTTP test')
-        return
-      }
       const response = await fetch(
         `${BASE_URL}/api/feed/widgets/trending-posts?timeframe=invalid`,
         {
@@ -341,10 +245,9 @@ describe('API Validation Integration', () => {
         }
       )
 
-      expectValidationOrAuthError(response.status)
-      const data = await response.json()
-      // Only check for error if response is an error status
-      if (response.status >= 400 && data) {
+      expect([200, 400, 401]).toContain(response.status)
+      if (response.status >= 400) {
+        const data = await response.json()
         expect(data.error).toBeDefined()
       }
     })
@@ -352,10 +255,6 @@ describe('API Validation Integration', () => {
 
   describe('Error Response Format', () => {
     test('should return consistent error format for validation failures', async () => {
-      if (!(await isServerAvailable(BASE_URL))) {
-        console.log('⚠️  Server not available, skipping HTTP test')
-        return
-      }
       const response = await fetch(`${BASE_URL}/api/posts`, {
         method: 'POST',
         headers: {
@@ -367,22 +266,17 @@ describe('API Validation Integration', () => {
         })
       })
 
-      expectValidationOrAuthError(response.status)
+      // Server may return 400, 401, or 500 for validation errors
+      expect([400, 401, 500]).toContain(response.status)
       const data = await response.json()
       
-      // Check error response structure
       expect(data).toHaveProperty('error')
       expect(typeof data.error).toBe('string')
       
-      // May have details array for field-level errors
       if (data.details) {
         expect(Array.isArray(data.details)).toBe(true)
       }
     })
   })
 })
-
-
-
-
 

@@ -95,24 +95,19 @@ export function TradingFeedTab() {
   };
 
   const fetchAndSetTrades = async () => {
-    try {
-      const url = filter === 'all' 
-        ? '/api/admin/trades?limit=50'
-        : `/api/admin/trades?limit=50&type=${filter}`
-      
-      const response = await fetch(url)
-      if (!response.ok) throw new Error('Failed to fetch trades')
-      const data = await response.json()
-      const validation = z.array(TradeSchema).safeParse(data.trades);
-      if (!validation.success) {
-        throw new Error('Invalid trade data structure');
-      }
-      setTrades(validation.data || [])
-    } catch (error) {
-      console.error('Failed to fetch trades:', error)
-    } finally {
-      setLoading(false)
+    const url = filter === 'all' 
+      ? '/api/admin/trades?limit=50'
+      : `/api/admin/trades?limit=50&type=${filter}`
+    
+    const response = await fetch(url)
+    if (!response.ok) throw new Error('Failed to fetch trades')
+    const data = await response.json()
+    const validation = z.array(TradeSchema).safeParse(data.trades);
+    if (!validation.success) {
+      throw new Error('Invalid trade data structure');
     }
+    setTrades(validation.data || [])
+    setLoading(false)
   }
 
   const formatCurrency = (value: string | number) => {
