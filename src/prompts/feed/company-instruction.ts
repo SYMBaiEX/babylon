@@ -2,7 +2,7 @@ import { definePrompt } from '../define-prompt';
 
 export const companyInstruction = definePrompt({
   id: 'company-instruction',
-  version: '1.0.0',
+  version: '2.0.0',
   category: 'feed',
   description: 'Actor instruction block for batch company post generation',
   temperature: 0.7,

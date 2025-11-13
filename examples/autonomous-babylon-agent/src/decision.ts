@@ -76,7 +76,7 @@ export class AgentDecisionMaker {
       model: this.model,
       prompt,
       temperature: 0.7,
-      maxOutputTokens: 500
+      maxOutputTokens: 1000
     })
 
     return this.parseDecision(text)

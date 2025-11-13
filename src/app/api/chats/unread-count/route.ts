@@ -22,8 +22,6 @@ import { prisma } from '@/lib/prisma';
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const user = await authenticate(request)
 
-  await prisma.$queryRaw<Array<{ '?column?': number }>>`SELECT 1 FROM "DMAcceptance" LIMIT 1`
-
   const counts = await asUser(user, async (db) => {
     let pendingDMCount = 0
     pendingDMCount = await db.dMAcceptance.count({

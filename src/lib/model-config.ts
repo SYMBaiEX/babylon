@@ -12,7 +12,7 @@
  * Used for: events, questions, articles, posts, group chats
  * Priority: Quality and creativity
  */
-export const CONTENT_GENERATION_MODEL = 'moonshotai/kimi-k2-instruct-0905';
+export const CONTENT_GENERATION_MODEL = 'moonshotai/kimi-k2-instruct-0905'; // Correct capitalization for wandb
 
 /**
  * Model for background processing and operations
@@ -87,11 +87,11 @@ export function isGroqModel(model: string): boolean {
  */
 export function isWandbModel(model: string): boolean {
   const wandbModels = [
-    'OpenPipe/Qwen3-14B-Instruct',      // Our trained model (default for WANDB)
-    'moonshotai/kimi-k2-instruct-0905', // High-quality content generation
+    'OpenPipe/Qwen3-14B-Instruct',      // Our trained model (for Eliza agents)
+    'moonshotai/Kimi-K2-Instruct-0905', // High-quality content generation (wandb capitalization)
+    'moonshotai/kimi-k2-instruct-0905', // Legacy lowercase (not actually on wandb)
     'meta-llama/Llama-3.3-70B-Instruct',
     'meta-llama/Llama-3.1-8B-Instruct',
-    'qwen/qwen3-32b',
     'openai/gpt-oss-120b',
   ];
   return wandbModels.includes(model);

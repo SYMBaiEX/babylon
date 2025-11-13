@@ -2,7 +2,7 @@ import { definePrompt } from '../define-prompt';
 
 export const groupMessage = definePrompt({
   id: 'group-message',
-  version: '1.0.0',
+  version: '2.0.0',
   category: 'game',
   description: 'Generates private group chat messages with insider trading info and strategic revelations',
   temperature: 1,
@@ -47,6 +47,6 @@ Write a private message (max 200 chars) with ACTIONABLE insider info.
 - Stay in character
 - NO hashtags (but emojis OK: 🤫, 👀, 🔥)
 
-Write ONLY the message text:
+Write ONLY the message text (plain text, no XML needed for this prompt):
 `.trim()
 });

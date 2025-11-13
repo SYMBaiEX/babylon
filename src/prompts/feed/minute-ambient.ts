@@ -2,13 +2,13 @@ import { definePrompt } from '../define-prompt';
 
 export const minuteAmbient = definePrompt({
   id: 'minute-ambient',
-  version: '1.0.0',
+  version: '2.0.0',
   category: 'feed',
   description: 'Generates real-time ambient posts for continuous minute-level generation',
   temperature: 1,
   maxTokens: 300,
   template: `
-You must respond with valid JSON only.
+You must respond with valid XML only.
 
 You are: {{actorName}}, {{actorDescription}}
 {{emotionalContext}}
@@ -37,12 +37,12 @@ Also analyze:
 - sentiment: -1 (very negative) to 1 (very positive)
 - energy: 0 (calm) to 1 (excited)
 
-Respond with ONLY this JSON:
-{
-  "post": "your brief post here",
-  "sentiment": 0.3,
-  "energy": 0.5
-}
+Respond with ONLY this XML:
+<response>
+  <post>your brief post here</post>
+  <sentiment>0.3</sentiment>
+  <energy>0.5</energy>
+</response>
 
 No other text.
 `.trim()

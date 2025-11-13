@@ -2,7 +2,7 @@ import { definePrompt } from '../define-prompt';
 
 export const journalistInstruction = definePrompt({
   id: 'journalist-instruction',
-  version: '1.0.0',
+  version: '2.0.0',
   category: 'feed',
   description: 'Actor instruction block for batch journalist post generation',
   temperature: 0.8,

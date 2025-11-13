@@ -282,6 +282,16 @@ export class ArticleGenerator {
       sentiment: 'positive' | 'negative' | 'neutral';
       category: string;
       tags: string[];
+    } | { 
+      response: {
+        title: string;
+        summary: string;
+        content: string;
+        slant: string;
+        sentiment: 'positive' | 'negative' | 'neutral';
+        category: string;
+        tags: string[] | { tag: string[] };
+      }
     }>(
       prompt,
       { 
@@ -300,28 +310,53 @@ export class ArticleGenerator {
         temperature: 0.85,
         maxTokens: 2500,
         model: 'moonshotai/kimi-k2-instruct-0905',
+        format: 'xml', // Use XML for robustness
       }
     );
+    
+    // Handle XML structure
+    const articleData = 'response' in response && response.response
+      ? response.response
+      : response as {
+          title: string;
+          summary: string;
+          content: string;
+          slant: string;
+          sentiment: 'positive' | 'negative' | 'neutral';
+          category: string;
+          tags: string[] | { tag: string[] };
+        };
+    
+    // Handle tags (could be array or {tag: [...]} from XML)
+    let tagsArray: string[];
+    if (Array.isArray(articleData.tags)) {
+      tagsArray = articleData.tags;
+    } else if (articleData.tags && typeof articleData.tags === 'object' && 'tag' in articleData.tags) {
+      const tagData = (articleData.tags as { tag: string[] }).tag;
+      tagsArray = Array.isArray(tagData) ? tagData : [tagData];
+    } else {
+      tagsArray = [];
+    }
 
     // Create article object
     const article: Article = {
       id: await generateSnowflakeId(),
-      title: response.title,
-      summary: response.summary,
-      content: response.content,
+      title: articleData.title,
+      summary: articleData.summary,
+      content: articleData.content,
       authorOrgId: organization.id,
       authorOrgName: organization.name,
       byline: journalist?.name,
       bylineActorId: journalist?.id,
       biasScore,
-      sentiment: response.sentiment || 'neutral',
-      slant: response.slant,
+      sentiment: articleData.sentiment || 'neutral',
+      slant: articleData.slant,
       relatedEventId: event.id,
       relatedQuestion: event.relatedQuestion || undefined,
       relatedActorIds: event.actors || [],
       relatedOrgIds: [organization.id],
-      category: response.category || this.categorizeEvent(event),
-      tags: response.tags || [],
+      category: articleData.category || this.categorizeEvent(event),
+      tags: tagsArray,
       publishedAt: new Date(),
     };
 
@@ -395,16 +430,21 @@ REQUIREMENTS:
 8. Create a compelling headline that hints at your angle
 9. Write a 2-3 sentence summary for listings
 
-FORMAT YOUR RESPONSE AS JSON:
-{
-  "title": "Compelling headline that hints at your angle",
-  "summary": "2-3 sentence summary for article listings",
-  "content": "Full long-form article (800-1500 words, use \\n\\n for paragraph breaks)",
-  "slant": "Brief description of your article's angle/bias (e.g., 'Critical of leadership decisions' or 'Sympathetic to company position')",
-  "sentiment": "positive" | "negative" | "neutral",
-  "category": "tech" | "politics" | "finance" | "scandal" | "business" | etc.,
-  "tags": ["relevant", "tags", "for", "article"]
-}`;
+FORMAT YOUR RESPONSE AS XML:
+<response>
+  <title>Compelling headline that hints at your angle</title>
+  <summary>2-3 sentence summary for article listings</summary>
+  <content>Full long-form article (800-1500 words, use \\n\\n for paragraph breaks)</content>
+  <slant>Brief description of your article's angle/bias (e.g., 'Critical of leadership decisions' or 'Sympathetic to company position')</slant>
+  <sentiment>positive | negative | neutral</sentiment>
+  <category>tech | politics | finance | scandal | business | etc.</category>
+  <tags>
+    <tag>relevant</tag>
+    <tag>tags</tag>
+    <tag>for</tag>
+    <tag>article</tag>
+  </tags>
+</response>`;
   }
 
   /**

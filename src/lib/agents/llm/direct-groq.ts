@@ -35,7 +35,7 @@ export async function callGroqDirect(params: {
     prompt: params.prompt,
     system: params.system,
     temperature: params.temperature ?? 0.7,
-    maxOutputTokens: params.maxTokens ?? 300,
+    maxOutputTokens: params.maxTokens ?? 8192,
     maxRetries: 2
   })
   

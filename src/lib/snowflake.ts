@@ -74,7 +74,7 @@ class SnowflakeGenerator {
     } finally {
       this.generating = false;
       // Process next item in queue
-      setImmediate(() => this.processQueue());
+      queueMicrotask(() => this.processQueue());
     }
   }
 

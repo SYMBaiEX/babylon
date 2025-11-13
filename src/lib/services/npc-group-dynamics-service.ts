@@ -476,12 +476,12 @@ IMPORTANT RULES:
 - ALWAYS use parody names from World Actors list (AIlon Musk, Sam AIltman, etc.)
 - You may reference markets or trades naturally if relevant
 
-Return your response as JSON in this exact format:
-{
-  "message": "your message here"
-}`;
+Return your response as XML in this exact format:
+<response>
+  <message>your message here</message>
+</response>`;
 
-          const response = await llm.generateJSON<{ message: string }>(
+          const rawResponse = await llm.generateJSON<{ message: string } | { response: { message: string } }>(
             prompt,
             {
               properties: {
@@ -491,6 +491,11 @@ Return your response as JSON in this exact format:
             },
             { temperature: 0.9, maxTokens: 100 }
           );
+
+          // Handle XML structure
+          const response = 'response' in rawResponse && rawResponse.response
+            ? rawResponse.response
+            : rawResponse as { message: string };
 
           if (!response.message || response.message.length === 0) {
             continue;

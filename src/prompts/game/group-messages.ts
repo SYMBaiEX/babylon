@@ -2,13 +2,13 @@ import { definePrompt } from '../define-prompt';
 
 export const groupMessages = definePrompt({
   id: 'group-messages',
-  version: '1.0.0',
+  version: '2.0.0',
   category: 'game',
   description: 'Generates private group chat messages for the day',
   temperature: 1,
   maxTokens: 5000,
   template: `
-You must respond with valid JSON only.
+You must respond with valid XML only.
 
 {{fullContext}}{{scenarioContext}}{{questionContext}}
 
@@ -32,20 +32,20 @@ Generate {{groupCount}} private group conversations:
 
 {{groupsList}}
 
-Respond with ONLY this JSON:
-{
-  "groups": [
-    {
-      "groupId": "group-id",
-      "messages": [
-        {
-          "actorId": "actor-id",
-          "message": "private message here"
-        }
-      ]
-    }
-  ]
-}
+Respond with ONLY this XML:
+<response>
+  <groups>
+    <group>
+      <groupId>group-id</groupId>
+      <messages>
+        <message>
+          <actorId>actor-id</actorId>
+          <content>private message here</content>
+        </message>
+      </messages>
+    </group>
+  </groups>
+</response>
 
 Return {{groupCount}} groups in the array. No other text.
 `.trim()

@@ -104,6 +104,19 @@ export class AgentRuntimeManager {
       }
     }
 
+    // Load wandb model configuration from system settings
+    let wandbModel: string | undefined
+    try {
+      const { getAIModelConfig } = await import('@/lib/ai-model-config')
+      const aiConfig = await getAIModelConfig()
+      if (aiConfig.wandbEnabled && aiConfig.wandbModel) {
+        wandbModel = aiConfig.wandbModel
+        logger.info(`Agent will use wandb model: ${wandbModel}`, { agentId: agentUserId }, 'AgentRuntimeManager')
+      }
+    } catch (error) {
+      logger.warn('Could not load AI model config for agent', { error }, 'AgentRuntimeManager')
+    }
+
     // Build character from agent user config
     const character: Character = {
       name: agentUser.displayName || agentUser.username || 'Agent',
@@ -113,6 +126,9 @@ export class AgentRuntimeManager {
       style: parseStyle(),
       plugins: [],
       settings: {
+        // Use WANDB if available, otherwise fallback to GROQ
+        WANDB_API_KEY: process.env.WANDB_API_KEY || '',
+        WANDB_MODEL: wandbModel || 'OpenPipe/Qwen3-14B-Instruct',
         GROQ_API_KEY: process.env.GROQ_API_KEY || '',
         SMALL_GROQ_MODEL: 'openai/gpt-oss-120b',  // Fast evaluation model
         LARGE_GROQ_MODEL: agentUser.agentModelTier === 'pro' ? 'qwen/qwen3-32b' : 'openai/gpt-oss-120b',

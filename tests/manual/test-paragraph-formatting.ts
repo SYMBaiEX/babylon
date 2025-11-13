@@ -21,16 +21,16 @@ Provide:
 - "summary": a succinct 2-3 sentence summary for social feeds (max 400 characters)
 - "article": a full-length article body (at least 4 paragraphs) with concrete details, analysis, and optional quotes. The article should read like a professional newsroom piece, not bullet points. Separate paragraphs with \\n\\n (two newlines).
 
-Return your response as JSON in this exact format:
-{
-  "title": "news headline here",
-  "summary": "2-3 sentence summary here",
-  "article": "full article body here with \\n\\n between paragraphs"
-}`
+Return your response as XML in this exact format:
+<response>
+  <title>news headline here</title>
+  <summary>2-3 sentence summary here</summary>
+  <article>full article body here with \\n\\n between paragraphs</article>
+</response>`
   
   console.log('Generating article...\n')
   
-  const response = await llm.generateJSON<{ title: string; summary: string; article: string }>(
+  const rawResponse = await llm.generateJSON<{ title: string; summary: string; article: string } | { response: { title: string; summary: string; article: string } }>(
     testPrompt,
     {
       properties: {
@@ -42,6 +42,11 @@ Return your response as JSON in this exact format:
     },
     { temperature: 0.7, maxTokens: 1000 }
   )
+  
+  // Handle XML structure
+  const response = 'response' in rawResponse && rawResponse.response
+    ? rawResponse.response
+    : rawResponse as { title: string; summary: string; article: string };
   
   console.log('📰 Article Generated!\n')
   console.log('=' .repeat(80))

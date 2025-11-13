@@ -69,9 +69,14 @@ Here are some random words for inspiration (feel free to use or ignore):
 - Name: ${randomName}
 - Pop Culture: ${randomStarWars}
 
-Return ONLY a JSON object with name, username, and bio fields.`;
+Return your response as XML in this exact format:
+<response>
+  <name>display name here</name>
+  <username>handle_here</username>
+  <bio>bio here</bio>
+</response>`;
 
-  const profileData = await llmClient.generateJSON<ProfileData>(
+  const rawProfileData = await llmClient.generateJSON<ProfileData | { response: ProfileData }>(
     prompt,
     {
       required: ['name', 'username', 'bio'],
@@ -86,6 +91,11 @@ Return ONLY a JSON object with name, username, and bio fields.`;
       maxTokens: 200,
     }
   );
+
+  // Handle XML structure
+  const profileData = 'response' in rawProfileData && rawProfileData.response
+    ? rawProfileData.response
+    : rawProfileData as ProfileData;
 
   profileData.username = profileData.username
     .replace(/^@/, '')

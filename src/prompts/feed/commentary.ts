@@ -2,13 +2,13 @@ import { definePrompt } from '../define-prompt';
 
 export const commentary = definePrompt({
   id: 'commentary',
-  version: '1.0.0',
+  version: '2.0.0',
   category: 'feed',
   description: 'Generates expert commentary/analysis on world events',
   temperature: 1,
   maxTokens: 5000,
   template: `
-You must respond with valid JSON only.
+You must respond with valid XML only.
 
 News: {{eventDescription}}
 
@@ -33,24 +33,29 @@ Generate expert analysis posts from these {{commentatorCount}} commentators:
 
 {{commentatorsList}}
 
-Respond with ONLY this JSON format (example for 2 commentators):
-{
-  "commentary": [
-    {
-      "post": "Interesting move by TeslAI. Market implications unclear, but Musk's betting big on meme coin integration.",
-      "sentiment": 0.1, // number between -1 and 1
-      "clueStrength": 0.3, // number between 0 and 1
-      "pointsToward": null // true (suggests positive outcome), false (suggests negative), null (unclear)
-    },
-    {
-      "post": "AI consciousness claims again. Same pattern: hype cycles followed by reality checks. Still no AGI breakthrough.",
-      "sentiment": -0.2, // number between -1 and 1
-      "clueStrength": 0.5, // number between 0 and 1
-      "pointsToward": false
-    }
-  ]
-}
+VALUE RANGES:
+- sentiment: -1 (very negative) to 1 (very positive)
+- clueStrength: 0 (no info) to 1 (smoking gun)
+- pointsToward: true (suggests positive outcome) | false (suggests negative) | null (unclear)
 
-CRITICAL: Return EXACTLY {{commentatorCount}} commentary posts. Each must have post, sentiment, clueStrength, pointsToward fields.
+Respond with ONLY this XML format (example for 2 commentators):
+<response>
+  <commentary>
+    <comment>
+      <post>Interesting move by TeslAI. Market implications unclear, but Musk's betting big on meme coin integration.</post>
+      <sentiment>0.1</sentiment>
+      <clueStrength>0.3</clueStrength>
+      <pointsToward>null</pointsToward>
+    </comment>
+    <comment>
+      <post>AI consciousness claims again. Same pattern: hype cycles followed by reality checks. Still no AGI breakthrough.</post>
+      <sentiment>-0.2</sentiment>
+      <clueStrength>0.5</clueStrength>
+      <pointsToward>false</pointsToward>
+    </comment>
+  </commentary>
+</response>
+
+CRITICAL: Return EXACTLY {{commentatorCount}} commentary posts. Each must have post, sentiment, clueStrength, pointsToward elements.
 `.trim()
 });

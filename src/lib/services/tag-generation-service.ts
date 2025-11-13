@@ -59,23 +59,23 @@ Rules:
 5. Return 1-3 tags only (prefer quality over quantity)
 6. Categorize each tag (Sports, Politics, Tech, Finance, Entertainment, etc.)
 
-Return ONLY a JSON array of objects with this exact format:
-[
-  {
-    "displayName": "NFC North",
-    "category": "Sports"
-  },
-  {
-    "displayName": "Puka",
-    "category": "Sports"
-  }
-]
+Return ONLY valid XML in this exact format:
+<tags>
+  <tag>
+    <displayName>NFC North</displayName>
+    <category>Sports</category>
+  </tag>
+  <tag>
+    <displayName>Puka</displayName>
+    <category>Sports</category>
+  </tag>
+</tags>
 
-If no good tags can be extracted, return an empty array: []`
+If no good tags can be extracted, return: <tags></tags>`
 
-  // Use fast evaluation model for tag extraction (data processing)
+  // Use llama-3.1-8b-instant (130k in, 130k out - no restrictions!)
   const model = process.env.GROQ_API_KEY 
-    ? 'openai/gpt-oss-120b' // Fast model for tag generation
+    ? 'llama-3.1-8b-instant' // 130k in/out, fast, no token limits
     : 'gpt-4o-mini'
 
   const response = await openai.chat.completions.create({
@@ -83,7 +83,7 @@ If no good tags can be extracted, return an empty array: []`
     messages: [
       {
         role: 'system',
-        content: 'You are a trending topics extraction expert. You analyze social media posts and extract organic, searchable tags that would appear in trending sections.',
+        content: 'You are an XML-only assistant for tag extraction. You must respond ONLY with valid XML. No JSON, no explanations, no markdown.',
       },
       {
         role: 'user',
@@ -91,7 +91,7 @@ If no good tags can be extracted, return an empty array: []`
       },
     ],
     temperature: 0.3,
-    max_tokens: 200,
+    max_tokens: 500, // Increased for XML (more verbose than JSON)
   })
 
   const content_text = response.choices[0]?.message?.content?.trim()
@@ -100,17 +100,49 @@ If no good tags can be extracted, return an empty array: []`
     return []
   }
 
-  let jsonContent = content_text
-    .replace(/```json\n?/g, '')
+  // Parse XML instead of JSON
+  let xmlContent = content_text
+    .replace(/```xml\n?/g, '')
     .replace(/```\n?/g, '')
     .trim()
   
-  const arrayMatch = jsonContent.match(/\[[\s\S]*\]/)
-  if (arrayMatch) {
-    jsonContent = arrayMatch[0]
-  }
+  // Extract tags from XML
+  let tags: Array<{ displayName: string; category?: string }> = [];
   
-  const tags: Array<{ displayName: string; category?: string }> = JSON.parse(jsonContent)
+  try {
+    // Simple XML parsing for tag structure
+    const tagMatches = xmlContent.matchAll(/<tag>([\s\S]*?)<\/tag>/g);
+    
+    for (const tagMatch of tagMatches) {
+      const tagContent = tagMatch[1];
+      if (!tagContent) continue;
+      
+      const displayNameMatch = tagContent.match(/<displayName>(.*?)<\/displayName>/);
+      const categoryMatch = tagContent.match(/<category>(.*?)<\/category>/);
+      
+      if (displayNameMatch && displayNameMatch[1]) {
+        tags.push({
+          displayName: displayNameMatch[1].trim(),
+          category: categoryMatch?.[1]?.trim(),
+        });
+      }
+    }
+    
+    // If no tags found, try alternative structure
+    if (tags.length === 0) {
+      logger.warn('No tags found in XML, trying alternative parsing', { 
+        xmlPreview: xmlContent.substring(0, 200) 
+      }, 'TagGenerationService');
+    }
+  } catch (error) {
+    logger.error('Failed to parse tag generation XML', { 
+      error, 
+      xmlContent: xmlContent.substring(0, 200),
+      contentPreview: content.substring(0, 100)
+    }, 'TagGenerationService');
+    // Return empty array on parse error instead of crashing
+    return [];
+  }
 
   const generatedTags: GeneratedTag[] = tags
     .filter(tag => tag.displayName && typeof tag.displayName === 'string')

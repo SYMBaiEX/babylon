@@ -218,17 +218,31 @@ export class QuestionManager {
       numToGenerate
     );
 
-    const response = await this.llm.generateJSON<{
+    const rawResponse = await this.llm.generateJSON<{
       questions: Array<{
         text: string;
         scenario: number;
         daysUntilResolution: number; // 1-7 days
         expectedOutcome: boolean;
       }>;
+    } | {
+      response: {
+        questions: Array<{
+          text: string;
+          scenario: number;
+          daysUntilResolution: number; // 1-7 days
+          expectedOutcome: boolean;
+        }>;
+      }
     }>(prompt, undefined, {
       temperature: 0.9,
       maxTokens: 8000,
     });
+
+    // Handle XML structure
+    const response = 'response' in rawResponse && rawResponse.response
+      ? rawResponse.response
+      : rawResponse as { questions: Array<{ text: string; scenario: number; daysUntilResolution: number; expectedOutcome: boolean }> };
 
     if (!response.questions || response.questions.length === 0) {
       logger.warn('LLM returned no questions', undefined, 'QuestionManager');
@@ -464,11 +478,16 @@ ${s.involvedOrganizations?.length ? `Organizations: ${s.involvedOrganizations.jo
       outcomeContext
     });
 
-    const response = await this.llm.generateJSON<{ event: string; type: string }>(
+    const rawResponse = await this.llm.generateJSON<{ event: string; type: string } | { response: { event: string; type: string } }>(
       prompt,
       undefined,
       { temperature: 0.7, maxTokens: 5000 }
     );
+
+    // Handle XML structure
+    const response = 'response' in rawResponse && rawResponse.response
+      ? rawResponse.response
+      : rawResponse as { event: string; type: string };
 
     return response.event || `Resolution: ${question.text} outcome is ${question.outcome ? 'YES' : 'NO'}`;
   }

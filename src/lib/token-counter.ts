@@ -129,27 +129,29 @@ export function truncateToTokenLimitSync(
 }
 
 /**
- * Model-specific token limits
+ * Model-specific INPUT CONTEXT token limits
+ * Note: Output limits are separate (see comments for each model)
  */
 export const MODEL_TOKEN_LIMITS: Record<string, number> = {
-  // OpenAI
-  'gpt-4o': 128000,
-  'gpt-4o-mini': 128000,
+  // OpenAI (input context)
+  'gpt-4o': 128000,        // 128k input, separate output limit
+  'gpt-4o-mini': 128000,   // 128k input, separate output limit
   'gpt-4-turbo': 128000,
   'gpt-4': 8192,
   'gpt-3.5-turbo': 16385,
   'gpt-3.5-turbo-16k': 16385,
   
-  // Current Strategy Models
-  'moonshotai/kimi-k2-instruct-0905': 200000,  // Content generation
-  'qwen/qwen3-32b': 32768,                      // Background worker
-  'openai/gpt-oss-120b': 128000,                // Fast evaluation
-  'OpenPipe/Qwen3-14B-Instruct': 32768,         // WANDB default/training
+  // Current Strategy Models - INPUT CONTEXT LIMITS (output is separate!)
+  'moonshotai/kimi-k2-instruct-0905': 262144,  // 260k INPUT, 16k OUTPUT (separate)
+  'moonshotai/Kimi-K2-Instruct-0905': 262144,  // 260k INPUT, 16k OUTPUT (separate)
+  'qwen/qwen3-32b': 131072,                    // 130k INPUT, 32k OUTPUT (separate)
+  'openai/gpt-oss-120b': 131072,               // 130k INPUT, 32k OUTPUT (separate)
+  'OpenPipe/Qwen3-14B-Instruct': 131072,       // 130k INPUT, 32k OUTPUT (separate)
   
-  // Groq Legacy (for fallback compatibility)
-  'llama-3.3-70b-versatile': 128000,
-  'llama-3.1-70b-versatile': 128000,
-  'llama-3.1-8b-instant': 128000,
+  // Groq Models - INPUT CONTEXT
+  'llama-3.3-70b-versatile': 131072,  // 130k INPUT, 32k OUTPUT (separate)
+  'llama-3.1-70b-versatile': 131072,  // 130k INPUT, 32k OUTPUT (separate)
+  'llama-3.1-8b-instant': 131072,     // 130k INPUT, 130k OUTPUT (special case!)
   'mixtral-8x7b-32768': 32768,
   'gemma-7b-it': 8192,
   
@@ -169,19 +171,20 @@ export function getModelTokenLimit(model: string): number {
 }
 
 /**
- * Calculate safe context limit (leaving room for output)
+ * Calculate safe context limit with safety margin
+ * Note: Input and output are SEPARATE limits on modern models
  * @param model Model name
- * @param outputTokens Expected output tokens (default: 8000)
- * @param safetyMargin Additional safety margin (default: 10%)
+ * @param outputTokens Expected output tokens (unused - kept for backwards compatibility)
+ * @param safetyMargin Safety margin to reserve (default: 10%)
  */
 export function getSafeContextLimit(
   model: string,
-  outputTokens = 8000,
+  outputTokens = 8000, // Kept for API compatibility, but input/output are separate
   safetyMargin = 0.1
 ): number {
-  const totalLimit = getModelTokenLimit(model);
-  const availableForContext = totalLimit - outputTokens;
-  const safeLimit = Math.floor(availableForContext * (1 - safetyMargin));
+  const inputLimit = getModelTokenLimit(model);
+  // Apply safety margin to input context (reserve 10% for overhead)
+  const safeLimit = Math.floor(inputLimit * (1 - safetyMargin));
   
   return Math.max(1000, safeLimit); // Minimum 1000 tokens
 }

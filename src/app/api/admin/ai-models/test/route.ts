@@ -30,16 +30,16 @@ export async function POST(_req: NextRequest) {
     // Simple test prompt
     const testPrompt = `Generate a brief test response (max 50 chars) confirming you're working.
 
-Return your response as JSON in this exact format:
-{
-  "message": "your test message here",
-  "status": "ok"
-}`;
+Return your response as XML in this exact format:
+<response>
+  <message>your test message here</message>
+  <status>ok</status>
+</response>`;
 
     const startTime = Date.now();
     
     // Make test call
-    const response = await client.generateJSON<{ message: string; status: string }>(
+    const rawResponse = await client.generateJSON<{ message: string; status: string } | { response: { message: string; status: string } }>(
       testPrompt,
       {
         properties: {
@@ -53,6 +53,11 @@ Return your response as JSON in this exact format:
         maxTokens: 100,
       }
     );
+    
+    // Handle XML structure
+    const response = 'response' in rawResponse && rawResponse.response
+      ? rawResponse.response
+      : rawResponse as { message: string; status: string };
 
     const latency = Date.now() - startTime;
 

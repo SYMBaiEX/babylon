@@ -103,10 +103,10 @@ export async function executeGameTick(): Promise<GameTickResult> {
       logger.info('Loaded wandb model from config', { model: wandbModel }, 'GameTick');
     }
 
-    // Initialize LLM client
-    const llmClient = new BabylonLLMClient(undefined, wandbModel);
+    // Initialize LLM client - force Groq for game NPCs (wandb is only for Eliza agents)
+    const llmClient = new BabylonLLMClient(undefined, undefined, 'groq');
     const stats = llmClient.getStats();
-    logger.info('LLM client initialized', { 
+    logger.info('LLM client initialized for game NPCs', { 
       provider: stats.provider, 
       model: stats.model 
     }, 'GameTick');
@@ -228,9 +228,19 @@ export async function executeGameTick(): Promise<GameTickResult> {
     const contextService = new MarketContextService();
     
     // Configure decision engine with model and token limits from environment
-    // Use qwen3-32b for background trading operations - fast and reliable
+    // Use qwen/qwen3-32b on Groq for background trading operations
     const modelName = process.env.MARKET_DECISION_MODEL || 'qwen/qwen3-32b';
-    const maxOutputTokens = parseInt(process.env.MARKET_DECISION_MAX_OUTPUT_TOKENS || '4000', 10);
+    
+    // Model-aware output token limits:
+    // Note: Input and output are SEPARATE limits on modern models
+    // - Kimi models: 260k INPUT + 16k OUTPUT (separate)
+    // - qwen3-32b: 130k INPUT + 32k OUTPUT (separate)
+    const isKimiModel = modelName.toLowerCase().includes('kimi');
+    const defaultMaxOutput = isKimiModel ? 16000 : 32000;
+    const maxOutputTokens = parseInt(
+      process.env.MARKET_DECISION_MAX_OUTPUT_TOKENS || defaultMaxOutput.toString(), 
+      10
+    );
     
     const decisionEngine = new MarketDecisionEngine(llmClient, contextService, {
       model: modelName,
@@ -706,12 +716,12 @@ async function generateMixedPosts(
         // Generate NPC post
         const prompt = `You are ${creator.name}. Write a brief social media post (max 200 chars) about this prediction market question: "${question.text}". Be opinionated and entertaining.
 
-Return your response as JSON in this exact format:
-{
-  "post": "your post content here"
-}`;
+Return your response as XML in this exact format:
+<response>
+  <post>your post content here</post>
+</response>`;
 
-        const response = await llm.generateJSON<{ post: string }>(
+        const response = await llm.generateJSON<{ post: string } | { response: { post: string } }>(
           prompt,
           {
             properties: {
@@ -719,17 +729,22 @@ Return your response as JSON in this exact format:
             },
             required: ['post'],
           },
-          { temperature: 0.9, maxTokens: 200, model: 'moonshotai/kimi-k2-instruct-0905' }
+          { temperature: 0.9, maxTokens: 200, model: 'moonshotai/kimi-k2-instruct-0905', format: 'xml' }
         );
+        
+        // Handle XML structure
+        const postContent = 'response' in response && response.response && typeof response.response === 'object' && 'post' in response.response
+          ? (response.response as { post: string }).post
+          : (response as { post: string }).post;
 
-        if (!response.post) {
+        if (!postContent) {
           logger.warn('Empty post generated', { creatorIndex: i, creatorName: creator.name }, 'GameTick');
           return { posts: 0, articles: 0 };
         }
 
         await db.createPostWithAllFields({
           id: await generateSnowflakeId(),
-          content: response.post,
+          content: postContent,
           authorId: creator.id,
           gameId: 'continuous',
           dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
@@ -753,14 +768,14 @@ Provide:
 - "summary": a succinct 2-3 sentence summary for social feeds (max 400 characters)
 - "article": a full-length article body (at least 4 paragraphs) with concrete details, analysis, and optional quotes. The article should read like a professional newsroom piece, not bullet points. Separate paragraphs with \\n\\n (two newlines).
 
-Return your response as JSON in this exact format:
-{
-  "title": "news headline here",
-  "summary": "2-3 sentence summary here",
-  "article": "full article body here with \\n\\n between paragraphs"
-}`;
+Return your response as XML in this exact format:
+<response>
+  <title>news headline here</title>
+  <summary>2-3 sentence summary here</summary>
+  <article>full article body here with \\n\\n between paragraphs</article>
+</response>`;
 
-          const response = await llm.generateJSON<{ title: string; summary: string; article: string }>(
+          const response = await llm.generateJSON<{ title: string; summary: string; article: string } | { response: { title: string; summary: string; article: string } }>(
             prompt,
             { 
               properties: {
@@ -770,16 +785,22 @@ Return your response as JSON in this exact format:
               },
               required: ['title', 'summary', 'article'] 
             },
-            { temperature: 0.7, maxTokens: 1000, model: 'moonshotai/kimi-k2-instruct-0905' }
+            { temperature: 0.7, maxTokens: 1000, model: 'moonshotai/kimi-k2-instruct-0905', format: 'xml' }
           );
+          
+          // Handle XML structure
+          const articleData = 'response' in response && response.response 
+            ? response.response as { title: string; summary: string; article: string }
+            : response as { title: string; summary: string; article: string };
 
-          if (!response.title || !response.summary || !response.article) {
+          if (!articleData.title || !articleData.summary || !articleData.article) {
             logger.warn('Empty article generated', { creatorIndex: i, creatorName: creator.name }, 'GameTick');
             return { posts: 0, articles: 0 };
           }
 
-          const summary = response.summary.trim();
-          const articleBody = response.article.trim();
+          const summary = articleData.summary.trim();
+          const articleTitle = articleData.title.trim();
+          const articleBody = articleData.article.trim();
 
           if (articleBody.length < 400) {
             logger.warn('Article body too short', { creatorIndex: i, creatorName: creator.name, length: articleBody.length }, 'GameTick');
@@ -791,7 +812,7 @@ Return your response as JSON in this exact format:
             type: 'article',
             content: summary,
             fullContent: articleBody,
-            articleTitle: response.title,
+            articleTitle: articleTitle,
             authorId: creator.id,
             gameId: 'continuous',
             dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
@@ -809,12 +830,12 @@ This should be a SHORT social media post (max 200 characters), not a full articl
 - "Just released: Our latest analysis on [topic]"
 - "What we're watching: [brief insight]"
 
-Return your response as JSON in this exact format:
-{
-  "post": "your brief post content here"
-}`;
+Return your response as XML in this exact format:
+<response>
+  <post>your brief post content here</post>
+</response>`;
 
-          const response = await llm.generateJSON<{ post: string }>(
+          const response = await llm.generateJSON<{ post: string } | { response: { post: string } }>(
             prompt,
             {
               properties: {
@@ -822,10 +843,15 @@ Return your response as JSON in this exact format:
               },
               required: ['post'],
             },
-            { temperature: 0.9, maxTokens: 200, model: 'moonshotai/kimi-k2-instruct-0905' }
+            { temperature: 0.9, maxTokens: 200, model: 'moonshotai/kimi-k2-instruct-0905', format: 'xml' }
           );
+          
+          // Handle XML structure
+          const orgPostContent = 'response' in response && response.response && typeof response.response === 'object' && 'post' in response.response
+            ? (response.response as { post: string }).post
+            : (response as { post: string }).post;
 
-          if (!response.post) {
+          if (!orgPostContent) {
             logger.warn('Empty org post generated', { creatorIndex: i, creatorName: creator.name }, 'GameTick');
             return { posts: 0, articles: 0 };
           }
@@ -833,7 +859,7 @@ Return your response as JSON in this exact format:
           await db.createPostWithAllFields({
             id: await generateSnowflakeId(),
             type: 'post', // Regular post, not article
-            content: response.post,
+            content: orgPostContent,
             authorId: creator.id,
             gameId: 'continuous',
             dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
@@ -1117,23 +1143,29 @@ Your article should include:
 - Match the tone of a ${org.description || 'news organization'}
 - Separate paragraphs with \\n\\n (two newlines)
 
-Return your response as JSON in this exact format:
-{
-  "title": "compelling headline here",
-  "summary": "2-3 sentence summary here",
-  "article": "full article body here with \\n\\n between paragraphs"
-}`;
+Return your response as XML in this exact format:
+<response>
+  <title>compelling headline here</title>
+  <summary>2-3 sentence summary here</summary>
+  <article>full article body here with \\n\\n between paragraphs</article>
+</response>`;
       
-      const response = await llm.generateJSON<{ title: string; summary: string; article: string }>(
+      const response = await llm.generateJSON<{ title: string; summary: string; article: string } | { response: { title: string; summary: string; article: string } }>(
         prompt,
         { properties: { title: { type: 'string' }, summary: { type: 'string' }, article: { type: 'string' } }, required: ['title', 'summary', 'article'] },
-        { temperature: 0.7, maxTokens: 1100, model: 'moonshotai/kimi-k2-instruct-0905' }
+        { temperature: 0.7, maxTokens: 1100, model: 'moonshotai/kimi-k2-instruct-0905', format: 'xml' }
       );
       
-      if (!response.title || !response.summary || !response.article) return 0;
+      // Handle XML structure
+      const baselineArticle = 'response' in response && response.response 
+        ? response.response as { title: string; summary: string; article: string }
+        : response as { title: string; summary: string; article: string };
+      
+      if (!baselineArticle.title || !baselineArticle.summary || !baselineArticle.article) return 0;
 
-      const summary = response.summary.trim();
-      const articleBody = response.article.trim();
+      const summary = baselineArticle.summary.trim();
+      const articleTitle = baselineArticle.title.trim();
+      const articleBody = baselineArticle.article.trim();
 
       if (articleBody.length < 400) {
         logger.warn('Baseline article body too short', { orgId: org.id, length: articleBody.length }, 'GameTick');
@@ -1151,7 +1183,7 @@ Return your response as JSON in this exact format:
         type: 'article',
         content: summary,
         fullContent: articleBody,
-        articleTitle: response.title,
+        articleTitle: articleTitle,
         category: topicData.category,
         authorId: org.id,
         gameId: 'continuous',
@@ -1370,19 +1402,20 @@ async function generateNewQuestions(
 
     const prompt = `Generate a single yes/no prediction market question about current events in tech, crypto, or politics. Make it specific and resolvable within 7 days. 
 
-Return your response as JSON in this exact format:
-{
-  "question": "Will X happen?",
-  "resolutionCriteria": "Clear criteria for resolution"
-}`;
+Return your response as XML in this exact format:
+<response>
+  <question>Will X happen?</question>
+  <resolutionCriteria>Clear criteria for resolution</resolutionCriteria>
+</response>`;
 
-    let response: { question: string; resolutionCriteria: string } | null =
-      null;
+    let response: { question: string; resolutionCriteria: string } | { response: { question: string; resolutionCriteria: string } } | null = null;
+    let questionData: { question: string; resolutionCriteria: string } | null = null;
+    
     try {
       response = await llm.generateJSON<{
         question: string;
         resolutionCriteria: string;
-      }>(
+      } | { response: { question: string; resolutionCriteria: string } }>(
         prompt,
         {
           properties: {
@@ -1391,8 +1424,13 @@ Return your response as JSON in this exact format:
           },
           required: ['question', 'resolutionCriteria'],
         },
-        { temperature: 0.8, maxTokens: 300, model: 'moonshotai/kimi-k2-instruct-0905' }
+        { temperature: 0.8, maxTokens: 300, model: 'moonshotai/kimi-k2-instruct-0905', format: 'xml' }
       );
+      
+      // Handle XML structure - extract question data from response
+      questionData = response && 'response' in response && response.response
+        ? response.response as { question: string; resolutionCriteria: string }
+        : response as { question: string; resolutionCriteria: string };
     } catch (error) {
       logger.warn(
         'Failed to generate new question via LLM',
@@ -1402,7 +1440,7 @@ Return your response as JSON in this exact format:
       continue;
     }
 
-    if (!response?.question) {
+    if (!questionData?.question) {
       continue;
     }
 
@@ -1421,7 +1459,7 @@ Return your response as JSON in this exact format:
       data: {
         id: await generateSnowflakeId(),
         questionNumber: nextQuestionNumber,
-        text: response.question,
+        text: questionData.question,
         scenarioId,
         outcome: Math.random() > 0.5,
         rank: 1,
@@ -1434,8 +1472,8 @@ Return your response as JSON in this exact format:
     const market = await prisma.market.create({
       data: {
         id: question.id,
-        question: response.question,
-        description: response.resolutionCriteria,
+        question: questionData.question,
+        description: questionData.resolutionCriteria,
         liquidity: 1000,
         endDate: resolutionDate,
         gameId: 'continuous',

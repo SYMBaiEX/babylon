@@ -52,7 +52,7 @@ Examples:
 One sentence summary:`
 
   const response = await openai.chat.completions.create({
-    model: useGroq ? 'openai/gpt-oss-120b' : 'gpt-4o-mini',  // Fast evaluation for summaries
+    model: useGroq ? 'llama-3.1-8b-instant' : 'gpt-4o-mini',  // 130k in/out, no restrictions
     messages: [
       {
         role: 'system',

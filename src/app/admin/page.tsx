@@ -12,14 +12,15 @@ import { GroupsTab } from '@/components/admin/GroupsTab'
 import { FeesTab } from '@/components/admin/FeesTab'
 import { AdminManagementTab } from '@/components/admin/AdminManagementTab'
 import { ReportsTab } from '@/components/admin/ReportsTab'
-import { Shield, Activity, Users, BarChart, Bell, MessageSquare, DollarSign, Layers, ShieldCheck, Flag, Sparkles, Database } from 'lucide-react'
+import { Shield, Activity, Users, BarChart, Bell, MessageSquare, DollarSign, Layers, ShieldCheck, Flag, Sparkles, Database, Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { RegistryTab } from '@/components/admin/RegistryTab'
 import { AIModelsTab } from '@/components/admin/AIModelsTab'
 import { TrainingDataTab } from '@/components/admin/TrainingDataTab'
+import { AgentsTab } from '@/components/admin/AgentsTab'
 
-type Tab = 'stats' | 'fees' | 'trades' | 'users' | 'registry' | 'groups' | 'notifications' | 'admins' | 'reports' | 'ai-models' | 'training-data'
+type Tab = 'stats' | 'fees' | 'trades' | 'users' | 'registry' | 'groups' | 'notifications' | 'admins' | 'reports' | 'ai-models' | 'training-data' | 'agents'
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -100,6 +101,7 @@ export default function AdminDashboard() {
     { id: 'admins' as const, label: 'Admins', icon: ShieldCheck },
     { id: 'registry' as const, label: 'Registry', icon: Layers },
     { id: 'groups' as const, label: 'Groups', icon: MessageSquare },
+    { id: 'agents' as const, label: 'Agents', icon: Bot },
     { id: 'ai-models' as const, label: 'AI Models', icon: Sparkles },
     { id: 'training-data' as const, label: 'Training Data', icon: Database },
     { id: 'notifications' as const, label: 'Notifications', icon: Bell },
@@ -149,6 +151,7 @@ export default function AdminDashboard() {
         {activeTab === 'admins' && <AdminManagementTab />}
         {activeTab === 'registry' && <RegistryTab />}
         {activeTab === 'groups' && <GroupsTab />}
+        {activeTab === 'agents' && <AgentsTab />}
         {activeTab === 'ai-models' && <AIModelsTab />}
         {activeTab === 'training-data' && <TrainingDataTab />}
         {activeTab === 'notifications' && <NotificationsTab />}

@@ -2,7 +2,7 @@ import { definePrompt } from '../define-prompt';
 
 export const governmentInstruction = definePrompt({
   id: 'government-instruction',
-  version: '1.0.0',
+  version: '2.0.0',
   category: 'feed',
   description: 'Actor instruction block for batch government post generation',
   temperature: 0.6,

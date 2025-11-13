@@ -77,7 +77,7 @@ import { countTokensSync, getSafeContextLimit, truncateToTokenLimitSync } from '
  * 
  * @interface TokenConfig
  * 
- * @property model - LLM model name (e.g., 'gpt-4o-mini')
+ * @property model - LLM model name (e.g., 'qwen/qwen3-32b' for Groq)
  * @property maxContextTokens - Maximum tokens for prompt context
  * @property maxOutputTokens - Maximum tokens for LLM response
  * @property tokensPerNPC - Estimated tokens per NPC context section
@@ -107,7 +107,7 @@ interface TokenConfig {
  * - Handle both individual and batch generation
  * 
  * **Architecture:**
- * - Uses `gpt-4o-mini` by default for reliability
+ * - Uses `qwen/qwen3-32b` on Groq for speed and reliability (130k context)
  * - Dynamically calculates batch sizes based on token limits
  * - Falls back to individual processing if batches fail
  * - Strict validation prevents invalid trades
@@ -124,23 +124,23 @@ export class MarketDecisionEngine {
    * @param llm - Babylon LLM client for decision generation
    * @param contextService - Service for building NPC market context
    * @param options - Optional configuration overrides
-   * @param options.model - LLM model to use (default: 'gpt-4o-mini')
-   * @param options.maxOutputTokens - Maximum tokens for response (default: 4000)
+   * @param options.model - LLM model to use (default: 'qwen/qwen3-32b' on Groq)
+   * @param options.maxOutputTokens - Maximum tokens for response (default: 32k for qwen3-32b, 16k for Kimi)
    * 
    * @description
    * Initializes the engine with token management configuration. Automatically
    * calculates safe context limits based on model and output requirements.
    * 
    * **Model Selection:**
-   * - Default: `gpt-4o-mini` (reliable, tested, fast)
-   * - Groq models avoid due to naming inconsistencies
-   * - Can override but must handle token limits carefully
+   * - Default: `qwen/qwen3-32b` on Groq (fast, 130k context)
+   * - Alternative: Kimi models for high-quality content generation
+   * - Fallback: OpenAI gpt-4o-mini (only if no Groq API key)
    * 
    * **Token Budget:**
-   * - Automatically calculated from model limits
-   * - Reserves space for output tokens
+   * - Automatically calculated from model INPUT limits (output is separate)
+   * - qwen3-32b: 130k INPUT (117k after safety), 32k OUTPUT (separate)
    * - Estimates ~400 tokens per NPC context
-   * - Safely handles 5-15 NPCs per batch typically
+   * - Can handle 294 NPCs per batch (117k ÷ 400), typically processes 64 NPCs easily
    * 
    * @example
    * ```typescript
@@ -148,8 +148,8 @@ export class MarketDecisionEngine {
    *   llmClient,
    *   contextService,
    *   { 
-   *     model: 'gpt-4o-mini',
-   *     maxOutputTokens: 4000 
+   *     model: 'qwen/qwen3-32b',  // Default - uses Groq
+   *     maxOutputTokens: 32000      // 32k for qwen, 16k for Kimi
    *   }
    * );
    * ```
@@ -162,9 +162,16 @@ export class MarketDecisionEngine {
       maxOutputTokens?: number;
     } = {}
   ) {
-    // Use qwen3-32b for background trading operations - fast and reliable
+    // Use qwen3-32b for background trading operations - fast and reliable on Groq
     const model = options.model || 'qwen/qwen3-32b';
-    const maxOutputTokens = options.maxOutputTokens || 4000;
+    
+    // Set output token limits based on model:
+    // Note: Input and output are SEPARATE limits on modern models
+    // - Kimi models: 260k INPUT (separate from 16k OUTPUT)
+    // - qwen3-32b: 130k INPUT (separate from 32k OUTPUT)
+    const isKimiModel = model.toLowerCase().includes('kimi');
+    const defaultMaxOutput = isKimiModel ? 16000 : 32000;
+    const maxOutputTokens = options.maxOutputTokens || defaultMaxOutput;
     
     this.tokenConfig = {
       model,
@@ -201,9 +208,9 @@ export class MarketDecisionEngine {
    * 5. Return only valid decisions
    * 
    * **Performance:**
-   * - Typical: 1-3 LLM calls for 50 NPCs
-   * - Fallback: Individual calls if batching fails
-   * - ~2-5 seconds for full decision generation
+   * - Typical: 1 LLM call for 64 NPCs (single batch with 130k context)
+   * - Fallback: Individual calls if batching fails (rare)
+   * - ~5-10 seconds for full decision generation on qwen3-32b
    * 
    * **Error Handling:**
    * - Batch failures trigger individual retry
@@ -354,46 +361,70 @@ export class MarketDecisionEngine {
       }, 'MarketDecisionEngine');
     }
     
-    const rawResponse = await this.llm.generateJSON<TradingDecision[] | { decisions: TradingDecision[] } | { decision: TradingDecision[] }>(
+    // Use XML format for more robust parsing (handles truncation better than JSON)
+    const rawResponse = await this.llm.generateJSON<TradingDecision[] | { decisions: TradingDecision[] | {decision: TradingDecision[]} } | { decision: TradingDecision[] }>(
       prompt,
       undefined,
       { 
         temperature: 0.8, 
         maxTokens: this.tokenConfig.maxOutputTokens,
         model: this.tokenConfig.model,
+        format: 'xml', // Use XML for robustness
       }
     );
     
-    // Extract decisions array - handle both wrapped and unwrapped responses
+    // Extract decisions array - handle XML structure: <decisions><decision>...</decision></decisions>
     let response: TradingDecision[];
     if (Array.isArray(rawResponse)) {
       response = rawResponse;
     } else if (rawResponse && typeof rawResponse === 'object') {
-      // Handle wrapped responses: {"decisions": [...]} or {"decision": [...]}
-      if ('decisions' in rawResponse && Array.isArray(rawResponse.decisions)) {
-        response = rawResponse.decisions;
-        logger.debug('Extracted decisions from wrapped response', { 
-          originalType: 'object',
+      // Handle XML structure: { decisions: { decision: [...] } }
+      if ('decisions' in rawResponse) {
+        const decisionsObj = rawResponse.decisions;
+        if (Array.isArray(decisionsObj)) {
+          // Direct array
+          response = decisionsObj;
+        } else if (decisionsObj && typeof decisionsObj === 'object' && 'decision' in decisionsObj) {
+          // Nested structure from XML
+          const innerDecisions = (decisionsObj as any).decision;
+          response = Array.isArray(innerDecisions) ? innerDecisions : [innerDecisions];
+        } else {
+          logger.error('Invalid decisions structure', { decisionsObj }, 'MarketDecisionEngine');
+          return [];
+        }
+        logger.debug('Extracted decisions from XML', { 
           decisionsCount: response.length 
         }, 'MarketDecisionEngine');
       } else if ('decision' in rawResponse && Array.isArray(rawResponse.decision)) {
         response = rawResponse.decision;
-        logger.debug('Extracted decisions from wrapped response (singular)', { 
-          originalType: 'object',
+        logger.debug('Extracted decisions from flat XML structure', { 
           decisionsCount: response.length 
         }, 'MarketDecisionEngine');
       } else {
-        logger.error('LLM returned object without decisions array', { 
+        logger.error('LLM returned object without decisions', { 
           response: rawResponse,
           keys: Object.keys(rawResponse)
         }, 'MarketDecisionEngine');
         return [];
       }
     } else {
+      // Type assertion needed since rawResponse could be anything
+      const responsePreview = typeof rawResponse === 'string' 
+        ? (rawResponse as string).substring(0, 200) 
+        : rawResponse;
+        
       logger.error('LLM returned invalid response type', { 
-        response: rawResponse,
+        response: responsePreview,
         type: typeof rawResponse
       }, 'MarketDecisionEngine');
+      
+      // If LLM returned a string explanation, log it
+      if (typeof rawResponse === 'string') {
+        logger.error('LLM ignored XML format and returned text explanation', {
+          explanation: (rawResponse as string).substring(0, 300)
+        }, 'MarketDecisionEngine');
+      }
+      
       return [];
     }
     

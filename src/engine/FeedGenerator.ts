@@ -665,7 +665,15 @@ export class FeedGenerator extends EventEmitter {
         { temperature: 0.9, maxTokens: 5000 }
       );
 
-      const posts = Array.isArray(response.posts) ? response.posts : [];
+      // Handle XML nested structure: { posts: [...] } or { posts: { post: [...] } }
+      let posts: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> = [];
+      if (Array.isArray(response.posts)) {
+        posts = response.posts;
+      } else if (response.posts && typeof response.posts === 'object' && 'post' in response.posts) {
+        const nested = (response.posts as any).post;
+        posts = Array.isArray(nested) ? nested : [nested];
+      }
+      
       const validPosts = posts
         .filter(p => {
           const content = p.post || p.tweet;
@@ -748,7 +756,15 @@ export class FeedGenerator extends EventEmitter {
         { temperature: 1.0, maxTokens: 5000 }
       );
 
-      const reactions = Array.isArray(response.reactions) ? response.reactions : [];
+      // Handle XML nested structure: { reactions: [...] } or { reactions: { reaction: [...] } }
+      let reactions: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> = [];
+      if (Array.isArray(response.reactions)) {
+        reactions = response.reactions;
+      } else if (response.reactions && typeof response.reactions === 'object' && 'reaction' in response.reactions) {
+        const nested = (response.reactions as any).reaction;
+        reactions = Array.isArray(nested) ? nested : [nested];
+      }
+      
       const validReactions = reactions
         .filter(r => {
           const content = r.post || r.tweet;
@@ -821,7 +837,15 @@ export class FeedGenerator extends EventEmitter {
         { temperature: 1.0, maxTokens: 5000 }
       );
 
-      const commentary = Array.isArray(response.commentary) ? response.commentary : [];
+      // Handle XML nested structure: { commentary: [...] } or { commentary: { comment: [...] } }
+      let commentary: CommentaryPost[] = [];
+      if (Array.isArray(response.commentary)) {
+        commentary = response.commentary;
+      } else if (response.commentary && typeof response.commentary === 'object' && 'comment' in response.commentary) {
+        const nested = (response.commentary as any).comment;
+        commentary = Array.isArray(nested) ? nested : [nested];
+      }
+      
       const validCommentary = commentary
         .filter((c): c is CommentaryPost => {
           if (typeof c !== 'object' || c === null) return false;
@@ -957,16 +981,28 @@ export class FeedGenerator extends EventEmitter {
     // Retry until we get non-empty content
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ 
+      const rawResponse = await this.llm.generateJSON<{ 
         post: string;
         sentiment: number;
         clueStrength: number;
         pointsToward: boolean | null;
+      } | {
+        response: {
+          post: string;
+          sentiment: number;
+          clueStrength: number;
+          pointsToward: boolean | null;
+        }
       }>(
         prompt,
         { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
         { temperature: 0.9, maxTokens: 5000 }
       );
+
+      // Handle XML structure
+      const response = 'response' in rawResponse && rawResponse.response
+        ? rawResponse.response
+        : rawResponse as { post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null };
 
       if (response.post && typeof response.post === 'string' && response.post.trim().length > 0) {
         return response;
@@ -1000,7 +1036,7 @@ export class FeedGenerator extends EventEmitter {
     // Determine which actor might have "leaked" this to the media
     const potentialSource = allActors.find(a => event.actors.includes(a.id));
 
-    const prompt = `You must respond with valid JSON only.
+    const prompt = `You must respond with valid XML only.
 
 You are: ${media.name}, ${media.description}
 Event: ${event.description}
@@ -1020,28 +1056,40 @@ Also analyze:
 - clueStrength: 0 (vague) to 1 (very revealing) - how much this reveals
 - pointsToward: true (suggests positive outcome), false (suggests negative), null (unclear)
 
-Respond with ONLY this JSON:
-{
-  "post": "your post here",
-  "sentiment": 0.3,
-  "clueStrength": 0.5,
-  "pointsToward": true
-}
+Respond with ONLY this XML:
+<response>
+  <post>your post here</post>
+  <sentiment>0.3</sentiment>
+  <clueStrength>0.5</clueStrength>
+  <pointsToward>true</pointsToward>
+</response>
 
 No other text.`;
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ 
+      const rawResponse = await this.llm.generateJSON<{ 
         post: string;
         sentiment: number;
         clueStrength: number;
         pointsToward: boolean | null;
+      } | {
+        response: {
+          post: string;
+          sentiment: number;
+          clueStrength: number;
+          pointsToward: boolean | null;
+        }
       }>(
         prompt,
         { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
         { temperature: 0.9, maxTokens: 5000 }
       );
+
+      // Handle XML structure
+      const response = 'response' in rawResponse && rawResponse.response
+        ? rawResponse.response
+        : rawResponse as { post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null };
 
       if (response.post && typeof response.post === 'string' && response.post.trim().length > 0) {
         return response;
@@ -1072,7 +1120,7 @@ No other text.`;
 
     const isCrisis = event.type === 'scandal' || event.type === 'leak';
 
-    const prompt = `You must respond with valid JSON only.
+    const prompt = `You must respond with valid XML only.
 
 You are: ${company.name}, ${company.description}
 Your CEO/representative: ${affiliatedActor.name}
@@ -1098,28 +1146,40 @@ Also analyze:
 - clueStrength: 0 (vague/corporate speak) to 1 (revealing) - usually low for PR
 - pointsToward: true (suggests positive outcome), false (suggests negative), null (unclear)
 
-Respond with ONLY this JSON:
-{
-  "post": "your post here",
-  "sentiment": 0.3,
-  "clueStrength": 0.2,
-  "pointsToward": true
-}
+Respond with ONLY this XML:
+<response>
+  <post>your post here</post>
+  <sentiment>0.3</sentiment>
+  <clueStrength>0.2</clueStrength>
+  <pointsToward>true</pointsToward>
+</response>
 
 No other text.`;
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ 
+      const rawResponse = await this.llm.generateJSON<{ 
         post: string;
         sentiment: number;
         clueStrength: number;
         pointsToward: boolean | null;
+      } | {
+        response: {
+          post: string;
+          sentiment: number;
+          clueStrength: number;
+          pointsToward: boolean | null;
+        }
       }>(
         prompt,
         { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
         { temperature: 0.9, maxTokens: 5000 }
       );
+
+      // Handle XML structure
+      const response = 'response' in rawResponse && rawResponse.response
+        ? rawResponse.response
+        : rawResponse as { post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null };
 
       if (response.post && typeof response.post === 'string' && response.post.trim().length > 0) {
         return response;
@@ -1158,7 +1218,7 @@ No other text.`;
       ? `Key individuals involved: ${keyActors.join(', ')}. You may reference them if relevant.`
       : '';
 
-    const prompt = `You must respond with valid JSON only.
+    const prompt = `You must respond with valid XML only.
 
 You are: ${govt.name}, ${govt.description}
 Event requiring governmental response: ${event.description}
@@ -1182,28 +1242,40 @@ Also analyze:
 - clueStrength: 0 (vague bureaucratese) to 1 (revealing) - usually very low
 - pointsToward: true (suggests positive outcome), false (suggests negative), null (unclear)
 
-Respond with ONLY this JSON:
-{
-  "post": "your post here",
-  "sentiment": 0.0,
-  "clueStrength": 0.1,
-  "pointsToward": null
-}
+Respond with ONLY this XML:
+<response>
+  <post>your post here</post>
+  <sentiment>0.0</sentiment>
+  <clueStrength>0.1</clueStrength>
+  <pointsToward>null</pointsToward>
+</response>
 
 No other text.`;
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ 
+      const rawResponse = await this.llm.generateJSON<{ 
         post: string;
         sentiment: number;
         clueStrength: number;
         pointsToward: boolean | null;
+      } | {
+        response: {
+          post: string;
+          sentiment: number;
+          clueStrength: number;
+          pointsToward: boolean | null;
+        }
       }>(
         prompt,
         { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
         { temperature: 0.9, maxTokens: 5000 }
       );
+
+      // Handle XML structure
+      const response = 'response' in rawResponse && rawResponse.response
+        ? rawResponse.response
+        : rawResponse as { post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null };
 
       if (response.post && typeof response.post === 'string' && response.post.trim().length > 0) {
         return response;
@@ -1244,7 +1316,7 @@ No other text.`;
       ? `This event suggests things are trending toward ${event.pointsToward}. React based on how this affects YOUR interests.`
       : `This situation is ${outcome ? 'developing in ways that could benefit some parties' : 'facing challenges that concern various stakeholders'}. React based on your role and interests.`;
 
-    const prompt = `You must respond with valid JSON only.
+    const prompt = `You must respond with valid XML only.
 
 You are: ${actor.name}, ${actor.description}
 Personality: ${actor.personality}
@@ -1262,28 +1334,40 @@ Also analyze:
 - clueStrength: 0 (vague) to 1 (very revealing)
 - pointsToward: true (suggests positive outcome), false (negative), null (unclear)
 
-Respond with ONLY this JSON:
-{
-  "post": "your post here",
-  "sentiment": 0.5,
-  "clueStrength": 0.7,
-  "pointsToward": true
-}
+Respond with ONLY this XML:
+<response>
+  <post>your post here</post>
+  <sentiment>0.5</sentiment>
+  <clueStrength>0.7</clueStrength>
+  <pointsToward>true</pointsToward>
+</response>
 
 No other text.`;
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ 
+      const rawResponse = await this.llm.generateJSON<{ 
         post: string;
         sentiment: number;
         clueStrength: number;
         pointsToward: boolean | null;
+      } | {
+        response: {
+          post: string;
+          sentiment: number;
+          clueStrength: number;
+          pointsToward: boolean | null;
+        }
       }>(
         prompt,
         { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
         { temperature: 1.0, maxTokens: 5000 }
       );
+
+      // Handle XML structure
+      const response = 'response' in rawResponse && rawResponse.response
+        ? rawResponse.response
+        : rawResponse as { post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null };
 
       if (response.post && typeof response.post === 'string' && response.post.trim().length > 0) {
         return response;
@@ -1319,7 +1403,7 @@ No other text.`;
       ? generateActorContext(state.mood, state.luck, undefined, this.relationships, actor.id)
       : '';
 
-    const prompt = `You must respond with valid JSON only.
+    const prompt = `You must respond with valid XML only.
 
 You are: ${actor.name}, ${actor.description}
 Domain: ${actor.domain?.join(', ')}
@@ -1335,28 +1419,40 @@ Also analyze:
 - clueStrength: 0 (vague) to 1 (very revealing)
 - pointsToward: true (suggests positive outcome), false (negative), null (unclear)
 
-Respond with ONLY this JSON:
-{
-  "post": "your analysis here",
-  "sentiment": 0.2,
-  "clueStrength": 0.4,
-  "pointsToward": null
-}
+Respond with ONLY this XML:
+<response>
+  <post>your analysis here</post>
+  <sentiment>0.2</sentiment>
+  <clueStrength>0.4</clueStrength>
+  <pointsToward>null</pointsToward>
+</response>
 
 No other text.`;
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ 
+      const rawResponse = await this.llm.generateJSON<{ 
         post: string;
         sentiment: number;
         clueStrength: number;
         pointsToward: boolean | null;
+      } | {
+        response: {
+          post: string;
+          sentiment: number;
+          clueStrength: number;
+          pointsToward: boolean | null;
+        }
       }>(
         prompt,
         { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
         { temperature: 1.0, maxTokens: 5000 }
       );
+
+      // Handle XML structure
+      const response = 'response' in rawResponse && rawResponse.response
+        ? rawResponse.response
+        : rawResponse as { post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null };
 
       if (response.post && typeof response.post === 'string' && response.post.trim().length > 0) {
         return response;
@@ -1391,7 +1487,7 @@ No other text.`;
       ? generateActorContext(state.mood, state.luck, undefined, this.relationships, actor.id)
       : '';
 
-    const prompt = `You must respond with valid JSON only.
+    const prompt = `You must respond with valid XML only.
 
 You are: ${actor.name}, ${actor.description}
 ${emotionalContext ? emotionalContext + '\n' : ''}Mainstream story: ${event.description}
@@ -1405,28 +1501,40 @@ Also analyze:
 - clueStrength: 0 (vague) to 1 (very revealing) - usually low for conspiracy theories
 - pointsToward: true, false, or null - often opposite of mainstream
 
-Respond with ONLY this JSON:
-{
-  "post": "your conspiracy theory here",
-  "sentiment": -0.7,
-  "clueStrength": 0.1,
-  "pointsToward": false
-}
+Respond with ONLY this XML:
+<response>
+  <post>your conspiracy theory here</post>
+  <sentiment>-0.7</sentiment>
+  <clueStrength>0.1</clueStrength>
+  <pointsToward>false</pointsToward>
+</response>
 
 No other text.`;
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ 
+      const rawResponse = await this.llm.generateJSON<{ 
         post: string;
         sentiment: number;
         clueStrength: number;
         pointsToward: boolean | null;
+      } | {
+        response: {
+          post: string;
+          sentiment: number;
+          clueStrength: number;
+          pointsToward: boolean | null;
+        }
       }>(
         prompt,
         { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
         { temperature: 1.1, maxTokens: 5000 }
       );
+
+      // Handle XML structure
+      const response = 'response' in rawResponse && rawResponse.response
+        ? rawResponse.response
+        : rawResponse as { post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null };
 
       if (response.post && typeof response.post === 'string' && response.post.trim().length > 0) {
         return response;
@@ -1554,13 +1662,21 @@ Original post by ${originalPost.authorName}:
 Write a brief reply (max 200 chars) in your voice.
 ${actor.postStyle ? `Your style: ${actor.postStyle}` : ''}
 
-Respond with JSON: {"reply": "your reply here"}`;
+Respond with XML:
+<response>
+  <reply>your reply here</reply>
+</response>`;
 
-    const response = await this.llm!.generateJSON<{ reply: string }>(
+    const rawResponse = await this.llm!.generateJSON<{ reply: string } | { response: { reply: string } }>(
       prompt,
       undefined,
       { temperature: 1.0, maxTokens: 500 }
     );
+
+    // Handle XML structure
+    const response = 'response' in rawResponse && rawResponse.response
+      ? rawResponse.response
+      : rawResponse as { reply: string };
 
     return response.reply;
   }
@@ -1626,7 +1742,15 @@ Respond with JSON: {"reply": "your reply here"}`;
         { temperature: 1.1, maxTokens: 5000 }
       );
 
-      const posts = Array.isArray(response.posts) ? response.posts : [];
+      // Handle XML nested structure: { posts: [...] } or { posts: { post: [...] } }
+      let posts: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> = [];
+      if (Array.isArray(response.posts)) {
+        posts = response.posts;
+      } else if (response.posts && typeof response.posts === 'object' && 'post' in response.posts) {
+        const nested = (response.posts as any).post;
+        posts = Array.isArray(nested) ? nested : [nested];
+      }
+      
       const validPosts = posts
         .filter(p => {
           const content = p.post || p.tweet;
@@ -1748,7 +1872,15 @@ Respond with JSON: {"reply": "your reply here"}`;
         { temperature: 1.0, maxTokens: 5000 }
       );
 
-      const replies = Array.isArray(response.replies) ? response.replies : [];
+      // Handle XML nested structure: { replies: [...] } or { replies: { reply: [...] } }
+      let replies: Array<{ post?: string; tweet?: string; sentiment: number; clueStrength: number; pointsToward: boolean | null }> = [];
+      if (Array.isArray(response.replies)) {
+        replies = response.replies;
+      } else if (response.replies && typeof response.replies === 'object' && 'reply' in response.replies) {
+        const nested = (response.replies as any).reply;
+        replies = Array.isArray(nested) ? nested : [nested];
+      }
+      
       const validReplies = replies
         .filter(r => {
           const content = r.post || r.tweet;
@@ -1798,7 +1930,7 @@ Respond with JSON: {"reply": "your reply here"}`;
       ? 'The general atmosphere feels progressive and things are developing.'
       : 'There is subtle tension in the air, things feel uncertain.';
 
-    const prompt = `You must respond with valid JSON only.
+    const prompt = `You must respond with valid XML only.
 
 You are: ${actor.name}, ${actor.description}
 Day: ${day}/30
@@ -1816,29 +1948,41 @@ Also analyze:
 - clueStrength: 0 (vague) to 1 (very revealing) - usually low for ambient posts
 - pointsToward: true, false, or null - only if you're hinting at something
 
-Respond with ONLY this JSON:
-{
-  "post": "your thoughts here",
-  "sentiment": 0.1,
-  "clueStrength": 0.05,
-  "pointsToward": null
-}
+Respond with ONLY this XML:
+<response>
+  <post>your thoughts here</post>
+  <sentiment>0.1</sentiment>
+  <clueStrength>0.05</clueStrength>
+  <pointsToward>null</pointsToward>
+</response>
 
 No other text.`;
 
     // Retry until we get non-empty content
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ 
+      const rawResponse = await this.llm.generateJSON<{ 
         post: string;
         sentiment: number;
         clueStrength: number;
         pointsToward: boolean | null;
+      } | {
+        response: {
+          post: string;
+          sentiment: number;
+          clueStrength: number;
+          pointsToward: boolean | null;
+        }
       }>(
         prompt,
         { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
         { temperature: 1.1, maxTokens: 5000 }
       );
+
+      // Handle XML structure
+      const response = 'response' in rawResponse && rawResponse.response
+        ? rawResponse.response
+        : rawResponse as { post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null };
 
       // Validate post exists and is not empty
       if (response.post && typeof response.post === 'string' && response.post.trim().length > 0) {
@@ -1892,10 +2036,15 @@ No other text.`;
         phaseContext
       });
 
-      const response = await this.llm.generateJSON<{
+      const rawResponse = await this.llm.generateJSON<{
         post: string;
         sentiment: number;
-      }>(prompt, undefined, { temperature: 0.8, maxTokens: 500 });
+      } | { response: { post: string; sentiment: number } }>(prompt, undefined, { temperature: 0.8, maxTokens: 500 });
+
+      // Handle XML structure
+      const response = 'response' in rawResponse && rawResponse.response
+        ? rawResponse.response
+        : rawResponse as { post: string; sentiment: number };
 
       posts.push({
         id: `${company.id}-price-announcement-${day}`,
@@ -1921,10 +2070,15 @@ No other text.`;
       volume: Math.floor(Math.random() * 1000000 + 500000).toString()
     });
 
-    const tickerResponse = await this.llm.generateJSON<{
+    const rawTickerResponse = await this.llm.generateJSON<{
       post: string;
       sentiment: number;
-    }>(tickerPrompt, undefined, { temperature: 0.7, maxTokens: 300 });
+    } | { response: { post: string; sentiment: number } }>(tickerPrompt, undefined, { temperature: 0.7, maxTokens: 300 });
+
+    // Handle XML structure
+    const tickerResponse = 'response' in rawTickerResponse && rawTickerResponse.response
+      ? rawTickerResponse.response
+      : rawTickerResponse as { post: string; sentiment: number };
 
     posts.push({
       id: `${company.id}-ticker-${day}`,
@@ -1961,10 +2115,15 @@ No other text.`;
           phaseContext
         });
 
-        const response = await this.llm.generateJSON<{
+        const rawResponse = await this.llm.generateJSON<{
           post: string;
           sentiment: number;
-        }>(prompt, undefined, { temperature: 0.9, maxTokens: 500 });
+        } | { response: { post: string; sentiment: number } }>(prompt, undefined, { temperature: 0.9, maxTokens: 500 });
+
+        // Handle XML structure
+        const response = 'response' in rawResponse && rawResponse.response
+          ? rawResponse.response
+          : rawResponse as { post: string; sentiment: number };
 
         posts.push({
           id: `${analyst.id}-analyst-${company.id}-${day}`,
@@ -2032,11 +2191,16 @@ No other text.`;
       keyActors: keyActors || 'Various industry figures'
     });
 
-    const response = await this.llm.generateJSON<{
+    const rawResponse = await this.llm.generateJSON<{
       event: string;
       type: string;
       tone: string;
-    }>(prompt, undefined, { temperature: 0.7, maxTokens: 500 });
+    } | { response: { event: string; type: string; tone: string } }>(prompt, undefined, { temperature: 0.7, maxTokens: 500 });
+
+    // Handle XML structure
+    const response = 'response' in rawResponse && rawResponse.response
+      ? rawResponse.response
+      : rawResponse as { event: string; type: string; tone: string };
 
     return {
       id: `day-transition-${day}`,
@@ -2077,10 +2241,15 @@ No other text.`;
       winningPercentage: winningPercentage.toFixed(0)
     });
 
-    const response = await this.llm.generateJSON<{
+    const rawResponse = await this.llm.generateJSON<{
       post: string;
       sentiment: number;
-    }>(prompt, undefined, { temperature: 0.7, maxTokens: 400 });
+    } | { response: { post: string; sentiment: number } }>(prompt, undefined, { temperature: 0.7, maxTokens: 400 });
+
+    // Handle XML structure
+    const response = 'response' in rawResponse && rawResponse.response
+      ? rawResponse.response
+      : rawResponse as { post: string; sentiment: number };
 
     return {
       id: `question-resolved-${question.id}-${day}`,
@@ -2126,11 +2295,16 @@ No other text.`;
       atmosphereContext,
     });
 
-    const response = await this.llm!.generateJSON<{
+    const rawResponse = await this.llm!.generateJSON<{
       post: string;
       sentiment: number;
       energy: number;
-    }>(prompt, undefined, { temperature: 1.0, maxTokens: 300 });
+    } | { response: { post: string; sentiment: number; energy: number } }>(prompt, undefined, { temperature: 1.0, maxTokens: 300 });
+
+    // Handle XML structure
+    const response = 'response' in rawResponse && rawResponse.response
+      ? rawResponse.response
+      : rawResponse as { post: string; sentiment: number; energy: number };
 
     return {
       content: response.post,
@@ -2166,7 +2340,7 @@ No other text.`;
       ? generateActorContext(state.mood, state.luck, originalPost.author, this.relationships, actor.id)
       : '';
 
-    const prompt = `You must respond with valid JSON only.
+    const prompt = `You must respond with valid XML only.
 
 You are: ${actor.name}, ${actor.description}
 ${emotionalContext ? `\n${emotionalContext}\n` : ''}${formatActorVoiceContext(actor)}
@@ -2181,29 +2355,41 @@ Also analyze:
 - clueStrength: 0 to 1 (usually low for replies, unless revealing something)
 - pointsToward: true/false/null (usually null for replies unless you're hinting)
 
-Respond with ONLY this JSON:
-{
-  "post": "your reply here",
-  "sentiment": 0.2,
-  "clueStrength": 0.1,
-  "pointsToward": null
-}
+Respond with ONLY this XML:
+<response>
+  <post>your reply here</post>
+  <sentiment>0.2</sentiment>
+  <clueStrength>0.1</clueStrength>
+  <pointsToward>null</pointsToward>
+</response>
 
 No other text.`;
 
     // Retry until we get non-empty content
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const response = await this.llm.generateJSON<{ 
+      const rawResponse = await this.llm.generateJSON<{ 
         post: string;
         sentiment: number;
         clueStrength: number;
         pointsToward: boolean | null;
+      } | {
+        response: {
+          post: string;
+          sentiment: number;
+          clueStrength: number;
+          pointsToward: boolean | null;
+        }
       }>(
         prompt,
         { required: ['post', 'sentiment', 'clueStrength', 'pointsToward'] },
         { temperature: 1.0, maxTokens: 5000 }
       );
+
+      // Handle XML structure
+      const response = 'response' in rawResponse && rawResponse.response
+        ? rawResponse.response
+        : rawResponse as { post: string; sentiment: number; clueStrength: number; pointsToward: boolean | null };
 
       // Validate post exists and is not empty
       if (response.post && typeof response.post === 'string' && response.post.trim().length > 0) {
