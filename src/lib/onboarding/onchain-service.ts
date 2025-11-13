@@ -88,28 +88,7 @@ const IDENTITY_REGISTRY_ABI = [
   },
 ] as const
 
-const REPUTATION_SYSTEM_ABI = [
-  {
-    type: 'function',
-    name: 'recordBet',
-    inputs: [
-      { name: '_tokenId', type: 'uint256' },
-      { name: '_amount', type: 'uint256' },
-    ],
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    name: 'recordWin',
-    inputs: [
-      { name: '_tokenId', type: 'uint256' },
-      { name: '_profit', type: 'uint256' },
-    ],
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-] as const
+import { REPUTATION_SYSTEM_ABI } from '../web3/abis'
 
 export interface OnchainRegistrationInput {
   user: AuthenticatedUser

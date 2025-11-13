@@ -10,6 +10,7 @@ import "../contracts/core/OracleFacet.sol";
 import "../contracts/core/LiquidityPoolFacet.sol";
 import "../contracts/core/PerpetualMarketFacet.sol";
 import "../contracts/core/ReferralSystemFacet.sol";
+import "../contracts/core/PriceStorageFacet.sol";
 import "../contracts/identity/ERC8004IdentityRegistry.sol";
 import "../contracts/identity/ERC8004ReputationSystem.sol";
 import "../contracts/oracles/ChainlinkOracleMock.sol";
@@ -52,6 +53,7 @@ contract DeployBabylon is Script {
     LiquidityPoolFacet public liquidityPoolFacet;
     PerpetualMarketFacet public perpetualMarketFacet;
     ReferralSystemFacet public referralSystemFacet;
+    PriceStorageFacet public priceStorageFacet;
     
     // Identity system
     ERC8004IdentityRegistry public identityRegistry;
@@ -188,9 +190,12 @@ contract DeployBabylon is Script {
         referralSystemFacet = new ReferralSystemFacet();
         console.log("ReferralSystemFacet:", address(referralSystemFacet));
 
+        priceStorageFacet = new PriceStorageFacet();
+        console.log("PriceStorageFacet:", address(priceStorageFacet));
+
         // 7. Add new facets to Diamond
         console.log("\n7. Adding new facets to Diamond...");
-        IDiamondCut.FacetCut[] memory newFacetsCut = new IDiamondCut.FacetCut[](3);
+        IDiamondCut.FacetCut[] memory newFacetsCut = new IDiamondCut.FacetCut[](4);
 
         // LiquidityPoolFacet selectors
         bytes4[] memory liquiditySelectors = new bytes4[](12);
@@ -249,6 +254,24 @@ contract DeployBabylon is Script {
             facetAddress: address(referralSystemFacet),
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: referralSelectors
+        });
+
+        // PriceStorageFacet selectors
+        bytes4[] memory priceSelectors = new bytes4[](9);
+        priceSelectors[0] = PriceStorageFacet.updatePrices.selector;
+        priceSelectors[1] = PriceStorageFacet.updatePrice.selector;
+        priceSelectors[2] = PriceStorageFacet.submitPriceBatch.selector;
+        priceSelectors[3] = PriceStorageFacet.getLatestPrice.selector;
+        priceSelectors[4] = PriceStorageFacet.getPriceAtTick.selector;
+        priceSelectors[5] = PriceStorageFacet.getGlobalTickCounter.selector;
+        priceSelectors[6] = PriceStorageFacet.incrementTickCounter.selector;
+        priceSelectors[7] = PriceStorageFacet.setAuthorizedUpdater.selector;
+        priceSelectors[8] = PriceStorageFacet.getAuthorizedUpdater.selector;
+
+        newFacetsCut[3] = IDiamondCut.FacetCut({
+            facetAddress: address(priceStorageFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: priceSelectors
         });
 
         IDiamondCut(address(diamond)).diamondCut(newFacetsCut, address(0), "");
@@ -371,6 +394,7 @@ contract DeployBabylon is Script {
         console.log("LiquidityPoolFacet:", address(liquidityPoolFacet));
         console.log("PerpetualMarketFacet:", address(perpetualMarketFacet));
         console.log("ReferralSystemFacet:", address(referralSystemFacet));
+        console.log("PriceStorageFacet:", address(priceStorageFacet));
         
         console.log("\n--- Identity System ---");
         console.log("IdentityRegistry:", address(identityRegistry));

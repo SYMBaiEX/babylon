@@ -7,9 +7,9 @@
 import { Service } from '@elizaos/core'
 import type { IAgentRuntime } from '@elizaos/core'
 import { logger } from '@elizaos/core'
-import { UnifiedDiscoveryService, getUnifiedDiscoveryService } from '../../src/agents/agent0/UnifiedDiscovery'
-import { GameDiscoveryService } from '../../src/agents/agent0/GameDiscovery'
-import { Agent0Client } from '../../src/agents/agent0/Agent0Client'
+import { type UnifiedDiscoveryService, getUnifiedDiscoveryService } from '../../../src/agents/agent0/UnifiedDiscovery'
+import { GameDiscoveryService } from '../../../src/agents/agent0/GameDiscovery'
+import { Agent0Client } from '../../../src/agents/agent0/Agent0Client'
 
 export class Agent0Service extends Service {
   static override serviceType = 'babylon-agent0' as const

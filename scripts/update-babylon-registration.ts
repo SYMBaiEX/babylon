@@ -166,8 +166,8 @@ async function updateBabylonRegistration() {
           registered: true,
           tokenId,
           metadataCID: newMetadataCID,
-          txHash: registrationData.txHash, // Keep original registration tx
-          registeredAt: registrationData.registeredAt, // Keep original date
+          txHash: registrationData.txHash as string | null ?? null, // Keep original registration tx
+          registeredAt: registrationData.registeredAt as string | null ?? null, // Keep original date
           lastUpdated: new Date().toISOString()
         }
       }
