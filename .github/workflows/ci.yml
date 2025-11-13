@@ -198,6 +198,10 @@ jobs:
           EOF
             set -x
           fi
+          
+          # Generate Prisma client (needed for artifacts even on cache hit)
+          echo "Generating Prisma client for downstream jobs..."
+          bun prisma generate
       
       - name: Verify .env.test exists before upload
         run: |
