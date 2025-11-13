@@ -112,6 +112,10 @@ import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager'
 import { agentService } from '@/lib/agents/services/AgentService'
 import { autonomousCoordinator, AutonomousCoordinatorWithRecording } from '@/lib/agents/autonomous'
 
+// Vercel function configuration
+export const maxDuration = 300; // 5 minutes max for agent tick
+export const dynamic = 'force-dynamic';
+
 export async function POST(_req: NextRequest) {
   const startTime = Date.now()
   logger.info('Agent tick started', undefined, 'AgentTick')

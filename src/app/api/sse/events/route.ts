@@ -123,6 +123,9 @@ import { SSEChannelsQuerySchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
 
+// Vercel function configuration
+export const maxDuration = 300; // 5 minutes max for SSE connections
+
 // Disable buffering for SSE
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
