@@ -967,6 +967,7 @@ model User {
   TradingFee_TradingFee_userIdToUser      TradingFee[]             @relation("TradingFee_userIdToUser")
   UserActorFollow                         UserActorFollow[]
   ProfileUpdateLog                        ProfileUpdateLog[]
+  TwitterOAuthToken                       TwitterOAuthToken?
 
   @@index([earnedPoints(sort: Desc)])
   @@index([invitePoints(sort: Desc)])
@@ -1047,6 +1048,32 @@ model WorldEvent {
   @@index([gameId, dayNumber])
   @@index([relatedQuestion])
   @@index([timestamp(sort: Desc)])
+}
+
+model OAuthState {
+  id           String   @id
+  state        String   @unique
+  codeVerifier String
+  userId       String?
+  returnPath   String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([state])
+  @@index([expiresAt])
+}
+
+model TwitterOAuthToken {
+  id               String    @id
+  userId           String    @unique
+  oauth1Token      String
+  oauth1TokenSecret String
+  screenName       String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  User             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 enum OnboardingStatus {

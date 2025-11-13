@@ -393,18 +393,18 @@ export default function RewardsPage() {
                 </div>
 
                 {/* Share Button */}
-                {referralData.referralUrl && (
+                {user?.id && (
                   <ExternalShareButton
                     contentType="referral"
-                    text="Join me on Babylon! 🎮"
-                    url={referralData.referralUrl}
+                    text={`Join me on Babylon! 🎮\n\n${typeof window !== 'undefined' ? `${window.location.origin}/share/referral/${user.id}` : referralData.referralUrl || ''}`}
+                    url={typeof window !== 'undefined' ? `${window.location.origin}/share/referral/${user.id}` : referralData.referralUrl || ''}
                     className="w-full"
                   />
                 )}
 
-                {!referralData.referralUrl && (
+                {!user?.id && (
                   <p className="text-xs text-muted-foreground">
-                    Set a username in your profile to get your referral link
+                    Sign in to get your referral link
                   </p>
                 )}
               </div>
@@ -616,18 +616,18 @@ export default function RewardsPage() {
                 </div>
 
                 {/* Share Button */}
-                {referralData.referralUrl && (
+                {user?.id && (
                   <ExternalShareButton
                     contentType="referral"
-                    text="Join me on Babylon! 🎮"
-                    url={referralData.referralUrl}
+                    text={`Join me on Babylon! 🎮\n\n${typeof window !== 'undefined' ? `${window.location.origin}/share/referral/${user.id}` : referralData.referralUrl || ''}`}
+                    url={typeof window !== 'undefined' ? `${window.location.origin}/share/referral/${user.id}` : referralData.referralUrl || ''}
                     className="w-full"
                   />
                 )}
 
-                {!referralData.referralUrl && (
+                {!user?.id && (
                   <p className="text-xs text-muted-foreground">
-                    Set a username in your profile to get your referral link
+                    Sign in to get your referral link
                   </p>
                 )}
               </div>

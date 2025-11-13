@@ -2,13 +2,14 @@
 
 import { useState, useRef, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
-import { Twitter } from 'lucide-react'
+import { Twitter, LogOut } from 'lucide-react'
 import { Download, X } from 'lucide-react'
 import { PortfolioPnLShareCard } from '@/components/markets/PortfolioPnLShareCard'
 import { CategoryPnLShareCard } from '@/components/markets/CategoryPnLShareCard'
 import type { PortfolioPnLSnapshot } from '@/hooks/usePortfolioPnL'
 import type { User } from '@/stores/authStore'
 import { trackExternalShare } from '@/lib/share/trackExternalShare'
+import { useTwitterAuth } from '@/hooks/useTwitterAuth'
 
 type MarketCategory = 'perps' | 'predictions'
 
@@ -61,7 +62,13 @@ export function PnLShareModal({
   const [sharing, setSharing] = useState<'twitter' | 'farcaster' | null>(null)
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
   const [isGeneratingImage, setIsGeneratingImage] = useState(false)
+  const [isPostingToTwitter, setIsPostingToTwitter] = useState(false)
+  const [showTwitterConfirm, setShowTwitterConfirm] = useState(false)
+  const [tweetText, setTweetText] = useState('')
   const offscreenCardRef = useRef<HTMLDivElement>(null)
+  
+  // Twitter auth hook
+  const { authStatus, loading: twitterAuthLoading, connectTwitter, disconnectTwitter } = useTwitterAuth()
 
   const shareUrl =
     typeof window !== 'undefined' ? `${window.location.origin}/markets` : 'https://babylon.market'
@@ -74,17 +81,34 @@ export function PnLShareModal({
   const categoryLabel = type === 'category' && category ? categoryLabels[category] : ''
   const contentId = type === 'portfolio' ? 'portfolio-pnl' : `${category}-pnl`
 
+  // Generate shareable link with OG embed
+  const shareableLink = useMemo(() => {
+    if (!user?.id) return null
+    const appUrl = typeof window !== 'undefined' 
+      ? window.location.origin 
+      : 'https://babylon.market'
+    return `${appUrl}/share/pnl/${user.id}`
+  }, [user?.id])
+
   const shareText = useMemo(() => {
+    const link = shareableLink || shareUrl
     if (type === 'portfolio' && portfolioData) {
-      return `My Babylon P&L is ${portfolioData.totalPnL >= 0 ? '+' : ''}$${Math.abs(portfolioData.totalPnL).toFixed(2)}. Trading narratives, sharing the upside.`
+      return `My Babylon P&L is ${portfolioData.totalPnL >= 0 ? '+' : ''}$${Math.abs(portfolioData.totalPnL).toFixed(2)}. Trading narratives, sharing the upside.\n\n${link}`
     }
     if (type === 'category' && categoryData) {
-      return `My ${categoryLabel} P&L on Babylon is ${categoryData.unrealizedPnL >= 0 ? '+' : ''}$${Math.abs(categoryData.unrealizedPnL).toFixed(2)}. Trading narratives, sharing the upside.`
+      return `My ${categoryLabel} P&L on Babylon is ${categoryData.unrealizedPnL >= 0 ? '+' : ''}$${Math.abs(categoryData.unrealizedPnL).toFixed(2)}. Trading narratives, sharing the upside.\n\n${link}`
     }
     return type === 'portfolio' 
-      ? 'Check out the markets on Babylon.'
-      : `Check out ${categoryLabel} on Babylon.`
-  }, [type, portfolioData, categoryData, categoryLabel])
+      ? `Check out the markets on Babylon.\n\n${link}`
+      : `Check out ${categoryLabel} on Babylon.\n\n${link}`
+  }, [type, portfolioData, categoryData, categoryLabel, shareUrl, shareableLink])
+  
+  // Set initial tweet text
+  useEffect(() => {
+    if (shareText && !tweetText) {
+      setTweetText(shareText)
+    }
+  }, [shareText, tweetText])
 
   // Generate preview image when modal opens or data changes
   useEffect(() => {
@@ -119,61 +143,115 @@ export function PnLShareModal({
   if (!isOpen) return null
 
   const handleDownload = async () => {
-    if (!previewImageUrl) {
-      toast.error('Preview image not ready')
-      return
-    }
+    if (!previewImageUrl) return
+
     setIsDownloading(true)
-    try {
-      const link = document.createElement('a')
-      link.href = previewImageUrl
-      link.download = `babylon-${type === 'portfolio' ? 'pnl' : `${category}-pnl`}-${Date.now()}.png`
-      link.click()
-      void trackExternalShare({
-        platform: 'download',
-        contentType: 'market',
-        contentId,
-        url: shareUrl,
-        userId: user?.id,
-      })
-      toast.success('P&L card downloaded')
-    } catch {
-      toast.error('Failed to download card')
-    } finally {
-      setIsDownloading(false)
-    }
+    
+    const link = document.createElement('a')
+    link.href = previewImageUrl
+    link.download = `babylon-${type === 'portfolio' ? 'pnl' : `${category}-pnl`}-${Date.now()}.png`
+    link.click()
+    
+    void trackExternalShare({
+      platform: 'download',
+      contentType: 'market',
+      contentId,
+      url: shareUrl,
+      userId: user?.id,
+    })
+    
+    toast.success('P&L card downloaded')
+    setIsDownloading(false)
   }
 
   const handleShare = async (platform: 'twitter' | 'farcaster') => {
     if (!canShare || !user || !data) return
 
     setSharing(platform)
-    const message =
-      platform === 'twitter'
-        ? `${shareText} ${shareUrl}`
-        : `${shareText}\n\n${shareUrl} #BabylonMarkets`
 
-    try {
-      if (platform === 'twitter') {
-        const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(message)}`
-        window.open(twitterUrl, '_blank', 'width=550,height=420')
-      } else {
-        const warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(message)}`
-        window.open(warpcastUrl, '_blank', 'width=550,height=600')
+    if (platform === 'twitter') {
+      if (!authStatus?.connected) {
+        toast.info('Please connect your X account to share')
+        connectTwitter(window.location.pathname)
+        setSharing(null)
+        return
       }
+
+      setShowTwitterConfirm(true)
+      setSharing(null)
+    } else {
+      const warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}&embeds[]=${encodeURIComponent(shareableLink || shareUrl)}`
+      window.open(warpcastUrl, '_blank', 'width=550,height=600')
 
       await trackExternalShare({
         platform,
         contentType: 'market',
         contentId,
-        url: shareUrl,
+        url: shareableLink || shareUrl,
         userId: user?.id,
       })
-    } catch {
-      toast.error('Failed to initiate share')
-    } finally {
+      
       setSharing(null)
     }
+  }
+
+  const handleTwitterPost = async () => {
+    if (!user || !authStatus?.connected || !shareableLink) return
+
+    setIsPostingToTwitter(true)
+
+    const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    if (!token) {
+      setIsPostingToTwitter(false)
+      return
+    }
+
+    toast.info('Posting to X...')
+    
+    const tweetResponse = await fetch('/api/twitter/tweet', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text: tweetText,
+        contentType: 'market',
+        contentId,
+      }),
+    })
+
+    if (!tweetResponse.ok) {
+      const error = await tweetResponse.json()
+      toast.error(error.error || 'Failed to post tweet')
+      setIsPostingToTwitter(false)
+      return
+    }
+
+    const tweetData = await tweetResponse.json() as { tweetUrl: string }
+
+    toast.success('Successfully shared to X!')
+    
+    await trackExternalShare({
+      platform: 'twitter',
+      contentType: 'market',
+      contentId,
+      url: shareableLink,
+      userId: user.id,
+    })
+    
+    if (tweetData.tweetUrl) {
+      window.open(tweetData.tweetUrl, '_blank')
+    }
+
+    setShowTwitterConfirm(false)
+    onClose()
+    setIsPostingToTwitter(false)
+  }
+
+  const handleDisconnectTwitter = async () => {
+    await disconnectTwitter()
+    toast.success('X account disconnected')
   }
 
   const modalTitle = type === 'portfolio' 
@@ -260,6 +338,26 @@ export function PnLShareModal({
               )}
             </div>
 
+            {/* Twitter Connection Status */}
+            {authStatus?.connected && (
+              <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-4 py-2">
+                <div className="flex items-center gap-2">
+                  <Twitter className="h-4 w-4 text-sky-400" />
+                  <span className="text-sm text-white">
+                    Connected as <span className="font-semibold">@{authStatus.screenName}</span>
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDisconnectTwitter}
+                  className="inline-flex items-center gap-1 text-xs text-white/60 hover:text-white transition"
+                >
+                  <LogOut className="h-3 w-3" />
+                  Disconnect
+                </button>
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="grid grid-cols-3 gap-3">
               <button
@@ -275,7 +373,7 @@ export function PnLShareModal({
               <button
                 type="button"
                 onClick={() => handleShare('twitter')}
-                disabled={!canShare || sharing === 'twitter'}
+                disabled={!canShare || sharing === 'twitter' || twitterAuthLoading}
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:border-white/30 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Twitter className="h-4 w-4 text-sky-400" />
@@ -295,6 +393,111 @@ export function PnLShareModal({
           </div>
         </div>
       </div>
+
+      {/* Twitter Confirmation Modal */}
+      {showTwitterConfirm && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          onClick={() => !isPostingToTwitter && setShowTwitterConfirm(false)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="relative w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-[#050816] shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+              <div className="flex items-center gap-2">
+                <Twitter className="h-5 w-5 text-sky-400" />
+                <h2 className="text-xl font-semibold text-white">Share to X</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isPostingToTwitter && setShowTwitterConfirm(false)}
+                disabled={isPostingToTwitter}
+                className="rounded-lg p-2 text-white/70 transition hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Close modal"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-4 px-6 py-6">
+              {/* Preview */}
+              <div className="relative aspect-[1200/630] w-full overflow-hidden rounded-xl border border-white/10 bg-black/50">
+                {previewImageUrl ? (
+                  <img 
+                    src={previewImageUrl} 
+                    alt="Tweet Preview" 
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-white/60">
+                    No preview available
+                  </div>
+                )}
+              </div>
+
+              {/* Tweet Text Editor */}
+              <div>
+                <label htmlFor="tweet-text" className="block text-sm font-medium text-white/80 mb-2">
+                  Tweet Text
+                </label>
+                <textarea
+                  id="tweet-text"
+                  value={tweetText}
+                  onChange={(e) => setTweetText(e.target.value)}
+                  maxLength={280}
+                  rows={4}
+                  disabled={isPostingToTwitter}
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-50 disabled:cursor-not-allowed resize-none"
+                  placeholder="What's on your mind?"
+                />
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-xs text-white/60">
+                    {tweetText.length} / 280 characters
+                  </span>
+                  {tweetText.length > 280 && (
+                    <span className="text-xs text-red-400">
+                      Text is too long
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowTwitterConfirm(false)}
+                  disabled={isPostingToTwitter}
+                  className="px-6 py-2.5 rounded-lg border border-white/10 text-white hover:bg-white/5 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleTwitterPost}
+                  disabled={isPostingToTwitter || !tweetText.trim() || tweetText.length > 280}
+                  className="px-6 py-2.5 rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isPostingToTwitter ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+                      Posting...
+                    </>
+                  ) : (
+                    <>
+                      <Twitter className="h-4 w-4" />
+                      Post
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

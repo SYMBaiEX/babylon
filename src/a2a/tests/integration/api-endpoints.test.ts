@@ -6,9 +6,10 @@
  */
 
 import { describe, test, expect, beforeAll } from 'bun:test'
-import { prisma } from '@/lib/database-service'
+import { prisma as db } from '@/lib/database-service'
 import { generateSnowflakeId } from '@/lib/snowflake'
 
+// Note: This test file uses real database calls, not mocks
 describe('Real API Endpoint Tests - Points Purchase', () => {
   let testUserId: string
 
@@ -17,7 +18,7 @@ describe('Real API Endpoint Tests - Points Purchase', () => {
     testUserId = generateSnowflakeId()
     
     try {
-      await prisma.user.create({
+      await db.user.create({
         data: {
           id: testUserId,
           privyId: `did:privy:test-${testUserId}`,
@@ -125,7 +126,7 @@ describe('Real API Endpoint Tests - Points Purchase', () => {
     
     // Clean up any existing transactions from previous test runs
     const uniqueRequestId = `test-request-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    await prisma.pointsTransaction.deleteMany({
+    await db.pointsTransaction.deleteMany({
       where: {
         paymentRequestId: {
           startsWith: 'test-request-'
@@ -136,7 +137,7 @@ describe('Real API Endpoint Tests - Points Purchase', () => {
     })
     
     // Get user's current points
-    const userBefore = await prisma.user.findUnique({
+    const userBefore = await db.user.findUnique({
       where: { id: testUserId },
       select: { reputationPoints: true }
     })
@@ -160,7 +161,7 @@ describe('Real API Endpoint Tests - Points Purchase', () => {
     expect(result.newTotal).toBe(pointsBefore + 1000)
     
     // Verify the database was actually updated
-    const userAfter = await prisma.user.findUnique({
+    const userAfter = await db.user.findUnique({
       where: { id: testUserId },
       select: { reputationPoints: true }
     })
@@ -168,7 +169,7 @@ describe('Real API Endpoint Tests - Points Purchase', () => {
     expect(userAfter?.reputationPoints).toBe(result.newTotal)
     
     // Verify transaction record was created
-    const transaction = await prisma.pointsTransaction.findFirst({
+    const transaction = await db.pointsTransaction.findFirst({
       where: {
         userId: testUserId,
         paymentRequestId: uniqueRequestId

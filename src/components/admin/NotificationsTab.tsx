@@ -1,26 +1,27 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useTransition } from 'react'
 import { Bell, Send, Users, User, MessageCircle, UserPlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
-type NotificationType = 'system' | 'comment' | 'reaction' | 'follow' | 'mention' | 'reply' | 'share'
-type RecipientType = 'specific' | 'all'
+type NotificationType = 'system' | 'comment' | 'reaction' | 'follow' | 'mention' | 'reply' | 'share';
+
+type RecipientType = 'specific' | 'all';
 
 export function NotificationsTab() {
   const [message, setMessage] = useState('')
   const [userId, setUserId] = useState('')
   const [type, setType] = useState<NotificationType>('system')
   const [recipientType, setRecipientType] = useState<RecipientType>('specific')
-  const [sending, setSending] = useState(false)
+  const [isSending, startSending] = useTransition();
 
   // DM Testing state
   const [dmSenderId, setDmSenderId] = useState('demo-user-babylon-support')
   const [dmRecipientId, setDmRecipientId] = useState('')
-  const [sendingDm, setSendingDm] = useState(false)
+  const [isSendingDm, startSendingDm] = useTransition();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const [debugInfo, setDebugInfo] = useState<Record<string, unknown> | null>(null)
+  const [debugInfo, setDebugInfo] = useState<z.infer<typeof DebugInfoSchema> | null>(null)
 
   // Fetch current user ID on mount
   useEffect(() => {
@@ -58,47 +59,44 @@ export function NotificationsTab() {
       return
     }
 
-    setSending(true)
+    startSending(async () => {
+      try {
+        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null;
 
-    try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+        if (!token) {
+          toast.error('Not authenticated');
+          return;
+        }
 
-      if (!token) {
-        toast.error('Not authenticated')
-        setSending(false)
-        return
+        const response = await fetch('/api/admin/notifications', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: message.trim(),
+            type,
+            ...(recipientType === 'specific' ? { userId: userId.trim() } : { sendToAll: true }),
+          }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          toast.success(data.message || 'Notification sent successfully');
+          // Reset form
+          setMessage('');
+          setUserId('');
+        } else {
+          toast.error(data.message || 'Failed to send notification');
+        }
+      } catch (error) {
+        console.error('Failed to send notification:', error);
+        toast.error('Failed to send notification');
       }
-
-      const response = await fetch('/api/admin/notifications', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: message.trim(),
-          type,
-          ...(recipientType === 'specific' ? { userId: userId.trim() } : { sendToAll: true }),
-        }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok && data.success) {
-        toast.success(data.message || 'Notification sent successfully')
-        // Reset form
-        setMessage('')
-        setUserId('')
-      } else {
-        toast.error(data.message || 'Failed to send notification')
-      }
-    } catch (error) {
-      console.error('Failed to send notification:', error)
-      toast.error('Failed to send notification')
-    } finally {
-      setSending(false)
-    }
-  }, [message, userId, type, recipientType])
+    });
+  }, [message, userId, type, recipientType, startSending])
 
   const handleDebugDMs = useCallback(async () => {
     if (!dmRecipientId.trim()) {
@@ -106,33 +104,36 @@ export function NotificationsTab() {
       return
     }
 
-    try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
-      if (!token) {
-        toast.error('Not authenticated')
-        return
-      }
+    startSendingDm(async () => {
+      try {
+        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null;
 
-      const response = await fetch(`/api/admin/debug-dm?userId=${encodeURIComponent(dmRecipientId.trim())}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
+        if (!token) {
+          toast.error('Not authenticated');
+          return;
+        }
 
-      const data = await response.json()
-      console.log('[Debug DM]', data)
-      setDebugInfo(data)
-      
-      if (data.participantRecords?.length === 0) {
-        toast.error(`No DM chats found for user ${dmRecipientId}`)
-      } else {
-        toast.success(`Found ${data.participantRecords?.length || 0} DM participant records and ${data.chats?.length || 0} chats`)
+        const response = await fetch(`/api/admin/debug-dm?userId=${encodeURIComponent(dmRecipientId.trim())}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        const data = await response.json();
+        console.log('[Debug DM]', data)
+        setDebugInfo(data);
+        
+        if (data.participantRecords?.length === 0) {
+          toast.error(`No DM chats found for user ${dmRecipientId}`)
+        } else {
+          toast.success(`Found ${data.participantRecords?.length || 0} DM participant records and ${data.chats?.length || 0} chats`)
+        }
+      } catch (error) {
+        console.error('Debug DM error:', error)
+        toast.error('Failed to debug DMs')
       }
-    } catch (error) {
-      console.error('Debug DM error:', error)
-      toast.error('Failed to debug DMs')
-    }
-  }, [dmRecipientId])
+    });
+  }, [dmRecipientId, startSendingDm])
 
   const handleSendTestDMs = useCallback(async () => {
     if (!dmSenderId.trim()) {
@@ -150,55 +151,52 @@ export function NotificationsTab() {
       return
     }
 
-    setSendingDm(true)
+    startSendingDm(async () => {
+      try {
+        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null;
 
-    try {
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+        if (!token) {
+          toast.error('Not authenticated');
+          return;
+        }
 
-      if (!token) {
-        toast.error('Not authenticated')
-        setSendingDm(false)
-        return
+        toast.info('Sending 100 test DM messages... This may take a moment.');
+
+        const response = await fetch('/api/admin/test-dm-messages', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            senderId: dmSenderId.trim(),
+            recipientId: dmRecipientId.trim(),
+            messageCount: 100,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          const chatId = data.chatId;
+          console.log('[Admin] Test DM messages sent. Chat ID:', chatId, 'Data:', data);
+          toast.success(data.message || 'Test DM messages sent successfully', {
+            duration: 10000,
+            action: {
+              label: 'Go to Chats',
+              onClick: () => window.location.href = '/chats'
+            }
+          });
+        } else {
+          console.error('[Admin] Failed to send messages:', data);
+          toast.error(data.message || 'Failed to send test DM messages');
+        }
+      } catch (error) {
+        console.error('Failed to send test DM messages:', error);
+        toast.error('Failed to send test DM messages');
       }
-
-      toast.info('Sending 100 test DM messages... This may take a moment.')
-
-      const response = await fetch('/api/admin/test-dm-messages', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          senderId: dmSenderId.trim(),
-          recipientId: dmRecipientId.trim(),
-          messageCount: 100,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok && data.success) {
-        const chatId = data.chatId;
-        console.log('[Admin] Test DM messages sent. Chat ID:', chatId, 'Data:', data);
-        toast.success(data.message || 'Test DM messages sent successfully', {
-          duration: 10000,
-          action: {
-            label: 'Go to Chats',
-            onClick: () => window.location.href = '/chats'
-          }
-        })
-      } else {
-        console.error('[Admin] Failed to send messages:', data);
-        toast.error(data.message || 'Failed to send test DM messages')
-      }
-    } catch (error) {
-      console.error('Failed to send test DM messages:', error)
-      toast.error('Failed to send test DM messages')
-    } finally {
-      setSendingDm(false)
-    }
-  }, [dmSenderId, dmRecipientId])
+    });
+  }, [dmSenderId, dmRecipientId, startSendingDm])
 
   return (
     <div className="space-y-6">
@@ -259,7 +257,7 @@ export function NotificationsTab() {
                 'focus:outline-none focus:border-border',
                 'disabled:opacity-50 disabled:cursor-not-allowed'
               )}
-              disabled={sending}
+              disabled={isSending}
             />
             <p className="text-xs text-muted-foreground mt-1">
               You can find user IDs in the Users tab or in the database
@@ -282,7 +280,7 @@ export function NotificationsTab() {
               'focus:outline-none focus:border-border',
               'disabled:opacity-50 disabled:cursor-not-allowed'
             )}
-            disabled={sending}
+            disabled={isSending}
           >
             <option value="system">System</option>
             <option value="comment">Comment</option>
@@ -313,7 +311,7 @@ export function NotificationsTab() {
               'disabled:opacity-50 disabled:cursor-not-allowed',
               'resize-none'
             )}
-            disabled={sending}
+            disabled={isSending}
           />
           <p className="text-xs text-muted-foreground mt-1">
             {message.length}/500 characters
@@ -323,7 +321,7 @@ export function NotificationsTab() {
         {/* Send Button */}
         <button
           onClick={handleSend}
-          disabled={sending || !message.trim() || (recipientType === 'specific' && !userId.trim())}
+          disabled={isSending || !message.trim() || (recipientType === 'specific' && !userId.trim())}
           className={cn(
             'w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg',
             'bg-primary text-primary-foreground font-semibold',
@@ -332,7 +330,7 @@ export function NotificationsTab() {
           )}
         >
           <Send className="w-4 h-4" />
-          <span>{sending ? 'Sending...' : 'Send Notification'}</span>
+          <span>{isSending ? 'Sending...' : 'Send Notification'}</span>
         </button>
       </div>
 
@@ -397,7 +395,7 @@ export function NotificationsTab() {
                 'focus:outline-none focus:border-border',
                 'disabled:opacity-50 disabled:cursor-not-allowed'
               )}
-              disabled={sendingDm}
+              disabled={isSendingDm}
             />
             <p className="text-xs text-muted-foreground mt-1">
               Default: demo-user-babylon-support (Babylon Support)
@@ -422,7 +420,7 @@ export function NotificationsTab() {
                   'focus:outline-none focus:border-border',
                   'disabled:opacity-50 disabled:cursor-not-allowed'
                 )}
-                disabled={sendingDm}
+                disabled={isSendingDm}
               />
               <button
                 type="button"
@@ -434,7 +432,7 @@ export function NotificationsTab() {
                     toast.error('Could not fetch your user ID')
                   }
                 }}
-                disabled={sendingDm || !currentUserId}
+                disabled={isSendingDm || !currentUserId}
                 className={cn(
                   'px-3 py-2 rounded-lg border border-border',
                   'bg-primary text-primary-foreground hover:bg-primary/90 transition-colors',
@@ -448,7 +446,7 @@ export function NotificationsTab() {
               <button
                 type="button"
                 onClick={() => setDmRecipientId('demo-user-welcome-bot')}
-                disabled={sendingDm}
+                disabled={isSendingDm}
                 className={cn(
                   'px-3 py-2 rounded-lg border border-border',
                   'bg-background hover:bg-muted transition-colors',
@@ -483,7 +481,7 @@ export function NotificationsTab() {
             
             <button
               onClick={handleSendTestDMs}
-              disabled={sendingDm || !dmSenderId.trim() || !dmRecipientId.trim()}
+              disabled={isSendingDm || !dmSenderId.trim() || !dmRecipientId.trim()}
               className={cn(
                 'flex-[2] flex items-center justify-center gap-2 px-6 py-3 rounded-lg',
                 'bg-primary text-primary-foreground font-semibold',
@@ -492,7 +490,7 @@ export function NotificationsTab() {
               )}
             >
               <MessageCircle className="w-4 h-4" />
-              <span>{sendingDm ? 'Sending 100 Messages...' : 'Send 100 Test DM Messages'}</span>
+              <span>{isSendingDm ? 'Sending 100 Messages...' : 'Send 100 Test DM Messages'}</span>
             </button>
           </div>
         </div>

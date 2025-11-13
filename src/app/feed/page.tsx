@@ -9,6 +9,7 @@ import { PageContainer } from '@/components/shared/PageContainer'
 import { PullToRefreshIndicator } from '@/components/shared/PullToRefreshIndicator'
 import { FeedSkeleton } from '@/components/shared/Skeleton'
 import { WidgetSidebar } from '@/components/shared/WidgetSidebar'
+import { TradesFeed } from '@/components/trades/TradesFeed'
 import { useWidgetRefresh } from '@/contexts/WidgetRefreshContext'
 import { useAuth } from '@/hooks/useAuth'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
@@ -30,7 +31,7 @@ function FeedPageContent() {
   const { user } = useAuthStore()
   const { refreshAll: refreshWidgets } = useWidgetRefresh()
   const { registerOptimisticPostCallback, unregisterOptimisticPostCallback } = useFeedStore()
-  const [tab, setTab] = useState<'latest' | 'following'>('latest')
+  const [tab, setTab] = useState<'latest' | 'following' | 'trades'>('latest')
   const [posts, setPosts] = useState<FeedPost[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -46,6 +47,9 @@ function FeedPageContent() {
   
   // Track locally created posts (optimistic UI)
   const [localPosts, setLocalPosts] = useState<FeedPost[]>([])
+  
+  // Ref for scroll container (used by TradesFeed)
+  const scrollContainerRefObject = useRef<HTMLDivElement | null>(null)
   
   // Smart banner frequency based on user referrals
   const calculateBannerInterval = () => {
@@ -196,22 +200,33 @@ function FeedPageContent() {
   }, [tab])
 
   const handleRefresh = useCallback(async () => {
-    if (tab !== 'latest') return
-    // Use skipLoadingState=true since pull-to-refresh shows its own loading indicator
-    await fetchLatestPosts(0, false, true)
-    // Also refresh widgets
-    refreshWidgets()
+    if (tab !== 'latest' && tab !== 'trades') return
+    if (tab === 'latest') {
+      // Use skipLoadingState=true since pull-to-refresh shows its own loading indicator
+      await fetchLatestPosts(0, false, true)
+      // Also refresh widgets
+      refreshWidgets()
+    }
+    // For trades tab, the TradesFeed component handles its own refresh
   }, [tab, fetchLatestPosts, refreshWidgets])
 
   // Pull-to-refresh hook
   const {
     pullDistance,
     isRefreshing,
-    containerRef: scrollContainerRef,
+    containerRef: scrollContainerCallbackRef,
   } = usePullToRefresh({
     onRefresh: handleRefresh,
-    enabled: tab === 'latest',
+    enabled: tab === 'latest' || tab === 'trades',
   })
+
+  // Combine callback ref from usePullToRefresh with our RefObject
+  const scrollContainerRef = useCallback((node: HTMLDivElement | null) => {
+    scrollContainerCallbackRef(node)
+    if (scrollContainerRefObject.current !== node) {
+      scrollContainerRefObject.current = node
+    }
+  }, [scrollContainerCallbackRef])
 
   // Initial load and reset when switching to latest tab
   useEffect(() => {
@@ -380,7 +395,10 @@ function FeedPageContent() {
                 isRefreshing={isRefreshing}
               />
               
-              {(loading || (tab === 'following' && loadingFollowing)) ? (
+              {tab === 'trades' ? (
+                // Trades tab - use TradesFeed component
+                <TradesFeed containerRef={scrollContainerRefObject} />
+              ) : (loading || (tab === 'following' && loadingFollowing)) ? (
                 <div className="w-full">
                   <FeedSkeleton count={5} />
                 </div>

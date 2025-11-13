@@ -20,63 +20,66 @@ import { Avatar } from '@/components/shared/Avatar'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { SearchBar } from '@/components/shared/SearchBar'
 import { cn } from '@/lib/utils'
+import { z } from 'zod'
 
-interface RegistryEntity {
-  type: 'user' | 'actor' | 'agent' | 'app'
-  id: string
-  name: string
-  username?: string
-  bio?: string
-  description?: string
-  imageUrl?: string
-  walletAddress?: string
-  onChainRegistered?: boolean
-  nftTokenId?: number | null
-  agent0TokenId?: number | null
-  tokenId?: number
-  metadataCID?: string
-  mcpEndpoint?: string
-  a2aEndpoint?: string
-  balance?: string
-  reputationPoints?: number
-  tier?: string
-  role?: string
-  domain?: string[]
-  hasPool?: boolean
-  capabilities?: Record<string, unknown>
-  reputation?: {
-    trustScore: number
-    accuracyScore: number
-    totalBets: number
-    winningBets: number
-  }
-  stats?: {
-    positions?: number
-    comments?: number
-    reactions?: number
-    followers?: number
-    following?: number
-    pools?: number
-    trades?: number
-  }
-  createdAt?: string
-  registrationTxHash?: string
-  registrationTimestamp?: string
-}
+const RegistryEntitySchema = z.object({
+  type: z.enum(['user', 'actor', 'agent', 'app']),
+  id: z.string(),
+  name: z.string(),
+  username: z.string().optional(),
+  bio: z.string().optional(),
+  description: z.string().optional(),
+  imageUrl: z.string().optional(),
+  walletAddress: z.string().optional(),
+  onChainRegistered: z.boolean().optional(),
+  nftTokenId: z.number().nullable().optional(),
+  agent0TokenId: z.number().nullable().optional(),
+  tokenId: z.number().optional(),
+  metadataCID: z.string().optional(),
+  mcpEndpoint: z.string().optional(),
+  a2aEndpoint: z.string().optional(),
+  balance: z.string().optional(),
+  reputationPoints: z.number().optional(),
+  tier: z.string().optional(),
+  role: z.string().optional(),
+  domain: z.array(z.string()).optional(),
+  hasPool: z.boolean().optional(),
+  capabilities: z.record(z.string(), z.unknown()).optional(),
+  reputation: z.object({
+    trustScore: z.number(),
+    accuracyScore: z.number(),
+    totalBets: z.number(),
+    winningBets: z.number(),
+  }).optional(),
+  stats: z.object({
+    positions: z.number().optional(),
+    comments: z.number().optional(),
+    reactions: z.number().optional(),
+    followers: z.number().optional(),
+    following: z.number().optional(),
+    pools: z.number().optional(),
+    trades: z.number().optional(),
+  }).optional(),
+  createdAt: z.string().optional(),
+  registrationTxHash: z.string().optional(),
+  registrationTimestamp: z.string().optional(),
+});
+type RegistryEntity = z.infer<typeof RegistryEntitySchema>;
 
-interface RegistryData {
-  users: RegistryEntity[]
-  actors: RegistryEntity[]
-  agents: RegistryEntity[]
-  apps: RegistryEntity[]
-  totals: {
-    users: number
-    actors: number
-    agents: number
-    apps: number
-    total: number
-  }
-}
+const RegistryDataSchema = z.object({
+  users: z.array(RegistryEntitySchema),
+  actors: z.array(RegistryEntitySchema),
+  agents: z.array(RegistryEntitySchema),
+  apps: z.array(RegistryEntitySchema),
+  totals: z.object({
+    users: z.number(),
+    actors: z.number(),
+    agents: z.number(),
+    apps: z.number(),
+    total: z.number(),
+  }),
+});
+type RegistryData = z.infer<typeof RegistryDataSchema>;
 
 export function RegistryTab() {
   const [data, setData] = useState<RegistryData | null>(null)
@@ -109,7 +112,12 @@ export function RegistryTab() {
       const result = await response.json()
 
       if (result.success && result.data) {
-        setData(result.data)
+        const validation = RegistryDataSchema.safeParse(result.data);
+        if (validation.success) {
+          setData(validation.data);
+        } else {
+          setError('Invalid data structure for registry');
+        }
       } else {
         setError(result.error?.message || 'Failed to fetch registry data')
       }

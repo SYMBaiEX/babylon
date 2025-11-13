@@ -9,6 +9,7 @@ import { Avatar } from '@/components/shared/Avatar'
 import { VerifiedBadge } from '@/components/shared/VerifiedBadge'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { ProfileHeaderSkeleton, FeedSkeleton } from '@/components/shared/Skeleton'
+import { TradesFeed } from '@/components/trades/TradesFeed'
 import { useAuth } from '@/hooks/useAuth'
 import { useErrorToasts } from '@/hooks/useErrorToasts'
 import { extractUsername, isUsername } from '@/lib/profile-utils'
@@ -31,7 +32,7 @@ export default function ActorProfilePage() {
   const actorId = isUsernameParam ? extractUsername(identifier) : identifier
   const { user, authenticated } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
-  const [tab, setTab] = useState<'posts' | 'replies'>('posts')
+  const [tab, setTab] = useState<'posts' | 'replies' | 'trades'>('posts')
   const { allGames } = useGameStore();
   const [optimisticFollowerCount, setOptimisticFollowerCount] = useState<number | null>(null)
   
@@ -676,7 +677,7 @@ export default function ActorProfilePage() {
           </div>
         </div>
 
-        {/* Tabs: Posts vs Replies */}
+        {/* Tabs: Posts vs Replies vs Trades */}
         <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-10 border-b border-border">
           <div className="flex items-center justify-between h-14 px-4">
             {/* Tab Buttons */}
@@ -703,25 +704,40 @@ export default function ActorProfilePage() {
               >
                 Replies
               </button>
+              <button
+                onClick={() => setTab('trades')}
+                className={cn(
+                  'px-4 h-full font-semibold transition-all duration-300 relative hover:bg-muted/30',
+                  tab === 'trades'
+                    ? 'text-foreground opacity-100'
+                    : 'text-foreground opacity-50'
+                )}
+              >
+                Trades
+              </button>
             </div>
 
-            {/* Search Bar - Top Right */}
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={`Search ${tab}...`}
-                className="w-full pl-10 pr-4 py-2 rounded-full bg-muted border-0 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
-              />
-            </div>
+            {/* Search Bar - Top Right (hide on trades tab) */}
+            {tab !== 'trades' && (
+              <div className="relative w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={`Search ${tab}...`}
+                  className="w-full pl-10 pr-4 py-2 rounded-full bg-muted border-0 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                />
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Posts */}
+        {/* Posts/Replies/Trades */}
         <div className="px-4">
-          {loadingPosts ? (
+          {tab === 'trades' ? (
+            <TradesFeed userId={actorInfo?.id} />
+          ) : loadingPosts ? (
             <div className="w-full">
               <FeedSkeleton count={5} />
             </div>

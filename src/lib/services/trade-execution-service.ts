@@ -251,7 +251,7 @@ export class TradeExecutionService {
         currentPrice,
         size: positionSize,
         leverage,
-        liquidationPrice,
+        liquidationPrice: _liquidationPrice,
         unrealizedPnL: 0,
         unrealizedPnLPercent: 0,
         fundingPaid: 0,

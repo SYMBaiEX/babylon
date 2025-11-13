@@ -10,12 +10,13 @@ import { UserManagementTab } from '@/components/admin/UserManagementTab'
 import { NotificationsTab } from '@/components/admin/NotificationsTab'
 import { GroupsTab } from '@/components/admin/GroupsTab'
 import { FeesTab } from '@/components/admin/FeesTab'
-import { Shield, Activity, Users, BarChart, Bell, MessageSquare, DollarSign, Layers } from 'lucide-react'
+import { AdminManagementTab } from '@/components/admin/AdminManagementTab'
+import { Shield, Activity, Users, BarChart, Bell, MessageSquare, DollarSign, Layers, ShieldCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { RegistryTab } from '@/components/admin/RegistryTab'
 
-type Tab = 'stats' | 'fees' | 'trades' | 'users' | 'registry' | 'groups' | 'notifications'
+type Tab = 'stats' | 'fees' | 'trades' | 'users' | 'registry' | 'groups' | 'notifications' | 'admins'
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -91,6 +92,7 @@ export default function AdminDashboard() {
     { id: 'fees' as const, label: 'Fees', icon: DollarSign },
     { id: 'trades' as const, label: 'Trading Feed', icon: Activity },
     { id: 'users' as const, label: 'Users', icon: Users },
+    { id: 'admins' as const, label: 'Admins', icon: ShieldCheck },
     { id: 'registry' as const, label: 'Registry', icon: Layers },
     { id: 'groups' as const, label: 'Groups', icon: MessageSquare },
     { id: 'notifications' as const, label: 'Notifications', icon: Bell },
@@ -136,6 +138,7 @@ export default function AdminDashboard() {
         {activeTab === 'fees' && <FeesTab />}
         {activeTab === 'trades' && <TradingFeedTab />}
         {activeTab === 'users' && <UserManagementTab />}
+        {activeTab === 'admins' && <AdminManagementTab />}
         {activeTab === 'registry' && <RegistryTab />}
         {activeTab === 'groups' && <GroupsTab />}
         {activeTab === 'notifications' && <NotificationsTab />}

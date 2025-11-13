@@ -1,84 +1,95 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useTransition } from 'react'
 import { Users, Search, Calendar, MessageCircle, User as UserIcon, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { z } from 'zod'
 
-interface Participant {
-  id: string
-  name: string
-  username: string | null
-  isNPC: boolean
-  profileImageUrl: string | null
-  joinedAt: Date
-}
+const ParticipantSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  username: z.string().nullable(),
+  isNPC: z.boolean(),
+  profileImageUrl: z.string().nullable(),
+  joinedAt: z.coerce.date(),
+});
+// type Participant = z.infer<typeof ParticipantSchema>;
 
-interface Message {
-  id: string
-  content: string
-  createdAt: Date
-  sender: {
-    id: string
-    name: string
-    isNPC: boolean
-  }
-}
+const MessageSchema = z.object({
+  id: z.string(),
+  content: z.string(),
+  createdAt: z.coerce.date(),
+  sender: z.object({
+    id: z.string(),
+    name: z.string(),
+    isNPC: z.boolean(),
+  }),
+});
+// type Message = z.infer<typeof MessageSchema>;
 
-interface GroupChat {
-  id: string
-  name: string | null
-  groupType: string
-  creatorId: string | null
-  creatorName: string
-  memberCount: number
-  messageCount: number
-  participants: Participant[]
-  recentMessages: Message[]
-  createdAt: Date
-  updatedAt: Date
-}
+const GroupChatSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable(),
+  groupType: z.string(),
+  creatorId: z.string().nullable(),
+  creatorName: z.string(),
+  memberCount: z.number(),
+  messageCount: z.number(),
+  participants: z.array(ParticipantSchema),
+  recentMessages: z.array(MessageSchema),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+});
+type GroupChat = z.infer<typeof GroupChatSchema>;
 
 export function GroupsTab() {
   const [groups, setGroups] = useState<GroupChat[]>([])
-  const [loading, setLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedGroup, setSelectedGroup] = useState<GroupChat | null>(null)
   const [sortBy, setSortBy] = useState<'createdAt' | 'memberCount' | 'messageCount'>('createdAt')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [isRefreshing, startRefresh] = useTransition();
 
   const fetchGroups = useCallback(async () => {
-    try {
-      setLoading(true)
-      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+    startRefresh(async () => {
+      try {
+        setIsLoading(true)
+        const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
 
-      if (!token) {
-        toast.error('Not authenticated')
-        return
-      }
-
-      const response = await fetch(
-        `/api/admin/groups?sortBy=${sortBy}&sortOrder=${sortOrder}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
+        if (!token) {
+          toast.error('Not authenticated')
+          return
         }
-      )
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch groups')
+        const response = await fetch(
+          `/api/admin/groups?sortBy=${sortBy}&sortOrder=${sortOrder}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          }
+        )
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch groups')
+        }
+
+        const data = await response.json()
+        const validation = z.array(GroupChatSchema).safeParse(data.data.groups);
+        if (!validation.success) {
+          throw new Error('Invalid group data structure');
+        }
+        setGroups(validation.data || [])
+      } catch (error) {
+        console.error('Failed to fetch groups:', error)
+        toast.error('Failed to load group chats')
+      } finally {
+        setIsLoading(false)
       }
-
-      const data = await response.json()
-      setGroups(data.data.groups || [])
-    } catch (error) {
-      console.error('Failed to fetch groups:', error)
-      toast.error('Failed to load group chats')
-    } finally {
-      setLoading(false)
-    }
-  }, [sortBy, sortOrder])
+    });
+  }, [sortBy, sortOrder, startRefresh])
 
   useEffect(() => {
     fetchGroups()
@@ -129,7 +140,7 @@ export function GroupsTab() {
         </div>
         <button
           onClick={fetchGroups}
-          disabled={loading}
+          disabled={isLoading || isRefreshing}
           className={cn(
             'flex items-center gap-2 px-4 py-2 rounded-lg',
             'bg-primary text-primary-foreground',
@@ -137,7 +148,7 @@ export function GroupsTab() {
             'disabled:opacity-50 disabled:cursor-not-allowed'
           )}
         >
-          <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
+          <RefreshCw className={cn('w-4 h-4', (isLoading || isRefreshing) && 'animate-spin')} />
           Refresh
         </button>
       </div>
@@ -189,7 +200,7 @@ export function GroupsTab() {
       </div>
 
       {/* Groups List */}
-      {loading ? (
+      {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <RefreshCw className="w-8 h-8 animate-spin text-muted-foreground" />
         </div>

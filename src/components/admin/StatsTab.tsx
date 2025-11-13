@@ -5,89 +5,87 @@ import { Users, Activity, TrendingUp, DollarSign, ShoppingCart, Award, UserCheck
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/shared/Avatar'
 import { Skeleton } from '@/components/shared/Skeleton'
+import { z } from 'zod'
 
-interface SystemStats {
-  users: {
-    total: number
-    actors: number
-    realUsers: number
-    banned: number
-    admins: number
-    signups: {
-      today: number
-      thisWeek: number
-      thisMonth: number
-    }
-  }
-  markets: {
-    total: number
-    active: number
-    resolved: number
-    positions: number
-  }
-  trading: {
-    balanceTransactions: number
-    npcTrades: number
-  }
-  social: {
-    posts: number
-    postsToday: number
-    comments: number
-    reactions: number
-  }
-  financial: {
-    totalVirtualBalance: string
-    totalDeposited: string
-    totalWithdrawn: string
-    totalLifetimePnL: string
-  }
-  pools: {
-    total: number
-    active: number
-    deposits: number
-  }
-  engagement: {
-    referrals: number
-    pointsTransactions: number
-  }
-  topUsers: {
-    byBalance: Array<{
-      id: string
-      username: string | null
-      displayName: string | null
-      profileImageUrl: string | null
-      virtualBalance: string
-      lifetimePnL: string
-    }>
-    byReputation: Array<{
-      id: string
-      username: string | null
-      displayName: string | null
-      profileImageUrl: string | null
-      reputationPoints: number
-    }>
-  }
-  recentSignups: Array<{
-    id: string
-    username: string | null
-    displayName: string | null
-    profileImageUrl: string | null
-    walletAddress: string | null
-    createdAt: string
-    onChainRegistered: boolean
-    hasFarcaster: boolean
-    hasTwitter: boolean
-  }>
-}
+const UserStatsSchema = z.object({
+  id: z.string(),
+  username: z.string().nullable(),
+  displayName: z.string().nullable(),
+  profileImageUrl: z.string().nullable(),
+});
 
-interface FeeStats {
-  totalFeesCollected: number
-  totalUserFees: number
-  totalNPCFees: number
-  totalPlatformFees: number
-  totalReferrerFees: number
-  totalTrades: number
-}
+const SystemStatsSchema = z.object({
+  users: z.object({
+    total: z.number(),
+    actors: z.number(),
+    realUsers: z.number(),
+    banned: z.number(),
+    admins: z.number(),
+    signups: z.object({
+      today: z.number(),
+      thisWeek: z.number(),
+      thisMonth: z.number(),
+    }),
+  }),
+  markets: z.object({
+    total: z.number(),
+    active: z.number(),
+    resolved: z.number(),
+    positions: z.number(),
+  }),
+  trading: z.object({
+    balanceTransactions: z.number(),
+    npcTrades: z.number(),
+  }),
+  social: z.object({
+    posts: z.number(),
+    postsToday: z.number(),
+    comments: z.number(),
+    reactions: z.number(),
+  }),
+  financial: z.object({
+    totalVirtualBalance: z.string(),
+    totalDeposited: z.string(),
+    totalWithdrawn: z.string(),
+    totalLifetimePnL: z.string(),
+  }),
+  pools: z.object({
+    total: z.number(),
+    active: z.number(),
+    deposits: z.number(),
+  }),
+  engagement: z.object({
+    referrals: z.number(),
+    pointsTransactions: z.number(),
+  }),
+  topUsers: z.object({
+    byBalance: z.array(UserStatsSchema.extend({
+      virtualBalance: z.string(),
+      lifetimePnL: z.string(),
+    })),
+    byReputation: z.array(UserStatsSchema.extend({
+      reputationPoints: z.number(),
+    })),
+  }),
+  recentSignups: z.array(UserStatsSchema.extend({
+    walletAddress: z.string().nullable(),
+    createdAt: z.string(),
+    onChainRegistered: z.boolean(),
+    hasFarcaster: z.boolean(),
+    hasTwitter: z.boolean(),
+  })),
+});
+type SystemStats = z.infer<typeof SystemStatsSchema>;
+
+const FeeStatsSchema = z.object({
+  totalFeesCollected: z.number(),
+  totalUserFees: z.number(),
+  totalNPCFees: z.number(),
+  totalPlatformFees: z.number(),
+  totalReferrerFees: z.number(),
+  totalTrades: z.number(),
+});
+type FeeStats = z.infer<typeof FeeStatsSchema>;
 
 export function StatsTab() {
   const [stats, setStats] = useState<SystemStats | null>(null)
@@ -110,7 +108,11 @@ export function StatsTab() {
       const response = await fetch('/api/admin/stats')
       if (!response.ok) throw new Error('Failed to fetch stats')
       const data = await response.json()
-      setStats(data)
+      const validation = SystemStatsSchema.safeParse(data);
+      if (!validation.success) {
+        throw new Error('Invalid system stats data structure');
+      }
+      setStats(validation.data)
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load stats')
@@ -124,7 +126,10 @@ export function StatsTab() {
       const response = await fetch('/api/admin/fees')
       if (!response.ok) return // Fail silently for fees
       const data = await response.json()
-      setFeeStats(data.platformStats)
+      const validation = FeeStatsSchema.safeParse(data.platformStats);
+      if (validation.success) {
+        setFeeStats(validation.data);
+      }
     } catch {
       // Fail silently for fee stats
     }

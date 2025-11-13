@@ -108,7 +108,7 @@ export function InviteFriendsBanner({ onDismiss }: InviteFriendsBannerProps) {
 
   return (
     <Link 
-      href="/referrals"
+      href="/rewards"
       className="block border-b border-border hover:bg-muted/30 transition-colors group"
     >
       <div className="max-w-feed mx-auto p-4">

@@ -3,8 +3,8 @@
 import { cn } from '@/lib/utils'
 
 interface FeedToggleProps {
-  activeTab: 'latest' | 'following'
-  onTabChange: (tab: 'latest' | 'following') => void
+  activeTab: 'latest' | 'following' | 'trades'
+  onTabChange: (tab: 'latest' | 'following' | 'trades') => void
 }
 
 export function FeedToggle({ activeTab, onTabChange }: FeedToggleProps) {
@@ -31,6 +31,18 @@ export function FeedToggle({ activeTab, onTabChange }: FeedToggleProps) {
       >
         Following
         {activeTab === 'following' && (
+          <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary" />
+        )}
+      </button>
+      <button
+        onClick={() => onTabChange('trades')}
+        className={cn(
+          'flex-1 py-3.5 font-semibold transition-all relative hover:bg-muted/20',
+          activeTab === 'trades' ? 'text-foreground' : 'text-muted-foreground'
+        )}
+      >
+        Trades
+        {activeTab === 'trades' && (
           <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary" />
         )}
       </button>

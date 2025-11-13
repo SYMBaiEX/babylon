@@ -7,6 +7,7 @@ import { OnChainBadge } from '@/components/profile/OnChainBadge'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { TaggedText } from '@/components/shared/TaggedText'
+import { TradesFeed } from '@/components/trades/TradesFeed'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
@@ -78,7 +79,7 @@ export default function ProfilePage() {
     isSaving: false,
     error: null,
   })
-  const [tab, setTab] = useState<'posts' | 'replies'>('posts')
+  const [tab, setTab] = useState<'posts' | 'replies' | 'trades'>('posts')
   const [showLinkAccountsModal, setShowLinkAccountsModal] = useState(false)
   const [posts, setPosts] = useState<Array<{
     id: string
@@ -666,7 +667,7 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Tabs: Posts vs Replies */}
+            {/* Tabs: Posts vs Replies vs Trades */}
             <div className="border-b border-border sticky top-0 bg-background/95 backdrop-blur-sm z-10">
               <div className="max-w-feed mx-auto">
                 <div className="flex">
@@ -688,13 +689,24 @@ export default function ProfilePage() {
                   >
                     Replies
                   </button>
+                  <button
+                    onClick={() => setTab('trades')}
+                    className={cn(
+                      'flex-1 py-4 font-semibold transition-colors relative hover:bg-muted/30',
+                      tab === 'trades' ? 'text-foreground opacity-100' : 'text-foreground opacity-50'
+                    )}
+                  >
+                    Trades
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* Posts/Replies section */}
+            {/* Posts/Replies/Trades section */}
             <div className="max-w-feed mx-auto">
-              {loadingPosts ? (
+              {tab === 'trades' ? (
+                <TradesFeed userId={user?.id} />
+              ) : loadingPosts ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="space-y-3 w-full max-w-2xl">
                     <Skeleton className="h-32 w-full" />
