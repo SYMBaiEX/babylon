@@ -51,6 +51,14 @@ function FeedPageContent() {
   // Ref for scroll container (used by TradesFeed)
   const scrollContainerRefObject = useRef<HTMLDivElement | null>(null)
   
+  // Ref to track current posts for duplicate detection (avoids stale closure)
+  const postsRef = useRef<FeedPost[]>(posts)
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    postsRef.current = posts
+  }, [posts])
+  
   // Smart banner frequency based on user referrals
   const calculateBannerInterval = () => {
     if (!user) return Math.floor(Math.random() * 51) + 50
@@ -120,7 +128,6 @@ function FeedPageContent() {
 
   const fetchLatestPosts = useCallback(async (requestOffset: number, append = false, skipLoadingState = false) => {
     if (tab !== 'latest') return
-
     if (!skipLoadingState) {
       if (append) setLoadingMore(true)
       else setLoading(true)
@@ -137,10 +144,43 @@ function FeedPageContent() {
     const newPosts = data.posts as FeedPost[]
     const total = data.total as number | undefined
 
+    // CRITICAL: Check for duplicates BEFORE any setState
+    // Use ref to get current posts (not stale closure)
+    const currentPosts = postsRef.current
+    const existingPostIds = new Set(currentPosts.map(p => p.id))
+    const duplicateCount = newPosts.filter(post => existingPostIds.has(post.id)).length
+    
+    console.log("Pre-check duplicates:", {
+      currentPostsInRef: currentPosts.length,
+      newPostsCount: newPosts.length,
+      duplicateCount,
+      sampleExisting: currentPosts.slice(-3).map(p => p.id),
+      sampleNew: newPosts.slice(0, 3).map(p => p.id)
+    })
+    
+    // If we're appending and ALL posts are duplicates, we've hit offset drift
+    // Retry with corrected offset BEFORE any state updates
+    if (append && duplicateCount === newPosts.length && duplicateCount > 0) {
+      console.log(`♻️ ALL ${duplicateCount} posts are duplicates! Retrying with offset ${requestOffset + duplicateCount}`)
+      setLoadingMore(false)
+      await fetchLatestPosts(requestOffset + duplicateCount, true, skipLoadingState)
+      return
+    }
+    
+    // If we have SOME duplicates (but not all), retry to get clean page
+    if (append && duplicateCount > newPosts.length / 2) {
+      console.log(`♻️ Found ${duplicateCount}/${newPosts.length} duplicates! Retrying with offset ${requestOffset + duplicateCount}`)
+      setLoadingMore(false)
+      await fetchLatestPosts(requestOffset + duplicateCount, true, skipLoadingState)
+      return
+    }
+
+    // No significant duplicates - proceed with normal update
     let uniqueAdded = 0
 
     setPosts(prev => {
       const prevSize = prev.length
+      
       const combined = append ? [...prev, ...newPosts] : [...newPosts, ...prev]
       const unique = new Map<string, FeedPost>()
       combined.forEach(post => {
@@ -152,10 +192,24 @@ function FeedPageContent() {
         const bTime = new Date(b.timestamp ?? 0).getTime()
         return bTime - aTime
       })
-
+      
       uniqueAdded = deduped.length - prevSize
       setOffset(deduped.length)
+      
+      console.log("Added posts:", {
+        prevSize,
+        newSize: deduped.length,
+        uniqueAdded,
+      })
+      
       return deduped
+    })
+
+    console.log("✅ Fetch complete:", { 
+      requestOffset, 
+      newPostsCount: newPosts.length, 
+      uniqueAdded, 
+      append 
     })
     
     // Clear local posts when refreshing (not appending) as they should now be in the API response
