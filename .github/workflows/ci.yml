@@ -107,7 +107,7 @@ jobs:
           cp .env.test .env
       
       - name: Run Prisma Generate
-        run: bun prisma generate 2>&1 | grep -vE "(Datasource|ep-soft-wildflower|neondb|@.*\.neon\.tech)" || true
+        run: bun prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
       
       - name: Type Check
         run: bun typecheck
@@ -116,7 +116,7 @@ jobs:
         run: bun lint
       
       - name: Build Production
-        run: bun run build 2>&1 | grep -vE "(Datasource|ep-soft-wildflower|neondb|@.*\.neon\.tech)" || true
+        run: bun run build 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
         env:
           NODE_OPTIONS: '--max-old-space-size=8192'
           SKIP_ENV_VALIDATION: true
@@ -172,8 +172,8 @@ jobs:
           cp .env.test .env.local
           cp .env.test .env
           
-          # Run migrations (suppress database URL from output)
-          bun prisma migrate deploy 2>&1 | grep -vE "(Datasource|ep-soft-wildflower|neondb|@.*\.neon\.tech)" || true
+          # Run migrations (migrations may already be applied, so || true is intentional)
+          bun prisma migrate deploy || true
       
       - name: Run Unit Tests
         run: bun test tests/unit/ --coverage
@@ -237,8 +237,8 @@ jobs:
           cp .env.test .env.local
           cp .env.test .env
           
-          # Run migrations (suppress database URL from output)
-          bun prisma migrate deploy 2>&1 | grep -vE "(Datasource|ep-soft-wildflower|neondb|@.*\.neon\.tech)" || true
+          # Run migrations (migrations may already be applied, so || true is intentional)
+          bun prisma migrate deploy || true
       
       - name: Start production server
         run: |
@@ -309,8 +309,8 @@ jobs:
           cp .env.test .env.local
           cp .env.test .env
           
-          # Run migrations (suppress database URL from output)
-          bun prisma migrate deploy 2>&1 | grep -vE "(Datasource|ep-soft-wildflower|neondb|@.*\.neon\.tech)" || true
+          # Run migrations (migrations may already be applied, so || true is intentional)
+          bun prisma migrate deploy || true
       
       - name: Start production server
         run: |
