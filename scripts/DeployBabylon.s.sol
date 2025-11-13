@@ -418,7 +418,7 @@ contract DeployBabylon is Script {
             console.log("TestToken (BTT):", address(testToken));
         }
         
-        console.log("\n==========================================================")
+        console.log("\n==========================================================");
 
         // Save deployment addresses
         // _saveDeployment();  // Skipping file save - will save manually
