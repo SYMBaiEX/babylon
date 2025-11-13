@@ -145,10 +145,11 @@ jobs:
         with:
           name: build-artifacts
       
-      - name: Setup test database
+      - name: Setup test environment
         run: |
-          # Use test environment
+          # Use test env from build artifacts
           cp .env.test .env.local
+          cp .env.test .env
           
           # Run migrations
           bun prisma migrate deploy || true
@@ -211,7 +212,11 @@ jobs:
       
       - name: Setup test environment
         run: |
+          # Use test env from build artifacts
           cp .env.test .env.local
+          cp .env.test .env
+          
+          # Run migrations
           bun prisma migrate deploy || true
       
       - name: Start production server
@@ -279,7 +284,11 @@ jobs:
       
       - name: Setup test environment
         run: |
+          # Use test env from build artifacts
           cp .env.test .env.local
+          cp .env.test .env
+          
+          # Run migrations
           bun prisma migrate deploy || true
       
       - name: Start production server
