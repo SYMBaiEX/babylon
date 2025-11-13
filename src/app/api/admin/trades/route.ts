@@ -62,30 +62,19 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     where: params.type === 'npc' ? {} : undefined,
   });
 
-  // Fetch actors and pools for NPC trades
+  // Fetch actors for NPC trades
   const actorIds = [...new Set(npcTrades.map(trade => trade.npcActorId))];
-  const poolIds = [...new Set(npcTrades.map(trade => trade.poolId).filter(Boolean))];
   
-  const [actors, pools] = await Promise.all([
-    prisma.actor.findMany({
-      where: { id: { in: actorIds } },
-      select: {
-        id: true,
-        name: true,
-        profileImageUrl: true,
-      },
-    }),
-    poolIds.length > 0 ? prisma.pool.findMany({
-      where: { id: { in: poolIds as string[] } },
-      select: {
-        id: true,
-        name: true,
-      },
-    }) : Promise.resolve([]),
-  ]);
+  const actors = await prisma.actor.findMany({
+    where: { id: { in: actorIds } },
+    select: {
+      id: true,
+      name: true,
+      profileImageUrl: true,
+    },
+  });
   
   const actorsMap = new Map(actors.map(a => [a.id, a]));
-  const poolsMap = new Map(pools.map(p => [p.id, p]));
 
   // Get recent position changes
   const positions = await prisma.position.findMany({
@@ -140,7 +129,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     })),
     ...npcTrades.map(trade => {
       const actor = actorsMap.get(trade.npcActorId);
-      const pool = trade.poolId ? poolsMap.get(trade.poolId) : null;
       return {
         type: 'npc' as const,
         id: trade.id,
@@ -161,7 +149,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         price: trade.price,
         sentiment: trade.sentiment,
         reason: trade.reason,
-        pool: pool || null,
       };
     }),
     ...positions.map(pos => ({

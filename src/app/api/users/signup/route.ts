@@ -265,31 +265,68 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   })
 
   // Award points for social account linking
+  const pointsAwarded = {
+    farcaster: 0,
+    twitter: 0,
+    wallet: 0,
+    profile: 0,
+  };
+
   if (identityFarcasterUsername || importedFarcaster) {
     const farcasterUsername = parsedProfile.farcasterUsername ?? identityFarcasterUsername
     if (farcasterUsername) {
-      await PointsService.awardFarcasterLink(result.user.id, farcasterUsername)
+      const pointsResult = await PointsService.awardFarcasterLink(result.user.id, farcasterUsername)
+      pointsAwarded.farcaster = pointsResult.pointsAwarded;
+      logger.info(
+        'Awarded Farcaster link points',
+        { userId: result.user.id, username: farcasterUsername, points: pointsResult.pointsAwarded },
+        'POST /api/users/signup'
+      );
     }
   }
   if (identityTwitterUsername || importedTwitter) {
     const twitterUsername = parsedProfile.twitterUsername ?? identityTwitterUsername
     if (twitterUsername) {
-      await PointsService.awardTwitterLink(result.user.id, twitterUsername)
+      const pointsResult = await PointsService.awardTwitterLink(result.user.id, twitterUsername)
+      pointsAwarded.twitter = pointsResult.pointsAwarded;
+      logger.info(
+        'Awarded Twitter link points',
+        { userId: result.user.id, username: twitterUsername, points: pointsResult.pointsAwarded },
+        'POST /api/users/signup'
+      );
     }
   }
   if (walletAddress) {
-    await PointsService.awardWalletConnect(result.user.id, walletAddress)
+    const pointsResult = await PointsService.awardWalletConnect(result.user.id, walletAddress)
+    pointsAwarded.wallet = pointsResult.pointsAwarded;
+    logger.info(
+      'Awarded wallet connect points',
+      { userId: result.user.id, address: walletAddress, points: pointsResult.pointsAwarded },
+      'POST /api/users/signup'
+    );
   }
 
   if (!result.user.pointsAwardedForProfile) {
-    await PointsService.awardProfileCompletion(result.user.id)
+    const pointsResult = await PointsService.awardProfileCompletion(result.user.id)
+    pointsAwarded.profile = pointsResult.pointsAwarded;
+    logger.info(
+      'Awarded profile completion points',
+      { userId: result.user.id, points: pointsResult.pointsAwarded },
+      'POST /api/users/signup'
+    );
   }
+
+  const totalPointsAwarded = Object.values(pointsAwarded).reduce((sum, p) => sum + p, 0);
 
   logger.info(
     'User completed off-chain onboarding',
     {
       userId: result.user.id,
       hasReferrer: Boolean(result.referrerId),
+      pointsAwarded: pointsAwarded,
+      totalPointsAwarded: totalPointsAwarded,
+      hasFarcaster: result.user.hasFarcaster,
+      hasTwitter: result.user.hasTwitter,
     },
     'POST /api/users/signup'
   )
@@ -310,6 +347,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     hasProfileImage: result.user.hasProfileImage,
     hasBio: result.user.hasBio,
     onChainRegistered: result.user.onChainRegistered,
+    pointsAwarded: totalPointsAwarded,
+    pointsBreakdown: pointsAwarded,
+    importedFrom: parsedProfile.importedFrom || null,
   })
 
   return successResponse({

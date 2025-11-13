@@ -225,6 +225,41 @@ export async function notifyShare(
 }
 
 /**
+ * Create notification for mention (@username)
+ */
+export async function notifyMention(
+  mentionedUserId: string,
+  mentionerUserId: string,
+  postId?: string,
+  commentId?: string
+): Promise<void> {
+  // Don't notify if user mentioned themselves
+  if (mentionedUserId === mentionerUserId) {
+    return;
+  }
+
+  const mentioner = await prisma.user.findUnique({
+    where: { id: mentionerUserId },
+    select: { displayName: true, username: true },
+  });
+
+  const mentionerName = mentioner?.displayName || mentioner?.username || 'Someone';
+  const message = commentId 
+    ? `${mentionerName} mentioned you in a comment`
+    : `${mentionerName} mentioned you in a post`;
+
+  await createNotification({
+    userId: mentionedUserId,
+    type: 'mention',
+    actorId: mentionerUserId,
+    postId,
+    commentId,
+    title: 'Mention',
+    message,
+  });
+}
+
+/**
  * Create system notification for new account creation
  */
 export async function notifyNewAccount(userId: string): Promise<void> {
@@ -315,6 +350,44 @@ export async function notifyGroupChatInvite(
     actorId: inviterId,
     title: 'Group Chat Invite',
     message,
+  });
+}
+
+/**
+ * Create notification for user group invite
+ */
+export async function notifyUserGroupInvite(
+  userId: string,
+  inviterId: string,
+  groupId: string,
+  groupName: string,
+  inviteId?: string
+): Promise<void> {
+  // Don't notify if user invited themselves
+  if (userId === inviterId) {
+    return;
+  }
+
+  const inviter = await prisma.user.findUnique({
+    where: { id: inviterId },
+    select: { displayName: true, username: true },
+  });
+
+  const inviterName = inviter?.displayName || inviter?.username || 'Someone';
+  const message = `${inviterName} invited you to join ${groupName}`;
+
+  // Create notification with groupId and inviteId for proper linking
+  await prisma.notification.create({
+    data: {
+      id: generateSnowflakeId(),
+      userId,
+      type: 'group_invite',
+      actorId: inviterId,
+      title: 'Group Invitation',
+      message,
+      groupId,
+      inviteId,
+    },
   });
 }
 

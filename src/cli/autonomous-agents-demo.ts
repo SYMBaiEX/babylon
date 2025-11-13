@@ -19,8 +19,8 @@ import { logger } from '@/lib/logger';
 import type { JsonValue } from '@/types/common';
 
 interface CLIOptions {
-  count?: number;
-  endpoint?: string;
+  count: number;
+  endpoint: string;
 }
 
 function parseArgs(): CLIOptions {
@@ -32,7 +32,10 @@ function parseArgs(): CLIOptions {
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--count' && args[i + 1]) {
-      options.count = parseInt(args[i + 1]!);
+      const count = parseInt(args[i + 1]!, 10);
+      if (!isNaN(count) && count > 0) {
+        options.count = count;
+      }
       i++;
     } else if (args[i] === '--endpoint' && args[i + 1]) {
       options.endpoint = args[i + 1]!;
@@ -141,8 +144,13 @@ async function main() {
 
   // Connect all agents
   logger.info('Connecting agents...', undefined, 'CLI');
-  await Promise.all(agents.map(agent => agent.connect()));
-  logger.info('All agents connected successfully!', undefined, 'CLI');
+  try {
+    await Promise.all(agents.map(agent => agent.connect()));
+    logger.info('All agents connected successfully!', undefined, 'CLI');
+  } catch (error) {
+    logger.error('Failed to connect agents', error, 'CLI');
+    process.exit(1);
+  }
 
   // Register agents with registry
   logger.info('Registering agents with registry...', undefined, 'CLI');

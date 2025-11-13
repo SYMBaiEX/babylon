@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { AlertTriangle, TrendingDown, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { BouncingLogo } from '@/components/shared/BouncingLogo';
+import { TradeConfirmationDialog, type ClosePerpDetails } from './TradeConfirmationDialog';
 
 import { cn } from '@/lib/utils';
 
@@ -40,6 +40,13 @@ export function PerpPositionsList({
   onPositionClosed,
 }: PerpPositionsListProps) {
   const [closingId, setClosingId] = useState<string | null>(null);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [pendingClose, setPendingClose] = useState<{
+    position: PerpPosition;
+    currentPrice: number;
+    pnl: number;
+    pnlPercent: number;
+  } | null>(null);
   const { getAccessToken } = useAuth();
   const { closePosition: closePerpPosition } = usePerpTrade({
     getAccessToken,
@@ -51,34 +58,43 @@ export function PerpPositionsList({
   );
   const livePrices = useMarketPrices(tickers);
 
-  const handleClose = useCallback(
-    async (positionId: string, ticker: string) => {
-      setClosingId(positionId);
-
-      try {
-        const data = await closePerpPosition(positionId);
-        const pnl =
-          typeof data?.pnl === 'number'
-            ? data.pnl
-            : typeof data?.realizedPnL === 'number'
-              ? data.realizedPnL
-              : 0;
-
-        toast.success('Position closed!', {
-          description: `${ticker}: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} PnL`,
-        });
-
-        await onPositionClosed?.();
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Failed to close position';
-        toast.error(message);
-      } finally {
-        setClosingId(null);
-      }
+  const handleCloseClick = useCallback(
+    (position: PerpPosition, currentPrice: number, pnl: number, pnlPercent: number) => {
+      setPendingClose({ position, currentPrice, pnl, pnlPercent });
+      setConfirmDialogOpen(true);
     },
-    [closePerpPosition, onPositionClosed]
+    []
   );
+
+  const handleConfirmClose = useCallback(async () => {
+    if (!pendingClose) return;
+
+    setClosingId(pendingClose.position.id);
+    setConfirmDialogOpen(false);
+
+    try {
+      const data = await closePerpPosition(pendingClose.position.id);
+      const pnl =
+        typeof data?.pnl === 'number'
+          ? data.pnl
+          : typeof data?.realizedPnL === 'number'
+            ? data.realizedPnL
+            : 0;
+
+      toast.success('Position closed!', {
+        description: `${pendingClose.position.ticker}: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} PnL`,
+      });
+
+      await onPositionClosed?.();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to close position';
+      toast.error(message);
+    } finally {
+      setClosingId(null);
+      setPendingClose(null);
+    }
+  }, [closePerpPosition, onPositionClosed, pendingClose]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -244,7 +260,7 @@ export function PerpPositionsList({
 
             {/* Close Button */}
             <button
-              onClick={() => handleClose(position.id, position.ticker)}
+              onClick={() => handleCloseClick(position, currentPrice, dynamicPnL, dynamicPnLPercent)}
               disabled={isClosing}
               className={cn(
                 'w-full py-2 rounded font-medium transition-all cursor-pointer',
@@ -256,7 +272,7 @@ export function PerpPositionsList({
             >
               {isClosing ? (
                 <span className="flex items-center justify-center gap-2">
-                  <BouncingLogo size={16} />
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                   Closing...
                 </span>
               ) : (
@@ -266,6 +282,29 @@ export function PerpPositionsList({
           </div>
         );
       })}
+
+      {/* Confirmation Dialog */}
+      <TradeConfirmationDialog
+        open={confirmDialogOpen}
+        onOpenChange={setConfirmDialogOpen}
+        onConfirm={handleConfirmClose}
+        isSubmitting={closingId !== null}
+        tradeDetails={
+          pendingClose
+            ? ({
+                type: 'close-perp',
+                ticker: pendingClose.position.ticker,
+                side: pendingClose.position.side,
+                size: pendingClose.position.size,
+                leverage: pendingClose.position.leverage,
+                entryPrice: pendingClose.position.entryPrice,
+                currentPrice: pendingClose.currentPrice,
+                unrealizedPnL: pendingClose.pnl,
+                unrealizedPnLPercent: pendingClose.pnlPercent,
+              } as ClosePerpDetails)
+            : null
+        }
+      />
     </div>
   );
 }

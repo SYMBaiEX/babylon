@@ -7,6 +7,7 @@
 
 import type { MarketAnalysis } from '../types'
 import { logger } from '@/lib/logger'
+import { MarketAnalysisSchema } from '../types';
 
 export class AnalysisService {
   private analyses: Map<string, MarketAnalysis[]> = new Map()
@@ -17,6 +18,14 @@ export class AnalysisService {
    * Store analysis for a market
    */
   storeAnalysis(marketId: string, analysis: MarketAnalysis): string {
+    const validation = MarketAnalysisSchema.safeParse(analysis);
+    if (!validation.success) {
+      logger.warn('[AnalysisService] Invalid analysis object received', { error: validation.error, analysis });
+      // Potentially throw an error or handle it gracefully
+      // For now, we'll reject the invalid analysis
+      throw new Error('Invalid analysis object');
+    }
+
     if (!this.analyses.has(marketId)) {
       this.analyses.set(marketId, [])
     }

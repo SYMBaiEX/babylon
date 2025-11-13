@@ -125,7 +125,6 @@ describe('Client-Server Integration', () => {
       } catch (error: any) {
         // Market may not exist in test environment - verify error handling works
         expect(error.message).toContain('Market market-123 not found')
-        console.log('⚠️  Market not found (expected in test environment)')
       }
     })
 
@@ -141,7 +140,6 @@ describe('Client-Server Integration', () => {
       } catch (error: any) {
         // Market may not exist in test environment - verify error handling works
         expect(error.message).toContain('Market market-123 not found')
-        console.log('⚠️  Market not found (expected in test environment)')
       }
     })
   })
@@ -238,7 +236,6 @@ describe('Client-Server Integration', () => {
       } catch (error: any) {
         // May fail due to validation or missing data - verify error handling works
         expect(error.message).toBeTruthy()
-        console.log('⚠️  Analysis sharing failed (expected in test environment):', error.message)
       }
     })
 

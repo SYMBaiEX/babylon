@@ -7,11 +7,10 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Crown, UserMinus, UserPlus, Shield } from 'lucide-react';
+import { Avatar } from '@/components/shared/Avatar';
+import { Crown, UserMinus, UserPlus, Shield, Settings, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 interface GroupMember {
   userId: string;
@@ -117,91 +116,123 @@ export function GroupDetailsModal({ groupId, onClose, onGroupUpdated }: GroupDet
     }
   };
 
-  if (isLoading || !group) {
-    return (
-      <Dialog open onOpenChange={onClose}>
-        <DialogContent>
-          <div className="text-center py-8">Loading...</div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>{group.name}</DialogTitle>
-          {group.description && (
-            <p className="text-sm text-muted-foreground">{group.description}</p>
-          )}
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium">Members ({group.members.length})</h4>
-            {group.isCurrentUserAdmin && (
-              <Button size="sm" variant="outline">
-                <UserPlus className="h-4 w-4 mr-2" />
-                Add Member
-              </Button>
-            )}
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose()
+        }
+      }}
+    >
+      <div
+        className="bg-background border border-border rounded-xl w-full max-w-lg shadow-2xl max-h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-border shrink-0">
+          <div className="flex items-center gap-2">
+            <Settings className="h-5 w-5 text-primary" />
+            <h2 className="text-xl font-bold">{isLoading ? 'Loading...' : group?.name || 'Group Details'}</h2>
           </div>
-
-          <div className="space-y-2 max-h-[400px] overflow-y-auto">
-            {group.members.map((member) => (
-              <div
-                key={member.userId}
-                className="flex items-center justify-between p-3 border rounded-lg"
-              >
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={member.profileImageUrl || undefined} />
-                    <AvatarFallback>
-                      {((member.displayName || member.username || 'U')?.[0] ?? 'U').toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium">
-                        {member.displayName || member.username || 'Unknown User'}
-                      </p>
-                      {member.isAdmin && (
-                        <Crown className="h-4 w-4 text-yellow-500" />
-                      )}
-                    </div>
-                    {member.username && member.displayName && (
-                      <p className="text-xs text-muted-foreground">@{member.username}</p>
-                    )}
-                  </div>
-                </div>
-
-                {group.isCurrentUserAdmin && member.userId !== group.createdById && (
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleToggleAdmin(member.userId, member.isAdmin)}
-                      title={member.isAdmin ? 'Revoke admin' : 'Grant admin'}
-                    >
-                      <Shield className={`h-4 w-4 ${member.isAdmin ? 'text-yellow-500' : ''}`} />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleRemoveMember(member.userId)}
-                      title="Remove member"
-                    >
-                      <UserMinus className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
-      </DialogContent>
-    </Dialog>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : group ? (
+            <div className="space-y-4">
+              {/* Add Member Button */}
+              {group.isCurrentUserAdmin && (
+                <div className="flex justify-end">
+                  <button
+                    className="px-3 py-1.5 text-sm font-medium bg-sidebar border border-border rounded-lg hover:bg-accent transition-colors"
+                  >
+                    <UserPlus className="h-4 w-4 inline mr-1" />
+                    Add Member
+                  </button>
+                </div>
+              )}
+
+              {/* Members */}
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold">
+                  Members ({group.members.length})
+                </label>
+                
+                <div className="space-y-2">
+                  {group.members.map((member) => {
+                    const isCreator = member.userId === group.createdById
+                    return (
+                      <div
+                        key={member.userId}
+                        className="flex items-center gap-3 p-3 bg-sidebar border border-border rounded-lg hover:bg-sidebar/80 transition-colors"
+                      >
+                        <Avatar
+                          imageUrl={member.profileImageUrl || undefined}
+                          name={member.username || member.displayName || '?'}
+                          size="md"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm truncate">
+                              {member.displayName || member.username || 'Unknown'}
+                            </span>
+                            {isCreator && (
+                              <Crown className="w-3.5 h-3.5 text-yellow-500 shrink-0" />
+                            )}
+                            {member.isAdmin && (
+                              <Shield className="w-3.5 h-3.5 text-primary shrink-0" />
+                            )}
+                          </div>
+                          {member.username && (
+                            <div className="text-xs text-muted-foreground truncate">
+                              @{member.username}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        {group.isCurrentUserAdmin && !isCreator && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleToggleAdmin(member.userId, member.isAdmin)}
+                              className="p-2 hover:bg-background rounded-md transition-colors"
+                              title={member.isAdmin ? 'Remove Admin' : 'Make Admin'}
+                            >
+                              <Shield className={cn(
+                                "w-4 h-4",
+                                member.isAdmin ? 'text-primary' : 'text-muted-foreground'
+                              )} />
+                            </button>
+                            <button
+                              onClick={() => handleRemoveMember(member.userId)}
+                              className="p-2 hover:bg-background rounded-md transition-colors"
+                              title="Remove Member"
+                            >
+                              <UserMinus className="w-4 h-4 text-red-500" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
   );
 }
 

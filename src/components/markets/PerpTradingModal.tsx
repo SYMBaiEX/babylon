@@ -11,8 +11,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { BouncingLogo } from '@/components/shared/BouncingLogo';
-
 import { FEE_CONFIG } from '@/lib/config/fees';
 import { cn } from '@/lib/utils';
 
@@ -385,7 +383,7 @@ export function PerpTradingModal({
           >
             {loading ? (
               <>
-                <BouncingLogo size={20} />
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 Opening Position...
               </>
             ) : (

@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils'
 import { ArrowDownRight, ArrowUpRight, RefreshCcw, Share2 } from 'lucide-react'
 
-type MarketCategory = 'perps' | 'predictions' | 'pools'
+type MarketCategory = 'perps' | 'predictions'
 
 interface CategoryPnLData {
   unrealizedPnL: number

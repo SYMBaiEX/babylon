@@ -8,11 +8,12 @@ import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { BusinessLogicError, NotFoundError } from '@/lib/errors';
 import { CreateCommentSchema, PostIdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
-import { notifyCommentOnPost, notifyReplyToComment } from '@/lib/services/notification-service';
+import { notifyCommentOnPost, notifyReplyToComment, notifyMention } from '@/lib/services/notification-service';
 import { prisma } from '@/lib/database-service';
 import { ensureUserForAuth, getCanonicalUserId } from '@/lib/users/ensure-user';
 import type { NextRequest } from 'next/server';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import { checkRateLimitAndDuplicates, RATE_LIMIT_CONFIGS, DUPLICATE_DETECTION_CONFIGS } from '@/lib/rate-limiting';
 
 /**
  * Build threaded comment structure recursively
@@ -195,6 +196,17 @@ export const POST = withErrorHandling(async (
 
   if (content.length > 5000) {
     throw new BusinessLogicError('Comment is too long (max 5000 characters)', 'COMMENT_TOO_LONG');
+  }
+
+  // Apply rate limiting and duplicate detection
+  const rateLimitError = checkRateLimitAndDuplicates(
+    user.userId,
+    content,
+    RATE_LIMIT_CONFIGS.CREATE_COMMENT,
+    DUPLICATE_DETECTION_CONFIGS.COMMENT
+  );
+  if (rateLimitError) {
+    return rateLimitError;
   }
 
     const displayName = user.walletAddress
@@ -386,6 +398,52 @@ export const POST = withErrorHandling(async (
           );
         }
       }
+    }
+
+    // Extract and notify mentioned users (@username)
+    try {
+      const mentions = content.match(/@(\w+)/g);
+      if (mentions && mentions.length > 0) {
+        const usernames = [...new Set(mentions.map(m => m.substring(1)))]; // Remove @ and deduplicate
+        
+        // Look up users by username
+        const mentionedUsers = await prisma.user.findMany({
+          where: {
+            username: { in: usernames },
+          },
+          select: { id: true, username: true },
+        });
+
+        // Send notifications to mentioned users
+        await Promise.all(
+          mentionedUsers.map(mentionedUser =>
+            notifyMention(
+              mentionedUser.id,
+              canonicalUserId,
+              postId,
+              comment.id
+            ).catch(error => {
+              logger.warn('Failed to send mention notification', { 
+                error, 
+                mentionedUserId: mentionedUser.id,
+                mentionedUsername: mentionedUser.username,
+                postId,
+                commentId: comment.id
+              }, 'POST /api/posts/[id]/comments');
+            })
+          )
+        );
+
+        logger.info('Sent mention notifications from comment', { 
+          postId, 
+          commentId: comment.id,
+          mentionCount: mentionedUsers.length,
+          mentionedUsernames: mentionedUsers.map(u => u.username)
+        }, 'POST /api/posts/[id]/comments');
+      }
+    } catch (error) {
+      logger.error('Failed to process mentions in comment:', error, 'POST /api/posts/[id]/comments');
+      // Don't fail the request if mention processing fails
     }
 
   logger.info('Comment created successfully', { postId, userId: canonicalUserId, commentId: comment.id, parentCommentId }, 'POST /api/posts/[id]/comments');

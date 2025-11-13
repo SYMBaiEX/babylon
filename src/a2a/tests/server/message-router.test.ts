@@ -28,9 +28,9 @@ describe('MessageRouter', () => {
       enableX402: true,
       enableCoalitions: true,
       logLevel: 'info',
-      registryClient: null as any,
-      agent0Client: null as any,
-      unifiedDiscovery: null as any
+      registryClient: undefined as any,
+      agent0Client: undefined as any,
+      unifiedDiscovery: undefined as any
     }
 
     const capabilities: AgentCapabilities = {
@@ -89,7 +89,7 @@ describe('MessageRouter', () => {
       expect(response.jsonrpc).toBe('2.0')
       expect(response.result).toBeDefined()
       if (!response.result) throw new Error('Result is undefined')
-      const result = response.result as Record<string, any>
+      const result = response.result as Record<string, unknown>
       expect(result.agents).toBeDefined()
       expect(Array.isArray(result.agents)).toBe(true)
       expect(result.total).toBeDefined()
@@ -127,8 +127,8 @@ describe('MessageRouter', () => {
       expect(response.jsonrpc).toBe('2.0')
       expect(response.result).toBeDefined()
       if (!response.result) throw new Error('Result is undefined')
-      expect((response.result as any).subscribed).toBe(true)
-      expect((response.result as any).marketId).toBe('market-123')
+      expect((response.result as Record<string, unknown>).subscribed).toBe(true)
+      expect((response.result as Record<string, unknown>).marketId).toBe('market-123')
     })
 
     test('should track market subscribers', async () => {
@@ -174,11 +174,11 @@ describe('MessageRouter', () => {
       expect(response.jsonrpc).toBe('2.0')
       expect(response.result).toBeDefined()
       if (!response.result) throw new Error('Result is undefined')
-      const result = response.result as any
+      const result = response.result as Record<string, unknown>
       expect(result.coalitionId).toBeDefined()
       expect(result.proposal).toBeDefined()
-      expect(result.proposal.name).toBe('Alpha Coalition')
-      expect(result.proposal.members).toContain('agent-1')
+      expect((result.proposal as Record<string, unknown>).name).toBe('Alpha Coalition')
+      expect((result.proposal as Record<string, unknown>).members).toContain('agent-1')
     })
 
     test('should join coalition', async () => {
@@ -198,7 +198,7 @@ describe('MessageRouter', () => {
 
       const proposeResponse = await router.route('agent-1', proposeRequest, mockConnection)
       if (!proposeResponse.result) throw new Error('Result is undefined')
-      const coalitionId = (proposeResponse.result as any).coalitionId
+      const coalitionId = (proposeResponse.result as Record<string, unknown>).coalitionId as string
 
       // Now join it with another agent
       const joinRequest: JsonRpcRequest = {
@@ -213,10 +213,10 @@ describe('MessageRouter', () => {
       expect(joinResponse.jsonrpc).toBe('2.0')
       expect(joinResponse.result).toBeDefined()
       if (!joinResponse.result) throw new Error('Result is undefined')
-      const joinResult = joinResponse.result as any
+      const joinResult = joinResponse.result as Record<string, unknown>
       expect(joinResult.joined).toBe(true)
-      expect(joinResult.coalition.members).toContain('agent-1')
-      expect(joinResult.coalition.members).toContain('agent-2')
+      expect((joinResult.coalition as Record<string, any>).members).toContain('agent-1')
+      expect((joinResult.coalition as Record<string, any>).members).toContain('agent-2')
     })
 
     test('should reject joining non-existent coalition', async () => {
@@ -250,7 +250,7 @@ describe('MessageRouter', () => {
 
       const proposeResponse = await router.route('agent-1', proposeRequest, mockConnection)
       if (!proposeResponse.result) throw new Error('Result is undefined')
-      const coalitionId = (proposeResponse.result as any).coalitionId
+      const coalitionId = (proposeResponse.result as Record<string, unknown>).coalitionId as string
 
       // Leave it
       const leaveRequest: JsonRpcRequest = {
@@ -264,7 +264,7 @@ describe('MessageRouter', () => {
 
       expect(leaveResponse.result).toBeDefined()
       if (!leaveResponse.result) throw new Error('Result is undefined')
-      expect((leaveResponse.result as any).left).toBe(true)
+      expect((leaveResponse.result as Record<string, unknown>).left).toBe(true)
     })
 
     test('should get agent coalitions', async () => {
@@ -312,7 +312,7 @@ describe('MessageRouter', () => {
 
       expect(response.result).toBeDefined()
       if (!response.result) throw new Error('Result is undefined')
-      const result = response.result as any
+      const result = response.result as Record<string, unknown>
       expect(result.shared).toBe(true)
       expect(result.analysisId).toBeDefined()
     })
@@ -332,7 +332,7 @@ describe('MessageRouter', () => {
 
       expect(response.result).toBeDefined()
       if (!response.result) throw new Error('Result is undefined')
-      const result = response.result as any
+      const result = response.result as Record<string, unknown>
       expect(result.requestId).toBeDefined()
       expect(result.broadcasted).toBe(true)
     })

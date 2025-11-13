@@ -110,6 +110,92 @@ export const GET = withErrorHandling(async (
 });
 
 /**
+ * PUT /api/user-groups/[id]
+ * Update group details (name, description) - admin only
+ */
+export const PUT = withErrorHandling(async (
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) => {
+  const user = await authenticate(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { id: groupId } = await context.params;
+  const body = await request.json();
+
+  // Validate input
+  const { z } = await import('zod');
+  const updateSchema = z.object({
+    name: z.string().min(1).max(100).optional(),
+    description: z.string().max(500).optional().nullable(),
+  });
+
+  const validatedData = updateSchema.parse(body);
+
+  // Check if user is admin
+  const isAdmin = await prisma.userGroupAdmin.findUnique({
+    where: {
+      groupId_userId: {
+        groupId,
+        userId: user.userId,
+      },
+    },
+  });
+
+  if (!isAdmin) {
+    return NextResponse.json(
+      { error: 'Only admins can update group details' },
+      { status: 403 }
+    );
+  }
+
+  // Update the group
+  const updatedGroup = await prisma.userGroup.update({
+    where: { id: groupId },
+    data: {
+      ...validatedData,
+      updatedAt: new Date(),
+    },
+  });
+
+  // If name changed, update associated chat name
+  if (validatedData.name) {
+    const chat = await prisma.chat.findFirst({
+      where: {
+        isGroup: true,
+        ChatParticipant: {
+          some: {
+            userId: user.userId,
+          },
+        },
+      },
+    });
+
+    if (chat) {
+      await prisma.chat.update({
+        where: { id: chat.id },
+        data: {
+          name: validatedData.name,
+          updatedAt: new Date(),
+        },
+      });
+    }
+  }
+
+  return NextResponse.json({
+    success: true,
+    message: 'Group updated',
+    data: {
+      id: updatedGroup.id,
+      name: updatedGroup.name,
+      description: updatedGroup.description,
+    },
+  });
+});
+
+/**
  * DELETE /api/user-groups/[id]
  * Delete a group (admin only)
  */

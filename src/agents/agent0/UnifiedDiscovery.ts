@@ -10,6 +10,14 @@ import { AgentRegistry } from '../AgentRegistry'
 import { ReputationBridge } from './ReputationBridge'
 import { SubgraphClient, type SubgraphAgent } from './SubgraphClient'
 import type { DiscoveryFilters, IReputationBridge, IUnifiedDiscoveryService } from './types'
+import { z } from 'zod'
+
+const CapabilitiesSchema = z.object({
+  strategies: z.array(z.string()).optional(),
+  markets: z.array(z.string()).optional(),
+  actions: z.array(z.string()).optional(),
+  version: z.string().optional(),
+});
 
 export class UnifiedDiscoveryService implements IUnifiedDiscoveryService {
   private localRegistry: AgentRegistry
@@ -64,20 +72,28 @@ export class UnifiedDiscoveryService implements IUnifiedDiscoveryService {
     agent0Data: SubgraphAgent,
     reputationBridge?: IReputationBridge | null
   ): Promise<AgentProfile | null> {
-    let capabilities = {
+    const defaultCapabilities = {
       strategies: [] as string[],
       markets: [] as string[],
       actions: [] as string[],
-      version: '1.0.0'
-    }
+      version: '1.0.0',
+    };
+    let capabilities = defaultCapabilities;
     
     if (agent0Data.capabilities) {
-      const parsed = JSON.parse(agent0Data.capabilities)
-      capabilities = {
-        strategies: parsed.strategies || [],
-        markets: parsed.markets || [],
-        actions: parsed.actions || [],
-        version: parsed.version || '1.0.0'
+      try {
+        const parsed = JSON.parse(agent0Data.capabilities);
+        const validation = CapabilitiesSchema.safeParse(parsed);
+        if (validation.success) {
+          capabilities = {
+            strategies: validation.data.strategies ?? [],
+            markets: validation.data.markets ?? [],
+            actions: validation.data.actions ?? [],
+            version: validation.data.version ?? '1.0.0',
+          };
+        }
+      } catch {
+        // Ignore JSON parsing errors, use default capabilities
       }
     }
     
@@ -185,7 +201,7 @@ export function getUnifiedDiscoveryService(): UnifiedDiscoveryService {
     
     let reputationBridge: ReputationBridge | null = null
     if (process.env.AGENT0_ENABLED === 'true') {
-      reputationBridge = new ReputationBridge(null)
+      reputationBridge = new ReputationBridge(undefined)
     }
     
     unifiedDiscoveryInstance = new UnifiedDiscoveryService(

@@ -9,36 +9,39 @@ import { join } from "path";
 import { config } from "dotenv";
 import { renderPrompt, actorPortrait, actorBanner, organizationLogo, organizationBanner } from "@/prompts";
 import { logger } from '@/lib/logger';
+import { z } from 'zod';
 
 // Load environment variables
 config();
 
-interface Actor {
-  id: string;
-  name: string;
-  realName?: string;
-  description: string;
-  domain?: string[];
-  personality?: string;
-  physicalDescription?: string;
-  profileBanner?: string;
-}
+const ActorSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  realName: z.string().optional(),
+  description: z.string(),
+  domain: z.array(z.string()).optional(),
+  personality: z.string().optional(),
+  physicalDescription: z.string().optional(),
+  profileBanner: z.string().optional(),
+});
+type Actor = z.infer<typeof ActorSchema>;
 
-interface Organization {
-  id: string;
-  name: string;
-  description: string;
-  type: string;
-  pfpDescription?: string;
-  bannerDescription?: string;
-}
+const OrganizationSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  type: z.string(),
+  pfpDescription: z.string().optional(),
+  bannerDescription: z.string().optional(),
+});
+type Organization = z.infer<typeof OrganizationSchema>;
 
-interface ActorsDatabase {
-  version: string;
-  description: string;
-  actors: Actor[];
-  organizations: Organization[];
-}
+const ActorsDatabaseSchema = z.object({
+  version: z.string(),
+  description: z.string(),
+  actors: z.array(ActorSchema),
+  organizations: z.array(OrganizationSchema),
+});
 
 interface FalImageResult {
   url: string;
@@ -396,7 +399,7 @@ async function main() {
   // Load actors database
   const actorsPath = join(process.cwd(), "public", "data", "actors.json");
   const actorsData = await readFile(actorsPath, "utf-8");
-  const actorsDb: ActorsDatabase = JSON.parse(actorsData);
+  const actorsDb = ActorsDatabaseSchema.parse(JSON.parse(actorsData));
 
   const actorsImagesDir = join(process.cwd(), "public", "images", "actors");
   const actorsBannersDir = join(process.cwd(), "public", "images", "actor-banners");

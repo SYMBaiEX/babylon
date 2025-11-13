@@ -18,7 +18,7 @@ import {
   A2AMethod,
   ErrorCode
 } from '../types'
-import type { JsonRpcResult } from '@/types/json-rpc'
+import type { JsonRpcResult } from '@/types/common'
 import type { PaymentVerificationParams, PaymentVerificationResult } from '@/types/payments'
 import type { RegistryClient } from '@/types/a2a-server'
 import type { X402Manager } from '@/types/a2a-server'
@@ -49,10 +49,10 @@ import { MarketAnalysisSchema } from '../types'
 
 export class MessageRouter {
   private config: Required<A2AServerConfig>
-  private registryClient: RegistryClient | null = null
-  private x402Manager: X402Manager | null = null
-  private agent0Client: IAgent0Client | null = null // Agent0Client - optional for external agent support
-  private unifiedDiscovery: IUnifiedDiscoveryService | null = null // UnifiedDiscoveryService - optional for enhanced discovery
+  private registryClient?: RegistryClient
+  private x402Manager?: X402Manager
+  private agent0Client?: IAgent0Client
+  private unifiedDiscovery?: IUnifiedDiscoveryService
   private marketSubscriptions: Map<string, Set<string>> = new Map() // marketId -> Set of agentIds
   private coalitions: Map<string, Coalition> = new Map()
   private server: { broadcast: (agentIds: string[], message: unknown) => void } | null = null // WebSocket server for broadcasting
@@ -63,16 +63,16 @@ export class MessageRouter {
     config: Required<A2AServerConfig>,
     registryClient?: RegistryClient,
     x402Manager?: X402Manager,
-    agent0Client?: IAgent0Client | null,
-    unifiedDiscovery?: IUnifiedDiscoveryService | null,
-    server?: { broadcast: (agentIds: string[], message: unknown) => void } | null
+    agent0Client?: IAgent0Client,
+    unifiedDiscovery?: IUnifiedDiscoveryService,
+    server?: { broadcast: (agentIds: string[], message: unknown) => void }
   ) {
     this.config = config
-    this.registryClient = registryClient || null
-    this.x402Manager = x402Manager || null
-    this.agent0Client = agent0Client || null
-    this.unifiedDiscovery = unifiedDiscovery || null
-    this.server = server || null
+    this.registryClient = registryClient
+    this.x402Manager = x402Manager
+    this.agent0Client = agent0Client
+    this.unifiedDiscovery = unifiedDiscovery
+    this.server = server ?? null
   }
 
   /**
@@ -164,7 +164,7 @@ export class MessageRouter {
     }
 
     if (agents.length === 0 && this.registryClient?.discoverAgents) {
-      agents = await this.registryClient.discoverAgents(discoverRequest.filters)
+      agents = await this.registryClient.discoverAgents(discoverRequest.filters ?? undefined)
       logger.debug(`Local registry found ${agents.length} agents`)
     }
 
@@ -206,7 +206,7 @@ export class MessageRouter {
               address: profile.walletAddress,
               name: profile.name,
               endpoint: profile.capabilities?.actions?.includes('a2a') ? '' : '',
-              capabilities: profile.capabilities || {
+              capabilities: profile.capabilities ?? {
                 strategies: [],
                 markets: [],
                 actions: [],
@@ -374,7 +374,7 @@ export class MessageRouter {
     if (!this.marketSubscriptions.has(subscriptionRequest.marketId)) {
       this.marketSubscriptions.set(subscriptionRequest.marketId, new Set())
     }
-    this.marketSubscriptions.get(subscriptionRequest.marketId)!.add(agentId)
+    this.marketSubscriptions.get(subscriptionRequest.marketId)?.add(agentId)
     return {
       jsonrpc: '2.0',
       result: {
@@ -755,12 +755,12 @@ export class MessageRouter {
 
     const from = paymentRequest.from || ''
 
-    const createdPaymentRequest = this.x402Manager.createPaymentRequest(
+    const createdPaymentRequest = await this.x402Manager.createPaymentRequest(
       from,
       paymentRequest.to,
       paymentRequest.amount,
       paymentRequest.service,
-      paymentRequest.metadata
+      paymentRequest.metadata as Record<string, string | number | boolean | null> | undefined
     )
 
     return {
@@ -806,7 +806,7 @@ export class MessageRouter {
       )
     }
 
-    const storedPaymentRequest = this.x402Manager.getPaymentRequest(receipt.requestId)
+    const storedPaymentRequest = await this.x402Manager.getPaymentRequest(receipt.requestId)
     if (!storedPaymentRequest) {
       return this.errorResponse(
         request.id,

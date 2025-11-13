@@ -28,7 +28,6 @@ import { useAuth } from '@/hooks/useAuth';
 import type {
   PerpPositionFromAPI,
   PredictionPosition,
-  ProfileWidgetPoolDeposit,
 } from '@/types/profile';
 
 const formatErrorMessage = (payload: unknown, fallback: string): string => {
@@ -61,11 +60,10 @@ const formatErrorMessage = (payload: unknown, fallback: string): string => {
 interface PositionDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
-  type: 'prediction' | 'perp' | 'pool';
+  type: 'prediction' | 'perp';
   data:
     | PredictionPosition
     | PerpPositionFromAPI
-    | ProfileWidgetPoolDeposit
     | null;
   userId?: string; // User ID of the profile being viewed
   onSuccess?: () => void; // Callback after successful trade
@@ -305,7 +303,6 @@ export function PositionDetailModal({
             <h2 className="text-xl font-bold text-foreground">
               {type === 'prediction' && 'Prediction'}
               {type === 'perp' && 'Stock'}
-              {type === 'pool' && 'Agent Stake'}
             </h2>
             {userId && authenticated && user && user.id !== userId && (
               <FollowButton
@@ -562,79 +559,6 @@ export function PositionDetailModal({
                         </div>
                         <div className="text-sm font-medium text-foreground">
                           {formatDate((data as PerpPositionFromAPI).openedAt)}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-
-              {/* Pool Position Details */}
-              {type === 'pool' && 'poolName' in data && (
-                <>
-                  <div>
-                    <h3 className="text-lg font-semibold text-foreground mb-2">
-                      {(data as ProfileWidgetPoolDeposit).poolName}
-                    </h3>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-muted/30 p-3 rounded-lg">
-                      <div className="text-xs text-muted-foreground mb-1">
-                        Staked Amount
-                      </div>
-                      <div className="text-lg font-bold text-foreground">
-                        {formatPoints(
-                          (data as ProfileWidgetPoolDeposit).amount
-                        )}{' '}
-                        pts
-                      </div>
-                    </div>
-                    <div className="bg-muted/30 p-3 rounded-lg">
-                      <div className="text-xs text-muted-foreground mb-1">
-                        Return
-                      </div>
-                      <div
-                        className={cn(
-                          'text-lg font-bold',
-                          (data as ProfileWidgetPoolDeposit).returnPercent >= 0
-                            ? 'text-green-600'
-                            : 'text-red-600'
-                        )}
-                      >
-                        {formatPercent(
-                          (data as ProfileWidgetPoolDeposit).returnPercent
-                        )}
-                      </div>
-                    </div>
-                    <div className="bg-muted/30 p-3 rounded-lg">
-                      <div className="text-xs text-muted-foreground mb-1">
-                        Unrealized P&L
-                      </div>
-                      <div
-                        className={cn(
-                          'text-lg font-bold',
-                          (data as ProfileWidgetPoolDeposit).unrealizedPnL >= 0
-                            ? 'text-green-600'
-                            : 'text-red-600'
-                        )}
-                      >
-                        {formatPoints(
-                          (data as ProfileWidgetPoolDeposit).unrealizedPnL
-                        )}{' '}
-                        pts
-                      </div>
-                    </div>
-                    {(data as ProfileWidgetPoolDeposit).depositedAt && (
-                      <div className="bg-muted/30 p-3 rounded-lg">
-                        <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          Deposited
-                        </div>
-                        <div className="text-sm font-medium text-foreground">
-                          {formatDate(
-                            (data as ProfileWidgetPoolDeposit).depositedAt
-                          )}
                         </div>
                       </div>
                     )}

@@ -13,7 +13,8 @@ import { A2AEventType } from '../a2a/types';
 import type {
   AgentCapabilities,
   MarketAnalysis,
-  CoalitionProposal
+  CoalitionProposal,
+  JsonRpcRequest
 } from '../a2a/types';
 import type { Question, WorldEvent } from '@/shared/types';
 import { logger } from '@/lib/logger';
@@ -111,17 +112,20 @@ export class AutonomousAgent extends EventEmitter {
     });
 
     // Market data updates
-    this.a2aClient.on('notification', async (notification) => {
+    this.a2aClient.on('notification', async (notification: JsonRpcRequest) => {
       if (notification.method === 'a2a.marketUpdate') {
-        await this.handleMarketUpdate(notification.params);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await this.handleMarketUpdate(notification.params as any);
       } else if (notification.method === 'a2a.gameEvent') {
-        await this.handleGameEvent(notification.params);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await this.handleGameEvent(notification.params as any);
       } else if (notification.method === 'a2a.coalitionInvite') {
-        await this.handleCoalitionInvite(notification.params);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await this.handleCoalitionInvite(notification.params as any);
       }
     });
 
-    this.a2aClient.on('error', (error) => {
+    this.a2aClient.on('error', (error: Error) => {
       logger.error(`${this.config.name} error: ${error.message}`, { error }, 'AutonomousAgent');
       this.emit('error', error);
     });

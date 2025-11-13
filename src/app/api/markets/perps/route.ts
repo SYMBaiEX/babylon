@@ -91,7 +91,43 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         currentPrice: Number(p.currentPrice),
       }));
 
-      const openInterest = positions.reduce((sum, p) => sum + (p.size * p.leverage), 0);
+      // Open Interest = total notional value of all open positions
+      const openInterest = positions.reduce((sum, p) => sum + (p.size * p.currentPrice), 0);
+
+      // Calculate 24h trading volume from positions opened in last 24 hours
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const recentPositions = (authUser && authUser.userId)
+        ? await asUser(authUser, async (dbPrisma) => {
+            return await dbPrisma.perpPosition.findMany({
+              where: {
+                organizationId: company.id,
+                openedAt: { gte: twentyFourHoursAgo },
+              },
+              select: {
+                size: true,
+                entryPrice: true,
+              },
+            });
+          })
+        : await asPublic(async (dbPrisma) => {
+            return await dbPrisma.perpPosition.findMany({
+              where: {
+                organizationId: company.id,
+                openedAt: { gte: twentyFourHoursAgo },
+              },
+              select: {
+                size: true,
+                entryPrice: true,
+              },
+            });
+          });
+
+      // Volume = sum of notional values (size * entry price)
+      const volume24h = recentPositions.reduce((sum, p) => {
+        const size = Number(p.size);
+        const entryPrice = Number(p.entryPrice);
+        return sum + (size * entryPrice);
+      }, 0);
 
       // Calculate funding rate from position imbalance
       const longs = positions.filter(p => p.side === 'long');
@@ -115,7 +151,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         changePercent24h,
         high24h,
         low24h,
-        volume24h: 0, // TODO: Track from trades
+        volume24h,
         openInterest,
         fundingRate: {
           rate: fundingRate,

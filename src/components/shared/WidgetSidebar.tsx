@@ -44,7 +44,7 @@ export function WidgetSidebar() {
           <EntitySearchAutocomplete
             value={searchQuery}
             onChange={setSearchQuery}
-            placeholder="Search users, posts..."
+            placeholder="Search users..."
           />
         </div>
 

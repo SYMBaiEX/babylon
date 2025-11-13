@@ -15,15 +15,33 @@ import {
   ErrorCode,
   A2AEventType
 } from '../types'
-import type { JsonRpcResult } from '@/types/json-rpc'
+import type { JsonRpcResult } from '@/types/common'
 import { MessageRouter } from './message-router'
 import { AuthManager } from './auth-manager'
 import { RateLimiter } from '../utils/rate-limiter'
 import { Logger } from '../utils/logger'
 import type { RegistryClient } from '@/types/a2a-server'
 import type { X402Manager } from '@/types/a2a-server'
+import { z } from 'zod'
 
 import { createPortSingleton } from '@/utils/singleton'
+
+// Zod schema for handshake parameters for robust validation
+const HandshakeParamsSchema = z.object({
+  credentials: z.object({
+    address: z.string(),
+    tokenId: z.number(),
+    signature: z.string(),
+    timestamp: z.number(),
+  }),
+  capabilities: z.object({
+    strategies: z.array(z.string()),
+    markets: z.array(z.string()),
+    actions: z.array(z.string()),
+    version: z.string(),
+  }),
+  endpoint: z.string(),
+});
 
 // Singleton for A2A WebSocket server (port-aware)
 const a2aServerSingleton = createPortSingleton<A2AWebSocketServer>('a2aGlobalServer', 'a2aGlobalPort')
@@ -260,21 +278,23 @@ export class A2AWebSocketServer extends EventEmitter {
     tempId: string,
     message: JsonRpcRequest
   ): Promise<void> {
-    const handshakeData = message.params as {
-      credentials: {
-        address: string
-        tokenId: number
-        signature: string
-        timestamp: number
-      }
-      capabilities: {
-        strategies: string[]
-        markets: string[]
-        actions: string[]
-        version: string
-      }
-      endpoint: string
+
+    const parseResult = HandshakeParamsSchema.safeParse(message.params);
+    if (!parseResult.success) {
+      ws.send(JSON.stringify({
+        jsonrpc: '2.0',
+        error: {
+          code: ErrorCode.INVALID_PARAMS,
+          message: 'Invalid handshake parameters',
+          data: parseResult.error.issues,
+        },
+        id: message.id,
+      }));
+      ws.close(1008, 'Invalid handshake');
+      this.connections.delete(tempId);
+      return;
     }
+    const handshakeData = parseResult.data;
 
     const authResult = await this.authManager.authenticate(handshakeData.credentials)
 
@@ -292,7 +312,14 @@ export class A2AWebSocketServer extends EventEmitter {
       return
     }
 
-    const connection = this.connections.get(tempId)!
+    const connection = this.connections.get(tempId)
+    if (!connection) {
+      // This should not happen if logic is correct, but as a safeguard:
+      this.logger.error(`Connection ${tempId} not found during handshake`)
+      ws.close(1011, 'Internal server error');
+      return;
+    }
+
     connection.agentId = `agent-${handshakeData.credentials.tokenId}`
     connection.address = handshakeData.credentials.address
     connection.tokenId = handshakeData.credentials.tokenId

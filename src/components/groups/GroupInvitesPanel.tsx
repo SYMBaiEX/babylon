@@ -7,7 +7,6 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GroupInviteNotification } from './GroupInviteNotification';
 import { toast } from 'sonner';
 
@@ -61,11 +60,9 @@ export function GroupInvitesPanel() {
 
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="text-center text-muted-foreground">Loading invites...</div>
-        </CardContent>
-      </Card>
+      <div className="p-6 bg-background border border-border rounded-xl shadow-sm">
+        <div className="text-center text-muted-foreground">Loading invites...</div>
+      </div>
     );
   }
 
@@ -74,11 +71,11 @@ export function GroupInvitesPanel() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Pending Invitations ({invites.length})</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <div className="bg-background border border-border rounded-xl shadow-sm overflow-hidden">
+      <div className="p-6 border-b border-border">
+        <h3 className="text-lg font-bold">Pending Invitations ({invites.length})</h3>
+      </div>
+      <div className="p-6 space-y-3">
         {invites.map((invite) => (
           <GroupInviteNotification
             key={invite.id}
@@ -92,8 +89,8 @@ export function GroupInvitesPanel() {
             onDecline={handleInviteResponse}
           />
         ))}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 

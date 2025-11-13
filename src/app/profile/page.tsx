@@ -1,15 +1,14 @@
 'use client'
 
 import { PostCard } from '@/components/posts/PostCard'
+import { ArticleCard } from '@/components/articles/ArticleCard'
 import { LinkSocialAccountsModal } from '@/components/profile/LinkSocialAccountsModal'
 import { OnChainBadge } from '@/components/profile/OnChainBadge'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { TaggedText } from '@/components/shared/TaggedText'
 import { useAuth } from '@/hooks/useAuth'
-import { useUpdateAgentProfileTx } from '@/hooks/useUpdateAgentProfileTx'
 import { cn } from '@/lib/utils'
-import { WALLET_ERROR_MESSAGES } from '@/lib/wallet-utils'
 import { useAuthStore } from '@/stores/authStore'
 import {
   AlertCircle,
@@ -50,10 +49,9 @@ interface EditModalState {
 }
 
 export default function ProfilePage() {
-  const { ready, authenticated, smartWalletAddress, smartWalletReady } = useAuth()
+  const { ready, authenticated } = useAuth()
   const { user, setUser } = useAuthStore()
   const router = useRouter()
-  const { updateAgentProfile } = useUpdateAgentProfileTx()
   
   const [formData, setFormData] = useState<ProfileFormData>({
     username: '',
@@ -84,7 +82,13 @@ export default function ProfilePage() {
   const [showLinkAccountsModal, setShowLinkAccountsModal] = useState(false)
   const [posts, setPosts] = useState<Array<{
     id: string
+    type?: string
     content: string
+    fullContent?: string | null
+    articleTitle?: string | null
+    byline?: string | null
+    biasScore?: number | null
+    category?: string | null
     timestamp: string
     likeCount: number
     commentCount: number
@@ -100,6 +104,13 @@ export default function ProfilePage() {
     isLiked?: boolean
     isShared?: boolean
     isRepost?: boolean
+    originalPostId?: string | null
+    originalAuthorId?: string | null
+    originalAuthorName?: string | null
+    originalAuthorUsername?: string | null
+    originalAuthorProfileImageUrl?: string | null
+    originalContent?: string | null
+    quoteComment?: string | null
   }>>([])
   const [replies, setReplies] = useState<Array<{
     id: string
@@ -364,48 +375,17 @@ export default function ProfilePage() {
         }
       })
 
-      // If user is registered on-chain, perform on-chain profile update first
-      let onchainTxHash: string | undefined
-      if (user.onChainRegistered && user.nftTokenId) {
-        if (!smartWalletReady || !smartWalletAddress) {
-          throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET)
-        }
-
-        const trimmedDisplayName = (updatedData.displayName ?? '').trim()
-        const trimmedUsername = (updatedData.username ?? '').trim()
-        const trimmedBio = (updatedData.bio ?? '').trim()
-
-        const endpoint = `https://babylon.market/agent/${smartWalletAddress.toLowerCase()}`
-        const metadata = {
-          name:
-            trimmedDisplayName ||
-            trimmedUsername ||
-            user.displayName ||
-            user.username ||
-            'Babylon User',
-          username: trimmedUsername || null,
-          bio: trimmedBio || null,
-          profileImageUrl: updatedData.profileImageUrl || user.profileImageUrl || null,
-          coverImageUrl: updatedData.coverImageUrl || user.coverImageUrl || null,
-        }
-
-        onchainTxHash = await updateAgentProfile({
-          endpoint,
-          metadata,
-        })
-      }
-
-      // Update profile
+      // Backend now handles ALL signing automatically - no user interaction needed!
+      // This includes username changes, bio updates, everything.
+      // The server signs the transaction on-chain, providing a seamless UX.
+      
       const updateResponse = await fetch(`/api/users/${encodeURIComponent(user.id)}/update-profile`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({
-          ...updatedData,
-          ...(onchainTxHash && { onchainTxHash }),
-        }),
+        body: JSON.stringify(updatedData),
       })
 
       if (!updateResponse.ok) {
@@ -449,11 +429,17 @@ export default function ProfilePage() {
       setTimeout(() => setSaveSuccess(false), 3000)
       closeEditModal()
     } catch (error) {
+      console.error('Profile save error:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save profile'
+      
       setEditModal(prev => ({
         ...prev,
-        error: error instanceof Error ? error.message : 'Failed to save profile',
+        error: errorMessage,
         isSaving: false,
       }))
+      
+      // Don't let errors corrupt the UI state - ensure modal stays open so user can retry
+      // The auth state is preserved and user doesn't get logged out
     }
   }
 
@@ -742,24 +728,46 @@ export default function ProfilePage() {
                         user?.profileImageUrl ||
                         undefined
 
-                      return (
+                      const postData = {
+                        id: item.id,
+                        type: item.type || 'post',
+                        content: item.content,
+                        fullContent: item.fullContent || null,
+                        articleTitle: item.articleTitle || null,
+                        byline: item.byline || null,
+                        biasScore: item.biasScore ?? null,
+                        category: item.category || null,
+                        authorId,
+                        authorName,
+                        authorUsername,
+                        authorProfileImageUrl: authorImage,
+                        timestamp: item.timestamp,
+                        likeCount: item.likeCount,
+                        commentCount: item.commentCount,
+                        shareCount: item.shareCount,
+                        isLiked: item.isLiked,
+                        isShared: item.isShared,
+                        // Repost metadata
+                        isRepost: item.isRepost || false,
+                        originalPostId: item.originalPostId || null,
+                        originalAuthorId: item.originalAuthorId || null,
+                        originalAuthorName: item.originalAuthorName || null,
+                        originalAuthorUsername: item.originalAuthorUsername || null,
+                        originalAuthorProfileImageUrl: item.originalAuthorProfileImageUrl || null,
+                        originalContent: item.originalContent || null,
+                        quoteComment: item.quoteComment || null,
+                      };
+                      
+                      return postData.type === 'article' ? (
+                        <ArticleCard
+                          key={item.id}
+                          post={postData}
+                          onClick={() => router.push(`/post/${item.id}`)}
+                        />
+                      ) : (
                         <PostCard
                           key={item.id}
-                          post={{
-                            id: item.id,
-                            type: 'post',
-                            content: item.content,
-                            authorId,
-                            authorName,
-                            authorUsername,
-                            authorProfileImageUrl: authorImage,
-                            timestamp: item.timestamp,
-                            likeCount: item.likeCount,
-                            commentCount: item.commentCount,
-                            shareCount: item.shareCount,
-                            isLiked: item.isLiked,
-                            isShared: item.isShared,
-                          }}
+                          post={postData}
                           onClick={() => router.push(`/post/${item.id}`)}
                           showInteractions
                         />

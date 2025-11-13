@@ -13,6 +13,34 @@ import { PostIdParamSchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
 
 /**
+ * Parse repost content to extract metadata
+ * Returns null if not a repost, otherwise returns parsed data
+ */
+function parseRepostContent(content: string): {
+  isRepost: true;
+  quoteComment: string | null;
+  originalContent: string;
+  originalAuthorUsername: string;
+} | null {
+  const separatorPattern = /\n\n--- Reposted from @(.+?) ---\n/;
+  const match = content.match(separatorPattern);
+  
+  if (!match) return null;
+  
+  const parts = content.split(separatorPattern);
+  const quoteComment = parts[0]?.trim() || null;
+  const originalContent = parts[2]?.trim() || '';
+  const originalAuthorUsername = match[1] || '';
+  
+  return {
+    isRepost: true,
+    quoteComment,
+    originalContent,
+    originalAuthorUsername,
+  };
+}
+
+/**
  * GET /api/posts/[id]
  * Get a single post by ID
  */
@@ -191,6 +219,93 @@ export const GET = withErrorHandling(async (
         const timestampStr = gamePost.timestamp as string;
         const createdAtStr = (gamePost.createdAt || timestampStr) as string;
 
+        // Parse repost metadata if this is a repost
+        const repostData = gamePost.content ? parseRepostContent(gamePost.content) : null;
+        let repostMetadata = {};
+        
+        if (repostData) {
+          // Look up original author by username (could be User, Actor, or Organization)
+          const originalAuthor = await asPublic(async (db) => {
+            const usr = await db.user.findUnique({
+              where: { username: repostData.originalAuthorUsername },
+              select: { id: true, username: true, displayName: true, profileImageUrl: true },
+            });
+            
+            if (usr) return usr;
+            
+            const act = await db.actor.findFirst({
+              where: { id: repostData.originalAuthorUsername },
+              select: { id: true, name: true, profileImageUrl: true },
+            });
+            
+            if (act) return act;
+            
+            const org = await db.organization.findFirst({
+              where: { id: repostData.originalAuthorUsername },
+              select: { id: true, name: true, imageUrl: true },
+            });
+            
+            return org;
+          });
+          
+          if (originalAuthor) {
+            // Find the Share record for this repost to get the original post ID
+            const shareRecord = await asPublic(async (db) => {
+              return await db.share.findFirst({
+                where: { 
+                  userId: gamePost.authorId || '',
+                  Post: {
+                    authorId: originalAuthor.id
+                  }
+                },
+                orderBy: { createdAt: 'desc' },
+                select: { postId: true },
+              });
+            });
+            
+            let originalPostId = shareRecord?.postId || null;
+            
+            // If Share lookup failed, try to find the original post by content and author
+            if (!originalPostId && repostData.originalContent) {
+              const originalPost = await asPublic(async (db) => {
+                return await db.post.findFirst({
+                  where: {
+                    authorId: originalAuthor.id,
+                    content: repostData.originalContent,
+                    deletedAt: null,
+                  },
+                  orderBy: { timestamp: 'desc' },
+                  select: { id: true },
+                });
+              });
+              originalPostId = originalPost?.id || null;
+            }
+            
+            repostMetadata = {
+              isRepost: true,
+              quoteComment: repostData.quoteComment,
+              originalContent: repostData.originalContent,
+              originalPostId: originalPostId,
+              originalAuthorId: originalAuthor.id,
+              originalAuthorName: 'name' in originalAuthor ? originalAuthor.name : originalAuthor.displayName,
+              originalAuthorUsername: 'username' in originalAuthor ? originalAuthor.username : originalAuthor.id,
+              originalAuthorProfileImageUrl: 'profileImageUrl' in originalAuthor ? originalAuthor.profileImageUrl : ('imageUrl' in originalAuthor ? originalAuthor.imageUrl : null),
+            };
+          } else {
+            // Even if we can't find the original author, still mark as repost
+            repostMetadata = {
+              isRepost: true,
+              quoteComment: repostData.quoteComment,
+              originalContent: repostData.originalContent,
+              originalPostId: null,
+              originalAuthorId: repostData.originalAuthorUsername,
+              originalAuthorName: repostData.originalAuthorUsername,
+              originalAuthorUsername: repostData.originalAuthorUsername,
+              originalAuthorProfileImageUrl: null,
+            };
+          }
+        }
+
         return successResponse({
           data: {
             id: gamePost.id,
@@ -216,6 +331,7 @@ export const GET = withErrorHandling(async (
             isLiked,
             isShared,
             source: 'game-store',
+            ...repostMetadata, // Add repost metadata if applicable
           },
         });
       }
@@ -404,6 +520,93 @@ export const GET = withErrorHandling(async (
     const reactionsArray = post.Reaction && Array.isArray(post.Reaction) ? post.Reaction : [];
     const sharesArray = post.Share && Array.isArray(post.Share) ? post.Share : [];
 
+    // Parse repost metadata if this is a repost
+    const repostData = post.content ? parseRepostContent(post.content) : null;
+    let repostMetadata = {};
+    
+    if (repostData) {
+      // Look up original author by username (could be User, Actor, or Organization)
+      const originalAuthor = await asPublic(async (db) => {
+        const usr = await db.user.findUnique({
+          where: { username: repostData.originalAuthorUsername },
+          select: { id: true, username: true, displayName: true, profileImageUrl: true },
+        });
+        
+        if (usr) return usr;
+        
+        const act = await db.actor.findFirst({
+          where: { id: repostData.originalAuthorUsername },
+          select: { id: true, name: true, profileImageUrl: true },
+        });
+        
+        if (act) return act;
+        
+        const org = await db.organization.findFirst({
+          where: { id: repostData.originalAuthorUsername },
+          select: { id: true, name: true, imageUrl: true },
+        });
+        
+        return org;
+      });
+      
+      if (originalAuthor) {
+        // Find the Share record for this repost to get the original post ID
+        const shareRecord = await asPublic(async (db) => {
+          return await db.share.findFirst({
+            where: { 
+              userId: post.authorId || '',
+              Post: {
+                authorId: originalAuthor.id
+              }
+            },
+            orderBy: { createdAt: 'desc' },
+            select: { postId: true },
+          });
+        });
+        
+        let originalPostId = shareRecord?.postId || null;
+        
+        // If Share lookup failed, try to find the original post by content and author
+        if (!originalPostId && repostData.originalContent) {
+          const originalPost = await asPublic(async (db) => {
+            return await db.post.findFirst({
+              where: {
+                authorId: originalAuthor.id,
+                content: repostData.originalContent,
+                deletedAt: null,
+              },
+              orderBy: { timestamp: 'desc' },
+              select: { id: true },
+            });
+          });
+          originalPostId = originalPost?.id || null;
+        }
+        
+        repostMetadata = {
+          isRepost: true,
+          quoteComment: repostData.quoteComment,
+          originalContent: repostData.originalContent,
+          originalPostId: originalPostId,
+          originalAuthorId: originalAuthor.id,
+          originalAuthorName: 'name' in originalAuthor ? originalAuthor.name : originalAuthor.displayName,
+          originalAuthorUsername: 'username' in originalAuthor ? originalAuthor.username : originalAuthor.id,
+          originalAuthorProfileImageUrl: 'profileImageUrl' in originalAuthor ? originalAuthor.profileImageUrl : ('imageUrl' in originalAuthor ? originalAuthor.imageUrl : null),
+        };
+      } else {
+        // Even if we can't find the original author, still mark as repost
+        repostMetadata = {
+          isRepost: true,
+          quoteComment: repostData.quoteComment,
+          originalContent: repostData.originalContent,
+          originalPostId: null,
+          originalAuthorId: repostData.originalAuthorUsername,
+          originalAuthorName: repostData.originalAuthorUsername,
+          originalAuthorUsername: repostData.originalAuthorUsername,
+          originalAuthorProfileImageUrl: null,
+        };
+      }
+    }
+
     logger.info('Post fetched successfully', { postId, source: 'database' }, 'GET /api/posts/[id]');
 
     return successResponse({
@@ -432,6 +635,7 @@ export const GET = withErrorHandling(async (
         isLiked: reactionsArray.length > 0,
         isShared: sharesArray.length > 0,
         source: 'database',
+        ...repostMetadata, // Add repost metadata if applicable
       },
     });
 });

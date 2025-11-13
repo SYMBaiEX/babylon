@@ -26,8 +26,10 @@ import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
 import { usePrivy } from '@privy-io/react-auth'
-import { AlertCircle, ArrowLeft, Check, Loader2, LogOut, MessageCircle, MoreVertical, Search, Send, Users, X } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Check, Loader2, LogOut, MessageCircle, MoreVertical, Plus, Search, Send, Settings, Users, X } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { CreateGroupModal } from '@/components/groups/CreateGroupModal'
+import { GroupManagementModal } from '@/components/groups/GroupManagementModal'
 
 type ChatFilter = 'all' | 'dms' | 'groups'
 
@@ -97,8 +99,10 @@ export default function ChatsPage() {
   const [isLeaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
   const [isLeavingChat, setIsLeavingChat] = useState(false)
   const [leaveChatError, setLeaveChatError] = useState<string | null>(null)
-  // Invite modal state (currently disabled)
-  // const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
+  // Group modals
+  const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false)
+  const [isGroupManagementModalOpen, setIsGroupManagementModalOpen] = useState(false)
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement | null>(null)
   const topSentinelRef = useRef<HTMLDivElement | null>(null)
@@ -107,7 +111,7 @@ export default function ChatsPage() {
   // Use SSE for real-time messages with pagination
   const { 
     messages: realtimeMessages, 
-    isConnected: sseConnected,
+    isConnected: _sseConnected,
     isLoadingMore,
     hasMore,
     loadMore
@@ -242,6 +246,90 @@ export default function ChatsPage() {
     setLoading(false)
   }, [getAccessToken, isDebugMode])
 
+  // Define loadChatDetails BEFORE it's used in handleGroupUpdated
+  const loadChatDetails = useCallback(async (chatId: string) => {
+    setLoadingChat(true)
+    
+    if (isDebugMode) {
+      const response = await fetch(`/api/chats/${chatId}?debug=true`)
+      const data = await response.json()
+      setChatDetails({
+        ...data,
+        chat: data.chat || null,
+        messages: data.messages || [],
+        participants: data.participants || [],
+      })
+      setLoadingChat(false)
+      return
+    }
+
+    const token = await getAccessToken()
+    if (!token) {
+      console.error('Failed to get access token for loadChatDetails')
+      setLoadingChat(false)
+      return
+    }
+
+    const response = await fetch(`/api/chats/${chatId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    
+    // If chat doesn't exist yet (404), it's a new DM that hasn't been persisted
+    if (response.status === 404) {
+      // Chat will be created when first message is sent
+      setLoadingChat(false)
+      return
+    }
+    
+    if (!response.ok) {
+      console.error('Failed to load chat details')
+      setLoadingChat(false)
+      return
+    }
+    
+    const data = await response.json()
+    setChatDetails({
+      ...data,
+      chat: data.chat || null,
+      messages: data.messages || [],
+      participants: data.participants || [],
+    })
+    setLoadingChat(false)
+  }, [getAccessToken, isDebugMode])
+
+  const handleGroupCreated = useCallback(async (groupId: string, chatId: string) => {
+    console.log('[ChatsPage] Group created:', groupId, chatId)
+    
+    try {
+      // Reload chats to show the new group
+      await loadChats()
+      
+      // Wait a moment for state to update
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // Select the new chat
+      setSelectedChatId(chatId)
+      
+      // Load the chat details immediately
+      await loadChatDetails(chatId)
+      
+      console.log('[ChatsPage] Group created and loaded successfully')
+    } catch (error) {
+      console.error('[ChatsPage] Error after group creation:', error)
+    }
+  }, [loadChats, loadChatDetails])
+
+  const handleGroupUpdated = useCallback(async () => {
+    console.log('[ChatsPage] Group updated, reloading chats')
+    await loadChats()
+    // Reload chat details if currently viewing
+    if (selectedChatId) {
+      await loadChatDetails(selectedChatId)
+    }
+  }, [loadChats, selectedChatId, loadChatDetails])
+
   const loadNewDMChat = useCallback(async (chatId: string, targetUserId: string) => {
     setLoadingChat(true)
     
@@ -323,58 +411,6 @@ export default function ChatsPage() {
       setLoadingChat(false)
     }
   }, [getAccessToken, user])
-
-  const loadChatDetails = useCallback(async (chatId: string) => {
-    setLoadingChat(true)
-    
-    if (isDebugMode) {
-      const response = await fetch(`/api/chats/${chatId}?debug=true`)
-      const data = await response.json()
-      setChatDetails({
-        ...data,
-        chat: data.chat || null,
-        messages: data.messages || [],
-        participants: data.participants || [],
-      })
-      setLoadingChat(false)
-      return
-    }
-
-    const token = await getAccessToken()
-    if (!token) {
-      console.error('Failed to get access token for loadChatDetails')
-      setLoadingChat(false)
-      return
-    }
-
-    const response = await fetch(`/api/chats/${chatId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-    
-    // If chat doesn't exist yet (404), it's a new DM that hasn't been persisted
-    if (response.status === 404) {
-      // Chat will be created when first message is sent
-      setLoadingChat(false)
-      return
-    }
-    
-    if (!response.ok) {
-      console.error('Failed to load chat details')
-      setLoadingChat(false)
-      return
-    }
-    
-    const data = await response.json()
-    setChatDetails({
-      ...data,
-      chat: data.chat || null,
-      messages: data.messages || [],
-      participants: data.participants || [],
-    })
-    setLoadingChat(false)
-  }, [getAccessToken, isDebugMode])
   
   // Check for chat ID in URL query params
   useEffect(() => {
@@ -635,7 +671,17 @@ export default function ChatsPage() {
               <div className="w-96 flex flex-col bg-background">
                 {/* Header with Filters */}
                 <div className="px-4 py-3">
-                  <h2 className="text-xl font-bold mb-4 text-foreground">Messages</h2>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold text-foreground">Messages</h2>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setIsCreateGroupModalOpen(true)}
+                      title="Create Group"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </Button>
+                  </div>
                   
                   {/* Filter Tabs */}
                   <div className="flex items-center border-b border-border mb-4">
@@ -647,9 +693,6 @@ export default function ChatsPage() {
                       )}
                     >
                       All
-                      {activeFilter === 'all' && (
-                        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
-                      )}
                     </button>
                     <button
                       onClick={() => setActiveFilter('dms')}
@@ -659,9 +702,6 @@ export default function ChatsPage() {
                       )}
                     >
                       DMs
-                      {activeFilter === 'dms' && (
-                        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
-                      )}
                     </button>
                     <button
                       onClick={() => setActiveFilter('groups')}
@@ -671,9 +711,6 @@ export default function ChatsPage() {
                       )}
                     >
                       Groups
-                      {activeFilter === 'groups' && (
-                        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
-                      )}
                     </button>
                   </div>
                   
@@ -701,11 +738,6 @@ export default function ChatsPage() {
                       </button>
                     )}
                   </div>
-                </div>
-
-                {/* Section Separator */}
-                <div className="px-4">
-                  <Separator />
                 </div>
 
                 {/* Chat List */}
@@ -817,20 +849,36 @@ export default function ChatsPage() {
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-2">                      
-                      {/* Invite button - show for both DMs and groups (currently hidden) */}
-                      {/* Uncomment to enable user invites:
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setIsInviteModalOpen(true)}
-                        title="Invite users"
-                      >
-                        <UserPlus className="h-5 w-5" />
-                      </Button>
-                      */}
-                      
+                      <div className="flex items-center gap-2">
                       {chatDetails.chat.isGroup && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={async () => {
+                              // Fetch the group ID from the chat
+                              try {
+                                const token = await getAccessToken()
+                                const response = await fetch(`/api/chats/${chatDetails.chat.id}/group`, {
+                                  headers: {
+                                    Authorization: `Bearer ${token}`,
+                                  },
+                                })
+                                if (response.ok) {
+                                  const data = await response.json()
+                                  setSelectedGroupId(data.groupId)
+                                  setIsGroupManagementModalOpen(true)
+                                } else {
+                                  console.error('Failed to get group ID')
+                                }
+                              } catch (error) {
+                                console.error('Error fetching group ID:', error)
+                              }
+                            }}
+                            title="Manage Group"
+                          >
+                            <Settings className="h-5 w-5" />
+                          </Button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon">
@@ -847,7 +895,8 @@ export default function ChatsPage() {
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
-                        )}
+                        </>
+                      )}
                       </div>
                     </div>
 
@@ -1101,7 +1150,17 @@ export default function ChatsPage() {
               >
                 {/* Mobile Header with Tabs */}
                 <div className="px-4 py-3">
-                  <h2 className="text-xl font-bold mb-4 text-foreground">Messages</h2>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold text-foreground">Messages</h2>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setIsCreateGroupModalOpen(true)}
+                      title="Create Group"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </Button>
+                  </div>
                   
                   {/* Filter Tabs */}
                   <div className="flex items-center border-b border-border mb-4">
@@ -1113,9 +1172,6 @@ export default function ChatsPage() {
                       )}
                     >
                       All
-                      {activeFilter === 'all' && (
-                        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
-                      )}
                     </button>
                     <button
                       onClick={() => setActiveFilter('dms')}
@@ -1125,9 +1181,6 @@ export default function ChatsPage() {
                       )}
                     >
                       DMs
-                      {activeFilter === 'dms' && (
-                        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
-                      )}
                     </button>
                     <button
                       onClick={() => setActiveFilter('groups')}
@@ -1137,9 +1190,6 @@ export default function ChatsPage() {
                       )}
                     >
                       Groups
-                      {activeFilter === 'groups' && (
-                        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary rounded-t-full" />
-                      )}
                     </button>
                   </div>
 
@@ -1167,30 +1217,6 @@ export default function ChatsPage() {
                       </button>
                     )}
                   </div>
-                  
-                  {/* Status Row */}
-                  <div className="flex items-center justify-between text-xs text-muted-foreground mt-2">
-                    <span>
-                      {filteredChats.length} {activeFilter === 'all' ? 'conversations' : activeFilter === 'dms' ? 'direct messages' : 'group chats'}
-                    </span>
-                    {authenticated && selectedChatId && (
-                      <div className={cn(
-                        'flex items-center gap-1.5',
-                        sseConnected ? 'text-green-500' : 'text-yellow-500'
-                      )}>
-                        <div className={cn(
-                          'w-1.5 h-1.5 rounded-full',
-                          sseConnected ? 'bg-green-500' : 'bg-yellow-500'
-                        )} />
-                        <span>{sseConnected ? 'Live' : 'Connecting...'}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Section Separator */}
-                <div className="px-4">
-                  <Separator />
                 </div>
 
                 {/* Chat List */}
@@ -1314,35 +1340,52 @@ export default function ChatsPage() {
                         )}
                       </div>
                       
-                      {/* Invite button - show for both DMs and groups (currently hidden) */}
-                      {/* Uncomment to enable user invites:
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setIsInviteModalOpen(true)}
-                        title="Invite users"
-                      >
-                        <UserPlus className="h-5 w-5" />
-                      </Button>
-                      */}
-                      
                       {chatDetails.chat.isGroup && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreVertical className="h-5 w-5" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => setLeaveConfirmOpen(true)}
-                              className="text-red-500"
-                            >
-                              <LogOut className="mr-2 h-4 w-4" />
-                              <span>Leave Chat</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={async () => {
+                              // Fetch the group ID from the chat
+                              try {
+                                const token = await getAccessToken()
+                                const response = await fetch(`/api/chats/${chatDetails.chat.id}/group`, {
+                                  headers: {
+                                    Authorization: `Bearer ${token}`,
+                                  },
+                                })
+                                if (response.ok) {
+                                  const data = await response.json()
+                                  setSelectedGroupId(data.groupId)
+                                  setIsGroupManagementModalOpen(true)
+                                } else {
+                                  console.error('Failed to get group ID')
+                                }
+                              } catch (error) {
+                                console.error('Error fetching group ID:', error)
+                              }
+                            }}
+                            title="Manage Group"
+                          >
+                            <Settings className="h-5 w-5" />
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreVertical className="h-5 w-5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => setLeaveConfirmOpen(true)}
+                                className="text-red-500"
+                              >
+                                <LogOut className="mr-2 h-4 w-4" />
+                                <span>Leave Chat</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </>
                       )}
                     </div>
                   </div>
@@ -1560,17 +1603,22 @@ export default function ChatsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Invite Users Modal (currently disabled) */}
-      {/* Uncomment to enable user invites:
-      <InviteUsersModal
-        isOpen={isInviteModalOpen}
-        onClose={() => setIsInviteModalOpen(false)}
-        onInvite={handleInviteUsers}
-        chatId={selectedChatId || undefined}
-        chatName={chatDetails?.chat.name || undefined}
-        currentParticipantIds={chatDetails?.participants.map(p => p.id) || []}
+      {/* Group Modals */}
+      <CreateGroupModal
+        isOpen={isCreateGroupModalOpen}
+        onClose={() => setIsCreateGroupModalOpen(false)}
+        onGroupCreated={handleGroupCreated}
       />
-      */}
+      
+      <GroupManagementModal
+        isOpen={isGroupManagementModalOpen}
+        onClose={() => {
+          setIsGroupManagementModalOpen(false)
+          setSelectedGroupId(null)
+        }}
+        groupId={selectedGroupId}
+        onGroupUpdated={handleGroupUpdated}
+      />
 
     </>
   )

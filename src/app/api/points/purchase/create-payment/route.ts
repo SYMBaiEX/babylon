@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     const ethEquivalent = amountUSD * 0.001 // $1 = 0.001 ETH
     const amountInWei = (ethEquivalent * 1_000_000_000_000_000_000).toString() // 18 decimals for ETH
 
-    const paymentRequest = x402Manager.createPaymentRequest(
+    const paymentRequest = await x402Manager.createPaymentRequest(
       fromAddress,
       PAYMENT_RECEIVER,
       amountInWei,

@@ -75,8 +75,23 @@ export async function loginWithPrivyEmail(
   }
   
   if (loginButton && await loginButton.isVisible().catch(() => false)) {
-    await loginButton.click()
-    console.log('✅ Clicked login button')
+    try {
+      // Wait a bit for any overlays to clear
+      await page.waitForTimeout(1000)
+      // Use force click to bypass overlay issues
+      await loginButton.click({ force: true, timeout: 10000 })
+      console.log('✅ Clicked login button')
+    } catch (error) {
+      console.log('⚠️ Could not click login button, trying alternative method')
+      // Try clicking via JavaScript as fallback
+      await page.evaluate(() => {
+        const btn = document.querySelector('button:has(text("Connect"))') ||
+                    document.querySelector('button:has(text("Login"))') ||
+                    document.querySelector('button:has(text("Sign in"))')
+        if (btn instanceof HTMLElement) btn.click()
+      })
+      await page.waitForTimeout(1000)
+    }
   } else {
     console.log('ℹ️ No login button found - may already be logged in or on a public page')
   }
@@ -102,15 +117,50 @@ export async function loginWithPrivyEmail(
     // Wait for OTP input
     await page.waitForSelector('input[type="text"], input[placeholder*="code" i], input[placeholder*="otp" i]', { timeout: 10000 })
     
-    // Enter OTP
-    const otpInput = page.locator('input[type="text"], input[placeholder*="code" i], input[placeholder*="otp" i]').first()
-    await otpInput.fill(testAccount.otp)
-    console.log(`✅ Entered OTP: ${testAccount.otp}`)
+    // Enter OTP - might be multiple inputs or single input
+    const otpInputs = page.locator('input[type="text"], input[placeholder*="code" i], input[placeholder*="otp" i]')
+    const count = await otpInputs.count()
     
-    // Click submit/verify button
+    if (count === 1) {
+      // Single OTP input
+      await otpInputs.first().fill(testAccount.otp)
+      console.log(`✅ Entered OTP in single input: ${testAccount.otp}`)
+    } else if (count === 6) {
+      // Multiple OTP inputs (one per digit)
+      const digits = testAccount.otp.split('')
+      for (let i = 0; i < Math.min(digits.length, count); i++) {
+        const digit = digits[i]
+        if (digit !== undefined) {
+          await otpInputs.nth(i).fill(digit)
+        }
+      }
+      console.log(`✅ Entered OTP in ${count} inputs: ${testAccount.otp}`)
+    } else {
+      // Try filling the first one
+      await otpInputs.first().fill(testAccount.otp)
+      console.log(`✅ Entered OTP: ${testAccount.otp}`)
+    }
+    
+    // Wait a moment for OTP to be processed
+    await page.waitForTimeout(1500)
+    
+    // Click submit/verify button if it's enabled
     const submitButton = page.locator('button:has-text("Submit"), button:has-text("Verify"), button:has-text("Continue"), button[type="submit"]').first()
-    await submitButton.click()
-    console.log('✅ Clicked submit')
+    
+    // Wait for button to be enabled
+    try {
+      await submitButton.waitFor({ state: 'visible', timeout: 5000 })
+      if (await submitButton.isEnabled({ timeout: 2000 })) {
+        await submitButton.click()
+        console.log('✅ Clicked submit')
+      } else {
+        console.log('ℹ️ Submit button disabled - OTP might auto-submit')
+        // OTP might auto-verify, just wait
+        await page.waitForTimeout(2000)
+      }
+    } catch (error) {
+      console.log('ℹ️ Submit button not found or detached - OTP likely auto-verified')
+    }
     
     // Wait for authentication to complete
     await page.waitForTimeout(3000)

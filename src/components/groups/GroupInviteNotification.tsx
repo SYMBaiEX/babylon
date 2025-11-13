@@ -7,10 +7,8 @@
  */
 
 import { useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Users, Check, X } from 'lucide-react';
+import { Avatar } from '@/components/shared/Avatar';
+import { Users, Check, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface GroupInviteNotificationProps {
@@ -90,64 +88,72 @@ export function GroupInviteNotification({
   }
 
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-start gap-3">
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={inviterImage || undefined} />
-            <AvatarFallback>
-              {inviterName[0]?.toUpperCase() || 'U'}
-            </AvatarFallback>
-          </Avatar>
+    <div className="p-4 bg-sidebar border border-border rounded-lg shadow-sm">
+      <div className="flex items-start gap-3">
+        <Avatar
+          imageUrl={inviterImage || undefined}
+          name={inviterName}
+          size="md"
+        />
 
-          <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 space-y-3">
+          <div>
             <div className="flex items-center gap-2 mb-1">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <span className="font-medium">Group Invitation</span>
+              <Users className="h-4 w-4 text-primary" />
+              <span className="font-semibold text-sm">Group Invitation</span>
             </div>
             
-            <p className="text-sm text-muted-foreground mb-2">
+            <p className="text-sm mb-2">
               <span className="font-medium">{inviterName}</span> invited you to join{' '}
               <span className="font-medium">{groupName}</span>
             </p>
 
             {groupDescription && (
-              <p className="text-sm text-muted-foreground mb-2">
+              <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
                 {groupDescription}
               </p>
             )}
 
             {memberCount !== undefined && (
-              <p className="text-xs text-muted-foreground mb-3">
+              <p className="text-xs text-muted-foreground">
                 {memberCount} {memberCount === 1 ? 'member' : 'members'}
               </p>
             )}
+          </div>
 
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                onClick={handleAccept}
-                disabled={isLoading}
-                className="flex-1"
-              >
-                <Check className="h-4 w-4 mr-2" />
-                Accept
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleDecline}
-                disabled={isLoading}
-                className="flex-1"
-              >
-                <X className="h-4 w-4 mr-2" />
-                Decline
-              </Button>
-            </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleAccept}
+              disabled={isLoading}
+              className="flex-1 px-4 py-2 rounded-lg font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 text-sm"
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 inline animate-spin" />
+              ) : (
+                <>
+                  <Check className="h-4 w-4 inline mr-1" />
+                  Accept
+                </>
+              )}
+            </button>
+            <button
+              onClick={handleDecline}
+              disabled={isLoading}
+              className="flex-1 px-4 py-2 rounded-lg font-medium bg-background border border-border hover:bg-accent transition-colors disabled:opacity-50 text-sm"
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 inline animate-spin" />
+              ) : (
+                <>
+                  <X className="h-4 w-4 inline mr-1" />
+                  Decline
+                </>
+              )}
+            </button>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 

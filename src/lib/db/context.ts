@@ -21,7 +21,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import type { PrismaClient } from '@prisma/client'
+import { Prisma, type PrismaClient } from '@prisma/client'
 import type { AuthenticatedUser } from '@/lib/api/auth-middleware'
 import { logger } from '@/lib/logger'
 
@@ -53,7 +53,7 @@ async function executeWithRLS<T>(
     
     // Set the current user ID using PostgreSQL's set_config function which supports parameterization
     // This is more secure than string interpolation and works with Prisma v6
-    await tx.$executeRaw`SELECT set_config('app.current_user_id', ${userId}, true)`
+    await tx.$executeRaw(Prisma.sql`SELECT set_config('app.current_user_id', ${userId}, true)`)
 
     // Execute the operation
     return await operation(tx as PrismaClient)
@@ -87,7 +87,7 @@ async function executeAsSystem<T>(
       // await tx.$executeRaw(Prisma.sql`SET LOCAL row_security = on`)
       
       // Set system context marker (policies should check for 'system')
-      await tx.$executeRaw`SELECT set_config('app.current_user_id', 'system', true)`
+      await tx.$executeRaw(Prisma.sql`SELECT set_config('app.current_user_id', 'system', true)`)
 
       // Execute the operation
       return await operation(tx as PrismaClient)
@@ -124,7 +124,7 @@ async function executeAsPublic<T>(
     // await tx.$executeRaw(Prisma.sql`SET LOCAL row_security = on`)
     
     // Empty string indicates public/unauthenticated access
-    await tx.$executeRaw`SELECT set_config('app.current_user_id', '', true)`
+    await tx.$executeRaw(Prisma.sql`SELECT set_config('app.current_user_id', '', true)`)
 
     // Execute the operation
     return await operation(tx as PrismaClient)

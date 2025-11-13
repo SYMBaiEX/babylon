@@ -14,10 +14,8 @@ import { PrivacyTab } from '@/components/settings/PrivacyTab';
 
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
-import { WALLET_ERROR_MESSAGES } from '@/lib/wallet-utils';
 
 import { useAuth } from '@/hooks/useAuth';
-import { useUpdateAgentProfileTx } from '@/hooks/useUpdateAgentProfileTx';
 
 import { useAuthStore } from '@/stores/authStore';
 import { useSearchParams } from 'next/navigation';
@@ -28,8 +26,6 @@ export default function SettingsPage() {
   const {
     ready,
     authenticated,
-    smartWalletAddress,
-    smartWalletReady,
     refresh,
   } = useAuth();
   const { user, setUser } = useAuthStore();
@@ -52,7 +48,6 @@ export default function SettingsPage() {
   const [pushNotifications, setPushNotifications] = useState(true);
   const [postNotifications, setPostNotifications] = useState(true);
   const [marketNotifications, setMarketNotifications] = useState(true);
-  const { updateAgentProfile } = useUpdateAgentProfileTx();
 
   // Theme settings - connected to next-themes
   const { theme, setTheme } = useTheme();
@@ -111,33 +106,14 @@ export default function SettingsPage() {
     setErrorMessage(null);
 
     try {
-      if (!smartWalletReady || !smartWalletAddress) {
-        throw new Error(WALLET_ERROR_MESSAGES.NO_EMBEDDED_WALLET);
-      }
-
       const trimmedDisplayName = (displayName ?? '').trim();
       const trimmedUsername = (username ?? '').trim();
       const trimmedBio = (bio ?? '').trim();
 
-      const endpoint = `https://babylon.market/agent/${smartWalletAddress.toLowerCase()}`;
-      const metadata = {
-        name:
-          trimmedDisplayName ||
-          trimmedUsername ||
-          user.displayName ||
-          user.username ||
-          'Babylon User',
-        username: trimmedUsername || null,
-        bio: trimmedBio || null,
-        profileImageUrl: user.profileImageUrl ?? null,
-        coverImageUrl: user.coverImageUrl ?? null,
-      };
-
-      const txHash = await updateAgentProfile({
-        endpoint,
-        metadata,
-      });
-
+      // Backend now handles ALL signing automatically - no user popups!
+      // This includes username changes, bio updates, display name changes.
+      // The server signs the transaction on-chain for a seamless UX.
+      
       const token =
         typeof window !== 'undefined' ? window.__privyAccessToken : null;
       const headers: HeadersInit = {
@@ -156,7 +132,6 @@ export default function SettingsPage() {
             displayName: trimmedDisplayName,
             username: trimmedUsername,
             bio: trimmedBio,
-            onchainTxHash: txHash,
           }),
         }
       );

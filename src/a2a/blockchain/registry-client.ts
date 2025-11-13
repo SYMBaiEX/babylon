@@ -8,6 +8,14 @@ import type { AgentProfile, AgentReputation } from '../types'
 import { Logger } from '../utils/logger'
 import type { IdentityRegistryContract, ReputationSystemContract } from '@/types/contracts'
 import type { JsonValue } from '@/types/common'
+import { z } from 'zod'
+
+const CapabilitiesSchema = z.object({
+  strategies: z.array(z.string()).optional(),
+  markets: z.array(z.string()).optional(),
+  actions: z.array(z.string()).optional(),
+  version: z.string().optional(),
+});
 
 // ERC-8004 Identity Registry ABI (minimal)
 const IDENTITY_ABI = [
@@ -212,17 +220,22 @@ export class RegistryClient {
     actions: string[]
     version: string
   } {
-    const parsed = JSON.parse(metadata) as {
-      strategies?: string[]
-      markets?: string[]
-      actions?: string[]
-      version?: string
-    }
-    return {
-      strategies: parsed.strategies || [],
-      markets: parsed.markets || [],
-      actions: parsed.actions || [],
-      version: parsed.version || '1.0.0'
+    try {
+      const parsed = JSON.parse(metadata);
+      const validation = CapabilitiesSchema.safeParse(parsed);
+      if (!validation.success) {
+        this.logger.warn('Failed to parse capabilities metadata', { metadata, error: validation.error });
+        return { strategies: [], markets: [], actions: [], version: '1.0.0' };
+      }
+      return {
+        strategies: validation.data.strategies ?? [],
+        markets: validation.data.markets ?? [],
+        actions: validation.data.actions ?? [],
+        version: validation.data.version ?? '1.0.0',
+      };
+    } catch (error) {
+      this.logger.error('Invalid capabilities metadata JSON', { metadata, error });
+      return { strategies: [], markets: [], actions: [], version: '1.0.0' };
     }
   }
 

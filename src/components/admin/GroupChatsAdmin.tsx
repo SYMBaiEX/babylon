@@ -18,55 +18,58 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Users, MessageSquare, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
+import { z } from 'zod';
 
-interface GroupParticipant {
-  id: string;
-  name: string;
-  username: string | null;
-  isNPC: boolean;
-  profileImageUrl: string | null;
-  joinedAt: string;
-}
+const GroupParticipantSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  username: z.string().nullable(),
+  isNPC: z.boolean(),
+  profileImageUrl: z.string().nullable(),
+  joinedAt: z.string(),
+});
 
-interface MessageSender {
-  id: string;
-  name: string;
-  isNPC: boolean;
-}
+const MessageSenderSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  isNPC: z.boolean(),
+});
 
-interface RecentMessage {
-  id: string;
-  content: string;
-  createdAt: string;
-  sender: MessageSender;
-}
+const RecentMessageSchema = z.object({
+  id: z.string(),
+  content: z.string(),
+  createdAt: z.string(),
+  sender: MessageSenderSchema,
+});
 
-interface GroupChat {
-  id: string;
-  name: string | null;
-  groupType: string;
-  creatorId: string | null;
-  creatorName: string;
-  memberCount: number;
-  messageCount: number;
-  participants: GroupParticipant[];
-  recentMessages: RecentMessage[];
-  createdAt: string;
-  updatedAt: string;
-}
+const GroupChatSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable(),
+  groupType: z.string(),
+  creatorId: z.string().nullable(),
+  creatorName: z.string(),
+  memberCount: z.number(),
+  messageCount: z.number(),
+  participants: z.array(GroupParticipantSchema),
+  recentMessages: z.array(RecentMessageSchema),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+type GroupChat = z.infer<typeof GroupChatSchema>;
 
-interface FullMessage {
-  id: string;
-  content: string;
-  createdAt: string;
-  sender: {
-    id: string;
-    name: string;
-    username: string | null;
-    isNPC: boolean;
-    profileImageUrl: string | null;
-  };
-}
+const FullMessageSchema = z.object({
+  id: z.string(),
+  content: z.string(),
+  createdAt: z.string(),
+  sender: z.object({
+    id: z.string(),
+    name: z.string(),
+    username: z.string().nullable(),
+    isNPC: z.boolean(),
+    profileImageUrl: z.string().nullable(),
+  }),
+});
+type FullMessage = z.infer<typeof FullMessageSchema>;
 
 export function GroupChatsAdmin() {
   const [groups, setGroups] = useState<GroupChat[]>([]);
@@ -97,7 +100,11 @@ export function GroupChatsAdmin() {
         throw new Error(data.error || 'Failed to load groups');
       }
 
-      setGroups(data.data.groups);
+      const validation = z.array(GroupChatSchema).safeParse(data.data.groups);
+      if (!validation.success) {
+        throw new Error('Invalid group data structure');
+      }
+      setGroups(validation.data);
     } catch (error) {
       console.error('Error loading groups:', error);
       toast.error('Failed to load groups');
@@ -122,9 +129,14 @@ export function GroupChatsAdmin() {
         throw new Error(data.error || 'Failed to load messages');
       }
 
+      const validation = z.array(FullMessageSchema).safeParse(data.data.messages);
+      if (!validation.success) {
+        throw new Error('Invalid message data structure');
+      }
+
       setFullMessages(prev => ({
         ...prev,
-        [groupId]: data.data.messages,
+        [groupId]: validation.data,
       }));
     } catch (error) {
       console.error('Error loading messages:', error);

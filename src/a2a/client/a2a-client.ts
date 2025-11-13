@@ -4,8 +4,7 @@
  */
 
 import { logger } from '@/lib/logger';
-import type { JsonValue } from '@/types/common';
-import type { JsonRpcParams, JsonRpcResult } from '@/types/json-rpc';
+import type { JsonValue, JsonRpcParams, JsonRpcResult } from '@/types/common';
 import { ethers } from 'ethers';
 import { EventEmitter } from 'events';
 import WebSocket from 'ws';
@@ -14,7 +13,6 @@ import type {
   AgentProfile,
   Coalition,
   JsonRpcRequest,
-  JsonRpcResponse,
   MarketAnalysis,
   MarketData
 } from '../types';
@@ -22,6 +20,19 @@ import {
   A2AEventType,
   A2AMethod
 } from '../types';
+import { z } from 'zod';
+
+// Zod schema for JsonRpcResponse for robust type checking
+const JsonRpcResponseSchema = z.object({
+  jsonrpc: z.literal('2.0'),
+  result: z.any().optional(),
+  error: z.object({
+    code: z.number(),
+    message: z.string(),
+    data: z.any().optional(),
+  }).optional(),
+  id: z.union([z.string(), z.number(), z.null()]),
+});
 
 export class A2AClient extends EventEmitter {
   private ws: WebSocket | null = null
@@ -125,34 +136,45 @@ export class A2AClient extends EventEmitter {
    * Handle incoming message
    */
   private handleMessage(data: Buffer): void {
-    let message: JsonRpcResponse;
+    let message: unknown;
     try {
       message = JSON.parse(data.toString());
     } catch {
       logger.error('Failed to parse incoming JSON message', { data: data.toString() });
       return;
     }
+    const validation = JsonRpcResponseSchema.safeParse(message);
+    if (!validation.success) {
+      logger.error('Received invalid JSON-RPC response', { data: message, error: validation.error });
+      return;
+    }
 
-    if (message.id !== undefined && message.id !== null) {
-      const pending = this.pendingRequests.get(message.id)
+    const validatedMessage = validation.data;
+
+    if (validatedMessage.id !== undefined && validatedMessage.id !== null) {
+      const pending = this.pendingRequests.get(validatedMessage.id)
       if (pending) {
-        this.pendingRequests.delete(message.id)
+        this.pendingRequests.delete(validatedMessage.id)
 
-        if (message.error) {
-          pending.reject(new Error(message.error.message))
+        if (validatedMessage.error) {
+          pending.reject(new Error(validatedMessage.error.message))
         } else {
-          pending.resolve(message.result ?? null)
+          pending.resolve(validatedMessage.result ?? null)
         }
       }
     }
 
     if (this.isJsonRpcNotification(message)) {
-      this.handleNotification(message)
+      this.handleNotification(message as JsonRpcRequest)
     }
   }
 
-  private isJsonRpcNotification(message: JsonRpcResponse | JsonRpcRequest): message is JsonRpcRequest {
-    return message.id === null && 'method' in message && 'jsonrpc' in message && message.jsonrpc === '2.0';
+  private isJsonRpcNotification(message: unknown): message is JsonRpcRequest {
+    if (typeof message !== 'object' || message === null) {
+      return false;
+    }
+    const msg = message as Record<string, unknown>;
+    return msg.id === null && typeof msg.method === 'string' && msg.jsonrpc === '2.0';
   }
 
   /**

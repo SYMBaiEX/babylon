@@ -1,35 +1,30 @@
-import type { AgentCapabilities } from '@/a2a/types'
-import { AgentCapabilitiesSchema } from '@/a2a/types'
+import { AgentCapabilitiesSchema, type AgentCapabilities } from '@/a2a/types';
 
 const DefaultCapabilities: AgentCapabilities = {
   strategies: [],
   markets: [],
   actions: [],
   version: '1.0.0',
-}
+};
 
 export function parseAgentCapabilities(capabilitiesJson?: string | null): AgentCapabilities {
   if (!capabilitiesJson) {
-    return { ...DefaultCapabilities }
+    return { ...DefaultCapabilities };
   }
 
   try {
-    const raw = JSON.parse(capabilitiesJson)
-    if (typeof raw !== 'object' || raw === null) {
-      return { ...DefaultCapabilities }
+    const raw = JSON.parse(capabilitiesJson);
+    const result = AgentCapabilitiesSchema.partial().safeParse(raw);
+    
+    if (!result.success) {
+      return { ...DefaultCapabilities };
     }
-
-    const result = AgentCapabilitiesSchema.partial().safeParse(raw)
-    const validated = result.success ? result.data : {}
 
     return {
       ...DefaultCapabilities,
-      ...raw,
-      ...validated,
-    }
+      ...result.data,
+    };
   } catch {
-    // swallow parse errors and fall through to default
+    return { ...DefaultCapabilities };
   }
-
-  return { ...DefaultCapabilities }
 }

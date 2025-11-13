@@ -46,7 +46,6 @@ function FarcasterIcon({ className }: { className?: string }) {
 const categoryLabels: Record<MarketCategory, string> = {
   perps: 'Perpetual Futures',
   predictions: 'Prediction Markets',
-  pools: 'Trading Pools',
 }
 
 export function PnLShareModal({

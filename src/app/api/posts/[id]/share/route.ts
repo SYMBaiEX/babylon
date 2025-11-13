@@ -18,6 +18,7 @@ import { generateSnowflakeId } from '@/lib/snowflake';
 import { trackServerEvent } from '@/lib/posthog/server';
 import { broadcastToChannel } from '@/lib/sse/event-broadcaster';
 import { cachedDb } from '@/lib/cached-database-service';
+import { checkRateLimitAndDuplicates, RATE_LIMIT_CONFIGS } from '@/lib/rate-limiting';
 
 /**
  * POST /api/posts/[id]/share
@@ -30,6 +31,16 @@ export const POST = withErrorHandling(async (
   // Authenticate user
   const user = await authenticate(request);
   const { id: postId } = PostIdParamSchema.parse(await context.params);
+  
+  // Apply rate limiting (no duplicate detection - DB prevents duplicate shares)
+  const rateLimitError = checkRateLimitAndDuplicates(
+    user.userId,
+    null,
+    RATE_LIMIT_CONFIGS.SHARE_POST
+  );
+  if (rateLimitError) {
+    return rateLimitError;
+  }
   
   // Parse and validate request body (optional comment for quote post)
   const body = await request.json().catch(() => ({}));
@@ -123,8 +134,8 @@ export const POST = withErrorHandling(async (
     let repostPostData = null;
 
     if (originalPost) {
-      // Get original author info (could be User or Actor)
-      const [originalUser, originalActor] = await Promise.all([
+      // Get original author info (could be User, Actor, or Organization)
+      const [originalUser, originalActor, originalOrg] = await Promise.all([
         prisma.user.findUnique({
           where: { id: originalPost.authorId },
           select: { username: true, displayName: true, profileImageUrl: true },
@@ -133,11 +144,15 @@ export const POST = withErrorHandling(async (
           where: { id: originalPost.authorId },
           select: { name: true, profileImageUrl: true },
         }),
+        prisma.organization.findUnique({
+          where: { id: originalPost.authorId },
+          select: { name: true, imageUrl: true },
+        }),
       ]);
 
-      const originalAuthorName = originalUser?.displayName || originalUser?.username || originalActor?.name || originalPost.authorId;
+      const originalAuthorName = originalUser?.displayName || originalUser?.username || originalActor?.name || originalOrg?.name || originalPost.authorId;
       const originalAuthorUsername = originalUser?.username || originalPost.authorId;
-      const originalAuthorProfileImageUrl = originalUser?.profileImageUrl || originalActor?.profileImageUrl;
+      const originalAuthorProfileImageUrl = originalUser?.profileImageUrl || originalActor?.profileImageUrl || originalOrg?.imageUrl;
 
       // If quote comment is provided, create a quote post with commentary
       // Otherwise, create a simple repost

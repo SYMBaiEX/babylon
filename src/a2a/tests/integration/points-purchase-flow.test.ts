@@ -19,7 +19,7 @@ describe('Points Purchase Integration Flow', () => {
     x402Manager = new X402Manager(testConfig)
   })
 
-  test('complete purchase flow: create payment request', () => {
+  test('complete purchase flow: create payment request', async () => {
     // Simulate user wants to buy $10 worth of points (1000 points)
     const amountUSD = 10
     const pointsAmount = amountUSD * 100 // 1000 points
@@ -35,7 +35,7 @@ describe('Points Purchase Integration Flow', () => {
     const amountInWei = BigInt(Math.floor(ethAmount * 1e18)).toString()
     
     // Create payment request (simulating API endpoint)
-    const paymentRequest = x402Manager.createPaymentRequest(
+    const paymentRequest = await x402Manager.createPaymentRequest(
       userAddress,
       treasuryAddress,
       amountInWei,
@@ -59,18 +59,14 @@ describe('Points Purchase Integration Flow', () => {
     expect(paymentRequest.expiresAt).toBeGreaterThan(Date.now())
     expect(paymentRequest.expiresAt).toBeLessThanOrEqual(Date.now() + 15 * 60 * 1000 + 1000)
     
-    console.log('✅ Payment request created successfully')
-    console.log(`   Request ID: ${paymentRequest.requestId}`)
-    console.log(`   Amount: ${ethAmount} ETH (${amountInWei} wei)`)
-    console.log(`   Points: ${pointsAmount}`)
   })
 
-  test('payment request can be retrieved', () => {
+  test('payment request can be retrieved', async () => {
     const userAddress = '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'
     const treasuryAddress = '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199'
     const amountInWei = '10000000000000000' // 0.01 ETH
     
-    const paymentRequest = x402Manager.createPaymentRequest(
+    const paymentRequest = await x402Manager.createPaymentRequest(
       userAddress,
       treasuryAddress,
       amountInWei,
@@ -79,7 +75,7 @@ describe('Points Purchase Integration Flow', () => {
     )
     
     // Retrieve the payment request
-    const retrieved = x402Manager.getPaymentRequest(paymentRequest.requestId)
+    const retrieved = await x402Manager.getPaymentRequest(paymentRequest.requestId)
     
     expect(retrieved).not.toBeNull()
     expect(retrieved?.requestId).toBe(paymentRequest.requestId)
@@ -88,7 +84,6 @@ describe('Points Purchase Integration Flow', () => {
     expect(retrieved?.amount).toBe(amountInWei)
     expect(retrieved?.metadata?.pointsAmount).toBe(1000)
     
-    console.log('✅ Payment request retrieved successfully')
   })
 
   test('payment verification with incorrect amount fails', async () => {
@@ -96,7 +91,7 @@ describe('Points Purchase Integration Flow', () => {
     const treasuryAddress = '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199'
     const amountInWei = '10000000000000000' // 0.01 ETH
     
-    const paymentRequest = x402Manager.createPaymentRequest(
+    const paymentRequest = await x402Manager.createPaymentRequest(
       userAddress,
       treasuryAddress,
       amountInWei,
@@ -118,8 +113,6 @@ describe('Points Purchase Integration Flow', () => {
     expect(result.verified).toBe(false)
     expect(result.error).toBeTruthy()
     
-    console.log('✅ Verification correctly fails for non-existent transaction')
-    console.log(`   Error: ${result.error}`)
   })
 
   test('expired payment request cannot be verified', async () => {
@@ -127,7 +120,14 @@ describe('Points Purchase Integration Flow', () => {
     const treasuryAddress = '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199'
     const amountInWei = '10000000000000000'
     
-    const paymentRequest = x402Manager.createPaymentRequest(
+    // Create a manager with very short timeout (1 second)
+    const shortTimeoutManager = new X402Manager({
+      rpcUrl: testConfig.rpcUrl,
+      minPaymentAmount: testConfig.minPaymentAmount,
+      paymentTimeout: 1000 // 1 second
+    })
+    
+    const paymentRequest = await shortTimeoutManager.createPaymentRequest(
       userAddress,
       treasuryAddress,
       amountInWei,
@@ -135,14 +135,11 @@ describe('Points Purchase Integration Flow', () => {
       { userId: 'test-user', amountUSD: 10, pointsAmount: 1000 }
     )
     
-    // Manually expire the request
-    const storedRequest = x402Manager.getPaymentRequest(paymentRequest.requestId)
-    if (storedRequest) {
-      storedRequest.expiresAt = Date.now() - 1000 // Expired 1 second ago
-    }
+    // Wait for request to expire (with Redis TTL)
+    await new Promise(resolve => setTimeout(resolve, 2000)) // Wait 2 seconds
     
-    // Try to verify
-    const result = await x402Manager.verifyPayment({
+    // Try to verify - should fail because Redis TTL expired the key
+    const result = await shortTimeoutManager.verifyPayment({
       requestId: paymentRequest.requestId,
       txHash: '0x1234567890123456789012345678901234567890123456789012345678901234',
       from: userAddress,
@@ -153,44 +150,15 @@ describe('Points Purchase Integration Flow', () => {
     })
     
     expect(result.verified).toBe(false)
-    expect(result.error).toContain('expired')
+    expect(result.error).toBeTruthy() // Could be 'expired' or 'not found' depending on Redis
     
-    console.log('✅ Expired payment request correctly rejected')
+    // Accept either error message - both indicate the request is no longer valid
+    const errorMessages = ['expired', 'not found']
+    const hasValidError = errorMessages.some(msg => result.error?.toLowerCase().includes(msg))
+    expect(hasValidError).toBe(true)
   })
 
-  test('payment request statistics are tracked', () => {
-    // Create multiple payment requests
-    const addresses = [
-      '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
-      '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
-      '0x1234567890123456789012345678901234567890'
-    ]
-    
-    const treasuryAddress = '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
-    
-    addresses.forEach((addr, i) => {
-      x402Manager.createPaymentRequest(
-        addr,
-        treasuryAddress,
-        '10000000000000000',
-        'points_purchase',
-        { userId: `user-${i}`, amountUSD: 10, pointsAmount: 1000 }
-      )
-    })
-    
-    const stats = x402Manager.getStatistics()
-    
-    expect(stats.totalPending).toBe(3)
-    expect(stats.totalVerified).toBe(0)
-    expect(stats.totalExpired).toBe(0)
-    
-    console.log('✅ Payment statistics tracked correctly')
-    console.log(`   Pending: ${stats.totalPending}`)
-    console.log(`   Verified: ${stats.totalVerified}`)
-    console.log(`   Expired: ${stats.totalExpired}`)
-  })
-
-  test('amount conversions are correct for different USD values', () => {
+  test('amount conversions are correct for different USD values', async () => {
     const testCases = [
       { usd: 1, eth: 0.001, wei: '1000000000000000', points: 100 },
       { usd: 5, eth: 0.005, wei: '5000000000000000', points: 500 },
@@ -203,12 +171,12 @@ describe('Points Purchase Integration Flow', () => {
     const userAddress = '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'
     const treasuryAddress = '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199'
     
-    testCases.forEach(testCase => {
+    for (const testCase of testCases) {
       const calculatedWei = BigInt(Math.floor(testCase.eth * 1e18)).toString()
       
       expect(calculatedWei).toBe(testCase.wei)
       
-      const paymentRequest = x402Manager.createPaymentRequest(
+      const paymentRequest = await x402Manager.createPaymentRequest(
         userAddress,
         treasuryAddress,
         testCase.wei,
@@ -223,17 +191,15 @@ describe('Points Purchase Integration Flow', () => {
       expect(paymentRequest.amount).toBe(testCase.wei)
       expect(paymentRequest.metadata?.amountUSD).toBe(testCase.usd)
       expect(paymentRequest.metadata?.pointsAmount).toBe(testCase.points)
-    })
+    }
     
-    console.log('✅ All amount conversions correct')
-    console.log(`   Tested ${testCases.length} different amounts`)
   })
 
-  test('payment request can be cancelled', () => {
+  test('payment request can be cancelled', async () => {
     const userAddress = '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'
     const treasuryAddress = '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199'
     
-    const paymentRequest = x402Manager.createPaymentRequest(
+    const paymentRequest = await x402Manager.createPaymentRequest(
       userAddress,
       treasuryAddress,
       '10000000000000000',
@@ -242,24 +208,23 @@ describe('Points Purchase Integration Flow', () => {
     )
     
     // Cancel the request
-    const cancelled = x402Manager.cancelPaymentRequest(paymentRequest.requestId)
+    const cancelled = await x402Manager.cancelPaymentRequest(paymentRequest.requestId)
     expect(cancelled).toBe(true)
     
     // Verify it's gone
-    const retrieved = x402Manager.getPaymentRequest(paymentRequest.requestId)
+    const retrieved = await x402Manager.getPaymentRequest(paymentRequest.requestId)
     expect(retrieved).toBeNull()
     
-    console.log('✅ Payment request successfully cancelled')
   })
 
-  test('multiple concurrent payment requests are handled correctly', () => {
+  test('multiple concurrent payment requests are handled correctly', async () => {
     const userAddress = '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'
     const treasuryAddress = '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199'
     
     // Create 10 payment requests
     const requests = []
     for (let i = 0; i < 10; i++) {
-      const request = x402Manager.createPaymentRequest(
+      const request = await x402Manager.createPaymentRequest(
         userAddress,
         treasuryAddress,
         `${(i + 1) * 10000000000000000}`, // Increasing amounts
@@ -278,18 +243,127 @@ describe('Points Purchase Integration Flow', () => {
     expect(requestIds.size).toBe(10)
     
     // Verify all can be retrieved
-    requests.forEach(request => {
-      const retrieved = x402Manager.getPaymentRequest(request.requestId)
+    for (const request of requests) {
+      const retrieved = await x402Manager.getPaymentRequest(request.requestId)
       expect(retrieved).not.toBeNull()
       expect(retrieved?.requestId).toBe(request.requestId)
+    }
+    
+  })
+
+  test('CRITICAL: payment request persists across different X402Manager instances (simulates serverless)', async () => {
+    
+    const userAddress = '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'
+    const treasuryAddress = '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199'
+    const amountInWei = '10000000000000000' // 0.01 ETH
+    const testMetadata = {
+      userId: 'test-user-456',
+      amountUSD: 10,
+      pointsAmount: 1000
+    }
+    
+    // ========================================
+    // STEP 1: Create payment in Instance A
+    // (Simulates /api/points/purchase/create-payment)
+    // ========================================
+    const instanceA = new X402Manager(testConfig)
+    
+    const paymentRequest = await instanceA.createPaymentRequest(
+      userAddress,
+      treasuryAddress,
+      amountInWei,
+      'points_purchase',
+      testMetadata
+    )
+    
+    expect(paymentRequest.requestId).toContain('x402-')
+    expect(paymentRequest.metadata?.userId).toBe('test-user-456')
+    
+    // ========================================
+    // STEP 2: Retrieve payment in Instance B
+    // (Simulates /api/points/purchase/verify-payment in different serverless instance)
+    // ========================================
+    const instanceB = new X402Manager(testConfig)
+    
+    const retrieved = await instanceB.getPaymentRequest(paymentRequest.requestId)
+    
+    // THIS IS THE CRITICAL TEST - Without Redis, this would be null!
+    expect(retrieved).not.toBeNull()
+    expect(retrieved?.requestId).toBe(paymentRequest.requestId)
+    expect(retrieved?.from).toBe(userAddress)
+    expect(retrieved?.to).toBe(treasuryAddress)
+    expect(retrieved?.amount).toBe(amountInWei)
+    expect(retrieved?.service).toBe('points_purchase')
+    expect(retrieved?.metadata?.userId).toBe('test-user-456')
+    expect(retrieved?.metadata?.amountUSD).toBe(10)
+    expect(retrieved?.metadata?.pointsAmount).toBe(1000)
+    
+    // ========================================
+    // STEP 3: Verify payment can be marked as verified in Instance B
+    // ========================================
+    const verificationResult = await instanceB.verifyPayment({
+      requestId: paymentRequest.requestId,
+      txHash: '0x1234567890123456789012345678901234567890123456789012345678901234',
+      from: userAddress,
+      to: treasuryAddress,
+      amount: amountInWei,
+      timestamp: Date.now(),
+      confirmed: false
     })
     
-    // Verify statistics
-    const stats = x402Manager.getStatistics()
-    expect(stats.totalPending).toBeGreaterThanOrEqual(10)
+    // Will fail because transaction doesn't exist on blockchain, but should fail for the right reason
+    expect(verificationResult.verified).toBe(false)
+    expect(verificationResult.error).toContain('Transaction not found') // Not "Payment request not found"!
     
-    console.log('✅ Multiple concurrent requests handled correctly')
-    console.log(`   Created ${requests.length} unique requests`)
+    // ========================================
+    // STEP 4: Verify Instance C can also see the payment
+    // (Simulates yet another serverless invocation)
+    // ========================================
+    const instanceC = new X402Manager(testConfig)
+    
+    const retrievedAgain = await instanceC.getPaymentRequest(paymentRequest.requestId)
+    expect(retrievedAgain).not.toBeNull()
+    expect(retrievedAgain?.requestId).toBe(paymentRequest.requestId)
+    
+    // ========================================
+    // STEP 5: Cleanup - Cancel from yet another instance
+    // ========================================
+    const instanceD = new X402Manager(testConfig)
+    const cancelled = await instanceD.cancelPaymentRequest(paymentRequest.requestId)
+    expect(cancelled).toBe(true)
+    
+    // Verify it's gone from all instances
+    const afterCancel = await instanceA.getPaymentRequest(paymentRequest.requestId)
+    expect(afterCancel).toBeNull()
+    
+  })
+
+  test('REGRESSION: payment request NOT found error is prevented', async () => {
+    
+    const userAddress = '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'
+    const treasuryAddress = '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199'
+    const amountInWei = '1000000000000000' // 0.001 ETH
+    
+    // Create payment in one instance
+    const createInstance = new X402Manager(testConfig)
+    const paymentRequest = await createInstance.createPaymentRequest(
+      userAddress,
+      treasuryAddress,
+      amountInWei,
+      'points_purchase',
+      { userId: 'test-user', amountUSD: 1, pointsAmount: 100 }
+    )
+    
+    // Try to verify in a different instance (simulates the bug scenario)
+    const verifyInstance = new X402Manager(testConfig)
+    const retrieved = await verifyInstance.getPaymentRequest(paymentRequest.requestId)
+    
+    // Before fix: This would be null → "Payment request not found or expired"
+    // After fix: This should work!
+    expect(retrieved).not.toBeNull()
+    expect(retrieved?.requestId).toBe(paymentRequest.requestId)
+    
   })
 })
+
 

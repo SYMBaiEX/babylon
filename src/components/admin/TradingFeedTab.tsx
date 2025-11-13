@@ -42,10 +42,6 @@ interface NPCTrade extends BaseTrade {
   price: number
   sentiment: number | null
   reason: string | null
-  pool: {
-    id: string
-    name: string
-  } | null
 }
 
 interface PositionTrade extends BaseTrade {
@@ -230,11 +226,6 @@ export function TradingFeedTab() {
         </div>
         {trade.reason && (
           <p className="text-xs text-muted-foreground italic">&quot;{trade.reason}&quot;</p>
-        )}
-        {trade.pool && (
-          <div className="text-xs text-muted-foreground">
-            Pool: {trade.pool.name}
-          </div>
         )}
       </div>
     )

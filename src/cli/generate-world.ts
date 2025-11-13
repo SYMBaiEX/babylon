@@ -58,43 +58,49 @@ async function main() {
     logger.info('GENERATING BABYLON GAME WORLD', undefined, 'CLI');
     logger.info('=================================', undefined, 'CLI');
 
-    world.on('world:started', (event) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const logEvent = (event: string, handler: (data: any) => void) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      world.on(event, handler as any);
+    };
+
+    logEvent('world:started', (event) => {
       logger.info(`Question: ${event.data.question}`, undefined, 'CLI');
       logger.info(`True Outcome: ${outcomeValue ? 'SUCCESS' : 'FAILURE'}`, undefined, 'CLI');
       logger.info(`NPCs in world: ${event.data.npcs}`, undefined, 'CLI');
       logger.info('--- TIMELINE ---', undefined, 'CLI');
     });
 
-    world.on('day:begins', (event) => {
+    logEvent('day:begins', (event) => {
       logger.info(`DAY ${event.data.day}`, undefined, 'CLI');
       logger.info('─'.repeat(50), undefined, 'CLI');
     });
 
-    world.on('npc:action', (event) => {
+    logEvent('npc:action', (event) => {
       logger.info(`${event.npc}: ${event.description}`, undefined, 'CLI');
     });
 
-    world.on('npc:conversation', (event) => {
+    logEvent('npc:conversation', (event) => {
       logger.info(event.description, undefined, 'CLI');
     });
 
-    world.on('news:published', (event) => {
+    logEvent('news:published', (event) => {
       logger.info(`${event.npc}: ${event.description}`, undefined, 'CLI');
     });
 
-    world.on('rumor:spread', (event) => {
+    logEvent('rumor:spread', (event) => {
       logger.info(`Rumor: ${event.description}`, undefined, 'CLI');
     });
 
-    world.on('clue:revealed', (event) => {
+    logEvent('clue:revealed', (event) => {
       logger.info(`${event.npc}: ${event.description}`, undefined, 'CLI');
     });
 
-    world.on('development:occurred', (event) => {
+    logEvent('development:occurred', (event) => {
       logger.info(`DEVELOPMENT: ${event.description}`, undefined, 'CLI');
     });
 
-    world.on('feed:post', (post) => {
+    logEvent('feed:post', (post) => {
       const emoji = post.type === 'news' ? '📰' : 
                    post.type === 'reaction' ? '💬' :
                    post.type === 'thread' ? '🧵' : '📢';
@@ -107,7 +113,7 @@ async function main() {
       }
     });
 
-    world.on('outcome:revealed', (event) => {
+    logEvent('outcome:revealed', (event) => {
       logger.info('='.repeat(50), undefined, 'CLI');
       logger.info(`FINAL OUTCOME: ${event.data.outcome ? 'SUCCESS' : 'FAILURE'}`, undefined, 'CLI');
       logger.info('='.repeat(50), undefined, 'CLI');

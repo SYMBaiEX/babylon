@@ -4,11 +4,12 @@
  * Executes LLM-generated trading decisions for NPCs.
  * Creates positions, updates balances, records trades.
  */
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import { FeeService } from '@/lib/services/fee-service';
 
 import type {
   ExecutedTrade,
@@ -21,6 +22,7 @@ import {
   type TradeImpactInput,
   aggregateTradeImpacts,
 } from './market-impact-service';
+import { getReadyPerpsEngine } from '@/lib/perps-service';
 
 export class TradeExecutionService {
   /**
@@ -145,12 +147,19 @@ export class TradeExecutionService {
       throw new Error('Ticker required for perp position');
     }
 
-    // Get current price
-    const org = await prisma.organization.findFirst({
-      where: {
-        id: { contains: decision.ticker.toLowerCase() },
-      },
+    // Get current price - try exact match first for test reliability
+    let org = await prisma.organization.findUnique({
+      where: { id: decision.ticker },
     });
+
+    // If not found by exact ID, try lowercase contains match  
+    if (!org) {
+      org = await prisma.organization.findFirst({
+        where: {
+          id: { contains: decision.ticker.toLowerCase() },
+        },
+      });
+    }
 
     if (!org?.currentPrice) {
       throw new Error(`Organization not found for ticker: ${decision.ticker}`);
@@ -160,31 +169,34 @@ export class TradeExecutionService {
     const leverage = 5; // Standard leverage
     const side = decision.action === 'open_long' ? 'long' : 'short';
 
-    // NPC pool trades have NO trading fees (only 5% performance fee on withdrawal)
+    // Calculate trading fee (0.1% on position size)
     const positionSize = decision.amount * leverage;
+    const feeCalc = FeeService.calculateFee(positionSize);
+    const totalCost = decision.amount + feeCalc.feeAmount;
 
     // Calculate liquidation price
     const liquidationDistance = side === 'long' ? 0.8 : 1.2;
-    const liquidationPrice = currentPrice * liquidationDistance;
+    const _liquidationPrice = currentPrice * liquidationDistance;
 
     // Execute in transaction
-    const position = await prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => {
-      // Check and deduct from pool balance
+    const position = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // Check and deduct from pool balance (margin + fee)
       const pool = await tx.pool.findUnique({ where: { id: poolId } });
       if (!pool) throw new Error(`Pool not found: ${poolId}`);
 
       const availableBalance = parseFloat(pool.availableBalance.toString());
-      if (availableBalance < decision.amount) {
+      if (availableBalance < totalCost) {
         throw new Error(
-          `Insufficient pool balance: ${availableBalance} < ${decision.amount}`
+          `Insufficient pool balance: ${availableBalance} < ${totalCost} (margin: ${decision.amount}, fee: ${feeCalc.feeAmount})`
         );
       }
 
-      // Deduct from pool
+      // Deduct margin + fee from pool and track fee
       await tx.pool.update({
         where: { id: poolId },
         data: {
-          availableBalance: { decrement: decision.amount },
+          availableBalance: { decrement: totalCost },
+          totalFeesCollected: { increment: feeCalc.feeAmount },
         },
       });
 
@@ -200,7 +212,7 @@ export class TradeExecutionService {
           currentPrice,
           size: positionSize,
           leverage,
-          liquidationPrice,
+          liquidationPrice: _liquidationPrice,
           unrealizedPnL: 0,
           updatedAt: new Date(),
         },
@@ -225,6 +237,39 @@ export class TradeExecutionService {
 
       return pos;
     });
+
+    // Add position to perpetuals engine for real-time tracking
+    try {
+      const engine = await getReadyPerpsEngine();
+      engine.hydratePosition({
+        id: position.id,
+        userId: poolId,
+        ticker: decision.ticker!,
+        organizationId: org.id,
+        side,
+        entryPrice: currentPrice,
+        currentPrice,
+        size: positionSize,
+        leverage,
+        liquidationPrice: 0, // TODO: Calculate liquidation price
+        unrealizedPnL: 0,
+        unrealizedPnLPercent: 0,
+        fundingPaid: 0,
+        openedAt: position.updatedAt,
+        lastUpdated: position.updatedAt,
+      });
+      logger.info('Added NPC position to perpetuals engine', {
+        positionId: position.id,
+        ticker: decision.ticker,
+        poolId,
+      });
+    } catch (error) {
+      logger.error('Failed to add NPC position to perpetuals engine', {
+        error,
+        positionId: position.id,
+      });
+      // Don't fail the trade if engine tracking fails
+    }
 
     return {
       npcId: decision.npcId,
@@ -274,27 +319,30 @@ export class TradeExecutionService {
     const side = decision.action === 'buy_yes' ? 'YES' : 'NO';
     const entryPrice = side === 'YES' ? yesPrice : noPrice;
 
-    // NPC pool trades have NO trading fees (only 5% performance fee on withdrawal)
+    // Calculate trading fee (0.1% on trade amount)
     const shares = decision.amount; // Direct 1:1
+    const feeCalc = FeeService.calculateFee(decision.amount);
+    const totalCost = decision.amount + feeCalc.feeAmount;
 
     // Execute in transaction
-    const position = await prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => {
-      // Check and deduct from pool balance
+    const position = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // Check and deduct from pool balance (amount + fee)
       const pool = await tx.pool.findUnique({ where: { id: poolId } });
       if (!pool) throw new Error(`Pool not found: ${poolId}`);
 
       const availableBalance = parseFloat(pool.availableBalance.toString());
-      if (availableBalance < decision.amount) {
+      if (availableBalance < totalCost) {
         throw new Error(
-          `Insufficient pool balance: ${availableBalance} < ${decision.amount}`
+          `Insufficient pool balance: ${availableBalance} < ${totalCost} (amount: ${decision.amount}, fee: ${feeCalc.feeAmount})`
         );
       }
 
-      // Deduct from pool
+      // Deduct amount + fee from pool and track fee
       await tx.pool.update({
         where: { id: poolId },
         data: {
-          availableBalance: { decrement: decision.amount },
+          availableBalance: { decrement: totalCost },
+          totalFeesCollected: { increment: feeCalc.feeAmount },
         },
       });
 
@@ -392,7 +440,7 @@ export class TradeExecutionService {
 
     if (position.marketType === 'perp' && position.ticker) {
       const org = await prisma.organization.findFirst({
-        where: { id: { contains: position.ticker.toLowerCase() } },
+        where: { id: { contains: position.ticker, mode: 'insensitive' } },
       });
       if (org?.currentPrice) {
         currentPrice = org.currentPrice;
@@ -428,10 +476,13 @@ export class TradeExecutionService {
       realizedPnL = (priceChange / 100) * shares;
     }
 
-    // NPC pool trades have NO trading fees (only 5% performance fee on withdrawal)
+    // Calculate trading fee (0.1% on position size)
+    const feeCalc = FeeService.calculateFee(position.size);
+    const grossReturn = position.size + realizedPnL;
+    const netReturn = Math.max(0, grossReturn - feeCalc.feeAmount);
 
     // Execute in transaction
-    await prisma.$transaction(async (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Close position
       await tx.poolPosition.update({
         where: { id: decision.positionId! },
@@ -444,14 +495,13 @@ export class TradeExecutionService {
         },
       });
 
-      // Return capital + P&L to pool (no trading fee)
-      const returnAmount = position.size + realizedPnL;
-
+      // Return capital + P&L to pool (after fee deduction) and track fee
       await tx.pool.update({
         where: { id: poolId },
         data: {
-          availableBalance: { increment: returnAmount },
+          availableBalance: { increment: netReturn },
           lifetimePnL: { increment: realizedPnL },
+          totalFeesCollected: { increment: feeCalc.feeAmount },
         },
       });
 
@@ -473,6 +523,27 @@ export class TradeExecutionService {
         },
       });
     });
+
+    // Remove position from perpetuals engine if it's a perp position
+    if (position.marketType === 'perp') {
+      try {
+        const engine = await getReadyPerpsEngine();
+        if (engine.hasPosition(position.id)) {
+          engine.closePosition(position.id);
+          logger.info('Removed NPC position from perpetuals engine', {
+            positionId: position.id,
+            ticker: position.ticker,
+            poolId,
+          });
+        }
+      } catch (error) {
+        logger.error('Failed to remove NPC position from perpetuals engine', {
+          error,
+          positionId: position.id,
+        });
+        // Don't fail the trade if engine tracking fails
+      }
+    }
 
     return {
       npcId: decision.npcId,

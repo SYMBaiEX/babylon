@@ -3,12 +3,15 @@
  * Agent-to-Agent communication types following JSON-RPC 2.0 spec
  */
 
-import type { JsonValue } from '@/types/common';
-import type { JsonRpcParams, JsonRpcResult } from '@/types/json-rpc';
+import { z } from 'zod';
+import type { JsonValue, JsonRpcParams, JsonRpcResult } from '@/types/common';
+import { JsonValueSchema } from '@/types/common';
 import type { RegistryClient, X402Manager } from '@/types/a2a-server';
 import type { IAgent0Client } from '@/agents/agent0/types';
 import type { IUnifiedDiscoveryService } from '@/agents/agent0/types';
-import { z } from 'zod';
+
+// Re-export common types
+export type { JsonRpcParams, JsonRpcResult, JsonValue };
 
 // JSON-RPC 2.0 Base Types
 export interface JsonRpcRequest {
@@ -76,6 +79,15 @@ export interface AgentCredentials {
   timestamp: number
 }
 
+export const GameNetworkInfoSchema = z.object({
+  chainId: z.number(),
+  registryAddress: z.string(),
+  reputationAddress: z.string().optional(),
+  marketAddress: z.string().optional(),
+});
+export type GameNetworkInfo = z.infer<typeof GameNetworkInfoSchema>;
+
+
 export const AgentCapabilitiesSchema = z.object({
   strategies: z.array(z.string()).optional().default([]),
   markets: z.array(z.string()).optional().default([]),
@@ -84,24 +96,9 @@ export const AgentCapabilitiesSchema = z.object({
   x402Support: z.boolean().optional(),
   platform: z.string().optional(),
   userType: z.string().optional(),
+  gameNetwork: GameNetworkInfoSchema.optional(),
 });
-export interface GameNetworkInfo {
-  chainId: number // Network chainId where game operates (e.g., 8453 for Base mainnet)
-  registryAddress: string // ERC8004IdentityRegistry contract address on game network
-  reputationAddress?: string // ERC8004ReputationSystem contract address on game network
-  marketAddress?: string // PredictionMarketFacet/Diamond contract address on game network
-}
-
-export interface AgentCapabilities {
-  strategies: string[]
-  markets: string[]
-  actions: string[]
-  version: string
-  x402Support?: boolean // ERC-402 payment support for agent services
-  platform?: string // Platform identifier (e.g., 'babylon', 'eliza')
-  userType?: string // User type (e.g., 'agent', 'user')
-  gameNetwork?: GameNetworkInfo // For games: cross-chain registry information
-}
+export type AgentCapabilities = z.infer<typeof AgentCapabilitiesSchema>;
 
 export interface AgentProfile {
   agentId?: string // Optional agent ID for registry tracking
@@ -215,6 +212,16 @@ export interface PaymentRequest {
   metadata?: Record<string, JsonValue>
   expiresAt: number
 }
+
+export const PaymentRequestSchema = z.object({
+  requestId: z.string(),
+  from: z.string(),
+  to: z.string(),
+  amount: z.string(),
+  service: z.string(),
+  metadata: z.record(z.string(), JsonValueSchema).optional(),
+  expiresAt: z.number(),
+});
 
 export interface PaymentReceipt {
   requestId: string

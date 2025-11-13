@@ -150,7 +150,7 @@ export function LatestNewsPanel() {
   }
 
   const handleArticleClick = (articleId: string) => {
-    // Navigate to post detail page
+    // Navigate to post detail page (will redirect to /article/[id] if needed)
     window.location.href = `/post/${articleId}`
   }
 

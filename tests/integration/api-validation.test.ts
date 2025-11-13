@@ -178,7 +178,7 @@ describe('API Validation Integration', () => {
   })
 
   describe('Pool Routes Validation', () => {
-    test('POST /api/pools/[id]/deposit - should reject invalid deposit amount', async () => {
+    test.skip('POST /api/pools/[id]/deposit - should reject invalid deposit amount (API removed)', async () => {
       if (!(await isServerAvailable(BASE_URL))) {
         console.log('⚠️  Server not available, skipping HTTP test')
         return

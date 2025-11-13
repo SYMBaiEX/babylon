@@ -8,7 +8,6 @@ import { ethers } from 'ethers'
 import WebSocket from 'ws'
 import { A2AWebSocketServer } from '../../server/websocket-server'
 import type { JsonRpcRequest, JsonRpcResponse, AgentCapabilities } from '../../types'
-import type { JsonRpcParams } from '@/types/json-rpc'
 import { A2AMethod } from '../../types'
 
 describe('A2AWebSocketServer Integration', () => {
@@ -100,7 +99,7 @@ describe('A2AWebSocketServer Integration', () => {
               },
               capabilities: capabilities as any,
               endpoint: `ws://localhost:${serverPort}`
-            } as JsonRpcParams,
+            },
             id: 1
           }
 
@@ -182,7 +181,7 @@ describe('A2AWebSocketServer Integration', () => {
           },
           capabilities: capabilities as any,
           endpoint: `ws://localhost:${serverPort}`
-        } as JsonRpcParams,
+        },
         id: 'handshake'
       }
 
@@ -316,7 +315,7 @@ describe('A2AWebSocketServer Integration', () => {
               },
               capabilities: capabilities as any,
               endpoint: `ws://localhost:${serverPort}`
-            } as JsonRpcParams,
+            },
             id: 'handshake'
           }
 
@@ -398,7 +397,7 @@ describe('A2AWebSocketServer Integration', () => {
               },
               capabilities: capabilities as any,
               endpoint: `ws://localhost:${serverPort}`
-            } as JsonRpcParams,
+            },
             id: 1
           }
 

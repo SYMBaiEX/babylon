@@ -12,12 +12,12 @@ import { AuthorizationError, BusinessLogicError } from '@/lib/errors'
 import { withErrorHandling } from '@/lib/errors/error-handler'
 import { logger } from '@/lib/logger'
 import { requireUserByIdentifier } from '@/lib/users/user-lookup'
-import { UserIdParamSchema, UUIDSchema } from '@/lib/validation/schemas'
+import { UserIdParamSchema, SnowflakeIdSchema } from '@/lib/validation/schemas'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 const VerifyShareRequestSchema = z.object({
-  shareId: UUIDSchema,
+  shareId: SnowflakeIdSchema,
   platform: z.enum(['twitter', 'farcaster']),
   postUrl: z.string().url().optional(), // URL to the actual post for verification
 });

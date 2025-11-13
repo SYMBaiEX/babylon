@@ -61,12 +61,22 @@ export default function PostPage({ params }: PostPageProps) {
     authorId: string;
     authorName: string;
     authorUsername?: string | null;
+    authorProfileImageUrl?: string | null;
     timestamp: string;
     likeCount: number;
     commentCount: number;
     shareCount: number;
     isLiked: boolean;
     isShared: boolean;
+    // Repost metadata
+    isRepost?: boolean;
+    originalPostId?: string | null;
+    originalAuthorId?: string | null;
+    originalAuthorName?: string | null;
+    originalAuthorUsername?: string | null;
+    originalAuthorProfileImageUrl?: string | null;
+    originalContent?: string | null;
+    quoteComment?: string | null;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,6 +90,12 @@ export default function PostPage({ params }: PostPageProps) {
       const result = await response.json();
       
       const postData = result.data || result;
+
+      // If this is an article-type post, redirect to /article/[id]
+      if (postData.type === 'article' && postData.fullContent) {
+        router.replace(`/article/${postId}`);
+        return;
+      }
 
       const { postInteractions } = useInteractionStore.getState();
       const storeData = postInteractions.get(postId);
@@ -98,12 +114,22 @@ export default function PostPage({ params }: PostPageProps) {
         authorId: postData.authorId,
         authorName: postData.authorName,
         authorUsername: postData.authorUsername || null,
+        authorProfileImageUrl: postData.authorProfileImageUrl || null,
         timestamp: postData.timestamp,
         likeCount: storeData?.likeCount ?? postData.likeCount ?? 0,
         commentCount: storeData?.commentCount ?? postData.commentCount ?? 0,
         shareCount: storeData?.shareCount ?? postData.shareCount ?? 0,
         isLiked: storeData?.isLiked ?? postData.isLiked ?? false,
         isShared: storeData?.isShared ?? postData.isShared ?? false,
+        // Repost metadata
+        isRepost: postData.isRepost || false,
+        originalPostId: postData.originalPostId || null,
+        originalAuthorId: postData.originalAuthorId || null,
+        originalAuthorName: postData.originalAuthorName || null,
+        originalAuthorUsername: postData.originalAuthorUsername || null,
+        originalAuthorProfileImageUrl: postData.originalAuthorProfileImageUrl || null,
+        originalContent: postData.originalContent || null,
+        quoteComment: postData.quoteComment || null,
       });
       setIsLoading(false);
     };
@@ -203,8 +229,8 @@ export default function PostPage({ params }: PostPageProps) {
             <div className="max-w-feed mx-auto w-full">
               {/* Post */}
               <div className="border-b border-border">
-                {post.type === 'article' && post.fullContent ? (
-                  // Article detail view
+                {post.type === 'article' && post.fullContent && post.fullContent.length > 100 ? (
+                  // Article detail view - Only show if has substantial full content (> 100 chars)
                   <article className="px-4 sm:px-6 py-4 sm:py-5">
                     {/* Category badge */}
                     {post.category && (
@@ -325,8 +351,8 @@ export default function PostPage({ params }: PostPageProps) {
         <div className="flex-1 overflow-y-auto">
           {/* Post */}
           <div className="border-b border-border">
-            {post.type === 'article' && post.fullContent ? (
-              // Article detail view
+            {post.type === 'article' && post.fullContent && post.fullContent.length > 100 ? (
+              // Article detail view - Only show if has substantial full content (> 100 chars)
               <article className="px-4 sm:px-6 py-4 sm:py-5">
                 {/* Category badge */}
                 {post.category && (

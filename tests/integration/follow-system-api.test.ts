@@ -76,8 +76,8 @@ describe('Follow System API Integration Tests', () => {
       testUser2 = users[1]
     }
 
-    // Find test actor
-    const actor = await prisma.actor.findFirst({
+    // Find or create test actor
+    let actor = await prisma.actor.findFirst({
       select: {
         id: true,
         name: true,
@@ -85,7 +85,21 @@ describe('Follow System API Integration Tests', () => {
     })
 
     if (!actor) {
-      throw new Error('No actors found for testing')
+      // Create a test actor
+      actor = await prisma.actor.create({
+        data: {
+          id: `test-actor-${Date.now()}`,
+          name: 'Test Actor',
+          domain: [],
+          affiliations: [],
+          postExample: [],
+          updatedAt: new Date(),
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      })
     }
 
     testActor = actor

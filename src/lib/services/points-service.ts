@@ -281,14 +281,14 @@ export class PointsService {
     const pointsAfter = pointsBefore + pointsAmount
 
     // Execute in transaction
-    await prisma.$transaction([
+    await prisma.$transaction(async (tx) => {
       // Update user points
-      prisma.user.update({
+      await tx.user.update({
         where: { id: userId },
         data: { reputationPoints: pointsAfter },
-      }),
+      });
       // Create transaction record with payment details
-      prisma.pointsTransaction.create({
+      await tx.pointsTransaction.create({
         data: {
           id: generateSnowflakeId(),
           userId,
@@ -306,8 +306,8 @@ export class PointsService {
           paymentAmount: amountUSD.toFixed(2),
           paymentVerified: true,
         },
-      }),
-    ]);
+      });
+    });
 
     logger.info(
       `User ${userId} purchased ${pointsAmount} points for $${amountUSD}`,

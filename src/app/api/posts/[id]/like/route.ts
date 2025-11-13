@@ -17,6 +17,7 @@ import { ensureUserForAuth } from '@/lib/users/ensure-user';
 import { PostIdParamSchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
 import { invalidateCache, CACHE_KEYS } from '@/lib/cache-service';
+import { checkRateLimitAndDuplicates, RATE_LIMIT_CONFIGS } from '@/lib/rate-limiting';
 
 /**
  * POST /api/posts/[id]/like
@@ -29,6 +30,16 @@ export const POST = withErrorHandling(async (
   // Authenticate user
   const user = await authenticate(request);
   const { id: postId } = PostIdParamSchema.parse(await context.params);
+
+  // Apply rate limiting (no duplicate detection needed - DB prevents duplicate likes)
+  const rateLimitError = checkRateLimitAndDuplicates(
+    user.userId,
+    null,
+    RATE_LIMIT_CONFIGS.LIKE_POST
+  );
+  if (rateLimitError) {
+    return rateLimitError;
+  }
 
     const displayName = user.walletAddress
       ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`

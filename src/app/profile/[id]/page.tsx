@@ -4,6 +4,7 @@ import { FollowButton } from '@/components/interactions/FollowButton'
 import { OnChainBadge } from '@/components/profile/OnChainBadge'
 import { ProfileWidget } from '@/components/profile/ProfileWidget'
 import { PostCard } from '@/components/posts/PostCard'
+import { ArticleCard } from '@/components/articles/ArticleCard'
 import { Avatar } from '@/components/shared/Avatar'
 import { VerifiedBadge } from '@/components/shared/VerifiedBadge'
 import { PageContainer } from '@/components/shared/PageContainer'
@@ -732,27 +733,52 @@ export default function ActorProfilePage() {
             </div>
           ) : (
             <div className="space-y-0">
-              {filteredPosts.map((item, i) => (
-                <PostCard
-                  key={`${item.post.id}-${i}`}
-                  post={{
-                    id: item.post.id,
-                    content: item.post.content,
-                    authorId: item.post.author,
-                    authorName: item.post.authorName,
-                    authorUsername: item.post.authorUsername || null,
-                    authorProfileImageUrl: item.post.authorProfileImageUrl || null,
-                    timestamp: item.post.timestamp,
-                    likeCount: item.post.likeCount,
-                    commentCount: item.post.commentCount,
-                    shareCount: item.post.shareCount,
-                    isLiked: item.post.isLiked,
-                    isShared: item.post.isShared,
-                  }}
-                  onClick={() => router.push(`/post/${item.post.id}`)}
-                  showInteractions={true}
-                />
-              ))}
+              {filteredPosts.map((item, i) => {
+                const postData = {
+                  id: item.post.id,
+                  type: item.post.type,
+                  content: item.post.content,
+                  fullContent: item.post.fullContent || null,
+                  articleTitle: item.post.articleTitle || null,
+                  byline: item.post.byline || null,
+                  biasScore: item.post.biasScore ?? null,
+                  category: item.post.category || null,
+                  authorId: item.post.author,
+                  authorName: item.post.authorName,
+                  authorUsername: item.post.authorUsername || null,
+                  authorProfileImageUrl: item.post.authorProfileImageUrl || null,
+                  timestamp: item.post.timestamp,
+                  likeCount: item.post.likeCount,
+                  commentCount: item.post.commentCount,
+                  shareCount: item.post.shareCount,
+                  isLiked: item.post.isLiked,
+                  isShared: item.post.isShared,
+                  // Repost metadata
+                  isRepost: item.post.isRepost || false,
+                  originalPostId: item.post.originalPostId || null,
+                  originalAuthorId: item.post.originalAuthorId || null,
+                  originalAuthorName: item.post.originalAuthorName || null,
+                  originalAuthorUsername: item.post.originalAuthorUsername || null,
+                  originalAuthorProfileImageUrl: item.post.originalAuthorProfileImageUrl || null,
+                  originalContent: item.post.originalContent || null,
+                  quoteComment: item.post.quoteComment || null,
+                };
+                
+                return postData.type && postData.type === 'article' ? (
+                  <ArticleCard
+                    key={`${item.post.id}-${i}`}
+                    post={postData}
+                    onClick={() => router.push(`/post/${item.post.id}`)}
+                  />
+                ) : (
+                  <PostCard
+                    key={`${item.post.id}-${i}`}
+                    post={postData}
+                    onClick={() => router.push(`/post/${item.post.id}`)}
+                    showInteractions={true}
+                  />
+                );
+              })}
             </div>
           )}
         </div>
@@ -977,27 +1003,52 @@ export default function ActorProfilePage() {
               </div>
             ) : (
               <div className="space-y-0">
-                {filteredPosts.map((item, i) => (
-                  <PostCard
-                    key={`${item.post.id}-${i}`}
-                    post={{
-                      id: item.post.id,
-                      content: item.post.content,
-                      authorId: item.post.author,
-                      authorName: item.post.authorName,
-                      authorUsername: item.post.authorUsername || null,
-                      authorProfileImageUrl: item.post.authorProfileImageUrl || null,
-                      timestamp: item.post.timestamp,
-                      likeCount: item.post.likeCount,
-                      commentCount: item.post.commentCount,
-                      shareCount: item.post.shareCount,
-                      isLiked: item.post.isLiked,
-                      isShared: item.post.isShared,
-                    }}
-                    onClick={() => router.push(`/post/${item.post.id}`)}
-                    showInteractions={true}
-                  />
-                ))}
+                {filteredPosts.map((item, i) => {
+                  const postData = {
+                    id: item.post.id,
+                    type: item.post.type,
+                    content: item.post.content,
+                    fullContent: item.post.fullContent || null,
+                    articleTitle: item.post.articleTitle || null,
+                    byline: item.post.byline || null,
+                    biasScore: item.post.biasScore ?? null,
+                    category: item.post.category || null,
+                    authorId: item.post.author,
+                    authorName: item.post.authorName,
+                    authorUsername: item.post.authorUsername || null,
+                    authorProfileImageUrl: item.post.authorProfileImageUrl || null,
+                    timestamp: item.post.timestamp,
+                    likeCount: item.post.likeCount,
+                    commentCount: item.post.commentCount,
+                    shareCount: item.post.shareCount,
+                    isLiked: item.post.isLiked,
+                    isShared: item.post.isShared,
+                    // Repost metadata
+                    isRepost: item.post.isRepost || false,
+                    originalPostId: item.post.originalPostId || null,
+                    originalAuthorId: item.post.originalAuthorId || null,
+                    originalAuthorName: item.post.originalAuthorName || null,
+                    originalAuthorUsername: item.post.originalAuthorUsername || null,
+                    originalAuthorProfileImageUrl: item.post.originalAuthorProfileImageUrl || null,
+                    originalContent: item.post.originalContent || null,
+                    quoteComment: item.post.quoteComment || null,
+                  };
+                  
+                  return postData.type && postData.type === 'article' ? (
+                    <ArticleCard
+                      key={`${item.post.id}-${i}`}
+                      post={postData}
+                      onClick={() => router.push(`/post/${item.post.id}`)}
+                    />
+                  ) : (
+                    <PostCard
+                      key={`${item.post.id}-${i}`}
+                      post={postData}
+                      onClick={() => router.push(`/post/${item.post.id}`)}
+                      showInteractions={true}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>

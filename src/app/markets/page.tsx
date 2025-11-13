@@ -348,13 +348,13 @@ export default function MarketsPage() {
   }, [predictionPositions]);
 
   const handleMarketClick = (market: PerpMarket) => {
-    // Navigate to dedicated perp page
-    router.push(`/markets/perps/${market.ticker}`);
+    // Navigate to dedicated perp page with source tracking
+    router.push(`/markets/perps/${market.ticker}?from=dashboard`);
   };
 
   const handlePredictionClick = (prediction: PredictionMarket) => {
-    // Navigate to dedicated prediction page
-    router.push(`/markets/predictions/${prediction.id}`);
+    // Navigate to dedicated prediction page with source tracking
+    router.push(`/markets/predictions/${prediction.id}?from=dashboard`);
   };
 
   const formatPrice = (p: number) => `$${p.toFixed(2)}`;
@@ -425,61 +425,61 @@ export default function MarketsPage() {
                 >
                   Dashboard
                 </button>
-                <button
-                  role="tab"
-                  aria-selected={activeTab === 'futures'}
-                  aria-controls="futures-panel"
-                  onClick={() => setActiveTab('futures')}
-                  className={cn(
-                    'flex-1 px-3 sm:px-4 py-2.5 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
-                    activeTab === 'futures'
-                      ? 'text-white font-bold'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  Perps
-                </button>
-                <button
-                  role="tab"
-                  aria-selected={activeTab === 'predictions'}
-                  aria-controls="predictions-panel"
-                  onClick={() => setActiveTab('predictions')}
-                  className={cn(
-                    'flex-1 px-3 sm:px-4 py-2.5 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
-                    activeTab === 'predictions'
-                      ? 'text-white font-bold'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  Predictions
-                </button>
-              </div>
+              <button
+                role="tab"
+                aria-selected={activeTab === 'futures'}
+                aria-controls="futures-panel"
+                onClick={() => router.push('/markets/perps')}
+                className={cn(
+                  'flex-1 px-3 sm:px-4 py-2.5 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
+                  activeTab === 'futures'
+                    ? 'text-white font-bold'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                Perps
+              </button>
+              <button
+                role="tab"
+                aria-selected={activeTab === 'predictions'}
+                aria-controls="predictions-panel"
+                onClick={() => router.push('/markets/predictions')}
+                className={cn(
+                  'flex-1 px-3 sm:px-4 py-2.5 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
+                  activeTab === 'predictions'
+                    ? 'text-white font-bold'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                Predictions
+              </button>
+            </div>
 
-              {/* Search - hide on dashboard */}
-              {activeTab !== 'dashboard' && (
-                <div className="relative">
-                  <Search
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <input
-                    type="search"
-                    aria-label={
-                      activeTab === 'futures'
-                        ? 'Search tickers'
-                        : 'Search questions'
-                    }
-                    placeholder={
-                      activeTab === 'futures'
-                        ? 'Search tickers...'
-                        : 'Search questions...'
-                    }
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 rounded bg-muted/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:bg-muted focus:ring-2 focus:ring-[#0066FF]/30"
-                  />
-                </div>
-              )}
+            {/* Search - hide on dashboard */}
+            {activeTab !== 'dashboard' && (
+              <div className="relative">
+                <Search
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <input
+                  type="search"
+                  aria-label={
+                    activeTab === 'futures'
+                      ? 'Search tickers'
+                      : 'Search questions'
+                  }
+                  placeholder={
+                    activeTab === 'futures'
+                      ? 'Search tickers...'
+                      : 'Search questions...'
+                  }
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 rounded bg-muted/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:bg-muted focus:ring-2 focus:ring-[#0066FF]/30"
+                />
+              </div>
+            )}
             </div>
           </div>
 
@@ -1021,27 +1021,8 @@ export default function MarketsPage() {
         {/* Widget Sidebar */}
         <MarketsWidgetSidebar
           onMarketClick={(market) => {
-            // Convert TopMover to PerpMarket format
-            const perpMarket: PerpMarket = {
-              ticker: market.ticker,
-              organizationId: market.organizationId || '',
-              name: market.name,
-              currentPrice: market.currentPrice,
-              change24h: market.change24h,
-              changePercent24h: market.changePercent24h,
-              high24h: market.high24h || 0,
-              low24h: market.low24h || 0,
-              volume24h: market.volume24h || 0,
-              openInterest: market.openInterest || 0,
-              fundingRate: market.fundingRate || {
-                rate: 0,
-                nextFundingTime: new Date().toISOString(),
-                predictedRate: 0,
-              },
-              maxLeverage: market.maxLeverage || 10,
-              minOrderSize: market.minOrderSize || 1,
-            };
-            handleMarketClick(perpMarket);
+            // Navigate with dashboard source tracking
+            router.push(`/markets/perps/${market.ticker}?from=dashboard`);
           }}
         />
       </div>
@@ -1075,7 +1056,7 @@ export default function MarketsPage() {
                 role="tab"
                 aria-selected={activeTab === 'futures'}
                 aria-controls="futures-panel"
-                onClick={() => setActiveTab('futures')}
+                onClick={() => router.push('/markets/perps')}
                 className={cn(
                   'flex-1 px-3 sm:px-4 py-2.5 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
                   activeTab === 'futures'
@@ -1089,7 +1070,7 @@ export default function MarketsPage() {
                 role="tab"
                 aria-selected={activeTab === 'predictions'}
                 aria-controls="predictions-panel"
-                onClick={() => setActiveTab('predictions')}
+                onClick={() => router.push('/markets/predictions')}
                 className={cn(
                   'flex-1 px-3 sm:px-4 py-2.5 transition-all whitespace-nowrap text-sm sm:text-base cursor-pointer',
                   activeTab === 'predictions'

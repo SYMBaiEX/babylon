@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { JsonValueSchema } from '@/types/common';
 
 export const DiscoverParamsSchema = z.object({
   filters: z.object({
@@ -40,7 +41,7 @@ export const JoinCoalitionParamsSchema = z.object({
 export const CoalitionMessageParamsSchema = z.object({
   coalitionId: z.string(),
   messageType: z.enum(['analysis', 'vote', 'action', 'coordination']),
-  content: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+  content: z.record(z.string(), JsonValueSchema),
 });
 
 export const LeaveCoalitionParamsSchema = z.object({
@@ -57,7 +58,7 @@ export const PaymentRequestParamsSchema = z.object({
   to: z.string(),
   amount: z.string(),
   service: z.string(),
-  metadata: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
+  metadata: z.record(z.string(), JsonValueSchema).optional(),
   from: z.string().optional(),
 });
 

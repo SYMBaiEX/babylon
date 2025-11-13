@@ -18,6 +18,9 @@ import type { NextRequest } from 'next/server';
 import { requireUserByIdentifier } from '@/lib/users/user-lookup';
 import { confirmOnchainProfileUpdate } from '@/lib/onboarding/onchain-service';
 import { trackServerEvent } from '@/lib/posthog/server';
+import { updateProfileBackendSigned, isBackendSigningEnabled } from '@/lib/profile/backend-signer';
+import { checkProfileUpdateRateLimit, logProfileUpdate } from '@/lib/profile/rate-limiter';
+import type { Address } from 'viem';
 
 /**
  * POST /api/users/[userId]/update-profile
@@ -101,6 +104,15 @@ export const POST = withErrorHandling(async (
     normalizedUsername !== undefined &&
     normalizedUsername !== (currentUser.username ?? '');
 
+  // Check rate limits for profile updates (security measure for backend signing)
+  const rateLimitCheck = await checkProfileUpdateRateLimit(canonicalUserId, isUsernameChanging);
+  if (!rateLimitCheck.allowed) {
+    throw new BusinessLogicError(
+      rateLimitCheck.reason || 'Rate limit exceeded',
+      'RATE_LIMIT_EXCEEDED'
+    );
+  }
+
   if (isUsernameChanging && currentUser.usernameChangedAt) {
     const lastChangeTime = new Date(currentUser.usernameChangedAt).getTime();
     const now = Date.now();
@@ -119,17 +131,18 @@ export const POST = withErrorHandling(async (
 
   // Only require on-chain update if user is already registered on-chain
   // This allows initial profile setup before on-chain registration
-  const hasProfileChanges = [
+  // Images are stored off-chain (in our database/uploads), so they don't require on-chain updates
+  const hasOnchainProfileChanges = [
     normalizedUsername !== undefined && normalizedUsername !== (currentUser.username ?? ''),
     normalizedDisplayName !== undefined && normalizedDisplayName !== (currentUser.displayName ?? ''),
     normalizedBio !== undefined && normalizedBio !== (currentUser.bio ?? ''),
-    normalizedProfileImageUrl !== undefined && normalizedProfileImageUrl !== (currentUser.profileImageUrl ?? ''),
-    normalizedCoverImageUrl !== undefined && normalizedCoverImageUrl !== (currentUser.coverImageUrl ?? ''),
   ].some(Boolean);
 
-  const requiresOnchainUpdate = hasProfileChanges && currentUser.onChainRegistered && currentUser.nftTokenId;
+  const requiresOnchainUpdate = hasOnchainProfileChanges && currentUser.onChainRegistered && currentUser.nftTokenId;
 
   let onchainMetadata: Record<string, unknown> | null = null;
+  let backendSignedTxHash: `0x${string}` | undefined;
+  
   if (requiresOnchainUpdate) {
     if (!currentUser.walletAddress) {
       throw new BusinessLogicError(
@@ -138,26 +151,73 @@ export const POST = withErrorHandling(async (
       );
     }
 
-    if (!onchainTxHash) {
-      throw new BusinessLogicError(
-        'onchainTxHash is required when updating profile information',
-        'ONCHAIN_TX_REQUIRED'
+    // Backend signing: Server signs the transaction automatically
+    // This eliminates the need for user signature popups
+    if (isBackendSigningEnabled()) {
+      logger.info(
+        'Using backend signing for profile update',
+        { userId: canonicalUserId },
+        'POST /api/users/[userId]/update-profile'
+      );
+
+      const endpoint = `https://babylon.market/agent/${currentUser.walletAddress.toLowerCase()}`;
+      const metadata = {
+        name: normalizedDisplayName || normalizedUsername || currentUser.displayName || currentUser.username || 'Babylon User',
+        username: normalizedUsername || currentUser.username,
+        bio: normalizedBio || currentUser.bio,
+        profileImageUrl: normalizedProfileImageUrl || currentUser.profileImageUrl,
+        coverImageUrl: normalizedCoverImageUrl || currentUser.coverImageUrl,
+      };
+
+      try {
+        const result = await updateProfileBackendSigned({
+          userAddress: currentUser.walletAddress as Address,
+          metadata,
+          endpoint,
+        });
+
+        backendSignedTxHash = result.txHash;
+        onchainMetadata = result.metadata as unknown as Record<string, unknown>;
+
+        logger.info(
+          'Backend-signed profile update successful',
+          { userId: canonicalUserId, txHash: backendSignedTxHash },
+          'POST /api/users/[userId]/update-profile'
+        );
+      } catch (error) {
+        logger.error(
+          'Backend signing failed',
+          { error, userId: canonicalUserId },
+          'POST /api/users/[userId]/update-profile'
+        );
+        throw new BusinessLogicError(
+          'Failed to update profile on-chain',
+          'ONCHAIN_UPDATE_FAILED'
+        );
+      }
+    } else {
+      // Fallback: User provided transaction hash (old flow)
+      if (!onchainTxHash) {
+        throw new BusinessLogicError(
+          'Backend signing not configured and no transaction hash provided',
+          'ONCHAIN_TX_REQUIRED'
+        );
+      }
+
+      const onchainResult = await confirmOnchainProfileUpdate({
+        userId: canonicalUserId,
+        walletAddress: currentUser.walletAddress,
+        txHash: onchainTxHash as `0x${string}`,
+      });
+
+      onchainMetadata = onchainResult.metadata;
+
+      logger.info(
+        'Confirmed user-signed on-chain profile update',
+        { userId: canonicalUserId, txHash: onchainTxHash, tokenId: onchainResult.tokenId },
+        'POST /api/users/[userId]/update-profile'
       );
     }
-
-    const onchainResult = await confirmOnchainProfileUpdate({
-      userId: canonicalUserId,
-      walletAddress: currentUser.walletAddress,
-      txHash: onchainTxHash as `0x${string}`,
-    });
-
-    onchainMetadata = onchainResult.metadata;
-
-    logger.info(
-      'Confirmed on-chain profile update transaction',
-      { userId: canonicalUserId, txHash: onchainTxHash, tokenId: onchainResult.tokenId },
-      'POST /api/users/[userId]/update-profile'
-    );
   }
 
   const updatedUser = await prisma.user.update({
@@ -238,14 +298,22 @@ export const POST = withErrorHandling(async (
     );
   }
 
+  // Log the profile update for rate limiting and auditing
+  const fieldsUpdated = Object.keys(parsedBody).filter(key => parsedBody[key as keyof typeof parsedBody] !== undefined);
+  await logProfileUpdate(
+    canonicalUserId,
+    fieldsUpdated,
+    Boolean(backendSignedTxHash),
+    backendSignedTxHash || onchainTxHash
+  );
+
   logger.info(
     'Profile updated successfully',
-    { userId: canonicalUserId, pointsAwarded: pointsAwarded.length, onchainConfirmed: requiresOnchainUpdate },
+    { userId: canonicalUserId, pointsAwarded: pointsAwarded.length, onchainConfirmed: requiresOnchainUpdate, backendSigned: Boolean(backendSignedTxHash) },
     'POST /api/users/[userId]/update-profile'
   );
 
   // Track profile updated event
-  const fieldsUpdated = Object.keys(parsedBody).filter(key => parsedBody[key as keyof typeof parsedBody] !== undefined);
   trackServerEvent(canonicalUserId, 'profile_updated', {
     fieldsUpdated,
     hasNewProfileImage: normalizedProfileImageUrl !== undefined && normalizedProfileImageUrl !== currentUser.profileImageUrl,
@@ -255,6 +323,7 @@ export const POST = withErrorHandling(async (
     profileComplete: updatedUser.profileComplete,
     pointsAwarded: pointsAwarded.reduce((sum, p) => sum + p.amount, 0),
     onchainUpdate: requiresOnchainUpdate,
+    backendSigned: Boolean(backendSignedTxHash),
   }).catch((error) => {
     logger.warn('Failed to track profile_updated event', { error });
   });
@@ -265,8 +334,9 @@ export const POST = withErrorHandling(async (
     pointsAwarded,
     onchain: requiresOnchainUpdate
       ? {
-          txHash: onchainTxHash,
+          txHash: backendSignedTxHash || onchainTxHash,
           metadata: onchainMetadata,
+          backendSigned: Boolean(backendSignedTxHash),
         }
       : null,
   });

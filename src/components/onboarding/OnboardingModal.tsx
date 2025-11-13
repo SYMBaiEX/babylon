@@ -7,7 +7,6 @@ import { cn } from '@/lib/utils'
 import { apiFetch } from '@/lib/api/fetch'
 import type { OnboardingProfilePayload } from '@/lib/onboarding/types'
 import { logger } from '@/lib/logger'
-import { SocialImportStep } from './SocialImportStep'
 import { Skeleton } from '@/components/shared/Skeleton'
 
 export interface ImportedProfileData {
@@ -24,14 +23,12 @@ export interface ImportedProfileData {
 
 interface OnboardingModalProps {
   isOpen: boolean
-  stage: 'SOCIAL_IMPORT' | 'PROFILE' | 'ONCHAIN' | 'COMPLETED'
+  stage: 'PROFILE' | 'ONCHAIN' | 'COMPLETED'
   isSubmitting: boolean
   error?: string | null
   onSubmitProfile: (payload: OnboardingProfilePayload) => Promise<void>
   onRetryOnchain: () => Promise<void>
   onSkipOnchain: () => void
-  onSocialImport: (platform: 'twitter' | 'farcaster') => Promise<void>
-  onSkipSocialImport: () => void
   onClose: () => void
   user: {
     id?: string
@@ -76,8 +73,6 @@ export function OnboardingModal({
   onSubmitProfile,
   onRetryOnchain,
   onSkipOnchain,
-  onSocialImport,
-  onSkipSocialImport,
   onClose,
   user,
   importedData,
@@ -108,8 +103,14 @@ export function OnboardingModal({
   useEffect(() => {
     if (!importedData || stage !== 'PROFILE') return
 
-    logger.info('Pre-filling profile with imported data', { platform: importedData.platform }, 'OnboardingModal')
+    logger.info('Pre-filling profile with imported data', { 
+      platform: importedData.platform,
+      hasProfileImage: !!importedData.profileImageUrl,
+      hasCoverImage: !!importedData.coverImageUrl,
+      hasBio: !!importedData.bio
+    }, 'OnboardingModal')
 
+    // Set text fields from social data
     setDisplayName(importedData.displayName)
     setUsername(importedData.username)
     setBio(importedData.bio || '')
@@ -117,16 +118,24 @@ export function OnboardingModal({
     // If we have a profile image URL from social import, use it
     if (importedData.profileImageUrl) {
       setUploadedProfileImage(importedData.profileImageUrl)
+    } else {
+      // No social profile image - use a random one
+      setUploadedProfileImage(null)
+      setProfilePictureIndex(Math.floor(Math.random() * TOTAL_PROFILE_PICTURES) + 1)
     }
     
     // If we have a cover/banner URL from social import, use it
     if (importedData.coverImageUrl) {
       setUploadedBanner(importedData.coverImageUrl)
+    } else {
+      // No social banner - generate a random one
+      setUploadedBanner(null)
+      setBannerIndex(Math.floor(Math.random() * TOTAL_BANNERS) + 1)
     }
   }, [importedData, stage])
 
   useEffect(() => {
-    if (!isOpen || stage === 'SOCIAL_IMPORT') return
+    if (!isOpen || stage !== 'PROFILE') return
     
     // Don't auto-generate if we have imported data
     if (importedData) {
@@ -260,6 +269,7 @@ export function OnboardingModal({
       profileImageUrl: resolveAssetUrl(uploadedProfileImage ?? `/assets/user-profiles/profile-${profilePictureIndex}.jpg`),
       coverImageUrl: resolveAssetUrl(uploadedBanner ?? `/assets/user-banners/banner-${bannerIndex}.jpg`),
       // Include imported social account data if available
+      // These fields trigger automatic reward point awards (1000 points per social account)
       importedFrom: importedData?.platform || null,
       twitterId: importedData?.platform === 'twitter' ? importedData.twitterId : null,
       twitterUsername: importedData?.platform === 'twitter' ? importedData.username : null,
@@ -569,15 +579,18 @@ export function OnboardingModal({
               <div>
                 <h2 className="text-2xl font-bold">Welcome to Babylon!</h2>
                 <p className="text-sm text-muted-foreground">
-                  {stage === 'SOCIAL_IMPORT' 
-                    ? 'Connect your account' 
-                    : stage === 'PROFILE' 
+                  {stage === 'PROFILE' 
                     ? 'Set up your profile' 
                     : stage === 'ONCHAIN' 
                     ? 'Complete registration' 
                     : 'Setup complete!'}
                 </p>
-                {user?.username && stage !== 'PROFILE' && stage !== 'SOCIAL_IMPORT' && (
+                {stage === 'PROFILE' && importedData && (
+                  <p className="text-xs text-[#0066FF] mt-1">
+                    Imported from {importedData.platform === 'twitter' ? '𝕏' : 'Farcaster'}
+                  </p>
+                )}
+                {user?.username && stage !== 'PROFILE' && (
                   <p className="text-xs text-muted-foreground mt-1">@{user.username}</p>
                 )}
               </div>
@@ -592,13 +605,7 @@ export function OnboardingModal({
             </button>
           </div>
 
-          {stage === 'SOCIAL_IMPORT' ? (
-            <SocialImportStep
-              onImport={onSocialImport}
-              onSkip={onSkipSocialImport}
-              isLoading={isSubmitting}
-            />
-          ) : stage === 'COMPLETED' ? (
+          {stage === 'COMPLETED' ? (
             <div className="p-12 flex flex-col items-center gap-4">
               <Check className="w-10 h-10 text-[#0066FF]" />
               <p className="text-lg font-semibold">Onboarding complete! Enjoy Babylon 🎉</p>

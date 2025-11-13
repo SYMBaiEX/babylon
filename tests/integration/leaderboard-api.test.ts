@@ -4,7 +4,7 @@
  * Tests for GET /api/leaderboard with pointsType filtering
  */
 
-import { describe, it, expect, beforeAll } from 'bun:test'
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
 import { prisma } from '@/lib/database-service'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { Prisma } from '@prisma/client'
@@ -66,8 +66,16 @@ describe('Leaderboard API', () => {
         virtualBalance: new Prisma.Decimal(10000),
         lifetimePnL: new Prisma.Decimal(4000), // $4000 P&L = 400 earned points
         updatedAt: new Date(),
+        isActor: false, // Explicitly set as real user
       },
     })
+  })
+
+  // Clean up test user after all tests
+  afterAll(async () => {
+    if (testUserId) {
+      await prisma.user.delete({ where: { id: testUserId } }).catch(() => {})
+    }
   })
 
   describe('GET /api/leaderboard', () => {
@@ -233,22 +241,48 @@ describe('Leaderboard API', () => {
     })
 
     it('should include our test user in appropriate leaderboards', async () => {
-      // Check "all" leaderboard
-      const allResponse = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&minPoints=500&pointsType=all')
-      const allData = await allResponse.json() as LeaderboardResponse
-      const inAllLeaderboard = allData.leaderboard.some((entry) => entry.id === testUserId)
+      // Verify test user exists in database
+      const testUser = await prisma.user.findUnique({ where: { id: testUserId } })
+      expect(testUser).toBeTruthy()
+      expect(testUser?.reputationPoints).toBe(1500)
+      expect(testUser?.earnedPoints).toBe(400)
+      expect(testUser?.invitePoints).toBe(500)
+      expect(testUser?.isActor).toBe(false)
+
+      // Helper function to fetch all pages
+      async function fetchAllPages(pointsType: 'all' | 'earned' | 'referral', minPointsFilter: number = 0): Promise<LeaderboardEntry[]> {
+        const allEntries: LeaderboardEntry[] = []
+        let page = 1
+        let hasMore = true
+        
+        while (hasMore && page <= 20) { // Limit to 20 pages to prevent infinite loops
+          const url = minPointsFilter > 0
+            ? `http://localhost:3000/api/leaderboard?page=${page}&pageSize=100&minPoints=${minPointsFilter}&pointsType=${pointsType}`
+            : `http://localhost:3000/api/leaderboard?page=${page}&pageSize=100&pointsType=${pointsType}`
+          const response = await fetch(url)
+          const data = await response.json() as LeaderboardResponse
+          
+          allEntries.push(...data.leaderboard)
+          hasMore = page < data.pagination.totalPages
+          page++
+        }
+        
+        return allEntries
+      }
+
+      // Check "all" leaderboard (fetch all pages to find user)
+      const allEntries = await fetchAllPages('all', 500)
+      const inAllLeaderboard = allEntries.some((entry) => entry.id === testUserId)
       expect(inAllLeaderboard).toBe(true)
 
       // Check "earned" leaderboard (has 400 earned points)
-      const earnedResponse = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&pointsType=earned')
-      const earnedData = await earnedResponse.json() as LeaderboardResponse
-      const inEarnedLeaderboard = earnedData.leaderboard.some((entry) => entry.id === testUserId)
+      const earnedEntries = await fetchAllPages('earned')
+      const inEarnedLeaderboard = earnedEntries.some((entry) => entry.id === testUserId)
       expect(inEarnedLeaderboard).toBe(true)
 
       // Check "referral" leaderboard (has 500 invite points)
-      const referralResponse = await fetch('http://localhost:3000/api/leaderboard?page=1&pageSize=100&pointsType=referral')
-      const referralData = await referralResponse.json() as LeaderboardResponse
-      const inReferralLeaderboard = referralData.leaderboard.some((entry) => entry.id === testUserId)
+      const referralEntries = await fetchAllPages('referral')
+      const inReferralLeaderboard = referralEntries.some((entry) => entry.id === testUserId)
       expect(inReferralLeaderboard).toBe(true)
     })
   })

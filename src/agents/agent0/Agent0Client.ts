@@ -24,6 +24,14 @@ import type {
   SearchParams,
   RegistrationFile
 } from 'agent0-sdk'
+import { z } from 'zod';
+
+const CapabilitiesSchema = z.object({
+  strategies: z.array(z.string()).optional(),
+  markets: z.array(z.string()).optional(),
+  actions: z.array(z.string()).optional(),
+  version: z.string().optional(),
+});
 
 export class Agent0Client implements IAgent0Client {
   private sdk: SDK | null
@@ -235,22 +243,20 @@ export class Agent0Client implements IAgent0Client {
     
     const { items } = await this.sdk!.searchAgents(searchParams)
     
-    return items.map((agent: AgentSummary) => ({
-      tokenId: parseInt(agent.agentId.split(':')[1] || '0', 10),
-      name: agent.name,
-      walletAddress: agent.walletAddress || '',
-      metadataCID: agent.agentId,
-      capabilities: {
-        strategies: (agent.extras?.capabilities as { strategies?: string[] })?.strategies || [],
-        markets: (agent.extras?.capabilities as { markets?: string[] })?.markets || [],
-        actions: (agent.extras?.capabilities as { actions?: string[] })?.actions || [],
-        version: (agent.extras?.capabilities as { version?: string })?.version || '1.0.0'
-      },
-      reputation: {
-        trustScore: 0,
-        accuracyScore: 0
-      }
-    }))
+    return items.map((agent: AgentSummary) => {
+      const capabilities = this.parseCapabilities(agent.extras);
+      return {
+        tokenId: parseInt(agent.agentId.split(':')[1] ?? '0', 10),
+        name: agent.name,
+        walletAddress: agent.walletAddress ?? '',
+        metadataCID: agent.agentId,
+        capabilities,
+        reputation: {
+          trustScore: 0,
+          accuracyScore: 0
+        }
+      };
+    })
   }
   
   /**
@@ -298,22 +304,51 @@ export class Agent0Client implements IAgent0Client {
       return null
     }
     
+    const capabilities = this.parseCapabilities(agent.extras);
+
     return {
       tokenId,
       name: agent.name,
-      walletAddress: agent.walletAddress || '',
+      walletAddress: agent.walletAddress ?? '',
       metadataCID: agent.agentId,
-      capabilities: {
-        strategies: (agent.extras?.capabilities as { strategies?: string[] })?.strategies || [],
-        markets: (agent.extras?.capabilities as { markets?: string[] })?.markets || [],
-        actions: (agent.extras?.capabilities as { actions?: string[] })?.actions || [],
-        version: (agent.extras?.capabilities as { version?: string })?.version || '1.0.0'
-      },
+      capabilities,
       reputation: {
         trustScore: 0,
         accuracyScore: 0
       }
     }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private parseCapabilities(extras: Record<string, any> | undefined): {
+    strategies: string[];
+    markets: string[];
+    actions: string[];
+    version: string;
+  } {
+    const defaultCapabilities = {
+      strategies: [],
+      markets: [],
+      actions: [],
+      version: '1.0.0',
+    };
+
+    if (!extras?.capabilities) {
+      return defaultCapabilities;
+    }
+
+    const validation = CapabilitiesSchema.safeParse(extras.capabilities);
+    if (!validation.success) {
+      logger.warn('Invalid agent capabilities in search result', { error: validation.error, capabilities: extras.capabilities });
+      return defaultCapabilities;
+    }
+
+    return {
+      strategies: validation.data.strategies ?? [],
+      markets: validation.data.markets ?? [],
+      actions: validation.data.actions ?? [],
+      version: validation.data.version ?? '1.0.0',
+    };
   }
   
   /**

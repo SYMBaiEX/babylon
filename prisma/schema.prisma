@@ -140,6 +140,7 @@ model Chat {
   id              String            @id
   name            String?
   isGroup         Boolean           @default(false)
+  groupId         String?           // Link to UserGroup for group chats
   gameId          String?
   dayNumber       Int?
   createdAt       DateTime          @default(now())
@@ -149,6 +150,7 @@ model Chat {
 
   @@index([gameId, dayNumber])
   @@index([isGroup])
+  @@index([groupId])
 }
 
 model ChatParticipant {
@@ -161,6 +163,20 @@ model ChatParticipant {
   @@unique([chatId, userId])
   @@index([chatId])
   @@index([userId])
+}
+
+model DMAcceptance {
+  id          String    @id
+  chatId      String    @unique
+  userId      String    // User who needs to accept
+  otherUserId String    // The person who initiated the DM
+  status      String    @default("pending") // "pending" | "accepted" | "rejected"
+  createdAt   DateTime  @default(now())
+  acceptedAt  DateTime?
+  rejectedAt  DateTime?
+
+  @@index([userId, status])
+  @@index([status, createdAt(sort: Desc)])
 }
 
 model Comment {
@@ -347,14 +363,14 @@ model UserGroupAdmin {
 }
 
 model UserGroupInvite {
-  id          String    @id
-  groupId     String
+  id            String    @id
+  groupId       String
   invitedUserId String
-  invitedBy   String
-  status      String    @default("pending") // pending, accepted, declined
-  invitedAt   DateTime  @default(now())
-  respondedAt DateTime?
-  message     String?
+  invitedBy     String
+  status        String    @default("pending") // pending, accepted, declined
+  invitedAt     DateTime  @default(now())
+  respondedAt   DateTime?
+  message       String?
 
   @@unique([groupId, invitedUserId])
   @@index([groupId])
@@ -426,6 +442,8 @@ model Notification {
   actorId                         String?
   postId                          String?
   commentId                       String?
+  groupId                         String?  // For group-related notifications
+  inviteId                        String?  // For group invite notifications
   message                         String
   read                            Boolean  @default(false)
   createdAt                       DateTime @default(now())
@@ -437,6 +455,8 @@ model Notification {
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, read, createdAt(sort: Desc)])
   @@index([userId, type, read]) // For filtering notifications by type
+  @@index([groupId])
+  @@index([inviteId])
 }
 
 model OnboardingIntent {
@@ -946,6 +966,7 @@ model User {
   TradingFee_TradingFee_referrerIdToUser  TradingFee[]             @relation("TradingFee_referrerIdToUser")
   TradingFee_TradingFee_userIdToUser      TradingFee[]             @relation("TradingFee_userIdToUser")
   UserActorFollow                         UserActorFollow[]
+  ProfileUpdateLog                        ProfileUpdateLog[]
 
   @@index([earnedPoints(sort: Desc)])
   @@index([invitePoints(sort: Desc)])
@@ -972,6 +993,18 @@ model UserActorFollow {
   @@unique([userId, actorId])
   @@index([actorId])
   @@index([userId])
+}
+
+model ProfileUpdateLog {
+  id            String    @id
+  userId        String
+  changedFields String[]
+  backendSigned Boolean
+  txHash        String?
+  createdAt     DateTime  @default(now())
+  User          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
 }
 
 model UserInteraction {

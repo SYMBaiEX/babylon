@@ -7,8 +7,6 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Users, Plus, Crown } from 'lucide-react';
 import { CreateGroupModal } from './CreateGroupModal';
 import { GroupDetailsModal } from './GroupDetailsModal';
@@ -54,44 +52,46 @@ export function UserGroupsList() {
 
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="text-center text-muted-foreground">Loading groups...</div>
-        </CardContent>
-      </Card>
+      <div className="p-6 bg-background border border-border rounded-xl shadow-sm">
+        <div className="text-center text-muted-foreground">Loading groups...</div>
+      </div>
     );
   }
 
   return (
     <>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>My Groups</CardTitle>
-          <Button onClick={() => setIsCreateModalOpen(true)} size="sm">
-            <Plus className="h-4 w-4 mr-2" />
+      <div className="bg-background border border-border rounded-xl shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between p-6 border-b border-border">
+          <h3 className="text-lg font-bold">My Groups</h3>
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="h-4 w-4 inline mr-1" />
             Create Group
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {groups.length === 0 ? (
+          </button>
+        </div>
+        <div className="p-6">
+          {isLoading ? (
+            <div className="text-center py-8 text-muted-foreground">Loading groups...</div>
+          ) : groups.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>You haven't joined any groups yet.</p>
-              <Button
-                variant="link"
+              <button
                 onClick={() => setIsCreateModalOpen(true)}
-                className="mt-2"
+                className="mt-2 text-primary hover:underline text-sm"
               >
                 Create your first group
-              </Button>
+              </button>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {groups.map((group) => (
-                <div
+                <button
                   key={group.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent cursor-pointer transition-colors"
                   onClick={() => setSelectedGroupId(group.id)}
+                  className="w-full flex items-center justify-between p-4 bg-sidebar border border-border rounded-lg hover:bg-sidebar/80 transition-colors text-left"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -110,17 +110,19 @@ export function UserGroupsList() {
                     <Users className="h-4 w-4" />
                     <span>{group.memberCount}</span>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <CreateGroupModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onGroupCreated={loadGroups}
+        onGroupCreated={() => {
+          loadGroups()
+        }}
       />
 
       {selectedGroupId && (

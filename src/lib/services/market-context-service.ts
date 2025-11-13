@@ -27,21 +27,9 @@ export class MarketContextService {
   async buildContextForAllNPCs(): Promise<Map<string, NPCMarketContext>> {
     const startTime = Date.now();
     
-    // Fetch all NPCs with pools
-    const npcs = await prisma.actor.findMany({
-      where: { hasPool: true },
-      include: {
-        Pool: {
-          where: { isActive: true },
-          take: 1,
-          include: {
-            PoolPosition: {
-              where: { closedAt: null },
-            },
-          },
-        },
-      },
-    });
+    // Fetch all NPCs (no pool requirement)
+    // Note: All records in Actor table are NPCs
+    const npcs = await prisma.actor.findMany();
     
     // Fetch shared data once (used by all NPCs)
     const [marketSnapshots, recentPosts, recentEvents] = await Promise.all([
@@ -75,10 +63,8 @@ export class MarketContextService {
     const contexts = new Map<string, NPCMarketContext>();
     
     for (const npc of npcs) {
-      const pool = npc.Pool[0];
-      const availableBalance = pool 
-        ? parseFloat(pool.availableBalance.toString())
-        : parseFloat(npc.tradingBalance.toString());
+      // Use actor's trading balance (no pools)
+      const availableBalance = parseFloat(npc.tradingBalance.toString());
       
       // Filter group chats this NPC is a member of (based on chat participants)
       const npcGroupChats = groupChats.filter(chat =>
@@ -97,20 +83,8 @@ export class MarketContextService {
         }))
       );
       
-      // Convert pool positions to NPCPosition format
-      const currentPositions: NPCPosition[] = pool?.PoolPosition.map(pos => ({
-        id: pos.id,
-        marketType: pos.marketType as 'perp' | 'prediction',
-        ticker: pos.ticker || undefined,
-        marketId: pos.marketId || undefined, // Keep as string (Snowflake ID)
-        side: pos.side,
-        entryPrice: pos.entryPrice,
-        currentPrice: pos.currentPrice,
-        size: pos.size,
-        shares: pos.shares || undefined,
-        unrealizedPnL: pos.unrealizedPnL,
-        openedAt: pos.openedAt.toISOString(),
-      })) || [];
+      // No pool positions (pools feature removed)
+      const currentPositions: NPCPosition[] = [];
       
       // Get relationships for this NPC
       const npcRelationships = allRelationships
@@ -160,17 +134,6 @@ export class MarketContextService {
   async buildContextForNPC(npcId: string): Promise<NPCMarketContext> {
     const npc = await prisma.actor.findUnique({
       where: { id: npcId },
-      include: {
-        Pool: {
-          where: { isActive: true },
-          take: 1,
-          include: {
-            PoolPosition: {
-              where: { closedAt: null },
-            },
-          },
-        },
-      },
     });
     
     if (!npc) {
@@ -187,24 +150,11 @@ export class MarketContextService {
     // Get relationships for this NPC
     const relationships = await this.getRelationshipsForNPC(npcId);
     
-    const pool = npc.Pool[0];
-    const availableBalance = pool 
-      ? parseFloat(pool.availableBalance.toString())
-      : parseFloat(npc.tradingBalance.toString());
+    // Use actor's trading balance (no pools)
+    const availableBalance = parseFloat(npc.tradingBalance.toString());
     
-    const currentPositions: NPCPosition[] = pool?.PoolPosition.map(pos => ({
-      id: pos.id,
-      marketType: pos.marketType as 'perp' | 'prediction',
-      ticker: pos.ticker || undefined,
-      marketId: pos.marketId || undefined, // Keep as string (Snowflake ID)
-      side: pos.side,
-      entryPrice: pos.entryPrice,
-      currentPrice: pos.currentPrice,
-      size: pos.size,
-      shares: pos.shares || undefined,
-      unrealizedPnL: pos.unrealizedPnL,
-      openedAt: pos.openedAt.toISOString(),
-    })) || [];
+    // No pool positions (pools feature removed)
+    const currentPositions: NPCPosition[] = [];
     
     return {
       npcId: npc.id,

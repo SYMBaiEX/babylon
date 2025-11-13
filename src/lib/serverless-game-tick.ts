@@ -43,7 +43,9 @@ export interface GameTickResult {
     groupsCreated: number;
     membersAdded: number;
     membersRemoved: number;
+    usersInvited: number;
     usersKicked: number;
+    messagesPosted: number;
   };
 }
 
@@ -421,7 +423,7 @@ export async function executeGameTick(): Promise<GameTickResult> {
       // Don't fail the entire tick if alpha invites fail
     }
 
-    // Process NPC group dynamics (form, join, leave, kick)
+    // Process NPC group dynamics (form, join, leave, post, invite, kick)
     try {
       const { NPCGroupDynamicsService } = await import('./services/npc-group-dynamics-service');
       const dynamics = await NPCGroupDynamicsService.processTickDynamics();
@@ -429,9 +431,12 @@ export async function executeGameTick(): Promise<GameTickResult> {
         groupsCreated: dynamics.groupsCreated,
         membersAdded: dynamics.membersAdded,
         membersRemoved: dynamics.membersRemoved,
+        usersInvited: dynamics.usersInvited,
         usersKicked: dynamics.usersKicked,
+        messagesPosted: dynamics.messagesPosted,
       };
-      if (dynamics.groupsCreated > 0 || dynamics.membersAdded > 0 || dynamics.membersRemoved > 0 || dynamics.usersKicked > 0) {
+      if (dynamics.groupsCreated > 0 || dynamics.membersAdded > 0 || dynamics.membersRemoved > 0 || 
+          dynamics.usersInvited > 0 || dynamics.usersKicked > 0 || dynamics.messagesPosted > 0) {
         logger.info('NPC group dynamics processed', dynamics, 'GameTick');
       }
     } catch (error) {
@@ -587,6 +592,7 @@ async function bootstrapNewsArticles(timestamp: Date, count: number): Promise<vo
       id: generateSnowflakeId(),
       type: 'article',
       content: article.summary,
+      fullContent: article.summary, // Bootstrap articles use summary as full content
       articleTitle: article.title,
       category: article.category,
       sentiment: article.sentiment,
@@ -821,8 +827,13 @@ Return your response as JSON in this exact format:
         return { posts: 1, articles: 0 };
 
       } else {
-        // Generate organization article
-        const prompt = `You are ${creator.name}, a news organization. Write a comprehensive news article about this prediction market: "${question.text}".
+        // Organization content - can be either article or regular post
+        // 10% chance to create article, 90% chance to create regular post
+        const shouldCreateArticle = Math.random() < 0.1;
+        
+        if (shouldCreateArticle) {
+          // Generate organization article
+          const prompt = `You are ${creator.name}, a news organization. Write a comprehensive news article about this prediction market: "${question.text}".
 
 Provide:
 - "title": a compelling headline (max 100 characters)
@@ -836,46 +847,89 @@ Return your response as JSON in this exact format:
   "article": "full article body here with \\n\\n between paragraphs"
 }`;
 
-        const response = await llm.generateJSON<{ title: string; summary: string; article: string }>(
-          prompt,
-          { 
-            properties: {
-              title: { type: 'string' },
-              summary: { type: 'string' },
-              article: { type: 'string' }
+          const response = await llm.generateJSON<{ title: string; summary: string; article: string }>(
+            prompt,
+            { 
+              properties: {
+                title: { type: 'string' },
+                summary: { type: 'string' },
+                article: { type: 'string' }
+              },
+              required: ['title', 'summary', 'article'] 
             },
-            required: ['title', 'summary', 'article'] 
-          },
-          { temperature: 0.7, maxTokens: 1000 }
-        );
+            { temperature: 0.7, maxTokens: 1000 }
+          );
 
-        if (!response.title || !response.summary || !response.article) {
-          logger.warn('Empty article generated', { creatorIndex: i, creatorName: creator.name }, 'GameTick');
-          return { posts: 0, articles: 0 };
+          if (!response.title || !response.summary || !response.article) {
+            logger.warn('Empty article generated', { creatorIndex: i, creatorName: creator.name }, 'GameTick');
+            return { posts: 0, articles: 0 };
+          }
+
+          const summary = response.summary.trim();
+          const articleBody = response.article.trim();
+
+          if (articleBody.length < 400) {
+            logger.warn('Article body too short', { creatorIndex: i, creatorName: creator.name, length: articleBody.length }, 'GameTick');
+            return { posts: 0, articles: 0 };
+          }
+
+          await db.createPostWithAllFields({
+            id: generateSnowflakeId(),
+            type: 'article',
+            content: summary,
+            fullContent: articleBody,
+            articleTitle: response.title,
+            authorId: creator.id,
+            gameId: 'continuous',
+            dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+            timestamp: timestampWithOffset,
+          });
+          
+          logger.debug('Created org article', { org: creator.name, timestamp: timestampWithOffset }, 'GameTick');
+          return { posts: 1, articles: 1 };
+        } else {
+          // Generate regular post from news organization (announcement, quick update, etc.)
+          const prompt = `You are ${creator.name}, a news organization. Post a brief social media update about this prediction market: "${question.text}".
+
+This should be a SHORT social media post (max 200 characters), not a full article. Examples:
+- "Breaking: New developments in [topic]"
+- "Just released: Our latest analysis on [topic]"
+- "What we're watching: [brief insight]"
+
+Return your response as JSON in this exact format:
+{
+  "post": "your brief post content here"
+}`;
+
+          const response = await llm.generateJSON<{ post: string }>(
+            prompt,
+            {
+              properties: {
+                post: { type: 'string' },
+              },
+              required: ['post'],
+            },
+            { temperature: 0.9, maxTokens: 200 }
+          );
+
+          if (!response.post) {
+            logger.warn('Empty org post generated', { creatorIndex: i, creatorName: creator.name }, 'GameTick');
+            return { posts: 0, articles: 0 };
+          }
+
+          await db.createPostWithAllFields({
+            id: generateSnowflakeId(),
+            type: 'post', // Regular post, not article
+            content: response.post,
+            authorId: creator.id,
+            gameId: 'continuous',
+            dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
+            timestamp: timestampWithOffset,
+          });
+          
+          logger.debug('Created org post', { org: creator.name, timestamp: timestampWithOffset }, 'GameTick');
+          return { posts: 1, articles: 0 };
         }
-
-        const summary = response.summary.trim();
-        const articleBody = response.article.trim();
-
-        if (articleBody.length < 400) {
-          logger.warn('Article body too short', { creatorIndex: i, creatorName: creator.name, length: articleBody.length }, 'GameTick');
-          return { posts: 0, articles: 0 };
-        }
-
-        await db.createPostWithAllFields({
-          id: generateSnowflakeId(),
-          type: 'article',
-          content: summary,
-          fullContent: articleBody,
-          articleTitle: response.title,
-          authorId: creator.id,
-          gameId: 'continuous',
-          dayNumber: Math.floor(Date.now() / (1000 * 60 * 60 * 24)),
-          timestamp: timestampWithOffset,
-        });
-        
-        logger.debug('Created org article', { org: creator.name, timestamp: timestampWithOffset }, 'GameTick');
-        return { posts: 1, articles: 1 };
       }
     } catch (error) {
       logger.error(

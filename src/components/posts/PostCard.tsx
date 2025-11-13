@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useState, useEffect, useMemo } from 'react';
+import { memo, useState, useEffect, useMemo, type MouseEvent, type KeyboardEvent } from 'react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -104,6 +104,11 @@ export const PostCard = memo(function PostCard({
       return null;
     }
     
+    // Guard against undefined/null content
+    if (!post.content || typeof post.content !== 'string') {
+      return null;
+    }
+    
     // Otherwise, try to parse from content
     const separatorPattern = /\n\n--- Reposted from @(.+?) ---\n/;
     const match = post.content.match(separatorPattern);
@@ -153,6 +158,34 @@ export const PostCard = memo(function PostCard({
   const displayAuthorProfileImageUrl = isSimpleRepost && effectivePost.originalAuthorProfileImageUrl ? effectivePost.originalAuthorProfileImageUrl : effectivePost.authorProfileImageUrl;
   
   const showVerifiedBadge = isNpcIdentifier(displayAuthorId);
+
+  const quotedPostId = effectivePost.originalPostId ?? post.originalPostId ?? null;
+
+  const handleQuotedPostClick = (event: MouseEvent<HTMLDivElement>) => {
+    // Always stop propagation to prevent parent card click
+    event.preventDefault();
+    event.stopPropagation();
+    
+    // Only navigate if we have a valid post ID
+    if (quotedPostId) {
+      router.push(`/post/${quotedPostId}`);
+    }
+  };
+
+  const handleQuotedPostKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+    
+    // Always stop propagation to prevent parent card click
+    event.preventDefault();
+    event.stopPropagation();
+    
+    // Only navigate if we have a valid post ID
+    if (quotedPostId) {
+      router.push(`/post/${quotedPostId}`);
+    }
+  };
 
   const handleClick = () => {
     if (onClick) {
@@ -326,38 +359,50 @@ export const PostCard = memo(function PostCard({
             className={cn(
               'rounded-xl border border-white/10 p-4',
               'bg-white/5',
-              effectivePost.originalPostId && 'hover:bg-white/[0.07] cursor-pointer',
-              !effectivePost.originalPostId && 'cursor-default',
-              'transition-colors'
+              'overflow-hidden transition-colors',
+              quotedPostId ? 'hover:bg-white/[0.07] cursor-pointer' : 'cursor-default'
             )}
-            onClick={(e) => {
-              if (effectivePost.originalPostId) {
-                e.stopPropagation();
-                router.push(`/post/${effectivePost.originalPostId}`);
-              }
-            }}
+            role={quotedPostId ? 'link' : undefined}
+            tabIndex={quotedPostId ? 0 : undefined}
+            aria-label={quotedPostId ? 'View quoted post' : undefined}
+            onClick={handleQuotedPostClick}
+            onKeyDown={handleQuotedPostKeyDown}
           >
             {/* Original post author */}
             <div className="flex items-start gap-3 mb-3">
-              <Avatar
-                id={effectivePost.originalAuthorId || ''}
-                name={effectivePost.originalAuthorName || ''}
-                type="actor"
-                size="sm"
-                src={effectivePost.originalAuthorProfileImageUrl || undefined}
-              />
+              <Link
+                href={getProfileUrl(effectivePost.originalAuthorId || '', effectivePost.originalAuthorUsername)}
+                className="shrink-0 hover:opacity-80 transition-opacity"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Avatar
+                  id={effectivePost.originalAuthorId || ''}
+                  name={effectivePost.originalAuthorName || ''}
+                  type="actor"
+                  size="sm"
+                  src={effectivePost.originalAuthorProfileImageUrl || undefined}
+                />
+              </Link>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-white truncate">
+                  <Link
+                    href={getProfileUrl(effectivePost.originalAuthorId || '', effectivePost.originalAuthorUsername)}
+                    className="font-semibold text-white hover:underline truncate"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {effectivePost.originalAuthorName}
-                  </span>
+                  </Link>
                   {effectivePost.originalAuthorId && isNpcIdentifier(effectivePost.originalAuthorId) && (
                     <VerifiedBadge size="sm" />
                   )}
                 </div>
-                <span className="text-white/50 text-sm">
+                <Link
+                  href={getProfileUrl(effectivePost.originalAuthorId || '', effectivePost.originalAuthorUsername)}
+                  className="text-white/50 text-sm hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   @{effectivePost.originalAuthorUsername || effectivePost.originalAuthorId}
-                </span>
+                </Link>
               </div>
             </div>
 

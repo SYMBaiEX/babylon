@@ -7,6 +7,7 @@
  * - NPCs leave groups
  * - NPCs kick members from their groups
  * - NPCs invite users to their groups
+ * - NPCs post messages to groups
  * 
  * Runs on game ticks to keep groups active and dynamic.
  */
@@ -14,6 +15,7 @@
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import { BabylonLLMClient } from '@/generator/llm/openai-client';
 
 export interface GroupDynamicsResult {
   groupsCreated: number;
@@ -21,6 +23,7 @@ export interface GroupDynamicsResult {
   membersRemoved: number;
   usersInvited: number;
   usersKicked: number;
+  messagesPosted: number;
 }
 
 export class NPCGroupDynamicsService {
@@ -28,7 +31,9 @@ export class NPCGroupDynamicsService {
   private static readonly FORM_NEW_GROUP_CHANCE = 0.05; // 5% chance per NPC
   private static readonly JOIN_GROUP_CHANCE = 0.10; // 10% chance if eligible
   private static readonly LEAVE_GROUP_CHANCE = 0.02; // 2% chance per membership
-  private static readonly KICK_INACTIVE_CHANCE = 0.15; // 15% chance to sweep
+  private static readonly POST_MESSAGE_CHANCE = 0.25; // 25% chance per active group
+  private static readonly INVITE_USER_CHANCE = 0.08; // 8% chance per group with space
+  private static readonly KICK_CHECK_CHANCE = 0.15; // 15% chance to check for kicks
   
   // Group size limits
   private static readonly MIN_GROUP_SIZE = 3;
@@ -46,10 +51,19 @@ export class NPCGroupDynamicsService {
       membersRemoved: 0,
       usersInvited: 0,
       usersKicked: 0,
+      messagesPosted: 0,
     };
 
     try {
       logger.info('Processing NPC group dynamics', undefined, 'NPCGroupDynamicsService');
+
+      // Initialize LLM client for message generation
+      let llm: BabylonLLMClient | null = null;
+      try {
+        llm = new BabylonLLMClient();
+      } catch (error) {
+        logger.warn('Failed to initialize LLM for group dynamics', { error }, 'NPCGroupDynamicsService');
+      }
 
       // 1. Form new groups
       const newGroups = await this.formNewGroups();
@@ -63,8 +77,18 @@ export class NPCGroupDynamicsService {
       const leaves = await this.processGroupLeaves();
       result.membersRemoved = leaves;
 
-      // 4. Kick inactive users from groups
-      const kicks = await this.kickInactiveUsers();
+      // 4. NPCs post messages to groups
+      if (llm) {
+        const messages = await this.postGroupMessages(llm);
+        result.messagesPosted = messages;
+      }
+
+      // 5. Invite users to groups
+      const invites = await this.inviteUsersToGroups();
+      result.usersInvited = invites;
+
+      // 6. Kick users based on weighted participation metrics
+      const kicks = await this.kickUsersWithWeightedLogic();
       result.usersKicked = kicks;
 
       const duration = Date.now() - startTime;
@@ -364,67 +388,611 @@ export class NPCGroupDynamicsService {
   }
 
   /**
-   * Kick inactive users from NPC groups
+   * Post messages to groups from NPCs
    */
-  private static async kickInactiveUsers(): Promise<number> {
-    let usersKicked = 0;
+  private static async postGroupMessages(llm: BabylonLLMClient): Promise<number> {
+    let messagesPosted = 0;
 
     try {
-      // Get groups with inactive user members
-      const memberships = await prisma.groupChatMembership.findMany({
+      // Get active group chats with NPC participants
+      const groups = await prisma.chat.findMany({
         where: {
-          isActive: true,
-          lastMessageAt: {
-            lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days inactive
+          isGroup: true,
+        },
+        include: {
+          ChatParticipant: true,
+          Message: {
+            orderBy: {
+              createdAt: 'desc',
+            },
+            take: 10,
+          },
+        },
+        take: 20, // Process up to 20 groups per tick
+      });
+
+      for (const group of groups) {
+        // Random chance to post
+        if (Math.random() > this.POST_MESSAGE_CHANCE) {
+          continue;
+        }
+
+        // Get user details for participants
+        const participantUserIds = group.ChatParticipant.map(p => p.userId);
+        const participantUsers = await prisma.user.findMany({
+          where: { id: { in: participantUserIds } },
+          select: { id: true, displayName: true, isActor: true },
+        });
+
+        // Get NPCs in this group
+        const npcUsers = participantUsers.filter(u => u.isActor);
+
+        if (npcUsers.length === 0) {
+          continue; // No NPCs in this group
+        }
+
+        // Pick a random NPC to post
+        const randomNpc = npcUsers[Math.floor(Math.random() * npcUsers.length)];
+        if (!randomNpc) continue;
+
+        // Get sender details for recent messages
+        const messageSenderIds = group.Message.slice(0, 5).map(m => m.senderId);
+        const senders = await prisma.user.findMany({
+          where: { id: { in: messageSenderIds } },
+          select: { id: true, displayName: true },
+        });
+        const senderMap = new Map(senders.map(s => [s.id, s.displayName || 'Someone']));
+
+        // Build conversation context from recent messages
+        const recentMessages = group.Message.slice(0, 5)
+          .reverse()
+          .map((m) => `${senderMap.get(m.senderId) || 'Someone'}: ${m.content}`)
+          .join('\n');
+
+        const contextPrompt = recentMessages
+          ? `Recent conversation:\n${recentMessages}\n\nRespond naturally to continue the conversation.`
+          : `Start a casual conversation in the group "${group.name}".`;
+
+        try {
+          // Generate message using LLM
+          const prompt = `You are ${randomNpc.displayName}, chatting in a group chat. ${contextPrompt}
+
+Write a brief, casual message (max 150 chars). Be natural and conversational.
+
+Return your response as JSON in this exact format:
+{
+  "message": "your message here"
+}`;
+
+          const response = await llm.generateJSON<{ message: string }>(
+            prompt,
+            {
+              properties: {
+                message: { type: 'string' },
+              },
+              required: ['message'],
+            },
+            { temperature: 0.9, maxTokens: 100 }
+          );
+
+          if (!response.message || response.message.length === 0) {
+            continue;
+          }
+
+          // Create the message
+          await prisma.message.create({
+            data: {
+              id: generateSnowflakeId(),
+              content: response.message.trim(),
+              chatId: group.id,
+              senderId: randomNpc.id,
+              createdAt: new Date(),
+            },
+          });
+
+          // Update chat updated timestamp
+          await prisma.chat.update({
+            where: { id: group.id },
+            data: { updatedAt: new Date() },
+          });
+
+          messagesPosted++;
+          logger.debug(`NPC posted to group`, {
+            npcId: randomNpc.id,
+            npcName: randomNpc.displayName,
+            chatId: group.id,
+            chatName: group.name,
+          }, 'NPCGroupDynamicsService');
+
+        } catch (error) {
+          logger.warn('Failed to generate NPC group message', {
+            error,
+            npcId: randomNpc.id,
+            chatId: group.id,
+          }, 'NPCGroupDynamicsService');
+        }
+      }
+    } catch (error) {
+      logger.error('Error posting group messages', { error }, 'NPCGroupDynamicsService');
+    }
+
+    return messagesPosted;
+  }
+
+  /**
+   * Calculate "reply guy" score for a user based on their interactions with NPCs
+   * 
+   * Rewards quality engagement, penalizes spam behavior
+   * 
+   * Scoring:
+   * - Follow: +5 points
+   * - Comment: +3 points (ideal: 1-3 per week)
+   * - Like: +1 point (ideal: 3-10 per week)
+   * - Repost: +4 points (ideal: 1-2 per week)
+   * 
+   * Penalties for excessive engagement (spam behavior):
+   * - Too many comments (>10/week): -2 per excess comment
+   * - Too many likes (>30/week): -0.5 per excess like
+   * - Too many reposts (>5/week): -3 per excess repost
+   */
+  private static async calculateReplyGuyScore(userId: string, npcIds: string[]): Promise<{
+    score: number;
+    breakdown: {
+      follows: number;
+      comments: number;
+      likes: number;
+      reposts: number;
+      penalties: number;
+    };
+  }> {
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    
+    let score = 0;
+    const breakdown = {
+      follows: 0,
+      comments: 0,
+      likes: 0,
+      reposts: 0,
+      penalties: 0,
+    };
+
+    try {
+      // 1. Check follows (all-time)
+      const followCount = await prisma.follow.count({
+        where: {
+          followerId: userId,
+          followingId: {
+            in: npcIds,
+          },
+        },
+      });
+      breakdown.follows = followCount * 5;
+      score += breakdown.follows;
+
+      // 2. Count comments on NPC posts (last 7 days)
+      const commentCount = await prisma.post.count({
+        where: {
+          authorId: userId,
+          commentOnPostId: {
+            not: null,
+          },
+          Post_Post_commentOnPostIdToPost: {
+            authorId: {
+              in: npcIds,
+            },
+          },
+          createdAt: {
+            gte: oneWeekAgo,
           },
         },
       });
 
-      for (const membership of memberships) {
-        // Check if user is a real user (not NPC)
-        const user = await prisma.user.findUnique({
-          where: { id: membership.userId },
+      // Ideal: 1-3 comments per week
+      if (commentCount >= 1 && commentCount <= 3) {
+        breakdown.comments = commentCount * 3;
+        score += breakdown.comments;
+      } else if (commentCount > 3 && commentCount <= 10) {
+        // Still okay, but diminishing returns
+        breakdown.comments = commentCount * 2;
+        score += breakdown.comments;
+      } else if (commentCount > 10) {
+        // Spam behavior - penalty
+        const goodComments = 10 * 2; // First 10 get points
+        const excessComments = commentCount - 10;
+        const penalty = excessComments * -2;
+        breakdown.comments = goodComments;
+        breakdown.penalties += penalty;
+        score += goodComments + penalty;
+      }
+
+      // 3. Count likes on NPC posts (last 7 days)
+      const likeCount = await prisma.reaction.count({
+        where: {
+          userId: userId,
+          type: 'like',
+          Post: {
+            authorId: {
+              in: npcIds,
+            },
+          },
+          createdAt: {
+            gte: oneWeekAgo,
+          },
+        },
+      });
+
+      // Ideal: 3-10 likes per week
+      if (likeCount >= 3 && likeCount <= 10) {
+        breakdown.likes = likeCount * 1;
+        score += breakdown.likes;
+      } else if (likeCount > 10 && likeCount <= 30) {
+        // Moderate engagement
+        breakdown.likes = likeCount * 0.5;
+        score += breakdown.likes;
+      } else if (likeCount > 30) {
+        // Excessive liking - penalty
+        const goodLikes = 30 * 0.5;
+        const excessLikes = likeCount - 30;
+        const penalty = excessLikes * -0.5;
+        breakdown.likes = goodLikes;
+        breakdown.penalties += penalty;
+        score += goodLikes + penalty;
+      } else if (likeCount > 0 && likeCount < 3) {
+        // Some engagement is better than none
+        breakdown.likes = likeCount * 0.5;
+        score += breakdown.likes;
+      }
+
+      // 4. Count reposts/shares of NPC posts (last 7 days)
+      const repostCount = await prisma.share.count({
+        where: {
+          userId: userId,
+          Post: {
+            authorId: {
+              in: npcIds,
+            },
+          },
+          createdAt: {
+            gte: oneWeekAgo,
+          },
+        },
+      });
+
+      // Ideal: 1-2 reposts per week
+      if (repostCount >= 1 && repostCount <= 2) {
+        breakdown.reposts = repostCount * 4;
+        score += breakdown.reposts;
+      } else if (repostCount > 2 && repostCount <= 5) {
+        // Moderate reposting
+        breakdown.reposts = repostCount * 2;
+        score += breakdown.reposts;
+      } else if (repostCount > 5) {
+        // Excessive reposting - penalty
+        const goodReposts = 5 * 2;
+        const excessReposts = repostCount - 5;
+        const penalty = excessReposts * -3;
+        breakdown.reposts = goodReposts;
+        breakdown.penalties += penalty;
+        score += goodReposts + penalty;
+      }
+
+    } catch (error) {
+      logger.warn('Error calculating reply guy score', { error, userId }, 'NPCGroupDynamicsService');
+    }
+
+    return { score, breakdown };
+  }
+
+  /**
+   * Invite users to NPC groups based on quality engagement
+   * 
+   * Users earn invitation chances by:
+   * - Following NPCs
+   * - Commenting thoughtfully (not spamming)
+   * - Liking posts moderately
+   * - Reposting occasionally
+   * 
+   * Excessive engagement (spam) reduces invitation likelihood
+   */
+  private static async inviteUsersToGroups(): Promise<number> {
+    let usersInvited = 0;
+
+    try {
+      // Get groups with space for more members
+      const groups = await prisma.chat.findMany({
+        where: {
+          isGroup: true,
+        },
+        include: {
+          ChatParticipant: {
+            select: {
+              userId: true,
+            },
+          },
+        },
+      });
+
+      for (const group of groups) {
+        // Check if group has space
+        if (group.ChatParticipant.length >= this.MAX_GROUP_SIZE) {
+          continue;
+        }
+
+        // Random chance to invite
+        if (Math.random() > this.INVITE_USER_CHANCE) {
+          continue;
+        }
+
+        const currentMemberIds = new Set(group.ChatParticipant.map(p => p.userId));
+
+        // Get NPCs in this group (for scoring user interactions)
+        const npcMemberIds = await prisma.actor.findMany({
+          where: {
+            id: {
+              in: Array.from(currentMemberIds),
+            },
+            hasPool: true,
+          },
           select: {
             id: true,
-            isActor: true,
           },
         });
 
-        // Only kick real users, not NPCs
-        if (user && !user.isActor) {
-          // Random chance to kick
-          if (Math.random() < this.KICK_INACTIVE_CHANCE) {
-            // Deactivate membership
-            await prisma.groupChatMembership.update({
-              where: {
-                id: membership.id,
-              },
-              data: {
-                isActive: false,
-                removedAt: new Date(),
-                sweepReason: 'Inactive for 7+ days',
-              },
-            });
+        if (npcMemberIds.length === 0) {
+          continue; // No NPCs in group
+        }
 
-            // Remove from chat participants
-            await prisma.chatParticipant.deleteMany({
-              where: {
-                chatId: membership.chatId,
-                userId: membership.userId,
-              },
-            });
+        const npcIds = npcMemberIds.map(npc => npc.id);
 
-            usersKicked++;
-            logger.info(`User kicked from NPC group`, {
-              userId: membership.userId,
-              chatId: membership.chatId,
-              reason: 'Inactive for 7+ days',
-            }, 'NPCGroupDynamicsService');
+        // Get active real users (not NPCs) who aren't in this group
+        const potentialInvites = await prisma.user.findMany({
+          where: {
+            isActor: false,
+            id: {
+              notIn: Array.from(currentMemberIds),
+            },
+            // Only invite users with some activity (at least one share)
+            Share: {
+              some: {},
+            },
+          },
+          take: 30, // Increased to allow for better scoring pool
+        });
+
+        if (potentialInvites.length === 0) {
+          continue;
+        }
+
+        // Calculate "reply guy" scores for all candidates
+        const scoredUsers = await Promise.all(
+          potentialInvites.map(async (user) => {
+            const { score, breakdown } = await this.calculateReplyGuyScore(user.id, npcIds);
+            return {
+              user,
+              score,
+              breakdown,
+            };
+          })
+        );
+
+        // Filter out users with negative scores (spammers)
+        const eligibleUsers = scoredUsers.filter(su => su.score > 0);
+
+        if (eligibleUsers.length === 0) {
+          continue;
+        }
+
+        // Sort by score descending (best reply guys first)
+        eligibleUsers.sort((a, b) => b.score - a.score);
+
+        // Pick from top 5 candidates with weighted randomness
+        // Higher scores = higher chance to be selected
+        const topCandidates = eligibleUsers.slice(0, 5);
+        const totalScore = topCandidates.reduce((sum, c) => sum + c.score, 0);
+        
+        if (totalScore === 0) {
+          continue;
+        }
+
+        // Weighted random selection
+        let randomValue = Math.random() * totalScore;
+        let selectedCandidate = topCandidates[0];
+        
+        for (const candidate of topCandidates) {
+          randomValue -= candidate.score;
+          if (randomValue <= 0) {
+            selectedCandidate = candidate;
+            break;
+          }
+        }
+
+        if (!selectedCandidate) continue;
+
+        // Get an NPC admin from the group to send the invite
+        const invitingNpc = npcMemberIds[0];
+        if (!invitingNpc) continue;
+
+        // Get full NPC data for logging
+        const npcData = await prisma.actor.findUnique({
+          where: { id: invitingNpc.id },
+          select: { name: true },
+        });
+
+        // Create the invitation
+        await prisma.userGroupInvite.create({
+          data: {
+            id: generateSnowflakeId(),
+            groupId: group.id,
+            invitedUserId: selectedCandidate.user.id,
+            invitedBy: invitingNpc.id,
+            status: 'pending',
+            message: `Join our group chat "${group.name}"!`,
+            invitedAt: new Date(),
+          },
+        });
+
+        usersInvited++;
+        logger.info(`User invited to NPC group (reply guy score)`, {
+          userId: selectedCandidate.user.id,
+          userName: selectedCandidate.user.displayName,
+          chatId: group.id,
+          chatName: group.name,
+          invitedBy: npcData?.name,
+          replyGuyScore: selectedCandidate.score,
+          breakdown: selectedCandidate.breakdown,
+        }, 'NPCGroupDynamicsService');
+      }
+    } catch (error) {
+      logger.error('Error inviting users to groups', { error }, 'NPCGroupDynamicsService');
+    }
+
+    return usersInvited;
+  }
+
+  /**
+   * Kick users with weighted randomness based on participation
+   * 
+   * Calculates kick probability based on:
+   * - Never posted: 0.9 probability
+   * - Low participation: 0.3-0.6 probability (based on message count)
+   * - Dominating conversation: 0.3-0.9 probability (based on message ratio)
+   */
+  private static async kickUsersWithWeightedLogic(): Promise<number> {
+    let usersKicked = 0;
+
+    try {
+      // Only check for kicks some of the time
+      if (Math.random() > this.KICK_CHECK_CHANCE) {
+        return 0;
+      }
+
+      // Get all group chats
+      const groups = await prisma.chat.findMany({
+        where: {
+          isGroup: true,
+        },
+        include: {
+          ChatParticipant: true,
+          Message: {
+            where: {
+              createdAt: {
+                gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
+              },
+            },
+            select: {
+              senderId: true,
+            },
+          },
+        },
+      });
+
+      for (const group of groups) {
+        // Get user details for participants
+        const participantUserIds = group.ChatParticipant.map(p => p.userId);
+        const participantUsers = await prisma.user.findMany({
+          where: { 
+            id: { in: participantUserIds },
+            isActor: false, // Only consider real users for kicking
+          },
+          select: { id: true, displayName: true, isActor: true },
+        });
+        
+        if (participantUsers.length === 0) continue;
+
+        // Calculate message counts for all users in the group
+        const totalMessages = group.Message.length;
+        const messageCounts = new Map<string, number>();
+        
+        for (const msg of group.Message) {
+          messageCounts.set(msg.senderId, (messageCounts.get(msg.senderId) || 0) + 1);
+        }
+
+        // Calculate kick probabilities for each user
+        for (const participant of participantUsers) {
+          const userId = participant.id;
+          const userMessageCount = messageCounts.get(userId) || 0;
+          
+          let kickProbability = 0;
+          let reason = '';
+
+          // Case 1: Never posted
+          if (userMessageCount === 0) {
+            kickProbability = 0.90; // Very high chance
+            reason = 'Never participated in conversation';
+          }
+          // Case 2: Low participation (only if group has significant activity)
+          else if (userMessageCount < 3 && totalMessages > 20) {
+            // Scale from 0.3 to 0.6 based on how few messages
+            kickProbability = 0.6 - (userMessageCount / 3) * 0.3;
+            reason = `Low participation (${userMessageCount} messages in last 7 days)`;
+          }
+          // Case 3: Dominating conversation (only if group has enough messages to judge)
+          else if (totalMessages > 10) {
+            const userRatio = userMessageCount / totalMessages;
+            
+            // If user has more than 40% of all messages, consider it dominating
+            if (userRatio > 0.4) {
+              // Scale from 0.3 to 0.9 as ratio increases from 0.4 to 1.0
+              kickProbability = 0.3 + (userRatio - 0.4) / 0.6 * 0.6;
+              reason = `Dominating conversation (${Math.round(userRatio * 100)}% of messages)`;
+            }
+            // Otherwise, user has good participation (3+ messages, <= 40% of total)
+            // kickProbability remains 0 - this is the safe zone!
+          }
+          // Case 4: Mid participation in smaller groups
+          else {
+            // If we get here: userMessageCount >= 3 OR totalMessages <= 20
+            // These are users with reasonable participation - kickProbability stays 0
+          }
+
+          // Apply the probability (make kicks rare per tick)
+          if (kickProbability > 0 && Math.random() < kickProbability * 0.05) { // 5% multiplier to make it rare per tick
+            try {
+              // Remove from chat participants
+              await prisma.chatParticipant.deleteMany({
+                where: {
+                  chatId: group.id,
+                  userId: userId,
+                },
+              });
+
+              // If GroupChatMembership exists, mark as removed
+              await prisma.groupChatMembership.updateMany({
+                where: {
+                  chatId: group.id,
+                  userId: userId,
+                },
+                data: {
+                  isActive: false,
+                  removedAt: new Date(),
+                  sweepReason: reason,
+                },
+              });
+
+              usersKicked++;
+              logger.info(`User kicked from group with weighted logic`, {
+                userId,
+                userName: participant.displayName,
+                chatId: group.id,
+                chatName: group.name,
+                reason,
+                kickProbability: kickProbability.toFixed(2),
+                messageCount: userMessageCount,
+                totalMessages,
+              }, 'NPCGroupDynamicsService');
+
+            } catch (error) {
+              logger.warn('Failed to kick user from group', {
+                error,
+                userId,
+                chatId: group.id,
+              }, 'NPCGroupDynamicsService');
+            }
           }
         }
       }
     } catch (error) {
-      logger.error('Error kicking inactive users', { error }, 'NPCGroupDynamicsService');
+      logger.error('Error in weighted kick logic', { error }, 'NPCGroupDynamicsService');
     }
 
     return usersKicked;

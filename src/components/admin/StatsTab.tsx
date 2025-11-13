@@ -80,14 +80,28 @@ interface SystemStats {
   }>
 }
 
+interface FeeStats {
+  totalFeesCollected: number
+  totalUserFees: number
+  totalNPCFees: number
+  totalPlatformFees: number
+  totalReferrerFees: number
+  totalTrades: number
+}
+
 export function StatsTab() {
   const [stats, setStats] = useState<SystemStats | null>(null)
+  const [feeStats, setFeeStats] = useState<FeeStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchStats()
-    const interval = setInterval(fetchStats, 30000) // Refresh every 30s
+    fetchFeeStats()
+    const interval = setInterval(() => {
+      fetchStats()
+      fetchFeeStats()
+    }, 30000) // Refresh every 30s
     return () => clearInterval(interval)
   }, [])
 
@@ -102,6 +116,17 @@ export function StatsTab() {
       setError(err instanceof Error ? err.message : 'Failed to load stats')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchFeeStats = async () => {
+    try {
+      const response = await fetch('/api/admin/fees')
+      if (!response.ok) return // Fail silently for fees
+      const data = await response.json()
+      setFeeStats(data.platformStats)
+    } catch {
+      // Fail silently for fee stats
     }
   }
 
@@ -264,6 +289,34 @@ export function StatsTab() {
           </div>
         </div>
       </div>
+
+      {/* Fee Stats (if available) */}
+      {feeStats && (
+        <div className="bg-gradient-to-br from-green-500/10 to-blue-500/10 border border-green-500/20 rounded-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-muted-foreground uppercase tracking-wide">Trading Fees (0.1%)</h2>
+            <DollarSign className="w-6 h-6 text-green-500" />
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <div className="text-sm text-muted-foreground mb-1">Total Collected</div>
+              <div className="text-2xl font-bold text-green-500">{formatCurrency(feeStats.totalFeesCollected.toString())}</div>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground mb-1">Platform Revenue</div>
+              <div className="text-xl font-bold">{formatCurrency(feeStats.totalPlatformFees.toString())}</div>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground mb-1">Referral Payouts</div>
+              <div className="text-xl font-bold">{formatCurrency(feeStats.totalReferrerFees.toString())}</div>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground mb-1">Trades with Fees</div>
+              <div className="text-xl font-bold">{formatNumber(feeStats.totalTrades)}</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Secondary Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

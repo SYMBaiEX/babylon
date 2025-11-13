@@ -16,6 +16,8 @@ import { ensureUserForAuth } from '@/lib/users/ensure-user';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { trackServerEvent } from '@/lib/posthog/server';
+import { checkRateLimitAndDuplicates, RATE_LIMIT_CONFIGS, DUPLICATE_DETECTION_CONFIGS } from '@/lib/rate-limiting';
+import { notifyMention } from '@/lib/services/notification-service';
 
 /**
  * Safely convert a date value to ISO string
@@ -424,13 +426,16 @@ export async function GET(request: Request) {
         let repostMetadata = {};
         
         if (repostData) {
-          // Look up original author by username
+          // Look up original author by username (could be User, Actor, or Organization)
           const originalAuthor = await prisma.user.findUnique({
             where: { username: repostData.originalAuthorUsername },
             select: { id: true, username: true, displayName: true, profileImageUrl: true },
           }) || await prisma.actor.findFirst({
             where: { id: repostData.originalAuthorUsername },
             select: { id: true, name: true, profileImageUrl: true },
+          }) || await prisma.organization.findFirst({
+            where: { id: repostData.originalAuthorUsername },
+            select: { id: true, name: true, imageUrl: true },
           });
           
           if (originalAuthor) {
@@ -447,15 +452,31 @@ export async function GET(request: Request) {
               select: { postId: true },
             });
             
+            let originalPostId = shareRecord?.postId || null;
+            
+            // If Share lookup failed, try to find the original post by content and author
+            if (!originalPostId && repostData.originalContent) {
+              const originalPost = await prisma.post.findFirst({
+                where: {
+                  authorId: originalAuthor.id,
+                  content: repostData.originalContent,
+                  deletedAt: null,
+                },
+                orderBy: { timestamp: 'desc' },
+                select: { id: true },
+              });
+              originalPostId = originalPost?.id || null;
+            }
+            
             repostMetadata = {
               isRepost: true,
               quoteComment: repostData.quoteComment,
               originalContent: repostData.originalContent,
-              originalPostId: shareRecord?.postId || null,
+              originalPostId: originalPostId,
               originalAuthorId: originalAuthor.id,
               originalAuthorName: 'name' in originalAuthor ? originalAuthor.name : (originalAuthor.displayName || originalAuthor.username),
               originalAuthorUsername: 'username' in originalAuthor ? originalAuthor.username : originalAuthor.id,
-              originalAuthorProfileImageUrl: originalAuthor.profileImageUrl || null,
+              originalAuthorProfileImageUrl: 'imageUrl' in originalAuthor ? originalAuthor.imageUrl : (originalAuthor.profileImageUrl || null),
             };
           } else {
             // Even if we can't find the original author, still mark as repost
@@ -577,6 +598,17 @@ export async function POST(request: NextRequest) {
       return errorResponse('Post content must be 280 characters or less', 400);
     }
 
+    // Apply rate limiting and duplicate detection
+    const rateLimitError = checkRateLimitAndDuplicates(
+      authUser.userId,
+      content,
+      RATE_LIMIT_CONFIGS.CREATE_POST,
+      DUPLICATE_DETECTION_CONFIGS.POST
+    );
+    if (rateLimitError) {
+      return rateLimitError;
+    }
+
     const fallbackDisplayName = authUser.walletAddress
       ? `${authUser.walletAddress.slice(0, 6)}...${authUser.walletAddress.slice(-4)}`
       : 'Anonymous';
@@ -633,6 +665,50 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       logger.error('Failed to broadcast post to SSE:', error, 'POST /api/posts');
       // Don't fail the request if SSE broadcast fails
+    }
+
+    // Extract and notify mentioned users (@username)
+    try {
+      const mentions = content.match(/@(\w+)/g);
+      if (mentions && mentions.length > 0) {
+        const usernames = [...new Set(mentions.map(m => m.substring(1)))]; // Remove @ and deduplicate
+        
+        // Look up users by username
+        const mentionedUsers = await prisma.user.findMany({
+          where: {
+            username: { in: usernames },
+          },
+          select: { id: true, username: true },
+        });
+
+        // Send notifications to mentioned users
+        await Promise.all(
+          mentionedUsers.map(mentionedUser =>
+            notifyMention(
+              mentionedUser.id,
+              canonicalUserId,
+              post.id,
+              undefined // No commentId for post mentions
+            ).catch(error => {
+              logger.warn('Failed to send mention notification', { 
+                error, 
+                mentionedUserId: mentionedUser.id,
+                mentionedUsername: mentionedUser.username,
+                postId: post.id
+              }, 'POST /api/posts');
+            })
+          )
+        );
+
+        logger.info('Sent mention notifications', { 
+          postId: post.id, 
+          mentionCount: mentionedUsers.length,
+          mentionedUsernames: mentionedUsers.map(u => u.username)
+        }, 'POST /api/posts');
+      }
+    } catch (error) {
+      logger.error('Failed to process mentions:', error, 'POST /api/posts');
+      // Don't fail the request if mention processing fails
     }
 
     // Track post creation with PostHog

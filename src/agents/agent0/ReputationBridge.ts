@@ -12,10 +12,10 @@ import { logger } from '@/lib/logger'
 import type { IReputationBridge, AggregatedReputation } from './types'
 
 export class ReputationBridge implements IReputationBridge {
-  private erc8004Registry: RegistryClient | null
+  private erc8004Registry?: RegistryClient
   private subgraphClient: SubgraphClient
   
-  constructor(erc8004Registry: RegistryClient | null = null) {
+  constructor(erc8004Registry?: RegistryClient) {
     this.erc8004Registry = erc8004Registry
     this.subgraphClient = new SubgraphClient()
   }

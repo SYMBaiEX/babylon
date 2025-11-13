@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { useIdentityToken } from '@privy-io/react-auth';
+import { useIdentityToken, usePrivy } from '@privy-io/react-auth';
 
 import {
   type ImportedProfileData,
@@ -24,7 +24,7 @@ import { type User as StoreUser, useAuthStore } from '@/stores/authStore';
 
 import { clearReferralCode, getReferralCode } from './ReferralCaptureProvider';
 
-type OnboardingStage = 'SOCIAL_IMPORT' | 'PROFILE' | 'ONCHAIN' | 'COMPLETED';
+type OnboardingStage = 'PROFILE' | 'ONCHAIN' | 'COMPLETED';
 
 function extractErrorMessage(error: unknown): string {
   if (!error) return 'Unknown error';
@@ -53,12 +53,14 @@ export function OnboardingProvider({
     refresh,
   } = useAuth();
 
+  const { user: privyUser } = usePrivy();
+
   const { setUser, setNeedsOnboarding, setNeedsOnchain } = useAuthStore();
   const { identityToken } = useIdentityToken();
   const { registerAgent, smartWalletAddress, smartWalletReady } =
     useRegisterAgentTx();
 
-  const [stage, setStage] = useState<OnboardingStage>('SOCIAL_IMPORT');
+  const [stage, setStage] = useState<OnboardingStage>('PROFILE');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submittedProfile, setSubmittedProfile] =
@@ -139,7 +141,6 @@ export function OnboardingProvider({
       needsOnboarding ||
         needsOnchain ||
         stage === 'ONCHAIN' ||
-        stage === 'SOCIAL_IMPORT' ||
         stage === 'PROFILE'
     );
   }, [
@@ -155,7 +156,7 @@ export function OnboardingProvider({
 
   useEffect(() => {
     if (!authenticated) {
-      setStage('SOCIAL_IMPORT');
+      setStage('PROFILE');
       setSubmittedProfile(null);
       setError(null);
       setUserDismissed(false); // Reset dismissed state on logout
@@ -169,11 +170,8 @@ export function OnboardingProvider({
     }
 
     if (needsOnboarding) {
-      // Don't reset to SOCIAL_IMPORT if user has already progressed past it
-      if (!hasProgressedPastSocialImport) {
-        setStage('SOCIAL_IMPORT');
-        setImportedProfileData(null);
-      }
+      // Start directly at profile setup
+      setStage('PROFILE');
       return;
     }
 
@@ -192,7 +190,7 @@ export function OnboardingProvider({
     }
 
     if (stage !== 'COMPLETED') {
-      setStage('SOCIAL_IMPORT');
+      setStage('PROFILE');
       setSubmittedProfile(null);
       setError(null);
       setImportedProfileData(null);
@@ -209,12 +207,119 @@ export function OnboardingProvider({
     hasProgressedPastSocialImport,
   ]);
 
-  // Listen for social import callbacks from URL parameters
+  // Automatically extract social profile data from Privy user when authenticating
+  useEffect(() => {
+    if (!authenticated || !privyUser || !needsOnboarding) return;
+    if (importedProfileData) return; // Already have imported data
+    if (loadingProfile) return; // Wait for profile to load
+
+    const userWithFarcaster = privyUser as typeof privyUser & {
+      farcaster?: { 
+        username?: string; 
+        displayName?: string;
+        bio?: string;
+        pfp?: string;
+        pfpUrl?: string;
+        fid?: number;
+        url?: string;
+        ownerAddress?: string;
+        verifications?: string[];
+      };
+    };
+    const userWithTwitter = privyUser as typeof privyUser & {
+      twitter?: { 
+        username?: string;
+        name?: string;
+        profilePictureUrl?: string;
+        subject?: string; // Twitter user ID
+      };
+    };
+
+    // Check if user authenticated with Farcaster
+    if (userWithFarcaster.farcaster) {
+      const fc = userWithFarcaster.farcaster;
+      
+      // Use pfpUrl or pfp, whichever is available
+      const profileImage = fc.pfpUrl || fc.pfp || null;
+      
+      const profileData: ImportedProfileData = {
+        platform: 'farcaster',
+        username: fc.username || fc.displayName?.toLowerCase().replace(/\s+/g, '_') || 'farcaster_user',
+        displayName: fc.displayName || fc.username || 'Farcaster User',
+        bio: fc.bio || undefined,
+        profileImageUrl: profileImage,
+        farcasterFid: fc.fid?.toString(),
+      };
+
+      logger.info(
+        'Auto-imported Farcaster profile from Privy - will award points on signup',
+        { 
+          username: profileData.username,
+          displayName: profileData.displayName,
+          fid: fc.fid,
+          hasBio: !!profileData.bio,
+          hasProfileImage: !!profileImage,
+          rewardEligible: true,
+          expectedPoints: 1000 // FARCASTER_LINK points
+        },
+        'OnboardingProvider'
+      );
+
+      setImportedProfileData(profileData);
+      setHasProgressedPastSocialImport(true);
+      return;
+    }
+
+    // Check if user authenticated with Twitter
+    if (userWithTwitter.twitter) {
+      const tw = userWithTwitter.twitter;
+      
+      // Upgrade Twitter profile image to higher resolution if available
+      let profileImageUrl = tw.profilePictureUrl;
+      if (profileImageUrl && profileImageUrl.includes('_normal')) {
+        profileImageUrl = profileImageUrl.replace('_normal', '_400x400');
+      }
+      
+      const profileData: ImportedProfileData = {
+        platform: 'twitter',
+        username: tw.username || 'twitter_user',
+        displayName: tw.name || tw.username || 'Twitter User',
+        bio: undefined, // Twitter bio not directly available from Privy, would need separate API call
+        profileImageUrl: profileImageUrl || null,
+        twitterId: tw.subject || tw.username, // Use subject (Twitter user ID) if available
+      };
+
+      logger.info(
+        'Auto-imported Twitter profile from Privy - will award points on signup',
+        { 
+          username: profileData.username,
+          displayName: profileData.displayName,
+          twitterId: profileData.twitterId,
+          hasProfileImage: !!profileImageUrl,
+          rewardEligible: true,
+          expectedPoints: 1000 // TWITTER_LINK points
+        },
+        'OnboardingProvider'
+      );
+
+      setImportedProfileData(profileData);
+      setHasProgressedPastSocialImport(true);
+      return;
+    }
+    
+    // For wallet-only logins, don't set imported data - let the generated profile flow handle it
+    logger.info(
+      'User authenticated with wallet only - will use generated profile',
+      { userId: privyUser.id },
+      'OnboardingProvider'
+    );
+  }, [authenticated, privyUser, needsOnboarding, importedProfileData, loadingProfile]);
+
+  // Listen for social import callbacks from URL parameters (for manual social linking)
   useEffect(() => {
     if (
       typeof window === 'undefined' ||
-      !authenticated ||
-      stage !== 'SOCIAL_IMPORT'
+      !authenticated
     )
       return;
 
@@ -228,7 +333,7 @@ export function OnboardingProvider({
           decodeURIComponent(dataParam)
         ) as ImportedProfileData;
         logger.info(
-          'Social profile data received',
+          'Social profile data received from URL',
           { platform: socialImport },
           'OnboardingProvider'
         );
@@ -528,98 +633,11 @@ export function OnboardingProvider({
     );
     setNeedsOnchain(false);
     setUserDismissed(true);
-    setStage('SOCIAL_IMPORT');
+    setStage('PROFILE');
     setSubmittedProfile(null);
     setError(null);
     setImportedProfileData(null);
   }, [user, setNeedsOnchain]);
-
-  const handleSocialImport = useCallback(
-    async (platform: 'twitter' | 'farcaster') => {
-      setIsSubmitting(true);
-      setError(null);
-
-      try {
-        logger.info(
-          'Initiating social import',
-          { platform },
-          'OnboardingProvider'
-        );
-
-        if (platform === 'twitter') {
-          // Redirect to Twitter OAuth for onboarding
-          window.location.href = '/api/auth/onboarding/twitter/initiate';
-        } else if (platform === 'farcaster') {
-          // Use Farcaster popup flow
-          try {
-            const { openFarcasterOnboardingPopup } = await import(
-              '@/lib/farcaster-onboarding'
-            );
-
-            if (!user?.id) {
-              throw new Error('User ID not available');
-            }
-
-            const profile = await openFarcasterOnboardingPopup(user.id);
-
-            // Convert to ImportedProfileData format
-            const profileData: ImportedProfileData = {
-              platform: 'farcaster',
-              username: profile.username,
-              displayName: profile.displayName || profile.username,
-              bio: profile.bio,
-              profileImageUrl: profile.pfpUrl,
-              farcasterFid: profile.fid.toString(),
-            };
-
-            logger.info(
-              'Farcaster profile imported',
-              { username: profile.username, fid: profile.fid },
-              'OnboardingProvider'
-            );
-
-            setImportedProfileData(profileData);
-            setHasProgressedPastSocialImport(true);
-            setStage('PROFILE');
-            setIsSubmitting(false);
-          } catch (farcasterError) {
-            const errorMessage =
-              farcasterError instanceof Error
-                ? farcasterError.message
-                : 'Failed to authenticate with Farcaster';
-
-            logger.error(
-              'Farcaster import failed',
-              { error: farcasterError },
-              'OnboardingProvider'
-            );
-            setError(errorMessage);
-            setIsSubmitting(false);
-          }
-        }
-      } catch (err) {
-        logger.error(
-          'Failed to initiate social import',
-          { platform, error: err },
-          'OnboardingProvider'
-        );
-        setError('Failed to connect. Please try again.');
-        setIsSubmitting(false);
-      }
-    },
-    [user]
-  );
-
-  const handleSkipSocialImport = useCallback(() => {
-    logger.info(
-      'User skipped social import',
-      { userId: user?.id },
-      'OnboardingProvider'
-    );
-    setHasProgressedPastSocialImport(true);
-    setStage('PROFILE');
-    setImportedProfileData(null);
-  }, [user]);
 
   const handleClose = useCallback(() => {
     logger.info(
@@ -634,7 +652,7 @@ export function OnboardingProvider({
     );
 
     setUserDismissed(true);
-    setStage('SOCIAL_IMPORT');
+    setStage('PROFILE');
     setSubmittedProfile(null);
     setError(null);
     setImportedProfileData(null);
@@ -664,8 +682,6 @@ export function OnboardingProvider({
           onSubmitProfile={handleProfileSubmit}
           onRetryOnchain={handleRetryOnchain}
           onSkipOnchain={handleSkipOnchain}
-          onSocialImport={handleSocialImport}
-          onSkipSocialImport={handleSkipSocialImport}
           onClose={handleClose}
           user={user}
           importedData={importedProfileData}

@@ -23,6 +23,7 @@ import { fileURLToPath } from 'url';
 
 import { clearEngineInstance, setEngineInstance } from '@/lib/engine';
 import { logger } from '@/lib/logger';
+import { z } from 'zod';
 
 import { GameEngine } from '../engine/GameEngine';
 import { registerBabylonGame } from '../lib/babylon-registry-init';
@@ -274,7 +275,7 @@ async function startAgents(): Promise<void> {
   });
 
   // Wait a bit to see if agents start successfully
-  await new Promise((resolve) => setTimeout(resolve, 5000));
+  await new Promise<void>((resolve) => setTimeout(resolve, 5000));
 
   logger.info('Agent spawn process started', undefined, 'CLI');
 }
@@ -292,10 +293,11 @@ function isDirectExecution(): boolean {
   }
 }
 
-const invokedDirectly =
-  (import.meta as unknown as { main?: boolean })?.main === true
-    ? true
-    : isDirectExecution();
+const isDirectRun = z.object({
+  main: z.boolean().optional(),
+}).safeParse(import.meta).success;
+
+const invokedDirectly = isDirectRun || isDirectExecution();
 
 if (invokedDirectly) {
   main().catch((error) => {

@@ -2,6 +2,7 @@
 
 import { CreatePostModal } from '@/components/posts/CreatePostModal'
 import { PostCard } from '@/components/posts/PostCard'
+import { ArticleCard } from '@/components/articles/ArticleCard'
 import { FeedToggle } from '@/components/shared/FeedToggle'
 import { InviteFriendsBanner } from '@/components/shared/InviteFriendsBanner'
 import { PageContainer } from '@/components/shared/PageContainer'
@@ -434,7 +435,12 @@ function FeedPageContent() {
 
                     const postData = {
                       id: post.id,
+                      type: ('type' in post ? post.type : undefined) || undefined,
                       content: post.content,
+                      articleTitle: ('articleTitle' in post ? post.articleTitle : null) || null,
+                      byline: ('byline' in post ? post.byline : null) || null,
+                      biasScore: ('biasScore' in post ? post.biasScore : null) ?? null,
+                      category: ('category' in post ? post.category : null) || null,
                       authorId,
                       authorName,
                       authorUsername: ('authorUsername' in post ? post.authorUsername : null) || null,
@@ -445,14 +451,30 @@ function FeedPageContent() {
                       shareCount: ('shareCount' in post ? (post.shareCount as number) : 0) || 0,
                       isLiked: ('isLiked' in post ? (post.isLiked as boolean) : false) || false,
                       isShared: ('isShared' in post ? (post.isShared as boolean) : false) || false,
+                      // Repost metadata
+                      isRepost: ('isRepost' in post ? post.isRepost : false) || false,
+                      originalPostId: ('originalPostId' in post ? post.originalPostId : null) || null,
+                      originalAuthorId: ('originalAuthorId' in post ? post.originalAuthorId : null) || null,
+                      originalAuthorName: ('originalAuthorName' in post ? post.originalAuthorName : null) || null,
+                      originalAuthorUsername: ('originalAuthorUsername' in post ? post.originalAuthorUsername : null) || null,
+                      originalAuthorProfileImageUrl: ('originalAuthorProfileImageUrl' in post ? post.originalAuthorProfileImageUrl : null) || null,
+                      originalContent: ('originalContent' in post ? post.originalContent : null) || null,
+                      quoteComment: ('quoteComment' in post ? post.quoteComment : null) || null,
                     }
 
                     return (
                       <div key={`post-wrapper-${post.id}-${i}`}>
-                        <PostCard
-                          post={postData}
-                          onClick={() => router.push(`/post/${post.id}`)}
-                        />
+                        {postData.type && postData.type === 'article' ? (
+                          <ArticleCard
+                            post={postData}
+                            onClick={() => router.push(`/post/${post.id}`)}
+                          />
+                        ) : (
+                          <PostCard
+                            post={postData}
+                            onClick={() => router.push(`/post/${post.id}`)}
+                          />
+                        )}
                         {showBannerAfterThisPost && (
                           <InviteFriendsBanner 
                             onDismiss={() => {

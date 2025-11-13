@@ -96,6 +96,7 @@ import { generateSnowflakeId } from '@/lib/snowflake';
 import { findUserByIdentifier } from '@/lib/users/user-lookup';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
 import type { NextRequest } from 'next/server';
+import { checkRateLimitAndDuplicates, RATE_LIMIT_CONFIGS } from '@/lib/rate-limiting';
 
 /**
  * POST Handler - Follow User or Actor
@@ -114,6 +115,17 @@ export const POST = withErrorHandling(async (
 ) => {
   // Authenticate user
   const user = await authenticate(request);
+  
+  // Apply rate limiting (no duplicate detection needed)
+  const rateLimitError = checkRateLimitAndDuplicates(
+    user.userId,
+    null,
+    RATE_LIMIT_CONFIGS.FOLLOW_USER
+  );
+  if (rateLimitError) {
+    return rateLimitError;
+  }
+  
   const params = await context.params;
   const { userId: targetIdentifier } = UserIdParamSchema.parse(params);
   const targetUser = await findUserByIdentifier(targetIdentifier, { id: true, isActor: true });
@@ -316,6 +328,17 @@ export const DELETE = withErrorHandling(async (
 ) => {
   // Authenticate user
   const user = await authenticate(request);
+  
+  // Apply rate limiting (no duplicate detection needed)
+  const rateLimitError = checkRateLimitAndDuplicates(
+    user.userId,
+    null,
+    RATE_LIMIT_CONFIGS.UNFOLLOW_USER
+  );
+  if (rateLimitError) {
+    return rateLimitError;
+  }
+  
   const params = await context.params;
   const { userId: targetIdentifier } = UserIdParamSchema.parse(params);
   const targetUser = await findUserByIdentifier(targetIdentifier, { id: true });

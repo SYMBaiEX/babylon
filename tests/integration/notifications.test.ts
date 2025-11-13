@@ -26,6 +26,7 @@ import {
   notifyDMMessage,
   notifyGroupChatMessage,
 } from '../../src/lib/services/notification-service';
+import { clearAllRateLimits, clearAllDuplicates } from '../../src/lib/rate-limiting';
 
 describe('Notification System', () => {
   let testUser1: { id: string };
@@ -34,6 +35,10 @@ describe('Notification System', () => {
   let testComment: { id: string; authorId: string; postId: string };
 
   beforeEach(async () => {
+    // Clear rate limits to prevent test interference
+    clearAllRateLimits();
+    clearAllDuplicates();
+    
     // Create test users
     const timestamp = Date.now();
     testUser1 = await prisma.user.create({

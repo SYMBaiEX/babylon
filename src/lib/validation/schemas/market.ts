@@ -6,7 +6,7 @@ import { z } from 'zod';
 import {
   NumericStringSchema,
   PaginationSchema,
-  UUIDSchema,
+  SnowflakeIdSchema,
   UserIdSchema,
 } from './common';
 
@@ -92,16 +92,14 @@ export const UserPositionsQuerySchema = z.object({
  * Position ID param schema
  */
 export const PositionIdParamSchema = z.object({
-  positionId: UUIDSchema.or(
-    z.string().regex(/^pos-[a-zA-Z0-9_-]+$/, 'Invalid position id format')
-  ),
+  positionId: SnowflakeIdSchema,
 });
 
 /**
  * Market ID param schema
  */
 export const MarketIdParamSchema = z.object({
-  marketId: UUIDSchema,
+  marketId: SnowflakeIdSchema,
 });
 
 /**

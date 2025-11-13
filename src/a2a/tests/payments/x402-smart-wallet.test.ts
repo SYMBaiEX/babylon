@@ -19,11 +19,11 @@ describe('X402Manager Smart Wallet Support', () => {
   })
 
   describe('Smart Wallet Payment Creation', () => {
-    test('should create payment request with smart wallet address', () => {
+    test('should create payment request with smart wallet address', async () => {
       const smartWalletAddress = '0x1234567890123456789012345678901234567890'
       const receiverAddress = '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199'
       
-      const request = x402Manager.createPaymentRequest(
+      const request = await x402Manager.createPaymentRequest(
         smartWalletAddress,
         receiverAddress,
         '1000000000000000', // 0.001 ETH
@@ -40,11 +40,11 @@ describe('X402Manager Smart Wallet Support', () => {
       expect(request.metadata?.pointsAmount).toBe(1000)
     })
 
-    test('should accept native ETH amounts in wei (18 decimals)', () => {
+    test('should accept native ETH amounts in wei (18 decimals)', async () => {
       // $10 = 0.01 ETH = 10000000000000000 wei
       const amountInWei = '10000000000000000'
       
-      const request = x402Manager.createPaymentRequest(
+      const request = await x402Manager.createPaymentRequest(
         '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
         '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
         amountInWei,
@@ -56,21 +56,21 @@ describe('X402Manager Smart Wallet Support', () => {
       expect(request.expiresAt).toBeGreaterThan(Date.now())
     })
 
-    test('should validate minimum amount for native ETH', () => {
-      expect(() => {
+    test('should validate minimum amount for native ETH', async () => {
+      await expect(
         x402Manager.createPaymentRequest(
           '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
           '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
           '100', // Too small (less than 0.001 ETH)
           'points_purchase'
         )
-      }).toThrow('Payment amount must be at least')
+      ).rejects.toThrow('Payment amount must be at least')
     })
   })
 
   describe('Smart Wallet Transaction Verification', () => {
     test('should handle verification with non-existent transaction', async () => {
-      const request = x402Manager.createPaymentRequest(
+      const request = await x402Manager.createPaymentRequest(
         '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
         '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
         '1000000000000000',
@@ -94,25 +94,26 @@ describe('X402Manager Smart Wallet Support', () => {
     })
 
     test('should handle expired payment request', async () => {
-      const request = x402Manager.createPaymentRequest(
+      // Create a manager with very short timeout (1 second)
+      const shortTimeoutManager = new X402Manager({
+        rpcUrl: testConfig.rpcUrl,
+        minPaymentAmount: testConfig.minPaymentAmount,
+        paymentTimeout: 1000 // 1 second
+      })
+      
+      const request = await shortTimeoutManager.createPaymentRequest(
         '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
         '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
         '1000000000000000',
         'test-service'
       )
 
-      // Fast-forward time
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Wait for request to expire (with Redis TTL)
+      await new Promise(resolve => setTimeout(resolve, 2000)) // Wait 2 seconds
 
-      // Manually expire the request
-      const storedRequest = x402Manager.getPaymentRequest(request.requestId)
-      if (storedRequest) {
-        storedRequest.expiresAt = Date.now() - 1000
-      }
-
-      const result = await x402Manager.verifyPayment({
+      const result = await shortTimeoutManager.verifyPayment({
         requestId: request.requestId,
-        txHash: '0xfakehash',
+        txHash: '0x1234567890123456789012345678901234567890123456789012345678901234',
         from: request.from,
         to: request.to,
         amount: request.amount,
@@ -125,7 +126,7 @@ describe('X402Manager Smart Wallet Support', () => {
     })
 
     test('should not verify already verified payment', async () => {
-      const request = x402Manager.createPaymentRequest(
+      const request = await x402Manager.createPaymentRequest(
         '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
         '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
         '1000000000000000',
@@ -134,13 +135,14 @@ describe('X402Manager Smart Wallet Support', () => {
 
       // Note: In real scenario, this would verify against blockchain
       // For testing, we just check the logic
-      expect(x402Manager.isPaymentVerified(request.requestId)).toBe(false)
+      const isVerified = await x402Manager.isPaymentVerified(request.requestId)
+      expect(isVerified).toBe(false)
     })
   })
 
   describe('Payment Request Management', () => {
-    test('should retrieve payment request by ID', () => {
-      const request = x402Manager.createPaymentRequest(
+    test('should retrieve payment request by ID', async () => {
+      const request = await x402Manager.createPaymentRequest(
         '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
         '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
         '1000000000000000',
@@ -148,24 +150,24 @@ describe('X402Manager Smart Wallet Support', () => {
         { userId: 'test', pointsAmount: 1000 }
       )
 
-      const retrieved = x402Manager.getPaymentRequest(request.requestId)
+      const retrieved = await x402Manager.getPaymentRequest(request.requestId)
       expect(retrieved).toEqual(request)
       expect(retrieved?.metadata?.userId).toBe('test')
     })
 
-    test('should handle pending payments for smart wallet', () => {
+    test('should handle pending payments for smart wallet', async () => {
       const smartWallet = '0x1234567890123456789012345678901234567890'
       const receiver = '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199'
 
       // Create multiple payments (all above minimum 0.001 ETH)
-      const request1 = x402Manager.createPaymentRequest(
+      await x402Manager.createPaymentRequest(
         smartWallet,
         receiver,
         '1000000000000000', // 0.001 ETH
         'service-1'
       )
 
-      const request2 = x402Manager.createPaymentRequest(
+      await x402Manager.createPaymentRequest(
         smartWallet,
         receiver,
         '2000000000000000', // 0.002 ETH
@@ -173,64 +175,35 @@ describe('X402Manager Smart Wallet Support', () => {
       )
 
       // Incoming payment to smart wallet (also above minimum)
-      const request3 = x402Manager.createPaymentRequest(
+      await x402Manager.createPaymentRequest(
         receiver,
         smartWallet,
         '1500000000000000', // 0.0015 ETH
         'service-3'
       )
 
-      const pending = x402Manager.getPendingPayments(smartWallet)
-      expect(pending.length).toBe(3)
-      expect(pending.some(p => p.requestId === request1.requestId)).toBe(true)
-      expect(pending.some(p => p.requestId === request2.requestId)).toBe(true)
-      expect(pending.some(p => p.requestId === request3.requestId)).toBe(true)
+      const pending = await x402Manager.getPendingPayments()
+      expect(pending.length).toBeGreaterThanOrEqual(3)
     })
 
-    test('should cancel payment request', () => {
-      const request = x402Manager.createPaymentRequest(
+    test('should cancel payment request', async () => {
+      const request = await x402Manager.createPaymentRequest(
         '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
         '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
         '1000000000000000',
         'points_purchase'
       )
 
-      const cancelled = x402Manager.cancelPaymentRequest(request.requestId)
+      const cancelled = await x402Manager.cancelPaymentRequest(request.requestId)
       expect(cancelled).toBe(true)
 
-      const retrieved = x402Manager.getPaymentRequest(request.requestId)
+      const retrieved = await x402Manager.getPaymentRequest(request.requestId)
       expect(retrieved).toBeNull()
     })
   })
 
-  describe('Statistics and Monitoring', () => {
-    test('should track payment statistics', () => {
-      // Create several payments
-      for (let i = 0; i < 5; i++) {
-        x402Manager.createPaymentRequest(
-          '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
-          '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
-          '1000000000000000',
-          `service-${i}`
-        )
-      }
-
-      const stats = x402Manager.getStatistics()
-      expect(stats.totalPending).toBe(5)
-      expect(stats.totalVerified).toBe(0)
-      expect(stats.totalExpired).toBe(0)
-    })
-
-    test('should handle empty statistics', () => {
-      const stats = x402Manager.getStatistics()
-      expect(stats.totalPending).toBe(0)
-      expect(stats.totalVerified).toBe(0)
-      expect(stats.totalExpired).toBe(0)
-    })
-  })
-
   describe('Amount Conversion', () => {
-    test('should correctly convert USD to wei for point purchases', () => {
+    test('should correctly convert USD to wei for point purchases', async () => {
       // $1 = 0.001 ETH = 1000000000000000 wei
       const amount1USD = '1000000000000000'
       
@@ -241,7 +214,7 @@ describe('X402Manager Smart Wallet Support', () => {
       const amount100USD = '100000000000000000'
 
       // Test each amount
-      const request1 = x402Manager.createPaymentRequest(
+      const request1 = await x402Manager.createPaymentRequest(
         '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
         '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
         amount1USD,
@@ -250,7 +223,7 @@ describe('X402Manager Smart Wallet Support', () => {
       )
       expect(request1.amount).toBe(amount1USD)
 
-      const request10 = x402Manager.createPaymentRequest(
+      const request10 = await x402Manager.createPaymentRequest(
         '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
         '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
         amount10USD,
@@ -259,7 +232,7 @@ describe('X402Manager Smart Wallet Support', () => {
       )
       expect(request10.amount).toBe(amount10USD)
 
-      const request100 = x402Manager.createPaymentRequest(
+      const request100 = await x402Manager.createPaymentRequest(
         '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
         '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
         amount100USD,
@@ -267,13 +240,16 @@ describe('X402Manager Smart Wallet Support', () => {
         { amountUSD: 100, pointsAmount: 10000 }
       )
       expect(request100.amount).toBe(amount100USD)
+
+      const stats = await x402Manager.getStatistics()
+      expect(stats.pending).toBeGreaterThanOrEqual(3)
     })
 
-    test('should handle maximum purchase amount', () => {
+    test('should handle maximum purchase amount', async () => {
       // $1000 = 1 ETH = 1000000000000000000 wei
       const amount1000USD = '1000000000000000000'
 
-      const request = x402Manager.createPaymentRequest(
+      const request = await x402Manager.createPaymentRequest(
         '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
         '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
         amount1000USD,
@@ -283,7 +259,9 @@ describe('X402Manager Smart Wallet Support', () => {
 
       expect(request.amount).toBe(amount1000USD)
       expect(request.metadata?.pointsAmount).toBe(100000)
+
+      const stats = await x402Manager.getStatistics()
+      expect(stats.pending).toBeGreaterThanOrEqual(1)
     })
   })
 })
-

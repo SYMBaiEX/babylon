@@ -6,6 +6,12 @@
  */
 
 import { GraphQLClient } from 'graphql-request'
+import { z } from 'zod'
+
+const CapabilitiesSchema = z.object({
+  strategies: z.array(z.string()).optional(),
+  markets: z.array(z.string()).optional(),
+});
 
 // Raw subgraph response structure
 interface RawSubgraphAgent {
@@ -95,12 +101,9 @@ export class SubgraphClient {
     // Parse capabilities if present
     let capabilities: string | undefined
     if (meta.capabilities) {
-      try {
-        // Validate it's valid JSON
-        JSON.parse(meta.capabilities)
-        capabilities = meta.capabilities
-      } catch {
-        capabilities = undefined
+      const validation = CapabilitiesSchema.safeParse(JSON.parse(meta.capabilities));
+      if (validation.success) {
+        capabilities = meta.capabilities;
       }
     }
 
@@ -202,7 +205,9 @@ export class SubgraphClient {
         if (!agent.capabilities) return false
         try {
           const caps = JSON.parse(agent.capabilities)
-          const agentStrategies = caps.strategies || []
+          const validation = CapabilitiesSchema.safeParse(caps);
+          if (!validation.success) return false;
+          const agentStrategies = validation.data.strategies ?? [];
           return filters.strategies!.some(s => agentStrategies.includes(s))
         } catch {
           return false
@@ -216,7 +221,9 @@ export class SubgraphClient {
         if (!agent.capabilities) return false
         try {
           const caps = JSON.parse(agent.capabilities)
-          const agentMarkets = caps.markets || []
+          const validation = CapabilitiesSchema.safeParse(caps);
+          if (!validation.success) return false;
+          const agentMarkets = validation.data.markets ?? [];
           return filters.markets!.some(m => agentMarkets.includes(m))
         } catch {
           return false

@@ -12,9 +12,10 @@ async function check() {
     where: { isContinuous: true }
   });
   
+  let minAgo = 999;
   console.log('Game Status:');
   if (game) {
-    const minAgo = game.lastTickAt ? Math.floor((Date.now() - game.lastTickAt.getTime()) / 60000) : 999;
+    minAgo = game.lastTickAt ? Math.floor((Date.now() - game.lastTickAt.getTime()) / 60000) : 999;
     console.log(`  Last tick: ${game.lastTickAt?.toISOString() || 'Never'} (${minAgo} min ago)`);
     console.log(`  Status: ${minAgo < 2 ? '✅ RUNNING' : '❌ STOPPED'}`);
   }
@@ -38,22 +39,6 @@ async function check() {
   
   console.log(`\nPrice Updates (Last 2 min): ${prices.length}`);
   console.log(`  Status: ${prices.length > 0 ? '✅ MOVING' : '❌ STATIC'}`);
-  
-  // Check pools
-  const pools = await prisma.pool.findMany({
-    where: { isActive: true },
-    include: {
-      positions: { where: { closedAt: null } }
-    }
-  });
-  
-  console.log(`\nActive Pools: ${pools.length}`);
-  const totalPositions = pools.reduce((sum, p) => sum + p.positions.length, 0);
-  const totalSize = pools.reduce((sum, p) => 
-    sum + p.positions.reduce((s, pos) => s + pos.size, 0), 0
-  );
-  console.log(`  Open positions: ${totalPositions}`);
-  console.log(`  Total deployed: $${totalSize.toFixed(0)}`);
   
   console.log('\n' + '='.repeat(60));
   console.log('\n🎯 VERDICT:\n');

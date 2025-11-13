@@ -17,6 +17,7 @@ function MobileHeaderContent() {
   const [showSideMenu, setShowSideMenu] = useState(false)
   const [pointsData, setPointsData] = useState<{ available: number; total: number } | null>(null)
   const [copiedReferral, setCopiedReferral] = useState(false)
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
@@ -94,6 +95,39 @@ function MobileHeaderContent() {
     const interval = setInterval(fetchPoints, 30000)
     return () => clearInterval(interval)
   }, [authenticated, user?.id])
+
+  // Poll for unread notifications
+  useEffect(() => {
+    if (!authenticated || !user) {
+      setUnreadNotifications(0)
+      return
+    }
+
+    const fetchUnreadCount = async () => {
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      
+      if (!token) {
+        return
+      }
+
+      const response = await fetch('/api/notifications?unreadOnly=true&limit=1', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setUnreadNotifications(data.unreadCount || 0)
+      }
+    }
+
+    fetchUnreadCount()
+
+    // Refresh every 1 minute
+    const interval = setInterval(fetchUnreadCount, 60000) // 60 seconds = 1 minute
+    return () => clearInterval(interval)
+  }, [authenticated, user])
 
   const copyReferralCode = async () => {
     if (!user?.referralCode) return
@@ -271,19 +305,25 @@ function MobileHeaderContent() {
             <nav className="flex-1 overflow-y-auto min-h-0">
               {menuItems.map((item) => {
                 const Icon = item.icon
+                const hasNotifications = item.name === 'Notifications' && unreadNotifications > 0
                 return (
                   <Link
                     key={item.name}
                     href={item.href}
                     onClick={() => setShowSideMenu(false)}
                     className={cn(
-                      'flex items-center gap-4 px-4 py-3 transition-colors',
+                      'flex items-center gap-4 px-4 py-3 transition-colors relative',
                       item.active 
                         ? 'bg-[#0066FF] text-white font-bold' 
                         : 'text-sidebar-foreground hover:bg-sidebar-accent font-semibold'
                     )}
                   >
-                    <Icon className="w-5 h-5" />
+                    <div className="relative">
+                      <Icon className="w-5 h-5" />
+                      {hasNotifications && (
+                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full ring-2 ring-sidebar" />
+                      )}
+                    </div>
                     <span className="text-base">{item.name}</span>
                   </Link>
                 )

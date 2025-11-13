@@ -6,7 +6,7 @@
  */
 
 import { EventEmitter } from 'events';
-import type { AutonomousAgent } from './AutonomousAgent';
+import type { AutonomousAgent, AgentAnalysisResult } from './AutonomousAgent';
 import type { AgentProfile, AgentCapabilities, AgentReputation } from '../a2a/types';
 import { logger } from '@/lib/logger';
 
@@ -119,7 +119,7 @@ export class AgentRegistry extends EventEmitter {
         registration.performance.totalPredictions++;
         // Update average confidence from analysis
         if (analysis && typeof analysis === 'object' && 'confidence' in analysis) {
-          const confidence = Number(analysis.confidence);
+          const confidence = Number((analysis as AgentAnalysisResult).confidence);
           const currentAvg = registration.performance.averageConfidence;
           const totalPreds = registration.performance.totalPredictions;
           registration.performance.averageConfidence =

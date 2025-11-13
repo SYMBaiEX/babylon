@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 
 import {
   AlertTriangle,
@@ -15,7 +15,9 @@ import {
 import { toast } from 'sonner';
 
 import { PerpPositionsList } from '@/components/markets/PerpPositionsList';
-import { BouncingLogo } from '@/components/shared/BouncingLogo';
+import { PerpPriceChart } from '@/components/markets/PerpPriceChart';
+import { TradeConfirmationDialog, type OpenPerpDetails } from '@/components/markets/TradeConfirmationDialog';
+import { Skeleton } from '@/components/shared/Skeleton';
 import { PageContainer } from '@/components/shared/PageContainer';
 
 import { FEE_CONFIG } from '@/lib/config/fees';
@@ -56,9 +58,11 @@ interface PricePoint {
 export default function PerpDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, authenticated, login, getAccessToken } = useAuth();
   const ticker = params.ticker as string;
   const { trackMarketView } = useMarketTracking();
+  const from = searchParams.get('from');
 
   const [market, setMarket] = useState<PerpMarket | null>(null);
   const [priceHistory, setPriceHistory] = useState<PricePoint[]>([]);
@@ -67,6 +71,7 @@ export default function PerpDetailPage() {
   const [size, setSize] = useState('100');
   const [leverage, setLeverage] = useState(10);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const { perpPositions, refresh: refreshUserPositions } = useUserPositions(
     user?.id,
     {
@@ -107,7 +112,7 @@ export default function PerpDetailPage() {
 
     if (!foundMarket) {
       toast.error('Market not found');
-      router.push('/markets');
+      router.push(from === 'dashboard' ? '/markets' : '/markets/perps');
       return;
     }
 
@@ -131,7 +136,7 @@ export default function PerpDetailPage() {
 
     setPriceHistory(history);
     setLoading(false);
-  }, [ticker, router]);
+  }, [ticker, router, from]);
 
   useEffect(() => {
     fetchMarketData();
@@ -145,7 +150,7 @@ export default function PerpDetailPage() {
     ]);
   }, [refreshUserPositions, refreshWalletBalance, fetchMarketData]);
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!authenticated) {
       login();
       return;
@@ -164,7 +169,16 @@ export default function PerpDetailPage() {
       return;
     }
 
+    // Open confirmation dialog
+    setConfirmDialogOpen(true);
+  };
+
+  const handleConfirmOpen = async () => {
+    if (!market) return;
+
+    const sizeNum = parseFloat(size) || 0;
     setSubmitting(true);
+    setConfirmDialogOpen(false);
 
     try {
       await openPosition({
@@ -245,11 +259,14 @@ export default function PerpDetailPage() {
     return (
       <PageContainer>
         <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <div className="mx-auto mb-4 flex justify-center">
-              <BouncingLogo size={48} />
+          <div className="text-center space-y-4 w-full max-w-md px-4">
+            <Skeleton className="h-12 w-48 mx-auto" />
+            <Skeleton className="h-4 w-64 mx-auto" />
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-3/4 mx-auto" />
             </div>
-            <p className="text-muted-foreground">Loading market...</p>
           </div>
         </div>
       </PageContainer>
@@ -265,11 +282,17 @@ export default function PerpDetailPage() {
       {/* Header */}
       <div className="mb-6">
         <button
-          onClick={() => router.push('/markets')}
+          onClick={() => {
+            if (from === 'dashboard') {
+              router.push('/markets');
+            } else {
+              router.push('/markets/perps');
+            }
+          }}
           className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Markets
+          {from === 'dashboard' ? 'Back to Dashboard' : 'Back to Perps'}
         </button>
 
         <div className="flex items-center justify-between flex-wrap gap-4">
@@ -319,14 +342,6 @@ export default function PerpDetailPage() {
               {formatVolume(market.volume24h)}
             </div>
           </div>
-          <div className="bg-muted/30 rounded-lg p-3">
-            <div className="text-xs text-muted-foreground mb-1">
-              Open Interest
-            </div>
-            <div className="text-lg font-bold">
-              {formatVolume(market.openInterest)}
-            </div>
-          </div>
         </div>
       </div>
 
@@ -347,7 +362,7 @@ export default function PerpDetailPage() {
         <div className="lg:col-span-2">
           <div className="bg-card/50 backdrop-blur rounded-lg p-4 border border-border">
             <h2 className="text-lg font-bold mb-4">Price Chart</h2>
-            <PriceChart data={priceHistory} currentPrice={displayPrice} />
+            <PerpPriceChart data={priceHistory} currentPrice={displayPrice} ticker={ticker} />
           </div>
 
           {/* Funding Rate Info */}
@@ -587,7 +602,7 @@ export default function PerpDetailPage() {
             >
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">
-                  <BouncingLogo size={20} />
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Opening Position...
                 </span>
               ) : authenticated ? (
@@ -599,158 +614,31 @@ export default function PerpDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Confirmation Dialog */}
+      <TradeConfirmationDialog
+        open={confirmDialogOpen}
+        onOpenChange={setConfirmDialogOpen}
+        onConfirm={handleConfirmOpen}
+        isSubmitting={submitting}
+        tradeDetails={
+          market
+            ? ({
+                type: 'open-perp',
+                ticker: market.ticker,
+                side,
+                size: sizeNum,
+                leverage,
+                entryPrice: displayPrice,
+                margin: baseMargin,
+                estimatedFee,
+                liquidationPrice,
+                liquidationDistance,
+              } as OpenPerpDetails)
+            : null
+        }
+      />
     </PageContainer>
   );
 }
 
-// Simple Price Chart Component
-function PriceChart({
-  data,
-  currentPrice,
-}: {
-  data: PricePoint[];
-  currentPrice: number;
-}) {
-  if (data.length === 0) {
-    return (
-      <div className="h-[400px] flex items-center justify-center text-muted-foreground">
-        Loading chart...
-      </div>
-    );
-  }
-
-  const minPrice = Math.min(...data.map((d) => d.price));
-  const maxPrice = Math.max(...data.map((d) => d.price));
-  const priceRange = maxPrice - minPrice;
-  const padding = priceRange * 0.1;
-
-  const width = 800;
-  const height = 400;
-  const chartHeight = height - 60;
-  const chartWidth = width - 80;
-
-  const scaleY = (price: number) => {
-    return (
-      chartHeight -
-      ((price - (minPrice - padding)) / (priceRange + 2 * padding)) *
-        chartHeight +
-      30
-    );
-  };
-
-  const scaleX = (index: number) => {
-    return (index / (data.length - 1)) * chartWidth + 40;
-  };
-
-  const pathData = data
-    .map((point, i) => {
-      const x = scaleX(i);
-      const y = scaleY(point.price);
-      return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
-    })
-    .join(' ');
-
-  const isPositive =
-    (data[data.length - 1]?.price ?? 0) >= (data[0]?.price ?? 0);
-
-  return (
-    <div className="relative w-full h-[400px] bg-muted/20 rounded-lg overflow-hidden">
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="w-full h-full"
-        preserveAspectRatio="none"
-      >
-        {/* Grid lines */}
-        {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-          const y = 30 + chartHeight * ratio;
-          const price = maxPrice + padding - (priceRange + 2 * padding) * ratio;
-          return (
-            <g key={ratio}>
-              <line
-                x1={40}
-                y1={y}
-                x2={width - 40}
-                y2={y}
-                stroke="hsl(var(--muted-foreground))"
-                strokeOpacity={0.1}
-                strokeWidth={1}
-              />
-              <text
-                x={width - 35}
-                y={y + 4}
-                fill="hsl(var(--muted-foreground))"
-                fontSize="10"
-                textAnchor="end"
-              >
-                ${price.toFixed(2)}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* Price line */}
-        <path
-          d={pathData}
-          fill="none"
-          stroke={isPositive ? '#16a34a' : '#dc2626'}
-          strokeWidth={2}
-          vectorEffect="non-scaling-stroke"
-        />
-
-        {/* Area fill */}
-        <path
-          d={`${pathData} L ${scaleX(data.length - 1)} ${height - 30} L ${scaleX(0)} ${height - 30} Z`}
-          fill={isPositive ? '#16a34a' : '#dc2626'}
-          fillOpacity={0.1}
-        />
-
-        {/* Current price indicator */}
-        <g>
-          <line
-            x1={40}
-            y1={scaleY(currentPrice)}
-            x2={width - 40}
-            y2={scaleY(currentPrice)}
-            stroke="#0066FF"
-            strokeWidth={1}
-            strokeDasharray="4 4"
-          />
-          <text
-            x={45}
-            y={scaleY(currentPrice) - 5}
-            fill="#0066FF"
-            fontSize="12"
-            fontWeight="bold"
-          >
-            ${currentPrice.toFixed(2)}
-          </text>
-        </g>
-
-        {/* Time labels */}
-        {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-          const index = Math.floor(ratio * (data.length - 1));
-          const point = data[index];
-          if (!point) return null;
-          const x = scaleX(index);
-          const time = new Date(point.time);
-          const label = time.toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-          });
-          return (
-            <text
-              key={ratio}
-              x={x}
-              y={height - 10}
-              fill="hsl(var(--muted-foreground))"
-              fontSize="10"
-              textAnchor="middle"
-            >
-              {label}
-            </text>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}

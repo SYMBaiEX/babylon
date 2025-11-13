@@ -109,6 +109,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           name: true,
           isGroup: true,
           gameId: true,
+          groupId: true,
           dayNumber: true,
           createdAt: true,
           updatedAt: true,

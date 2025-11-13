@@ -13,6 +13,7 @@ import { IdParamSchema } from '@/lib/validation/schemas';
 import { logger } from '@/lib/logger';
 import { notifyReactionOnComment } from '@/lib/services/notification-service';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import { checkRateLimitAndDuplicates, RATE_LIMIT_CONFIGS } from '@/lib/rate-limiting';
 /**
  * POST /api/comments/[id]/like
  * Like a comment
@@ -24,6 +25,16 @@ export const POST = withErrorHandling(async (
   // Authenticate user
   const user = await authenticate(request);
   const { id: commentId } = IdParamSchema.parse(await context.params);
+
+  // Apply rate limiting (no duplicate detection needed - DB prevents duplicate likes)
+  const rateLimitError = checkRateLimitAndDuplicates(
+    user.userId,
+    null,
+    RATE_LIMIT_CONFIGS.LIKE_COMMENT
+  );
+  if (rateLimitError) {
+    return rateLimitError;
+  }
 
   // Ensure user exists in database (upsert pattern)
     const displayName = user.walletAddress

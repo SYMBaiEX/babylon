@@ -8,29 +8,30 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { logger } from '@/lib/logger';
+import { z } from 'zod';
 
-interface Actor {
-  id: string;
-  name: string;
-  realName?: string;
-  username?: string;
-  affiliations: string[];
-}
+const ActorSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  realName: z.string().optional(),
+  username: z.string().optional(),
+  affiliations: z.array(z.string()),
+});
 
-interface Organization {
-  id: string;
-  name: string;
-  type: string;
-}
+const OrganizationSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.string(),
+});
 
-interface ActorsData {
-  actors: Actor[];
-  organizations: Organization[];
-}
+const ActorsDataSchema = z.object({
+  actors: z.array(ActorSchema),
+  organizations: z.array(OrganizationSchema),
+});
 
 function validateActors(): void {
   const actorsPath = join(process.cwd(), 'public', 'data', 'actors.json');
-  const data: ActorsData = JSON.parse(readFileSync(actorsPath, 'utf-8'));
+  const data = ActorsDataSchema.parse(JSON.parse(readFileSync(actorsPath, 'utf-8')));
 
   const { actors, organizations } = data;
   
@@ -53,11 +54,6 @@ function validateActors(): void {
     }
 
     // Check affiliations
-    if (!actor.affiliations || actor.affiliations.length === 0) {
-      // Some actors might not have affiliations (like independent actors)
-      continue;
-    }
-
     for (const affiliation of actor.affiliations) {
       if (!validOrgIds.has(affiliation)) {
         errors.push(

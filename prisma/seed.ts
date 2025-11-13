@@ -15,6 +15,7 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { logger } from '../src/lib/logger';
+import { generateSnowflakeId } from '../src/lib/snowflake';
 
 const prisma = new PrismaClient();
 
@@ -132,13 +133,16 @@ async function main() {
   });
 
   if (!existingGame) {
+    const now = new Date();
     await prisma.game.create({
       data: {
+        id: generateSnowflakeId(),
         isContinuous: true,
         isRunning: true,
-        currentDate: new Date(),
+        currentDate: now,
         currentDay: 1,
         speed: 60000,
+        updatedAt: now,
       },
     });
     logger.info('Game state initialized', undefined, 'Script');
@@ -363,6 +367,9 @@ async function main() {
 }
 
 main()
+  .then(() => {
+    process.exit(0);
+  })
   .catch((error) => {
     logger.error('Seed failed:', error, 'Script');
     process.exit(1);

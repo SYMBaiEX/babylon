@@ -76,10 +76,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Get payment request details
-    const paymentRequest = x402Manager.getPaymentRequest(requestId)
+    const paymentRequest = await x402Manager.getPaymentRequest(requestId)
     if (!paymentRequest || !paymentRequest.metadata) {
       return NextResponse.json(
-        { error: 'Payment request not found' },
+        { error: 'Payment request not found or expired' },
         { status: 404 }
       )
     }

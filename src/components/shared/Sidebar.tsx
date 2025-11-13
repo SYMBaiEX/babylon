@@ -5,8 +5,9 @@ import { UserMenu } from '@/components/auth/UserMenu'
 import { Avatar } from '@/components/shared/Avatar'
 import { Separator } from '@/components/shared/Separator'
 import { useAuth } from '@/hooks/useAuth'
+import { useUnreadMessages } from '@/hooks/useUnreadMessages'
 import { cn } from '@/lib/utils'
-import { Bell, Check, Copy, Gift, Home, LogOut, MessageCircle, Search, Shield, TrendingUp, Trophy, User } from 'lucide-react'
+import { Bell, Check, Copy, Gift, Home, LogOut, MessageCircle, Shield, TrendingUp, Trophy, User } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
@@ -15,10 +16,12 @@ import { Suspense, useEffect, useRef, useState } from 'react'
 function SidebarContent() {
   const [showMdMenu, setShowMdMenu] = useState(false)
   const [copiedReferral, setCopiedReferral] = useState(false)
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
   const mdMenuRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const { ready, authenticated, user, logout } = useAuth()
+  const { totalUnread: unreadMessages } = useUnreadMessages()
 
   // Check if dev mode is enabled via URL parameter
   const isDevMode = searchParams.get('dev') === 'true'
@@ -47,6 +50,39 @@ function SidebarContent() {
     return undefined
   }, [showMdMenu])
 
+  // Poll for unread notifications
+  useEffect(() => {
+    if (!authenticated || !user) {
+      setUnreadNotifications(0)
+      return
+    }
+
+    const fetchUnreadCount = async () => {
+      const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
+      
+      if (!token) {
+        return
+      }
+
+      const response = await fetch('/api/notifications?unreadOnly=true&limit=1', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setUnreadNotifications(data.unreadCount || 0)
+      }
+    }
+
+    fetchUnreadCount()
+
+    // Refresh every 1 minute
+    const interval = setInterval(fetchUnreadCount, 60000) // 60 seconds = 1 minute
+    return () => clearInterval(interval)
+  }, [authenticated, user])
+
   const copyReferralCode = async () => {
     if (!user?.referralCode) return
     
@@ -71,13 +107,6 @@ function SidebarContent() {
       icon: Home,
       color: '#0066FF',
       active: pathname === '/feed' || pathname === '/',
-    },
-    {
-      name: 'Explore',
-      href: '/explore',
-      icon: Search,
-      color: '#0066FF',
-      active: pathname === '/explore' || pathname?.startsWith('/explore'),
     },
     {
       name: 'Notifications',
@@ -171,6 +200,8 @@ function SidebarContent() {
       <nav className="flex-1">
         {navItems.map((item) => {
           const Icon = item.icon
+          const hasNotificationBadge = (item.name === 'Notifications' && unreadNotifications > 0) || 
+                                        (item.name === 'Chats' && unreadMessages > 0)
           return (
             <Link
               key={item.name}
@@ -196,29 +227,33 @@ function SidebarContent() {
                 }
               }}
             >
-              {/* Icon */}
-              <Icon
-                className={cn(
-                  'w-6 h-6 flex-shrink-0',
-                  'transition-all duration-300',
-                  'group-hover:scale-110',
-                  'lg:mr-3',
-                  !item.active && 'text-sidebar-foreground'
+              {/* Icon with notification indicator */}
+              <div className="relative lg:mr-3">
+                <Icon
+                  className={cn(
+                    'w-6 h-6 flex-shrink-0',
+                    'transition-all duration-300',
+                    'group-hover:scale-110',
+                    !item.active && 'text-sidebar-foreground'
+                  )}
+                  style={{
+                    color: item.active ? '#e4e4e4' : undefined,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!item.active) {
+                      e.currentTarget.style.color = '#e4e4e4'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!item.active) {
+                      e.currentTarget.style.color = ''
+                    }
+                  }}
+                />
+                {hasNotificationBadge && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full ring-2 ring-sidebar" />
                 )}
-                style={{
-                  color: item.active ? '#e4e4e4' : undefined,
-                }}
-                onMouseEnter={(e) => {
-                  if (!item.active) {
-                    e.currentTarget.style.color = '#e4e4e4'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!item.active) {
-                    e.currentTarget.style.color = ''
-                  }
-                }}
-              />
+              </div>
 
               {/* Label - hidden on tablet (md), shown on desktop (lg+) */}
               <span

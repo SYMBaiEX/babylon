@@ -23,10 +23,9 @@ describe('Points Purchase API Contract', () => {
       expect(requestBody.fromAddress).toMatch(/^0x[a-fA-F0-9]+$/)
       expect(requestBody.fromAddress.length).toBeGreaterThanOrEqual(40) // 0x + at least 38 hex chars
       
-      console.log('✅ Request body schema valid')
     })
 
-    test('response matches expected format', () => {
+    test('response matches expected format', async () => {
       const x402Manager = new X402Manager({
         rpcUrl: 'https://sepolia.base.org',
         minPaymentAmount: '1000000000000000',
@@ -38,7 +37,7 @@ describe('Points Purchase API Contract', () => {
       const ethAmount = amountUSD * 0.001
       const amountInWei = BigInt(Math.floor(ethAmount * 1e18)).toString()
       
-      const paymentRequest = x402Manager.createPaymentRequest(
+      const paymentRequest = await x402Manager.createPaymentRequest(
         '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
         '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
         amountInWei,
@@ -72,7 +71,6 @@ describe('Points Purchase API Contract', () => {
       expect(expectedResponse.paymentRequest.pointsAmount).toBe(1000)
       expect(expectedResponse.paymentRequest.amountUSD).toBe(10)
       
-      console.log('✅ Response format matches contract')
     })
   })
 
@@ -96,7 +94,6 @@ describe('Points Purchase API Contract', () => {
       expect(requestBody.toAddress.length).toBeGreaterThanOrEqual(40)
       expect(requestBody.amount).toMatch(/^\d+$/)
       
-      console.log('✅ Request body schema valid')
     })
 
     test('response matches expected format on success', () => {
@@ -113,7 +110,6 @@ describe('Points Purchase API Contract', () => {
       expect(expectedResponse.newTotal).toBeGreaterThan(0)
       expect(expectedResponse.txHash).toMatch(/^0x[a-fA-F0-9]{64}$/)
       
-      console.log('✅ Success response format matches contract')
     })
 
     test('response matches expected format on failure', () => {
@@ -126,12 +122,11 @@ describe('Points Purchase API Contract', () => {
       expect(errorResponse.success).toBe(false)
       expect(errorResponse.error).toBeTruthy()
       
-      console.log('✅ Error response format matches contract')
     })
   })
 
   describe('Payment Flow Integration', () => {
-    test('frontend can consume create-payment response', () => {
+    test('frontend can consume create-payment response', async () => {
       const x402Manager = new X402Manager({
         rpcUrl: 'https://sepolia.base.org',
         minPaymentAmount: '1000000000000000',
@@ -143,7 +138,7 @@ describe('Points Purchase API Contract', () => {
       const ethAmount = amountUSD * 0.001
       const amountInWei = BigInt(Math.floor(ethAmount * 1e18)).toString()
       
-      const paymentRequest = x402Manager.createPaymentRequest(
+      const paymentRequest = await x402Manager.createPaymentRequest(
         '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
         '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
         amountInWei,
@@ -167,7 +162,6 @@ describe('Points Purchase API Contract', () => {
       expect(transactionParams.to).toBe(to as `0x${string}`)
       expect(transactionParams.value).toBe(BigInt(amountInWei))
       
-      console.log('✅ Frontend can consume create-payment response')
     })
 
     test('points calculation is consistent frontend to backend', () => {
@@ -192,7 +186,6 @@ describe('Points Purchase API Contract', () => {
         expect(frontendPoints).toBe(testCase.points)
       })
       
-      console.log('✅ Points calculation consistent across frontend and backend')
     })
 
     test('amount conversion is consistent', () => {
@@ -211,7 +204,6 @@ describe('Points Purchase API Contract', () => {
         expect(amountInWei).toBe(testCase.wei)
       })
       
-      console.log('✅ Amount conversion consistent')
     })
   })
 
@@ -226,7 +218,6 @@ describe('Points Purchase API Contract', () => {
       expect(errorResponse.error).toBeTruthy()
       expect(errorResponse.status).toBe(500)
       
-      console.log('✅ Configuration error format correct')
     })
 
     test('validation error format', () => {
@@ -240,7 +231,6 @@ describe('Points Purchase API Contract', () => {
       expect(errorResponse.error).toBeTruthy()
       expect(errorResponse.status).toBe(400)
       
-      console.log('✅ Validation error format correct')
     })
 
     test('authentication error format', () => {
@@ -253,7 +243,6 @@ describe('Points Purchase API Contract', () => {
       expect(errorResponse.error).toBeTruthy()
       expect(errorResponse.status).toBe(401)
       
-      console.log('✅ Authentication error format correct')
     })
   })
 })

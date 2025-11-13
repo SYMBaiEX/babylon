@@ -17,6 +17,7 @@ import { logger } from '@/lib/logger'
 import sharp from 'sharp'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
+import { checkRateLimitAndDuplicates, RATE_LIMIT_CONFIGS } from '@/lib/rate-limiting'
 
 // Configuration - only allow local storage in development
 const USE_LOCAL_STORAGE = process.env.USE_LOCAL_STORAGE === 'true' && process.env.NODE_ENV === 'development'
@@ -32,6 +33,16 @@ export const dynamic = 'force-dynamic'
 export const POST = withErrorHandling(async (request: NextRequest) => {
   // Authenticate user
   const authUser = await authenticate(request)
+
+  // Apply rate limiting (no duplicate detection for uploads)
+  const rateLimitError = checkRateLimitAndDuplicates(
+    authUser.userId,
+    null,
+    RATE_LIMIT_CONFIGS.UPLOAD_IMAGE
+  );
+  if (rateLimitError) {
+    return rateLimitError;
+  }
 
   // Parse multipart form data
   const formData = await request.formData()

@@ -9,6 +9,7 @@ import { authenticate } from '@/lib/api/auth-middleware';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { withErrorHandling } from '@/lib/errors/error-handler';
 import { z } from 'zod';
+import { notifyUserGroupInvite } from '@/lib/services/notification-service';
 
 const addMemberSchema = z.object({
   userId: z.string(),
@@ -110,11 +111,6 @@ export const POST = withErrorHandling(async (
     select: { name: true },
   });
 
-  const inviter = await prisma.user.findUnique({
-    where: { id: user.userId },
-    select: { username: true, displayName: true },
-  });
-
   // Create invite
   const invite = await prisma.userGroupInvite.create({
     data: {
@@ -126,18 +122,14 @@ export const POST = withErrorHandling(async (
     },
   });
 
-  // Create notification
-  await prisma.notification.create({
-    data: {
-      id: generateSnowflakeId(),
-      userId: inviteeId,
-      type: 'group_invite',
-      title: 'Group Invitation',
-      message: `${inviter?.displayName || inviter?.username || 'Someone'} invited you to join ${group?.name || 'a group'}`,
-      actorId: user.userId,
-      read: false,
-    },
-  });
+  // Send notification using service
+  await notifyUserGroupInvite(
+    inviteeId,
+    user.userId,
+    groupId,
+    group?.name || 'a group',
+    invite.id
+  );
 
   return NextResponse.json({
     success: true,

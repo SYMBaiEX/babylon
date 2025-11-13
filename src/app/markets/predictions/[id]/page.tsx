@@ -1,12 +1,14 @@
 'use client'
 
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList'
+import { PredictionProbabilityChart } from '@/components/markets/PredictionProbabilityChart'
+import { TradeConfirmationDialog, type BuyPredictionDetails } from '@/components/markets/TradeConfirmationDialog'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { useAuth } from '@/hooks/useAuth'
 import { PredictionPricing, calculateExpectedPayout } from '@/lib/prediction-pricing'
 import { cn } from '@/lib/utils'
 import { ArrowLeft, CheckCircle, Clock, Info, TrendingUp, Users, XCircle } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Skeleton } from '@/components/shared/Skeleton'
@@ -56,9 +58,11 @@ interface PricePoint {
 export default function PredictionDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, authenticated, login } = useAuth()
   const marketId = params.id as string
   const { trackMarketView } = useMarketTracking()
+  const from = searchParams.get('from')
 
   const [market, setMarket] = useState<PredictionMarket | null>(null)
   const [priceHistory, setPriceHistory] = useState<PricePoint[]>([])
@@ -67,6 +71,7 @@ export default function PredictionDetailPage() {
   const [amount, setAmount] = useState('10')
   const [submitting, setSubmitting] = useState(false)
   const [userPosition, setUserPosition] = useState<PredictionPosition | null>(null)
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
 
   // Track market view
   useEffect(() => {
@@ -85,7 +90,7 @@ export default function PredictionDetailPage() {
     
     if (!foundMarket) {
       toast.error('Market not found')
-      router.push('/markets')
+      router.push(from === 'dashboard' ? '/markets' : '/markets/predictions')
       return
     }
 
@@ -112,13 +117,13 @@ export default function PredictionDetailPage() {
     
     setPriceHistory(history)
     setLoading(false)
-  }, [marketId, router, authenticated, user?.id])
+  }, [marketId, router, authenticated, user?.id, from])
 
   useEffect(() => {
     fetchMarketData()
   }, [fetchMarketData])
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!authenticated) {
       login()
       return
@@ -132,7 +137,16 @@ export default function PredictionDetailPage() {
       return
     }
 
+    // Open confirmation dialog
+    setConfirmDialogOpen(true)
+  }
+
+  const handleConfirmBuy = async () => {
+    if (!market) return
+
+    const amountNum = parseFloat(amount) || 0
     setSubmitting(true)
+    setConfirmDialogOpen(false)
 
     const token = typeof window !== 'undefined' ? window.__privyAccessToken : null
     if (!token) {
@@ -156,7 +170,11 @@ export default function PredictionDetailPage() {
     const data = await response.json()
     
     if (!response.ok) {
-      toast.error(data.error || data.message || 'Failed to buy shares')
+      // Handle error response - extract message from error object
+      const errorMessage = typeof data.error === 'object' 
+        ? data.error.message || 'Failed to buy shares'
+        : data.error || data.message || 'Failed to buy shares'
+      toast.error(errorMessage)
       setSubmitting(false)
       return
     }
@@ -180,12 +198,26 @@ export default function PredictionDetailPage() {
     }).format(price)
   }
 
-  const getDaysUntilResolution = () => {
+  const getTimeUntilResolution = () => {
     if (!market?.resolutionDate) return null
-    const now = new Date()
-    const resolution = new Date(market.resolutionDate)
-    const diffDays = Math.ceil((resolution.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-    return Math.max(0, diffDays)
+    const now = Date.now()
+    const resolutionTime = new Date(market.resolutionDate).getTime()
+    const diff = resolutionTime - now
+    
+    if (diff < 0) return 'Ended'
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+    
+    if (days > 0) {
+      return hours > 0 ? `${days}d ${hours}h left` : `${days}d left`
+    } else if (hours > 0) {
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+      return minutes > 0 ? `${hours}h ${minutes}m left` : `${hours}h left`
+    } else {
+      const minutes = Math.floor(diff / (1000 * 60))
+      return `${minutes}m left`
+    }
   }
 
   if (loading) {
@@ -220,7 +252,7 @@ export default function PredictionDetailPage() {
     : 0
   const expectedProfit = expectedPayout - amountNum
 
-  const daysLeft = getDaysUntilResolution()
+  const timeLeft = getTimeUntilResolution()
   const totalVolume = yesShares + noShares
   const totalTrades = Math.floor(totalVolume / 10) // Rough estimate
 
@@ -229,20 +261,26 @@ export default function PredictionDetailPage() {
       {/* Header */}
       <div className="mb-6">
         <button
-          onClick={() => router.push('/markets')}
+          onClick={() => {
+            if (from === 'dashboard') {
+              router.push('/markets');
+            } else {
+              router.push('/markets/predictions');
+            }
+          }}
           className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Markets
+          {from === 'dashboard' ? 'Back to Dashboard' : 'Back to Predictions'}
         </button>
 
         <div className="bg-card/50 backdrop-blur rounded-2xl p-6 border border-border">
           <div className="flex items-start justify-between gap-4 mb-4">
             <h1 className="text-2xl font-bold flex-1">{market.text}</h1>
-            {daysLeft !== null && (
+            {timeLeft && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted px-3 py-1.5 rounded-full">
                 <Clock className="w-4 h-4" />
-                <span className="font-medium">{daysLeft} days left</span>
+                <span className="font-medium">{timeLeft}</span>
               </div>
             )}
           </div>
@@ -302,7 +340,7 @@ export default function PredictionDetailPage() {
         <div className="lg:col-span-2">
           <div className="bg-card/50 backdrop-blur rounded-2xl px-4 py-3 border border-border">
             <h2 className="text-lg font-bold mb-4">Probability Over Time</h2>
-            <ProbabilityChart data={priceHistory} />
+            <PredictionProbabilityChart data={priceHistory} marketId={marketId} />
           </div>
 
           {/* Market Info */}
@@ -324,15 +362,28 @@ export default function PredictionDetailPage() {
           {/* Resolution Info */}
           {market.resolutionDate && (
             <div className="bg-muted/30 rounded-lg px-4 py-3 mt-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Resolution Date</span>
-                <span className="text-sm font-medium">
-                  {new Date(market.resolutionDate).toLocaleDateString('en-US', {
-                    month: 'long',
-                    day: 'numeric',
-                    year: 'numeric'
-                  })}
-                </span>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Resolution Date & Time</span>
+                  <span className="text-sm font-medium">
+                    {new Date(market.resolutionDate).toLocaleDateString('en-US', {
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Exact Time</span>
+                  <span className="text-sm font-medium">
+                    {new Date(market.resolutionDate).toLocaleTimeString('en-US', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      timeZoneName: 'short'
+                    })}
+                  </span>
+                </div>
               </div>
             </div>
           )}
@@ -456,140 +507,32 @@ export default function PredictionDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Confirmation Dialog */}
+      <TradeConfirmationDialog
+        open={confirmDialogOpen}
+        onOpenChange={setConfirmDialogOpen}
+        onConfirm={handleConfirmBuy}
+        isSubmitting={submitting}
+        tradeDetails={
+          market && calculation
+            ? ({
+                type: 'buy-prediction',
+                question: market.text,
+                side: side.toUpperCase() as 'YES' | 'NO',
+                amount: amountNum,
+                sharesBought: calculation.sharesBought,
+                avgPrice: calculation.avgPrice,
+                newPrice: side === 'yes' ? calculation.newYesPrice : calculation.newNoPrice,
+                priceImpact: calculation.priceImpact,
+                expectedPayout,
+                expectedProfit,
+              } as BuyPredictionDetails)
+            : null
+        }
+      />
     </PageContainer>
   )
 }
 
-// Probability Chart Component
-function ProbabilityChart({ data }: { data: PricePoint[] }) {
-  if (data.length === 0) {
-    return (
-      <div className="h-[400px] flex items-center justify-center text-muted-foreground">
-        Loading chart...
-      </div>
-    )
-  }
-
-  const width = 800
-  const height = 400
-  const chartHeight = height - 60
-  const chartWidth = width - 80
-
-  const scaleY = (probability: number) => {
-    return chartHeight - (probability * chartHeight) + 30
-  }
-
-  const scaleX = (index: number) => {
-    return (index / (data.length - 1)) * chartWidth + 40
-  }
-
-  const yesPathData = data.map((point, i) => {
-    const x = scaleX(i)
-    const y = scaleY(point.yesPrice)
-    return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`
-  }).join(' ')
-
-  const noPathData = data.map((point, i) => {
-    const x = scaleX(i)
-    const y = scaleY(point.noPrice)
-    return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`
-  }).join(' ')
-
-  return (
-    <div className="relative w-full h-[400px] bg-muted/20 rounded-lg overflow-hidden">
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="w-full h-full"
-        preserveAspectRatio="none"
-      >
-        {/* Grid lines */}
-        {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-          const y = 30 + chartHeight * (1 - ratio)
-          return (
-            <g key={ratio}>
-              <line
-                x1={40}
-                y1={y}
-                x2={width - 40}
-                y2={y}
-                stroke="hsl(var(--muted-foreground))"
-                strokeOpacity={0.1}
-                strokeWidth={1}
-              />
-              <text
-                x={width - 35}
-                y={y + 4}
-                fill="hsl(var(--muted-foreground))"
-                fontSize="10"
-                textAnchor="end"
-              >
-                {(ratio * 100).toFixed(0)}%
-              </text>
-            </g>
-          )
-        })}
-
-        {/* YES line */}
-        <path
-          d={yesPathData}
-          fill="none"
-          stroke="#16a34a"
-          strokeWidth={3}
-          vectorEffect="non-scaling-stroke"
-        />
-
-        {/* NO line */}
-        <path
-          d={noPathData}
-          fill="none"
-          stroke="#dc2626"
-          strokeWidth={3}
-          vectorEffect="non-scaling-stroke"
-        />
-
-        {/* YES area fill */}
-        <path
-          d={`${yesPathData} L ${scaleX(data.length - 1)} ${height - 30} L ${scaleX(0)} ${height - 30} Z`}
-          fill="#16a34a"
-          fillOpacity={0.1}
-        />
-
-        {/* Legend */}
-        <g transform="translate(50, 15)">
-          <line x1={0} y1={0} x2={20} y2={0} stroke="#16a34a" strokeWidth={3} />
-          <text x={25} y={4} fill="hsl(var(--foreground))" fontSize="12" fontWeight="bold">
-            YES
-          </text>
-          
-          <line x1={80} y1={0} x2={100} y2={0} stroke="#dc2626" strokeWidth={3} />
-          <text x={105} y={4} fill="hsl(var(--foreground))" fontSize="12" fontWeight="bold">
-            NO
-          </text>
-        </g>
-
-        {/* Time labels */}
-        {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-          const index = Math.floor(ratio * (data.length - 1))
-          const point = data[index]
-          if (!point) throw new Error('No point found')
-          const x = scaleX(index)
-          const time = new Date(point.time)
-          const label = time.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-          return (
-            <text
-              key={ratio}
-              x={x}
-              y={height - 10}
-              fill="hsl(var(--muted-foreground))"
-              fontSize="10"
-              textAnchor="middle"
-            >
-              {label}
-            </text>
-          )
-        })}
-      </svg>
-    </div>
-  )
-}
 
