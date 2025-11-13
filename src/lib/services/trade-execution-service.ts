@@ -155,10 +155,10 @@ export class TradeExecutionService {
     // If not found by exact ID, try lowercase contains match  
     if (!org) {
       org = await prisma.organization.findFirst({
-        where: {
-          id: { contains: decision.ticker.toLowerCase() },
-        },
-      });
+      where: {
+        id: { contains: decision.ticker.toLowerCase() },
+      },
+    });
     }
 
     if (!org?.currentPrice) {
@@ -251,7 +251,7 @@ export class TradeExecutionService {
         currentPrice,
         size: positionSize,
         leverage,
-        liquidationPrice: 0, // TODO: Calculate liquidation price
+        liquidationPrice,
         unrealizedPnL: 0,
         unrealizedPnLPercent: 0,
         fundingPaid: 0,
