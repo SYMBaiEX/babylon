@@ -328,6 +328,9 @@ jobs:
             echo "DIRECT_DATABASE_URL=$DATABASE_URL_SECRET" >> .env.local
           fi
           
+          # Generate Prisma client (required for tests)
+          bun prisma generate
+          
           # Run migrations (migrations may already be applied, so || true is intentional)
           bun prisma migrate deploy || true
       
@@ -414,6 +417,9 @@ jobs:
             echo "DIRECT_DATABASE_URL=$DATABASE_URL_SECRET" >> .env
             echo "DIRECT_DATABASE_URL=$DATABASE_URL_SECRET" >> .env.local
           fi
+          
+          # Generate Prisma client (required for server)
+          bun prisma generate
           
           # Run migrations (migrations may already be applied, so || true is intentional)
           bun prisma migrate deploy || true
@@ -508,6 +514,9 @@ jobs:
             echo "DIRECT_DATABASE_URL=$DATABASE_URL_SECRET" >> .env
             echo "DIRECT_DATABASE_URL=$DATABASE_URL_SECRET" >> .env.local
           fi
+          
+          # Generate Prisma client (required for server)
+          bun prisma generate
           
           # Run migrations (migrations may already be applied, so || true is intentional)
           bun prisma migrate deploy || true
