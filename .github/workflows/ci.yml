@@ -42,12 +42,18 @@ jobs:
       
       - name: Setup environment variables
         run: |
+          # Set DATABASE_URL with fallback if secret is empty
+          DATABASE_URL="${{ secrets.TEST_DATABASE_URL }}"
+          if [ -z "$DATABASE_URL" ]; then
+            DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db"
+          fi
+          
           # Create .env file with test configuration
           cat > .env.test << EOF
-          DATABASE_URL=${{ secrets.TEST_DATABASE_URL }}
-          DIRECT_DATABASE_URL=${{ secrets.TEST_DATABASE_URL }}
-          POSTGRES_PRISMA_URL=${{ secrets.TEST_DATABASE_URL }}
-          POSTGRES_URL_NON_POOLING=${{ secrets.TEST_DATABASE_URL }}
+          DATABASE_URL=$DATABASE_URL
+          DIRECT_DATABASE_URL=$DATABASE_URL
+          POSTGRES_PRISMA_URL=$DATABASE_URL
+          POSTGRES_URL_NON_POOLING=$DATABASE_URL
           NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}
           PRIVY_APP_ID=${{ secrets.PRIVY_APP_ID }}
           PRIVY_APP_SECRET=${{ secrets.PRIVY_APP_SECRET }}
@@ -62,6 +68,7 @@ jobs:
           
           # Use test env for build
           cp .env.test .env.local
+          cp .env.test .env
       
       - name: Run Prisma Generate
         run: bun prisma generate
