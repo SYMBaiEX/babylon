@@ -18,7 +18,8 @@ export default [
       "src/lib/benchmark/**",
       "src/lib/agents/examples/**",
       "src/lib/agents/autonomous/a2a-only/**",
-      "src/a2a/**"
+      "src/a2a/**",
+      "src/app/.well-known/**"
     ]
   },
   {

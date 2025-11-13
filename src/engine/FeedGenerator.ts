@@ -670,7 +670,7 @@ export class FeedGenerator extends EventEmitter {
       if (Array.isArray(response.posts)) {
         posts = response.posts;
       } else if (response.posts && typeof response.posts === 'object' && 'post' in response.posts) {
-        const nested = (response.posts as any).post;
+        const nested = (response.posts as Record<string, unknown>).post;
         posts = Array.isArray(nested) ? nested : [nested];
       }
       
@@ -761,7 +761,7 @@ export class FeedGenerator extends EventEmitter {
       if (Array.isArray(response.reactions)) {
         reactions = response.reactions;
       } else if (response.reactions && typeof response.reactions === 'object' && 'reaction' in response.reactions) {
-        const nested = (response.reactions as any).reaction;
+        const nested = (response.reactions as Record<string, unknown>).reaction;
         reactions = Array.isArray(nested) ? nested : [nested];
       }
       
@@ -842,7 +842,7 @@ export class FeedGenerator extends EventEmitter {
       if (Array.isArray(response.commentary)) {
         commentary = response.commentary;
       } else if (response.commentary && typeof response.commentary === 'object' && 'comment' in response.commentary) {
-        const nested = (response.commentary as any).comment;
+        const nested = (response.commentary as Record<string, unknown>).comment;
         commentary = Array.isArray(nested) ? nested : [nested];
       }
       
@@ -1747,7 +1747,7 @@ Respond with XML:
       if (Array.isArray(response.posts)) {
         posts = response.posts;
       } else if (response.posts && typeof response.posts === 'object' && 'post' in response.posts) {
-        const nested = (response.posts as any).post;
+        const nested = (response.posts as Record<string, unknown>).post;
         posts = Array.isArray(nested) ? nested : [nested];
       }
       
@@ -1877,7 +1877,7 @@ Respond with XML:
       if (Array.isArray(response.replies)) {
         replies = response.replies;
       } else if (response.replies && typeof response.replies === 'object' && 'reply' in response.replies) {
-        const nested = (response.replies as any).reply;
+        const nested = (response.replies as Record<string, unknown>).reply;
         replies = Array.isArray(nested) ? nested : [nested];
       }
       

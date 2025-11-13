@@ -386,7 +386,7 @@ export class MarketDecisionEngine {
           response = decisionsObj;
         } else if (decisionsObj && typeof decisionsObj === 'object' && 'decision' in decisionsObj) {
           // Nested structure from XML
-          const innerDecisions = (decisionsObj as any).decision;
+          const innerDecisions = (decisionsObj as Record<string, unknown>).decision;
           response = Array.isArray(innerDecisions) ? innerDecisions : [innerDecisions];
         } else {
           logger.error('Invalid decisions structure', { decisionsObj }, 'MarketDecisionEngine');

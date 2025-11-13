@@ -47,7 +47,7 @@ console.log(result)
 # Run autonomous tick test
 npx tsx test-autonomous-tick.ts
 
-# Expected: ✅ ALL TESTS PASSED
+# Expected: ALL TESTS PASSED
 # Verifies: Coordinator, batch system, all services execute
 ```
 

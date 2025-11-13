@@ -101,13 +101,13 @@ If no good tags can be extracted, return: <tags></tags>`
   }
 
   // Parse XML instead of JSON
-  let xmlContent = content_text
+  const xmlContent = content_text
     .replace(/```xml\n?/g, '')
     .replace(/```\n?/g, '')
     .trim()
   
   // Extract tags from XML
-  let tags: Array<{ displayName: string; category?: string }> = [];
+  const tags: Array<{ displayName: string; category?: string }> = [];
   
   try {
     // Simple XML parsing for tag structure
