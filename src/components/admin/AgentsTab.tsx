@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { RefreshCw, Bot, Play, Pause, Trash2, AlertCircle, CheckCircle, Activity, Clock, User, Zap } from 'lucide-react'
+import { RefreshCw, Bot, Play, Pause, AlertCircle, CheckCircle, Activity, Clock, User, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
