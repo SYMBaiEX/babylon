@@ -110,7 +110,7 @@ jobs:
           bash scripts/ci/prepare-env.sh
           ls -lah .next || echo "⚠️  .next cache not found"
           echo "Generating Prisma client for downstream jobs..."
-          bun prisma generate
+          bunx prisma generate
       
       - name: Install dependencies
         if: steps.cache-build.outputs.cache-hit != 'true'
@@ -136,7 +136,7 @@ jobs:
       
       - name: Run Prisma Generate
         if: steps.cache-build.outputs.cache-hit != 'true'
-        run: bun prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
+        run: bunx prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
       
       - name: Type Check
         if: steps.cache-build.outputs.cache-hit != 'true'
@@ -256,8 +256,8 @@ jobs:
           WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD }}
         run: |
           bash scripts/ci/prepare-env.sh
-          bun prisma generate
-          bun prisma migrate deploy || true
+          bunx prisma generate
+          bunx prisma migrate deploy || true
       
       - name: Run Unit Tests
         run: bun test tests/unit/ --coverage
@@ -343,8 +343,8 @@ jobs:
           WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD }}
         run: |
           bash scripts/ci/prepare-env.sh
-          bun prisma generate
-          bun prisma migrate deploy || true
+          bunx prisma generate
+          bunx prisma migrate deploy || true
       
       - name: Start production server
         run: |
@@ -437,8 +437,8 @@ jobs:
           WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD }}
         run: |
           bash scripts/ci/prepare-env.sh
-          bun prisma generate
-          bun prisma migrate deploy || true
+          bunx prisma generate
+          bunx prisma migrate deploy || true
       
       - name: Start production server
         run: |
