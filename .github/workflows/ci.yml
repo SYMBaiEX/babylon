@@ -6,6 +6,10 @@ on:
   push:
     branches: [production, staging]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   NODE_ENV: test
   CI: true
