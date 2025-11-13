@@ -32,7 +32,7 @@ test.describe('Leaderboard Tabs', () => {
     // Check if the active tab has the active styling (blue background)
     const isActive = await allPointsTab.evaluate((el) => {
       const classes = el.className
-      return classes.includes('bg-[#0066FF]') || classes.includes('text-white')
+      return classes.includes('bg-[#0066FF]') || classes.includes('text-primary-foreground')
     })
     expect(isActive).toBe(true)
 
@@ -69,7 +69,7 @@ test.describe('Leaderboard Tabs', () => {
     // Verify tab is now active
     const isActive = await earnedPointsTab.evaluate((el) => {
       const classes = el.className
-      return classes.includes('bg-[#0066FF]') || classes.includes('text-white')
+      return classes.includes('bg-[#0066FF]') || classes.includes('text-primary-foreground')
     })
     expect(isActive).toBe(true)
 
@@ -98,7 +98,7 @@ test.describe('Leaderboard Tabs', () => {
     // Verify tab is now active
     const isActive = await referralPointsTab.evaluate((el) => {
       const classes = el.className
-      return classes.includes('bg-[#0066FF]') || classes.includes('text-white')
+      return classes.includes('bg-[#0066FF]') || classes.includes('text-primary-foreground')
     })
     expect(isActive).toBe(true)
 

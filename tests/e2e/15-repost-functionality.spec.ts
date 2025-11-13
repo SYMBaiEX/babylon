@@ -362,7 +362,7 @@ test.describe('Repost Functionality', () => {
       
       if (await quoteEmbed.isVisible()) {
         // If this is quoting an article, the original content should be visible
-        const content = quoteEmbed.locator('div[class*="text-white"]');
+        const content = quoteEmbed.locator('div[class*="text-foreground"]');
         await expect(content).toBeVisible();
         break;
       }
