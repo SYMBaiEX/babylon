@@ -35,7 +35,7 @@ const options: Options = {
  * console.log(spec.paths); // All documented paths
  * ```
  */
-export function generateAutoSpec() {
+export async function generateAutoSpec() {
   try {
     return swaggerJsdoc(options);
   } catch (error) {
@@ -43,8 +43,7 @@ export function generateAutoSpec() {
     
     // Fallback to manual spec if auto-generation fails
     console.warn('Falling back to manual specification');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { generateOpenApiSpec } = require('./generator');
+    const { generateOpenApiSpec } = await import('./generator');
     return generateOpenApiSpec();
   }
 }

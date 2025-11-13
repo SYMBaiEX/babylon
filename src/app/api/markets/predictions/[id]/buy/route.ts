@@ -154,13 +154,12 @@ export const POST = withErrorHandling(async (
         questionNumber: question.questionNumber 
       }, 'POST /api/markets/predictions/[id]/buy');
 
-      if (market && !market.onChainMarketId) {
+      // Create market on-chain if it doesn't have onChainMarketId (non-blocking)
+      if (!market.onChainMarketId) {
         const { ensureMarketOnChain } = await import('@/lib/services/onchain-market-service')
-        await ensureMarketOnChain(market.id)
-
-        logger.warn('Failed to create market on-chain (non-blocking)', { marketId: market!.id }, 'POST /api/markets/predictions/[id]/buy')
-
-        logger.debug('On-chain market service not available', undefined, 'POST /api/markets/predictions/[id]/buy')
+        await ensureMarketOnChain(market.id).catch((error) => {
+          logger.warn('Failed to create market on-chain (non-blocking)', { error, marketId: market?.id ?? marketId }, 'POST /api/markets/predictions/[id]/buy')
+        })
       }
     }
     

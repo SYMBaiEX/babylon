@@ -33,9 +33,8 @@ export async function invalidatePredictionTradesCache(marketId: string): Promise
         }
     } else {
       // Standard Redis - use SCAN to find and delete all matching keys
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const IORedis = await import('ioredis');
-      const client = redis as InstanceType<typeof IORedis.default>;
+      const { default: IORedis } = await import('ioredis');
+      const client = redis as InstanceType<typeof IORedis>;
         
         const stream = client.scanStream({
           match: `market-trades:${pattern}`,
@@ -88,9 +87,8 @@ export async function invalidatePerpTradesCache(ticker: string): Promise<void> {
         }
     } else {
       // Standard Redis - use SCAN to find and delete all matching keys
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const IORedis = await import('ioredis');
-      const client = redis as InstanceType<typeof IORedis.default>;
+      const { default: IORedis } = await import('ioredis');
+      const client = redis as InstanceType<typeof IORedis>;
         
         const stream = client.scanStream({
           match: `market-trades:${pattern}`,

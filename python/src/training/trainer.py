@@ -269,3 +269,29 @@ class ContinuousMMOTrainer:
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
+
+        if not groups:
+            raise ValueError("Cannot summarize empty batch")
+        
+        total_trajs = sum(len(g.trajectories) for g in groups)
+        all_scores = [t.reward for g in groups for t in g.trajectories]
+        all_pnls = [float(t.metrics['final_pnl']) for g in groups for t in g.trajectories]
+        
+        return TrainingBatchSummary(
+            windows=len(groups),
+            total_trajectories=total_trajs,
+            avg_trajectories_per_window=total_trajs / len(groups),
+            score_min=min(all_scores),
+            score_max=max(all_scores),
+            score_avg=sum(all_scores) / len(all_scores),
+            pnl_min=min(all_pnls),
+            pnl_max=max(all_pnls),
+            pnl_avg=sum(all_pnls) / len(all_pnls)
+        )
+    
+    async def __aenter__(self):
+        await self.connect()
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()

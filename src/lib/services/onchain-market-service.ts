@@ -6,7 +6,6 @@ import { createPublicClient, createWalletClient, http, type Address } from 'viem
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 import { logger } from '../logger'
-import { PREDICTION_MARKET_ABI as _PREDICTION_MARKET_ABI } from '../web3/abis'
 import { prisma } from '../prisma'
 
 /**
@@ -147,8 +146,9 @@ export async function createMarketOnChain(
             toBlock: receipt.blockNumber,
           })
           
-           if (events.length > 0 && events[0]?.args.marketId) {
-             const marketId = events[0].args.marketId as `0x${string}`
+          const firstEvent = events[0]
+          if (firstEvent?.args.marketId) {
+            const marketId = firstEvent.args.marketId as `0x${string}`
             logger.info(
               'Market created on-chain successfully (from event logs)',
               { marketId, txHash },
@@ -227,8 +227,9 @@ export async function getMarketIdFromTx(txHash: `0x${string}`): Promise<`0x${str
         toBlock: receipt.blockNumber,
       })
       
-       if (events.length > 0 && events[0]?.args.marketId) {
-         return events[0].args.marketId as `0x${string}`
+      const firstEvent = events[0]
+      if (firstEvent?.args.marketId) {
+        return firstEvent.args.marketId as `0x${string}`
       }
     } catch (error) {
       logger.debug('Could not read events using getLogs', { error }, 'OnChainMarketService')

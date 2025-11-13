@@ -171,12 +171,23 @@ export class PriceUpdateService {
       transport: http(rpcUrl),
     });
 
-    // Get current tick counter
-    const currentTick: bigint = await publicClient.readContract({
-      address: diamondAddress,
-      abi: PRICE_STORAGE_FACET_ABI,
-      functionName: 'getGlobalTickCounter',
-    }) as bigint;
+    // Get current tick counter with fallback
+    let currentTick: bigint;
+    try {
+      currentTick = await publicClient.readContract({
+        address: diamondAddress,
+        abi: PRICE_STORAGE_FACET_ABI,
+        functionName: 'getGlobalTickCounter',
+      }) as bigint;
+    } catch (error) {
+      logger.warn(
+        'Failed to get tick counter, using timestamp-based tick',
+        { error },
+        'PriceUpdateService'
+      );
+      // Fallback: use timestamp-based tick
+      currentTick = BigInt(Math.floor(Date.now() / 1000));
+    }
 
     // Prepare market IDs and prices
     const marketIds: `0x${string}`[] = [];

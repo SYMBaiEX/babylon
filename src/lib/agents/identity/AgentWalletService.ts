@@ -77,9 +77,7 @@ export class AgentWalletService {
     try {
       // Step 1: Create Privy user for the agent (server-side)
       // Privy allows server-side user creation without user interaction
-      // Privy SDK doesn't export proper TypeScript types
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const privyUser = await (privy as any).createUser({
+      const privyUser = await privy.createUser({
         create_embedded_wallet: true,
         linked_accounts: []
       })
@@ -88,9 +86,9 @@ export class AgentWalletService {
         throw new Error('Failed to create embedded wallet')
       }
 
-      const walletAddress = privyUser.wallet.address as string
-      const privyUserId = privyUser.id as string
-      const privyWalletId = privyUser.wallet.id as string
+      const walletAddress = privyUser.wallet.address
+      const privyUserId = privyUser.id
+      const privyWalletId = privyUser.wallet.id
 
       // Step 2: Update agent user with wallet info
       await prisma.user.update({
@@ -275,30 +273,33 @@ export class AgentWalletService {
     value: string
     data: string
   }): Promise<string> {
-    const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
+    const agent = await prisma.user.findUnique({
+      where: { id: agentUserId },
+      select: {
+        id: true,
+        isAgent: true,
+        privyId: true
+      }
+    })
+    
     if (!agent || !agent.isAgent) {
       throw new Error('Agent not found')
     }
 
-    // Privy wallet ID not in base User type
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const privyWalletId = (agent as any).privyWalletId
-    if (!privyWalletId) {
+    if (!agent.privyId) {
       throw new Error('Agent does not have Privy wallet')
     }
 
     // Use Privy server client to sign transaction (no user interaction needed)
     // Privy handles the private key management and signing server-side
-    // Privy SDK doesn't export proper TypeScript types
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const signedTx = await (privy as any).signTransaction({
-      wallet_id: privyWalletId,
+    const signedTx = await privy.signTransaction({
+      wallet_id: agent.privyId,
       transaction: transactionData
     })
 
     logger.info(`Transaction signed for agent ${agentUserId}`, undefined, 'AgentWalletService')
     
-    return signedTx.signed_transaction as string
+    return signedTx.signed_transaction
   }
 
   /**

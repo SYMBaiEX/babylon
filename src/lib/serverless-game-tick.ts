@@ -1745,7 +1745,6 @@ async function publishOracleReveals(
 
   return { revealed, errors };
 }
-
 /**
  * Update widget caches
  * This pre-generates and caches widget data to improve performance

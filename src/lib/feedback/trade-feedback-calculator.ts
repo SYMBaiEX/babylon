@@ -5,7 +5,6 @@
  * Analyzes entry timing, exit timing, hold duration, and risk management.
  */
 
-// // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { prisma } from '@/lib/database-service'
 import type { TradeMetrics } from '@/lib/reputation/reputation-service'
 

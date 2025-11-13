@@ -4,7 +4,6 @@
  * Comprehensive tests for the benchmarking and simulation system.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { describe, it, expect } from 'vitest';
 import { BenchmarkDataGenerator, type BenchmarkConfig } from '@/lib/benchmark/BenchmarkDataGenerator';
 import { SimulationEngine, type SimulationConfig } from '@/lib/benchmark/SimulationEngine';
