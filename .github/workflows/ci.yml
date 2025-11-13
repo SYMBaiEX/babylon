@@ -185,20 +185,49 @@ jobs:
         run: |
           echo "📦 Contents of current directory:"
           ls -lah
+          echo ""
+          echo "📦 Looking for .env.test:"
+          find . -name ".env.test" -type f || echo "No .env.test found"
+          echo ""
           if [ -f .env.test ]; then
             echo "✅ .env.test found after download"
           else
-            echo "❌ .env.test NOT found after download"
-            exit 1
+            echo "⚠️  .env.test NOT found - will be recreated from secrets"
           fi
       
       - name: Setup test environment
         env:
           DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL }}
+          NEXTAUTH_SECRET_VAR: ${{ secrets.NEXTAUTH_SECRET }}
+          PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID }}
+          PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET }}
+          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          # Use test env from build artifacts
-          cp .env.test .env.local
-          cp .env.test .env
+          set +x
+          
+          # Use test env from build artifacts if it exists, otherwise create from secrets
+          if [ -f .env.test ]; then
+            echo "Using .env.test from build artifacts"
+            cp .env.test .env.local
+            cp .env.test .env
+          else
+            echo "Creating .env from secrets"
+            DB_URL="postgresql://postgres:postgres@localhost:5432/test_db"
+            cat > .env << EOF
+          DATABASE_URL=${DB_URL}
+          DIRECT_DATABASE_URL=${DB_URL}
+          NEXTAUTH_SECRET=${NEXTAUTH_SECRET_VAR}
+          PRIVY_APP_ID=${PRIVY_APP_ID_VAR}
+          PRIVY_APP_SECRET=${PRIVY_APP_SECRET_VAR}
+          NEXT_PUBLIC_PRIVY_APP_ID=${PRIVY_APP_ID_VAR}
+          GROQ_API_KEY=${GROQ_API_KEY_VAR}
+          OPENAI_API_KEY=${OPENAI_API_KEY_VAR}
+          EOF
+            cp .env .env.local
+          fi
+          
+          set -x
           
           # Override DATABASE_URL with staging database if available (for integration testing)
           if [ -n "$DATABASE_URL_SECRET" ]; then
@@ -227,6 +256,7 @@ jobs:
           path: |
             coverage/
             test-results/
+          if-no-files-found: ignore
           retention-days: 7
 
   # Step 3: Run E2E tests (Playwright)
@@ -320,6 +350,7 @@ jobs:
           path: |
             test-results/
             playwright-report/
+          if-no-files-found: ignore
           retention-days: 7
 
   # Step 4: Run Synpress tests (crypto wallet E2E)
@@ -417,6 +448,7 @@ jobs:
           path: |
             test-results/
             playwright-report/
+          if-no-files-found: ignore
           retention-days: 7
 
   # Step 5: All tests must pass
