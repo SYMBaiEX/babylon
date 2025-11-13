@@ -78,8 +78,9 @@ jobs:
           # Suppress command output to prevent secrets from appearing in logs
           set +x
           
-          # Use DATABASE_URL from secrets (from Vercel staging), fallback to local PostgreSQL service
-          DB_URL="${DATABASE_URL_SECRET:-postgresql://postgres:postgres@localhost:5432/test_db}"
+          # Build job uses local PostgreSQL service container (faster, no network dependency)
+          # Test jobs will use DATABASE_URL from secrets for integration testing
+          DB_URL="postgresql://postgres:postgres@localhost:5432/test_db"
           
           # Create .env file with test configuration
           # Using environment variables to prevent secrets from appearing in command output
@@ -171,10 +172,20 @@ jobs:
           name: build-artifacts
       
       - name: Setup test environment
+        env:
+          DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL }}
         run: |
           # Use test env from build artifacts
           cp .env.test .env.local
           cp .env.test .env
+          
+          # Override DATABASE_URL with staging database if available (for integration testing)
+          if [ -n "$DATABASE_URL_SECRET" ]; then
+            echo "DATABASE_URL=$DATABASE_URL_SECRET" >> .env
+            echo "DATABASE_URL=$DATABASE_URL_SECRET" >> .env.local
+            echo "DIRECT_DATABASE_URL=$DATABASE_URL_SECRET" >> .env
+            echo "DIRECT_DATABASE_URL=$DATABASE_URL_SECRET" >> .env.local
+          fi
           
           # Run migrations (migrations may already be applied, so || true is intentional)
           bun prisma migrate deploy || true
@@ -236,10 +247,20 @@ jobs:
         run: bunx playwright install --with-deps chromium
       
       - name: Setup test environment
+        env:
+          DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL }}
         run: |
           # Use test env from build artifacts
           cp .env.test .env.local
           cp .env.test .env
+          
+          # Override DATABASE_URL with staging database if available (for integration testing)
+          if [ -n "$DATABASE_URL_SECRET" ]; then
+            echo "DATABASE_URL=$DATABASE_URL_SECRET" >> .env
+            echo "DATABASE_URL=$DATABASE_URL_SECRET" >> .env.local
+            echo "DIRECT_DATABASE_URL=$DATABASE_URL_SECRET" >> .env
+            echo "DIRECT_DATABASE_URL=$DATABASE_URL_SECRET" >> .env.local
+          fi
           
           # Run migrations (migrations may already be applied, so || true is intentional)
           bun prisma migrate deploy || true
@@ -308,10 +329,20 @@ jobs:
         run: bunx playwright install --with-deps chromium
       
       - name: Setup test environment
+        env:
+          DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL }}
         run: |
           # Use test env from build artifacts
           cp .env.test .env.local
           cp .env.test .env
+          
+          # Override DATABASE_URL with staging database if available (for integration testing)
+          if [ -n "$DATABASE_URL_SECRET" ]; then
+            echo "DATABASE_URL=$DATABASE_URL_SECRET" >> .env
+            echo "DATABASE_URL=$DATABASE_URL_SECRET" >> .env.local
+            echo "DIRECT_DATABASE_URL=$DATABASE_URL_SECRET" >> .env
+            echo "DIRECT_DATABASE_URL=$DATABASE_URL_SECRET" >> .env.local
+          fi
           
           # Run migrations (migrations may already be applied, so || true is intentional)
           bun prisma migrate deploy || true
