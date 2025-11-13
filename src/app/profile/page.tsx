@@ -893,7 +893,7 @@ export default function ProfilePage() {
                         <button
                           onClick={() => coverImageInputRef.current?.click()}
                           disabled={editModal.isSaving}
-                          className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-black/60 hover:bg-black/80 active:bg-black/80 rounded-full text-white transition-colors disabled:opacity-50 min-h-[44px]"
+                          className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-black/60 hover:bg-black/80 active:bg-black/80 rounded-full text-foreground transition-colors disabled:opacity-50 min-h-[44px]"
                           aria-label="Change cover photo"
                         >
                           <Camera className="w-4 h-4 shrink-0" />
@@ -947,7 +947,7 @@ export default function ProfilePage() {
                           className="hidden sm:flex absolute inset-0 items-center justify-center bg-black/40 rounded-full opacity-0 hover:opacity-100 transition-opacity disabled:opacity-0"
                           aria-label="Change profile picture"
                         >
-                          <Camera className="w-6 h-6 text-white" />
+                          <Camera className="w-6 h-6 text-foreground" />
                         </button>
                       </div>
                     </div>

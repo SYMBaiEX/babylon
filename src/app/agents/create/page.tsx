@@ -500,7 +500,7 @@ export default function CreateAgentPage() {
           <button
             type="submit"
             disabled={loading || formData.initialDeposit > totalPoints}
-            className="w-full px-6 py-4 rounded-lg font-medium transition-all bg-[#0066FF] hover:bg-[#2952d9] text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full px-6 py-4 rounded-lg font-medium transition-all bg-[#0066FF] hover:bg-[#2952d9] text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loading ? (
               <>

@@ -103,7 +103,7 @@ export function CategoryPnLCard({
             type="button"
             onClick={onRefresh}
             disabled={loading}
-            className="flex items-center justify-center rounded-lg border border-white/10 bg-white/10 p-2 text-white backdrop-blur transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex items-center justify-center rounded-lg border border-white/10 bg-white/10 p-2 text-foreground backdrop-blur transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
             aria-label={`Refresh ${category} P&L`}
           >
             <RefreshCcw className={cn('h-4 w-4', loading && 'animate-spin')} />
@@ -130,9 +130,9 @@ export function CategoryPnLCard({
           </div>
         </div>
       ) : error ? (
-        <div className="mt-6 rounded-lg bg-white/10 px-4 py-3 text-sm text-white/80">
-          <p className="font-medium text-white">Unable to load P&amp;L</p>
-          <p className="mt-1 text-white/80">{error}</p>
+        <div className="mt-6 rounded-lg bg-white/10 px-4 py-3 text-sm text-foreground/80">
+          <p className="font-medium text-foreground">Unable to load P&amp;L</p>
+          <p className="mt-1 text-foreground/80">{error}</p>
         </div>
       ) : (
         data && (
@@ -151,7 +151,7 @@ export function CategoryPnLCard({
                 )}
                 {pnlIsPositive ? 'Profit' : 'Loss'}
               </div>
-              <p className="text-4xl font-bold text-white sm:text-5xl">
+              <p className="text-4xl font-bold text-foreground sm:text-5xl">
                 {pnlIsPositive ? '+' : ''}
                 {formatCurrency(pnl)}
               </p>
@@ -159,37 +159,37 @@ export function CategoryPnLCard({
 
             <dl className="mt-6 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
               <div className="rounded-lg border border-white/10 bg-white/10 p-3 backdrop-blur">
-                <dt className="text-xs uppercase text-white/70">Open Positions</dt>
-                <dd className="text-base font-semibold text-white">{data.positionCount}</dd>
+                <dt className="text-xs uppercase text-foreground/70">Open Positions</dt>
+                <dd className="text-base font-semibold text-foreground">{data.positionCount}</dd>
               </div>
               {data.totalValue !== undefined && (
                 <div className="rounded-lg border border-white/10 bg-white/10 p-3 backdrop-blur">
-                  <dt className="text-xs uppercase text-white/70">Total Value</dt>
-                  <dd className="text-base font-semibold text-white">
+                  <dt className="text-xs uppercase text-foreground/70">Total Value</dt>
+                  <dd className="text-base font-semibold text-foreground">
                     {formatCurrency(data.totalValue)}
                   </dd>
                 </div>
               )}
               {data.categorySpecific?.openInterest !== undefined && (
                 <div className="rounded-lg border border-white/10 bg-white/10 p-3 backdrop-blur">
-                  <dt className="text-xs uppercase text-white/70">Open Interest</dt>
-                  <dd className="text-base font-semibold text-white">
+                  <dt className="text-xs uppercase text-foreground/70">Open Interest</dt>
+                  <dd className="text-base font-semibold text-foreground">
                     {formatCurrency(data.categorySpecific.openInterest)}
                   </dd>
                 </div>
               )}
               {data.categorySpecific?.totalShares !== undefined && (
                 <div className="rounded-lg border border-white/10 bg-white/10 p-3 backdrop-blur">
-                  <dt className="text-xs uppercase text-white/70">Total Shares</dt>
-                  <dd className="text-base font-semibold text-white">
+                  <dt className="text-xs uppercase text-foreground/70">Total Shares</dt>
+                  <dd className="text-base font-semibold text-foreground">
                     {data.categorySpecific.totalShares.toFixed(2)}
                   </dd>
                 </div>
               )}
               {data.categorySpecific?.totalInvested !== undefined && (
                 <div className="rounded-lg border border-white/10 bg-white/10 p-3 backdrop-blur">
-                  <dt className="text-xs uppercase text-white/70">Total Invested</dt>
-                  <dd className="text-base font-semibold text-white">
+                  <dt className="text-xs uppercase text-foreground/70">Total Invested</dt>
+                  <dd className="text-base font-semibold text-foreground">
                     {formatCurrency(data.categorySpecific.totalInvested)}
                   </dd>
                 </div>

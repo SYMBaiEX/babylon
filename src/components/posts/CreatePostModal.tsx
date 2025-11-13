@@ -114,12 +114,12 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
           <div>
-            <h2 className="text-xl font-semibold text-white">Create Post</h2>
-            <p className="text-xs text-white/60">Share your thoughts with Babylon</p>
+            <h2 className="text-xl font-semibold text-primary-foreground">Create Post</h2>
+            <p className="text-xs text-primary-foreground/60">Share your thoughts with Babylon</p>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-2 text-white/70 transition hover:bg-white/10 hover:text-white"
+            className="rounded-lg p-2 text-primary-foreground/70 transition hover:bg-white/10 hover:text-primary-foreground"
             aria-label="Close create post modal"
           >
             <X className="h-5 w-5" />
@@ -135,7 +135,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
             className={cn(
               'flex-1 w-full px-4 py-3 rounded-xl',
               'border border-white/10 bg-white/5',
-              'text-white placeholder:text-white/40',
+              'text-primary-foreground placeholder:text-primary-foreground/40',
               'resize-none focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20',
               'transition-colors'
             )}
@@ -147,7 +147,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
           <div className="flex items-center justify-between mt-3 mb-4">
             <span className={cn(
               'text-sm',
-              content.length > 260 ? 'text-red-400' : 'text-white/50'
+              content.length > 260 ? 'text-red-400' : 'text-primary-foreground/50'
             )}>
               {content.length}/280
             </span>
@@ -187,12 +187,12 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
           {/* Header */}
           <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
             <div>
-              <h2 className="text-xl font-semibold text-white">Create Post</h2>
-              <p className="text-xs text-white/60">Share your thoughts with Babylon</p>
+              <h2 className="text-xl font-semibold text-primary-foreground">Create Post</h2>
+              <p className="text-xs text-primary-foreground/60">Share your thoughts with Babylon</p>
             </div>
             <button
               onClick={onClose}
-              className="rounded-lg p-2 text-white/70 transition hover:bg-white/10 hover:text-white"
+              className="rounded-lg p-2 text-primary-foreground/70 transition hover:bg-white/10 hover:text-primary-foreground"
               aria-label="Close create post modal"
             >
               <X className="h-5 w-5" />
@@ -208,7 +208,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
               className={cn(
                 'flex-1 w-full px-4 py-3 rounded-xl',
                 'border border-white/10 bg-white/5',
-                'text-white placeholder:text-white/40',
+                'text-primary-foreground placeholder:text-primary-foreground/40',
                 'resize-none focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20',
                 'transition-colors'
               )}
@@ -220,7 +220,7 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
             <div className="flex items-center justify-between mt-3 mb-4">
               <span className={cn(
                 'text-sm',
-                content.length > 260 ? 'text-red-400' : 'text-white/50'
+                content.length > 260 ? 'text-red-400' : 'text-primary-foreground/50'
               )}>
                 {content.length}/280
               </span>

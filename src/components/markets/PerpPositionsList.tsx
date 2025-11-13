@@ -265,7 +265,7 @@ export function PerpPositionsList({
               className={cn(
                 'w-full py-2 rounded font-medium transition-all cursor-pointer',
                 isNearLiquidation
-                  ? 'bg-red-600 hover:bg-red-700 text-white'
+                  ? 'bg-red-600 hover:bg-red-700 text-foreground'
                   : 'bg-muted hover:bg-muted text-foreground',
                 isClosing && 'opacity-50 cursor-not-allowed'
               )}

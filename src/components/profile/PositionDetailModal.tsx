@@ -624,7 +624,7 @@ export function PositionDetailModal({
                       className={cn(
                         'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2',
                         side === 'yes'
-                          ? 'bg-green-600 text-white'
+                          ? 'bg-green-600 text-foreground'
                           : 'bg-muted text-muted-foreground hover:bg-muted'
                       )}
                     >
@@ -636,7 +636,7 @@ export function PositionDetailModal({
                       className={cn(
                         'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2',
                         side === 'no'
-                          ? 'bg-red-600 text-white'
+                          ? 'bg-red-600 text-foreground'
                           : 'bg-muted text-muted-foreground hover:bg-muted'
                       )}
                     >
@@ -700,7 +700,7 @@ export function PositionDetailModal({
                     onClick={handlePredictionTrade}
                     disabled={loading || parseFloat(amount) < 1}
                     className={cn(
-                      'w-full py-3 rounded font-bold text-white transition-all',
+                      'w-full py-3 rounded font-bold text-foreground transition-all',
                       side === 'yes'
                         ? 'bg-green-600 hover:bg-green-700'
                         : 'bg-red-600 hover:bg-red-700',
@@ -731,7 +731,7 @@ export function PositionDetailModal({
                       className={cn(
                         'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2',
                         side === 'long'
-                          ? 'bg-green-600 text-white'
+                          ? 'bg-green-600 text-foreground'
                           : 'bg-muted text-muted-foreground hover:bg-muted'
                       )}
                     >
@@ -743,7 +743,7 @@ export function PositionDetailModal({
                       className={cn(
                         'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2',
                         side === 'short'
-                          ? 'bg-red-600 text-white'
+                          ? 'bg-red-600 text-foreground'
                           : 'bg-muted text-muted-foreground hover:bg-muted'
                       )}
                     >
@@ -848,7 +848,7 @@ export function PositionDetailModal({
                     onClick={handlePerpTrade}
                     disabled={loading || sizeNum < perpMarket.minOrderSize}
                     className={cn(
-                      'w-full py-3 rounded font-bold text-white transition-all',
+                      'w-full py-3 rounded font-bold text-foreground transition-all',
                       side === 'long'
                         ? 'bg-green-600 hover:bg-green-700'
                         : 'bg-red-600 hover:bg-red-700',

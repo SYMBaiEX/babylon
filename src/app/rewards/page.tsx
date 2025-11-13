@@ -350,7 +350,7 @@ export default function RewardsPage() {
                 </div>
                 <button
                   onClick={() => setShowShareModal(true)}
-                  className="px-4 py-2 bg-[#0066FF] hover:bg-[#0066FF]/80 text-white rounded-lg transition-colors font-medium text-sm"
+                  className="px-4 py-2 bg-[#0066FF] hover:bg-[#0066FF]/80 text-primary-foreground rounded-lg transition-colors font-medium text-sm"
                 >
                   Share
                 </button>

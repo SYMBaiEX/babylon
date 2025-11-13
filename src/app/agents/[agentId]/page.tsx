@@ -171,7 +171,7 @@ export default function AgentDetailPage() {
               This agent doesn't exist or you don't have access to it
             </p>
             <Link href="/agents">
-              <button className="px-6 py-2 rounded-lg font-medium bg-[#0066FF] hover:bg-[#2952d9] text-white transition-colors">
+              <button className="px-6 py-2 rounded-lg font-medium bg-[#0066FF] hover:bg-[#2952d9] text-foreground transition-colors">
                 Back to Agents
               </button>
             </Link>
@@ -264,23 +264,23 @@ export default function AgentDetailPage() {
       {/* Tabs */}
       <Tabs defaultValue="chat" className="w-full">
         <TabsList className="grid w-full grid-cols-5 bg-muted/50">
-          <TabsTrigger value="chat" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">
+          <TabsTrigger value="chat" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-foreground">
             <MessageCircle className="w-4 h-4 mr-2" />
             <span className="hidden sm:inline">Chat</span>
           </TabsTrigger>
-          <TabsTrigger value="performance" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">
+          <TabsTrigger value="performance" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-foreground">
             <TrendingUp className="w-4 h-4 mr-2" />
             <span className="hidden sm:inline">Performance</span>
           </TabsTrigger>
-          <TabsTrigger value="logs" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">
+          <TabsTrigger value="logs" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-foreground">
             <FileText className="w-4 h-4 mr-2" />
             <span className="hidden sm:inline">Logs</span>
           </TabsTrigger>
-          <TabsTrigger value="settings" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">
+          <TabsTrigger value="settings" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-foreground">
             <Settings className="w-4 h-4 mr-2" />
             <span className="hidden sm:inline">Settings</span>
           </TabsTrigger>
-          <TabsTrigger value="wallet" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">
+          <TabsTrigger value="wallet" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-foreground">
             <Bot className="w-4 h-4 mr-2" />
             <span className="hidden sm:inline">Wallet</span>
           </TabsTrigger>

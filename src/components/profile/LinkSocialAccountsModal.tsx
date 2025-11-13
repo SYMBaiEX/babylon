@@ -204,7 +204,7 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
                   disabled={linking === 'twitter'}
                   className={cn(
                     'w-full px-4 py-2 rounded-lg font-semibold transition-colors',
-                    'bg-[#0066FF] text-white hover:bg-[#2952d9]',
+                    'bg-[#0066FF] text-foreground hover:bg-[#2952d9]',
                     'disabled:opacity-50 disabled:cursor-not-allowed',
                     'flex items-center justify-center gap-2'
                   )}
@@ -267,7 +267,7 @@ export function LinkSocialAccountsModal({ isOpen, onClose }: LinkSocialAccountsM
                   disabled={linking === 'farcaster'}
                   className={cn(
                     'w-full px-4 py-2 rounded-lg font-semibold transition-colors',
-                    'bg-[#8A63D2] text-white hover:bg-[#7952c4]',
+                    'bg-[#8A63D2] text-foreground hover:bg-[#7952c4]',
                     'disabled:opacity-50 disabled:cursor-not-allowed',
                     'flex items-center justify-center gap-2'
                   )}

@@ -302,7 +302,7 @@ export const PostCard = memo(function PostCard({
             </h2>
             {!isDetail && (
               <button
-                className="inline-flex items-center gap-2 px-3 py-2 bg-[#0066FF] hover:bg-[#2952d9] text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-2 px-3 py-2 bg-[#0066FF] hover:bg-[#2952d9] text-primary-foreground text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0"
                 onClick={handleClick}
               >
                 Read Full Article →
@@ -368,7 +368,7 @@ export const PostCard = memo(function PostCard({
                 <div className="flex items-center gap-2">
                   <Link
                     href={getProfileUrl(effectivePost.originalAuthorId || '', effectivePost.originalAuthorUsername)}
-                    className="font-semibold text-white hover:underline truncate"
+                    className="font-semibold text-foreground hover:underline truncate"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {effectivePost.originalAuthorName}
@@ -379,7 +379,7 @@ export const PostCard = memo(function PostCard({
                 </div>
                 <Link
                   href={getProfileUrl(effectivePost.originalAuthorId || '', effectivePost.originalAuthorUsername)}
-                  className="text-white/50 text-sm hover:underline"
+                  className="text-foreground/50 text-sm hover:underline"
                   onClick={(e) => e.stopPropagation()}
                 >
                   @{effectivePost.originalAuthorUsername || effectivePost.originalAuthorId}
@@ -388,7 +388,7 @@ export const PostCard = memo(function PostCard({
             </div>
 
             {/* Original post content - Use originalContent if available, otherwise parse */}
-            <div className="text-white/90 leading-relaxed whitespace-pre-wrap break-words">
+            <div className="text-foreground/90 leading-relaxed whitespace-pre-wrap break-words">
               <TaggedText 
                 text={effectivePost.originalContent || ''}
                 onTagClick={(tag) => {

@@ -292,7 +292,7 @@ export default function PerpsPage() {
             </p>
             <button
               onClick={login}
-              className="px-8 py-3 bg-[#0066FF] text-white rounded-lg font-medium hover:bg-[#2952d9] transition-colors cursor-pointer shadow-lg shadow-[#0066FF]/20"
+              className="px-8 py-3 bg-[#0066FF] text-foreground rounded-lg font-medium hover:bg-[#2952d9] transition-colors cursor-pointer shadow-lg shadow-[#0066FF]/20"
             >
               Connect Wallet
             </button>
