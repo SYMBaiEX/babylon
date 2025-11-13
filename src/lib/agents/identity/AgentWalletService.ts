@@ -41,6 +41,7 @@ export class AgentWalletService {
 
       // Step 1: Create Privy user for the agent (server-side)
       // Privy allows server-side user creation without user interaction
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const privyUser = await (privy as any).createUser({
         create_embedded_wallet: true,
         linked_accounts: []
@@ -273,6 +274,7 @@ export class AgentWalletService {
 
       // Use Privy server client to sign transaction (no user interaction needed)
       // Privy handles the private key management and signing server-side
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const signedTx = await (privy as any).signTransaction({
         wallet_id: privyWalletId,
         transaction: transactionData

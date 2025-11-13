@@ -13,6 +13,7 @@
     "test:a2a:unit": "bun test ./src/a2a/tests/integration/points-service-integration.test.ts",
     "test:a2a:live": "bun run src/a2a/tests/live-server.test.ts",
     "test:plugin": "tsx scripts/test-plugin-local.ts",
+    "test:plugin:complete": "tsx scripts/test-babylon-plugin-complete.ts",
     "verify:a2a": "tsx scripts/verify-a2a-required.ts",
     "verify:separation": "tsx scripts/verify-agent-separation.ts",
     "a2a:server": "tsx scripts/start-a2a-server.ts",

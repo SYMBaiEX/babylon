@@ -5,7 +5,6 @@
  * with an Eliza agent for autonomous trading and social interactions.
  */
 
-import { IAgentRuntime } from '@elizaos/core'
 import { initializeBabylonPlugin, babylonPlugin } from './index'
 import type { BabylonRuntime } from './types'
 

@@ -3,7 +3,7 @@
  * Actions for social interactions (posts, comments, likes)
  */
 
-import type { Action, IAgentRuntime, Memory, State, HandlerCallback, ActionResult } from '@elizaos/core'
+import type { Action, IAgentRuntime, Memory, State, HandlerCallback } from '@elizaos/core'
 import { logger } from '@/lib/logger'
 import type { BabylonRuntime } from '../types'
 
@@ -153,9 +153,6 @@ export const commentAction: Action = {
         }
         return
       }
-      
-      const postId = postIdMatch[1]
-      const commentContent = commentMatch[1]
       
       const postId = postIdMatch[1]!
       const commentContent = commentMatch[1]!

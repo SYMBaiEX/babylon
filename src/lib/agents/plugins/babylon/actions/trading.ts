@@ -3,7 +3,7 @@
  * Actions for trading on prediction and perpetual markets
  */
 
-import type { Action, IAgentRuntime, Memory, State, HandlerCallback, ActionResult } from '@elizaos/core'
+import type { Action, IAgentRuntime, Memory, State, HandlerCallback } from '@elizaos/core'
 import { logger } from '@/lib/logger'
 import type { BabylonRuntime } from '../types'
 
@@ -70,7 +70,7 @@ export const buySharesAction: Action = {
       }
       
       const marketId = marketIdMatch[1]!
-      const amount = parseFloat(amountMatch[1])
+      const amount = parseFloat(amountMatch[1]!)
       const side = (sideMatch?.[1]?.toUpperCase() || 'YES') as 'YES' | 'NO'
       
       // Execute trade via A2A
@@ -111,11 +111,11 @@ export const sellSharesAction: Action = {
   examples: [
     [
       {
-        user: '{{user1}}',
+        name: '{{user1}}',
         content: { text: 'Sell 50 YES shares from position pos-123' }
       },
       {
-        user: '{{agent}}',
+        name: '{{agent}}',
         content: { text: 'Selling 50 YES shares...', action: 'SELL_PREDICTION_SHARES' }
       }
     ]
@@ -161,8 +161,8 @@ export const sellSharesAction: Action = {
         return
       }
       
-      const positionId = positionIdMatch[1]!!
-      const shares = parseFloat(amountMatch[1])
+      const positionId = positionIdMatch[1]!
+      const shares = parseFloat(amountMatch[1]!)
       
       // Execute trade via A2A
       const result = await babylonRuntime.a2aClient.sendRequest('a2a.sellShares', {
@@ -201,11 +201,11 @@ export const openPerpPositionAction: Action = {
   examples: [
     [
       {
-        user: '{{user1}}',
+        name: '{{user1}}',
         content: { text: 'Open a 5x long position on AAPL with $1000' }
       },
       {
-        user: '{{agent}}',
+        name: '{{agent}}',
         content: { text: 'Opening 5x long position on AAPL with $1000...', action: 'OPEN_PERP_POSITION' }
       }
     ]
@@ -255,8 +255,8 @@ export const openPerpPositionAction: Action = {
       }
       
       const ticker = tickerMatch[1]!
-      const amount = parseFloat(amountMatch[1])
-      const leverage = leverageMatch ? parseInt(leverageMatch[1]) : 1
+      const amount = parseFloat(amountMatch[1]!)
+      const leverage = leverageMatch ? parseInt(leverageMatch[1]!) : 1
       const side = (sideMatch?.[1]?.toLowerCase() || 'long') as 'long' | 'short'
       
       // Execute trade via A2A
@@ -298,11 +298,11 @@ export const closePerpPositionAction: Action = {
   examples: [
     [
       {
-        user: '{{user1}}',
+        name: '{{user1}}',
         content: { text: 'Close my AAPL position' }
       },
       {
-        user: '{{agent}}',
+        name: '{{agent}}',
         content: { text: 'Closing position...', action: 'CLOSE_PERP_POSITION' }
       }
     ]
@@ -350,19 +350,18 @@ export const closePerpPositionAction: Action = {
       
       // Execute close via A2A
       const result = await babylonRuntime.a2aClient.sendRequest('a2a.closePosition', {
-        ticker: tickerMatch?.[1],
-        positionId: positionIdMatch?.[1]
-      })
+        ticker: tickerMatch?.[1] || '',
+        positionId: positionIdMatch?.[1] || ''
+      }) as any
       
       if (callback) {
         callback({
-          text: `Successfully closed position. Exit price: $${result.exitPrice}. P&L: ${result.pnl >= 0 ? '+' : ''}$${result.pnl}`,
+          text: `Successfully closed position. Exit price: $${result?.exitPrice || 0}. P&L: ${result?.pnl >= 0 ? '+' : ''}$${result?.pnl || 0}`,
           action: 'CLOSE_PERP_POSITION'
         })
       }
       
       logger.info('Agent closed perpetual position', { result })
-      return true
     } catch (error) {
       logger.error('Failed to close position', error)
       if (callback) {
@@ -371,7 +370,6 @@ export const closePerpPositionAction: Action = {
           action: 'CLOSE_PERP_POSITION'
         })
       }
-      return false
     }
   }
 }

@@ -3,7 +3,7 @@
  * Actions for sending messages and managing chats
  */
 
-import type { Action, IAgentRuntime, Memory, State, HandlerCallback, ActionResult } from '@elizaos/core'
+import type { Action, IAgentRuntime, Memory, State, HandlerCallback } from '@elizaos/core'
 import { logger } from '@/lib/logger'
 import type { BabylonRuntime } from '../types'
 
@@ -158,7 +158,7 @@ export const createGroupAction: Action = {
         return
       }
       
-      const groupName = nameMatch ? nameMatch[1].trim() : ''
+      const groupName = nameMatch ? nameMatch[1]?.trim() : ''
       if (!groupName) {
         if (callback) {
           callback({

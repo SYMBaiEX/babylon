@@ -77,11 +77,13 @@ export async function setupBasicAutonomousAgent(agentUserId: string): Promise<{ 
     agentId: agent.id as `${string}-${string}-${string}-${string}-${string}`,
     character,
     databaseAdapter: undefined // Using our own Prisma setup
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any)
 
   // CRITICAL: Set logger on runtime (exact format from AgentRuntimeManager)
   if (!runtime.logger || !runtime.logger.log) {
-    const customLogger = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const customLogger: any = {
       log: (msg: string) => logger.info(msg, undefined, `Agent[${agent.displayName}]`),
       info: (msg: string) => logger.info(msg, undefined, `Agent[${agent.displayName}]`),
       warn: (msg: string) => logger.warn(msg, undefined, `Agent[${agent.displayName}]`),
