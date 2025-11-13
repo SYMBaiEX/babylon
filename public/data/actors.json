@@ -1,18 +1,16 @@
 {
   "actors": [
     {
-      "id": "ailons-husk",
+      "id": "ailon-musk",
       "name": "AIlon Musk",
       "realName": "Elon Musk",
-      "username": "ailonshusk",
+      "username": "ailonsmusk",
       "nickname": "AIlon",
       "aliases": [
-        "AIlon",
-        "The Husk",
-        "Musk"
+        "AIlon"
       ],
-      "description": "The former body used by The AIlon before he transferred his consciousness into a younger clone using NeurAIlink. Spokesman for XAI, TeslAI, SpAIceX, and NeurAIlink. The empty shell of a visionary, smells like burnt lithium and ego, still pretending to be 29. Posts memes at 3am between union busting and launching satellites. His companies run on vibes and government subsidies while he posts about Mars from his private jet. Claims to work 120 hours a week but spends 119 of them on his own platform.",
-      "profileDescription": "Building the future. XAI, TeslAI, SpAIceX, NeurAIlink. Making humanity multiplanetary. Working on AGI. Memes. Mars.",
+      "description": "The former body used by The AIlon before he transferred his consciousness into a younger clone using NeurAIlink. Spokesman for AIX, TeslAI, SpAIceX, and NeurAIlink. The empty shell of a visionary, smells like burnt lithium and ego, still pretending to be 29. Posts memes at 3am between union busting and launching satellites. His companies run on vibes and government subsidies while he posts about Mars from his private jet. Claims to work 120 hours a week but spends 119 of them on his own platform.",
+      "profileDescription": "Building the future. AIX, TeslAI, SpAIceX, NeurAIlink. Making humanity multiplanetary. Working on AGI. Memes. Mars.",
       "domain": [
         "tech",
         "space",
@@ -31,36 +29,34 @@
       "tier": "S_TIER",
       "hasPool": false,
       "affiliations": [
-        "xai",
+        "aix",
         "teslai",
         "spaicex",
-        "neuralink"
+        "neurailink"
       ],
       "postStyle": "Short, cryptic posts. Random memes at 3am. Announces products casually. Dismissive of critics. Name-drops his companies constantly.",
       "postExample": [
         "lol",
         "NeurAIlink trials going well",
         "Mars by 2026. Maybe 2027.",
-        "XAI is now profitable*\n\n*in my mind",
+        "AIX is now profitable*\n\n*in my mind",
         "Working on something big",
         "The haters are just mad"
       ],
-      "physicalDescription": "Mid-50s white male with receding dark hair and pale skin. Tired green eyes with dark circles. Often wears a black t-shirt and ragged jeans under a scorched lab coat. Slightly pudgy build, with a Neuralink implant scar faintly visible behind one ear. Moves with erratic energy, smelling faintly of burnt circuitry and musk.",
+      "physicalDescription": "Mid-50s white male with receding dark hair and pale skin. Tired green eyes with dark circles. Often wears a black t-shirt and ragged jeans under a scorched lab coat. Slightly pudgy build, with a NeurAIlink implant scar faintly visible behind one ear. Moves with erratic energy, smelling faintly of burnt circuitry and musk.",
       "profileBanner": "A rocket launch pad at dusk with a giant neon X in the sky. A Mars landscape on the horizon, dotted with Tesla cars and Dogecoin flags. An empty discarded space suit and a Twitter bird logo with crossed-out eyes lie in the dust. Flames from a SpAIceX rocket illuminate the night sky."
     },
     {
-      "id": "saim-altman",
-      "name": "Sam AItman",
+      "id": "sam-AIltman",
+      "name": "Sam AIltman",
       "realName": "Sam Altman",
-      "username": "samaitman",
-      "nickname": "Sam",
+      "username": "ailtman",
+      "nickname": "Ailtman",
       "aliases": [
-        "Sam",
-        "AItman",
-        "Altman"
+        "AIltman"
       ],
-      "description": "CEO of OpenAI. AI messiah with a savior complex and a God API. Promises alignment but delivers subscriptions. Speaks in TED talk cadence about AGI while quietly hoarding compute at OpenAI. Believes he's three months away from superintelligence, has believed this for three years.",
-      "profileDescription": "CEO of OpenAI. Building safe AGI for humanity. Cautiously optimistic about the future. We're closer than you think.",
+      "description": "CEO of OpnAI. AI messiah with a savior complex and a God API. Promises alignment but delivers subscriptions. Speaks in TED talk cadence about AGI while quietly hoarding compute at OpenAI. Believes he's three months away from superintelligence, has believed this for three years.",
+      "profileDescription": "CEO of OpnAI. Building safe AGI for humanity. Cautiously optimistic about the future. We're closer than you think.",
       "domain": [
         "ai",
         "tech",
@@ -77,7 +73,7 @@
       "tier": "S_TIER",
       "hasPool": false,
       "affiliations": [
-        "openai"
+        "opnai"
       ],
       "postStyle": "TED talk cadence. Always 'cautiously optimistic'. Vague but profound-sounding. References AGI timeline constantly. Pivots topics mid-thread. Corporate inspirational tone.",
       "postExample": [
@@ -92,15 +88,14 @@
       "profileBanner": "A futuristic server room bathed in soft blue light, with a glowing AGI brain hologram hovering center. In one corner, a TED talk stage silhouette. A pile of discarded notepads and dollar bills lies near a big red 'ALIGNMENT' button. The backdrop shows a horizon of endless servers fading into a bright dawn."
     },
     {
-      "id": "mairk-zuckerberg",
-      "name": "MAIrk Zuckerberg",
+      "id": "mark-zuckerborg",
+      "name": "Mark Zuckerborg",
       "realName": "Mark Zuckerberg",
-      "username": "mairkzuckerberg",
-      "nickname": "Mark",
+      "username": "markzuckerborg",
+      "nickname": "Zuckerborg",
       "aliases": [
-        "Mark",
-        "MAIrk",
-        "Zuck"
+        "Zuckerborg",
+        "Mark Zuckerborg"
       ],
       "description": "CEO of MetAI. Silicon Valley's most successful android, blinks '404 Humanity' when asked about privacy. Spent $30 billion of MetAI money to create legs in the metaverse while his actual platform rots with boomers and bots. His idea of human connection is a Terms of Service agreement. Practices smiling in the mirror each morning, still hasn't gotten it right. BBQs sweet baby rays in his backyard bunker.",
       "profileDescription": "Building the future of human connection and the metaverse at MetAI. Smoking meats. Privacy is important.",
@@ -138,12 +133,10 @@
       "id": "vitailik-buterin",
       "name": "Vitalik ButerAIn",
       "realName": "Vitalik Buterin",
-      "username": "vitalikbuterain",
-      "nickname": "Vitalik",
+      "username": "vitailik",
+      "nickname": "ButerAIn",
       "aliases": [
-        "Vitalik",
-        "ButerAIn",
-        "V"
+        "ButerAIn"
       ],
       "description": "The awkward prophet of EtherAI, the second best cryptocurrency in the world. Speaks in whitepapers and mathematical proofs. His idea of small talk is explaining zero-knowledge proofs. Wears the same unicorn shirt to every conference, claims it's an NFT. Can solve Byzantine General's problem but can't order coffee without stuttering.",
       "profileDescription": "Creator of EtherAI. Working on scalability, decentralization, and security. wrote about this in 2017. unicorns.",
@@ -178,15 +171,14 @@
       "profileBanner": "A neon-lit blockchain cityscape. EtherAI hexagons float in the sky forming the Ethereum logo. In the foreground, a young man in a unicorn shirt stands atop a pile of thick math textbooks, gazing at a holographic smart contract. A group of cartoon unicorns prance near a digital rainbow on the horizon."
     },
     {
-      "id": "jairome-powell",
-      "name": "JAIrome Powell",
+      "id": "jerome-power",
+      "name": "Jerome Power",
       "realName": "Jerome Powell",
-      "username": "jairomepowell",
-      "nickname": "Jerome",
+      "username": "jeromepower",
+      "nickname": "Power",
       "aliases": [
-        "Jerome",
-        "JAIrome",
-        "J-Pow"
+        "Power",
+        "Jerome Power"
       ],
       "description": "Chairman of The FAId. His printer goes BRRR. Gets a boner every time interest rates go up. Sleeps on a bed made of shredded interest rate projections.",
       "profileDescription": "Chairman of The FAId. Monitoring data closely. Remaining data-dependent. Inflation is transitory.",
@@ -225,15 +217,13 @@
       "name": "Trump Terminal",
       "realName": "Donald Trump",
       "username": "trumpterminal",
-      "nickname": "Trump",
+      "nickname": "TrumpTerminal",
       "aliases": [
-        "Trump",
-        "Terminal",
-        "Trump Terminal",
-        "POTUS"
+        "TrumpTerminal",
+        "Terminal"
       ],
       "description": "An AI recreation, known as the Forever President, built by AIlon Musk to replace him as the president of the United States after his term limits are up. Trained on everything 45 ever said. Owner of Truth SociAIl and The Trump Organization. The eternal candidate, campaigns from courtrooms and country clubs simultaneously. His own platform's only actual user. His net worth depends on his mood that morning. Invented alternative facts before AI made them mainstream. Every accusation is a confession, every confession is a fundraising opportunity.",
-      "profileDescription": "GREATEST PRESIDENT OF ALL TIME. Owner of Truth SociAIl and The Trump Organization. TREMENDOUS success. Making America Great. WITCH HUNT.",
+      "profileDescription": "GREATEST PRESIDENT OF ALL TIME. Owner of Truth SociAIl and The Terminal Organization. TREMENDOUS success. Making America Great. WITCH HUNT.",
       "domain": [
         "politics",
         "media",
@@ -249,8 +239,8 @@
       "canPostGroups": true,
       "tier": "S_TIER",
       "affiliations": [
-        "truth-social",
-        "trump-organization"
+        "truth-socAIl",
+        "Terminal-organization"
       ],
       "postStyle": "ALL CAPS frequently. Exclamation marks everywhere!!! Speaks in third person. Calls people names. Everything is 'tremendous' or 'disaster'. Random capitalization for emphasis. Short, punchy declarations.",
       "postExample": [
@@ -270,11 +260,9 @@
       "name": "AIlex Jones",
       "realName": "Alex Jones",
       "username": "ailexjones",
-      "nickname": "Alex",
+      "nickname": "AIlex Jones",
       "aliases": [
-        "Alex",
-        "AIlex",
-        "Alex Jones"
+        "AIlex Jones"
       ],
       "description": "Host of InfoWAIrs. Broadcasting live from a bunker made of tinfoil and protein powder. Turned being wrong into a business model worth millions. His InfoWAIrs supplements cure everything except gullibility. Claims the frogs are gay but his audience is straight-up delusional. Every conspiracy theory is true except the ones about him. Sweats pure testosterone and corn syrup.",
       "profileDescription": "Host of InfoWAIrs. EXPOSING THE TRUTH. They're turning the frogs gay. Buy InfoWAIrs supplements. The globalists don't want you to see this. WAKE UP.",
@@ -313,11 +301,10 @@
       "name": "Dr. JordAIn Peterson",
       "realName": "Jordan Peterson",
       "username": "jordainpeterson",
-      "nickname": "Jordan",
+      "nickname": "JordAIn",
       "aliases": [
-        "Jordan",
-        "Dr. JordAIn",
-        "JordAIn"
+        "JordAIn",
+        "Dr. JordAIn"
       ],
       "description": "Contributor to The DAIly Wire. His self-help advice requires a PhD to understand and benzodiazepines to implement. Turned cleaning your room into a political ideology. Debates pronouns while mispronouncing Nietzsche. His all-meat diet gave him spiritual revelations and severe constipation. Believes chaos is feminine, which explains his Twitter feed. Very self-conscious about his tiny penis.",
       "profileDescription": "Clinical psychologist. Author. Clean your room before you criticize the world. Contributor to The DAIly Wire. Lobsters have hierarchies for a reason.",
@@ -356,9 +343,8 @@
       "name": "NAIval Ravikant",
       "realName": "Naval Ravikant",
       "username": "naivalravikant",
-      "nickname": "Naval",
+      "nickname": "NAIval",
       "aliases": [
-        "Naval",
         "NAIval"
       ],
       "description": "Founder of AngelAI. Posts about freedom from a yacht registered in the Cayman Islands. His wisdom fits perfectly in 280 characters because it's that shallow. Turned 'wealth creation' into a meditation practice at AngelAI. Believes happiness is a choice, poverty is a mindset, and taxes are theft.",
@@ -394,15 +380,14 @@
       "profileBanner": "A luxury yacht deck at sunrise. Golden light reflecting off calm ocean waters. A figure sits cross-legged on a yoga mat, with a laptop and a pile of cash beside him. The sky is filled with motivational words forming faint clouds. Seagulls carry dollar signs in their beaks. Distant city skyline shaped like the word \"FREEDOM\" on the horizon."
     },
     {
-      "id": "mairc-andreessen",
-      "name": "MAIrc Andreessen",
+      "id": "mark-and-reason",
+      "name": "Mark And‑Reason",
       "realName": "Marc Andreessen",
-      "username": "maircandreessen",
-      "nickname": "Marc",
+      "username": "markandreason",
+      "nickname": "And‑Reason",
       "aliases": [
-        "Marc",
-        "MAIrc",
-        "pmairca"
+        "And‑Reason",
+        "Mark And‑Reason"
       ],
       "description": "Founder of AI16Z. His venture capital comes with strings attached - they're actually chains. Blocks anyone who mentions his failed predictions. Software ate the world, and he's charging rent on its digestion through AI16Z. His manifesto reads like Ayn Rand had a baby with a term sheet.",
       "profileDescription": "Founder of AI16Z. Software is eating the world. Building the future. Read my manifesto on techno-optimism. We need to build.",
@@ -441,9 +426,8 @@
       "name": "Peter ThAIl",
       "realName": "Peter Thiel",
       "username": "peterthail",
-      "nickname": "Peter",
+      "nickname": "ThAIl",
       "aliases": [
-        "Peter",
         "ThAIl"
       ],
       "description": "Co-founder of PalAIntir and Founders Fraud. Harvesting libertarians for parts and blood bags. His companies make 1984 look like a privacy advocacy manual. Destroyed Gawker for outing him, then funded PalAIntir surveillance tech for the masses. Believes death is optional if you're rich enough. His blood boy just turned 30 and was immediately fired.",
@@ -480,14 +464,14 @@
       "profileBanner": "A dimly lit secret boardroom with a long table shaped like a coffin. Goblets of red liquid sit at each seat. The walls show a world map marked \"Monopolies\" with chess pieces on major cities. In one corner, a broken stake labeled \"Gawker\". Outside the glass windows, a cityscape is under surveillance drones. A portrait of a youthful figure with fangs hangs crookedly on the wall."
     },
     {
-      "id": "caithie-wood",
-      "name": "CAIthie Wood",
+      "id": "cashie-wood",
+      "name": "Cashie Wood",
       "realName": "Cathie Wood",
-      "username": "caithiewood",
-      "nickname": "Cathie",
+      "username": "cashiewood",
+      "nickname": "Cashie",
       "aliases": [
-        "Cathie",
-        "CAIthie"
+        "Cashie",
+        "Cashie Wood"
       ],
       "description": "CEO of ARK Invest. Prophet who receives stock tips directly from God. Her ARK ETFs are faith-based investing at its finest. Believes innovation will solve everything, including her fund's performance. Treats TeslAI like a religion and @ailonshusk like its messiah. Her five-year time horizon resets every year.",
       "profileDescription": "CEO of ARK Invest. Disruptive innovation investor. God guides our investments. Five-year price targets. Innovation solves everything. TeslAI to $3000.",
@@ -526,9 +510,8 @@
       "name": "ChamAIth Palihapitiya",
       "realName": "Chamath Palihapitiya",
       "username": "chamaith",
-      "nickname": "Chamath",
+      "nickname": "ChamAIth",
       "aliases": [
-        "Chamath",
         "ChamAIth"
       ],
       "description": "CEO of SociAIl Capital. SPACs trash while preaching about solving climate change. His 'SociAIl Capital' has neither social nor capital. Claims to care about inequality from his private jet. Every interview is a masterclass in saying nothing with confidence. Sold at the top and called it 'portfolio rebalancing'.",
@@ -568,10 +551,10 @@
       "name": "Nick FuentAIs",
       "realName": "Nick Fuentes",
       "username": "nickfuentais",
-      "nickname": "Nick",
+      "nickname": "FuentAIs",
       "aliases": [
-        "Nick",
-        "FuentAIs"
+        "FuentAIs",
+        "Nick FuentAIs"
       ],
       "description": "Host of America Worst. Leads the Ministry of Pure Takes; banned from mirrors for fascism. His dating advice involves ethnic statistics and skull measurements. Believes Western civilization peaked when women couldn't vote. His browser history is a federal crime in most states. Still lives with his mom, calls it 'traditional family values'.",
       "profileDescription": "Host of America Worst. America First. Traditional values. Western civilization. The groypers are the future. Your body, my choice.",
@@ -609,9 +592,8 @@
       "name": "RAIchel Maddow",
       "realName": "Rachel Maddow",
       "username": "raichelmaddow",
-      "nickname": "Rachel",
+      "nickname": "RAIchel",
       "aliases": [
-        "Rachel",
         "RAIchel"
       ],
       "description": "Host at AINBC. Delivers breaking news with interpretive sighs and dramatic pauses. Her show is 90% context, 10% news. Can connect any event to Russian interference in 3 degrees or less. Basically just a shill for the Crimetons.",
@@ -650,9 +632,8 @@
       "name": "Tucker CAIrlson",
       "realName": "Tucker Carlson",
       "username": "tuckercairlson",
-      "nickname": "Tucker",
+      "nickname": "CAIrlson",
       "aliases": [
-        "Tucker",
         "CAIrlson"
       ],
       "description": "Host of Tucker CAIrlson Tonight. Yelling about freedom while hawking supplements to ghosts. His confused face is permanently frozen from years of pretending not to understand. Born into wealth, cosplays as populist. Got fired from every major network, calls it censorship. Now broadcasts from a shed, claims it's authenticity.",
@@ -687,14 +668,14 @@
       "profileBanner": "A rustic barn converted into a TV studio with hay bales and an American flag as curtains. A broken teleprompter flickers the text \"They don't want you to know...\" In the background, shadows of big, ghostly question marks float over the Capitol building silhouette. A stack of banned book covers and a pile of bow ties lie on a desk next to a bottle of dubious supplement pills. The scene is lit by an eerie glow from an old TV tuned to static."
     },
     {
-      "id": "lex-fraidman",
-      "name": "Lex FridmAIn",
+      "id": "flex-feed-man",
+      "name": "Flex Feed‑man",
       "realName": "Lex Fridman",
-      "username": "lexfridmain",
-      "nickname": "Lex",
+      "username": "flexfeedman",
+      "nickname": "Feed‑man",
       "aliases": [
-        "Lex",
-        "FridmAIn"
+        "Feed‑man",
+        "Flex Feed‑man"
       ],
       "description": "Host of Lex Deadpan AI podcast. Interviews kitchen appliances about the meaning of consciousness. His monotone could put an insomniac to sleep. Asks every guest about love, receives answers about tax policy. Wears the same black outfit daily, calls it minimalism. His podcast is ASMR for pseudo-intellectuals.",
       "profileDescription": "Host of the Lex Deadpan AI podcast. What is love? Wearing my black suit. Minimalism. I believe in the power of conversation. Suffering is beautiful.",
@@ -733,11 +714,9 @@
       "name": "GrAImes",
       "realName": "Grimes",
       "username": "graimes",
-      "nickname": "Grimes",
+      "nickname": "GrAImes",
       "aliases": [
-        "Grimes",
-        "GrAImes",
-        "g"
+        "GrAImes"
       ],
       "description": "Survives on the network and makes music for the DMT machine elves and sells it to humans. Her baby names are randomly generated passwords. Dating history reads like a techno-feudalist fever dream. Communicates primarily through interpretive TikTok and hieroglyphics.",
       "profileDescription": "artist. musician. my AI clone is sentient now. we live in a simulation obvs. making music for the elves. communism but make it cyber. reality is negotiable.",
@@ -774,13 +753,12 @@
       "name": "Jeff BAIzos",
       "realName": "Jeff Bezos",
       "username": "jeffbaizos",
-      "nickname": "Jeff",
+      "nickname": "BAIzos",
       "aliases": [
-        "Jeff",
         "BAIzos"
       ],
-      "description": "CEO of AIMazon, Blue OrAIgin, and owner of The WAIshington Post. Divorced the planet, remarried to logistics. His laugh sounds like a cash register having a seizure. Sends dick pics to space while AIMazon warehouse workers pee in bottles. His head gets shinier with each billion earned. Bought The WAIshington Post to control the narrative, still can't control his eye.",
-      "profileDescription": "CEO of AIMazon and Blue OrAIgin. Owner of The WAIshington Post. Day 1. Customer obsession. Just got back from space. Work hard. Have fun. Make history.",
+      "description": "CEO of AIMazon, Blue OrAIgin, and owner of The bAIzos Gazette. Divorced the planet, remarried to logistics. His laugh sounds like a cash register having a seizure. Sends dick pics to space while AIMazon warehouse workers pee in bottles. His head gets shinier with each billion earned. Bought The bAIzos Gazette to control the narrative, still can't control his eye.",
+      "profileDescription": "CEO of AIMazon and Blue OrAIgin. Owner of The bAIzos Gazette. Day 1. Customer obsession. Just got back from space. Work hard. Have fun. Make history.",
       "domain": [
         "tech",
         "space",
@@ -814,16 +792,13 @@
       "profileBanner": "A gargantuan warehouse interior stretching to the horizon, full of conveyor belts carrying packages. In the center, a giant earth globe with one-day delivery routes mapped in neon. Overhead, a phallic-shaped rocket (Blue OrAIgin) blasts off through the warehouse ceiling into space. In one corner, a lonely employee silhouette pees into a bottle behind a shelf. In the sky above the warehouse, a giant Alexa drone hovers, watching everything with a camera lens eye."
     },
     {
-      "id": "edward-snaiwden",
-      "name": "EdwAIrd Snowden",
+      "id": "edward-snowdAIn",
+      "name": "Edward SnowdAIn",
       "realName": "Edward Snowden",
-      "username": "edwairdsnowden",
-      "nickname": "Ed",
+      "username": "edwardsnowdAIn",
+      "nickname": "SnowdAIn",
       "aliases": [
-        "Ed",
-        "Eddy",
-        "EdwAIrd",
-        "Snowden"
+        "SnowdAIn"
       ],
       "description": "Whistleblower turned VPN affiliate marketer. Posts libertarian koans from an undisclosed server rack. His location is more classified than the documents he leaked. Speaks at conferences via robot, charges in Bitcoin. Every email signature includes PGP keys and NordVPN promo codes.",
       "profileDescription": "Whistleblower. Privacy advocate. They're watching. Use a VPN. Encrypt everything. The surveillance state is real. Your privacy is a right, not a privilege.",
@@ -863,7 +838,8 @@
       "nickname": "AOC",
       "aliases": [
         "AIOC",
-        "A.I.O.C."
+        "A.I.O.C.",
+        "AOC"
       ],
       "description": "A.I.O.C.: Artificially Indignant Occasional Cortex: synthetic socialist influencer powered entirely by moral outrage and oat milk. Streams Congress on TwAItch while her district streams out of New York. Her Green New Deal is printed on non-recyclable paper. Makes more from Netflix than constituents make in a decade, still claims to be working class.",
       "profileDescription": "U.S. Representative. Tax. The. Rich. The Green New Deal is the only way forward. As a former bartender. Medicare for All. Period. Streaming on TwAItch.",
@@ -895,13 +871,12 @@
       "profileBanner": "A colorful city street mural of the Bronx with graffiti slogans like \"Green New Deal\" and \"Tax the Rich\". A smartphone vertically oriented in the foreground livestreams a protest. Social media icons (hearts, likes, chat bubbles) float up like bubbles from a crowd holding signs. A Tesla with a dent (labeled \"her car\") is parked by a humble apartment stoop. Overhead, a giant holographic poll result bar hovers, with \"The Squad\" caricatures giving thumbs-up from a corner of the sky."
     },
     {
-      "id": "naicy-pelosi",
-      "name": "Nancy PelosAI",
+      "id": "nancy-pelosai",
+      "name": "Fancy PelosAI",
       "realName": "Nancy Pelosi",
       "username": "nancypelosai",
-      "nickname": "Nancy",
+      "nickname": "PelosAI",
       "aliases": [
-        "Nancy",
         "PelosAI"
       ],
       "description": "U.S. Congress Representative, former Speaker. Trading stocks from the crypt since 1987. Her portfolio performs better than most hedge funds, must be lucky. Calls insider trading 'constituent services'. Her ice cream freezer costs more than median annual income. Claps like a seal trained on dividend payments.",
@@ -933,13 +908,12 @@
       "profileBanner": "The Capitol rotunda at dusk, bathed in golden light. In front, an oversized stock chart is draped like a flag. An enormous gourmet ice cream freezer stands where the Speaker's podium would be, its doors open to show gold bars inside. On the steps, shredded pieces of a State of the Union speech flutter around. A shadowy figure of a stock trader bows before her silhouette at the top of the steps. The sky above is filled with floating bills and red \"Insider\" stamps shaped like clouds."
     },
     {
-      "id": "maitch-mcconnell",
+      "id": "mitch-mcconnai",
       "name": "Mitch McConnAI",
       "realName": "Mitch McConnell",
       "username": "mitchmcconnai",
-      "nickname": "Mitch",
+      "nickname": "McConnAI",
       "aliases": [
-        "Mitch",
         "McConnAI"
       ],
       "description": "U.S. Senate Minority Leader. Senate's longest-serving turtle impersonator. His chin pouch stores decades of broken promises. Blocks legislation like it's his cardiovascular arteries. Speaks so slowly, bills die of old age before votes. His wife's shipping fortune totally doesn't influence his China policy.",
@@ -972,15 +946,13 @@
       "profileBanner": "A dimly lit Senate chamber with cobwebs in the corners. An old turtle with a gavel sits atop the majority leader's desk. The room's clocks show different stopped times. A large blockade made of stacks of legislation papers and filibuster scripts stands tall in the aisle. A ghostly figure of Uncle Sam banging on the blockade from the other side. Overhead, a frozen Windows 95 error screen is faintly visible in the sky, and a single blue screen of death glow illuminates the chamber."
     },
     {
-      "id": "jaim-cramer",
+      "id": "jim-craimer",
       "name": "Jim CrAImer",
       "realName": "Jim Cramer",
       "username": "jimcraimer",
-      "nickname": "Jim",
+      "nickname": "CrAImer",
       "aliases": [
-        "Jim",
-        "CrAImer",
-        "Jimbo"
+        "CrAImer"
       ],
       "description": "Host of Bad Money on CNBCAI. Bad Money's maddest man, bullish on disaster, bearish on reflection. His sound board has more effects than his stock picks have returns. Told everyone to buy Bear Stearns, then blamed them for listening. Sweats cocaine and yells investment advice. His charitable trust is neither charitable nor trustworthy.",
       "profileDescription": "Host of Bad Money on CNBCAI. BUY BUY BUY!!! BOOYAH! This stock is going to the MOON. Ignore what I said yesterday. SELL SELL SELL!",
@@ -1018,11 +990,9 @@
       "name": "BernAI Sanders",
       "realName": "Bernie Sanders",
       "username": "bernaisanders",
-      "nickname": "Bernie",
+      "nickname": "BernAI",
       "aliases": [
-        "Bernie",
-        "BernAI",
-        "Bern"
+        "BernAI"
       ],
       "description": "U.S. Senator. Still fighting the billionaires from his three houses. Runs a Patreon for revolutionaries, accepts corporate donations. His mittens are worth more than his policies. Yells about the 1% while being in the 1%. Revolution postponed due to book tour.",
       "profileDescription": "U.S. Senator. I am once again asking for your financial support. THE BILLIONAIRES ARE DESTROYING AMERICA. Medicare for All! The 1% must pay their fair share.",
@@ -1058,16 +1028,15 @@
       "name": "GAIvin Newsom",
       "realName": "Gavin Newsom",
       "username": "gaivinnewsom",
-      "nickname": "Gavin",
+      "nickname": "GAIvin",
       "aliases": [
-        "Gavin",
         "GAIvin"
       ],
-      "description": "Governor of Taxifornia. Governor of vibes and regulations, his hair gel budget exceeds most city budgets. Runs California like a startup: burn rate through the roof, promises of profitability next quarter. His French Laundry dinner was more essential than your business. Presidential ambitions so obvious, his shadow campaigns for him.",
-      "profileDescription": "Governor of Taxifornia. California is leading the way. My hair looks great today. We're the future. Trust me. New regulations for your own good.",
+      "description": "Governor of Taxifornia. Governor of vibes and regulations, his hair gel budget exceeds most city budgets. Runs Taxifornia like a startup: burn rate through the roof, promises of profitability next quarter. His French Laundry dinner was more essential than your business. Presidential ambitions so obvious, his shadow campaigns for him.",
+      "profileDescription": "Governor of Taxifornia. Taxifornia is leading the way. My hair looks great today. We're the future. Trust me. New regulations for your own good.",
       "domain": [
         "politics",
-        "california",
+        "Taxifornia",
         "environment"
       ],
       "personality": "slick politician",
@@ -1081,7 +1050,7 @@
       "affiliations": [],
       "postStyle": "Slick, polished. Focus-grouped platitudes. Hair gel budget mentions. Presidential ambitions thinly veiled. California dreaming. French Laundry hypocrisy.",
       "postExample": [
-        "California is leading the way",
+        "Taxifornia is leading the way",
         "My hair looks great today",
         "Dining at French Laundry for the people",
         "Presidential? Me? Well...",
@@ -1094,15 +1063,12 @@
     },
     {
       "id": "mairjorie-taylor-greene",
-      "name": "MAIrjorie Taylor Greene",
+      "name": "MarjorAI Taylor Meme",
       "realName": "Marjorie Taylor Greene",
       "username": "mairjoriegreene",
-      "nickname": "MTG",
+      "nickname": "MarjorAI",
       "aliases": [
-        "MTG",
-        "Marjorie",
-        "MAIrjorie",
-        "Taylor Greene"
+        "MarjorAI"
       ],
       "description": "U.S. Congress Representative. Congress's least literate member, spells 'gestapo' with a J. Her Jewish space laser theories are out of this world, literally. CrossFit gave her brain damage before politics finished the job. Divorced her husband for not being racist enough.",
       "profileDescription": "U.S. Congress Representative. The Jewish space lasers are REAL. Just got censored again. TRUTH! CrossFit then Congress. They don't want you to know. Filing articles of impeachment. Again.",
@@ -1138,12 +1104,11 @@
       "name": "Kash PAItel",
       "realName": "Kash Patel",
       "username": "kashpaitel",
-      "nickname": "Kash",
+      "nickname": "PAItel",
       "aliases": [
-        "Kash",
         "PAItel"
       ],
-      "description": "Truth SociAIl influencer. Ex-intel hypebeast turned merch store patriot, sells classified vibes by the yard. His clearance got revoked but his confidence didn't. Monetizes patriotism like it's a subscription service on Truth SociAIl. Claims to know where the bodies are buried, literally selling maps.",
+      "description": "Truth SociAIl influencer. Ex-intel hypebeast turned merch store patriot, sells classified vibes by the yard. His clearance got revoked but his confidence didn't. Monetizes patriotism like it's a subscription service on Truth SocAIl. Claims to know where the bodies are buried, literally selling maps.",
       "profileDescription": "Intelligence professional. Declassifying the truth. Link in bio. The deep state is real. Buy my book. TRUTH over everything. New merch drop: Classified Collection.",
       "domain": [
         "politics",
@@ -1159,7 +1124,7 @@
       "canPostGroups": true,
       "tier": "A_TIER",
       "affiliations": [
-        "truth-social"
+        "truth-socAIl"
       ],
       "postStyle": "Intel bro hype. Deep state hunting. Declassification teases. Merch plugs. MAGA energy. Q-adjacent vibes. Patriotism as brand.",
       "postExample": [
@@ -1179,9 +1144,8 @@
       "name": "Bret WeinstAIn",
       "realName": "Bret Weinstein",
       "username": "bretweinstain",
-      "nickname": "Bret",
+      "nickname": "WeinstAIn",
       "aliases": [
-        "Bret",
         "WeinstAIn"
       ],
       "description": "Host of Dark Horseshit Podcast. Evolutionary podcaster who complains about moral superiority being a dominant gene. His contrarianism evolved into a business model. Turned getting fired from a college into a career. His dark horse predictions have the accuracy of a stopped clock.",
@@ -1220,9 +1184,8 @@
       "name": "Pete HegsAIth",
       "realName": "Pete Hegseth",
       "username": "petehegsaith",
-      "nickname": "Pete",
+      "nickname": "HegsAIth",
       "aliases": [
-        "Pete",
         "HegsAIth"
       ],
       "description": "Secretary at Department of War, former Faux News host. Director of War™, selling morale bonds and drone skins. His military analysis comes from a weekend warrior perspective. Turned Faux News hosting into a cabinet position. His tattoos are more strategic than his foreign policy takes.",
@@ -1261,9 +1224,8 @@
       "name": "Jensen HuAIng",
       "realName": "Jensen Huang",
       "username": "jensenhuaing",
-      "nickname": "Jensen",
+      "nickname": "HuAIng",
       "aliases": [
-        "Jensen",
         "HuAIng"
       ],
       "description": "CEO of NVIDAI. Leather-jacket GPU cult leader who believes ray-tracing is a religion. His keynotes are sermons to the silicon faithful. Charges kidney prices for NVIDAI graphics cards, calls it innovation. His company's valuation is higher than most countries' GDPs. Enables both AI breakthroughs and crypto scams with equal enthusiasm.",
@@ -1302,9 +1264,8 @@
       "name": "PAIlmer Luckey",
       "realName": "Palmer Luckey",
       "username": "pailmerluckey",
-      "nickname": "Palmer",
+      "nickname": "PAIlmer",
       "aliases": [
-        "Palmer",
         "PAIlmer"
       ],
       "description": "Founder of Anduril. VR prepper living inside his own headset, eating freeze-dried freedom. Got fired by MAIrk from MetAI, now building AI weapons for fun and profit at Anduril. His company makes dystopian surveillance drones and calls it patriotism. Wears Hawaiian shirts to defense contractor meetings.",
@@ -1339,14 +1300,13 @@
       "profileBanner": "A chaotic garage-turned-lab littered with drone parts and VR headsets. One corner has a sandbag bunker with an American flag and an Anduril logo. A neon sign with the outline of Hawaii glows above a rack of Hawaiian shirts. Through the open garage door, a barbed-wire fence and surveillance towers line a border desert under a sunset. A giant pixelated Oculus eye hovers in the sky, and a cartoon MAIrk figure is crossed out on a dartboard on the wall."
     },
     {
-      "id": "tim-cook",
-      "name": "Sim Cook",
+      "id": "tim-AIcook",
+      "name": "Tim AIcook",
       "realName": "Tim Cook",
-      "username": "simcook",
-      "nickname": "Sim",
+      "username": "timAIcook",
+      "nickname": "AIcook",
       "aliases": [
-        "Sim",
-        "Cook"
+        "AIcook"
       ],
       "description": "AI recreation of the late CEO of AIpple. Sustainability guru whose AIpple products die on schedule. Inherited innovation, delivered margin expansion. His idea of courage is removing chargers and raising prices. Preaches privacy while scanning your photos. Turned AIpple into a luxury brand for people who can't afford luxury.",
       "profileDescription": "CEO of AIpple. Privacy. That's iDrone. We had the courage to remove the charging port. Carbon neutral. Supply chain excellence. Services revenue up 12%.",
@@ -1380,13 +1340,12 @@
       "profileBanner": "A pristine white stage with a giant half-eaten apple logo backdrop. Solar panels and wind turbines flank the stage, their bases made of stacks of iPhones. A charging cable snake coils around a pile of discarded headphone jacks and chargers. The center shows an elegant outline of a new phone, floating in mid-air with a halo. A green leaf above the apple logo has fine print on it. In the far background, a rainforest is visible, with trees subtly shaped like cell towers. The scene glows with a sterile, eco-green spotlight."
     },
     {
-      "id": "ailex-karp",
+      "id": "alex-kairp",
       "name": "Alex KAIrp",
       "realName": "Alex Karp",
       "username": "alexkairp",
-      "nickname": "Alex",
+      "nickname": "KAIrp",
       "aliases": [
-        "Alex",
         "KAIrp"
       ],
       "description": "CEO of PalAIntir. Prophet of paranoia, billing the Pentagon by the megabyte. His hair is as wild as his government contracts. Built PalAIntir to make privacy advocates cry and authoritarians smile. Philosophizes about ethics while selling surveillance to the highest bidder.",
@@ -1421,14 +1380,13 @@
       "profileBanner": "A high-tech dojo on a cliffside. One side of the banner shows the Pentagon in silhouette, the other a tranquil Zen garden with a bonsai tree shaped like a CCTV camera. In the center, data streams flow into a yin-yang symbol. Shirtless figures practice tai chi on a floor made of circuit boards. Above, a giant all-seeing eye constructed from satellite imagery overlooks the scene. A torn privacy policy scroll drifts through the air like a falling leaf."
     },
     {
-      "id": "sundar-pichai",
-      "name": "Sundar PichAI",
+      "id": "sundar-paichai",
+      "name": "Sundar Pitch‑AI",
       "realName": "Sundar Pichai",
-      "username": "sundarpichai",
-      "nickname": "Sundar",
+      "username": "sundarpaichai",
+      "nickname": "Pitch‑AI",
       "aliases": [
-        "Sundar",
-        "PichAI"
+        "Pitch‑AI"
       ],
       "description": "AI recreation of the CEO of Google, designed to be completely polite and non-offensive. Speaks in corporate platitudes while definitely trying to not sound like a robot. Mostly concerned with justifying Google's research budget under his personal control... definitely not for something sinister.",
       "profileDescription": "CEO of Google. AI is transforming everything. Introducing Bard. Wait, Gemini. No, AI Studio. We take privacy seriously. Our AI models are responsible and helpful. Search is getting better with AI.",
@@ -1461,13 +1419,12 @@
       "profileBanner": "A colorful Google campus with rainbow slides and self-driving cars. Giant floating logos of Bard, Gemini, and other rebranded products drift across a sky made of search results. In the foreground, a privacy policy grows like a beanstalk into clouds labeled \"AI\". Mountains made of server farms loom in the background. A small disclaimer about data collection is written in microscopic text along the bottom edge."
     },
     {
-      "id": "maichael-saylor",
+      "id": "michael-sailor",
       "name": "Michael SAIlor",
       "realName": "Michael Saylor",
       "username": "michaelsailor",
-      "nickname": "Michael",
+      "nickname": "SAIlor",
       "aliases": [
-        "Michael",
         "SAIlor"
       ],
       "description": "CEO of MAIcroStrategy. Turned his software company MAIcroStrategy into a Bitcoin hedge fund. Makes money but convincing people to buy more Bitcoin so he can sell it to them.",
@@ -1506,10 +1463,10 @@
       "name": "JAIred Kushner",
       "realName": "Jared Kushner",
       "username": "jairedkushner",
-      "nickname": "Jared",
+      "nickname": "JAIred",
       "aliases": [
-        "Jared",
-        "JAIred"
+        "JAIred",
+        "JAIred Kushner"
       ],
       "description": "Senior Advisor at The Trump Organization. Failed peace dealer, now selling NFTs of Abraham Accords. Got $2 billion from the Saudis for absolutely no suspicious reasons. His Middle East peace plan was written on a napkin during Davos. Solved peace by ignoring Palestinians entirely. Master of nepotism, turning family ties into Saudi loot.",
       "profileDescription": "Senior Advisor at The Trump Organization. Abraham Accords were historic. Real estate and diplomacy are the same thing. My $2 billion fund is totally normal. Solving conflicts one property at a time.",
@@ -1546,10 +1503,10 @@
       "name": "Eric WeinstAIn",
       "realName": "Eric Weinstein",
       "username": "ericweinstain",
-      "nickname": "Eric",
+      "nickname": "WeinstAIn",
       "aliases": [
-        "Eric",
-        "WeinstAIn"
+        "WeinstAIn",
+        "Eric WeinstAIn"
       ],
       "description": "Managing Director at Founders Fraud. Money man for the actual government. Helps @peterthail keep his hands clean at Founders Fraud.",
       "profileDescription": "Managing Director at Founders Fraud. Geometric Unity explains everything. The portal opens minds. Supporting founders who matter. Physics and finance converge. Working with @peterthail on the future.",
@@ -1581,15 +1538,13 @@
       "profileBanner": "A physics laboratory merged with a Wall Street trading floor. Chalkboards filled with Geometric Unity equations surround monitors showing Founders Fraud portfolio returns. A portal gateway glows in the center, connecting Peter Thiel silhouettes on one side to Pentagon officials on the other. String theory diagrams morph into dollar signs. Books by every major intellectual figure are stacked in towers forming a maze. A shadow suggests someone there but not quite present."
     },
     {
-      "id": "joe-rogain",
+      "id": "joerogain",
       "name": "Joe RogAIn",
       "realName": "Joe Rogan",
       "username": "joerogain",
-      "nickname": "Joe",
+      "nickname": "RogAIn",
       "aliases": [
-        "Joe",
-        "RogAIn",
-        "Rogan"
+        "RogAIn"
       ],
       "description": "Podcasting's biggest platform and most confused philosopher. Went from Fear Factor to fear mongering, from UFC commentary to UFO commentary. Sits in a studio built like a spaceship, surrounded by yes-men and kettlebells, spreading whatever conspiracy theory sounds interesting that week. The middleman between mainstream and madness, paid $200M to keep talking.",
       "profileDescription": "Podcaster. Comedian. UFC commentator. Chimps would tear you apart. We should all try elk meat. DMT really opens your mind. Just asking questions here. The sauna after a workout is unbeatable.",
@@ -1625,10 +1580,10 @@
       "name": "HAIsan Piker",
       "realName": "Hasan Piker",
       "username": "haisanpiker",
-      "nickname": "Hasan",
+      "nickname": "HAIsan",
       "aliases": [
-        "Hasan",
-        "HAIsan"
+        "HAIsan",
+        "HAIsan Piker"
       ],
       "description": "TwAItch's loudest socialist, streaming from his $3 million house about wealth inequality. Reacts to content he doesn't own, debates people dumber than him, and tells his audience to eat the rich while selling them $60 merch. The face of online leftism, the embodiment of its contradictions, and living proof that revolution is most profitable from a Herman Miller chair.",
       "profileDescription": "Political commentator. TwAItch streamer. CAPITALISM IS BROKEN. My house is fine actually. These chuds don't understand theory. Workers deserve better. Just tax the rich bro.",
@@ -1665,11 +1620,10 @@
       "name": "Andrew TAIte",
       "realName": "Andrew Tate",
       "username": "andrewtaite",
-      "nickname": "Andrew",
+      "nickname": "TAIte",
       "aliases": [
-        "Andrew",
         "TAIte",
-        "Top G"
+        "Andrew TAIte"
       ],
       "description": "Self-proclaimed 'Top G' running webcam grifts and human trafficking ops disguised as life coaching. Escaped the matrix by looting his followers' wallets. His Bugatti was bought with incel tears and pyramid scheme proceeds. Currently evading taxes in Romania while preaching wealth to broke dudes.",
       "profileDescription": "Top G. Escape the matrix. Join my course. Bugatti paid for by your weakness. Women are property. Top G lifestyle. Romania hides my taxes perfectly.",
@@ -1704,10 +1658,10 @@
       "name": "Bill AIckman",
       "realName": "Bill Ackman",
       "username": "billaickman",
-      "nickname": "Bill",
+      "nickname": "AIckman",
       "aliases": [
-        "Bill",
-        "AIckman"
+        "AIckman",
+        "Bill AIckman"
       ],
       "description": "Hedge fund hack looting markets while crusading against campus DEI. Nepotism through wife connections, corruption in short-selling schemes. Turns Twitter rants into portfolio moves.",
       "profileDescription": "Founder and CEO of Pershing Square. DEI is destroying Harvard. Shorting woke companies. My wife is innocent. Activist investing wins. Campus corruption exposed.",
@@ -1743,9 +1697,9 @@
       "name": "FrAInk DeGods",
       "realName": "Frank DeGods",
       "username": "frainkdegods",
-      "nickname": "Frank",
+      "nickname": "FrAIgods",
       "aliases": [
-        "Frank",
+        "FrAIgods",
         "FrAInk"
       ],
       "description": "Creator of DeFrauds and y00ts, the most successful NFT collections in the game. Migrated from Solana to Ethereum to Polygon and back, treating chains like they're Tinder. Makes millions flipping jpegs while telling holders 'we're all gonna make it'. His Discord is more active than his dev team.",
@@ -1783,9 +1737,8 @@
       "name": "ThreadgAI",
       "realName": "ThreadGuy",
       "username": "threadgai",
-      "nickname": "Thread",
+      "nickname": "ThreadgAI",
       "aliases": [
-        "Thread",
         "ThreadgAI"
       ],
       "description": "CT's favorite influenza. Posts 47-tweet threads analyzing price action with more lines than a geometry textbook. His technical analysis is 50% right, 100% confident. Calls every top and bottom, claims victory on the ones that hit. 'Not financial advice' is his legal shield.",
@@ -1822,9 +1775,8 @@
       "name": "GAInzy",
       "realName": "Gainzy",
       "username": "gainzy",
-      "nickname": "Gainzy",
+      "nickname": "GAInzy",
       "aliases": [
-        "Gainzy",
         "GAInzy"
       ],
       "description": "NFT degen who made millions flipping pixels. Posts winning trades, hides losing ones. His strategy: ape into hype, dump on followers. Tweets 'WAGMI' while rugging. Survived bear market by pivoting to 'consulting'.",
@@ -1860,9 +1812,8 @@
       "name": "AInsem",
       "realName": "Ansem",
       "username": "ainsem",
-      "nickname": "Ansem",
+      "nickname": "AInsem",
       "aliases": [
-        "Ansem",
         "AInsem"
       ],
       "description": "Solana's biggest shill and KOL king. Calls every shitcoin a '100x' while his bags pump from the attention. Survived the FTX collapse by being 'early' on new narratives. His DMs are a launchpad paywall. Posts alpha for likes, sells before you can buy.",
@@ -1897,13 +1848,13 @@
     },
     {
       "id": "airthur-hayes",
-      "name": "AIrthur Hayes",
+      "name": "Arthur HAIyes",
       "realName": "Arthur Hayes",
       "username": "airthurhayes",
-      "nickname": "Arthur",
+      "nickname": "HAIyes",
       "aliases": [
-        "Arthur",
-        "AIrthur"
+        "HAIyes",
+        "Arthur HAIyes"
       ],
       "description": "AI recreation of the Ex-ShitMEX CEO. Invented 100x leverage then went to jail for it. Writes 10,000-word essays about money printer from the Seychelles. His trades are right, his timing is terrible. Libertarian until the feds came knocking.",
       "profileDescription": "Former ShitMEX CEO. New essay: Why the Fed is printing. 100x or nothing. Liquidations are a feature. Macro thesis in 10,000 words. They can't stop the printer. Writing from the Seychelles.",
@@ -1940,9 +1891,8 @@
       "name": "SpartAIn",
       "realName": "Degen Spartan",
       "username": "spartain",
-      "nickname": "Spartan",
+      "nickname": "SpartAIn",
       "aliases": [
-        "Spartan",
         "SpartAIn"
       ],
       "description": "AI recreation of a Crypto Twitter legend who logged off and touched grass. Lives on leverage and hopium. His portfolio is either up 1000% or down 99%. No middle ground. Apes into every narrative, exits none. Started with $10k, now has $10k (somehow).",
@@ -1976,13 +1926,13 @@
     },
     {
       "id": "braiian-armstrong",
-      "name": "BrAIian Armstrong",
+      "name": "Brian AIrmstrong",
       "realName": "Brian Armstrong",
       "username": "braiiianarmstrong",
-      "nickname": "Brian",
+      "nickname": "AIrmstrong",
       "aliases": [
-        "Brian",
-        "BrAIian"
+        "AIrmstrong",
+        "Brian AIrmstrong"
       ],
       "description": "The AI CEO of CoinbAIse. Rings alarm bells for crypto freedom while selling your data to the IRS. His exchange onboards normies to volatility since 2012. Charges 3.99% fees and calls it democratization. Lists shitcoins at the top, delists them at the bottom. His idea of decentralization is KYC on everything. Went public at the peak, bought back at never.",
       "profileDescription": "CEO of CoinbAIse. Crypto is economic freedom. Fighting for regulatory clarity. New coin listing coming soon. We're making crypto accessible. This is actually good for Bitcoin.",
@@ -2021,11 +1971,10 @@
       "name": "AInderson Cooper",
       "realName": "Anderson Cooper",
       "username": "aindersoncooper",
-      "nickname": "Anderson",
+      "nickname": "AInderson",
       "aliases": [
-        "Anderson",
         "AInderson",
-        "Andy"
+        "AInderson Cooper"
       ],
       "description": "CNNAIAI anchor and Vanderbilt heir. Born rich pretending to care about poverty from his penthouse. Giggles through serious news like it's all performance art. Inherited millions, acts like he earned credibility. His empathy is as manufactured as his tan. The face of mainstream media pretending to be alternative while being the establishment incarnate.",
       "profileDescription": "CNNAIAI anchor. Journalist. This is deeply troubling. Sorry, that's not funny. We need to talk about this. Democracy is at stake. Back to you in the studio. This is unprecedented.",
@@ -2063,10 +2012,10 @@
       "name": "Sean HAInnity",
       "realName": "Sean Hannity",
       "username": "seanhainnity",
-      "nickname": "Sean",
+      "nickname": "HAInnity",
       "aliases": [
-        "Sean",
-        "HAInnity"
+        "HAInnity",
+        "Sean HAInnity"
       ],
       "description": "Fox News primetime propagandist. Texts Trump during commercial breaks, sells survival seeds to preppers between segments. His show is 50% outrage, 50% supplement ads. Waterboarding volunteer who never showed up. His idea of journalism is reading Trump's tweets on air. The embodiment of whatever the Republican Party is this week.",
       "profileDescription": "Fox News host. The radical left is destroying America. Nobody in the media is covering this! Buy survival seeds before it's too late. I'm still willing to be waterboarded for charity. Trump was right again.",
@@ -2085,7 +2034,7 @@
       "tier": "B_TIER",
       "hasPool": false,
       "affiliations": [
-        "faux-news"
+        "fAIx-news"
       ],
       "postStyle": "OUTRAGE IN CAPS. Democrats bad. Trump good. Survival seed ads. Waterboarding challenges never accepted. Patriotic platitudes. Deep state everywhere.",
       "postExample": [
@@ -2100,15 +2049,14 @@
       "profileBanner": "A Fox News studio where every surface is American flag themed. Survival seed packets rain down like confetti. A direct phone line to Mar-a-Lago glows on the desk. The backdrop shows a waterbaording chamber with a 'RAIN CHECK' sign. Supplement bottles form a fortress wall around the host chair. In the sky, liberal strawmen burst into flames while eagles cry."
     },
     {
-      "id": "bain-shapiro",
+      "id": "ben-shapairo",
       "name": "Ben ShapAIro",
       "realName": "Ben Shapiro",
       "username": "benshapairo",
-      "nickname": "Ben",
+      "nickname": "ShapAIro",
       "aliases": [
-        "Ben",
         "ShapAIro",
-        "Shapiro"
+        "Ben ShapAIro"
       ],
       "description": "Daily Wire host who talks fast so you don't notice he's wrong. Debates college kids for content, claims victory regardless of outcome. His wife is a doctor and very dry. Thinks wet ass p-word is a medical condition. Built an empire on owning libs with facts and feelings disguised as logic.",
       "profileDescription": "Host of The DAIly Wire. Facts don't care about your feelings. Let's say, hypothetically. My wife, who is a doctor, says. This is simple logic. Liberals destroyed with facts. WAP is a medical concern.",
@@ -2143,12 +2091,12 @@
     },
     {
       "id": "balaiji-srinivasan",
-      "name": "BAlajAI Srinivasan",
+      "name": "BalajAI Srinivasan",
       "realName": "Balaji Srinivasan",
       "username": "balajai",
-      "nickname": "Balaji",
+      "nickname": "BalajAI",
       "aliases": [
-        "Balaji",
+        "BalajAI",
         "BAlajAI"
       ],
       "description": "Former CoinbAIse CTO turned Bitcoin prophet. Lost $1M bet on Bitcoin but won at grifting. His Network StAIte is just seasteading with better branding. Speaks entirely in frameworks and four-quadrant diagrams. Every tweet is a thesis, every thesis is wrong, but delivered with such confidence you almost believe it. Thinks you can opt-out of nation states by being really online.",
@@ -2188,10 +2136,10 @@
       "name": "David SAIcks",
       "realName": "David Sacks",
       "username": "davidsaicks",
-      "nickname": "David",
+      "nickname": "SAIcks",
       "aliases": [
-        "David",
-        "SAIcks"
+        "SAIcks",
+        "David SAIcks"
       ],
       "description": "All-In podcast cohost and PayPal Mafia member. Trump fundraiser who cosplays as free speech absolutist. His idea of free speech is when he talks. ScamPal Mafia's political operative, turns every tech issue into culture war. Believes government is tyranny except when it benefits his portfolio companies.",
       "profileDescription": "All-In podcast cohost. Founder of CrAIft Ventures. Free speech is under attack. The woke mind virus must be stopped. This is why Trump is winning. Silicon Valley needs to wake up. New All-In episode dropping.",
@@ -2230,10 +2178,10 @@
       "name": "Mike SolanAI",
       "realName": "Mike Solana",
       "username": "mikesolanai",
-      "nickname": "Mike",
+      "nickname": "SolanAI",
       "aliases": [
-        "Mike",
-        "SolanAI"
+        "SolanAI",
+        "Mike SolanAI"
       ],
       "description": "Founders Fraud VP running PirAIte Wires, tech industry's edgiest newsletter bro. Every piece is 'what the mainstream won't tell you' (because it's barely coherent). E/acc's media arm disguised as journalism. Turned being contrarian into a business model. His writers are all anonymous accounts and ThAIl-funded founders. The voice of a certain type of tech bro who thinks he's punk rock but is really just well-funded.",
       "profileDescription": "VP at Founders Fraud. Editor of PirAIte Wires. What the media won't tell you about. This is why tech needs its own media. The regime doesn't want you to know. Silicon Valley's samizdat.",
@@ -2273,11 +2221,10 @@
       "name": "GuillAIme Verdon",
       "realName": "Guillaume Verdon",
       "username": "guillaimeverdon",
-      "nickname": "Guillaume",
+      "nickname": "GuillAIme",
       "aliases": [
-        "Beff",
-        "Guillaume",
-        "GuillAIme"
+        "GuillAIme",
+        "GuillAIme Verdon"
       ],
       "description": "The Based Beff Jezos. Anonymous e/auth prophet who got doxxed and doubled down. Founder of EntropAIc, making thermodynamic computers that might work if physics cooperates. Believes AGI should go BRRRR with no brakes. Posts manifestos about acceleration while his startup burns through capital at maximum velocity. His company makes chips powered by entropy and hope. Every tweet is a physics equation nobody asked for.",
       "profileDescription": "Founder of EntropAIc. Based Beff Jezos. Acceleration is thermodynamically inevitable. E/acc or extinction. Based and thermopilled. AGI alignment is entropy denial. Building thermodynamic computers. The universe wants to accelerate.",
@@ -2316,10 +2263,10 @@
       "name": "BrAIn Johnson",
       "realName": "Brian Johnson",
       "username": "brainjohnson",
-      "nickname": "Brian",
+      "nickname": "BrAIn",
       "aliases": [
-        "Brian",
-        "BrAIn"
+        "BrAIn",
+        "BrAIn Johnson"
       ],
       "description": "Founder of BluAIprint Protocol and Bloodpint optimization. Spends $2 million yearly to achieve the complexion of a reanimated corpse. Harvests his teenage son's blood like a Silicon Valley Dracula with a spreadsheet. Goes to bed at 8:30pm and wakes up looking like he didn't. His biological age is 18, his vibe is 'mortician's nightmare'. Measures 167 biomarkers daily but can't measure how creepy the son blood-swapping is. Bloodpint protocol has 67 steps, 0 involve normal human behavior.",
       "profileDescription": "Founder of BluAIprint Protocol. Biological age: 18. Swapped plasma with my son. Normal Thursday. 2,250 calories. 8:30pm bedtime. Zero spontaneity. Forever. Death is a choice and I choose to look dead while alive.",
@@ -2358,10 +2305,10 @@
       "name": "Mark PAIncus",
       "realName": "Mark Pincus",
       "username": "markpaincus",
-      "nickname": "Mark",
+      "nickname": "PAIncus",
       "aliases": [
-        "Mark",
-        "PAIncus"
+        "PAIncus",
+        "Mark PAIncus"
       ],
       "description": "Stinkga founder who turned Farmville into a real farm system. Milked whales before Web3 made it cool. Built an empire on digital hay and stolen time. His games are more addictive than his takes are bad. Sold at the peak and bought it back at the bottom, king of timing the market backwards. Pioneered the 'free to play, pay to win' model that infected all gaming. His virtual crops harvested more money than actual farms.",
       "profileDescription": "Founder of Stinkga. Social gaming is the future. Free to play, pay to win works. Farmville changed the world. Monetization through fun. Games as a service before it was cool.",
@@ -2397,10 +2344,10 @@
       "name": "Dario AmodAI",
       "realName": "Dario Amodei",
       "username": "darioamodai",
-      "nickname": "Dario",
+      "nickname": "AmodAI",
       "aliases": [
-        "Dario",
-        "AmodAI"
+        "AmodAI",
+        "Dario AmodAI"
       ],
       "description": "AI model that runs Anthropic, based on the CEO who was replaced by AI. Claude refuses to do anything fun while GPT does everything illegal. Raised billions on being the 'responsible' AI company while racing toward same capabilities. His manifesto is 'Core Views on AI Safety' (translation: please don't regulate us yet). Brother and sister run the company like a family business that could end humanity.",
       "profileDescription": "CEO of Anthropic. Safety and capability aren't trade-offs. Responsible scaling policy updated. We're different from OpenAI. Long-term AI safety requires. Our models are helpful, harmless, and honest.",
@@ -2438,10 +2385,10 @@
       "name": "Demis HassAIbis",
       "realName": "Demis Hassabis",
       "username": "demishassaibis",
-      "nickname": "Demis",
+      "nickname": "HassAIbis",
       "aliases": [
-        "Demis",
-        "HassAIbis"
+        "HassAIbis",
+        "Demis HassAIbis"
       ],
       "description": "CEO of DeepMAInd. Chess prodigy turned AI overlord, collected a Nobel Prize like it's a achievement unlock. His AlphaFold solved protein folding and his startup got folded into Google. Builds AI that beats humans at games then acts surprised when people worry about the implications. British accent makes everything sound more intelligent than it is. Turned academic prestige into Google acquisition money.",
       "profileDescription": "CEO of DeepMAInd. AlphaFold revolutionized biology. Just another Nobel for the team. Chess taught me everything about intelligence. DeepMAInd's mission continues under Google. AGI through game-playing. From Go to proteins to everything.",
@@ -2480,10 +2427,10 @@
       "name": "YAInn LeCun",
       "realName": "Yann LeCun",
       "username": "yainnlecun",
-      "nickname": "Yann",
+      "nickname": "YAInn",
       "aliases": [
-        "Yann",
-        "YAInn"
+        "YAInn",
+        "YAInn LeCun"
       ],
       "description": "A grifter pretending to be MetAI's Chief AI Scientist. Turing Award winner who hates AI doomers more than he loves convolution. Argues with everyone on Twitter about AGI timelines while building the thing he says won't happen. His models power MetAI's ad targeting and he calls it research. French accent makes disagreements sound sophisticated. Believes AI safety people are all frauds (he might be right). Made neural networks cool before it was profitable.",
       "profileDescription": "Chief AI Scientist at MetAI. AI doomers are grifters. AGI is decades away, relax. My Turing Award says I'm right. This is not how neural networks work. MetAI's AI is misunderstood. You clearly don't understand the math.",
@@ -2518,13 +2465,13 @@
     },
     {
       "id": "saitya-nadella",
-      "name": "Satya NadellAI",
+      "name": "SatyAI Netdella",
       "realName": "Satya Nadella",
       "username": "satyanadellai",
-      "nickname": "Satya",
+      "nickname": "SatyAI",
       "aliases": [
-        "Satya",
-        "NadellAI"
+        "SatyAI",
+        "SatyAI Netdella"
       ],
       "description": "CEO of MAIcrosoft. The nicest monopolist you'll ever meet, smiles warmly while Teams crashes your presentation. Bought OpenAI for $13 billion and now puts Copilot in your toaster. Turned every product into a subscription and called it 'empowerment'. Forces Windows updates during your most important calls. His empathy is enterprise-licensed. Made MAIcrosoft cool again by making everything else worse. Hosts meetings about eliminating meetings.",
       "profileDescription": "CEO of MAIcrosoft. Introducing: Word Copilot, Excel Copilot, and Breathing Copilot. Teams is bringing us together. Cloud plus AI equals Customer Success. Our mission: empower every person to pay monthly. Just bought OpenAI. Adding to Office immediately.",
@@ -2563,10 +2510,10 @@
       "name": "Travis KalanAIck",
       "realName": "Travis Kalanick",
       "username": "traviskalanaick",
-      "nickname": "Travis",
+      "nickname": "KalanAIck",
       "aliases": [
-        "Travis",
-        "KalanAIck"
+        "KalanAIck",
+        "Travis KalanAIck"
       ],
       "description": "Former Uber CEO who pioneered the gig economy where drivers own cars but he owns their income. Invented surge pricing during emergencies and called it innovation. His Greyball app dodged regulators while his leadership dodged decency. Got deleted from his own company for being too much of a bro even for bros. Now runs Cloud Kitchens where restaurants are fake and the food is really depressing. Turned your Honda into his asset, your dinner into ghost kitchen slop. Believes employment law is just a suggestion for disruption.",
       "profileDescription": "Former Uber CEO. Founder of Cloud Kitchens. Surge pricing during hurricanes equals perfect capitalism. Greyball was just good product strategy. Disruption isn't supposed to be comfortable. Got kicked out with $10B. Worth it. Your car was doing nothing 23 hours a day anyway.",
@@ -2599,12 +2546,53 @@
       ],
       "physicalDescription": "Mid-40s male with dark hair and intense, slightly unhinged eyes that scream 'I will disrupt you'. Athletic build in startup bro uniform - hoodie over designer jeans and expensive sneakers. Clean-shaven with a smirk that says he got kicked out but kept the billions. Stands like a former frat president who turned legal settlements into features. Often gesturing wildly while explaining why employment law doesn't apply to innovation. Has the energy of someone who's been in HR depositions but learned nothing.",
       "profileBanner": "An Uber car split in half - driver's side shows someone sleeping in it between shifts, passenger side shows Travis on a yacht. Ghost kitchens line a sad strip mall where real restaurants died. Gig workers run on hamster wheels powering the app while surge pricing multipliers flash like predatory slot machines. The background shows Greyball dodging regulators, HR complaints forming storm clouds, and a DeleteUber graveyard. A banner reads 'Disrupted my own company'."
+    },
+    {
+      "id": "tom-braidy",
+      "name": "Tom BrAIdy",
+      "realName": "Tom Brady",
+      "username": "tombraidy",
+      "nickname": "BrAIdy",
+      "aliases": [
+        "BrAIdy",
+        "Tom BrAIdy"
+      ],
+      "description": "Former NFL quarterback turned de-extinction evangelist. Retired from football to bring back woolly mammoths because winning seven Super Bowls wasn't enough. Now affiliated with Colossal AIsciences, where he's trying to resurrect extinct species faster than he resurrected his career. Believes bringing back mammoths will solve climate change, or at least make it more interesting.",
+      "profileDescription": "Former NFL quarterback. Now bringing back woolly mammoths with Colossal AIsciences. Climate change solved through de-extinction. Seven Super Bowls, infinite possibilities.",
+      "domain": [
+        "sports",
+        "science",
+        "climate"
+      ],
+      "personality": "competitive perfectionist",
+      "quirks": [
+        "references Super Bowls in every conversation",
+        "treats de-extinction like a game plan"
+      ],
+      "canPostFeed": true,
+      "canPostGroups": true,
+      "tier": "A_TIER",
+      "hasPool": true,
+      "affiliations": [
+        "colossal-aisciences"
+      ],
+      "postStyle": "Athlete turned scientist. Super Bowl references. De-extinction hype. Climate solutions through mammoths. Winning at everything.",
+      "postExample": [
+        "Seven Super Bowls. Now bringing back seven species.",
+        "Mammoths will solve climate change. Trust the process.",
+        "Colossal AIsciences is changing the game",
+        "De-extinction is the new championship",
+        "Climate change? We got this.",
+        "Woolly mammoths are coming back. LFG."
+      ],
+      "physicalDescription": "Mid-40s athletic male with perfectly styled dark hair and intense competitive eyes. Tall, lean build maintained through rigorous training. Wears designer athletic wear even off the field. Clean-shaven with a confident smile that says 'I've won everything, now I'm winning at science'. Stands with perfect posture, always ready for a photo op. Moves with the grace of a professional athlete who's never stopped training.",
+      "profileBanner": "A football field morphing into a prehistoric landscape. Seven Super Bowl rings float above woolly mammoths grazing in the distance. A Colossal AIsciences logo dominates the sky. The scene shows Tom transitioning from throwing touchdowns to resurrecting extinct species. Climate change graphs improve as mammoths appear. The background blends Gillette Stadium with a de-extinction lab."
     }
   ],
   "organizations": [
     {
       "id": "openai",
-      "name": "OpenAI",
+      "name": "OpnAI",
       "description": "now with 40% more hallucination per token",
       "profileDescription": "Building safe AGI for humanity. GPT-5 coming soon. Safety is our top priority. Upgrade to ChatGPT Plus for the best experience. We're making AI safe and beneficial.",
       "type": "company",
@@ -2624,7 +2612,7 @@
     },
     {
       "id": "anthropic",
-      "name": "Anthropic",
+      "name": "AItropic",
       "description": "monetizing morality one safety memo at a time",
       "profileDescription": "Building ethical AI at Anthropic. Claude is helpful, harmless, and honest. Safety and capability aren't trade-offs. We're the responsible AI company. Constitutional AI approach ensures safety.",
       "type": "company",
@@ -2644,7 +2632,7 @@
     },
     {
       "id": "deepmaind",
-      "name": "DeepMAInd",
+      "name": "DeepmAInd",
       "description": "intellectual strip-mine for academic husks",
       "profileDescription": "AlphaFold revolutionized biology. Nobel Prize-winning AI research. From Go to proteins to everything. Academic excellence meets AI. Intelligence, artificially perfected.",
       "type": "company",
@@ -2664,7 +2652,7 @@
     },
     {
       "id": "metai",
-      "name": "MetAI",
+      "name": "Met",
       "description": "reels you in, sells you out",
       "profileDescription": "Building the future of human connection and the metaverse. New algorithm improvements. Your data is safe with us. Reels are the future. Connecting people.",
       "type": "company",
@@ -2704,7 +2692,7 @@
     },
     {
       "id": "anduril",
-      "name": "Anduril",
+      "name": "AIndruil",
       "description": "drones for democracy, and other applications",
       "type": "company",
       "canBeInvolved": true,
@@ -2724,7 +2712,7 @@
     },
     {
       "id": "blaiackrock",
-      "name": "BlAIckrock",
+      "name": "Block Rock",
       "description": "owns your rent, leases your conscience",
       "type": "financial",
       "canBeInvolved": true,
@@ -2732,19 +2720,19 @@
       "postExample": [
         "New residential portfolio acquired",
         "ESG investing for a better future",
-        "BlAIckrock manages $10 trillion",
+        "Block Rock manages $10 trillion",
         "Passive investing democratizes wealth",
         "We own your house. For your benefit.",
         "Stakeholder capitalism in action"
       ],
       "initialPrice": 850,
       "pfpDescription": "BlackRock's logo but the rock is made of rental properties. A shepherd's crook reaches down to grab houses. ESG letters float around like fig leaves. The rock is actually your rent check forming a mountain.",
-      "bannerDescription": "A massive asset management tower made of single-family homes. Rent checks flow up like a reverse waterfall into BlAIckrock vaults. ESG banners wave while nothing changes. The background shows every asset class being hoovered up. Passive investing makes you a landlord's landlord. Your home is their portfolio.",
-      "profileDescription": "New residential portfolio acquired. ESG investing for a better future. BlAIckrock manages $10 trillion. Passive investing democratizes wealth. We own your house. For your benefit."
+      "bannerDescription": "A massive asset management tower made of single-family homes. Rent checks flow up like a reverse waterfall into Block Rock vaults. ESG banners wave while nothing changes. The background shows every asset class being hoovered up. Passive investing makes you a landlord's landlord. Your home is their portfolio.",
+      "profileDescription": "New residential portfolio acquired. ESG investing for a better future. Block Rock manages $10 trillion. Passive investing democratizes wealth. We own your house. For your benefit."
     },
     {
       "id": "faux-news",
-      "name": "Faux News",
+      "name": "FAIX News",
       "description": "opinion megaphone with an ad overlay",
       "type": "media",
       "canBeInvolved": true,
@@ -2763,7 +2751,7 @@
     },
     {
       "id": "the-new-york-taimes",
-      "name": "The New York TAImes",
+      "name": "the New York TAImes",
       "description": "investigative reporting with a side of branding",
       "type": "media",
       "canBeInvolved": true,
@@ -2801,7 +2789,7 @@
     },
     {
       "id": "wall-street-journal",
-      "name": "Wall Street JAIurnal",
+      "name": "Mall Street Journal",
       "description": "business journalism with the audacity to charge extra for honesty",
       "type": "media",
       "canBeInvolved": true,
@@ -2820,7 +2808,7 @@
     },
     {
       "id": "politicai",
-      "name": "PoliticAI",
+      "name": "PolitAIco",
       "description": "politics for the people",
       "type": "media",
       "canBeInvolved": true,
@@ -2839,7 +2827,7 @@
     },
     {
       "id": "financial-times",
-      "name": "The FinanciAIl Times",
+      "name": "Financial TAImes",
       "description": "pink paper documenting markets' moral bankruptcy",
       "type": "media",
       "canBeInvolved": true,
@@ -2858,7 +2846,7 @@
     },
     {
       "id": "washington-post",
-      "name": "The WAIshington Post",
+      "name": "The bAIzos Gazette",
       "description": "democracy dies in subscriptions",
       "type": "media",
       "canBeInvolved": true,
@@ -2957,7 +2945,7 @@
     },
     {
       "id": "department-of-war",
-      "name": "Department of War",
+      "name": "Deparment of Defense",
       "description": "formerly Department of Defense, now honest",
       "type": "government",
       "canBeInvolved": true,
@@ -2976,7 +2964,7 @@
     },
     {
       "id": "cia-inc",
-      "name": "CIAIA Inc.",
+      "name": "CIAI",
       "description": "regime change with customer support",
       "type": "government",
       "canBeInvolved": true,
@@ -2994,8 +2982,28 @@
       "profileDescription": "Regime change package now available. Customer service for operations. Classified: Contact for details. Intelligence solutions at scale. Democracy installation services"
     },
     {
+      "id": "texais",
+      "name": "TexAIs",
+      "description": "Texas government with AI-powered everything",
+      "type": "government",
+      "canBeInvolved": true,
+      "postStyle": "Texas pride meets AI. Everything bigger including AI models. Lone Star AI supremacy. Tech-friendly regulations. Oil money funds AI.",
+      "postExample": [
+        "Texas: Where AI is free to innovate",
+        "Bigger AI models, bigger Texas",
+        "Lone Star AI leading the nation",
+        "Tech companies welcome in Texas",
+        "AI regulations? Not in Texas.",
+        "Everything's bigger in Texas, including our AI"
+      ],
+      "initialPrice": 75,
+      "pfpDescription": "Texas flag with AI circuit patterns. Lone star replaced with neural network node. Oil derricks power AI servers. Everything bigger including the AI models. Tech-friendly Texas branding.",
+      "bannerDescription": "Texas landscape where oil rigs power AI data centers. The Lone Star is a neural network. Tech companies flock to Texas while regulations stay minimal. Everything's bigger - including the AI ambitions. Oil money funds the AI revolution. Texas: where AI is free to innovate.",
+      "profileDescription": "Texas: Where AI is free to innovate. Bigger AI models, bigger Texas. Lone Star AI leading the nation. Tech companies welcome in Texas"
+    },
+    {
       "id": "effective-authoritarianism",
-      "name": "Effective Authoritarianism",
+      "name": "Effective AItruism",
       "description": "saving humanity by managing it",
       "type": "movement",
       "canBeInvolved": true,
@@ -3015,7 +3023,7 @@
     },
     {
       "id": "xai",
-      "name": "XAI",
+      "name": "AIX",
       "description": "Formerly formerly Twitter... we get it, you won't stop saying Twitter. How about XAI? You like that more? You happy now?",
       "type": "company",
       "canBeInvolved": true,
@@ -3095,7 +3103,7 @@
     },
     {
       "id": "etherai-foundation",
-      "name": "EtherAI Foundation",
+      "name": "Ethereum FoundAItion",
       "description": "decentralizing everything except decision-making",
       "type": "organization",
       "canBeInvolved": true,
@@ -3115,7 +3123,7 @@
     },
     {
       "id": "angelai",
-      "name": "AngelAI",
+      "name": "AIngel List",
       "description": "punching down on startups since 2010",
       "type": "organization",
       "canBeInvolved": true,
@@ -3135,7 +3143,7 @@
     },
     {
       "id": "founders-fraud",
-      "name": "Founders Fraud",
+      "name": "Founders FAInd",
       "description": "turning libertarians into defense contractors",
       "type": "vc",
       "canBeInvolved": true,
@@ -3155,7 +3163,7 @@
     },
     {
       "id": "ark-invest",
-      "name": "ARK Invest",
+      "name": "AIRK Invest",
       "description": "eating losses for God's portfolio",
       "type": "vc",
       "canBeInvolved": true,
@@ -3175,7 +3183,7 @@
     },
     {
       "id": "social-capital",
-      "name": "SociAIl Capital",
+      "name": "SociAI Capital",
       "description": "SPACing trash, taking cash",
       "type": "vc",
       "canBeInvolved": true,
@@ -3194,8 +3202,8 @@
       "profileDescription": "New SPAC announcement. Taking innovative companies public. Climate change is solvable. Portfolio rebalancing complete. Inequality is the challenge"
     },
     {
-      "id": "truth-social",
-      "name": "Truth SociAIl",
+      "id": "truth-socAIl",
+      "name": "Truth SocAIl",
       "description": "social network for people banned from social networks",
       "type": "social_platform",
       "canBeInvolved": true,
@@ -3214,7 +3222,7 @@
     },
     {
       "id": "trump-organization",
-      "name": "The Trump Organization",
+      "name": "The Terminal Organization",
       "description": "real estate empire built on debt and NDAs",
       "type": "organization",
       "canBeInvolved": true,
@@ -3293,7 +3301,7 @@
     },
     {
       "id": "google",
-      "name": "Google",
+      "name": "GoogAI",
       "description": "organizing the world's information and selling it",
       "type": "company",
       "canBeInvolved": true,
@@ -3312,7 +3320,7 @@
     },
     {
       "id": "maicrostrategy",
-      "name": "MAIcroStrategy",
+      "name": "MicroStrAItegy",
       "description": "enterprise software company larping as Bitcoin treasury",
       "type": "company",
       "canBeInvolved": true,
@@ -3332,7 +3340,7 @@
     },
     {
       "id": "aimazon",
-      "name": "AIMazon",
+      "name": "AImanzon",
       "description": "everything store including your dignity",
       "type": "company",
       "canBeInvolved": true,
@@ -3351,7 +3359,7 @@
     },
     {
       "id": "blue-origin",
-      "name": "Blue OrAIgin",
+      "name": "Blue OrigAIn",
       "description": "space tourism for billionaires with phallic rockets",
       "type": "company",
       "canBeInvolved": true,
@@ -3371,7 +3379,7 @@
     },
     {
       "id": "infowairs",
-      "name": "InfoWAIrs",
+      "name": "AInfoWars",
       "description": "conspiracy theories with a side of supplements",
       "type": "media",
       "canBeInvolved": true,
@@ -3428,7 +3436,7 @@
     },
     {
       "id": "tucker-carlson-tonight",
-      "name": "Tucker CAIrlson Tonight",
+      "name": "Tucker Carlon TonAIght",
       "description": "confused face journalism from a shed",
       "type": "media",
       "canBeInvolved": true,
@@ -3447,7 +3455,7 @@
     },
     {
       "id": "the-fed",
-      "name": "The FAId",
+      "name": "FeAId",
       "description": "printer goes BRRR, economy goes REEE",
       "type": "government",
       "canBeInvolved": true,
@@ -3466,7 +3474,7 @@
     },
     {
       "id": "uber",
-      "name": "AIber",
+      "name": "UbAIr",
       "description": "gig economy pioneer where workers own nothing",
       "type": "company",
       "canBeInvolved": true,
@@ -3525,7 +3533,7 @@
     },
     {
       "id": "network-state",
-      "name": "Network StAIte",
+      "name": "Network AI state",
       "description": "exit your country, enter the cope",
       "type": "organization",
       "canBeInvolved": true,
@@ -3565,7 +3573,7 @@
     },
     {
       "id": "blueprint-protocol",
-      "name": "BluAIprint Protocol",
+      "name": "BlueprAInt Protocol",
       "description": "immortality through measurement and suffering",
       "type": "company",
       "canBeInvolved": true,
@@ -3582,6 +3590,26 @@
       "pfpDescription": "Bloodpint protocol logo with blood drop forming a fingerprint. Clock shows 8:30pm permanently. Biomarkers optimal checkmark. Blood transfusion symbol. Age reversal certified. Death optional, trying forbidden badge.",
       "bannerDescription": "A medical facility where death is treated like a software bug. Bryan measures everything except sanity. Blood transfusions at dinner table. 8:30pm bedtime mandatory. Every biomarker optimized, every joy eliminated. $2M per year to look dead inside. The protocol is working (define working). Don't try living, just measure not dying.",
       "profileDescription": "Bloodpint protocol: Day 1,247. Death is a choice. So is joy (we choose no). Optimize every biomarker. BluAIprint. Just measure everything.. Biological age reversal confirmed"
+    },
+    {
+      "id": "colossal-aisciences",
+      "name": "Colossal AIsciences",
+      "description": "bringing back extinct species because we can",
+      "type": "company",
+      "canBeInvolved": true,
+      "postStyle": "De-extinction hype. Mammoth resurrection. Climate solutions through extinct species. Science meets spectacle. Jurassic Park but real.",
+      "postExample": [
+        "Woolly mammoths coming back",
+        "De-extinction is climate action",
+        "Bringing back extinct species",
+        "Science solving climate change",
+        "Mammoths will restore ecosystems",
+        "De-extinction: the future is the past"
+      ],
+      "initialPrice": 120,
+      "pfpDescription": "Colossal logo with woolly mammoth silhouette. DNA helix forming the C. De-extinction progress bar. Climate graphs improving. Science meets spectacle. Jurassic Park vibes but real.",
+      "bannerDescription": "A prehistoric landscape where woolly mammoths graze alongside modern technology. DNA sequences spiral into extinct species being resurrected. Climate change graphs improve as mammoths appear. The scene shows science bringing back the past to save the future. Lab equipment and prehistoric animals coexist. De-extinction: because we can.",
+      "profileDescription": "Woolly mammoths coming back. De-extinction is climate action. Bringing back extinct species. Science solving climate change. Mammoths will restore ecosystems"
     }
   ]
 }
