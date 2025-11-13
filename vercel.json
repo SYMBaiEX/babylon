@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/cron/game-tick",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/training-check",
       "schedule": "0 * * * *"
     },
@@ -9,6 +13,14 @@
       "schedule": "*/15 * * * *"
     }
   ],
+  "functions": {
+    "api/sse/**": {
+      "maxDuration": 300
+    },
+    "api/cron/**": {
+      "maxDuration": 300
+    }
+  },
   "env": {
     "BLOB_READ_WRITE_TOKEN": "@blob_read_write_token",
     "WANDB_API_KEY": "@wandb_api_key",
