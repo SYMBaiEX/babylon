@@ -4,26 +4,29 @@ import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Avatar } from '@/components/shared/Avatar';
+import { z } from 'zod';
 
-export interface ArticleCardProps {
-  post: {
-    id: string;
-    type?: string;
-    content: string; // Summary for articles
-    fullContent?: string | null; // Full article body
-    articleTitle?: string | null;
-    byline?: string | null;
-    biasScore?: number | null;
-    category?: string | null;
-    authorId: string;
-    authorName: string;
-    authorUsername?: string | null;
-    authorProfileImageUrl?: string | null;
-    timestamp: string;
-  };
+const _ArticleCardPostSchema = z.object({
+  id: z.string(),
+  type: z.string().optional(),
+  content: z.string(),
+  fullContent: z.string().nullable().optional(),
+  articleTitle: z.string().nullable().optional(),
+  byline: z.string().nullable().optional(),
+  biasScore: z.number().nullable().optional(),
+  category: z.string().nullable().optional(),
+  authorId: z.string(),
+  authorName: z.string(),
+  authorUsername: z.string().nullable().optional(),
+  authorProfileImageUrl: z.string().nullable().optional(),
+  timestamp: z.string(),
+});
+
+export type ArticleCardProps = {
+  post: z.infer<typeof _ArticleCardPostSchema>;
   className?: string;
   onClick?: () => void;
-}
+};
 
 export const ArticleCard = memo(function ArticleCard({
   post,

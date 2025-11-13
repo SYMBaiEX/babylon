@@ -27,7 +27,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   let dmAcceptanceTableExists = false;
   try {
     // Quick check using prisma directly (not in a transaction)
-    await prisma.$queryRaw`SELECT 1 FROM "DMAcceptance" LIMIT 1`;
+    await prisma.$queryRaw<Array<{ '?column?': number }>>`SELECT 1 FROM "DMAcceptance" LIMIT 1`;
     dmAcceptanceTableExists = true;
   } catch {
     // Table doesn't exist yet - that's okay, we'll skip it

@@ -12,6 +12,6 @@ export const journalistInstruction = definePrompt({
    {{emotionalContext}}{{voiceContext}}
 
    Write breaking news. Your current mood and luck may subtly influence your reporting angle.
-   Max 280 chars. Stay in character.
+   Max 280 chars. Stay in character. No hashtags/emojis.
 `.trim()
 });

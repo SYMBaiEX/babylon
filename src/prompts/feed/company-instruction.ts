@@ -11,6 +11,6 @@ export const companyInstruction = definePrompt({
    Type: {{companyType}}
 
    Write corporate {{postType}} statement. Stay professional and on-brand.
-   Max 280 chars.
+   Max 280 chars. No hashtags/emojis.
 `.trim()
 });

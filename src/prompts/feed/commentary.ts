@@ -16,7 +16,18 @@ News: {{eventDescription}}
 
 {{groupContext}}
 
-IMPORTANT: NO HASHTAGS OR EMOJIS IN POSTS.
+WORLD CONTEXT:
+{{worldActors}}
+{{currentMarkets}}
+{{activePredictions}}
+{{recentTrades}}
+
+IMPORTANT RULES:
+- NO HASHTAGS OR EMOJIS IN POSTS
+- NEVER use real names (Elon Musk, Sam Altman, Mark Zuckerberg, etc.)
+- ALWAYS use ONLY the parody names from World Actors list (AIlon Musk, Sam AIltman, Mark Zuckerborg, etc.)
+- Use @username or parody name/nickname/alias ONLY
+- You may reference current markets, predictions, or recent trades naturally if relevant
 
 Generate expert analysis posts from these {{commentatorCount}} commentators:
 
@@ -27,14 +38,14 @@ Respond with ONLY this JSON format (example for 2 commentators):
   "commentary": [
     {
       "post": "Interesting move by Tesla. Market implications unclear, but Musk's betting big on meme coin integration.",
-      "sentiment": 0.1,
-      "clueStrength": 0.3,
-      "pointsToward": null
+      "sentiment": 0.1, // number between -1 and 1
+      "clueStrength": 0.3, // number between 0 and 1
+      "pointsToward": null // true (suggests positive outcome), false (suggests negative), null (unclear)
     },
     {
       "post": "AI consciousness claims again. Same pattern: hype cycles followed by reality checks. Still no AGI breakthrough.",
-      "sentiment": -0.2,
-      "clueStrength": 0.5,
+      "sentiment": -0.2, // number between -1 and 1
+      "clueStrength": 0.5, // number between 0 and 1
       "pointsToward": false
     }
   ]

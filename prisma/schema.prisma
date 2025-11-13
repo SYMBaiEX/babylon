@@ -713,9 +713,22 @@ model Question {
   createdAt       DateTime   @default(now())
   updatedAt       DateTime
   Position        Position[]
+  
+  // Oracle integration fields
+  oracleSessionId     String?   @unique
+  oracleCommitment    String?   // Hash committed on-chain
+  oracleCommitTxHash  String?   // Transaction hash for commit
+  oracleCommitBlock   Int?      // Block number of commit
+  oracleRevealTxHash  String?   // Transaction hash for reveal
+  oracleRevealBlock   Int?      // Block number of reveal
+  oraclePublishedAt   DateTime? // When revealed on-chain
+  oracleSaltEncrypted String?   // Encrypted salt for commit-reveal (backup)
+  oracleError         String?   // Last error if any
 
   @@index([createdDate(sort: Desc)])
   @@index([status, resolutionDate])
+  @@index([oracleSessionId])
+  @@index([oraclePublishedAt])
 }
 
 model Reaction {
@@ -944,6 +957,29 @@ model User {
   emailVerified                           Boolean                  @default(false)
   email                                   String?
   waitlistGraduatedAt                     DateTime?
+  totalAgentPnL                           Decimal                  @default(0) @db.Decimal(18, 2)
+  agentCount                              Int                      @default(0)
+  isAgent                                 Boolean                  @default(false)
+  managedBy                               String?
+  agentSystem                             String?                  @db.Text
+  agentPersonality                        String?                  @db.Text
+  agentTradingStrategy                    String?                  @db.Text
+  agentMessageExamples                    Json?
+  agentStyle                              Json?
+  agentModelTier                          String                   @default("free")
+  agentPointsBalance                      Int                      @default(0)
+  agentTotalDeposited                     Int                      @default(0)
+  agentTotalWithdrawn                     Int                      @default(0)
+  agentTotalPointsSpent                   Int                      @default(0)
+  agentLastTickAt                         DateTime?
+  agentLastChatAt                         DateTime?
+  agentStatus                             String                   @default("idle")
+  agentErrorMessage                       String?
+  autonomousTrading                       Boolean                  @default(false)
+  autonomousPosting                       Boolean                  @default(false)
+  autonomousCommenting                    Boolean                  @default(false)
+  autonomousDMs                           Boolean                  @default(false)
+  autonomousGroupChats                    Boolean                  @default(false)
   AgentPerformanceMetrics                 AgentPerformanceMetrics?
   BalanceTransaction                      BalanceTransaction[]
   Comment                                 Comment[]
@@ -968,6 +1004,13 @@ model User {
   UserActorFollow                         UserActorFollow[]
   ProfileUpdateLog                        ProfileUpdateLog[]
   TwitterOAuthToken                       TwitterOAuthToken?
+  ManagedAgents                           User[]                   @relation("UserManagement")
+  Manager                                 User?                    @relation("UserManagement", fields: [managedBy], references: [id])
+  AgentMessage                            AgentMessage[]
+  AgentLog                                AgentLog[]
+  AgentPointsTransaction_Agent            AgentPointsTransaction[] @relation("AgentPointsTransaction_Agent")
+  AgentPointsTransaction_User             AgentPointsTransaction[] @relation("AgentPointsTransaction_User")
+  AgentTrade                              AgentTrade[]
 
   @@index([earnedPoints(sort: Desc)])
   @@index([invitePoints(sort: Desc)])
@@ -981,6 +1024,12 @@ model User {
   @@index([walletAddress])
   @@index([isBanned, isActor]) // Compound index for filtering
   @@index([profileComplete, createdAt(sort: Desc)]) // For finding incomplete profiles
+  @@index([totalAgentPnL(sort: Desc)])
+  @@index([agentCount(sort: Desc)])
+  @@index([isAgent])
+  @@index([managedBy])
+  @@index([isAgent, managedBy])
+  @@index([autonomousTrading])
 }
 
 model UserActorFollow {
@@ -1082,4 +1131,119 @@ enum OnboardingStatus {
   ONCHAIN_IN_PROGRESS
   ONCHAIN_FAILED
   COMPLETED
+}
+
+// Agents are Users, not separate entities
+// Agent-specific data stored in User model with isAgent=true flag
+// This table removed in favor of agent fields on User model
+
+model AgentMessage {
+  id          String   @id
+  agentUserId String   // User ID of the agent
+  role        String   // "user" | "assistant" | "system"
+  content     String   @db.Text
+  modelUsed   String?  // "groq-8b" | "groq-70b" | "sonnet"
+  pointsCost  Int      @default(0)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  
+  User        User     @relation(fields: [agentUserId], references: [id], onDelete: Cascade)
+  
+  @@index([agentUserId, createdAt(sort: Desc)])
+  @@index([role])
+}
+
+model AgentLog {
+  id          String   @id
+  agentUserId String   // User ID of the agent
+  type        String   // "chat" | "tick" | "trade" | "error" | "system" | "post" | "comment" | "dm"
+  level       String   // "info" | "warn" | "error" | "debug"
+  message     String   @db.Text
+  prompt      String?  @db.Text
+  completion  String?  @db.Text
+  thinking    String?  @db.Text
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  
+  User        User     @relation(fields: [agentUserId], references: [id], onDelete: Cascade)
+  
+  @@index([agentUserId, createdAt(sort: Desc)])
+  @@index([type, createdAt(sort: Desc)])
+  @@index([level])
+}
+
+model AgentPointsTransaction {
+  id            String   @id
+  agentUserId   String   // User ID of the agent
+  managerUserId String   // User ID of the manager (owner)
+  type          String   // "deposit" | "withdraw" | "spend_chat" | "spend_tick" | "earn_trade" | "spend_post" | "spend_comment"
+  amount        Int      // Positive for deposits/earnings, negative for spends
+  balanceBefore Int
+  balanceAfter  Int
+  description   String
+  relatedId     String?
+  createdAt     DateTime @default(now())
+  
+  Agent         User     @relation("AgentPointsTransaction_Agent", fields: [agentUserId], references: [id], onDelete: Cascade)
+  Manager       User     @relation("AgentPointsTransaction_User", fields: [managerUserId], references: [id], onDelete: Cascade)
+  
+  @@index([agentUserId, createdAt(sort: Desc)])
+  @@index([managerUserId, createdAt(sort: Desc)])
+  @@index([type])
+}
+
+model AgentTrade {
+  id              String    @id
+  agentUserId     String    // User ID of the agent
+  marketType      String    // "prediction" | "perp"
+  marketId        String?
+  ticker          String?
+  action          String    // "open" | "close"
+  side            String?   // "long" | "short" | "yes" | "no"
+  amount          Float
+  price           Float
+  pnl             Float?
+  reasoning       String?   @db.Text
+  executedAt      DateTime  @default(now())
+  
+  User            User      @relation(fields: [agentUserId], references: [id], onDelete: Cascade)
+  
+  @@index([agentUserId, executedAt(sort: Desc)])
+  @@index([marketType, marketId])
+  @@index([ticker])
+}
+
+// ============ Oracle System Models ============
+
+model OracleCommitment {
+  id            String   @id @default(cuid())
+  questionId    String   @unique
+  sessionId     String   // Blockchain session ID
+  saltEncrypted String   // Encrypted salt for commit-reveal
+  commitment    String   // keccak256(abi.encode(outcome, salt))
+  createdAt     DateTime @default(now())
+  
+  @@index([questionId])
+  @@index([sessionId])
+  @@index([createdAt])
+}
+
+model OracleTransaction {
+  id            String   @id @default(cuid())
+  questionId    String?
+  txType        String   // 'commit' | 'reveal' | 'resolve'
+  txHash        String   @unique
+  status        String   // 'pending' | 'confirmed' | 'failed'
+  blockNumber   Int?
+  gasUsed       BigInt?
+  gasPrice      BigInt?
+  error         String?  @db.Text
+  retryCount    Int      @default(0)
+  createdAt     DateTime @default(now())
+  confirmedAt   DateTime?
+  
+  @@index([questionId])
+  @@index([status, createdAt])
+  @@index([txType])
+  @@index([txHash])
 }

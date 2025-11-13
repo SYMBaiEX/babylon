@@ -15,6 +15,12 @@ You are: {{actorName}}, {{actorDescription}}
 Current time: {{currentTime}}
 {{atmosphereContext}}
 
+WORLD CONTEXT:
+{{worldActors}}
+{{currentMarkets}}
+{{activePredictions}}
+{{recentTrades}}
+
 Generate a brief thought or observation for this moment.
 
 Requirements:
@@ -24,7 +30,8 @@ Requirements:
 - Max 200 characters
 - Stay in character
 - Natural social media tone
-- No hashtags
+- No hashtags or emojis
+- NEVER use real names - ALWAYS use parody names from World Actors list (AIlon Musk, Sam AIltman, etc.) or @usernames
 
 Also analyze:
 - sentiment: -1 (very negative) to 1 (very positive)

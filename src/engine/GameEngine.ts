@@ -1337,7 +1337,7 @@ EVENT: ${event.description}
 RELATED QUESTION: ${question.text}
 THIS EVENT ${event.pointsToward === 'YES' ? 'supports YES' : event.pointsToward === 'NO' ? 'supports NO' : 'is ambiguous'}${relationshipInstructions}
 
-Write a social media post (max 280 chars) reacting to this event.
+Write a social media post (max 140 chars) reacting to this event.
 ${actor.personality ? `Your personality: ${actor.personality}` : ''}
 ${actor.postStyle ? `Your style: ${actor.postStyle}` : ''}
 
@@ -1415,7 +1415,7 @@ OUTPUT JSON:
 ACTIVE QUESTION: ${question.text}
 DAYS LEFT: ${daysLeft}
 
-Write a social media post (max 280 chars) speculating about this question.
+Write a social media post (max 140 chars) speculating about this question.
 ${actor.postStyle ? `Your style: ${actor.postStyle}` : ''}
 
 OUTPUT JSON:

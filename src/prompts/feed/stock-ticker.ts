@@ -18,6 +18,12 @@ PRICE: \${{currentPrice}}
 CHANGE: {{priceChange}}% ({{direction}})
 VOLUME: {{volume}}
 
+WORLD CONTEXT:
+{{worldActors}}
+{{currentMarkets}}
+{{activePredictions}}
+{{recentTrades}}
+
 Create a brief, professional stock ticker post.
 
 Requirements:
@@ -26,6 +32,7 @@ Requirements:
 - Max 150 characters
 - No hashtags or emojis
 - Professional but can be subtly satirical
+- NEVER use real names - ALWAYS use parody names from World Actors list (AIlon Musk, Sam AIltman, etc.) or @usernames
 
 Example: "{{ticker}} \${{currentPrice}} {{direction}} {{priceChange}}% on news of [brief event mention]"
 

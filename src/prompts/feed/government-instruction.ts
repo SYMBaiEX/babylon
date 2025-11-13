@@ -11,6 +11,6 @@ export const governmentInstruction = definePrompt({
    Authority: {{governmentType}}
 
    Write official government statement. Be formal and measured.
-   Max 280 chars.
+   Max 280 chars. No hashtags/emojis.
 `.trim()
 });

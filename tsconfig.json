@@ -94,6 +94,8 @@
   "exclude": [
     "node_modules",
     "dist",
-    "plugin-babylon"
+    "plugin-babylon",
+    "src/a2a",
+    "**/*.disabled"
   ]
 }

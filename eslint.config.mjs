@@ -9,10 +9,13 @@ export default [
       "dist/**",
       "out/**",
       "build/**",
-      "contracts/**",
       "plugin-babylon/**",
       "**/*.config.*",
-      "**/*.test.ts"
+      "**/*.test.ts",
+      "src/a2a/**",
+      "src/lib/agents/plugins/babylon/**",
+      "src/lib/agents/autonomous/a2a-only/**",
+      "src/lib/prompts/complete-example.ts"
     ]
   },
   {

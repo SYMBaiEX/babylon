@@ -16,8 +16,14 @@ Day: {{day}}
 {{progressContext}}
 {{atmosphereNote}}
 
+WORLD CONTEXT:
+{{worldActors}}
+{{currentMarkets}}
+{{activePredictions}}
+{{recentTrades}}
+
 Write an ambient post about your thoughts, activities, or opinions unrelated to major events.
-Max 280 chars. Stay in character. {{outcomeFrame}}
+Max 280 chars. Stay in character. No hashtags or emojis. NEVER use real names - ALWAYS use parody names from World Actors list (AIlon Musk, Sam AIltman, etc.) or @usernames. {{outcomeFrame}}
 
 Also analyze:
 - sentiment: -1 (very negative) to 1 (very positive)

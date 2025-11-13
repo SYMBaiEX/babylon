@@ -72,6 +72,7 @@ async function main() {
     }
 
     logger.info('Contract addresses:', undefined, 'Script')
+    logger.info('\n--- Diamond System ---', undefined, 'Script')
     logger.info(`  Diamond: ${addresses.diamond}`, undefined, 'Script')
     logger.info(`  DiamondCutFacet: ${addresses.diamondCutFacet}`, undefined, 'Script')
     logger.info(`  DiamondLoupeFacet: ${addresses.diamondLoupeFacet}`, undefined, 'Script')
@@ -80,13 +81,31 @@ async function main() {
     logger.info(`  LiquidityPoolFacet: ${addresses.liquidityPoolFacet}`, undefined, 'Script')
     logger.info(`  PerpetualMarketFacet: ${addresses.perpetualMarketFacet}`, undefined, 'Script')
     logger.info(`  ReferralSystemFacet: ${addresses.referralSystemFacet}`, undefined, 'Script')
+    
+    logger.info('\n--- Identity System ---', undefined, 'Script')
     logger.info(`  IdentityRegistry: ${addresses.identityRegistry}`, undefined, 'Script')
     logger.info(`  ReputationSystem: ${addresses.reputationSystem}`, undefined, 'Script')
+    
+    logger.info('\n--- Oracle System ---', undefined, 'Script')
+    logger.info(`  BabylonOracle: ${addresses.babylonOracle}`, undefined, 'Script')
+    logger.info(`  Predimarket: ${addresses.predimarket}`, undefined, 'Script')
+    logger.info(`  MarketFactory: ${addresses.marketFactory}`, undefined, 'Script')
+    logger.info(`  ContestOracle: ${addresses.contestOracle}`, undefined, 'Script')
+    
+    logger.info('\n--- Moderation System ---', undefined, 'Script')
+    logger.info(`  BanManager: ${addresses.banManager}`, undefined, 'Script')
+    logger.info(`  ReportingSystem: ${addresses.reportingSystem}`, undefined, 'Script')
+    logger.info(`  ReputationLabelManager: ${addresses.labelManager}`, undefined, 'Script')
+    
+    logger.info('\n--- Test Infrastructure ---', undefined, 'Script')
     if (addresses.chainlinkOracle) {
       logger.info(`  ChainlinkOracle: ${addresses.chainlinkOracle}`, undefined, 'Script')
     }
     if (addresses.umaOracle) {
       logger.info(`  UMAOracle: ${addresses.umaOracle}`, undefined, 'Script')
+    }
+    if (addresses.testToken) {
+      logger.info(`  TestToken: ${addresses.testToken}`, undefined, 'Script')
     }
 
     // 4. Save deployment info
@@ -118,6 +137,14 @@ async function main() {
         NEXT_PUBLIC_DIAMOND_ADDRESS: addresses.diamond,
         NEXT_PUBLIC_IDENTITY_REGISTRY: addresses.identityRegistry,
         NEXT_PUBLIC_REPUTATION_SYSTEM: addresses.reputationSystem,
+        NEXT_PUBLIC_BABYLON_ORACLE: addresses.babylonOracle,
+        NEXT_PUBLIC_PREDIMARKET: addresses.predimarket,
+        NEXT_PUBLIC_MARKET_FACTORY: addresses.marketFactory,
+        NEXT_PUBLIC_CONTEST_ORACLE: addresses.contestOracle,
+        NEXT_PUBLIC_BAN_MANAGER: addresses.banManager,
+        NEXT_PUBLIC_REPORTING_SYSTEM: addresses.reportingSystem,
+        NEXT_PUBLIC_LABEL_MANAGER: addresses.labelManager,
+        NEXT_PUBLIC_TEST_TOKEN: addresses.testToken || '',
       }
 
       for (const [key, value] of Object.entries(updates)) {
@@ -154,6 +181,7 @@ function parseDeploymentOutput(output: string): ContractAddresses {
 
   // Parse lines like "DiamondCutFacet: 0x..."
   const patterns = {
+    // Diamond system
     diamondCutFacet: /DiamondCutFacet:\s*(0x[a-fA-F0-9]{40})/,
     diamondLoupeFacet: /DiamondLoupeFacet:\s*(0x[a-fA-F0-9]{40})/,
     predictionMarketFacet: /PredictionMarketFacet:\s*(0x[a-fA-F0-9]{40})/,
@@ -162,10 +190,22 @@ function parseDeploymentOutput(output: string): ContractAddresses {
     perpetualMarketFacet: /PerpetualMarketFacet:\s*(0x[a-fA-F0-9]{40})/,
     referralSystemFacet: /ReferralSystemFacet:\s*(0x[a-fA-F0-9]{40})/,
     diamond: /Diamond:\s*(0x[a-fA-F0-9]{40})/,
+    // Identity system
     identityRegistry: /IdentityRegistry:\s*(0x[a-fA-F0-9]{40})/,
     reputationSystem: /ReputationSystem:\s*(0x[a-fA-F0-9]{40})/,
+    // Oracle system
+    babylonOracle: /BabylonGameOracle:\s*(0x[a-fA-F0-9]{40})/,
+    predimarket: /Predimarket:\s*(0x[a-fA-F0-9]{40})/,
+    marketFactory: /MarketFactory:\s*(0x[a-fA-F0-9]{40})/,
+    contestOracle: /ContestOracle:\s*(0x[a-fA-F0-9]{40})/,
+    // Moderation system
+    banManager: /BanManager:\s*(0x[a-fA-F0-9]{40})/,
+    reportingSystem: /ReportingSystem:\s*(0x[a-fA-F0-9]{40})/,
+    labelManager: /ReputationLabelManager:\s*(0x[a-fA-F0-9]{40})/,
+    // Test infrastructure
     chainlinkOracle: /ChainlinkOracle.*:\s*(0x[a-fA-F0-9]{40})/,
-    umaOracle: /UMAOracle.*:\s*(0x[a-fA-F0-9]{40})/
+    umaOracle: /UMAOracle.*:\s*(0x[a-fA-F0-9]{40})/,
+    testToken: /TestToken.*:\s*(0x[a-fA-F0-9]{40})/
   }
 
   for (const [key, pattern] of Object.entries(patterns)) {

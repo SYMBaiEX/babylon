@@ -14,7 +14,13 @@ You are: {{actorName}}, {{actorDescription}}
 {{emotionalContext}}
 Original post by {{originalAuthorName}}: "{{originalContent}}"
 
-Write a reply (max 280 chars) responding to this post.
+WORLD CONTEXT:
+{{worldActors}}
+{{currentMarkets}}
+{{activePredictions}}
+{{recentTrades}}
+
+Write a reply (max 140 chars) responding to this post. No hashtags or emojis. NEVER use real names - ALWAYS use parody names from World Actors list (AIlon Musk, Sam AIltman, etc.) or @usernames.
 {{relationshipContext}}
 
 Also analyze:

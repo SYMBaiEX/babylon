@@ -43,47 +43,47 @@ describe('Group API Integration Tests', () => {
 
   describe('Chat-Group Integration', () => {
     it.skip('should have Chat model with groupId field', async () => {
-      const chatSchema = await prisma.$queryRaw`
+      const chatSchema = await prisma.$queryRaw<Array<{ column_name: string }>>`
         SELECT column_name 
         FROM information_schema.columns 
         WHERE table_schema = 'public' AND table_name = 'Chat' AND column_name = 'groupId'
       `
       // Check that we got results
       expect(Array.isArray(chatSchema)).toBe(true)
-      expect((chatSchema as any[]).length).toBeGreaterThan(0)
+      expect(chatSchema.length).toBeGreaterThan(0)
     })
 
     it.skip('should have proper indexes on Chat.groupId', async () => {
-      const indexes = await prisma.$queryRaw`
+      const indexes = await prisma.$queryRaw<Array<{ indexname: string }>>`
         SELECT indexname 
         FROM pg_indexes 
         WHERE schemaname = 'public' AND tablename = 'Chat' AND indexdef LIKE '%groupId%'
       `
       // Check that we got results
       expect(Array.isArray(indexes)).toBe(true)
-      expect((indexes as any[]).length).toBeGreaterThan(0)
+      expect(indexes.length).toBeGreaterThan(0)
     })
   })
 
   describe('Notification Integration', () => {
     it.skip('should have Notification model with groupId field', async () => {
-      const notifSchema = await prisma.$queryRaw`
+      const notifSchema = await prisma.$queryRaw<Array<{ column_name: string }>>`
         SELECT column_name 
         FROM information_schema.columns 
         WHERE table_schema = 'public' AND table_name = 'Notification' AND column_name = 'groupId'
       `
       expect(Array.isArray(notifSchema)).toBe(true)
-      expect((notifSchema as any[]).length).toBeGreaterThan(0)
+      expect(notifSchema.length).toBeGreaterThan(0)
     })
 
     it.skip('should have Notification model with inviteId field', async () => {
-      const notifSchema = await prisma.$queryRaw`
+      const notifSchema = await prisma.$queryRaw<Array<{ column_name: string }>>`
         SELECT column_name 
         FROM information_schema.columns 
         WHERE table_schema = 'public' AND table_name = 'Notification' AND column_name = 'inviteId'
       `
       expect(Array.isArray(notifSchema)).toBe(true)
-      expect((notifSchema as any[]).length).toBeGreaterThan(0)
+      expect(notifSchema.length).toBeGreaterThan(0)
     })
   })
 

@@ -12,7 +12,12 @@ async function checkAdmin() {
 
   try {
     // Find user - bypass any RLS
-    const user = await prisma.$queryRaw`
+    const user = await prisma.$queryRaw<Array<{
+      id: string;
+      username: string;
+      displayName: string | null;
+      isAdmin: boolean;
+    }>>`
       SELECT id, username, "displayName", "isAdmin" 
       FROM "User" 
       WHERE username = ${username} OR id = ${username}
@@ -25,7 +30,12 @@ async function checkAdmin() {
       console.error(`❌ User not found: ${username}`)
       
       // Show all users
-      const allUsers = await prisma.$queryRaw`
+      const allUsers = await prisma.$queryRaw<Array<{
+        id: string;
+        username: string;
+        displayName: string | null;
+        isAdmin: boolean;
+      }>>`
         SELECT id, username, "displayName", "isAdmin" 
         FROM "User" 
         WHERE "isActor" = false

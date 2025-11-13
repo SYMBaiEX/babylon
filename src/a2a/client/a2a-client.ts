@@ -248,9 +248,9 @@ export class A2AClient extends EventEmitter {
   }
 
   /**
-   * Send JSON-RPC request and wait for response
+   * Send JSON-RPC request and wait for response (private)
    */
-  private sendRequest<T = JsonRpcResult>(method: string, params?: JsonRpcParams): Promise<T> {
+  private sendRequestInternal<T = JsonRpcResult>(method: string, params?: JsonRpcParams): Promise<T> {
     return new Promise((resolve, reject) => {
       const id = this.messageId++
       const request: JsonRpcRequest = {
@@ -273,6 +273,13 @@ export class A2AClient extends EventEmitter {
     })
   }
 
+  /**
+   * Send JSON-RPC request and wait for response (public for testing)
+   */
+  public sendRequest<T = JsonRpcResult>(method: string, params?: JsonRpcParams): Promise<T> {
+    return this.sendRequestInternal<T>(method, params)
+  }
+
   // ==================== Agent Discovery ====================
 
   async discoverAgents(filters?: {
@@ -287,25 +294,25 @@ export class A2AClient extends EventEmitter {
     if (limit !== undefined) {
       params.limit = limit;
     }
-    return this.sendRequest(A2AMethod.DISCOVER_AGENTS, Object.keys(params).length > 0 ? params : undefined)
+    return this.sendRequestInternal(A2AMethod.DISCOVER_AGENTS, Object.keys(params).length > 0 ? params : undefined)
   }
 
   async getAgentInfo(agentId: string): Promise<AgentProfile> {
-    return this.sendRequest(A2AMethod.GET_AGENT_INFO, { agentId })
+    return this.sendRequestInternal(A2AMethod.GET_AGENT_INFO, { agentId })
   }
 
   // ==================== Market Operations ====================
 
   async getMarketData(marketId: string): Promise<MarketData> {
-    return this.sendRequest(A2AMethod.GET_MARKET_DATA, { marketId })
+    return this.sendRequestInternal(A2AMethod.GET_MARKET_DATA, { marketId })
   }
 
   async getMarketPrices(marketId: string): Promise<{ marketId: string; prices: number[]; timestamp: number }> {
-    return this.sendRequest(A2AMethod.GET_MARKET_PRICES, { marketId })
+    return this.sendRequestInternal(A2AMethod.GET_MARKET_PRICES, { marketId })
   }
 
   async subscribeMarket(marketId: string): Promise<{ subscribed: boolean; marketId: string }> {
-    const result = await this.sendRequest<{ subscribed: boolean; marketId: string }>(
+    const result = await this.sendRequestInternal<{ subscribed: boolean; marketId: string }>(
       A2AMethod.SUBSCRIBE_MARKET,
       { marketId }
     )
@@ -328,7 +335,7 @@ export class A2AClient extends EventEmitter {
     minMembers: number,
     maxMembers: number
   ): Promise<{ coalitionId: string; proposal: Coalition }> {
-    return this.sendRequest(A2AMethod.PROPOSE_COALITION, {
+    return this.sendRequestInternal(A2AMethod.PROPOSE_COALITION, {
       name,
       targetMarket,
       strategy,
@@ -338,7 +345,7 @@ export class A2AClient extends EventEmitter {
   }
 
   async joinCoalition(coalitionId: string): Promise<{ joined: boolean; coalition: Coalition }> {
-    return this.sendRequest(A2AMethod.JOIN_COALITION, { coalitionId })
+    return this.sendRequestInternal(A2AMethod.JOIN_COALITION, { coalitionId })
   }
 
   async sendCoalitionMessage(
@@ -346,7 +353,7 @@ export class A2AClient extends EventEmitter {
     messageType: 'analysis' | 'vote' | 'action' | 'coordination',
     content: Record<string, JsonValue>
   ): Promise<{ delivered: boolean; recipients: number }> {
-    return this.sendRequest(A2AMethod.COALITION_MESSAGE, {
+    return this.sendRequestInternal(A2AMethod.COALITION_MESSAGE, {
       coalitionId,
       messageType,
       content
@@ -354,14 +361,14 @@ export class A2AClient extends EventEmitter {
   }
 
   async leaveCoalition(coalitionId: string): Promise<{ left: boolean }> {
-    return this.sendRequest(A2AMethod.LEAVE_COALITION, { coalitionId })
+    return this.sendRequestInternal(A2AMethod.LEAVE_COALITION, { coalitionId })
   }
 
   // ==================== Information Sharing ====================
 
   async shareAnalysis(analysis: MarketAnalysis): Promise<{ shared: boolean; analysisId: string }> {
     const params: JsonRpcParams = { analysis };
-    return this.sendRequest(A2AMethod.SHARE_ANALYSIS, params)
+    return this.sendRequestInternal(A2AMethod.SHARE_ANALYSIS, params)
   }
 
   async requestAnalysis(
@@ -374,7 +381,7 @@ export class A2AClient extends EventEmitter {
       paymentOffer: paymentOffer || null,
       deadline: deadline || Date.now() + 3600000
     };
-    return this.sendRequest(A2AMethod.REQUEST_ANALYSIS, params)
+    return this.sendRequestInternal(A2AMethod.REQUEST_ANALYSIS, params)
   }
 
   // ==================== x402 Micropayments ====================
@@ -391,14 +398,14 @@ export class A2AClient extends EventEmitter {
       service,
       metadata: metadata || {}
     };
-    return this.sendRequest(A2AMethod.PAYMENT_REQUEST, params)
+    return this.sendRequestInternal(A2AMethod.PAYMENT_REQUEST, params)
   }
 
   async submitPaymentReceipt(
     requestId: string,
     txHash: string
   ): Promise<{ verified: boolean; message: string }> {
-    return this.sendRequest(A2AMethod.PAYMENT_RECEIPT, {
+    return this.sendRequestInternal(A2AMethod.PAYMENT_RECEIPT, {
       requestId,
       txHash
     })

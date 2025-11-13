@@ -13,11 +13,17 @@ About: {{govDescription}}
 
 Event: {{eventDescription}} ({{eventType}})
 
+WORLD CONTEXT:
+{{worldActors}}
+{{currentMarkets}}
+{{activePredictions}}
+{{recentTrades}}
+
 {{outcomeFrame}}
 
-Write ONE official government statement (max 280 chars).
+Write ONE official government statement (max 140 chars).
 Bureaucratic, cautious, official tone.
-NO hashtags or emojis.
+NO hashtags or emojis. NEVER use real names - ALWAYS use parody names from World Actors list (AIlon Musk, Sam AIltman, etc.) or @usernames.
 
 Respond with ONLY this JSON format:
 {

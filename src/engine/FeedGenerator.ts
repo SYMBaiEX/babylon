@@ -606,7 +606,7 @@ export class FeedGenerator extends EventEmitter {
    Domain: ${ctx.actor.domain?.join(', ')}
    ${ctx.emotionalContext}${formatActorVoiceContext(ctx.actor)}
 
-   Write analysis as outside observer (max 280 chars).
+   Write analysis as outside observer (max 140 chars).
    ${outcome ? 'Lean optimistic' : 'Lean skeptical'}
    Let mood subtly influence tone. Match their writing style.
    NO hashtags or emojis.`).join('\n');
@@ -670,7 +670,7 @@ export class FeedGenerator extends EventEmitter {
    About: ${actor.description}${formatActorVoiceContext(actor)}
 
    You don't believe the mainstream narrative.
-   Write conspiracy post (max 280 chars).
+   Write conspiracy post (max 140 chars).
    Be dramatic, suspicious. Match their writing style.
    NO hashtags or emojis.
    ${outcome ? "Claim it's a distraction" : "Say they're hiding worse"}`).join('\n');
@@ -814,7 +814,7 @@ As a ${media.name}, break this story with your organizational bias.
 ${potentialSource ? `Hint: You received information from sources close to ${potentialSource.name} (but DON'T reveal the source directly).` : 'You have your own sources.'}
 ${outcome ? 'Spin this with your typical editorial slant toward positive framing' : 'Spin this with your typical editorial slant emphasizing problems'}
 
-Write a breaking news post (max 280 chars) in your organization's style.
+Write a breaking news post (max 140 chars) in your organization's style.
 - Use phrases like "Breaking:", "Exclusive:", "Sources say:"
 - Match your organization's typical bias and tone
 - Be provocative and attention-grabbing
@@ -883,7 +883,7 @@ Your CEO/representative: ${affiliatedActor.name}
 Event involving your company: ${event.description}
 Event type: ${event.type}
 
-Write a corporate ${isCrisis ? 'crisis management' : 'announcement'} post (max 280 chars).
+Write a corporate ${isCrisis ? 'crisis management' : 'announcement'} post (max 140 chars).
 
 ${isCrisis ? `CRISIS MODE:
 - Be defensive and spin the narrative
@@ -969,7 +969,7 @@ Event requiring governmental response: ${event.description}
 Event type: ${event.type}
 ${actorContext}
 
-Write an official government statement post (max 280 chars).
+Write an official government statement post (max 140 chars).
 
 Government agencies typically:
 - Announce investigations
@@ -1057,7 +1057,7 @@ Event involving you: ${event.description}
 
 ${eventGuidance}
 
-Write a post (max 280 chars) from YOUR perspective.
+Write a post (max 140 chars) from YOUR perspective.
 Stay in character. React naturally based on your mood and circumstances - excited, defensive, angry, dismissive, etc.
 Your current emotional state should influence your tone and response.
 
@@ -1130,7 +1130,7 @@ Domain: ${actor.domain?.join(', ')}
 ${emotionalContext ? `\n${emotionalContext}\n` : ''}${formatActorVoiceContext(actor)}
 News: ${event.description}
 
-Write analysis post (max 280 chars) as outside observer.
+Write analysis post (max 140 chars) as outside observer.
 ${outcome ? 'Lean optimistic' : 'Lean skeptical'}
 Your current mood should subtly influence your analysis tone. Match your writing style.
 
@@ -1200,7 +1200,7 @@ No other text.`;
 You are: ${actor.name}, ${actor.description}
 ${emotionalContext ? emotionalContext + '\n' : ''}Mainstream story: ${event.description}
 
-You don't believe it. Write conspiracy post (max 280 chars).
+You don't believe it. Write conspiracy post (max 140 chars).
 Be dramatic, suspicious. ${outcome ? 'Claim it\'s a distraction' : 'Say they\'re hiding worse'}
 Your mood influences how paranoid or aggressive your theory is.
 
@@ -1529,7 +1529,7 @@ Respond with JSON: {"reply": "your reply here"}`;
    About: ${ctx.actor.description}
    ${ctx.emotionalContext}${formatActorVoiceContext(ctx.actor)}
    
-   Write reply (max 280 chars).
+   Write reply (max 140 chars).
    ${ctx.actor.personality?.includes('contrarian') ? 'Disagree or challenge' : `Consider your relationship and mood when responding`}
    Let emotional state and any relationship with ${originalPost.authorName} influence tone. Match their writing style.
 `).join('\n');
@@ -1608,7 +1608,7 @@ ${emotionalContext ? `\n${emotionalContext}\n` : ''}${formatActorVoiceContext(ac
 
 ${atmosphereNote}
 
-Write general thoughts post (max 280 chars).
+Write general thoughts post (max 140 chars).
 ${day < 15 ? 'Be vague or mysterious' : 'Hint at things heating up'}
 Your current mood and luck should influence your tone and content. Match your writing style.
 
@@ -1973,7 +1973,7 @@ You are: ${actor.name}, ${actor.description}
 ${emotionalContext ? `\n${emotionalContext}\n` : ''}${formatActorVoiceContext(actor)}
 Post: @${originalPost.authorName}: "${originalPost.content}"
 
-Write reply (max 280 chars).
+Write reply (max 140 chars).
 ${actor.personality?.includes('contrarian') ? 'Disagree or challenge' : 'Consider your relationship and mood when responding'}
 Your emotional state and any relationship with ${originalPost.authorName} should influence your tone. Match your writing style.
 

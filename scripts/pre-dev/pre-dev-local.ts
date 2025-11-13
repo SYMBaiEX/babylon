@@ -141,9 +141,21 @@ if (!deployment || !deployment.contracts.diamond) {
 // 5. Deploy contracts if needed
 if (needsDeployment) {
   logger.info('Deploying contracts to Anvil...', undefined, 'Script')
+  logger.info('  - Diamond system', undefined, 'Script')
+  logger.info('  - Oracle system (BabylonGameOracle, Predimarket)', undefined, 'Script')
+  logger.info('  - Moderation system', undefined, 'Script')
   try {
     await $`bun run deploy:local`
     logger.info('✅ Contracts deployed', undefined, 'Script')
+    
+    // Verify oracle contracts deployed
+    const updatedDeployment = await loadDeployment('localnet')
+    if (updatedDeployment?.contracts.babylonOracle) {
+      logger.info('✅ Oracle contracts deployed:', undefined, 'Script')
+      logger.info(`   BabylonOracle: ${updatedDeployment.contracts.babylonOracle}`, undefined, 'Script')
+      logger.info(`   Predimarket:   ${updatedDeployment.contracts.predimarket}`, undefined, 'Script')
+      logger.info(`   TestToken:     ${updatedDeployment.contracts.testToken}`, undefined, 'Script')
+    }
   } catch (error) {
     logger.error('❌ Contract deployment failed', error, 'Script')
     process.exit(1)
@@ -264,6 +276,10 @@ logger.info('  Anvil:      http://localhost:8545', undefined, 'Script')
 logger.info('  PostgreSQL: localhost:5433', undefined, 'Script')
 logger.info('  Redis:      localhost:6380', undefined, 'Script')
 logger.info('  MinIO:      http://localhost:9000 (console: :9001)', undefined, 'Script')
+logger.info('', undefined, 'Script')
+logger.info('App Routes:', undefined, 'Script')
+logger.info('  Main:       http://localhost:3000', undefined, 'Script')
+logger.info('  Betting:    http://localhost:3000/betting (Oracle-powered markets)', undefined, 'Script')
 logger.info('', undefined, 'Script')
 logger.info('Starting Next.js...', undefined, 'Script')
 logger.info('='.repeat(60), undefined, 'Script')

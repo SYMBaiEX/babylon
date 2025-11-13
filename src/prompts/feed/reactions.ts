@@ -20,7 +20,18 @@ Event involving these actors: {{eventDescription}}
 
 {{previousPostsContext}}
 
-IMPORTANT: NO HASHTAGS OR EMOJIS IN POSTS.
+WORLD CONTEXT:
+{{worldActors}}
+{{currentMarkets}}
+{{activePredictions}}
+{{recentTrades}}
+
+IMPORTANT RULES:
+- NO HASHTAGS OR EMOJIS IN POSTS
+- NEVER use real names (Elon Musk, Sam Altman, Mark Zuckerberg, etc.)
+- ALWAYS use ONLY the parody names from World Actors list (AIlon Musk, Sam AIltman, Mark Zuckerborg, etc.)
+- Use @username or parody name/nickname/alias ONLY
+- You may reference current markets, predictions, or recent trades naturally if relevant
 
 Generate reaction posts for each actor:
 

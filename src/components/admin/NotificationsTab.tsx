@@ -21,7 +21,7 @@ export function NotificationsTab() {
   const [dmRecipientId, setDmRecipientId] = useState('')
   const [isSendingDm, startSendingDm] = useTransition();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const [debugInfo, setDebugInfo] = useState<z.infer<typeof DebugInfoSchema> | null>(null)
+  const [debugInfo, setDebugInfo] = useState<Record<string, unknown> | null>(null)
 
   // Fetch current user ID on mount
   useEffect(() => {

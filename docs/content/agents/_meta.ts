@@ -4,5 +4,7 @@ export default {
   'integration-overview': 'Integration Overview',
   'agent0-integration': 'Agent0 Integration',
   'mcp-protocol': 'MCP Protocol',
-  'eliza-plugin': 'Eliza Plugin'
+  'eliza-plugin': 'Eliza Plugin',
+  'autonomous-guide': 'Autonomous Agent Guide',
+  'multi-action-workflows': 'Multi-Action Workflows'
 }

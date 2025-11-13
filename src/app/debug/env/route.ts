@@ -27,7 +27,7 @@ export async function GET(_request: NextRequest) {
 
   // Test database connection
   try {
-    await prisma.$queryRawUnsafe('SELECT 1');
+    await prisma.$queryRawUnsafe<Array<{ '?column?': number }>>('SELECT 1');
     checks.databaseConnection = '✅ Connected';
     
     // Get database info

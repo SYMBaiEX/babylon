@@ -22,6 +22,7 @@ import { TradeExecutionService } from './services/trade-execution-service';
 import { calculateTrendingIfNeeded, calculateTrendingTags } from './services/trending-calculation-service';
 import { generateSnowflakeId } from './snowflake';
 import type { ExecutionResult } from '@/types/market-decisions';
+import { getOracleService } from './oracle';
 
 export interface GameTickResult {
   postsCreated: number;
@@ -47,6 +48,9 @@ export interface GameTickResult {
     usersKicked: number;
     messagesPosted: number;
   };
+  oracleCommits: number;
+  oracleReveals: number;
+  oracleErrors: number;
 }
 
 /**
@@ -83,6 +87,9 @@ export async function executeGameTick(): Promise<GameTickResult> {
     trendingCalculated: false,
     reputationSynced: false,
     alphaInvitesSent: 0,
+    oracleCommits: 0,
+    oracleReveals: 0,
+    oracleErrors: 0,
   };
 
   try {
@@ -136,6 +143,18 @@ export async function executeGameTick(): Promise<GameTickResult> {
         activeQuestions.push(...newActiveQuestions);
         
         logger.info(`Initial questions created: ${questionsGenerated}`, { count: questionsGenerated }, 'GameTick');
+        
+        // Publish commitments to blockchain oracle
+        if (questionsGenerated > 0 && newActiveQuestions.length > 0) {
+          try {
+            const oracleResult = await publishOracleCommitments(newActiveQuestions);
+            result.oracleCommits += oracleResult.committed;
+            result.oracleErrors += oracleResult.errors;
+          } catch (error) {
+            logger.error('Failed to publish oracle commitments', { error }, 'GameTick');
+            result.oracleErrors += questionsGenerated;
+          }
+        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error('Failed to generate initial questions', { error: errorMessage }, 'GameTick');
@@ -173,6 +192,18 @@ export async function executeGameTick(): Promise<GameTickResult> {
               error: errorMessage, 
               questionNumber: question.questionNumber 
             }, 'GameTick');
+          }
+        }
+        
+        // Publish reveals to blockchain oracle
+        if (questionsToResolve.length > 0) {
+          try {
+            const oracleResult = await publishOracleReveals(questionsToResolve);
+            result.oracleReveals += oracleResult.revealed;
+            result.oracleErrors += oracleResult.errors;
+          } catch (error) {
+            logger.error('Failed to publish oracle reveals', { error }, 'GameTick');
+            result.oracleErrors += questionsToResolve.length;
           }
         }
       } catch (error) {
@@ -1613,6 +1644,166 @@ async function resolveQuestionPayouts(questionNumber: number): Promise<void> {
       resolution: question.outcome,
     },
   });
+}
+
+/**
+ * Publish question commitments to blockchain oracle
+ */
+async function publishOracleCommitments(
+  questions: Array<{ id: string; questionNumber: number; text: string; outcome: boolean }>
+): Promise<{ committed: number; errors: number }> {
+  let committed = 0;
+  let errors = 0;
+
+  // Check if oracle is configured
+  if (!process.env.NEXT_PUBLIC_BABYLON_ORACLE || !process.env.ORACLE_PRIVATE_KEY) {
+    logger.info('Oracle not configured, skipping commitments', undefined, 'GameTick');
+    return { committed: 0, errors: 0 };
+  }
+
+  try {
+    const oracleService = getOracleService();
+
+    // Health check
+    const health = await oracleService.healthCheck();
+    if (!health.healthy) {
+      logger.error(`Oracle health check failed: ${health.error}`, undefined, 'GameTick');
+      return { committed: 0, errors: questions.length };
+    }
+
+    // Batch commit games
+    const batch = questions.map(q => ({
+      questionId: q.id,
+      questionNumber: q.questionNumber,
+      question: q.text,
+      category: 'general', // Could extract from question text
+      outcome: q.outcome
+    }));
+
+    const result = await oracleService.batchCommitGames(batch);
+
+    // Update questions with oracle data
+    for (const success of result.successful) {
+      try {
+        await prisma.question.update({
+          where: { id: success.questionId },
+          data: {
+            oracleSessionId: success.sessionId,
+            oracleCommitment: success.commitment,
+            oracleCommitTxHash: success.txHash,
+            oracleCommitBlock: success.blockNumber || null
+          }
+        });
+        committed++;
+      } catch (error) {
+        logger.error(
+          'Failed to update question with oracle data',
+          { error, questionId: success.questionId },
+          'GameTick'
+        );
+      }
+    }
+
+    errors = result.failed.length;
+
+    if (errors > 0) {
+      logger.warn(
+        `${errors} oracle commits failed`,
+        { failures: result.failed },
+        'GameTick'
+      );
+    }
+
+    logger.info(
+      `Oracle commits: ${committed} successful, ${errors} failed`,
+      undefined,
+      'GameTick'
+    );
+  } catch (error) {
+    logger.error('Oracle batch commit failed', { error }, 'GameTick');
+    errors = questions.length;
+  }
+
+  return { committed, errors };
+}
+
+/**
+ * Publish question reveals to blockchain oracle
+ */
+async function publishOracleReveals(
+  questions: Array<{ id: string; outcome: boolean }>
+): Promise<{ revealed: number; errors: number }> {
+  let revealed = 0;
+  let errors = 0;
+
+  // Check if oracle is configured
+  if (!process.env.NEXT_PUBLIC_BABYLON_ORACLE || !process.env.ORACLE_PRIVATE_KEY) {
+    logger.info('Oracle not configured, skipping reveals', undefined, 'GameTick');
+    return { revealed: 0, errors: 0 };
+  }
+
+  try {
+    const oracleService = getOracleService();
+
+    // Health check
+    const health = await oracleService.healthCheck();
+    if (!health.healthy) {
+      logger.error(`Oracle health check failed: ${health.error}`, undefined, 'GameTick');
+      return { revealed: 0, errors: questions.length };
+    }
+
+    // Batch reveal games
+    const batch = questions.map(q => ({
+      questionId: q.id,
+      outcome: q.outcome,
+      winners: [], // Could get from positions
+      totalPayout: BigInt(0) // Could calculate from positions
+    }));
+
+    const result = await oracleService.batchRevealGames(batch);
+
+    // Update questions with oracle data
+    for (const success of result.successful) {
+      try {
+        await prisma.question.update({
+          where: { id: success.questionId },
+          data: {
+            oracleRevealTxHash: success.txHash,
+            oracleRevealBlock: success.blockNumber || null,
+            oraclePublishedAt: new Date()
+          }
+        });
+        revealed++;
+      } catch (error) {
+        logger.error(
+          'Failed to update question with reveal data',
+          { error, questionId: success.questionId },
+          'GameTick'
+        );
+      }
+    }
+
+    errors = result.failed.length;
+
+    if (errors > 0) {
+      logger.warn(
+        `${errors} oracle reveals failed`,
+        { failures: result.failed },
+        'GameTick'
+      );
+    }
+
+    logger.info(
+      `Oracle reveals: ${revealed} successful, ${errors} failed`,
+      undefined,
+      'GameTick'
+    );
+  } catch (error) {
+    logger.error('Oracle batch reveal failed', { error }, 'GameTick');
+    errors = questions.length;
+  }
+
+  return { revealed, errors };
 }
 
 /**

@@ -13,12 +13,18 @@ About: {{companyDescription}}
 
 Event: {{eventDescription}} ({{eventType}})
 
+WORLD CONTEXT:
+{{worldActors}}
+{{currentMarkets}}
+{{activePredictions}}
+{{recentTrades}}
+
 This is a {{postType}}.
 {{outcomeFrame}}
 
-Write ONE corporate post (max 280 chars).
+Write ONE corporate post (max 140 chars).
 Professional, on-brand corporate speak.
-NO hashtags or emojis.
+NO hashtags or emojis. NEVER use real names - ALWAYS use parody names from World Actors list (AIlon Musk, Sam AIltman, etc.) or @usernames.
 
 Respond with ONLY this JSON format:
 {

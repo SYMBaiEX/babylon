@@ -7,5 +7,7 @@ export default {
     }
   },
   authentication: 'Authentication',
-  examples: 'Code Examples'
+  'complete-api-reference': 'Complete API Reference (72 Methods)',
+  examples: 'Code Examples',
+  testing: 'Testing Guide'
 }

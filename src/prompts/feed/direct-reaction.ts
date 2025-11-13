@@ -14,9 +14,15 @@ You are: {{actorName}}, {{actorDescription}}
 {{emotionalContext}}Event: {{eventDescription}}
 Type: {{eventType}}
 
+WORLD CONTEXT:
+{{worldActors}}
+{{currentMarkets}}
+{{activePredictions}}
+{{recentTrades}}
+
 You are directly involved in this event.
 {{eventGuidance}}
-Write a post (max 280 chars) from YOUR perspective.
+Write a post (max 140 chars) from YOUR perspective. No hashtags or emojis. NEVER use real names - ALWAYS use parody names from World Actors list (AIlon Musk, Sam AIltman, etc.) or @usernames.
 {{outcomeFrame}}
 
 Also analyze:

@@ -1,44 +1,46 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { Search, Users, Shield, RefreshCw, Ban, CheckCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/shared/Avatar'
 import { toast } from 'sonner'
 import { Skeleton } from '@/components/shared/Skeleton'
+import { z } from 'zod'
 
-interface User {
-  id: string
-  username: string | null
-  displayName: string | null
-  walletAddress: string | null
-  profileImageUrl: string | null
-  isActor: boolean
-  isAdmin: boolean
-  isBanned: boolean
-  bannedAt: string | null
-  bannedReason: string | null
-  bannedBy: string | null
-  virtualBalance: string
-  totalDeposited: string
-  totalWithdrawn: string
-  lifetimePnL: string
-  reputationPoints: number
-  referralCount: number
-  onChainRegistered: boolean
-  nftTokenId: number | null
-  hasFarcaster: boolean
-  hasTwitter: boolean
-  createdAt: string
-  updatedAt: string
-  _count?: {
-    comments: number
-    reactions: number
-    positions: number
-    following: number
-    followedBy: number
-  }
-}
+const UserSchema = z.object({
+  id: z.string(),
+  username: z.string().nullable(),
+  displayName: z.string().nullable(),
+  walletAddress: z.string().nullable(),
+  profileImageUrl: z.string().nullable(),
+  isActor: z.boolean(),
+  isAdmin: z.boolean(),
+  isBanned: z.boolean(),
+  bannedAt: z.string().nullable(),
+  bannedReason: z.string().nullable(),
+  bannedBy: z.string().nullable(),
+  virtualBalance: z.string(),
+  totalDeposited: z.string(),
+  totalWithdrawn: z.string(),
+  lifetimePnL: z.string(),
+  reputationPoints: z.number(),
+  referralCount: z.number(),
+  onChainRegistered: z.boolean(),
+  nftTokenId: z.number().nullable(),
+  hasFarcaster: z.boolean(),
+  hasTwitter: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  _count: z.object({
+    comments: z.number(),
+    reactions: z.number(),
+    positions: z.number(),
+    following: z.number(),
+    followedBy: z.number(),
+  }).optional(),
+});
+type User = z.infer<typeof UserSchema>;
 
 type FilterType = 'all' | 'actors' | 'users' | 'banned' | 'admins'
 type SortByType = 'created' | 'balance' | 'reputation' | 'username'
@@ -46,77 +48,86 @@ type SortByType = 'created' | 'balance' | 'reputation' | 'username'
 export function UserManagementTab() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
+  const [isRefreshing, startRefresh] = useTransition();
   const [filter, setFilter] = useState<FilterType>('all')
   const [sortBy, setSortBy] = useState<SortByType>('created')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [showBanModal, setShowBanModal] = useState(false)
   const [banReason, setBanReason] = useState('')
-  const [banning, setBanning] = useState(false)
+  const [isBanning, startBanning] = useTransition();
 
   useEffect(() => {
     fetchUsers()
   }, [filter, sortBy, searchQuery])
 
-  const fetchUsers = async (showRefreshing = false) => {
-    if (showRefreshing) setRefreshing(true)
-    try {
-      const params = new URLSearchParams({
-        limit: '50',
-        filter,
-        sortBy,
-        sortOrder: 'desc',
-      })
-      if (searchQuery) params.set('search', searchQuery)
+  const fetchUsers = (showRefreshing = false) => {
+    const fetchLogic = async () => {
+      try {
+        const params = new URLSearchParams({
+          limit: '50',
+          filter,
+          sortBy,
+          sortOrder: 'desc',
+        });
+        if (searchQuery) params.set('search', searchQuery);
 
-      const response = await fetch(`/api/admin/users?${params}`)
-      if (!response.ok) throw new Error('Failed to fetch users')
-      const data = await response.json()
-      setUsers(data.users || [])
-    } catch (error) {
-      console.error('Failed to fetch users:', error)
-      toast.error('Failed to load users')
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
-  }
-
-  const handleBanUser = async (user: User, action: 'ban' | 'unban') => {
-    if (action === 'ban' && !banReason.trim()) {
-      toast.error('Please provide a reason for banning')
-      return
-    }
-
-    setBanning(true)
-    try {
-      const response = await fetch(`/api/admin/users/${user.id}/ban`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action,
-          reason: action === 'ban' ? banReason : undefined,
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to update user')
+        const response = await fetch(`/api/admin/users?${params}`);
+        if (!response.ok) throw new Error('Failed to fetch users');
+        const data = await response.json();
+        const validation = z.array(UserSchema).safeParse(data.users);
+        if (!validation.success) {
+          throw new Error('Invalid user data structure');
+        }
+        setUsers(validation.data || []);
+      } catch (error) {
+        console.error('Failed to fetch users:', error);
+        toast.error('Failed to load users');
+      } finally {
+        setLoading(false);
       }
+    };
 
-      toast.success(action === 'ban' ? 'User banned successfully' : 'User unbanned successfully')
-      setShowBanModal(false)
-      setBanReason('')
-      setSelectedUser(null)
-      fetchUsers(true)
-    } catch (error) {
-      console.error('Failed to ban/unban user:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to update user')
-    } finally {
-      setBanning(false)
+    if (showRefreshing) {
+      startRefresh(fetchLogic);
+    } else {
+      fetchLogic();
     }
-  }
+  };
+
+  const handleBanUser = (user: User, action: 'ban' | 'unban') => {
+    if (action === 'ban' && !banReason.trim()) {
+      toast.error('Please provide a reason for banning');
+      return;
+    }
+
+    startBanning(async () => {
+      try {
+        const response = await fetch(`/api/admin/users/${user.id}/ban`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action,
+            reason: action === 'ban' ? banReason : undefined,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to update user');
+        }
+
+        toast.success(action === 'ban' ? 'User banned successfully' : 'User unbanned successfully');
+        setShowBanModal(false);
+        setBanReason('');
+        setSelectedUser(null);
+        fetchUsers(true);
+      } catch (error) {
+        console.error('Failed to ban/unban user:', error);
+        toast.error(error instanceof Error ? error.message : 'Failed to update user');
+      }
+    });
+  };
 
   const formatCurrency = (value: string) => {
     const num = parseFloat(value)
@@ -238,7 +249,7 @@ export function UserManagementTab() {
               {user.isBanned ? (
                 <button
                   onClick={() => handleBanUser(user, 'unban')}
-                  disabled={banning}
+                  disabled={isBanning}
                   className="px-3 py-1.5 text-sm font-medium rounded bg-green-500/20 text-green-500 hover:bg-green-500/30 transition-colors disabled:opacity-50 flex items-center gap-1"
                 >
                   <CheckCircle className="w-4 h-4" />
@@ -250,7 +261,7 @@ export function UserManagementTab() {
                     setSelectedUser(user)
                     setShowBanModal(true)
                   }}
-                  disabled={banning}
+                  disabled={isBanning}
                   className="px-3 py-1.5 text-sm font-medium rounded bg-red-500/20 text-red-500 hover:bg-red-500/30 transition-colors disabled:opacity-50 flex items-center gap-1"
                 >
                   <Ban className="w-4 h-4" />
@@ -327,10 +338,10 @@ export function UserManagementTab() {
 
           <button
             onClick={() => fetchUsers(true)}
-            disabled={refreshing}
+            disabled={isRefreshing}
             className="ml-auto flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded bg-muted hover:bg-muted/80 transition-colors disabled:opacity-50"
           >
-            <RefreshCw className={cn('w-4 h-4', refreshing && 'animate-spin')} />
+            <RefreshCw className={cn('w-4 h-4', isRefreshing && 'animate-spin')} />
             Refresh
           </button>
         </div>
@@ -379,17 +390,17 @@ export function UserManagementTab() {
                   setBanReason('')
                   setSelectedUser(null)
                 }}
-                disabled={banning}
+                disabled={isBanning}
                 className="flex-1 px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleBanUser(selectedUser, 'ban')}
-                disabled={banning || !banReason.trim()}
+                disabled={isBanning || !banReason.trim()}
                 className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {banning ? (
+                {isBanning ? (
                   <>
                     Banning...
                   </>

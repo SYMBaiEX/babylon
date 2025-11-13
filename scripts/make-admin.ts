@@ -18,12 +18,17 @@ async function makeAdmin() {
 
   try {
     // Use raw query to bypass any RLS issues
-    const users = await prisma.$queryRaw`
+    const users = await prisma.$queryRaw<Array<{
+      id: string;
+      username: string;
+      displayName: string | null;
+      isAdmin: boolean;
+    }>>`
       SELECT id, username, "displayName", "isAdmin" 
       FROM "User" 
       WHERE username = ${username} OR id = ${username}
       LIMIT 1
-    ` as any[]
+    `
 
     if (!users || users.length === 0) {
       console.error(`❌ User not found: ${username}`)
@@ -48,9 +53,9 @@ async function makeAdmin() {
     console.log(`   User ID: ${user.id}`)
     
     // Verify
-    const verification = await prisma.$queryRaw`
+    const verification = await prisma.$queryRaw<Array<{ isAdmin: boolean }>>`
       SELECT "isAdmin" FROM "User" WHERE id = ${user.id}
-    ` as any[]
+    `
     console.log(`   Verified isAdmin: ${verification[0]?.isAdmin}`)
   } catch (error) {
     console.error('❌ Error:', error)

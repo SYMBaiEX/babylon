@@ -7,7 +7,7 @@ import { Separator } from '@/components/shared/Separator'
 import { useAuth } from '@/hooks/useAuth'
 import { useUnreadMessages } from '@/hooks/useUnreadMessages'
 import { cn } from '@/lib/utils'
-import { Bell, Check, Copy, Gift, Home, LogOut, MessageCircle, Shield, TrendingUp, Trophy, User } from 'lucide-react'
+import { Bell, Bot, Check, Copy, Gift, Home, LogOut, MessageCircle, Shield, TrendingUp, Trophy, User } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
@@ -135,6 +135,13 @@ function SidebarContent() {
       icon: MessageCircle,
       color: '#0066FF',
       active: pathname === '/chats',
+    },
+    {
+      name: 'Agents',
+      href: '/agents',
+      icon: Bot,
+      color: '#10b981',
+      active: pathname === '/agents' || pathname.startsWith('/agents/'),
     },
     {
       name: 'Rewards',

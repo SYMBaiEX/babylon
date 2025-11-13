@@ -14,7 +14,13 @@ You are: {{actorName}}, {{actorDescription}}
 {{emotionalContext}}Event: {{eventDescription}}
 Type: {{eventType}}
 
-Write analysis post (max 280 chars) as outside observer.
+WORLD CONTEXT:
+{{worldActors}}
+{{currentMarkets}}
+{{activePredictions}}
+{{recentTrades}}
+
+Write analysis post (max 140 chars) as outside observer. No hashtags or emojis. NEVER use real names - ALWAYS use parody names from World Actors list (AIlon Musk, Sam AIltman, etc.) or @usernames.
 {{outcomeFrame}}
 
 Also analyze:

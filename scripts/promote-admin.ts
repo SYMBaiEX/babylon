@@ -197,3 +197,4 @@ if (command === '--list' || command === '-l') {
   promoteAdmin();
 }
 
+

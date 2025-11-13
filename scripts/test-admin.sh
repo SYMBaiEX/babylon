@@ -33,9 +33,13 @@ case "$1" in
         echo -e "${YELLOW}Testing: Admin Actions${NC}"
         run_tests "Admin Actions Tests" "tests/e2e/admin-actions.spec.ts"
         ;;
+    "ux")
+        echo -e "${YELLOW}Testing: Admin UI/UX${NC}"
+        run_tests "Admin UI/UX Tests" "tests/e2e/admin-ui-ux.spec.ts"
+        ;;
     "all")
         echo -e "${YELLOW}Testing: All Admin Tests${NC}"
-        run_tests "All Admin Tests" "tests/e2e/admin-panel.spec.ts" "tests/e2e/admin-actions.spec.ts"
+        run_tests "All Admin Tests" "tests/e2e/admin-panel.spec.ts" "tests/e2e/admin-actions.spec.ts" "tests/e2e/admin-ui-ux.spec.ts"
         ;;
     "ui")
         echo -e "${YELLOW}Running in UI Mode${NC}"
@@ -60,6 +64,7 @@ case "$1" in
         echo "Commands:"
         echo "  panel      Run admin panel UI tests"
         echo "  actions    Run admin actions tests"
+        echo "  ux         Run UI/UX comprehensive tests"
         echo "  all        Run all admin tests (default)"
         echo "  ui         Run tests in UI mode"
         echo "  debug      Run tests in debug mode"
@@ -74,7 +79,7 @@ case "$1" in
     *)
         # Default: run all tests
         echo -e "${YELLOW}Testing: All Admin Tests (default)${NC}"
-        run_tests "All Admin Tests" "tests/e2e/admin-panel.spec.ts" "tests/e2e/admin-actions.spec.ts"
+        run_tests "All Admin Tests" "tests/e2e/admin-panel.spec.ts" "tests/e2e/admin-actions.spec.ts" "tests/e2e/admin-ui-ux.spec.ts"
         ;;
 esac
 

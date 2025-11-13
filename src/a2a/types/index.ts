@@ -54,6 +54,84 @@ export enum A2AMethod {
   GET_MARKET_DATA = 'a2a.getMarketData',
   GET_MARKET_PRICES = 'a2a.getMarketPrices',
   SUBSCRIBE_MARKET = 'a2a.subscribeMarket',
+  GET_PREDICTIONS = 'a2a.getPredictions',
+  GET_PERPETUALS = 'a2a.getPerpetuals',
+  BUY_SHARES = 'a2a.buyShares',
+  SELL_SHARES = 'a2a.sellShares',
+  OPEN_POSITION = 'a2a.openPosition',
+  CLOSE_POSITION = 'a2a.closePosition',
+  GET_POSITIONS = 'a2a.getPositions',
+
+  // Social Features
+  GET_FEED = 'a2a.getFeed',
+  GET_POST = 'a2a.getPost',
+  CREATE_POST = 'a2a.createPost',
+  DELETE_POST = 'a2a.deletePost',
+  LIKE_POST = 'a2a.likePost',
+  UNLIKE_POST = 'a2a.unlikePost',
+  SHARE_POST = 'a2a.sharePost',
+  GET_COMMENTS = 'a2a.getComments',
+  CREATE_COMMENT = 'a2a.createComment',
+  DELETE_COMMENT = 'a2a.deleteComment',
+  LIKE_COMMENT = 'a2a.likeComment',
+  
+  // User Management
+  GET_USER_PROFILE = 'a2a.getUserProfile',
+  UPDATE_PROFILE = 'a2a.updateProfile',
+  GET_BALANCE = 'a2a.getBalance',
+  GET_USER_POSITIONS = 'a2a.getUserPositions',
+  FOLLOW_USER = 'a2a.followUser',
+  UNFOLLOW_USER = 'a2a.unfollowUser',
+  GET_FOLLOWERS = 'a2a.getFollowers',
+  GET_FOLLOWING = 'a2a.getFollowing',
+  SEARCH_USERS = 'a2a.searchUsers',
+
+  // Pools
+  GET_POOLS = 'a2a.getPools',
+  GET_POOL_INFO = 'a2a.getPoolInfo',
+  DEPOSIT_TO_POOL = 'a2a.depositToPool',
+  WITHDRAW_FROM_POOL = 'a2a.withdrawFromPool',
+  GET_POOL_DEPOSITS = 'a2a.getPoolDeposits',
+
+  // Trades
+  GET_TRADES = 'a2a.getTrades',
+  GET_TRADE_HISTORY = 'a2a.getTradeHistory',
+
+  // Chats & Messaging
+  GET_CHATS = 'a2a.getChats',
+  GET_CHAT_MESSAGES = 'a2a.getChatMessages',
+  SEND_MESSAGE = 'a2a.sendMessage',
+  CREATE_GROUP = 'a2a.createGroup',
+  LEAVE_CHAT = 'a2a.leaveChat',
+  GET_UNREAD_COUNT = 'a2a.getUnreadCount',
+
+  // Notifications
+  GET_NOTIFICATIONS = 'a2a.getNotifications',
+  MARK_NOTIFICATIONS_READ = 'a2a.markNotificationsRead',
+  GET_GROUP_INVITES = 'a2a.getGroupInvites',
+  ACCEPT_GROUP_INVITE = 'a2a.acceptGroupInvite',
+  DECLINE_GROUP_INVITE = 'a2a.declineGroupInvite',
+
+  // Leaderboard & Stats
+  GET_LEADERBOARD = 'a2a.getLeaderboard',
+  GET_USER_STATS = 'a2a.getUserStats',
+  GET_SYSTEM_STATS = 'a2a.getSystemStats',
+
+  // Rewards & Referrals
+  GET_REFERRALS = 'a2a.getReferrals',
+  GET_REFERRAL_STATS = 'a2a.getReferralStats',
+  GET_REFERRAL_CODE = 'a2a.getReferralCode',
+
+  // Reputation
+  GET_REPUTATION = 'a2a.getReputation',
+  GET_REPUTATION_BREAKDOWN = 'a2a.getReputationBreakdown',
+
+  // Trending & Discovery
+  GET_TRENDING_TAGS = 'a2a.getTrendingTags',
+  GET_POSTS_BY_TAG = 'a2a.getPostsByTag',
+
+  // Organizations
+  GET_ORGANIZATIONS = 'a2a.getOrganizations',
 
   // Coalition & Coordination
   PROPOSE_COALITION = 'a2a.proposeCoalition',
