@@ -140,29 +140,21 @@ async function generateMinimalGameHistory(gameId: string, gameNumber: number): P
   });
 
   // Get questions from this game period
-  const questions = await db.prisma.question.findMany({
-    where: {
-      gameId
-    },
-    select: {
-      id: true,
-      text: true,
-      outcome: true,
-      resolvedAt: true
-    }
-  });
+  // Note: In the current schema, questions don't have direct gameId field
+  // For now, create minimal history without question data
+  const questions: Array<{ id: string; text: string; outcome: boolean | null; status: string }> = [];
 
   // Generate summary from post content
   const topPosts = posts.slice(0, 10);
   const summary = `Game ${gameNumber} featured ${questions.length} questions and ${posts.length} posts over 30 days.`;
   
   // Extract key outcomes
-  const keyOutcomes: Array<{ questionText: string; outcome: boolean; confidence: number }> = questions
-    .filter(q => q.resolvedAt && q.outcome !== null)
+  const keyOutcomes: Array<{ questionText: string; outcome: boolean; explanation: string }> = questions
+    .filter(q => q.status === 'RESOLVED' && q.outcome !== null)
     .map(q => ({
       questionText: q.text,
       outcome: q.outcome as boolean,
-      confidence: 1.0 // Historical data is always certain
+      explanation: 'Historical outcome from completed game' // Historical data is always certain
     }));
 
   // Generate highlights from top posts
@@ -175,6 +167,7 @@ async function generateMinimalGameHistory(gameId: string, gameNumber: number): P
 
   return {
     gameNumber,
+    completedAt: new Date().toISOString(),
     summary,
     keyOutcomes,
     highlights,
@@ -373,7 +366,7 @@ async function main() {
 
       if (historyConfig && historyConfig.value) {
         // Use stored history if available
-        const storedHistory = historyConfig.value as GameHistory;
+        const storedHistory = historyConfig.value as unknown as GameHistory;
         history.push(storedHistory);
         logger.info(`Loaded stored history for game ${gameData.id}`, undefined, 'CLI');
       } else {

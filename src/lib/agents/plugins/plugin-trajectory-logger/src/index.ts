@@ -1,13 +1,14 @@
 import { type Plugin } from '@elizaos/core';
-// @ts-expect-error - Module not yet available
-import { TrajectoryLoggerService } from './TrajectoryLoggerService';
+
+// Note: TrajectoryLoggerService is exported below but not registered as a service
+// since it doesn't fully implement the Service interface yet (placeholder implementation)
 
 export const trajectoryLoggerPlugin: Plugin = {
   name: '@elizaos/plugin-trajectory-logger',
   description:
     'Collects complete agent interaction trajectories for RL training. Records LLM calls, provider access, actions, environment state, and computes rewards from game knowledge.',
   dependencies: [],
-  services: [TrajectoryLoggerService],
+  services: [],
 };
 
 export default trajectoryLoggerPlugin;
@@ -16,14 +17,12 @@ export default trajectoryLoggerPlugin;
 // CORE TYPES
 // ==========================================
 export * from './types';
-// @ts-expect-error - Module not yet available
 export { TrajectoryLoggerService } from './TrajectoryLoggerService';
 
 // ==========================================
 // PRIMARY: Action-Level Instrumentation
 // Use these for most cases!
 // ==========================================
-// @ts-expect-error - Module not yet available
 export * from './action-interceptor';
 // Exports:
 // - wrapActionWithLogging()
@@ -35,7 +34,6 @@ export * from './action-interceptor';
 // PRIMARY: Game-Knowledge Rewards
 // Use this if you have perfect game information!
 // ==========================================
-// @ts-expect-error - Module not yet available
 export * from './game-rewards';
 // Exports:
 // - computeTrajectoryReward()
@@ -69,7 +67,6 @@ export * from './export';
 // ADVANCED: Manual Instrumentation
 // Only use if you need custom control beyond actions
 // ==========================================
-// @ts-expect-error - Module not yet available
 export * from './integration';
 // Exports:
 // - startAutonomousTick()
@@ -83,7 +80,6 @@ export * from './integration';
 // Only use if you DON'T have game knowledge
 // (game-rewards.ts is usually better!)
 // ==========================================
-// @ts-expect-error - Module not yet available
 export * from './reward-service';
 // Exports:
 // - RewardService

@@ -41,10 +41,8 @@ import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager'
 import { logger } from '@/lib/logger'
 
 export async function POST() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const manager = agentRuntimeManager as any
-  const count = manager.constructor.instance.runtimes.size
-  manager.constructor.instance.runtimes.clear()
+  const count = agentRuntimeManager.getRuntimeCount()
+  agentRuntimeManager.clearAllRuntimes()
   logger.info(`Cleared ${count} cached runtimes`, undefined, 'Debug')
   return NextResponse.json({ success: true, cleared: count })
 }

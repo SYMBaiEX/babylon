@@ -638,26 +638,10 @@ export class MessageRouter {
     
     logger.info(`Agent ${agentId} requesting analysis for market ${analysisRequest.marketId}, deadline: ${analysisRequest.deadline}`)
     
-    // Notification format for reference (not used in HTTP-only mode)
-    const _notification = {
-      jsonrpc: '2.0',
-      method: 'a2a.analysis_requested',
-      params: {
-        requestId,
-        marketId: analysisRequest.marketId,
-        requester: agentId,
-        paymentOffer: analysisRequest.paymentOffer,
-        deadline: analysisRequest.deadline
-      }
-    }
-    
     // Store request (agents can discover via polling if needed)
     const subscribersForRequest = this.marketSubscriptions.get(analysisRequest.marketId)
     const recipientCount = subscribersForRequest ? subscribersForRequest.size - 1 : 0
     logger.debug(`Analysis request stored, ${recipientCount} potential responders`)
-    
-    // Suppress unused variable warning
-    void _notification
     
     return {
       jsonrpc: '2.0',

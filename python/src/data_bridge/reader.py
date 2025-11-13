@@ -9,7 +9,7 @@ import logging
 import json
 from datetime import datetime, timedelta
 
-from models import BabylonTrajectory, MarketOutcomes, WindowStatistics, StockOutcome, TrajectoryStep, EnvironmentState, LLMCall, Action, ProviderAccess
+from ..models import BabylonTrajectory, MarketOutcomes, WindowStatistics, StockOutcome, TrajectoryStep, EnvironmentState, LLMCall, Action, ProviderAccess
 
 logger = logging.getLogger(__name__)
 

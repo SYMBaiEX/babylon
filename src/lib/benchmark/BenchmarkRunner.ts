@@ -90,14 +90,15 @@ export class BenchmarkRunner {
     
     // 4. Set up trajectory recording if enabled
     let trajectoryRecorder: TrajectoryRecorder | undefined;
+    let trajectoryId: string | undefined;
     if (config.saveTrajectory) {
       try {
-        trajectoryRecorder = new TrajectoryRecorder(config.agentUserId);
-        await trajectoryRecorder.startRecording({
-          marketId: `benchmark-${snapshot.id}`,
-          marketQuestion: 'Benchmark simulation',
+        trajectoryRecorder = new TrajectoryRecorder();
+        trajectoryId = await trajectoryRecorder.startTrajectory({
+          agentId: config.agentUserId,
+          scenarioId: `benchmark-${snapshot.id}`,
         });
-        logger.info('Trajectory recording started');
+        logger.info('Trajectory recording started', { trajectoryId });
       } catch (error) {
         logger.warn('Failed to start trajectory recording', { error });
         // Continue without trajectory recording
@@ -108,13 +109,13 @@ export class BenchmarkRunner {
     const result = await engine.run();
     
     // 6. Save trajectory if enabled
-    if (trajectoryRecorder) {
+    if (trajectoryRecorder && trajectoryId) {
       try {
-        await trajectoryRecorder.endRecording({
-          finalPnl: result.metrics.totalPnl,
-          outcome: result.metrics.totalPnl > 0,
+        await trajectoryRecorder.endTrajectory(trajectoryId, {
+          finalPnL: result.metrics.totalPnl,
+          finalBalance: undefined,
         });
-        logger.info('Trajectory recording saved');
+        logger.info('Trajectory recording saved', { trajectoryId });
       } catch (error) {
         logger.warn('Failed to save trajectory recording', { error });
       }

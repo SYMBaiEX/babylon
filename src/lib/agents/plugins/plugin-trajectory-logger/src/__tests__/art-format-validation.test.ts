@@ -10,7 +10,6 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-// @ts-expect-error - Module not yet available
 import { TrajectoryLoggerService } from '../TrajectoryLoggerService';
 import { 
   toARTMessages, 
@@ -56,7 +55,7 @@ describe('ART Format Validation', () => {
 
   describe('Message Array Conversion', () => {
     it('should convert trajectory to OpenAI message array format', () => {
-      const logger = new TrajectoryLoggerService(mockRuntime);
+      const logger = new TrajectoryLoggerService();
       
       const trajId = logger.startTrajectory(mockRuntime.agentId);
       const stepId = logger.startStep(trajId, {
@@ -112,7 +111,7 @@ describe('ART Format Validation', () => {
     });
 
     it('should handle multi-turn conversations', () => {
-      const logger = new TrajectoryLoggerService(mockRuntime);
+      const logger = new TrajectoryLoggerService();
       
       const trajId = logger.startTrajectory(mockRuntime.agentId);
 
@@ -188,7 +187,7 @@ describe('ART Format Validation', () => {
 
   describe('ART Trajectory Format', () => {
     it('should convert to exact ART format (matches tic-tac-toe example)', () => {
-      const logger = new TrajectoryLoggerService(mockRuntime);
+      const logger = new TrajectoryLoggerService();
       
       const trajId = logger.startTrajectory(mockRuntime.agentId, {
         scenarioId: 'trading-test-1',
@@ -260,7 +259,7 @@ describe('ART Format Validation', () => {
     });
 
     it('should include environment context for RULER judge', () => {
-      const logger = new TrajectoryLoggerService(mockRuntime);
+      const logger = new TrajectoryLoggerService();
       
       const trajId = logger.startTrajectory(mockRuntime.agentId, {
         metadata: {
@@ -312,7 +311,7 @@ describe('ART Format Validation', () => {
     });
 
     it('should include game knowledge for RULER judge', () => {
-      const logger = new TrajectoryLoggerService(mockRuntime);
+      const logger = new TrajectoryLoggerService();
       
       const trajId = logger.startTrajectory(mockRuntime.agentId, {
         metadata: {
@@ -375,7 +374,7 @@ describe('ART Format Validation', () => {
 
   describe('GRPO Grouping', () => {
     it('should group trajectories by scenario', async () => {
-      const logger = new TrajectoryLoggerService(mockRuntime);
+      const logger = new TrajectoryLoggerService();
       
       // Create 4 trajectories with same scenario (like ART does!)
       const scenarioId = 'test-scenario-001';
@@ -451,7 +450,7 @@ describe('ART Format Validation', () => {
     });
 
     it('should extract shared prefix from trajectory group', () => {
-      const logger = new TrajectoryLoggerService(mockRuntime);
+      const logger = new TrajectoryLoggerService();
       const trajectories: Trajectory[] = [];
 
       // Create 3 trajectories with same start, different endings
@@ -502,7 +501,7 @@ describe('ART Format Validation', () => {
     });
 
     it('should prepare trajectory group for RULER ranking', () => {
-      const logger = new TrajectoryLoggerService(mockRuntime);
+      const logger = new TrajectoryLoggerService();
       const trajectories: Trajectory[] = [];
 
       // Create trajectory group (N=4, like ART examples)
@@ -579,7 +578,7 @@ describe('ART Format Validation', () => {
 
   describe('Export Validation', () => {
     it('should export in ART-compatible JSONL format', async () => {
-      const logger = new TrajectoryLoggerService(mockRuntime);
+      const logger = new TrajectoryLoggerService();
       
       const trajId = await createCompleteARTTrajectory(logger);
       testTrajectoryIds.push(trajId);
@@ -615,7 +614,7 @@ describe('ART Format Validation', () => {
     });
 
     it('should export grouped trajectories for GRPO', async () => {
-      const logger = new TrajectoryLoggerService(mockRuntime);
+      const logger = new TrajectoryLoggerService();
       const scenarioId = `grpo-test-${Date.now()}`;
 
       // Create 5 trajectories for same scenario (GRPO group)
@@ -663,7 +662,7 @@ describe('ART Format Validation', () => {
 
   describe('Compatibility Validation', () => {
     it('should validate trajectory is ART-compatible', () => {
-      const logger = new TrajectoryLoggerService(mockRuntime);
+      const logger = new TrajectoryLoggerService();
       
       const trajId = logger.startTrajectory(mockRuntime.agentId);
       const stepId = logger.startStep(trajId, {
@@ -704,7 +703,7 @@ describe('ART Format Validation', () => {
     });
 
     it('should detect incompatible trajectories', () => {
-      const logger = new TrajectoryLoggerService(mockRuntime);
+      const logger = new TrajectoryLoggerService();
       
       const trajId = logger.startTrajectory(mockRuntime.agentId);
       const stepId = logger.startStep(trajId, {
@@ -734,7 +733,7 @@ describe('ART Format Validation', () => {
     });
 
     it('should validate message array structure', () => {
-      const logger = new TrajectoryLoggerService(mockRuntime);
+      const logger = new TrajectoryLoggerService();
       
       const trajId = logger.startTrajectory(mockRuntime.agentId);
       const stepId = logger.startStep(trajId, {
@@ -811,7 +810,7 @@ async function createCompleteARTTrajectory(
     groupIndex?: number;
   } = {}
 ): Promise<string> {
-  const trajId = logger.startTrajectory(logger['runtime'].agentId, {
+  const trajId = logger.startTrajectory('test-agent-id', {
     scenarioId: options.scenarioId || 'test-scenario',
     metadata: {
       groupIndex: options.groupIndex,
@@ -829,7 +828,6 @@ async function createCompleteARTTrajectory(
   });
 
   logger.logProviderAccess(stepId, {
-    providerId: 'markets',
     providerName: 'MARKETS',
     data: {
       markets: [

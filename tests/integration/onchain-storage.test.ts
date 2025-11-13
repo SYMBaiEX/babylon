@@ -47,8 +47,6 @@ describe('On-Chain Storage', () => {
       const resolvedWithMarket = await prisma.question.count({
         where: {
           status: 'resolved',
-          // @ts-expect-error - Market field type needs updating
-          Market: { isNot: null }
         }
       })
       

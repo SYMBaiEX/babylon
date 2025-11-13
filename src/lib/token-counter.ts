@@ -5,16 +5,15 @@
  * Uses tiktoken for OpenAI models and approximations for others
  */
 
-// import { logger } from './logger';
+import type { Tiktoken } from 'tiktoken';
 
 // Lazy-load encoding to avoid startup overhead
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let encoding: any = null;
+let encoding: Tiktoken | null = null;
 
 /**
  * Get the tiktoken encoding (lazy-loaded)
  */
-async function getEncoding() {
+async function getEncoding(): Promise<Tiktoken> {
   if (!encoding) {
     const tiktoken = await import('tiktoken');
     encoding = tiktoken.encoding_for_model('gpt-4');

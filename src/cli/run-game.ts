@@ -172,45 +172,39 @@ async function runSingleGame(outcome: boolean, options: CLIOptions) {
     logger.info('BABYLON GAME SIMULATION', undefined, 'CLI');
     logger.info('==========================', undefined, 'CLI');
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const logEvent = (event: string, handler: (data: any) => void) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      simulator.on(event, handler as any);
-    };
-
-    logEvent('game:started', (event) => {
+    simulator.on('game:started', (event) => {
       logger.info(`Question: ${event.data.question}`, undefined, 'CLI');
       logger.info(`Predetermined Outcome: ${outcome ? 'YES' : 'NO'}`, undefined, 'CLI');
       logger.info(`Agents: ${event.data.agents}`, undefined, 'CLI');
     });
 
-    logEvent('day:changed', (event) => {
+    simulator.on('day:changed', (event) => {
       if (!options.fast) {
         logger.debug(`[Day ${event.data.day}]`, undefined, 'CLI');
       }
     });
 
-    logEvent('clue:distributed', (event) => {
+    simulator.on('clue:distributed', (event) => {
       if (options.verbose && !options.fast) {
         logger.debug(`${event.agentId}: Received clue (${event.data.tier})`, undefined, 'CLI');
       }
     });
 
-    logEvent('agent:bet', (event) => {
+    simulator.on('agent:bet', (event) => {
       logger.info(`${event.agentId}: Bet ${event.data.outcome ? 'YES' : 'NO'} (${event.data.amount} tokens)`, undefined, 'CLI');
     });
 
-    logEvent('market:updated', (event) => {
+    simulator.on('market:updated', (event) => {
       if (options.verbose && event.day % 10 === 0) {
         logger.info(`Market: ${event.data.yesOdds}% YES / ${event.data.noOdds}% NO`, undefined, 'CLI');
       }
     });
 
-    logEvent('outcome:revealed', (event) => {
+    simulator.on('outcome:revealed', (event) => {
       logger.info(`Outcome revealed: ${event.data.outcome ? 'YES' : 'NO'}`, undefined, 'CLI');
     });
 
-    logEvent('game:ended', (event) => {
+    simulator.on('game:ended', (event) => {
       logger.info(`Winners: ${event.data.winners.join(', ')}`, undefined, 'CLI');
     });
   }

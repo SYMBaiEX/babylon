@@ -57,6 +57,7 @@ export class FollowInitializer {
 
     for (let i = 0; i < relationships.length; i++) {
       const rel = relationships[i];
+      if (!rel) continue;
       
       // Log progress every 10 relationships
       if (i > 0 && i % 10 === 0) {
@@ -120,6 +121,7 @@ export class FollowInitializer {
     const total = relationships.length;
     for (let i = 0; i < relationships.length; i++) {
       const rel = relationships[i];
+      if (!rel) continue;
       
       // Log progress every 20 relationships
       if (i > 0 && i % 20 === 0) {
@@ -162,6 +164,7 @@ export class FollowInitializer {
 
     for (let i = 0; i < relationships.length; i++) {
       const rel = relationships[i];
+      if (!rel) continue;
       
       // Log progress every 20 relationships
       if (i > 0 && i % 20 === 0) {

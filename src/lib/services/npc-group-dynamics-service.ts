@@ -168,7 +168,7 @@ export class NPCGroupDynamicsService {
         }
 
         // Create the group chat
-        const chatId = generateSnowflakeId();
+        const chatId = await generateSnowflakeId();
         const chatName = `${npc.name}'s Circle`;
 
         await prisma.chat.create({
@@ -178,11 +178,12 @@ export class NPCGroupDynamicsService {
           isGroup: true,
           updatedAt: new Date(),
           ChatParticipant: {
-            // @ts-expect-error - Array map with async is a known pattern
-            create: Array.from(memberIds).map(memberId => ({
-              id: await generateSnowflakeId(),
-              userId: memberId,
-            })),
+            create: await Promise.all(
+              Array.from(memberIds).map(async (memberId) => ({
+                id: await generateSnowflakeId(),
+                userId: memberId,
+              }))
+            ),
           },
         },
         });

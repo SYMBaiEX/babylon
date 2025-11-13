@@ -3,15 +3,41 @@ Continuous MMO Trainer
 Strong types, no error swallowing, fail fast
 """
 
+import os
 import art
 from art.rewards import ruler_score_group
 from typing import List
 import random
 import logging
+from pathlib import Path
+from dotenv import load_dotenv
 
-from models import WindowStatistics, TrainingBatchSummary
-from data_bridge.reader import PostgresTrajectoryReader
-from data_bridge.converter import BabylonToARTConverter, calculate_dropout_rate
+# Load environment variables from project root
+project_root = Path(__file__).parent.parent.parent.parent
+env_path = project_root / '.env'
+env_local_path = project_root / '.env.local'
+
+# Load .env files (local takes priority)
+if env_local_path.exists():
+    load_dotenv(env_local_path, override=True)
+    print(f"✅ Loaded environment from {env_local_path}")
+if env_path.exists():
+    load_dotenv(env_path, override=False)  # Don't override .env.local
+    print(f"✅ Loaded environment from {env_path}")
+
+# Verify critical environment variables
+if os.getenv('WANDB_API_KEY'):
+    print(f"✅ WANDB_API_KEY found ({len(os.getenv('WANDB_API_KEY'))} chars)")
+else:
+    print("⚠️  WANDB_API_KEY not found - RULER scoring may fail")
+
+# Suppress Pydantic v1 warning for Python 3.14
+import warnings
+warnings.filterwarnings('ignore', message='.*Pydantic V1.*')
+
+from ..models import WindowStatistics, TrainingBatchSummary
+from ..data_bridge.reader import PostgresTrajectoryReader
+from ..data_bridge.converter import BabylonToARTConverter, calculate_dropout_rate
 
 logger = logging.getLogger(__name__)
 

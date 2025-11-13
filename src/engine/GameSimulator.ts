@@ -62,6 +62,20 @@ import { generateSnowflakeId } from '@/lib/snowflake';
 import type { JsonValue } from '@/types/common';
 
 /**
+ * GameSimulator Event Types
+ */
+export interface GameSimulatorEvents {
+  'game:started': { data: { question: string; agents: number } };
+  'day:changed': { data: { day: number }; day: number };
+  'clue:distributed': { agentId: string; data: { tier: string } };
+  'agent:bet': { agentId: string; data: { outcome: boolean; amount: number } };
+  'market:updated': { data: { yesOdds: number; noOdds: number }; day: number };
+  'outcome:revealed': { data: { outcome: boolean } };
+  'game:ended': { data: { winners: string[] } };
+  'event': { type: string; data: JsonValue };
+}
+
+/**
  * Configuration options for game simulation
  * 
  * @interface GameConfig
@@ -292,7 +306,17 @@ export interface ReputationChange {
  * console.log(`Game complete: ${result.winners.length} winners`);
  * ```
  */
-export class GameSimulator extends EventEmitter {
+
+/**
+ * Typed EventEmitter interface for GameSimulator
+ */
+interface TypedGameSimulatorEmitter {
+  on<K extends keyof GameSimulatorEvents>(event: K, listener: (data: GameSimulatorEvents[K]) => void): this;
+  emit<K extends keyof GameSimulatorEvents>(event: K, data: GameSimulatorEvents[K]): boolean;
+  off<K extends keyof GameSimulatorEvents>(event: K, listener: (data: GameSimulatorEvents[K]) => void): this;
+}
+
+export class GameSimulator extends EventEmitter implements TypedGameSimulatorEmitter {
   private config: Required<GameConfig>;
   private events: GameEvent[] = [];
   private currentDay = 0;

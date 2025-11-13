@@ -14,6 +14,7 @@
 import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
 import type { IAgentRuntime } from '@elizaos/core'
+import type { BabylonRuntime } from '../plugins/babylon/types'
 
 // Import services
 import { autonomousA2AService } from './AutonomousA2AService'
@@ -82,8 +83,7 @@ export class AutonomousCoordinator {
     }
 
     // Check if A2A client is connected
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const useA2A = (runtime as any).a2aClient?.isConnected() || false
+    const useA2A = !!(runtime as BabylonRuntime).a2aClient?.isConnected()
 
     logger.info(`Using ${useA2A ? 'A2A protocol' : 'direct database'} for autonomous actions`, undefined, 'AutonomousCoordinator')
     result.method = useA2A ? 'a2a' : 'database'

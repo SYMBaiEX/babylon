@@ -18,33 +18,10 @@ export default function PostPage({ params }: PostPageProps) {
   const { id: postId } = use(params);
   const router = useRouter();
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
-  const [commentSectionKey, _setCommentSectionKey] = useState(0);
   
   // Function to open comment modal when comment button is clicked
   const handleCommentClick = () => {
     setIsCommentModalOpen(true);
-  };
-
-  // Function to update post interactions from store
-  // Unused but kept for potential future use
-  // @ts-expect-error TS6133 - Intentionally unused
-   
-  const _updatePostInteractions = (): void => {
-    if (post) {
-      const { postInteractions } = useInteractionStore.getState();
-      const storeData = postInteractions.get(postId);
-      
-      if (storeData) {
-        setPost((prev) => prev ? {
-          ...prev,
-          likeCount: storeData.likeCount,
-          commentCount: storeData.commentCount,
-          shareCount: storeData.shareCount,
-          isLiked: storeData.isLiked,
-          isShared: storeData.isShared,
-        } : null);
-      }
-    }
   };
 
   const [post, setPost] = useState<{
@@ -319,7 +296,6 @@ export default function PostPage({ params }: PostPageProps) {
               {/* Comments Section - Always visible below the post */}
               <div className="border-b border-border">
                 <FeedCommentSection
-                  key={`inline-comments-${commentSectionKey}`}
                   postId={postId}
                   postData={post}
                 />
@@ -440,7 +416,6 @@ export default function PostPage({ params }: PostPageProps) {
           {/* Comments Section - Always visible below the post */}
           <div className="border-b border-border">
             <FeedCommentSection
-              key={`inline-comments-mobile-${commentSectionKey}`}
               postId={postId}
               postData={post}
             />

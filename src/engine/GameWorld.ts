@@ -64,6 +64,23 @@ import type { BabylonLLMClient } from '../generator/llm/openai-client';
 import { FeedGenerator, type FeedEvent } from './FeedGenerator';
 
 /**
+ * GameWorld Event Types
+ */
+export interface GameWorldEvents {
+  'world:started': { data: { question: string; npcs: number } };
+  'day:begins': { data: { day: number } };
+  'npc:action': { npc: string; description: string };
+  'npc:conversation': { description: string };
+  'news:published': { npc: string; description: string };
+  'rumor:spread': { description: string };
+  'clue:revealed': { npc: string; description: string };
+  'development:occurred': { description: string };
+  'feed:post': FeedEvent;
+  'outcome:revealed': { data: { outcome: boolean } };
+  'event': { type: string; data: JsonValue };
+}
+
+/**
  * World generation configuration
  * 
  * @interface WorldConfig
@@ -275,7 +292,17 @@ export interface DayEvent {
  * console.log(`Generated ${result.events.length} events over ${result.timeline.length} days`);
  * ```
  */
-export class GameWorld extends EventEmitter {
+
+/**
+ * Typed EventEmitter interface for GameWorld
+ */
+interface TypedGameWorldEmitter {
+  on<K extends keyof GameWorldEvents>(event: K, listener: (data: GameWorldEvents[K]) => void): this;
+  emit<K extends keyof GameWorldEvents>(event: K, data: GameWorldEvents[K]): boolean;
+  off<K extends keyof GameWorldEvents>(event: K, listener: (data: GameWorldEvents[K]) => void): this;
+}
+
+export class GameWorld extends EventEmitter implements TypedGameWorldEmitter {
   private config: Required<WorldConfig>;
   private events: WorldEvent[] = [];
   private currentDay = 0;

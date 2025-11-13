@@ -199,7 +199,7 @@ export class TradeExecutionService {
 
     // Calculate liquidation price
     const liquidationDistance = side === 'long' ? 0.8 : 1.2;
-    const _liquidationPrice = currentPrice * liquidationDistance;
+    const liquidationPrice = currentPrice * liquidationDistance;
 
     // Execute in transaction
     const position = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -236,7 +236,7 @@ export class TradeExecutionService {
           currentPrice,
           size: positionSize,
           leverage,
-          liquidationPrice: _liquidationPrice,
+          liquidationPrice,
           unrealizedPnL: 0,
           updatedAt: new Date(),
         },
@@ -275,7 +275,7 @@ export class TradeExecutionService {
       currentPrice,
       size: positionSize,
       leverage,
-      liquidationPrice: _liquidationPrice,
+      liquidationPrice,
       unrealizedPnL: 0,
       unrealizedPnLPercent: 0,
       fundingPaid: 0,

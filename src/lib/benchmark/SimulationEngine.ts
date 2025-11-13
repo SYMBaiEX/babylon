@@ -127,8 +127,6 @@ export class SimulationEngine {
   private config: SimulationConfig;
   private currentTick: number = 0;
   private actions: AgentAction[] = [];
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private _running: boolean = false;
   private startTime: number = 0;
   
   // Agent positions (tracked for metrics)
@@ -216,7 +214,6 @@ export class SimulationEngine {
    */
   initialize(): void {
     this.startTime = Date.now();
-    this.running = true;
     this.currentTick = 0;
     
     logger.info('Simulation initialized', {
@@ -240,6 +237,13 @@ export class SimulationEngine {
    */
   getTotalTicks(): number {
     return this.config.snapshot.ticks.length;
+  }
+  
+  /**
+   * Get current tick number
+   */
+  getCurrentTickNumber(): number {
+    return this.currentTick;
   }
   
   /**
@@ -337,7 +341,7 @@ export class SimulationEngine {
    * Stop simulation early
    */
   stop(): void {
-    this.running = false;
+    // Stop simulation (currently not actively used but kept for API compatibility)
   }
   
   /**
@@ -347,7 +351,7 @@ export class SimulationEngine {
     const { marketId, outcome, amount } = data as { marketId: string; outcome: 'YES' | 'NO'; amount: number };
     
     const state = this.getGameState();
-    const market = state.predictionMarkets.find((m) => m.id === marketId);
+    const market = state.predictionMarkets.find((m: { id: string }) => m.id === marketId);
     
     if (!market) {
       throw new Error(`Market ${marketId} not found`);
@@ -378,7 +382,7 @@ export class SimulationEngine {
     const { ticker, side, size, leverage } = data as { ticker: string; side: 'LONG' | 'SHORT'; size: number; leverage: number };
     
     const state = this.getGameState();
-    const market = state.perpetualMarkets.find((m) => m.ticker === ticker);
+    const market = state.perpetualMarkets.find((m: { ticker: string }) => m.ticker === ticker);
     
     if (!market) {
       throw new Error(`Market ${ticker} not found`);
@@ -410,7 +414,7 @@ export class SimulationEngine {
     }
     
     const state = this.getGameState();
-    const market = state.perpetualMarkets.find((m) => m.ticker === position.ticker);
+    const market = state.perpetualMarkets.find((m: { ticker: string }) => m.ticker === position.ticker);
     
     if (!market) {
       throw new Error(`Market ${position.ticker} not found`);
@@ -452,7 +456,7 @@ export class SimulationEngine {
     for (const [_positionId, position] of this.perpPositions.entries()) {
       if (position.closedAt) continue; // Skip closed positions
       
-      const market = tick.state.perpetualMarkets.find((m) => m.ticker === position.ticker);
+      const market = tick.state.perpetualMarkets.find((m: { ticker: string; price: number }) => m.ticker === position.ticker);
       if (!market) continue;
       
       const priceChange = market.price - position.entryPrice;

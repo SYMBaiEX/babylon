@@ -1,16 +1,10 @@
-// @ts-nocheck
-
 /**
  * Betting UI Integration Tests
  * 
  * Tests the betting route components and functionality
  */
 
-import { describe, it, expect, // eslint-disable-next-line @typescript-eslint/no-unused-vars
-beforeAll } from 'bun:test'
-// @ts-expect-error - Missing test library
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect } from 'bun:test'
 
 // Mock data for testing
 const mockMarket = {

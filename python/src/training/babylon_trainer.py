@@ -12,6 +12,37 @@ import json
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import logging
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from project root
+project_root = Path(__file__).parent.parent.parent.parent
+env_path = project_root / '.env'
+env_local_path = project_root / '.env.local'
+
+# Load .env files (local takes priority)
+if env_local_path.exists():
+    load_dotenv(env_local_path, override=True)
+    print(f"✅ Loaded environment from {env_local_path}")
+if env_path.exists():
+    load_dotenv(env_path, override=False)  # Don't override .env.local
+    print(f"✅ Loaded environment from {env_path}")
+
+# Verify critical environment variables
+if os.getenv('WANDB_API_KEY'):
+    print(f"✅ WANDB_API_KEY found ({len(os.getenv('WANDB_API_KEY'))} chars)")
+else:
+    print("⚠️  WANDB_API_KEY not found - will use local GPU training if ART supports it")
+
+if os.getenv('DATABASE_URL'):
+    db_url_preview = os.getenv('DATABASE_URL', '')[:50]
+    print(f"✅ DATABASE_URL found: {db_url_preview}...")
+else:
+    print("❌ DATABASE_URL not found")
+
+# Suppress Pydantic v1 warning for Python 3.14
+import warnings
+warnings.filterwarnings('ignore', message='.*Pydantic V1.*')
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +85,8 @@ class BabylonTrainer:
     
     def get_window_id(self, hours_ago: int = 0) -> str:
         """Get window ID (format: YYYY-MM-DDTHH:00)"""
-        now = datetime.utcnow()
+        from datetime import timezone
+        now = datetime.now(timezone.utc)
         window = now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=hours_ago)
         return window.strftime("%Y-%m-%dT%H:00")
     
@@ -109,14 +141,12 @@ class BabylonTrainer:
                     t."scenarioId" = $1 
                     OR t."scenarioId" LIKE $1 || '%'
                     OR t."windowId" = $1
-                    OR (t."createdAt" >= $2::timestamp 
-                        AND t."createdAt" < $2::timestamp + interval '1 hour')
                 )
                 AND t."stepsJson" IS NOT NULL
                 AND t."stepsJson"::text != 'null'
                 AND t."stepsJson"::text != '[]'
                 ORDER BY t."createdAt"
-            """, window_id, window_id)
+            """, window_id)
             
             if not rows:
                 logger.warning(f"No trajectories found for window {window_id}")

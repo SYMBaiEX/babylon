@@ -116,13 +116,10 @@ export class TrajectoryMarketEngine {
     for (const decision of decisions) {
       // Build environment state
       const envState: EnvironmentState = {
-        agentBalance: decision.poolBalance || 0,
+        agentBalance: 0, // Would need pool balance data
+        agentPoints: 0,
         agentPnL: 0, // Could calculate from pool history
-        openPositions: decision.existingPositions?.length || 0,
-        availableMarkets: decision.tickerSymbol ? 1 : 0,
-        marketPrices: decision.tickerSymbol ? {
-          [decision.tickerSymbol]: decision.currentPrice || 0
-        } : {},
+        openPositions: 0, // Would need position data
         timestamp: Date.now(),
       };
       
@@ -134,10 +131,10 @@ export class TrajectoryMarketEngine {
       if (decision.reasoning) {
         this.recorder.logLLMCall(this.trajectoryId, {
           model: 'market-decision-model',
-          purpose: 'trading_decision',
+          purpose: 'action',
           actionType: decision.action,
           systemPrompt: 'You are an NPC making trading decisions in prediction markets.',
-          userPrompt: `Pool: ${decision.poolId}, Ticker: ${decision.tickerSymbol}, Price: $${decision.currentPrice}`,
+          userPrompt: `NPC: ${decision.npcName}, Action: ${decision.action}, Market: ${decision.ticker || decision.marketId || 'unknown'}`,
           response: decision.reasoning,
           reasoning: decision.reasoning,
           temperature: 0.7,
@@ -150,16 +147,21 @@ export class TrajectoryMarketEngine {
       const action: Action = {
         actionType: decision.action,
         parameters: {
-          poolId: decision.poolId,
           npcId: decision.npcId,
-          ticker: decision.tickerSymbol,
-          side: decision.side,
+          npcName: decision.npcName,
+          ticker: decision.ticker,
+          marketId: decision.marketId,
+          marketType: decision.marketType,
           amount: decision.amount,
           confidence: decision.confidence,
           reasoning: decision.reasoning,
         },
         success: true,
-        result: `${decision.action} ${decision.amount || 0} shares of ${decision.tickerSymbol || 'unknown'}`,
+        result: {
+          action: decision.action,
+          amount: decision.amount,
+          market: decision.ticker || decision.marketId || 'unknown',
+        },
       };
       
       // Calculate immediate reward (0 for now, will be updated after market resolves)

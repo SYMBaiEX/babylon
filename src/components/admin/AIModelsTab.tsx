@@ -416,20 +416,20 @@ export function AIModelsTab() {
             <div className="space-y-2 text-sm">
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground">Provider:</span>
-                <span className="font-mono font-medium">{testResult.provider}</span>
+                <span className="font-mono font-medium">{String(testResult.provider || 'unknown')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground">Model:</span>
-                <span className="font-mono font-medium">{testResult.model}</span>
+                <span className="font-mono font-medium">{String(testResult.model || 'unknown')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground">Latency:</span>
-                <span className="font-mono font-medium">{testResult.latency}ms</span>
+                <span className="font-mono font-medium">{String(testResult.latency || 0)}ms</span>
               </div>
-              {testResult.wandbModelConfigured && (
+              {testResult.wandbModelConfigured !== undefined && testResult.wandbModelConfigured !== null && (
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">Configured Wandb Model:</span>
-                  <span className="font-mono font-medium">{testResult.wandbModelConfigured}</span>
+                  <span className="font-mono font-medium">{String(testResult.wandbModelConfigured)}</span>
                 </div>
               )}
               <div className="mt-3 p-3 rounded bg-black/20">
@@ -439,12 +439,12 @@ export function AIModelsTab() {
             </div>
           ) : (
             <div className="space-y-2 text-sm">
-              <div className="text-red-200">{testResult.error}</div>
-              {testResult.details && (
+              <div className="text-red-200">{String(testResult.error || 'Unknown error')}</div>
+              {testResult.details !== undefined && testResult.details !== null && (
                 <details className="mt-2">
                   <summary className="cursor-pointer text-red-200/80">Error Details</summary>
                   <pre className="mt-2 p-3 rounded bg-black/20 text-xs overflow-auto">
-                    {testResult.details}
+                    {String(testResult.details)}
                   </pre>
                 </details>
               )}

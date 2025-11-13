@@ -12,9 +12,7 @@
  * etc.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { SimulationEngine } from './SimulationEngine';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { logger } from '@/lib/logger';
 
 export class SimulationA2AInterface {
@@ -105,8 +103,8 @@ export class SimulationA2AInterface {
     const state = this.engine.getGameState();
     
     const predictions = state.predictionMarkets
-      .filter((m) => !m.resolved)
-      .map((m) => ({
+      .filter((m: { resolved: boolean }) => !m.resolved)
+      .map((m: { id: string; question: string; yesShares: number; noShares: number; yesPrice: number; noPrice: number; liquidity: number; totalVolume: number; createdAt: number; resolveAt: number }) => ({
         id: m.id,
         question: m.question,
         yesShares: m.yesShares,
@@ -141,7 +139,7 @@ export class SimulationA2AInterface {
     const { positionId, shares } = result.result as { positionId: string; shares: number };
     
     const state = this.engine.getGameState();
-    const market = state.predictionMarkets.find((m) => m.id === marketId);
+    const market = state.predictionMarkets.find((m: { id: string }) => m.id === marketId);
     const avgPrice = market ? (outcome === 'YES' ? market.yesPrice : market.noPrice) : 0.5;
     
     return { shares, avgPrice, positionId };
@@ -161,7 +159,7 @@ export class SimulationA2AInterface {
   private handleGetPerpetuals(_params: unknown): { perpetuals: unknown[] } {
     const state = this.engine.getGameState();
     
-    const perpetuals = state.perpetualMarkets.map((m) => ({
+    const perpetuals = state.perpetualMarkets.map((m: { ticker: string; price: number; priceChange24h?: number; volume24h: number; openInterest: number; fundingRate: number; nextFundingTime?: number }) => ({
       ticker: m.ticker,
       price: m.price,
       priceChange24h: m.priceChange24h,
@@ -194,7 +192,7 @@ export class SimulationA2AInterface {
     const { positionId } = result.result as { positionId: string };
     
     const state = this.engine.getGameState();
-    const market = state.perpetualMarkets.find((m) => m.ticker === ticker);
+    const market = state.perpetualMarkets.find((m: { ticker: string }) => m.ticker === ticker);
     
     return {
       positionId,
@@ -230,9 +228,18 @@ export class SimulationA2AInterface {
   private handleGetFeed(_params: unknown): { posts: unknown[] } {
     const state = this.engine.getGameState();
     
-    const posts = state.posts
+    const posts = (state.posts || [])
       .slice(-20) // Last 20 posts
-      .map((p) => ({
+      .map((p: {
+        id: string;
+        authorId: string;
+        authorName: string;
+        content: string;
+        createdAt: number;
+        likes: number;
+        comments: number;
+        marketId?: string;
+      }) => ({
         id: p.id,
         authorId: p.authorId,
         authorName: p.authorName,
@@ -272,7 +279,14 @@ export class SimulationA2AInterface {
   private handleGetChats(_params: unknown): { chats: unknown[] } {
     const state = this.engine.getGameState();
     
-    const chats = state.groupChats.map((g) => ({
+    const chats = (state.groupChats || []).map((g: {
+      id: string;
+      name: string;
+      memberIds: string[];
+      messageCount: number;
+      lastActivity: number;
+      invitedAgent?: boolean;
+    }) => ({
       id: g.id,
       name: g.name,
       memberCount: g.memberIds.length,

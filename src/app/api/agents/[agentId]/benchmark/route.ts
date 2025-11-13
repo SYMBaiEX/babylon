@@ -77,6 +77,7 @@ import { agentRuntimeManager } from '@/lib/agents/runtime/AgentRuntimeManager'
 import { SimulationEngine, type SimulationConfig, type SimulationResult } from '@/lib/benchmark/SimulationEngine'
 import { SimulationA2AInterface } from '@/lib/benchmark/SimulationA2AInterface'
 import { AutonomousCoordinator } from '@/lib/agents/autonomous/AutonomousCoordinator'
+import type { BenchmarkGameSnapshot } from '@/lib/benchmark/BenchmarkDataGenerator'
 import { MetricsVisualizer } from '@/lib/benchmark/MetricsVisualizer'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
@@ -100,12 +101,12 @@ export async function POST(
     where: { id: agentId },
     select: {
       id: true,
-      ownerId: true,
       isAgent: true,
       username: true,
       autonomousTrading: true,
       autonomousPosting: true,
       autonomousCommenting: true,
+      managedBy: true,
     }
   })
   
@@ -123,7 +124,7 @@ export async function POST(
     )
   }
   
-  if (agent.ownerId !== user.id) {
+  if (agent.managedBy !== user.id) {
     return NextResponse.json(
       { success: false, error: 'Not authorized to benchmark this agent' },
       { status: 403 }
@@ -273,20 +274,23 @@ async function runSingleBenchmark(
   // Get agent runtime (initializes if needed)
   const runtime = await agentRuntimeManager.getRuntime(agentId)
   
+  // Type assertion for snapshot - cast to proper type
+  const typedSnapshot = snapshot as BenchmarkGameSnapshot
+  
   // Create simulation engine
   const simConfig: SimulationConfig = {
-    snapshot,
+    snapshot: typedSnapshot,
     agentId,
     fastForward: true,
     responseTimeout: 30000
   }
   
-  const engine = new SimulationEngine(simConfig)
+  const engine = new SimulationEngine(simConfig);
   
   // Create A2A interface and inject into runtime
-  const a2aInterface = new SimulationA2AInterface(engine, agentId)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (runtime as any).a2aClient = a2aInterface
+  const a2aInterface = new SimulationA2AInterface(engine, agentId);
+  // Extend runtime with simulation A2A interface
+  (runtime as { a2aClient?: unknown }).a2aClient = a2aInterface
   
   logger.info('Runtime and A2A interface initialized', { agentId }, 'AgentBenchmark')
   
@@ -297,11 +301,11 @@ async function runSingleBenchmark(
   const coordinator = new AutonomousCoordinator()
   
   // Run simulation with autonomous ticks
-  const totalTicks = snapshot.ticks.length
+  const totalTicks = typedSnapshot.ticks.length
   logger.info('Starting simulation loop', { agentId, totalTicks }, 'AgentBenchmark')
   
   while (!engine.isComplete()) {
-    const currentTick = engine.getCurrentTick()
+    const currentTick = engine.getCurrentTickNumber()
     
     logger.debug(`Autonomous tick ${currentTick + 1}/${totalTicks}`, { agentId }, 'AgentBenchmark')
     

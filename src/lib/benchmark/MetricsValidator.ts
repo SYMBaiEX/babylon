@@ -105,7 +105,7 @@ export class MetricsValidator {
    * Validate prediction metrics against ground truth
    */
   private static validatePredictionMetrics(
-    predictionMetrics: SimulationMetrics['predictionMetrics'],
+    _predictionMetrics: SimulationMetrics['predictionMetrics'],
     actions: AgentAction[],
     groundTruth: GroundTruth
   ): ValidationResult {
@@ -119,7 +119,6 @@ export class MetricsValidator {
     for (const action of predictionActions) {
       const data = action.data as { marketId: string; outcome: string };
       const marketId = data.marketId;
-      const outcome = data.outcome;
       
       // Check if we have ground truth for this market
       if (!(marketId in groundTruth.marketOutcomes)) {
@@ -127,13 +126,8 @@ export class MetricsValidator {
         continue;
       }
       
-      const actualOutcome = groundTruth.marketOutcomes[marketId];
-      const isCorrect = 
-        (outcome === 'YES' && actualOutcome) ||
-        (outcome === 'NO' && !actualOutcome);
-      
-      // This validates the logic is correct
-      // (actual verification happens in SimulationEngine)
+      // Verify the outcome exists in ground truth
+      // (actual verification of correctness happens in SimulationEngine)
     }
     
     return { valid: errors.length === 0, errors, warnings };

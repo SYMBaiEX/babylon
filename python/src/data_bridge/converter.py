@@ -10,7 +10,7 @@ import json
 import random
 from typing import List
 
-from models import BabylonTrajectory, MarketOutcomes, TrajectoryStep
+from ..models import BabylonTrajectory, MarketOutcomes, TrajectoryStep
 
 
 class BabylonToARTConverter:

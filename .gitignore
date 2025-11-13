@@ -45,3 +45,4 @@ test-empty
 dev-server.log
 dev-server.pid
 ./benchmarks
+__pycache__

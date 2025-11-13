@@ -12,15 +12,49 @@ import { PrivyClient } from '@privy-io/server-auth'
 import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
 import { getAgent0Client } from '@/agents/agent0/Agent0Client'
-// import type { User } from '@prisma/client' // Not used
 import { v4 as uuidv4 } from 'uuid'
 import { ethers } from 'ethers'
+
+// Type definitions for Privy SDK (not exported by package)
+interface PrivyWallet {
+  address: string;
+  id: string;
+}
+
+interface PrivyUser {
+  id: string;
+  wallet?: PrivyWallet;
+}
+
+interface PrivyCreateUserParams {
+  create_embedded_wallet: boolean;
+  linked_accounts: unknown[];
+}
+
+interface PrivySignTransactionParams {
+  wallet_id: string;
+  transaction: {
+    to: string;
+    value: string;
+    data: string;
+  };
+}
+
+interface PrivySignedTransaction {
+  signed_transaction: string;
+}
+
+// Extended Privy client with additional methods
+interface ExtendedPrivyClient extends PrivyClient {
+  createUser(params: PrivyCreateUserParams): Promise<PrivyUser>;
+  signTransaction(params: PrivySignTransactionParams): Promise<PrivySignedTransaction>;
+}
 
 // Initialize Privy server client
 const privy = new PrivyClient(
   process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
   process.env.PRIVY_APP_SECRET!
-)
+) as ExtendedPrivyClient
 
 export class AgentWalletService {
   /**

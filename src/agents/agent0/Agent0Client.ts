@@ -319,8 +319,7 @@ export class Agent0Client implements IAgent0Client {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private parseCapabilities(extras: Record<string, any> | undefined): {
+  private parseCapabilities(extras: Record<string, unknown> | undefined): {
     strategies: string[];
     markets: string[];
     actions: string[];
