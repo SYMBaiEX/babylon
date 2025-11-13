@@ -89,8 +89,47 @@ jobs:
           key: ${{ runner.os }}-build-${{ hashFiles('**/bun.lock') }}-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', 'prisma/schema.prisma') }}
           restore-keys: |
             ${{ runner.os }}-build-${{ hashFiles('**/bun.lock') }}-
+
+      - name: Cache hit - prepare cached build
+        if: steps.cache-build.outputs.cache-hit == 'true'
+        env:
+          DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL }}
+          NEXTAUTH_SECRET_VAR: ${{ secrets.NEXTAUTH_SECRET }}
+          PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID }}
+          PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET }}
+          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          echo "⚡ Build cache hit detected. Skipping fresh build."
+          echo "📦 Using cached .next and .env.test"
+          ls -lah .next .env.test 2>/dev/null || echo "⚠️  Some cache files not found"
+          
+          # Ensure .env.test exists (fallback if cache is partial)
+          if [ ! -f .env.test ]; then
+            echo "Creating .env.test from secrets as fallback"
+            set +x
+            DB_URL="postgresql://postgres:postgres@localhost:5432/test_db"
+            cat > .env.test << EOF
+          DATABASE_URL=${DB_URL}
+          DIRECT_DATABASE_URL=${DB_URL}
+          POSTGRES_PRISMA_URL=${DB_URL}
+          POSTGRES_URL_NON_POOLING=${DB_URL}
+          NEXTAUTH_SECRET=${NEXTAUTH_SECRET_VAR}
+          PRIVY_APP_ID=${PRIVY_APP_ID_VAR}
+          PRIVY_APP_SECRET=${PRIVY_APP_SECRET_VAR}
+          NEXT_PUBLIC_PRIVY_APP_ID=${PRIVY_APP_ID_VAR}
+          GROQ_API_KEY=${GROQ_API_KEY_VAR}
+          OPENAI_API_KEY=${OPENAI_API_KEY_VAR}
+          EOF
+            set -x
+          fi
+          
+          # Generate Prisma client (needed for downstream jobs)
+          echo "Generating Prisma client for downstream jobs..."
+          bun prisma generate
       
       - name: Install dependencies
+        if: steps.cache-build.outputs.cache-hit != 'true'
         run: bun install --frozen-lockfile
       
       - name: Setup environment variables
@@ -164,44 +203,6 @@ jobs:
         env:
           NODE_OPTIONS: '--max-old-space-size=8192'
           SKIP_ENV_VALIDATION: true
-      
-      - name: Cache hit - using existing build
-        if: steps.cache-build.outputs.cache-hit == 'true'
-        env:
-          DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL }}
-          NEXTAUTH_SECRET_VAR: ${{ secrets.NEXTAUTH_SECRET }}
-          PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID }}
-          PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET }}
-          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY }}
-          OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          echo "⚡ Build cache hit! Skipping build steps."
-          echo "📦 Using cached .next and .env.test"
-          ls -lah .next .env.test 2>/dev/null || echo "⚠️  Some cache files not found"
-          
-          # Ensure .env.test exists (fallback if cache is partial)
-          if [ ! -f .env.test ]; then
-            echo "Creating .env.test from secrets as fallback"
-            set +x
-            DB_URL="postgresql://postgres:postgres@localhost:5432/test_db"
-            cat > .env.test << EOF
-          DATABASE_URL=${DB_URL}
-          DIRECT_DATABASE_URL=${DB_URL}
-          POSTGRES_PRISMA_URL=${DB_URL}
-          POSTGRES_URL_NON_POOLING=${DB_URL}
-          NEXTAUTH_SECRET=${NEXTAUTH_SECRET_VAR}
-          PRIVY_APP_ID=${PRIVY_APP_ID_VAR}
-          PRIVY_APP_SECRET=${PRIVY_APP_SECRET_VAR}
-          NEXT_PUBLIC_PRIVY_APP_ID=${PRIVY_APP_ID_VAR}
-          GROQ_API_KEY=${GROQ_API_KEY_VAR}
-          OPENAI_API_KEY=${OPENAI_API_KEY_VAR}
-          EOF
-            set -x
-          fi
-          
-          # Generate Prisma client (needed for artifacts even on cache hit)
-          echo "Generating Prisma client for downstream jobs..."
-          bun prisma generate
       
       - name: Verify .env.test exists before upload
         run: |
