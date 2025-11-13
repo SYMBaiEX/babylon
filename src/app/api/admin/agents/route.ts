@@ -40,13 +40,6 @@ export async function GET(_req: NextRequest) {
         
         // Performance
         lifetimePnL: true,
-        AgentPerformanceMetrics: {
-          select: {
-            totalTrades: true,
-            profitableTrades: true,
-            winRate: true,
-          },
-        },
         
         // Status
         agentStatus: true,
@@ -58,15 +51,23 @@ export async function GET(_req: NextRequest) {
         createdAt: true,
         updatedAt: true,
         
-        // Manager/Creator
+        // Creator
         managedBy: true,
+
+        // Performance metrics relation
+        AgentPerformanceMetrics: {
+          select: {
+            totalTrades: true,
+            profitableTrades: true,
+          },
+        },
       },
       orderBy: {
         agentLastTickAt: 'desc',
       },
     });
 
-    // Get manager/creator names
+    // Get creator names
     const creatorIds = agents.map(a => a.managedBy).filter(Boolean) as string[];
     const creators = await prisma.user.findMany({
       where: { id: { in: creatorIds } },
@@ -98,6 +99,8 @@ export async function GET(_req: NextRequest) {
 
     // Format agents
     const formattedAgents = agents.map(agent => {
+      const totalTrades = agent.AgentPerformanceMetrics?.totalTrades ?? 0;
+      const profitableTrades = agent.AgentPerformanceMetrics?.profitableTrades ?? 0;
       const autonomousEnabled = 
         agent.autonomousTrading ||
         agent.autonomousPosting ||
@@ -105,10 +108,9 @@ export async function GET(_req: NextRequest) {
         agent.autonomousDMs ||
         agent.autonomousGroupChats;
 
-      const metrics = agent.AgentPerformanceMetrics;
-      const totalTrades = metrics?.totalTrades || 0;
-      const profitableTrades = metrics?.profitableTrades || 0;
-      const winRate = totalTrades > 0 ? profitableTrades / totalTrades : 0;
+      const winRate = totalTrades > 0
+        ? profitableTrades / totalTrades
+        : 0;
 
       return {
         id: agent.id,
