@@ -85,7 +85,6 @@ jobs:
         with:
           path: |
             .next
-            .env.test
           key: ${{ runner.os }}-build-${{ hashFiles('**/bun.lock') }}-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', 'prisma/schema.prisma') }}
           restore-keys: |
             ${{ runner.os }}-build-${{ hashFiles('**/bun.lock') }}-
@@ -97,34 +96,19 @@ jobs:
           NEXTAUTH_SECRET_VAR: ${{ secrets.NEXTAUTH_SECRET }}
           PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID }}
           PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET }}
-          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY }}
+          PRIVY_TEST_EMAIL_VAR: ${{ secrets.PRIVY_TEST_EMAIL }}
+          PRIVY_TEST_PASSWORD_VAR: ${{ secrets.PRIVY_TEST_PASSWORD }}
+          ANTHROPIC_API_KEY_VAR: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY }}
+          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY }}
+          FAL_KEY_VAR: ${{ secrets.FAL_KEY }}
+          CRON_SECRET_VAR: ${{ secrets.CRON_SECRET }}
+          WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE }}
+          WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD }}
         run: |
           echo "⚡ Build cache hit detected. Skipping fresh build."
-          echo "📦 Using cached .next and .env.test"
-          ls -lah .next .env.test 2>/dev/null || echo "⚠️  Some cache files not found"
-          
-          # Ensure .env.test exists (fallback if cache is partial)
-          if [ ! -f .env.test ]; then
-            echo "Creating .env.test from secrets as fallback"
-            set +x
-            DB_URL="postgresql://postgres:postgres@localhost:5432/test_db"
-            cat > .env.test << EOF
-          DATABASE_URL=${DB_URL}
-          DIRECT_DATABASE_URL=${DB_URL}
-          POSTGRES_PRISMA_URL=${DB_URL}
-          POSTGRES_URL_NON_POOLING=${DB_URL}
-          NEXTAUTH_SECRET=${NEXTAUTH_SECRET_VAR}
-          PRIVY_APP_ID=${PRIVY_APP_ID_VAR}
-          PRIVY_APP_SECRET=${PRIVY_APP_SECRET_VAR}
-          NEXT_PUBLIC_PRIVY_APP_ID=${PRIVY_APP_ID_VAR}
-          GROQ_API_KEY=${GROQ_API_KEY_VAR}
-          OPENAI_API_KEY=${OPENAI_API_KEY_VAR}
-          EOF
-            set -x
-          fi
-          
-          # Generate Prisma client (needed for downstream jobs)
+          bash scripts/ci/prepare-env.sh
+          ls -lah .next || echo "⚠️  .next cache not found"
           echo "Generating Prisma client for downstream jobs..."
           bun prisma generate
       
@@ -148,42 +132,7 @@ jobs:
           CRON_SECRET_VAR: ${{ secrets.CRON_SECRET }}
           WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE }}
           WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD }}
-        run: |
-          # Suppress command output to prevent secrets from appearing in logs
-          set +x
-          
-          # Build job uses local PostgreSQL service container (faster, no network dependency)
-          # Test jobs will use DATABASE_URL from secrets for integration testing
-          DB_URL="postgresql://postgres:postgres@localhost:5432/test_db"
-          
-          # Create .env file with test configuration
-          # Using environment variables to prevent secrets from appearing in command output
-          cat > .env.test << EOF
-          DATABASE_URL=${DB_URL}
-          DIRECT_DATABASE_URL=${DB_URL}
-          POSTGRES_PRISMA_URL=${DB_URL}
-          POSTGRES_URL_NON_POOLING=${DB_URL}
-          NEXTAUTH_SECRET=${NEXTAUTH_SECRET_VAR}
-          PRIVY_APP_ID=${PRIVY_APP_ID_VAR}
-          PRIVY_APP_SECRET=${PRIVY_APP_SECRET_VAR}
-          PRIVY_TEST_EMAIL=${PRIVY_TEST_EMAIL_VAR}
-          PRIVY_TEST_PASSWORD=${PRIVY_TEST_PASSWORD_VAR}
-          NEXT_PUBLIC_PRIVY_APP_ID=${PRIVY_APP_ID_VAR}
-          ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY_VAR}
-          OPENAI_API_KEY=${OPENAI_API_KEY_VAR}
-          GROQ_API_KEY=${GROQ_API_KEY_VAR}
-          FAL_KEY=${FAL_KEY_VAR}
-          CRON_SECRET=${CRON_SECRET_VAR}
-          WALLET_SEED_PHRASE=${WALLET_SEED_PHRASE_VAR}
-          WALLET_PASSWORD=${WALLET_PASSWORD_VAR}
-          EOF
-          
-          # Re-enable command output
-          set -x
-          
-          # Use test env for build
-          cp .env.test .env.local
-          cp .env.test .env
+        run: bash scripts/ci/prepare-env.sh
       
       - name: Run Prisma Generate
         if: steps.cache-build.outputs.cache-hit != 'true'
@@ -221,7 +170,6 @@ jobs:
           path: |
             .next
             node_modules
-            .env.test
           retention-days: 1
       
       - name: Build summary
@@ -297,46 +245,18 @@ jobs:
           NEXTAUTH_SECRET_VAR: ${{ secrets.NEXTAUTH_SECRET }}
           PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID }}
           PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET }}
-          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY }}
+          PRIVY_TEST_EMAIL_VAR: ${{ secrets.PRIVY_TEST_EMAIL }}
+          PRIVY_TEST_PASSWORD_VAR: ${{ secrets.PRIVY_TEST_PASSWORD }}
+          ANTHROPIC_API_KEY_VAR: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY }}
+          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY }}
+          FAL_KEY_VAR: ${{ secrets.FAL_KEY }}
+          CRON_SECRET_VAR: ${{ secrets.CRON_SECRET }}
+          WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE }}
+          WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD }}
         run: |
-          set +x
-          
-          # Use test env from build artifacts if it exists, otherwise create from secrets
-          if [ -f .env.test ]; then
-            echo "Using .env.test from build artifacts"
-            cp .env.test .env.local
-            cp .env.test .env
-          else
-            echo "Creating .env from secrets"
-            DB_URL="postgresql://postgres:postgres@localhost:5432/test_db"
-            cat > .env << EOF
-          DATABASE_URL=${DB_URL}
-          DIRECT_DATABASE_URL=${DB_URL}
-          NEXTAUTH_SECRET=${NEXTAUTH_SECRET_VAR}
-          PRIVY_APP_ID=${PRIVY_APP_ID_VAR}
-          PRIVY_APP_SECRET=${PRIVY_APP_SECRET_VAR}
-          NEXT_PUBLIC_PRIVY_APP_ID=${PRIVY_APP_ID_VAR}
-          GROQ_API_KEY=${GROQ_API_KEY_VAR}
-          OPENAI_API_KEY=${OPENAI_API_KEY_VAR}
-          EOF
-            cp .env .env.local
-          fi
-          
-          set -x
-          
-          # Override DATABASE_URL with staging database if available (for integration testing)
-          if [ -n "$DATABASE_URL_SECRET" ]; then
-            echo "DATABASE_URL=$DATABASE_URL_SECRET" >> .env
-            echo "DATABASE_URL=$DATABASE_URL_SECRET" >> .env.local
-            echo "DIRECT_DATABASE_URL=$DATABASE_URL_SECRET" >> .env
-            echo "DIRECT_DATABASE_URL=$DATABASE_URL_SECRET" >> .env.local
-          fi
-          
-          # Generate Prisma client (required for tests)
+          bash scripts/ci/prepare-env.sh
           bun prisma generate
-          
-          # Run migrations (migrations may already be applied, so || true is intentional)
           bun prisma migrate deploy || true
       
       - name: Run Unit Tests
@@ -400,8 +320,7 @@ jobs:
           if [ -f .env.test ]; then
             echo "✅ .env.test found after download"
           else
-            echo "❌ .env.test NOT found after download"
-            exit 1
+            echo "ℹ️  .env.test not bundled; will recreate from secrets"
           fi
       
       - name: Install Playwright browsers
@@ -410,23 +329,21 @@ jobs:
       - name: Setup test environment
         env:
           DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL }}
+          NEXTAUTH_SECRET_VAR: ${{ secrets.NEXTAUTH_SECRET }}
+          PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID }}
+          PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET }}
+          PRIVY_TEST_EMAIL_VAR: ${{ secrets.PRIVY_TEST_EMAIL }}
+          PRIVY_TEST_PASSWORD_VAR: ${{ secrets.PRIVY_TEST_PASSWORD }}
+          ANTHROPIC_API_KEY_VAR: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY }}
+          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY }}
+          FAL_KEY_VAR: ${{ secrets.FAL_KEY }}
+          CRON_SECRET_VAR: ${{ secrets.CRON_SECRET }}
+          WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE }}
+          WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD }}
         run: |
-          # Use test env from build artifacts
-          cp .env.test .env.local
-          cp .env.test .env
-          
-          # Override DATABASE_URL with staging database if available (for integration testing)
-          if [ -n "$DATABASE_URL_SECRET" ]; then
-            echo "DATABASE_URL=$DATABASE_URL_SECRET" >> .env
-            echo "DATABASE_URL=$DATABASE_URL_SECRET" >> .env.local
-            echo "DIRECT_DATABASE_URL=$DATABASE_URL_SECRET" >> .env
-            echo "DIRECT_DATABASE_URL=$DATABASE_URL_SECRET" >> .env.local
-          fi
-          
-          # Generate Prisma client (required for server)
+          bash scripts/ci/prepare-env.sh
           bun prisma generate
-          
-          # Run migrations (migrations may already be applied, so || true is intentional)
           bun prisma migrate deploy || true
       
       - name: Start production server
@@ -497,8 +414,7 @@ jobs:
           if [ -f .env.test ]; then
             echo "✅ .env.test found after download"
           else
-            echo "❌ .env.test NOT found after download"
-            exit 1
+            echo "ℹ️  .env.test not bundled; will recreate from secrets"
           fi
       
       - name: Install Playwright browsers
@@ -507,23 +423,21 @@ jobs:
       - name: Setup test environment
         env:
           DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL }}
+          NEXTAUTH_SECRET_VAR: ${{ secrets.NEXTAUTH_SECRET }}
+          PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID }}
+          PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET }}
+          PRIVY_TEST_EMAIL_VAR: ${{ secrets.PRIVY_TEST_EMAIL }}
+          PRIVY_TEST_PASSWORD_VAR: ${{ secrets.PRIVY_TEST_PASSWORD }}
+          ANTHROPIC_API_KEY_VAR: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY }}
+          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY }}
+          FAL_KEY_VAR: ${{ secrets.FAL_KEY }}
+          CRON_SECRET_VAR: ${{ secrets.CRON_SECRET }}
+          WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE }}
+          WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD }}
         run: |
-          # Use test env from build artifacts
-          cp .env.test .env.local
-          cp .env.test .env
-          
-          # Override DATABASE_URL with staging database if available (for integration testing)
-          if [ -n "$DATABASE_URL_SECRET" ]; then
-            echo "DATABASE_URL=$DATABASE_URL_SECRET" >> .env
-            echo "DATABASE_URL=$DATABASE_URL_SECRET" >> .env.local
-            echo "DIRECT_DATABASE_URL=$DATABASE_URL_SECRET" >> .env
-            echo "DIRECT_DATABASE_URL=$DATABASE_URL_SECRET" >> .env.local
-          fi
-          
-          # Generate Prisma client (required for server)
+          bash scripts/ci/prepare-env.sh
           bun prisma generate
-          
-          # Run migrations (migrations may already be applied, so || true is intentional)
           bun prisma migrate deploy || true
       
       - name: Start production server
