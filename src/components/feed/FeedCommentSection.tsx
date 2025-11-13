@@ -398,7 +398,7 @@ export function FeedCommentSection({
                     className={cn(
                       'px-2 py-0.5 rounded text-xs capitalize transition-colors',
                       sortBy === option
-                        ? 'bg-[#0066FF] text-foreground'
+                        ? 'bg-[#0066FF] text-primary-foreground'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                     )}
                   >

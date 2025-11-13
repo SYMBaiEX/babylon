@@ -197,7 +197,7 @@ export default function DebugPage() {
               <button
                 onClick={handleStart}
                 disabled={actionLoading}
-                className="px-4 py-2 bg-blue-600 text-foreground rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-blue-600 text-primary-foreground rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Create & Start Game
               </button>
@@ -265,7 +265,7 @@ export default function DebugPage() {
                     className={`flex-1 px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed ${
                       game.isRunning
                         ? 'border border-gray-300 bg-white text-gray-700 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300'
-                        : 'bg-blue-600 text-foreground hover:bg-blue-700'
+                        : 'bg-blue-600 text-primary-foreground hover:bg-blue-700'
                     }`}
                   >
                     {game.isRunning ? '✅ Game Running' : '▶️  Start Game'}
@@ -276,7 +276,7 @@ export default function DebugPage() {
                     className={`flex-1 px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed ${
                       !game.isRunning
                         ? 'border border-gray-300 bg-white text-gray-700 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300'
-                        : 'bg-red-600 text-foreground hover:bg-red-700'
+                        : 'bg-red-600 text-primary-foreground hover:bg-red-700'
                     }`}
                   >
                     {!game.isRunning ? '⏸️  Game Paused' : '⏸️  Pause Game'}

@@ -217,7 +217,7 @@ export function PerpTradingModal({
               className={cn(
                 'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer',
                 side === 'long'
-                  ? 'bg-green-600 text-foreground'
+                  ? 'bg-green-600 text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted'
               )}
             >
@@ -229,7 +229,7 @@ export function PerpTradingModal({
               className={cn(
                 'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer',
                 side === 'short'
-                  ? 'bg-red-600 text-foreground'
+                  ? 'bg-red-600 text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted'
               )}
             >

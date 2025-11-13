@@ -156,7 +156,7 @@ export function AgentChat({ agent, onUpdate }: AgentChatProps) {
             className={cn(
               'px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed',
               usePro
-                ? 'bg-[#0066FF] text-foreground'
+                ? 'bg-[#0066FF] text-primary-foreground'
                 : 'bg-muted hover:bg-muted/80 text-foreground'
             )}
           >
@@ -198,7 +198,7 @@ export function AgentChat({ agent, onUpdate }: AgentChatProps) {
                 className={cn(
                   'max-w-[70%] rounded-lg p-3',
                   message.role === 'user'
-                    ? 'bg-[#0066FF] text-foreground'
+                    ? 'bg-[#0066FF] text-primary-foreground'
                     : 'bg-muted'
                 )}
               >

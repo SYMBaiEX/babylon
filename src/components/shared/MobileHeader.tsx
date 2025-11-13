@@ -314,7 +314,7 @@ function MobileHeaderContent() {
                     className={cn(
                       'flex items-center gap-4 px-4 py-3 transition-colors relative',
                       item.active 
-                        ? 'bg-[#0066FF] text-foreground font-bold' 
+                        ? 'bg-[#0066FF] text-primary-foreground font-bold' 
                         : 'text-sidebar-foreground hover:bg-sidebar-accent font-semibold'
                     )}
                   >

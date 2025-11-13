@@ -624,7 +624,7 @@ export function PositionDetailModal({
                       className={cn(
                         'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2',
                         side === 'yes'
-                          ? 'bg-green-600 text-foreground'
+                          ? 'bg-green-600 text-primary-foreground'
                           : 'bg-muted text-muted-foreground hover:bg-muted'
                       )}
                     >
@@ -636,7 +636,7 @@ export function PositionDetailModal({
                       className={cn(
                         'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2',
                         side === 'no'
-                          ? 'bg-red-600 text-foreground'
+                          ? 'bg-red-600 text-primary-foreground'
                           : 'bg-muted text-muted-foreground hover:bg-muted'
                       )}
                     >
@@ -731,7 +731,7 @@ export function PositionDetailModal({
                       className={cn(
                         'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2',
                         side === 'long'
-                          ? 'bg-green-600 text-foreground'
+                          ? 'bg-green-600 text-primary-foreground'
                           : 'bg-muted text-muted-foreground hover:bg-muted'
                       )}
                     >
@@ -743,7 +743,7 @@ export function PositionDetailModal({
                       className={cn(
                         'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-2',
                         side === 'short'
-                          ? 'bg-red-600 text-foreground'
+                          ? 'bg-red-600 text-primary-foreground'
                           : 'bg-muted text-muted-foreground hover:bg-muted'
                       )}
                     >

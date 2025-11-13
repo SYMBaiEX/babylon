@@ -157,7 +157,7 @@ export function AgentWallet({ agent, onUpdate }: AgentWalletProps) {
             className={cn(
               'flex-1 px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2',
               action === 'deposit'
-                ? 'bg-[#0066FF] text-foreground'
+                ? 'bg-[#0066FF] text-primary-foreground'
                 : 'bg-muted hover:bg-muted/80 text-foreground'
             )}
           >
@@ -169,7 +169,7 @@ export function AgentWallet({ agent, onUpdate }: AgentWalletProps) {
             className={cn(
               'flex-1 px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2',
               action === 'withdraw'
-                ? 'bg-[#0066FF] text-foreground'
+                ? 'bg-[#0066FF] text-primary-foreground'
                 : 'bg-muted hover:bg-muted/80 text-foreground'
             )}
           >

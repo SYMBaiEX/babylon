@@ -205,7 +205,7 @@ export function PredictionTradingModal({
               className={cn(
                 'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-3 text-sm sm:text-base cursor-pointer',
                 side === 'yes'
-                  ? 'bg-green-600 text-foreground'
+                  ? 'bg-green-600 text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted'
               )}
             >
@@ -217,7 +217,7 @@ export function PredictionTradingModal({
               className={cn(
                 'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-3 text-sm sm:text-base cursor-pointer',
                 side === 'no'
-                  ? 'bg-red-600 text-foreground'
+                  ? 'bg-red-600 text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted'
               )}
             >

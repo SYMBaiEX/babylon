@@ -387,7 +387,7 @@ export default function LeaderboardPage() {
                   onClick={() => handleTabChange(tab.key)}
                   className={`whitespace-nowrap px-3 py-2 rounded-full border text-sm font-medium transition-colors ${
                     isActive
-                      ? 'bg-[#0066FF] border-[#0066FF] text-foreground shadow-sm'
+                      ? 'bg-[#0066FF] border-[#0066FF] text-primary-foreground shadow-sm'
                       : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/40'
                   }`}
                 >
