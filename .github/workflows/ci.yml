@@ -92,19 +92,19 @@ jobs:
       - name: Cache hit - prepare cached build
         if: steps.cache-build.outputs.cache-hit == 'true'
         env:
-          DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL }}
-          NEXTAUTH_SECRET_VAR: ${{ secrets.NEXTAUTH_SECRET }}
-          PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID }}
-          PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET }}
-          PRIVY_TEST_EMAIL_VAR: ${{ secrets.PRIVY_TEST_EMAIL }}
-          PRIVY_TEST_PASSWORD_VAR: ${{ secrets.PRIVY_TEST_PASSWORD }}
-          ANTHROPIC_API_KEY_VAR: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY }}
-          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY }}
-          FAL_KEY_VAR: ${{ secrets.FAL_KEY }}
-          CRON_SECRET_VAR: ${{ secrets.CRON_SECRET }}
-          WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE }}
-          WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD }}
+          DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL || '' }}
+          NEXTAUTH_SECRET_VAR: ${{ secrets.NEXTAUTH_SECRET || '' }}
+          PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID || '' }}
+          PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET || '' }}
+          PRIVY_TEST_EMAIL_VAR: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
+          PRIVY_TEST_PASSWORD_VAR: ${{ secrets.PRIVY_TEST_PASSWORD || '' }}
+          ANTHROPIC_API_KEY_VAR: ${{ secrets.ANTHROPIC_API_KEY || '' }}
+          OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY || '' }}
+          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY || '' }}
+          FAL_KEY_VAR: ${{ secrets.FAL_KEY || '' }}
+          CRON_SECRET_VAR: ${{ secrets.CRON_SECRET || '' }}
+          WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE || '' }}
+          WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD || '' }}
         run: |
           echo "⚡ Build cache hit detected. Skipping fresh build."
           bash scripts/ci/prepare-env.sh
@@ -119,19 +119,19 @@ jobs:
       - name: Setup environment variables
         if: steps.cache-build.outputs.cache-hit != 'true'
         env:
-          DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL }}
-          NEXTAUTH_SECRET_VAR: ${{ secrets.NEXTAUTH_SECRET }}
-          PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID }}
-          PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET }}
-          PRIVY_TEST_EMAIL_VAR: ${{ secrets.PRIVY_TEST_EMAIL }}
-          PRIVY_TEST_PASSWORD_VAR: ${{ secrets.PRIVY_TEST_PASSWORD }}
-          ANTHROPIC_API_KEY_VAR: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY }}
-          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY }}
-          FAL_KEY_VAR: ${{ secrets.FAL_KEY }}
-          CRON_SECRET_VAR: ${{ secrets.CRON_SECRET }}
-          WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE }}
-          WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD }}
+          DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL || '' }}
+          NEXTAUTH_SECRET_VAR: ${{ secrets.NEXTAUTH_SECRET || '' }}
+          PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID || '' }}
+          PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET || '' }}
+          PRIVY_TEST_EMAIL_VAR: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
+          PRIVY_TEST_PASSWORD_VAR: ${{ secrets.PRIVY_TEST_PASSWORD || '' }}
+          ANTHROPIC_API_KEY_VAR: ${{ secrets.ANTHROPIC_API_KEY || '' }}
+          OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY || '' }}
+          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY || '' }}
+          FAL_KEY_VAR: ${{ secrets.FAL_KEY || '' }}
+          CRON_SECRET_VAR: ${{ secrets.CRON_SECRET || '' }}
+          WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE || '' }}
+          WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD || '' }}
         run: bash scripts/ci/prepare-env.sh
       
       - name: Run Prisma Generate
@@ -241,19 +241,19 @@ jobs:
       
       - name: Setup test environment
         env:
-          DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL }}
-          NEXTAUTH_SECRET_VAR: ${{ secrets.NEXTAUTH_SECRET }}
-          PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID }}
-          PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET }}
-          PRIVY_TEST_EMAIL_VAR: ${{ secrets.PRIVY_TEST_EMAIL }}
-          PRIVY_TEST_PASSWORD_VAR: ${{ secrets.PRIVY_TEST_PASSWORD }}
-          ANTHROPIC_API_KEY_VAR: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY }}
-          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY }}
-          FAL_KEY_VAR: ${{ secrets.FAL_KEY }}
-          CRON_SECRET_VAR: ${{ secrets.CRON_SECRET }}
-          WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE }}
-          WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD }}
+          DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL || '' }}
+          NEXTAUTH_SECRET_VAR: ${{ secrets.NEXTAUTH_SECRET || '' }}
+          PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID || '' }}
+          PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET || '' }}
+          PRIVY_TEST_EMAIL_VAR: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
+          PRIVY_TEST_PASSWORD_VAR: ${{ secrets.PRIVY_TEST_PASSWORD || '' }}
+          ANTHROPIC_API_KEY_VAR: ${{ secrets.ANTHROPIC_API_KEY || '' }}
+          OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY || '' }}
+          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY || '' }}
+          FAL_KEY_VAR: ${{ secrets.FAL_KEY || '' }}
+          CRON_SECRET_VAR: ${{ secrets.CRON_SECRET || '' }}
+          WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE || '' }}
+          WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD || '' }}
         run: |
           bash scripts/ci/prepare-env.sh
           bunx prisma generate
@@ -328,19 +328,19 @@ jobs:
       
       - name: Setup test environment
         env:
-          DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL }}
-          NEXTAUTH_SECRET_VAR: ${{ secrets.NEXTAUTH_SECRET }}
-          PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID }}
-          PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET }}
-          PRIVY_TEST_EMAIL_VAR: ${{ secrets.PRIVY_TEST_EMAIL }}
-          PRIVY_TEST_PASSWORD_VAR: ${{ secrets.PRIVY_TEST_PASSWORD }}
-          ANTHROPIC_API_KEY_VAR: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY }}
-          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY }}
-          FAL_KEY_VAR: ${{ secrets.FAL_KEY }}
-          CRON_SECRET_VAR: ${{ secrets.CRON_SECRET }}
-          WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE }}
-          WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD }}
+          DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL || '' }}
+          NEXTAUTH_SECRET_VAR: ${{ secrets.NEXTAUTH_SECRET || '' }}
+          PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID || '' }}
+          PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET || '' }}
+          PRIVY_TEST_EMAIL_VAR: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
+          PRIVY_TEST_PASSWORD_VAR: ${{ secrets.PRIVY_TEST_PASSWORD || '' }}
+          ANTHROPIC_API_KEY_VAR: ${{ secrets.ANTHROPIC_API_KEY || '' }}
+          OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY || '' }}
+          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY || '' }}
+          FAL_KEY_VAR: ${{ secrets.FAL_KEY || '' }}
+          CRON_SECRET_VAR: ${{ secrets.CRON_SECRET || '' }}
+          WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE || '' }}
+          WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD || '' }}
         run: |
           bash scripts/ci/prepare-env.sh
           bunx prisma generate
@@ -422,19 +422,19 @@ jobs:
       
       - name: Setup test environment
         env:
-          DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL }}
-          NEXTAUTH_SECRET_VAR: ${{ secrets.NEXTAUTH_SECRET }}
-          PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID }}
-          PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET }}
-          PRIVY_TEST_EMAIL_VAR: ${{ secrets.PRIVY_TEST_EMAIL }}
-          PRIVY_TEST_PASSWORD_VAR: ${{ secrets.PRIVY_TEST_PASSWORD }}
-          ANTHROPIC_API_KEY_VAR: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY }}
-          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY }}
-          FAL_KEY_VAR: ${{ secrets.FAL_KEY }}
-          CRON_SECRET_VAR: ${{ secrets.CRON_SECRET }}
-          WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE }}
-          WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD }}
+          DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL || '' }}
+          NEXTAUTH_SECRET_VAR: ${{ secrets.NEXTAUTH_SECRET || '' }}
+          PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID || '' }}
+          PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET || '' }}
+          PRIVY_TEST_EMAIL_VAR: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
+          PRIVY_TEST_PASSWORD_VAR: ${{ secrets.PRIVY_TEST_PASSWORD || '' }}
+          ANTHROPIC_API_KEY_VAR: ${{ secrets.ANTHROPIC_API_KEY || '' }}
+          OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY || '' }}
+          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY || '' }}
+          FAL_KEY_VAR: ${{ secrets.FAL_KEY || '' }}
+          CRON_SECRET_VAR: ${{ secrets.CRON_SECRET || '' }}
+          WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE || '' }}
+          WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD || '' }}
         run: |
           bash scripts/ci/prepare-env.sh
           bunx prisma generate
@@ -454,10 +454,10 @@ jobs:
         run: bunx playwright test --config=synpress.config.ts --reporter=list,json
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
-          WALLET_SEED_PHRASE: ${{ secrets.WALLET_SEED_PHRASE }}
-          WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD }}
-          PRIVY_TEST_EMAIL: ${{ secrets.PRIVY_TEST_EMAIL }}
-          PRIVY_TEST_PASSWORD: ${{ secrets.PRIVY_TEST_PASSWORD }}
+          WALLET_SEED_PHRASE: ${{ secrets.WALLET_SEED_PHRASE || '' }}
+          WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD || '' }}
+          PRIVY_TEST_EMAIL: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
+          PRIVY_TEST_PASSWORD: ${{ secrets.PRIVY_TEST_PASSWORD || '' }}
       
       - name: Upload Synpress test results
         if: always()
