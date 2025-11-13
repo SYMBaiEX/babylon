@@ -209,10 +209,10 @@ export default function AgentDetailPage() {
             <div>
               <h1 className="text-2xl font-bold mb-1">{agent.name}</h1>
               {agent.description && (
-                <p className="text-gray-400 mb-2">{agent.description}</p>
+                <p className="text-foreground/80 mb-2">{agent.description}</p>
               )}
               <div className="flex items-center gap-4 text-sm">
-                <span className={agent.autonomousEnabled ? 'text-green-400' : 'text-gray-400'}>
+                <span className={agent.autonomousEnabled ? 'text-green-400' : 'text-foreground/80'}>
                   {agent.autonomousEnabled ? (
                     <>
                       <Activity className="w-3 h-3 inline mr-1" />
@@ -222,8 +222,8 @@ export default function AgentDetailPage() {
                     'Autonomous Disabled'
                   )}
                 </span>
-                <span className="text-gray-600">•</span>
-                <span className="text-gray-400 capitalize">{agent.modelTier} Mode</span>
+                <span className="text-foreground">•</span>
+                <span className="text-foreground/80 capitalize">{agent.modelTier} Mode</span>
                 {agent.onChainRegistered && (
                   <>
                     <span className="text-gray-600">•</span>

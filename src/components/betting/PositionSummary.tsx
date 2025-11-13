@@ -80,7 +80,7 @@ export function PositionSummary({ market }: { market: Market }) {
 
           {/* Claim Button */}
           {market.resolved && !position?.hasClaimed && (
-            <button className="w-full bg-green-600 hover:bg-green-700 text-foreground font-semibold py-3 rounded-lg transition-colors">
+            <button className="w-full bg-green-600 hover:bg-green-700 text-primary-foreground font-semibold py-3 rounded-lg transition-colors">
               Claim Winnings
             </button>
           )}

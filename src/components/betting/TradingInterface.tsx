@@ -83,7 +83,7 @@ export function TradingInterface({ market }: { market: Market }) {
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           placeholder="0.00"
-          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-foreground placeholder-gray-500 focus:outline-none focus:border-blue-500"
+          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-primary-foreground placeholder-gray-500 focus:outline-none focus:border-blue-500"
           disabled={!address || market.resolved}
         />
       </div>
@@ -97,7 +97,7 @@ export function TradingInterface({ market }: { market: Market }) {
         <button
           onClick={handleTrade}
           disabled={!amount || parseFloat(amount) <= 0 || isLoading}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-foreground font-semibold py-3 px-6 rounded-lg transition-colors"
+          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-primary-foreground font-semibold py-3 px-6 rounded-lg transition-colors"
         >
           {isLoading ? 'Trading...' : `Buy ${side.toUpperCase()} Shares`}
         </button>

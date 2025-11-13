@@ -296,13 +296,13 @@ export function PnLShareModal({
         >
           <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
             <div>
-              <h2 className="text-xl font-semibold text-foreground">{modalTitle}</h2>
-              <p className="text-xs text-foreground/60">{modalSubtitle}</p>
+              <h2 className="text-xl font-semibold text-primary-foreground">{modalTitle}</h2>
+              <p className="text-xs text-primary-foreground/60">{modalSubtitle}</p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-2 text-foreground/70 transition hover:bg-white/10 hover:text-foreground"
+              className="rounded-lg p-2 text-primary-foreground/70 transition hover:bg-white/10 hover:text-primary-foreground"
               aria-label="Close share modal"
             >
               <X className="h-5 w-5" />
@@ -317,7 +317,7 @@ export function PnLShareModal({
                   <div className="flex h-full items-center justify-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
-                      <p className="text-sm text-foreground/60">Generating preview...</p>
+                      <p className="text-sm text-primary-foreground/60">Generating preview...</p>
                     </div>
                   </div>
                 ) : previewImageUrl ? (
@@ -327,12 +327,12 @@ export function PnLShareModal({
                     className="h-full w-full object-contain"
                   />
                 ) : (
-                  <div className="flex h-full items-center justify-center text-sm text-foreground/60">
+                  <div className="flex h-full items-center justify-center text-sm text-primary-foreground/60">
                     Preparing preview...
                   </div>
                 )
               ) : (
-                <div className="flex h-full items-center justify-center text-sm text-foreground/70">
+                <div className="flex h-full items-center justify-center text-sm text-primary-foreground/70">
                   Sign in to generate your personalized P&amp;L card.
                 </div>
               )}
@@ -374,7 +374,7 @@ export function PnLShareModal({
                 type="button"
                 onClick={() => handleShare('twitter')}
                 disabled={!canShare || sharing === 'twitter' || twitterAuthLoading}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-foreground transition hover:border-white/30 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-primary-foreground transition hover:border-white/30 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Twitter className="h-4 w-4 text-sky-400" />
                 <span className="hidden sm:inline">Share to X</span>
@@ -384,7 +384,7 @@ export function PnLShareModal({
                 type="button"
                 onClick={() => handleShare('farcaster')}
                 disabled={!canShare || sharing === 'farcaster'}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-foreground transition hover:border-white/30 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-primary-foreground transition hover:border-white/30 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <FarcasterIcon className="h-4 w-4 text-purple-400" />
                 <span className="hidden sm:inline">Share to Farcaster</span>

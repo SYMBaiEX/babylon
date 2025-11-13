@@ -666,9 +666,9 @@ export function GroupManagementModal({
                   className={cn(
                     'flex-1 px-4 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50',
                     confirmAction.type === 'delete' || confirmAction.type === 'remove'
-                      ? 'bg-red-500 text-foreground hover:bg-red-600'
+                      ? 'bg-red-500 text-primary-foreground hover:bg-red-600'
                       : confirmAction.type === 'leave'
-                      ? 'bg-yellow-500 text-foreground hover:bg-yellow-600'
+                      ? 'bg-yellow-500 text-primary-foreground hover:bg-yellow-600'
                       : 'bg-primary text-primary-foreground hover:bg-primary/90'
                   )}
                 >

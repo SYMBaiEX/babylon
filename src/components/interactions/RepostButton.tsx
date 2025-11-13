@@ -314,11 +314,11 @@ export function RepostButton({
                       setShowConfirmation(false);
                       setQuoteComment('');
                     }}
-                    className="text-foreground/70 hover:text-foreground transition-colors"
+                    className="text-primary-foreground/70 hover:text-primary-foreground transition-colors"
                   >
                     <X size={20} />
                   </button>
-                  <h2 className="text-lg font-semibold text-foreground">
+                  <h2 className="text-lg font-semibold text-primary-foreground">
                     {quoteComment.trim() ? 'Quote' : 'Repost'}
                   </h2>
                 </div>
@@ -360,7 +360,7 @@ export function RepostButton({
                   className={cn(
                     'w-full p-4 rounded-xl mb-1',
                     'border-0 bg-transparent',
-                    'text-foreground text-base placeholder:text-foreground/40',
+                    'text-primary-foreground text-base placeholder:text-primary-foreground/40',
                     'resize-none focus:outline-none',
                     'transition-colors'
                   )}
@@ -390,26 +390,26 @@ export function RepostButton({
                   )}>
                     {/* Original Post Author */}
                     <div className="flex items-start gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-foreground font-semibold shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-primary-foreground font-semibold shrink-0">
                         {postData.authorName[0]?.toUpperCase() || '?'}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold text-foreground truncate">
+                          <span className="font-semibold text-primary-foreground truncate">
                             {postData.authorName}
                           </span>
-                          <span className="text-foreground/40 text-sm">
+                          <span className="text-primary-foreground/40 text-sm">
                             {formatTime(postData.timestamp)}
                           </span>
                         </div>
-                        <span className="text-foreground/50 text-sm">
+                        <span className="text-primary-foreground/50 text-sm">
                           @{postData.authorUsername || postData.authorId}
                         </span>
                       </div>
                     </div>
                     
                     {/* Original Post Content */}
-                    <p className="text-foreground/90 leading-relaxed whitespace-pre-wrap break-words">
+                    <p className="text-primary-foreground/90 leading-relaxed whitespace-pre-wrap break-words">
                       {postData.content}
                     </p>
                   </div>

@@ -274,7 +274,7 @@ export function AgentChat({ agent, onUpdate }: AgentChatProps) {
             <button
               onClick={sendMessage}
               disabled={!input.trim() || sending || agent.pointsBalance < 1}
-              className="px-4 py-2 rounded-lg bg-[#0066FF] hover:bg-[#2952d9] text-foreground font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-4 py-2 rounded-lg bg-[#0066FF] hover:bg-[#2952d9] text-primary-foreground font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               <Send className="w-4 h-4" />
             </button>

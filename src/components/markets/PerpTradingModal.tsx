@@ -370,7 +370,7 @@ export function PerpTradingModal({
               balanceLoading
             }
             className={cn(
-              'w-full py-3 rounded font-bold text-foreground text-lg transition-all cursor-pointer flex items-center justify-center gap-2',
+              'w-full py-3 rounded font-bold text-primary-foreground text-lg transition-all cursor-pointer flex items-center justify-center gap-2',
               side === 'long'
                 ? 'bg-green-600 hover:bg-green-700'
                 : 'bg-red-600 hover:bg-red-700',

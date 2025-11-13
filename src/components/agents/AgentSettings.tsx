@@ -261,7 +261,7 @@ export function AgentSettings({ agent, onUpdate }: AgentSettingsProps) {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-6 py-2 rounded-lg bg-[#0066FF] hover:bg-[#2952d9] text-foreground font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          className="px-6 py-2 rounded-lg bg-[#0066FF] hover:bg-[#2952d9] text-primary-foreground font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
           <Save className="w-4 h-4" />
           {saving ? 'Saving...' : 'Save Changes'}
