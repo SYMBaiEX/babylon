@@ -255,6 +255,7 @@ jobs:
           WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE || '' }}
           WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD || '' }}
         run: |
+          set -e
           bash scripts/ci/prepare-env.sh
           bunx prisma generate
           
@@ -262,15 +263,25 @@ jobs:
           echo "⏳ Waiting for PostgreSQL to be ready..."
           timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
           
-          # Push schema to database (better for test environments than migrate deploy)
+          # Explicitly set DATABASE_URL and push schema
           echo "📊 Pushing database schema..."
+          export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db"
+          export DIRECT_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db"
           bunx prisma db push --skip-generate --accept-data-loss
+          
+          # Verify tables were created
+          echo "✅ Verifying database schema..."
+          psql "$DATABASE_URL" -c "\dt" || echo "⚠️ Could not list tables"
       
       - name: Run Unit Tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: bun test tests/unit/ --coverage
         continue-on-error: false
       
       - name: Run Integration Tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: bun test tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts
         continue-on-error: false
       
@@ -349,6 +360,7 @@ jobs:
           WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE || '' }}
           WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD || '' }}
         run: |
+          set -e
           bash scripts/ci/prepare-env.sh
           bunx prisma generate
           
@@ -356,9 +368,15 @@ jobs:
           echo "⏳ Waiting for PostgreSQL to be ready..."
           timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
           
-          # Push schema to database (better for test environments than migrate deploy)
+          # Explicitly set DATABASE_URL and push schema
           echo "📊 Pushing database schema..."
+          export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db"
+          export DIRECT_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db"
           bunx prisma db push --skip-generate --accept-data-loss
+          
+          # Verify tables were created
+          echo "✅ Verifying database schema..."
+          psql "$DATABASE_URL" -c "\dt" || echo "⚠️ Could not list tables"
       
       - name: Start production server
         run: |
@@ -367,12 +385,14 @@ jobs:
           # Wait for server to be ready
           timeout 120 bash -c 'until curl -f http://localhost:3000/api/health; do sleep 2; done' || exit 1
         env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           PORT: 3000
           PLAYWRIGHT_BASE_URL: http://localhost:3000
       
       - name: Run Playwright E2E tests
         run: bunx playwright test tests/e2e --reporter=list,json
         env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           PLAYWRIGHT_BASE_URL: http://localhost:3000
       
       - name: Upload E2E test results
@@ -450,6 +470,7 @@ jobs:
           WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE || '' }}
           WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD || '' }}
         run: |
+          set -e
           bash scripts/ci/prepare-env.sh
           bunx prisma generate
           
@@ -457,9 +478,15 @@ jobs:
           echo "⏳ Waiting for PostgreSQL to be ready..."
           timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
           
-          # Push schema to database (better for test environments than migrate deploy)
+          # Explicitly set DATABASE_URL and push schema
           echo "📊 Pushing database schema..."
+          export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db"
+          export DIRECT_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db"
           bunx prisma db push --skip-generate --accept-data-loss
+          
+          # Verify tables were created
+          echo "✅ Verifying database schema..."
+          psql "$DATABASE_URL" -c "\dt" || echo "⚠️ Could not list tables"
       
       - name: Start production server
         run: |
@@ -468,12 +495,14 @@ jobs:
           # Wait for server to be ready
           timeout 120 bash -c 'until curl -f http://localhost:3000/api/health; do sleep 2; done' || exit 1
         env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           PORT: 3000
           PLAYWRIGHT_BASE_URL: http://localhost:3000
       
       - name: Run Synpress tests
         run: bunx playwright test --config=synpress.config.ts --reporter=list,json
         env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           PLAYWRIGHT_BASE_URL: http://localhost:3000
           WALLET_SEED_PHRASE: ${{ secrets.WALLET_SEED_PHRASE || '' }}
           WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD || '' }}
