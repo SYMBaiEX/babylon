@@ -64,6 +64,22 @@ export const POST = withErrorHandling(async (
     // First try to find Market by ID
     let market = await db.market.findUnique({
       where: { id: marketId },
+      select: {
+        id: true,
+        question: true,
+        description: true,
+        createdAt: true,
+        updatedAt: true,
+        gameId: true,
+        dayNumber: true,
+        yesShares: true,
+        noShares: true,
+        liquidity: true,
+        resolved: true,
+        resolution: true,
+        endDate: true,
+        onChainMarketId: true,
+      },
     });
     logger.info('Step 4a: Market lookup result', { found: !!market }, 'POST /api/markets/predictions/[id]/buy');
 
@@ -146,6 +162,22 @@ export const POST = withErrorHandling(async (
           updatedAt: now,
         },
         update: {},
+        select: {
+          id: true,
+          question: true,
+          description: true,
+          createdAt: true,
+          updatedAt: true,
+          gameId: true,
+          dayNumber: true,
+          yesShares: true,
+          noShares: true,
+          liquidity: true,
+          resolved: true,
+          resolution: true,
+          endDate: true,
+          onChainMarketId: true,
+        },
       });
 
       logger.info(`Auto-created market from question`, { 
@@ -158,13 +190,19 @@ export const POST = withErrorHandling(async (
       if (!market.onChainMarketId) {
         try {
           const { ensureMarketOnChain } = await import('@/lib/services/onchain-market-service');
-          await ensureMarketOnChain(market.id).catch((error) => {
-            logger.warn('Failed to create market on-chain (non-blocking)', { error, marketId: market.id }, 'POST /api/markets/predictions/[id]/buy');
+          const currentMarketId = market.id;
+          await ensureMarketOnChain(currentMarketId).catch((error) => {
+            logger.warn('Failed to create market on-chain (non-blocking)', { error, marketId: currentMarketId }, 'POST /api/markets/predictions/[id]/buy');
           });
         } catch (error) {
           logger.debug('On-chain market service not available', { error }, 'POST /api/markets/predictions/[id]/buy');
         }
       }
+    }
+    
+    // TypeScript guard: market should always exist at this point
+    if (!market) {
+      throw new NotFoundError('Market', marketId);
     }
     
     logger.info('Step 5: Market ready', { marketId: market.id }, 'POST /api/markets/predictions/[id]/buy');

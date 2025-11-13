@@ -35,17 +35,22 @@ import {
   ambientPosts,
   analystReaction,
   commentary,
+  companyPost,
   conspiracy,
   dayTransition,
+  directReaction,
   journalistPost,
+  mediaPost,
   minuteAmbient,
   newsPosts,
   priceAnnouncement,
   questionResolvedFeed,
   reactions,
   renderPrompt,
+  reply,
   replies,
-  stockTicker
+  stockTicker,
+  governmentPost
 } from '@/prompts';
 import type {
   Actor,
@@ -63,6 +68,7 @@ import {
   formatActorVoiceContext,
   shuffleArray,
 } from '@/shared/utils';
+import { generateWorldContext } from '@/lib/prompts/world-context';
 import { EventEmitter } from 'events';
 import type { BabylonLLMClient } from '../generator/llm/openai-client';
 import { generateActorContext } from './EmotionSystem';
@@ -130,6 +136,14 @@ export class FeedGenerator extends EventEmitter {
   private relationships: ActorRelationship[] | ActorConnection[] = [];
   private organizations: Organization[] = [];
   private actorGroupContexts: Map<string, string> = new Map();
+  
+  // World context caching for performance
+  private worldContextCache?: {
+    context: Awaited<ReturnType<typeof generateWorldContext>>;
+    timestamp: number;
+    day?: number;
+  };
+  private readonly WORLD_CONTEXT_TTL = 60000; // 1 minute cache
 
   constructor(llm?: BabylonLLMClient) {
     super();
@@ -162,6 +176,52 @@ export class FeedGenerator extends EventEmitter {
    */
   setRelationships(relationships: ActorRelationship[] | ActorConnection[]) {
     this.relationships = relationships;
+  }
+
+  /**
+   * Get cached or generate fresh world context
+   * Caches world context for 1 minute to reduce database queries
+   */
+  private async getWorldContext(day?: number, options?: { maxActors?: number; includeMarkets?: boolean; includePredictions?: boolean; includeTrades?: boolean }): Promise<Awaited<ReturnType<typeof generateWorldContext>>> {
+    const now = Date.now();
+    const cacheKey = `${day || 'default'}-${options?.maxActors || 20}`;
+    
+    // Check cache validity
+    if (this.worldContextCache && 
+        (now - this.worldContextCache.timestamp) < this.WORLD_CONTEXT_TTL &&
+        this.worldContextCache.day === day) {
+      logger.debug(`Using cached world context (age: ${now - this.worldContextCache.timestamp}ms)`, { day, cacheKey }, 'FeedGenerator');
+      return this.worldContextCache.context;
+    }
+
+    // Generate fresh context with performance logging
+    const startTime = Date.now();
+    const context = await generateWorldContext({
+      maxActors: options?.maxActors || 20,
+      includeMarkets: options?.includeMarkets ?? true,
+      includePredictions: options?.includePredictions ?? true,
+      includeTrades: options?.includeTrades ?? false,
+    });
+    const duration = Date.now() - startTime;
+    
+    logger.debug(`World context generated in ${duration}ms`, { day, cacheKey, duration }, 'FeedGenerator');
+    
+    // Cache the result
+    this.worldContextCache = {
+      context,
+      timestamp: now,
+      day,
+    };
+    
+    return context;
+  }
+
+  /**
+   * Clear world context cache (useful for testing or when data changes significantly)
+   */
+  clearWorldContextCache(): void {
+    this.worldContextCache = undefined;
+    logger.debug('World context cache cleared', undefined, 'FeedGenerator');
   }
   /**
    * Generate a day's worth of feed activity from world events
@@ -452,13 +512,24 @@ export class FeedGenerator extends EventEmitter {
    NO hashtags or emojis.`;
     }).join('\n');
 
+    // Get world context for batch (cached)
+    const worldContext = await this.getWorldContext(undefined, {
+      maxActors: 30,
+      includeMarkets: true,
+      includePredictions: true,
+      includeTrades: false,
+    });
+
     const prompt = renderPrompt(newsPosts, {
       eventDescription: worldEvent.description,
       eventType: worldEvent.type,
       sourceContext,
       outcomeFrame,
       mediaCount: mediaEntities.length.toString(),
-      mediaList
+      mediaList,
+      phaseContext: '', // Can be added if needed
+      orgBehaviorContext: '',
+      ...worldContext,
     });
 
     const maxRetries = 5;
@@ -537,11 +608,23 @@ export class FeedGenerator extends EventEmitter {
    React to event. Your private group chats inform your perspective.
    Write as YOURSELF (first person). Max 280 chars. No hashtags/emojis.`).join('\n');
 
+    // Get world context for batch (cached)
+    const worldContext = await this.getWorldContext(undefined, {
+      maxActors: 30, // More actors for batch operations
+      includeMarkets: true,
+      includePredictions: true,
+      includeTrades: false,
+    });
+
     const prompt = renderPrompt(reactions, {
       eventDescription: worldEvent.description,
       eventContext,
       actorCount: actors.length.toString(),
-      actorsList
+      actorsList,
+      phaseContext: '', // Can be added if needed
+      relationshipContext: '',
+      previousPostsContext: '',
+      ...worldContext,
     });
 
     const maxRetries = 5;
@@ -611,10 +694,21 @@ export class FeedGenerator extends EventEmitter {
    Let mood subtly influence tone. Match their writing style.
    NO hashtags or emojis.`).join('\n');
 
+    // Get world context for batch (cached)
+    const worldContext = await this.getWorldContext(undefined, {
+      maxActors: 30,
+      includeMarkets: true,
+      includePredictions: true,
+      includeTrades: false,
+    });
+
     const prompt = renderPrompt(commentary, {
       eventDescription: worldEvent.description,
       commentatorCount: commentators.length.toString(),
-      commentatorsList
+      commentatorsList,
+      previousPostsContext: '',
+      groupContext: '',
+      ...worldContext,
     });
 
     const maxRetries = 5;
@@ -675,10 +769,19 @@ export class FeedGenerator extends EventEmitter {
    NO hashtags or emojis.
    ${outcome ? "Claim it's a distraction" : "Say they're hiding worse"}`).join('\n');
 
+    // Get world context for batch (cached)
+    const worldContext = await this.getWorldContext(undefined, {
+      maxActors: 30,
+      includeMarkets: true,
+      includePredictions: true,
+      includeTrades: false,
+    });
+
     const prompt = renderPrompt(conspiracy, {
       eventDescription: worldEvent.description,
       conspiracistCount: conspiracists.length.toString(),
-      conspiracistsList
+      conspiracistsList,
+      ...worldContext,
     });
 
     const maxRetries = 5;
@@ -803,36 +906,31 @@ export class FeedGenerator extends EventEmitter {
 
     // Determine which actor might have "leaked" this to the media
     const potentialSource = allActors.find(a => event.actors.includes(a.id));
+    const sourceHint = potentialSource
+      ? `Hint: You received information from sources close to ${potentialSource.name} (but DON'T reveal the source directly).`
+      : 'You have your own sources.';
 
-    const prompt = `You must respond with valid JSON only.
+    const outcomeFrame = outcome
+      ? 'Spin this with your typical editorial slant toward positive framing'
+      : 'Spin this with your typical editorial slant emphasizing problems';
 
-You are: ${media.name}, ${media.description}
-Event: ${event.description}
-Type: ${event.type}
+    // Generate lightweight world context for better market/prediction references (cached)
+    const worldContext = await this.getWorldContext(undefined, {
+      maxActors: 20,
+      includeMarkets: true,
+      includePredictions: true,
+      includeTrades: false,
+    });
 
-As a ${media.name}, break this story with your organizational bias.
-${potentialSource ? `Hint: You received information from sources close to ${potentialSource.name} (but DON'T reveal the source directly).` : 'You have your own sources.'}
-${outcome ? 'Spin this with your typical editorial slant toward positive framing' : 'Spin this with your typical editorial slant emphasizing problems'}
-
-Write a breaking news post (max 140 chars) in your organization's style.
-- Use phrases like "Breaking:", "Exclusive:", "Sources say:"
-- Match your organization's typical bias and tone
-- Be provocative and attention-grabbing
-
-Also analyze:
-- sentiment: -1 (very negative) to 1 (very positive)
-- clueStrength: 0 (vague) to 1 (very revealing) - how much this reveals
-- pointsToward: true (suggests positive outcome), false (suggests negative), null (unclear)
-
-Respond with ONLY this JSON:
-{
-  "post": "your post here",
-  "sentiment": 0.3,
-  "clueStrength": 0.5,
-  "pointsToward": true
-}
-
-No other text.`;
+    const prompt = renderPrompt(mediaPost, {
+      mediaName: media.name,
+      mediaDescription: media.description || '',
+      eventDescription: event.description,
+      eventType: event.type,
+      sourceHint,
+      outcomeFrame,
+      ...worldContext,
+    });
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -875,42 +973,28 @@ No other text.`;
     }
 
     const isCrisis = event.type === 'scandal' || event.type === 'leak';
+    const outcomeFrame = outcome
+      ? 'Frame as ultimately positive for the company'
+      : 'Manage the negative optics professionally';
 
-    const prompt = `You must respond with valid JSON only.
+    // Generate lightweight world context for better market/prediction references (cached)
+    const worldContext = await this.getWorldContext(undefined, {
+      maxActors: 20,
+      includeMarkets: true,
+      includePredictions: true,
+      includeTrades: false,
+    });
 
-You are: ${company.name}, ${company.description}
-Your CEO/representative: ${affiliatedActor.name}
-Event involving your company: ${event.description}
-Event type: ${event.type}
-
-Write a corporate ${isCrisis ? 'crisis management' : 'announcement'} post (max 140 chars).
-
-${isCrisis ? `CRISIS MODE:
-- Be defensive and spin the narrative
-- Use corporate PR speak
-- Deny wrongdoing or minimize damage
-- Emphasize "commitment to transparency"` : `ANNOUNCEMENT MODE:
-- Promote positive developments
-- Be optimistic and forward-looking
-- Mention innovation/progress`}
-
-Match ${company.name}'s satirical tone and corporate personality.
-${outcome ? 'Frame as ultimately positive for the company' : 'Manage the negative optics professionally'}
-
-Also analyze:
-- sentiment: -1 (very negative) to 1 (very positive)
-- clueStrength: 0 (vague/corporate speak) to 1 (revealing) - usually low for PR
-- pointsToward: true (suggests positive outcome), false (suggests negative), null (unclear)
-
-Respond with ONLY this JSON:
-{
-  "post": "your post here",
-  "sentiment": 0.3,
-  "clueStrength": 0.2,
-  "pointsToward": true
-}
-
-No other text.`;
+    const prompt = renderPrompt(companyPost, {
+      companyName: company.name,
+      companyDescription: company.description || '',
+      ceoRepresentative: affiliatedActor ? `Your CEO/representative: ${affiliatedActor.name}` : '',
+      eventDescription: event.description,
+      eventType: event.type,
+      postType: isCrisis ? 'crisis management' : 'announcement',
+      outcomeFrame,
+      ...worldContext,
+    });
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -962,39 +1046,27 @@ No other text.`;
       ? `Key individuals involved: ${keyActors.join(', ')}. You may reference them if relevant.`
       : '';
 
-    const prompt = `You must respond with valid JSON only.
+    const outcomeFrame = outcome
+      ? 'Frame as having things under control'
+      : 'Show typical government ineffectiveness';
 
-You are: ${govt.name}, ${govt.description}
-Event requiring governmental response: ${event.description}
-Event type: ${event.type}
-${actorContext}
+    // Generate lightweight world context for better market/prediction references (cached)
+    const worldContext = await this.getWorldContext(undefined, {
+      maxActors: 20,
+      includeMarkets: true,
+      includePredictions: true,
+      includeTrades: false,
+    });
 
-Write an official government statement post (max 140 chars).
-
-Government agencies typically:
-- Announce investigations
-- Issue vague statements
-- Try to contain situations
-- Speak in bureaucratic language
-- Often ineffective or too late
-
-Match ${govt.name}'s satirical tone.
-${outcome ? 'Frame as having things under control' : 'Show typical government ineffectiveness'}
-
-Also analyze:
-- sentiment: -1 (very negative) to 1 (very positive)
-- clueStrength: 0 (vague bureaucratese) to 1 (revealing) - usually very low
-- pointsToward: true (suggests positive outcome), false (suggests negative), null (unclear)
-
-Respond with ONLY this JSON:
-{
-  "post": "your post here",
-  "sentiment": 0.0,
-  "clueStrength": 0.1,
-  "pointsToward": null
-}
-
-No other text.`;
+    const prompt = renderPrompt(governmentPost, {
+      govName: govt.name,
+      govDescription: govt.description || '',
+      eventDescription: event.description,
+      eventType: event.type,
+      actorContext,
+      outcomeFrame,
+      ...worldContext,
+    });
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -1048,33 +1120,30 @@ No other text.`;
       ? `This event suggests things are trending toward ${event.pointsToward}. React based on how this affects YOUR interests.`
       : `This situation is ${outcome ? 'developing in ways that could benefit some parties' : 'facing challenges that concern various stakeholders'}. React based on your role and interests.`;
 
-    const prompt = `You must respond with valid JSON only.
+    const outcomeFrame = outcome
+      ? 'Frame with positive spin'
+      : 'Emphasize problems and concerns';
 
-You are: ${actor.name}, ${actor.description}
-Personality: ${actor.personality}
-${emotionalContext ? `\n${emotionalContext}\n` : ''}
-Event involving you: ${event.description}
+    // Generate lightweight world context for better market/prediction references (cached)
+    const worldContext = await this.getWorldContext(undefined, {
+      maxActors: 20,
+      includeMarkets: true,
+      includePredictions: true,
+      includeTrades: false,
+    });
 
-${eventGuidance}
-
-Write a post (max 140 chars) from YOUR perspective.
-Stay in character. React naturally based on your mood and circumstances - excited, defensive, angry, dismissive, etc.
-Your current emotional state should influence your tone and response.
-
-Also analyze:
-- sentiment: -1 (very negative) to 1 (very positive) - factor in your mood
-- clueStrength: 0 (vague) to 1 (very revealing)
-- pointsToward: true (suggests positive outcome), false (negative), null (unclear)
-
-Respond with ONLY this JSON:
-{
-  "post": "your post here",
-  "sentiment": 0.5,
-  "clueStrength": 0.7,
-  "pointsToward": true
-}
-
-No other text.`;
+    const prompt = renderPrompt(directReaction, {
+      actorName: actor.name,
+      actorDescription: actor.description || '',
+      personality: actor.personality || '',
+      emotionalContext: emotionalContext ? emotionalContext + '\n' : '',
+      voiceContext: formatActorVoiceContext(actor),
+      eventDescription: event.description,
+      eventType: event.type,
+      eventGuidance,
+      outcomeFrame,
+      ...worldContext,
+    });
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -1198,7 +1267,8 @@ No other text.`;
     const prompt = `You must respond with valid JSON only.
 
 You are: ${actor.name}, ${actor.description}
-${emotionalContext ? emotionalContext + '\n' : ''}Mainstream story: ${event.description}
+${emotionalContext ? emotionalContext + '\n' : ''}${formatActorVoiceContext(actor)}
+Mainstream story: ${event.description}
 
 You don't believe it. Write conspiracy post (max 140 chars).
 Be dramatic, suspicious. ${outcome ? 'Claim it\'s a distraction' : 'Say they\'re hiding worse'}
@@ -1312,8 +1382,8 @@ No other text.`;
       ).slice(0, replyCount);
       
       for (const actor of replyingActors) {
-        // Generate reply content
-        const replyContent = await this.generateReplyContent(actor, originalPost);
+        // Generate reply using full generateReply method (consolidated from generateReplyContent)
+        const replyResult = await this.generateReply(actor, originalPost);
         
         // Reply timestamp is after original post
         const originalTime = new Date(originalPost.timestamp);
@@ -1331,14 +1401,14 @@ No other text.`;
           day,
           timestamp: replyTime.toISOString(),
           type: 'reply',
-          content: replyContent,
+          content: replyResult.post,
           author: actor.id,
           authorName: actor.name,
           replyTo: originalPost.id,
           relatedEvent: originalPost.relatedEvent,
-          sentiment: (originalPost.sentiment ?? 0) * (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.5),
-          clueStrength: (originalPost.clueStrength ?? 0) * 0.5,
-          pointsToward: originalPost.pointsToward,
+          sentiment: replyResult.sentiment,
+          clueStrength: replyResult.clueStrength,
+          pointsToward: replyResult.pointsToward,
         });
       }
     }
@@ -1346,28 +1416,6 @@ No other text.`;
     return replies;
   }
 
-  /**
-   * Generate reply content for an actor replying to a post
-   */
-  private async generateReplyContent(actor: Actor, originalPost: FeedPost): Promise<string> {
-    const prompt = `You are ${actor.name} (${actor.personality || 'actor'}).
-      
-Original post by ${originalPost.authorName}:
-"${originalPost.content}"
-
-Write a brief reply (max 200 chars) in your voice.
-${actor.postStyle ? `Your style: ${actor.postStyle}` : ''}
-
-Respond with JSON: {"reply": "your reply here"}`;
-
-    const response = await this.llm!.generateJSON<{ reply: string }>(
-      prompt,
-      undefined,
-      { temperature: 1.0, maxTokens: 500 }
-    );
-
-    return response.reply;
-  }
 
   /**
    * BATCHED: Generate ambient posts for multiple actors in ONE call
@@ -1411,12 +1459,22 @@ Respond with JSON: {"reply": "your reply here"}`;
    Write general thoughts. Your private group chats inform your perspective.
    Write as YOURSELF (first person). Max 280 chars. No hashtags/emojis.`).join('\n');
 
+    // Get world context for batch (cached)
+    const worldContext = await this.getWorldContext(day, {
+      maxActors: 30,
+      includeMarkets: true,
+      includePredictions: true,
+      includeTrades: false,
+    });
+
     const prompt = renderPrompt(ambientPosts, {
       day: day.toString(),
       progressContext,
       atmosphereContext,
       actorCount: actors.length.toString(),
-      actorsList
+      actorsList,
+      previousPostsContext: '',
+      ...worldContext,
     });
 
     const maxRetries = 5;
@@ -1534,11 +1592,22 @@ Respond with JSON: {"reply": "your reply here"}`;
    Let emotional state and any relationship with ${originalPost.authorName} influence tone. Match their writing style.
 `).join('\n');
 
+    // Get world context for batch (cached)
+    const worldContext = await this.getWorldContext(undefined, {
+      maxActors: 30,
+      includeMarkets: true,
+      includePredictions: true,
+      includeTrades: false,
+    });
+
     const prompt = renderPrompt(replies, {
       originalAuthorName: originalPost.authorName,
       originalContent: originalPost.content,
       replierCount: actors.length.toString(),
-      repliersList
+      repliersList,
+      relationshipContext: '',
+      groupContext: '',
+      ...worldContext,
     });
 
     const maxRetries = 5;
@@ -1923,8 +1992,13 @@ No other text.`;
       actorName: actor.name,
       actorDescription: actor.description || actor.role || 'industry professional',
       emotionalContext,
+      voiceContext: formatActorVoiceContext(actor),
       currentTime,
       atmosphereContext,
+      worldActors: '', // Lightweight context - can be enhanced if needed
+      currentMarkets: '',
+      activePredictions: '',
+      recentTrades: '',
     });
 
     const response = await this.llm!.generateJSON<{
@@ -1967,30 +2041,48 @@ No other text.`;
       ? generateActorContext(state.mood, state.luck, originalPost.author, this.relationships, actor.id)
       : '';
 
-    const prompt = `You must respond with valid JSON only.
+    // Build relationship context
+    let relationshipContext = '';
+    if (originalPost.author && this.relationships.length > 0) {
+      const relationship = this.relationships.find(r => {
+        if ('actor1Id' in r) {
+          return (r.actor1Id === actor.id && r.actor2Id === originalPost.author) ||
+                 (r.actor2Id === actor.id && r.actor1Id === originalPost.author);
+        } else {
+          return (r.actor1 === actor.id && r.actor2 === originalPost.author) ||
+                 (r.actor2 === actor.id && r.actor1 === originalPost.author);
+        }
+      });
+      if (relationship) {
+        const relType = 'relationshipType' in relationship ? relationship.relationshipType : relationship.relationship;
+        relationshipContext = `Your relationship with ${originalPost.authorName}: ${relType}. Consider this when responding.`;
+      }
+    }
 
-You are: ${actor.name}, ${actor.description}
-${emotionalContext ? `\n${emotionalContext}\n` : ''}${formatActorVoiceContext(actor)}
-Post: @${originalPost.authorName}: "${originalPost.content}"
+    // Get personality guidance
+    const personalityGuidance = actor.personality?.includes('contrarian')
+      ? 'Disagree or challenge the original post'
+      : 'Consider your relationship and mood when responding';
 
-Write reply (max 140 chars).
-${actor.personality?.includes('contrarian') ? 'Disagree or challenge' : 'Consider your relationship and mood when responding'}
-Your emotional state and any relationship with ${originalPost.authorName} should influence your tone. Match your writing style.
+    // Generate lightweight world context for better market/prediction references (cached)
+    const worldContext = await this.getWorldContext(undefined, {
+      maxActors: 20,
+      includeMarkets: true,
+      includePredictions: true,
+      includeTrades: false,
+    });
 
-Also analyze:
-- sentiment: -1 to 1 (factor in your mood and relationship)
-- clueStrength: 0 to 1 (usually low for replies, unless revealing something)
-- pointsToward: true/false/null (usually null for replies unless you're hinting)
-
-Respond with ONLY this JSON:
-{
-  "post": "your reply here",
-  "sentiment": 0.2,
-  "clueStrength": 0.1,
-  "pointsToward": null
-}
-
-No other text.`;
+    const prompt = renderPrompt(reply, {
+      actorName: actor.name,
+      actorDescription: actor.description || '',
+      emotionalContext: emotionalContext ? emotionalContext + '\n' : '',
+      voiceContext: formatActorVoiceContext(actor),
+      originalAuthorName: originalPost.authorName,
+      originalContent: originalPost.content,
+      relationshipContext,
+      personalityGuidance,
+      ...worldContext,
+    });
 
     // Retry until we get non-empty content
     const maxRetries = 5;

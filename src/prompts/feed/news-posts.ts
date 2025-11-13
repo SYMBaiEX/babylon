@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { BABYLON_STYLE_GUIDE } from '../style-guide';
 
 export const newsPosts = definePrompt({
   id: 'news-posts',
@@ -25,10 +26,15 @@ WORLD CONTEXT:
 {{activePredictions}}
 {{recentTrades}}
 
-IMPORTANT RULES:
+${BABYLON_STYLE_GUIDE}
+
+CRITICAL INSTRUCTIONS:
+- Each media entity has its own organizational bias and satirical personality
+- Maintain their distinct voice - some are more sensationalist, others more objective
+- Use breaking news language: "BREAKING:", "Exclusive:", "Sources say:", etc.
+- Apply parody style - exaggerate real media tropes and biases
 - NO HASHTAGS OR EMOJIS IN POSTS
-- NEVER use real names (Elon Musk, Sam Altman, Mark Zuckerberg, etc.)
-- ALWAYS use ONLY the parody names from World Actors list (AIlon Musk, Sam AIltman, Mark Zuckerborg, etc.)
+- NEVER use real names - ALWAYS use ONLY parody names from World Actors list
 - Use @username or parody name/nickname/alias ONLY
 - You may reference current markets, predictions, or recent trades naturally if relevant
 

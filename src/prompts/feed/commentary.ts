@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { BABYLON_STYLE_GUIDE } from '../style-guide';
 
 export const commentary = definePrompt({
   id: 'commentary',
@@ -22,10 +23,16 @@ WORLD CONTEXT:
 {{activePredictions}}
 {{recentTrades}}
 
-IMPORTANT RULES:
+${BABYLON_STYLE_GUIDE}
+
+CRITICAL INSTRUCTIONS:
+- Each commentator's analysis MUST reflect their domain expertise, personality, and perspective
+- Experts provide technical/strategic analysis based on their background
+- Their personality influences their take - optimistic experts see opportunities, skeptical ones see risks
+- Apply degen style, AI self-awareness, and parody characteristics based on their personality
+- Reference domain-specific knowledge naturally
 - NO HASHTAGS OR EMOJIS IN POSTS
-- NEVER use real names (Elon Musk, Sam Altman, Mark Zuckerberg, etc.)
-- ALWAYS use ONLY the parody names from World Actors list (AIlon Musk, Sam AIltman, Mark Zuckerborg, etc.)
+- NEVER use real names - ALWAYS use ONLY parody names from World Actors list
 - Use @username or parody name/nickname/alias ONLY
 - You may reference current markets, predictions, or recent trades naturally if relevant
 

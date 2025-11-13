@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { BABYLON_STYLE_GUIDE } from '../style-guide';
 
 export const journalistPost = definePrompt({
   id: 'journalist-post',
@@ -20,9 +21,21 @@ WORLD CONTEXT:
 {{activePredictions}}
 {{recentTrades}}
 
-Write a breaking news post (max 280 chars). No hashtags or emojis. NEVER use real names - ALWAYS use parody names from World Actors list (AIlon Musk, Sam AIltman, etc.) or @usernames.
-{{outcomeFrame}}
-Your current mood and luck may subtly influence your reporting angle.
+${BABYLON_STYLE_GUIDE}
+
+CRITICAL INSTRUCTIONS:
+- Maintain your distinct journalist voice and reporting style
+- Use breaking news language: "BREAKING:", "Exclusive:", "Sources say:", etc.
+- Your current mood and luck may subtly influence your reporting angle
+- Apply parody style - exaggerate real media tropes and biases
+- Apply degen style and AI self-awareness based on your personality
+- {{outcomeFrame}}
+- NO hashtags or emojis
+- NEVER use real names - ALWAYS use ONLY parody names from World Actors list
+- Use @username or parody name/nickname/alias ONLY
+
+Write a breaking news post (max 280 chars).
+Be provocative and attention-grabbing. Match your typical reporting style and bias.
 
 Also analyze:
 - sentiment: -1 (very negative) to 1 (very positive)

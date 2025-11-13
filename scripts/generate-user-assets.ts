@@ -9,6 +9,7 @@ import { writeFile, mkdir, readFile } from "fs/promises";
 import { join } from "path";
 import { config } from "dotenv";
 import { logger } from '@/lib/logger';
+import { renderPrompt, userProfilePicture, userProfileBanner } from '@/prompts';
 
 // Load environment variables
 config();
@@ -27,23 +28,14 @@ interface FalResponse {
 const PROFILE_PICTURE_COUNT = 100;
 const BANNER_COUNT = 100;
 
-async function loadPromptFromBundle(promptPath: string): Promise<string> {
-  const bundlePath = join(process.cwd(), 'src', 'prompts', 'bundled-prompts.json');
-  const bundleContent = await readFile(bundlePath, 'utf-8');
-  const prompts = JSON.parse(bundleContent);
-  
-  if (!prompts[promptPath]) {
-    throw new Error(`Prompt not found in bundle: ${promptPath}`);
-  }
-  
-  return prompts[promptPath].template;
-}
+// Removed loadPromptFromBundle - now using prompts directly
+// This avoids needing a bundled-prompts.json file
 
 async function generateProfilePicture(index: number): Promise<string> {
   logger.info(`Generating profile picture ${index + 1}/${PROFILE_PICTURE_COUNT}...`, undefined, 'CLI');
 
-  // Load prompt template - it has enough variety built in
-  const prompt = await loadPromptFromBundle('image/user-profile-picture');
+  // Use prompt directly - no bundle needed
+  const prompt = renderPrompt(userProfilePicture, {});
   
   const result = await fal.subscribe("fal-ai/flux/schnell", {
     input: {
@@ -79,8 +71,8 @@ async function generateProfilePicture(index: number): Promise<string> {
 async function generateBanner(index: number): Promise<string> {
   logger.info(`Generating banner ${index + 1}/${BANNER_COUNT}...`, undefined, 'CLI');
 
-  // Load prompt template - it has enough variety built in
-  const prompt = await loadPromptFromBundle('image/user-profile-banner');
+  // Use prompt directly - no bundle needed
+  const prompt = renderPrompt(userProfileBanner, {});
   
   const result = await fal.subscribe("fal-ai/flux/schnell", {
     input: {

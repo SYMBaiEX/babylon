@@ -26,36 +26,56 @@ export function shuffleArray<T>(array: T[]): T[] {
 }
 
 /**
- * Format actor voice context with postStyle and randomized postExample
+ * Format actor voice context with postStyle, personality, and randomized postExample
  * Used for LLM prompt generation to maintain actor voice consistency
  *
- * @param actor - Actor with optional postStyle and postExample
+ * @param actor - Actor with optional postStyle, personality, postExample, role, and domain
  * @returns Formatted context string for LLM prompts
  */
 export function formatActorVoiceContext(actor: {
   postStyle?: string;
   postExample?: string[];
+  personality?: string;
+  role?: string;
+  domain?: string[];
+  description?: string;
 }): string {
-  if (!actor.postStyle && !actor.postExample) {
-    return '';
+  const parts: string[] = [];
+
+  // Personality and role context (most important for voice consistency)
+  if (actor.personality) {
+    parts.push(`Personality: ${actor.personality}`);
   }
 
-  let context = '';
+  if (actor.role) {
+    parts.push(`Role: ${actor.role}`);
+  }
 
+  // Writing style guidance
   if (actor.postStyle) {
-    context += `\n   Writing Style: ${actor.postStyle}`;
+    parts.push(`Writing Style: ${actor.postStyle}`);
   }
 
+  // Domain expertise context
+  if (actor.domain && actor.domain.length > 0) {
+    parts.push(`Domain: ${actor.domain.join(', ')}`);
+  }
+
+  // Example posts for voice reference
   if (actor.postExample && actor.postExample.length > 0) {
     const shuffledExamples = shuffleArray(actor.postExample);
     const examples = shuffledExamples
       .slice(0, 3)
       .map((ex) => `"${ex}"`)
       .join(', ');
-    context += `\n   Example Posts: ${examples}`;
+    parts.push(`Example Posts: ${examples}`);
   }
 
-  return context;
+  if (parts.length === 0) {
+    return '';
+  }
+
+  return '\n   ' + parts.join('\n   ');
 }
 
 /**

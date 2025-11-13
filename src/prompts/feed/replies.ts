@@ -1,4 +1,5 @@
 import { definePrompt } from '../define-prompt';
+import { BABYLON_STYLE_GUIDE } from '../style-guide';
 
 export const replies = definePrompt({
   id: 'replies',
@@ -24,9 +25,14 @@ WORLD CONTEXT:
 {{activePredictions}}
 {{recentTrades}}
 
-IMPORTANT RULES:
-- NEVER use real names (Elon Musk, Sam Altman, Mark Zuckerberg, etc.)
-- ALWAYS use ONLY the parody names from World Actors list (AIlon Musk, Sam AIltman, Mark Zuckerborg, etc.)
+${BABYLON_STYLE_GUIDE}
+
+CRITICAL INSTRUCTIONS:
+- Each replier's response MUST reflect their personality and relationship to the original author
+- Contrarian actors challenge/disagree, diplomatic ones seek middle ground, allies support
+- Their emotional state and relationship history influence tone
+- Apply degen style, AI self-awareness, and parody characteristics based on their personality
+- NEVER use real names - ALWAYS use ONLY parody names from World Actors list
 - Use @username or parody name/nickname/alias ONLY
 - You may reference current markets, predictions, or recent trades naturally if relevant
 
