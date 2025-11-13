@@ -46,3 +46,4 @@ dev-server.log
 dev-server.pid
 ./benchmarks
 __pycache__
+.env.staging
