@@ -460,7 +460,7 @@ export function OnboardingModal({
           <button
             type="submit"
             className={cn(
-              'px-4 py-2 bg-[#0066FF] text-white rounded-lg flex items-center gap-2 hover:bg-[#0066FF]/90',
+              'px-4 py-2 bg-[#0066FF] text-primary-foreground rounded-lg flex items-center gap-2 hover:bg-[#0066FF]/90',
               isSubmitting && 'opacity-60'
             )}
             disabled={isSubmitting}
@@ -608,7 +608,7 @@ export function OnboardingModal({
               <p className="text-lg font-semibold">Onboarding complete! Enjoy Babylon 🎉</p>
               <button
                 type="button"
-                className="px-4 py-2 bg-[#0066FF] text-white rounded-lg"
+                className="px-4 py-2 bg-[#0066FF] text-primary-foreground rounded-lg"
                 onClick={onClose}
               >
                 Close
@@ -659,7 +659,7 @@ export function OnboardingModal({
                     <div className="flex gap-2 mt-4">
                       <button
                         type="button"
-                        className="px-4 py-2 bg-[#0066FF] text-white rounded-lg disabled:opacity-50"
+                        className="px-4 py-2 bg-[#0066FF] text-primary-foreground rounded-lg disabled:opacity-50"
                         onClick={onRetryOnchain}
                         disabled={isSubmitting}
                       >
@@ -697,7 +697,7 @@ export function OnboardingModal({
                   <div className="flex flex-col gap-2 mt-4 w-full max-w-xs">
                     <button
                       type="button"
-                      className="w-full px-4 py-2 bg-[#0066FF] text-white rounded-lg disabled:opacity-50 hover:bg-[#0066FF]/90"
+                      className="w-full px-4 py-2 bg-[#0066FF] text-primary-foreground rounded-lg disabled:opacity-50 hover:bg-[#0066FF]/90"
                       onClick={onRetryOnchain}
                       disabled={isSubmitting}
                     >

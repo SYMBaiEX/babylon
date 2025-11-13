@@ -103,7 +103,7 @@ export default function AgentsPage() {
             </p>
           </div>
           <Link href="/agents/create">
-            <Button className="flex items-center gap-2 bg-[#0066FF] hover:bg-[#2952d9] px-4 py-2">
+            <Button className="flex text-primary-foreground items-center gap-2 bg-[#0066FF] hover:bg-[#2952d9] px-4 py-2">
               <Plus className="w-5 h-5" />
               Create Agent
             </Button>
@@ -117,7 +117,7 @@ export default function AgentsPage() {
             className={cn(
               'px-4 py-2 rounded-full text-sm font-medium transition-all',
               filter === 'all'
-                ? 'bg-[#0066FF] text-white'
+                ? 'bg-[#0066FF] text-primary-foreground'
                 : 'bg-muted/50 text-muted-foreground hover:bg-muted'
             )}
           >
@@ -128,7 +128,7 @@ export default function AgentsPage() {
             className={cn(
               'px-4 py-2 rounded-full text-sm font-medium transition-all',
               filter === 'active'
-                ? 'bg-[#0066FF] text-white'
+                ? 'bg-[#0066FF] text-primary-foreground'
                 : 'bg-muted/50 text-muted-foreground hover:bg-muted'
             )}
           >
@@ -139,7 +139,7 @@ export default function AgentsPage() {
             className={cn(
               'px-4 py-2 rounded-full text-sm font-medium transition-all',
               filter === 'idle'
-                ? 'bg-[#0066FF] text-white'
+                ? 'bg-[#0066FF] text-primary-foreground'
                 : 'bg-muted/50 text-muted-foreground hover:bg-muted'
             )}
           >
@@ -174,7 +174,7 @@ export default function AgentsPage() {
               Create your first AI agent to start trading and chatting
             </p>
             <Link href="/agents/create">
-              <Button className="flex items-center gap-2 bg-[#0066FF] hover:bg-[#2952d9] px-4 py-2">
+              <Button className="flex text-primary-foreground items-center gap-2 bg-[#0066FF] hover:bg-[#2952d9] px-4 py-2">
                 <Plus className="w-5 h-5" />
                 Create Agent
               </Button>

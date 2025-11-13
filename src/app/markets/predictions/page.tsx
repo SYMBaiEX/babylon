@@ -333,7 +333,7 @@ export default function PredictionsPage() {
               className={cn(
                 'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap',
                 predictionSort === 'trending'
-                  ? 'bg-[#0066FF] text-white'
+                  ? 'bg-[#0066FF] text-primary-foreground'
                   : 'bg-muted/50 text-muted-foreground hover:bg-muted'
               )}
             >
@@ -345,7 +345,7 @@ export default function PredictionsPage() {
               className={cn(
                 'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap',
                 predictionSort === 'volume'
-                  ? 'bg-[#0066FF] text-white'
+                  ? 'bg-[#0066FF] text-primary-foreground'
                   : 'bg-muted/50 text-muted-foreground hover:bg-muted'
               )}
             >
@@ -357,7 +357,7 @@ export default function PredictionsPage() {
               className={cn(
                 'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap',
                 predictionSort === 'newest'
-                  ? 'bg-[#0066FF] text-white'
+                  ? 'bg-[#0066FF] text-primary-foreground'
                   : 'bg-muted/50 text-muted-foreground hover:bg-muted'
               )}
             >
@@ -368,7 +368,7 @@ export default function PredictionsPage() {
               className={cn(
                 'px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap',
                 predictionSort === 'ending-soon'
-                  ? 'bg-[#0066FF] text-white'
+                  ? 'bg-[#0066FF] text-primary-foreground'
                   : 'bg-muted/50 text-muted-foreground hover:bg-muted'
               )}
             >
@@ -508,7 +508,7 @@ export default function PredictionsPage() {
             </p>
             <button
               onClick={login}
-              className="px-8 py-3 bg-[#0066FF] text-white rounded-lg font-medium hover:bg-[#2952d9] transition-colors cursor-pointer shadow-lg shadow-[#0066FF]/20"
+              className="px-8 py-3 bg-[#0066FF] text-primary-foreground rounded-lg font-medium hover:bg-[#2952d9] transition-colors cursor-pointer shadow-lg shadow-[#0066FF]/20"
             >
               Connect Wallet
             </button>

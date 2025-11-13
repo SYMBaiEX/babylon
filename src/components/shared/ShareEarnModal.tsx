@@ -184,7 +184,7 @@ export function ShareEarnModal({
         <div className="bg-gray-900 rounded-xl border border-gray-700 w-full max-w-md shadow-2xl">
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-700">
-            <h2 className="text-xl font-bold text-white">Share & Earn</h2>
+            <h2 className="text-xl font-bold text-primary-foreground">Share & Earn</h2>
             <button
               onClick={onClose}
               className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
@@ -222,7 +222,7 @@ export function ShareEarnModal({
               }`} />
               <div className="flex-1 text-left">
                 <div className="flex items-center gap-2">
-                  <h3 className={`text-sm font-semibold ${!isTwitterConfigured ? 'text-gray-500' : 'text-white'}`}>
+                  <h3 className={`text-sm font-semibold ${!isTwitterConfigured ? 'text-gray-500' : 'text-foreground'}`}>
                     Share to X
                   </h3>
                   {!isTwitterConfigured && (
@@ -269,7 +269,7 @@ export function ShareEarnModal({
             >
               <FarcasterIcon className={`w-6 h-6 ${shareStatus.farcaster.shared ? 'text-purple-400' : 'text-gray-400'}`} />
               <div className="flex-1 text-left">
-                <h3 className="text-sm font-semibold text-white">Share to Farcaster</h3>
+                <h3 className="text-sm font-semibold text-primary-foreground">Share to Farcaster</h3>
                 <p className="text-xs text-gray-400">
                   {shareStatus.farcaster.loading
                     ? 'Processing...'

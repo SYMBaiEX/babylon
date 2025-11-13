@@ -205,7 +205,7 @@ export function PredictionTradingModal({
               className={cn(
                 'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-3 text-sm sm:text-base cursor-pointer',
                 side === 'yes'
-                  ? 'bg-green-600 text-white'
+                  ? 'bg-green-600 text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted'
               )}
             >
@@ -217,7 +217,7 @@ export function PredictionTradingModal({
               className={cn(
                 'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-3 text-sm sm:text-base cursor-pointer',
                 side === 'no'
-                  ? 'bg-red-600 text-white'
+                  ? 'bg-red-600 text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-muted'
               )}
             >
@@ -292,7 +292,7 @@ export function PredictionTradingModal({
             onClick={handleSubmit}
             disabled={loading || amountNum < 1}
             className={cn(
-              'w-full py-3 sm:py-4 rounded font-bold text-white transition-all text-base sm:text-lg cursor-pointer',
+              'w-full py-3 sm:py-4 rounded font-bold text-foreground transition-all text-base sm:text-lg cursor-pointer',
               side === 'yes'
                 ? 'bg-green-600 hover:bg-green-700'
                 : 'bg-red-600 hover:bg-red-700',

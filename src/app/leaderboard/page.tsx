@@ -134,7 +134,7 @@ export default function LeaderboardPage() {
                   onClick={() => handleTabChange(tab.key)}
                   className={`px-4 py-2 rounded-full border text-sm font-medium transition-colors ${
                     isActive
-                      ? 'bg-[#0066FF] border-[#0066FF] text-white shadow-sm'
+                      ? 'bg-[#0066FF] border-[#0066FF] text-primary-foreground shadow-sm'
                       : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/40'
                   }`}
                 >
@@ -267,7 +267,7 @@ export default function LeaderboardPage() {
                             {player.displayName || player.username || 'Anonymous'}
                           </h3>
                           {isCurrentUser && (
-                            <span className="px-2 py-0.5 text-xs font-semibold bg-[#0066FF] text-white rounded">
+                            <span className="px-2 py-0.5 text-xs font-semibold bg-[#0066FF] text-primary-foreground rounded">
                               YOU
                             </span>
                           )}
@@ -388,7 +388,7 @@ export default function LeaderboardPage() {
                   onClick={() => handleTabChange(tab.key)}
                   className={`whitespace-nowrap px-3 py-2 rounded-full border text-sm font-medium transition-colors ${
                     isActive
-                      ? 'bg-[#0066FF] border-[#0066FF] text-white shadow-sm'
+                      ? 'bg-[#0066FF] border-[#0066FF] text-primary-foreground shadow-sm'
                       : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/40'
                   }`}
                 >

@@ -116,7 +116,7 @@ export function DeleteButton({
               <button
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors disabled:opacity-50"
+                className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-primary-foreground transition-colors disabled:opacity-50"
               >
                 {isDeleting ? 'Deleting...' : 'Delete'}
               </button>

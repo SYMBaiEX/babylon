@@ -600,7 +600,7 @@ export function GroupSettingsModal({
                 <button
                   onClick={handleDeleteGroup}
                   disabled={isDeleting}
-                  className="flex-1 px-4 py-2.5 rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 rounded-lg font-medium bg-red-500 text-primary-foreground hover:bg-red-600 transition-colors disabled:opacity-50"
                 >
                   {isDeleting ? (
                     <Loader2 className="w-4 h-4 inline animate-spin" />

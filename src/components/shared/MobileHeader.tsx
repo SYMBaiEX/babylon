@@ -285,7 +285,7 @@ function MobileHeaderContent() {
               <div className="px-4 py-4 bg-muted/30 shrink-0">
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: '#0066FF' }}>
-                    <Coins className="w-5 h-5 text-white" />
+                    <Coins className="w-5 h-5 text-foreground" />
                   </div>
                   <div className="flex-1">
                     <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Balance</div>
@@ -310,7 +310,7 @@ function MobileHeaderContent() {
                     className={cn(
                       'flex items-center gap-4 px-4 py-3 transition-colors relative',
                       item.active 
-                        ? 'bg-[#0066FF] text-white font-bold' 
+                        ? 'bg-[#0066FF] text-primary-foreground font-bold' 
                         : 'text-sidebar-foreground hover:bg-sidebar-accent font-semibold'
                     )}
                   >

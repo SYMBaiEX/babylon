@@ -290,13 +290,13 @@ export function PnLShareModal({
         >
           <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
             <div>
-              <h2 className="text-xl font-semibold text-white">{modalTitle}</h2>
-              <p className="text-xs text-white/60">{modalSubtitle}</p>
+              <h2 className="text-xl font-semibold text-primary-foreground">{modalTitle}</h2>
+              <p className="text-xs text-primary-foreground/60">{modalSubtitle}</p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-2 text-white/70 transition hover:bg-white/10 hover:text-white"
+              className="rounded-lg p-2 text-primary-foreground/70 transition hover:bg-white/10 hover:text-primary-foreground"
               aria-label="Close share modal"
             >
               <X className="h-5 w-5" />
@@ -311,7 +311,7 @@ export function PnLShareModal({
                   <div className="flex h-full items-center justify-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
-                      <p className="text-sm text-white/60">Generating preview...</p>
+                      <p className="text-sm text-primary-foreground/60">Generating preview...</p>
                     </div>
                   </div>
                 ) : previewImageUrl ? (
@@ -321,12 +321,12 @@ export function PnLShareModal({
                     className="h-full w-full object-contain"
                   />
                 ) : (
-                  <div className="flex h-full items-center justify-center text-sm text-white/60">
+                  <div className="flex h-full items-center justify-center text-sm text-primary-foreground/60">
                     Preparing preview...
                   </div>
                 )
               ) : (
-                <div className="flex h-full items-center justify-center text-sm text-white/70">
+                <div className="flex h-full items-center justify-center text-sm text-primary-foreground/70">
                   Sign in to generate your personalized P&amp;L card.
                 </div>
               )}
@@ -337,14 +337,14 @@ export function PnLShareModal({
               <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-4 py-2">
                 <div className="flex items-center gap-2">
                   <Twitter className="h-4 w-4 text-sky-400" />
-                  <span className="text-sm text-white">
+                  <span className="text-sm text-foreground">
                     Connected as <span className="font-semibold">@{authStatus.screenName}</span>
                   </span>
                 </div>
                 <button
                   type="button"
                   onClick={handleDisconnectTwitter}
-                  className="inline-flex items-center gap-1 text-xs text-white/60 hover:text-white transition"
+                  className="inline-flex items-center gap-1 text-xs text-foreground/60 hover:text-foreground transition"
                 >
                   <LogOut className="h-3 w-3" />
                   Disconnect
@@ -368,7 +368,7 @@ export function PnLShareModal({
                 type="button"
                 onClick={() => handleShare('twitter')}
                 disabled={!canShare || sharing === 'twitter' || twitterAuthLoading}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:border-white/30 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-primary-foreground transition hover:border-white/30 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Twitter className="h-4 w-4 text-sky-400" />
                 <span className="hidden sm:inline">Share to X</span>
@@ -378,7 +378,7 @@ export function PnLShareModal({
                 type="button"
                 onClick={() => handleShare('farcaster')}
                 disabled={!canShare || sharing === 'farcaster'}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:border-white/30 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-primary-foreground transition hover:border-white/30 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <FarcasterIcon className="h-4 w-4 text-purple-400" />
                 <span className="hidden sm:inline">Share to Farcaster</span>
@@ -403,13 +403,13 @@ export function PnLShareModal({
             <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
               <div className="flex items-center gap-2">
                 <Twitter className="h-5 w-5 text-sky-400" />
-                <h2 className="text-xl font-semibold text-white">Share to X</h2>
+                <h2 className="text-xl font-semibold text-foreground">Share to X</h2>
               </div>
               <button
                 type="button"
                 onClick={() => !isPostingToTwitter && setShowTwitterConfirm(false)}
                 disabled={isPostingToTwitter}
-                className="rounded-lg p-2 text-white/70 transition hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded-lg p-2 text-foreground/70 transition hover:bg-white/10 hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label="Close modal"
               >
                 <X className="h-5 w-5" />
@@ -426,7 +426,7 @@ export function PnLShareModal({
                     className="h-full w-full object-contain"
                   />
                 ) : (
-                  <div className="flex h-full items-center justify-center text-sm text-white/60">
+                  <div className="flex h-full items-center justify-center text-sm text-foreground/60">
                     No preview available
                   </div>
                 )}
@@ -434,7 +434,7 @@ export function PnLShareModal({
 
               {/* Tweet Text Editor */}
               <div>
-                <label htmlFor="tweet-text" className="block text-sm font-medium text-white/80 mb-2">
+                <label htmlFor="tweet-text" className="block text-sm font-medium text-foreground/80 mb-2">
                   Tweet Text
                 </label>
                 <textarea
@@ -444,11 +444,11 @@ export function PnLShareModal({
                   maxLength={280}
                   rows={4}
                   disabled={isPostingToTwitter}
-                  className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-50 disabled:cursor-not-allowed resize-none"
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-foreground placeholder-white/40 focus:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-50 disabled:cursor-not-allowed resize-none"
                   placeholder="What's on your mind?"
                 />
                 <div className="flex items-center justify-between mt-2">
-                  <span className="text-xs text-white/60">
+                  <span className="text-xs text-foreground/60">
                     {tweetText.length} / 280 characters
                   </span>
                   {tweetText.length > 280 && (
@@ -465,7 +465,7 @@ export function PnLShareModal({
                   type="button"
                   onClick={() => setShowTwitterConfirm(false)}
                   disabled={isPostingToTwitter}
-                  className="px-6 py-2.5 rounded-lg border border-white/10 text-white hover:bg-white/5 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-2.5 rounded-lg border border-white/10 text-foreground hover:bg-white/5 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
@@ -473,7 +473,7 @@ export function PnLShareModal({
                   type="button"
                   onClick={handleTwitterPost}
                   disabled={isPostingToTwitter || !tweetText.trim() || tweetText.length > 280}
-                  className="px-6 py-2.5 rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-6 py-2.5 rounded-lg bg-sky-500 hover:bg-sky-600 text-foreground font-medium transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {isPostingToTwitter ? (
                     <>

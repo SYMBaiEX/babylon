@@ -150,7 +150,7 @@ export function AgentChat({ agent, onUpdate }: AgentChatProps) {
             className={cn(
               'px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed',
               usePro
-                ? 'bg-[#0066FF] text-white'
+                ? 'bg-[#0066FF] text-primary-foreground'
                 : 'bg-muted hover:bg-muted/80 text-foreground'
             )}
           >
@@ -192,7 +192,7 @@ export function AgentChat({ agent, onUpdate }: AgentChatProps) {
                 className={cn(
                   'max-w-[70%] rounded-lg p-3',
                   message.role === 'user'
-                    ? 'bg-[#0066FF] text-white'
+                    ? 'bg-[#0066FF] text-primary-foreground'
                     : 'bg-muted'
                 )}
               >
@@ -268,7 +268,7 @@ export function AgentChat({ agent, onUpdate }: AgentChatProps) {
             <button
               onClick={sendMessage}
               disabled={!input.trim() || sending || agent.pointsBalance < 1}
-              className="px-4 py-2 rounded-lg bg-[#0066FF] hover:bg-[#2952d9] text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-4 py-2 rounded-lg bg-[#0066FF] hover:bg-[#2952d9] text-primary-foreground font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               <Send className="w-4 h-4" />
             </button>

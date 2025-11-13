@@ -38,7 +38,7 @@ export function PortfolioPnLCard({
             type="button"
             onClick={onRefresh}
             disabled={loading}
-            className="flex items-center justify-center rounded-lg border border-white/10 bg-white/10 p-2 text-white backdrop-blur transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex items-center justify-center rounded-lg border border-white/10 bg-white/10 p-2 text-foreground backdrop-blur transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
             aria-label="Refresh portfolio P&L"
           >
             <RefreshCcw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -54,7 +54,7 @@ export function PortfolioPnLCard({
           </button>
           <button
             onClick={() => setShowBuyPointsModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-medium rounded-lg hover:from-yellow-600 hover:to-amber-700 transition-all shadow-md hover:shadow-lg"
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-yellow-500 to-amber-600 text-primary-foreground font-medium rounded-lg hover:from-yellow-600 hover:to-amber-700 transition-all shadow-md hover:shadow-lg"
           >
             <Sparkles className="w-4 h-4" />
             <span className="hidden sm:inline">Buy Points</span>
@@ -75,22 +75,22 @@ export function PortfolioPnLCard({
           </div>
         </div>
       ) : error ? (
-        <div className="mt-6 rounded-lg bg-white/10 px-4 py-3 text-sm text-white/80">
-          <p className="font-medium text-white">Unable to load portfolio</p>
-          <p className="mt-1 text-white/80">{error}</p>
+        <div className="mt-6 rounded-lg bg-white/10 px-4 py-3 text-sm text-foreground/80">
+          <p className="font-medium text-foreground">Unable to load portfolio</p>
+          <p className="mt-1 text-foreground/80">{error}</p>
         </div>
       ) : (
         data && (
           <div className="grid grid-cols-2 gap-3">
             <div className="p-4">
-              <dt className="text-xs uppercase text-white/70">Total Points</dt>
-              <dd className="mt-2 text-3xl font-bold text-white">
+              <dt className="text-xs uppercase text-foreground/70">Total Points</dt>
+              <dd className="mt-2 text-3xl font-bold text-foreground">
                 {formatCurrency(data.accountEquity)}
               </dd>
             </div>
             <div className="p-4">
-              <dt className="text-xs uppercase text-white/70">Available to Invest</dt>
-              <dd className="mt-2 text-3xl font-bold text-white">
+              <dt className="text-xs uppercase text-foreground/70">Available to Invest</dt>
+              <dd className="mt-2 text-3xl font-bold text-foreground">
                 {formatCurrency(data.availableBalance)}
               </dd>
             </div>

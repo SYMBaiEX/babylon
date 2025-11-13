@@ -153,7 +153,7 @@ export function AgentWallet({ agent, onUpdate }: AgentWalletProps) {
             className={cn(
               'flex-1 px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2',
               action === 'deposit'
-                ? 'bg-[#0066FF] text-white'
+                ? 'bg-[#0066FF] text-primary-foreground'
                 : 'bg-muted hover:bg-muted/80 text-foreground'
             )}
           >
@@ -165,7 +165,7 @@ export function AgentWallet({ agent, onUpdate }: AgentWalletProps) {
             className={cn(
               'flex-1 px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2',
               action === 'withdraw'
-                ? 'bg-[#0066FF] text-white'
+                ? 'bg-[#0066FF] text-primary-foreground'
                 : 'bg-muted hover:bg-muted/80 text-foreground'
             )}
           >
@@ -186,7 +186,7 @@ export function AgentWallet({ agent, onUpdate }: AgentWalletProps) {
           <button
             onClick={handleTransaction}
             disabled={processing || !amount}
-            className="px-6 py-2 rounded-lg bg-[#0066FF] hover:bg-[#2952d9] text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-6 py-2 rounded-lg bg-[#0066FF] hover:bg-[#2952d9] text-primary-foreground font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {processing ? 'Processing...' : action === 'deposit' ? 'Deposit' : 'Withdraw'}
           </button>

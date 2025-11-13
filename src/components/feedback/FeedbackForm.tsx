@@ -148,7 +148,7 @@ export function FeedbackForm({
           disabled={submitting}
           className={cn(
             'flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-colors',
-            'bg-[#1c9cf0] hover:bg-[#1c9cf0]/90 text-white',
+            'bg-[#1c9cf0] hover:bg-[#1c9cf0]/90 text-primary-foreground',
             'disabled:opacity-50 disabled:cursor-not-allowed'
           )}
         >

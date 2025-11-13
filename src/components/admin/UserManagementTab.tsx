@@ -452,7 +452,7 @@ export function UserManagementTab() {
               <button
                 onClick={() => handleBanUser(selectedUser, 'ban')}
                 disabled={isBanning || !banReason.trim()}
-                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2 bg-red-500 text-primary-foreground rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isBanning ? (
                   <>

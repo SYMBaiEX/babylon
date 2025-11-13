@@ -504,7 +504,7 @@ export default function SettingsPage() {
                 disabled={saving || user?.onChainRegistered !== true}
                 className={cn(
                   'flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all',
-                  'bg-[#0066FF] text-white hover:bg-[#2952d9]',
+                  'bg-[#0066FF] text-primary-foreground hover:bg-[#2952d9]',
                   'disabled:opacity-50 disabled:cursor-not-allowed'
                 )}
               >

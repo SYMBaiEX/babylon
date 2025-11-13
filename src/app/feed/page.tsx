@@ -538,7 +538,7 @@ function FeedPageContent() {
             'fixed bottom-20 right-4 md:bottom-6 md:right-6 z-[100]',
             'flex items-center justify-center gap-2',
             'bg-[#0066FF] hover:bg-[#2952d9]',
-            'text-white font-semibold',
+            'text-primary-foreground font-semibold',
             'rounded-full',
             'transition-all duration-200',
             'shadow-lg hover:shadow-xl hover:scale-105',

@@ -413,7 +413,7 @@ export default function PredictionDetailPage() {
                 className={cn(
                   'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-3 cursor-pointer',
                   side === 'yes'
-                    ? 'bg-green-600 text-white'
+                    ? 'bg-green-600 text-primary-foreground'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 )}
               >
@@ -425,7 +425,7 @@ export default function PredictionDetailPage() {
                 className={cn(
                   'flex-1 py-3 rounded font-bold transition-all flex items-center justify-center gap-3 cursor-pointer',
                   side === 'no'
-                    ? 'bg-red-600 text-white'
+                    ? 'bg-red-600 text-primary-foreground'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 )}
               >
@@ -499,7 +499,7 @@ export default function PredictionDetailPage() {
               onClick={handleSubmit}
               disabled={submitting || amountNum < 1}
               className={cn(
-                'w-full py-4 rounded-lg font-bold text-white text-lg transition-all cursor-pointer',
+                'w-full py-4 rounded-lg font-bold text-primary-foreground text-lg transition-all cursor-pointer',
                 side === 'yes'
                   ? 'bg-green-600 hover:bg-green-700'
                   : 'bg-red-600 hover:bg-red-700',

@@ -172,7 +172,7 @@ export default function AgentDetailPage() {
               This agent doesn't exist or you don't have access to it
             </p>
             <Link href="/agents">
-              <button className="px-6 py-2 rounded-lg font-medium bg-[#0066FF] hover:bg-[#2952d9] text-white transition-colors">
+              <button className="px-6 py-2 rounded-lg font-medium bg-[#0066FF] hover:bg-[#2952d9] text-primary-foreground transition-colors">
                 Back to Agents
               </button>
             </Link>
@@ -210,10 +210,10 @@ export default function AgentDetailPage() {
             <div>
               <h1 className="text-2xl font-bold mb-1">{agent.name}</h1>
               {agent.description && (
-                <p className="text-gray-400 mb-2">{agent.description}</p>
+                <p className="text-foreground/80 mb-2">{agent.description}</p>
               )}
               <div className="flex items-center gap-4 text-sm">
-                <span className={agent.autonomousEnabled ? 'text-green-400' : 'text-gray-400'}>
+                <span className={agent.autonomousEnabled ? 'text-green-400' : 'text-foreground/80'}>
                   {agent.autonomousEnabled ? (
                     <>
                       <Activity className="w-3 h-3 inline mr-1" />
@@ -223,8 +223,8 @@ export default function AgentDetailPage() {
                     'Autonomous Disabled'
                   )}
                 </span>
-                <span className="text-gray-600">•</span>
-                <span className="text-gray-400 capitalize">{agent.modelTier} Mode</span>
+                <span className="text-foreground">•</span>
+                <span className="text-foreground/80 capitalize">{agent.modelTier} Mode</span>
                 {agent.onChainRegistered && (
                   <>
                     <span className="text-gray-600">•</span>
@@ -265,23 +265,23 @@ export default function AgentDetailPage() {
       {/* Tabs */}
       <Tabs defaultValue="chat" className="w-full">
         <TabsList className="grid w-full grid-cols-5 bg-muted/50">
-          <TabsTrigger value="chat" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">
+          <TabsTrigger value="chat" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-primary-foreground">
             <MessageCircle className="w-4 h-4 mr-2" />
             <span className="hidden sm:inline">Chat</span>
           </TabsTrigger>
-          <TabsTrigger value="performance" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">
+          <TabsTrigger value="performance" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-primary-foreground">
             <TrendingUp className="w-4 h-4 mr-2" />
             <span className="hidden sm:inline">Performance</span>
           </TabsTrigger>
-          <TabsTrigger value="logs" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">
+          <TabsTrigger value="logs" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-primary-foreground">
             <FileText className="w-4 h-4 mr-2" />
             <span className="hidden sm:inline">Logs</span>
           </TabsTrigger>
-          <TabsTrigger value="settings" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">
+          <TabsTrigger value="settings" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-primary-foreground">
             <Settings className="w-4 h-4 mr-2" />
             <span className="hidden sm:inline">Settings</span>
           </TabsTrigger>
-          <TabsTrigger value="wallet" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">
+          <TabsTrigger value="wallet" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-primary-foreground">
             <Bot className="w-4 h-4 mr-2" />
             <span className="hidden sm:inline">Wallet</span>
           </TabsTrigger>

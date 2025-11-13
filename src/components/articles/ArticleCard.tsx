@@ -104,7 +104,7 @@ export const ArticleCard = memo(function ArticleCard({
           {post.articleTitle || 'Untitled Article'}
         </h2>
         <button
-          className="inline-flex items-center gap-2 px-3 py-2 bg-[#0066FF] hover:bg-[#2952d9] text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0"
+          className="inline-flex items-center gap-2 px-3 py-2 bg-[#0066FF] hover:bg-[#2952d9] text-primary-foreground text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0"
           onClick={handleClick}
         >
           Read Full Article →

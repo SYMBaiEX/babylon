@@ -69,7 +69,7 @@ export function MarketCard({ market }: { market: Market }) {
         {/* Action */}
         {!market.resolved && (
           <div className="mt-4 pt-4 border-t border-gray-700">
-            <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded transition-colors">
+            <button className="w-full bg-blue-600 hover:bg-blue-700 text-primary-foreground font-semibold py-2 px-4 rounded transition-colors">
               Trade Now →
             </button>
           </div>
