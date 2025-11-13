@@ -150,14 +150,6 @@ function FeedPageContent() {
     const existingPostIds = new Set(currentPosts.map(p => p.id))
     const duplicateCount = newPosts.filter(post => existingPostIds.has(post.id)).length
     
-    console.log("Pre-check duplicates:", {
-      currentPostsInRef: currentPosts.length,
-      newPostsCount: newPosts.length,
-      duplicateCount,
-      sampleExisting: currentPosts.slice(-3).map(p => p.id),
-      sampleNew: newPosts.slice(0, 3).map(p => p.id)
-    })
-    
     // If we're appending and ALL posts are duplicates, we've hit offset drift
     // Retry with corrected offset BEFORE any state updates
     if (append && duplicateCount === newPosts.length && duplicateCount > 0) {
@@ -196,20 +188,7 @@ function FeedPageContent() {
       uniqueAdded = deduped.length - prevSize
       setOffset(deduped.length)
       
-      console.log("Added posts:", {
-        prevSize,
-        newSize: deduped.length,
-        uniqueAdded,
-      })
-      
       return deduped
-    })
-
-    console.log("✅ Fetch complete:", { 
-      requestOffset, 
-      newPostsCount: newPosts.length, 
-      uniqueAdded, 
-      append 
     })
     
     // Clear local posts when refreshing (not appending) as they should now be in the API response
