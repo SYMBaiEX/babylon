@@ -11,7 +11,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 import { prisma } from '@/lib/database-service'
 import { logger } from '@/lib/logger'
-
+import { REPUTATION_SYSTEM_ABI } from '../web3/abis'
 
 // Contract addresses
 const REPUTATION_SYSTEM = process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA as Address
@@ -19,54 +19,7 @@ const REPUTATION_SYSTEM = process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA
 // Server wallet for paying gas (testnet only!)
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`
 
-// Reputation System ABI
-const REPUTATION_SYSTEM_ABI = [
-  {
-    type: 'function',
-    name: 'recordBet',
-    inputs: [
-      { name: '_tokenId', type: 'uint256' },
-      { name: '_amount', type: 'uint256' },
-    ],
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    name: 'recordWin',
-    inputs: [
-      { name: '_tokenId', type: 'uint256' },
-      { name: '_profit', type: 'uint256' },
-    ],
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    name: 'recordLoss',
-    inputs: [
-      { name: '_tokenId', type: 'uint256' },
-      { name: '_loss', type: 'uint256' },
-    ],
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    name: 'getReputation',
-    inputs: [{ name: 'tokenId', type: 'uint256' }],
-    outputs: [
-      { name: 'totalBets', type: 'uint256' },
-      { name: 'winningBets', type: 'uint256' },
-      { name: 'totalVolume', type: 'uint256' },
-      { name: 'profitLoss', type: 'uint256' },
-      { name: 'accuracyScore', type: 'uint256' },
-      { name: 'trustScore', type: 'uint256' },
-      { name: 'isBanned', type: 'bool' },
-    ],
-    stateMutability: 'view',
-  },
-] as const
+
 
 interface MarketResolution {
   marketId: string
@@ -214,7 +167,7 @@ export class ReputationService {
       abi: REPUTATION_SYSTEM_ABI,
       functionName: 'getReputation',
       args: [BigInt(user.nftTokenId)],
-    })
+    }) as [bigint, bigint, bigint, bigint, bigint, bigint, boolean]
 
     // Reputation returns tuple: [totalBets, winningBets, totalVolume, profitLoss, accuracyScore, trustScore, isBanned]
     // We want trustScore (index 5) which is 0-10000 scale (divide by 100 to get 0-100)

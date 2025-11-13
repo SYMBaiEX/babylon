@@ -379,24 +379,29 @@ model UserGroupInvite {
 }
 
 model Market {
-  id          String     @id
-  question    String
-  description String?
-  gameId      String?
-  dayNumber   Int?
-  yesShares   Decimal    @default(0) @db.Decimal(18, 6)
-  noShares    Decimal    @default(0) @db.Decimal(18, 6)
-  liquidity   Decimal    @db.Decimal(18, 6)
-  resolved    Boolean    @default(false)
-  resolution  Boolean?
-  endDate     DateTime
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime
-  Position    Position[]
+  id                    String     @id
+  question              String
+  description           String?
+  gameId                String?
+  dayNumber             Int?
+  yesShares             Decimal    @default(0) @db.Decimal(18, 6)
+  noShares              Decimal    @default(0) @db.Decimal(18, 6)
+  liquidity             Decimal    @db.Decimal(18, 6)
+  resolved              Boolean    @default(false)
+  resolution            Boolean?
+  endDate               DateTime
+  onChainMarketId       String?    // bytes32 hex string for on-chain market
+  onChainResolved       Boolean    @default(false)
+  onChainResolutionTxHash String?
+  oracleAddress         String?    // Address authorized to resolve
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime
+  Position              Position[]
 
   @@index([createdAt(sort: Desc)])
   @@index([gameId, dayNumber])
   @@index([resolved, endDate])
+  @@index([onChainMarketId])
 }
 
 model Message {
