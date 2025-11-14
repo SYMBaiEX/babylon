@@ -171,9 +171,12 @@ export class UnifiedDiscoveryService implements IUnifiedDiscoveryService {
     if (agentId.startsWith('agent0-')) {
       const tokenId = parseInt(agentId.replace('agent0-', ''), 10)
       const agent0Data = await this.subgraphClient.getAgent(tokenId)
+      if (!agent0Data) {
+        return null
+      }
       return this.transformAgent0Profile(agent0Data, this.reputationBridge)
     }
-    
+
     const localAgent = await this.localRegistry.getAgent(agentId)
     return localAgent?.profile || null
   }

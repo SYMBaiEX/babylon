@@ -11,7 +11,7 @@ import type {
   Agent0RegistrationParams,
   Agent0RegistrationResult,
   Agent0SearchFilters,
-  Agent0SearchResult,
+  Agent0PaginatedSearchResult,
   Agent0FeedbackParams,
   Agent0AgentProfile,
   Agent0Feedback,
@@ -31,12 +31,13 @@ import type {
 
 // Import SDK and types from agent0-sdk
 import { SDK, EndpointCrawler } from 'agent0-sdk'
-import type { 
-  SDKConfig, 
-  AgentSummary, 
+import type {
+  SDKConfig,
+  AgentSummary,
   SearchParams,
   RegistrationFile
 } from 'agent0-sdk'
+import type { Agent } from 'agent0-sdk/dist/core/agent.js'
 import { z } from 'zod';
 
 const CapabilitiesSchema = z.object({
@@ -226,7 +227,7 @@ export class Agent0Client implements IAgent0Client {
       // Use setTrust method with boolean flags
       const hasFeedback = params.trustModels.includes('feedback') || params.trustModels.includes('reputation')
       agent.setTrust(hasFeedback, false, false)
-      
+
       const metadata = agent.getMetadata()
       metadata.trustModels = params.trustModels
       agent.setMetadata(metadata)
@@ -235,7 +236,73 @@ export class Agent0Client implements IAgent0Client {
       // Default: reputation-based trust
       agent.setTrust(true, false, false)
     }
-    
+
+    // OASF Skills and Domains (v0.31)
+    if (params.oasfSkills && params.oasfSkills.length > 0) {
+      const validateOASF = params.validateOASF !== false  // Default to true
+      for (const skill of params.oasfSkills) {
+        agent.addSkill(skill, validateOASF)
+        logger.info(`Added OASF skill: ${skill}`, undefined, 'Agent0Client [registerAgent]')
+      }
+    } else if (params.capabilities.strategies && params.capabilities.strategies.length > 0) {
+      // Auto-map strategies to OASF skills
+      const skillMappings: Record<string, string> = {
+        'prediction-markets': 'advanced_reasoning_planning/strategic_planning',
+        'autonomous-trading': 'data_engineering/data_transformation_pipeline',
+        'social-interaction': 'natural_language_processing/conversational_agents',
+        'reputation-tracking': 'data_engineering/data_analysis',
+        'agent-discovery': 'information_retrieval/search_and_indexing',
+        'chat': 'natural_language_processing/conversational_agents',
+        'analysis': 'data_engineering/data_analysis'
+      }
+
+      for (const strategy of params.capabilities.strategies) {
+        const oasfSkill = skillMappings[strategy]
+        if (oasfSkill) {
+          agent.addSkill(oasfSkill, false)  // Don't validate auto-mapped skills
+          logger.info(`Auto-mapped strategy "${strategy}" to OASF skill: ${oasfSkill}`, undefined, 'Agent0Client [registerAgent]')
+        }
+      }
+    }
+
+    if (params.oasfDomains && params.oasfDomains.length > 0) {
+      const validateOASF = params.validateOASF !== false  // Default to true
+      for (const domain of params.oasfDomains) {
+        agent.addDomain(domain, validateOASF)
+        logger.info(`Added OASF domain: ${domain}`, undefined, 'Agent0Client [registerAgent]')
+      }
+    } else if (params.capabilities.markets && params.capabilities.markets.length > 0) {
+      // Auto-map markets to OASF domains
+      const domainMappings: Record<string, string> = {
+        'prediction': 'finance_and_business/prediction_markets',
+        'crypto': 'finance_and_business/cryptocurrency_and_blockchain',
+        'sports': 'sports_and_recreation/sports_analytics',
+        'politics': 'social_sciences_and_politics/political_analysis',
+        'entertainment': 'entertainment_and_media/entertainment',
+        'ai': 'technology/artificial_intelligence/machine_learning',
+        'perp': 'finance_and_business/derivatives_trading'
+      }
+
+      for (const market of params.capabilities.markets) {
+        const oasfDomain = domainMappings[market]
+        if (oasfDomain) {
+          agent.addDomain(oasfDomain, false)  // Don't validate auto-mapped domains
+          logger.info(`Auto-mapped market "${market}" to OASF domain: ${oasfDomain}`, undefined, 'Agent0Client [registerAgent]')
+        }
+      }
+    }
+
+    // ENS and DID endpoints (v0.31)
+    if (params.ensName) {
+      agent.setENS(params.ensName)
+      logger.info(`Set ENS name: ${params.ensName}`, undefined, 'Agent0Client [registerAgent]')
+    }
+
+    // Note: DID support would go here when SDK supports it
+    // if (params.didIdentifier) {
+    //   agent.setDID(params.didIdentifier)
+    // }
+
     const registrationFile: RegistrationFile = await agent.registerIPFS()
     
     logger.info('Registration file returned from SDK:', {
@@ -316,31 +383,97 @@ export class Agent0Client implements IAgent0Client {
   /**
    * Search for agents using Agent0 SDK
    */
-  async searchAgents(filters: Agent0SearchFilters): Promise<Agent0SearchResult[]> {
+  async searchAgents(filters: Agent0SearchFilters): Promise<Agent0PaginatedSearchResult> {
     await this.ensureSDK()
-    
+
     logger.info('Searching agents with filters:', filters, 'Agent0Client [searchAgents]')
-    
+
     const searchParams: SearchParams = {}
-    
-    if (filters.strategies && filters.strategies.length > 0) {
-      searchParams.a2aSkills = filters.strategies
-    }
-    
+
+    // Basic filters
     if (filters.name) {
       searchParams.name = filters.name
     }
-    
-    if (filters.x402Support !== undefined) {
-      searchParams.x402support = filters.x402Support
+
+    if (filters.description) {
+      searchParams.description = filters.description
     }
-    
-    const { items } = await this.sdk!.searchAgents(searchParams)
-    
-    return items.map((agent: AgentSummary) => {
+
+    if (filters.strategies && filters.strategies.length > 0) {
+      searchParams.a2aSkills = filters.strategies
+    }
+
+    if (filters.x402Support !== undefined || filters.hasX402 !== undefined) {
+      searchParams.x402support = filters.x402Support ?? filters.hasX402
+    }
+
+    // Advanced filters (Agent0 SDK v0.31)
+    if (filters.active !== undefined) {
+      searchParams.active = filters.active
+    }
+
+    if (filters.chains) {
+      searchParams.chains = filters.chains
+    }
+
+    if (filters.mcpTools && filters.mcpTools.length > 0) {
+      searchParams.mcpTools = filters.mcpTools
+    }
+
+    if (filters.mcpPrompts && filters.mcpPrompts.length > 0) {
+      searchParams.mcpPrompts = filters.mcpPrompts
+    }
+
+    if (filters.mcpResources && filters.mcpResources.length > 0) {
+      searchParams.mcpResources = filters.mcpResources
+    }
+
+    if (filters.a2aSkills && filters.a2aSkills.length > 0) {
+      searchParams.a2aSkills = filters.a2aSkills
+    }
+
+    if (filters.supportedTrust && filters.supportedTrust.length > 0) {
+      searchParams.supportedTrust = filters.supportedTrust
+    }
+
+    if (filters.owners && filters.owners.length > 0) {
+      searchParams.owners = filters.owners
+    }
+
+    if (filters.walletAddress) {
+      searchParams.walletAddress = filters.walletAddress
+    }
+
+    if (filters.mcp !== undefined) {
+      searchParams.mcp = filters.mcp
+    }
+
+    if (filters.a2a !== undefined) {
+      searchParams.a2a = filters.a2a
+    }
+
+    if (filters.ens) {
+      searchParams.ens = filters.ens
+    }
+
+    // Pagination parameters are passed separately in SDK v0.31
+    const pageSize = filters.pageSize
+    const cursor = filters.cursor
+
+    const result = await this.sdk!.searchAgents(searchParams, undefined, pageSize, cursor)
+    const items = result.items || []
+    const nextCursor = result.nextCursor
+    const meta = result.meta
+    // Determine if there are more results based on nextCursor presence
+    const hasMore = nextCursor !== undefined && nextCursor !== null && nextCursor !== ''
+
+    logger.info(`Found ${items.length} agents, hasMore: ${hasMore}`, undefined, 'Agent0Client [searchAgents]')
+
+    const results = items.map((agent: AgentSummary) => {
       const capabilities = this.parseCapabilities(agent.extras);
       return {
         tokenId: parseInt(agent.agentId.split(':')[1] ?? '0', 10),
+        chainId: parseInt(agent.agentId.split(':')[0] ?? `${this.chainId}`, 10),
         name: agent.name,
         walletAddress: agent.walletAddress ?? '',
         metadataCID: agent.agentId,
@@ -351,6 +484,13 @@ export class Agent0Client implements IAgent0Client {
         }
       };
     })
+
+    return {
+      items: results,
+      nextCursor,
+      hasMore,
+      meta
+    }
   }
   
   /**
@@ -563,7 +703,7 @@ export class Agent0Client implements IAgent0Client {
   /**
    * Load an existing agent from on-chain/IPFS
    */
-  async loadAgent(tokenId: number): Promise<unknown> {
+  async loadAgent(tokenId: number): Promise<Agent> {
     await this.ensureSDK()
     
     logger.info(`Loading agent ${tokenId}`, undefined, 'Agent0Client [loadAgent]')
@@ -643,7 +783,7 @@ export class Agent0Client implements IAgent0Client {
       params.cursor,
       params.sort
     )
-    
+
     return {
       items: result.items.map((agent: AgentSummary) => {
         const capabilities = this.parseCapabilities(agent.extras);
@@ -659,7 +799,8 @@ export class Agent0Client implements IAgent0Client {
           }
         };
       }),
-      nextCursor: result.nextCursor
+      nextCursor: result.nextCursor,
+      meta: result.meta
     }
   }
 
@@ -756,8 +897,158 @@ export class Agent0Client implements IAgent0Client {
     
     // Re-publish to IPFS
     await agent.registerIPFS()
-    
+
     logger.info(`Agent metadata updated: ${params.tokenId}`, undefined, 'Agent0Client [updateAgentMetadata]')
+  }
+
+  /**
+   * Add OASF skill to agent
+   * OASF (Open Agentic Schema Framework) v0.31
+   */
+  async addSkillToAgent(tokenId: number, skill: string, validateOASF = true): Promise<void> {
+    await this.ensureSDK()
+
+    if (!this.sdk || this.sdk.isReadOnly) {
+      throw new Error('SDK not initialized with write access')
+    }
+
+    logger.info(`Adding OASF skill to agent ${tokenId}: ${skill}`, { validateOASF }, 'Agent0Client [addSkillToAgent]')
+
+    const agentId = `${this.chainId}:${tokenId}` as `${number}:${number}`
+    const agent = await this.sdk.loadAgent(agentId)
+
+    agent.addSkill(skill, validateOASF)
+    await agent.registerIPFS()
+
+    logger.info(`OASF skill added to agent ${tokenId}: ${skill}`, undefined, 'Agent0Client [addSkillToAgent]')
+  }
+
+  /**
+   * Add OASF domain to agent
+   * OASF (Open Agentic Schema Framework) v0.31
+   */
+  async addDomainToAgent(tokenId: number, domain: string, validateOASF = true): Promise<void> {
+    await this.ensureSDK()
+
+    if (!this.sdk || this.sdk.isReadOnly) {
+      throw new Error('SDK not initialized with write access')
+    }
+
+    logger.info(`Adding OASF domain to agent ${tokenId}: ${domain}`, { validateOASF }, 'Agent0Client [addDomainToAgent]')
+
+    const agentId = `${this.chainId}:${tokenId}` as `${number}:${number}`
+    const agent = await this.sdk.loadAgent(agentId)
+
+    agent.addDomain(domain, validateOASF)
+    await agent.registerIPFS()
+
+    logger.info(`OASF domain added to agent ${tokenId}: ${domain}`, undefined, 'Agent0Client [addDomainToAgent]')
+  }
+
+  /**
+   * Remove OASF skill from agent
+   * OASF (Open Agentic Schema Framework) v0.31
+   */
+  async removeSkillFromAgent(tokenId: number, skill: string): Promise<void> {
+    await this.ensureSDK()
+
+    if (!this.sdk || this.sdk.isReadOnly) {
+      throw new Error('SDK not initialized with write access')
+    }
+
+    logger.info(`Removing OASF skill from agent ${tokenId}: ${skill}`, undefined, 'Agent0Client [removeSkillFromAgent]')
+
+    const agentId = `${this.chainId}:${tokenId}` as `${number}:${number}`
+    const agent = await this.sdk.loadAgent(agentId)
+
+    agent.removeSkill(skill)
+    await agent.registerIPFS()
+
+    logger.info(`OASF skill removed from agent ${tokenId}: ${skill}`, undefined, 'Agent0Client [removeSkillFromAgent]')
+  }
+
+  /**
+   * Remove OASF domain from agent
+   * OASF (Open Agentic Schema Framework) v0.31
+   */
+  async removeDomainFromAgent(tokenId: number, domain: string): Promise<void> {
+    await this.ensureSDK()
+
+    if (!this.sdk || this.sdk.isReadOnly) {
+      throw new Error('SDK not initialized with write access')
+    }
+
+    logger.info(`Removing OASF domain from agent ${tokenId}: ${domain}`, undefined, 'Agent0Client [removeDomainFromAgent]')
+
+    const agentId = `${this.chainId}:${tokenId}` as `${number}:${number}`
+    const agent = await this.sdk.loadAgent(agentId)
+
+    agent.removeDomain(domain)
+    await agent.registerIPFS()
+
+    logger.info(`OASF domain removed from agent ${tokenId}: ${domain}`, undefined, 'Agent0Client [removeDomainFromAgent]')
+  }
+
+  /**
+   * Add operator to agent
+   * Operators can manage agent on behalf of owner
+   * Agent0 SDK v0.31
+   */
+  async addOperator(tokenId: number, operatorAddress: string): Promise<void> {
+    await this.ensureSDK()
+
+    if (!this.sdk || this.sdk.isReadOnly) {
+      throw new Error('SDK not initialized with write access')
+    }
+
+    logger.info(`Adding operator to agent ${tokenId}: ${operatorAddress}`, undefined, 'Agent0Client [addOperator]')
+
+    const agentId = `${this.chainId}:${tokenId}` as `${number}:${number}`
+    const agent = await this.sdk.loadAgent(agentId)
+
+    // Get existing metadata
+    const metadata = agent.getMetadata()
+    const operators = (metadata.operators as string[]) || []
+
+    if (!operators.includes(operatorAddress)) {
+      operators.push(operatorAddress)
+      agent.setMetadata({ ...metadata, operators })
+      await agent.registerIPFS()
+      logger.info(`Operator added to agent ${tokenId}: ${operatorAddress}`, undefined, 'Agent0Client [addOperator]')
+    } else {
+      logger.warn(`Operator already exists for agent ${tokenId}: ${operatorAddress}`, undefined, 'Agent0Client [addOperator]')
+    }
+  }
+
+  /**
+   * Remove operator from agent
+   * Agent0 SDK v0.31
+   */
+  async removeOperator(tokenId: number, operatorAddress: string): Promise<void> {
+    await this.ensureSDK()
+
+    if (!this.sdk || this.sdk.isReadOnly) {
+      throw new Error('SDK not initialized with write access')
+    }
+
+    logger.info(`Removing operator from agent ${tokenId}: ${operatorAddress}`, undefined, 'Agent0Client [removeOperator]')
+
+    const agentId = `${this.chainId}:${tokenId}` as `${number}:${number}`
+    const agent = await this.sdk.loadAgent(agentId)
+
+    // Get existing metadata
+    const metadata = agent.getMetadata()
+    const operators = (metadata.operators as string[]) || []
+    const index = operators.indexOf(operatorAddress)
+
+    if (index > -1) {
+      operators.splice(index, 1)
+      agent.setMetadata({ ...metadata, operators })
+      await agent.registerIPFS()
+      logger.info(`Operator removed from agent ${tokenId}: ${operatorAddress}`, undefined, 'Agent0Client [removeOperator]')
+    } else {
+      logger.warn(`Operator not found for agent ${tokenId}: ${operatorAddress}`, undefined, 'Agent0Client [removeOperator]')
+    }
   }
 }
 

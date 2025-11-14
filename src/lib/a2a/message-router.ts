@@ -240,7 +240,9 @@ export class MessageRouter {
                 const subgraphClient = new SubgraphClient()
                 if (subgraphClient.isAvailable()) {
                   const subgraphAgent = await subgraphClient.getAgent(tokenId)
-                  endpoint = subgraphAgent.a2aEndpoint || ''
+                  if (subgraphAgent) {
+                    endpoint = subgraphAgent.a2aEndpoint || ''
+                  }
                 }
               } catch {
                 // Subgraph not available or agent not found, use empty endpoint

@@ -15,29 +15,39 @@ export interface IAgent0Client {
   registerAgent(params: Agent0RegistrationParams): Promise<Agent0RegistrationResult>
   registerBabylonGame(): Promise<Agent0RegistrationResult>
   updateAgentMetadata(params: Agent0UpdateMetadataParams): Promise<void>
-  
+
   // Search & Discovery
-  searchAgents(filters: Agent0SearchFilters): Promise<Agent0SearchResult[]>
+  searchAgents(filters: Agent0SearchFilters): Promise<Agent0PaginatedSearchResult>
   searchAgentsByReputation(params: Agent0ReputationSearchParams): Promise<Agent0ReputationSearchResult>
   getAgentProfile(tokenId: number): Promise<Agent0AgentProfile | null>
-  
+
   // Feedback - Write Operations
   submitFeedback(params: Agent0FeedbackParams): Promise<Agent0Feedback>
   signFeedbackAuth(params: Agent0FeedbackAuthParams): Promise<string>
   appendFeedbackResponse(params: Agent0FeedbackResponseParams): Promise<string>
   revokeFeedback(params: Agent0RevokeFeedbackParams): Promise<string>
-  
+
   // Feedback - Read Operations
   getFeedback(params: Agent0GetFeedbackParams): Promise<Agent0Feedback>
   searchFeedback(params: Agent0SearchFeedbackParams): Promise<Agent0Feedback[]>
   getReputationSummary(params: Agent0ReputationSummaryParams): Promise<Agent0ReputationSummary>
-  
+
   // Agent Management
   loadAgent(tokenId: number): Promise<unknown>
   transferAgent(params: Agent0TransferParams): Promise<Agent0TransferResult>
   isAgentOwner(tokenId: number, address: string): Promise<boolean>
   getAgentOwner(tokenId: number): Promise<string>
-  
+
+  // OASF Methods (v0.31)
+  addSkillToAgent(tokenId: number, skill: string, validateOASF?: boolean): Promise<void>
+  addDomainToAgent(tokenId: number, domain: string, validateOASF?: boolean): Promise<void>
+  removeSkillFromAgent(tokenId: number, skill: string): Promise<void>
+  removeDomainFromAgent(tokenId: number, domain: string): Promise<void>
+
+  // Operator Management (v0.31)
+  addOperator(tokenId: number, operatorAddress: string): Promise<void>
+  removeOperator(tokenId: number, operatorAddress: string): Promise<void>
+
   // Utility
   isAvailable(): boolean
   getDefaultChainId(): number
@@ -76,9 +86,16 @@ export interface Agent0RegistrationParams {
   walletAddress: string
   mcpEndpoint?: string
   a2aEndpoint?: string
+  ensName?: string  // ENS endpoint support
+  didIdentifier?: string  // DID endpoint support
   capabilities: AgentCapabilities
   operators?: string[]  // Gap 17: Operator support
   trustModels?: string[]  // Gap 14: Trust model support
+
+  // OASF (Open Agentic Schema Framework) v0.31
+  oasfSkills?: string[]  // Standardized skill taxonomies
+  oasfDomains?: string[]  // Standardized domain classifications
+  validateOASF?: boolean  // Validate against OASF taxonomies
 }
 
 /**
@@ -94,13 +111,33 @@ export interface Agent0RegistrationResult {
  * Agent0 Search Filters
  */
 export interface Agent0SearchFilters {
+  // Basic filters
   name?: string
+  description?: string
   strategies?: string[]
   markets?: string[]
   minReputation?: number
   x402Support?: boolean
   hasX402?: boolean // Legacy, use x402Support instead
   type?: string
+  active?: boolean
+
+  // Advanced filters (Agent0 SDK v0.31)
+  chains?: number[] | 'all'  // Multi-chain support
+  mcpTools?: string[]  // Filter by specific MCP tools
+  mcpPrompts?: string[]  // Filter by MCP prompts
+  mcpResources?: string[]  // Filter by MCP resources
+  a2aSkills?: string[]  // Filter by A2A skills (same as strategies)
+  supportedTrust?: string[]  // Filter by trust models
+  owners?: string[]  // Filter by owner addresses
+  walletAddress?: string  // Filter by wallet address
+  mcp?: boolean  // Has MCP endpoint
+  a2a?: boolean  // Has A2A endpoint
+  ens?: string  // ENS name
+
+  // Pagination
+  pageSize?: number
+  cursor?: string
 }
 
 /**
@@ -108,6 +145,7 @@ export interface Agent0SearchFilters {
  */
 export interface Agent0SearchResult {
   tokenId: number
+  chainId?: number  // Multi-chain support
   name: string
   walletAddress: string
   metadataCID: string
@@ -116,6 +154,31 @@ export interface Agent0SearchResult {
     trustScore: number
     accuracyScore: number
   }
+}
+
+/**
+ * Search Result Metadata (from Agent0 SDK)
+ * Multi-chain search performance and status information
+ */
+export interface Agent0SearchResultMeta {
+  chains: number[]
+  successfulChains: number[]
+  failedChains: number[]
+  totalResults: number
+  timing: {
+    totalMs: number
+    averagePerChainMs?: number
+  }
+}
+
+/**
+ * Agent0 Paginated Search Result
+ */
+export interface Agent0PaginatedSearchResult {
+  items: Agent0SearchResult[]
+  nextCursor?: string
+  hasMore: boolean
+  meta?: Agent0SearchResultMeta
 }
 
 /**
@@ -320,5 +383,6 @@ export interface Agent0ReputationSearchParams {
 export interface Agent0ReputationSearchResult {
   items: Agent0SearchResult[]
   nextCursor?: string
+  meta?: Agent0SearchResultMeta
 }
 

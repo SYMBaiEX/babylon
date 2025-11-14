@@ -191,6 +191,8 @@ export const AgentCapabilitiesSchema = z.object({
   platform: z.string().optional(),
   userType: z.string().optional(),
   gameNetwork: GameNetworkInfoSchema.optional(),
+  autonomousTrading: z.boolean().optional(),
+  autonomousPosting: z.boolean().optional(),
 });
 export type AgentCapabilities = z.infer<typeof AgentCapabilitiesSchema>;
 

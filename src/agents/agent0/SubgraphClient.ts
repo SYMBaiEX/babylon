@@ -1,6 +1,6 @@
 /**
  * Agent0 Subgraph Client
- * 
+ *
  * Queries the Agent0 subgraph for fast agent discovery and search.
  * Updated to match the actual Agent0 subgraph schema (agentId, metadata key-value pairs).
  */
@@ -11,7 +11,7 @@ import { z } from 'zod'
 const CapabilitiesSchema = z.object({
   strategies: z.array(z.string()).optional(),
   markets: z.array(z.string()).optional(),
-});
+})
 
 // Raw subgraph response structure
 interface RawSubgraphAgent {
@@ -59,7 +59,7 @@ export class SubgraphClient {
 
   constructor() {
     const subgraphUrl = process.env.AGENT0_SUBGRAPH_URL
-    
+
     // Only initialize if Agent0 is enabled and subgraph URL is provided
     // This allows the client to exist but be lazy-initialized
     if (subgraphUrl) {
@@ -75,7 +75,7 @@ export class SubgraphClient {
     }
     // Otherwise, client remains null and methods will handle gracefully
   }
-  
+
   private ensureClient(): void {
     if (!this.client || !this.subgraphUrl) {
       throw new Error('SubgraphClient not initialized. AGENT0_SUBGRAPH_URL is required when using Agent0 features.')
@@ -83,11 +83,18 @@ export class SubgraphClient {
   }
 
   /**
+   * Check if subgraph client is available and properly configured
+   */
+  isAvailable(): boolean {
+    return this.client !== null && this.subgraphUrl !== null
+  }
+
+  /**
    * Parse metadata key-value pairs into an object
    */
   private parseMetadata(metadata: Array<{ key: string; value: string }>): Record<string, string> {
     const result: Record<string, string> = {}
-    
+
     for (const item of metadata) {
       let decoded = item.value
       if (item.value.startsWith('0x')) {
@@ -95,7 +102,7 @@ export class SubgraphClient {
       }
       result[item.key] = decoded
     }
-    
+
     return result
   }
 
@@ -104,7 +111,7 @@ export class SubgraphClient {
    */
   private transformAgent(raw: RawSubgraphAgent): SubgraphAgent {
     const meta = this.parseMetadata(raw.metadata)
-    
+
     const capabilities = meta.capabilities
       ? CapabilitiesSchema.safeParse(JSON.parse(meta.capabilities)).success
         ? meta.capabilities
@@ -148,16 +155,16 @@ export class SubgraphClient {
       a2aEndpoint: meta.a2aEndpoint,
       capabilities,
       reputation,
-      feedbacks: []
+      feedbacks: [] // Feedbacks would need to be queried separately
     }
   }
-  
+
   /**
    * Get agent by token ID
    */
-  async getAgent(tokenId: number): Promise<SubgraphAgent> {
+  async getAgent(tokenId: number): Promise<SubgraphAgent | null> {
     this.ensureClient()
-    
+
     const query = `
       query GetAgent($agentId: String!) {
         agents(where: { agentId: $agentId }) {
@@ -175,18 +182,19 @@ export class SubgraphClient {
         }
       }
     `
-    
-    const data = await this.client!.request(query, { 
-      agentId: tokenId.toString() 
+
+    const data = await this.client!.request(query, {
+      agentId: tokenId.toString()
     }) as { agents: RawSubgraphAgent[] }
-    
-    if (!data.agents || data.agents.length === 0) {
-      throw new Error(`Agent with tokenId ${tokenId} not found`)
+
+    const agent = data.agents[0]
+    if (!agent) {
+      return null
     }
-    
-    return this.transformAgent(data.agents[0]!)
+
+    return this.transformAgent(agent)
   }
-  
+
   /**
    * Search agents by filters
    */
@@ -198,9 +206,9 @@ export class SubgraphClient {
     limit?: number
   }): Promise<SubgraphAgent[]> {
     this.ensureClient()
-    
+
     const limit = filters.limit || 100
-    
+
     // Query all agents, we'll filter in-memory since metadata is key-value
     const query = `
       query SearchAgents($limit: Int!) {
@@ -223,15 +231,15 @@ export class SubgraphClient {
         }
       }
     `
-    
+
     const data = await this.client!.request(query, { limit }) as { agents: RawSubgraphAgent[] }
     let results = data.agents.map(raw => this.transformAgent(raw))
-    
+
     // Filter by type
     if (filters.type) {
       results = results.filter(agent => agent.type === filters.type)
     }
-    
+
     // Filter by strategies - safely handle missing capabilities
     if (filters.strategies && filters.strategies.length > 0) {
       results = results.filter(agent => {
@@ -251,7 +259,7 @@ export class SubgraphClient {
         }
       })
     }
-    
+
     // Filter by markets - safely handle missing capabilities
     if (filters.markets && filters.markets.length > 0) {
       results = results.filter(agent => {
@@ -271,7 +279,7 @@ export class SubgraphClient {
         }
       })
     }
-    
+
     // Filter by minTrustScore if reputation is available
     if (filters.minTrustScore !== undefined) {
       results = results.filter(agent => {
@@ -281,10 +289,10 @@ export class SubgraphClient {
         return agent.reputation.trustScore >= filters.minTrustScore!
       })
     }
-    
+
     return results
   }
-  
+
   /**
    * Get all game platforms
    */
@@ -299,7 +307,7 @@ export class SubgraphClient {
       limit: 50
     })
   }
-  
+
   /**
    * Get agent feedback
    */
@@ -311,14 +319,6 @@ export class SubgraphClient {
   }>> {
     this.ensureClient()
     const agent = await this.getAgent(tokenId)
-    return agent.feedbacks || []
-  }
-  
-  /**
-   * Check if the subgraph client is available
-   */
-  isAvailable(): boolean {
-    return this.client !== null && this.subgraphUrl !== null
+    return agent?.feedbacks || []
   }
 }
-
