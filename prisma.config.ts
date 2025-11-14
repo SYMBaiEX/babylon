@@ -1,8 +1,9 @@
-import { defineConfig } from '@prisma/config';
 import { config as loadEnv } from 'dotenv';
 
 loadEnv();
 
-export default defineConfig({
+const config = {
   schema: './prisma/schema.prisma',
-});
+};
+
+export default config;
