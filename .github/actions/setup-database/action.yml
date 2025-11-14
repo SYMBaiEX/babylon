@@ -16,26 +16,21 @@ runs:
         restore-keys: |
           ${{ runner.os }}-prisma-
 
-    - name: Generate Prisma Client
-      shell: bash
-      run: bunx prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
-      env:
-        DATABASE_URL: ${{ inputs.database-url }}
-
-    - name: Reset Database and Apply Migrations
+    - name: Setup Prisma and Database
       shell: bash
       env:
         DATABASE_URL: ${{ inputs.database-url }}
       run: |
-        # Force reset, apply migrations, and seed database for tests
-        bunx prisma migrate reset --force --skip-generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
-        # Explicitly run seed to ensure test data is loaded
-        bunx prisma db seed 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || echo "⚠️  Seeding failed - some tests may fail"
+        # Generate Prisma client first
+        echo "🔧 Generating Prisma client..."
+        bunx prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
 
-    - name: Verify Database Schema
-      shell: bash
-      env:
-        DATABASE_URL: ${{ inputs.database-url }}
-      run: |
-        echo "✅ Verifying database schema..."
-        psql "$DATABASE_URL" -c "\dt" || echo "⚠️  Could not list tables"
+        # Force reset and apply migrations
+        echo "🗄️ Resetting database and applying migrations..."
+        bunx prisma migrate reset --force --skip-generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+
+        # Run seed to ensure test data is loaded
+        echo "🌱 Seeding database..."
+        bunx prisma db seed 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+
+        echo "✅ Database setup complete"

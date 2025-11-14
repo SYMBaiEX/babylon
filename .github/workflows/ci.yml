@@ -115,10 +115,14 @@ jobs:
         run: bun run lint
 
       - name: Build Production
-        run: bun run build 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
         env:
           NODE_OPTIONS: '--max-old-space-size=8192'
           SKIP_ENV_VALIDATION: true
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        run: |
+          echo "🏗️ Building production..."
+          bun run build 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+          echo "✅ Build complete"
 
       - name: Verify build artifacts exist
         run: |
