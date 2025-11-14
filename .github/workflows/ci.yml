@@ -27,13 +27,13 @@ env:
 # - 25GB free cache storage per repo/week (2.5x GitHub's 10GB limit)
 # 
 # Artifact strategy:
-# - Build job: Upload .next directory only
-# - Test jobs: Download .next + reinstall dependencies (preserves symlinks/permissions)
+# - All jobs run in parallel - no artifact dependencies
+# - Each job builds its own environment to maximize speed
 
 jobs:
-  # Step 1: Build production bundle
-  build:
-    name: Build Production
+  # Build, typecheck, and lint job
+  build-and-check:
+    name: Build, Type Check & Lint
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 20
     
@@ -51,9 +51,6 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-    
-    outputs:
-      cache-hit: ${{ steps.cache-build.outputs.cache-hit }}
     
     steps:
       - uses: actions/checkout@v4
@@ -113,9 +110,13 @@ jobs:
           WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD || '' }}
         run: bash scripts/ci/prepare-env.sh
       
-      - name: Run Prisma Generate
-        run: bunx prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
-      
+      - name: Setup Prisma and Database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        run: |
+          bunx prisma migrate reset --force --skip-seed
+          bunx prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
+
       - name: Clean stale .next types before typecheck
         run: rm -rf .next/types
       
@@ -134,43 +135,16 @@ jobs:
       - name: Verify build artifacts exist
         run: |
           if [ -d .next ]; then
-            echo "✅ .next directory exists"
-            ls -lah .next | head -20
+            echo "✅ Build completed successfully"
+            du -sh .next
           else
-            echo "❌ .next directory does not exist"
+            echo "❌ Build failed - .next directory does not exist"
             exit 1
           fi
-      
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-artifacts
-          path: .next
-          retention-days: 1
-          if-no-files-found: error
-          include-hidden-files: true
-      
-      - name: Build summary
-        if: always()
-        run: |
-          echo "## 📊 Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.cache-build.outputs.cache-hit }}" == "true" ]; then
-            echo "- ⚡ **Cache Hit**: Used cached build artifacts" >> $GITHUB_STEP_SUMMARY
-            echo "- ⏱️ **Time Saved**: ~5-10 minutes" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "- 🔨 **Fresh Build**: Built from source" >> $GITHUB_STEP_SUMMARY
-            echo "- 📝 **Reason**: Source code or dependencies changed" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Artifacts Uploaded" >> $GITHUB_STEP_SUMMARY
-          echo "- \`.next\` directory (production build)" >> $GITHUB_STEP_SUMMARY
-          echo "- Dependencies reinstalled in each job" >> $GITHUB_STEP_SUMMARY
 
-  # Step 2: Run unit and integration tests
+  # Run unit and integration tests in parallel
   test-unit-integration:
     name: Unit & Integration Tests
-    needs: build
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 15
     
@@ -205,43 +179,22 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      
-      - name: Prepare build directory
-        run: |
-          rm -rf .next
-          mkdir -p .next
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
-          path: .next
-      
-      - name: Verify downloaded artifacts
-        run: |
-          echo "📦 Contents of current directory (top-level):"
-          ls -lah
-          echo ""
-          echo "📦 Contents of .next directory:"
-          ls -lah .next
-          echo ""
-          echo "📦 Looking for .env.test:"
-          find . -name ".env.test" -type f || echo "No .env.test found"
-          echo ""
-          if [ -f .env.test ]; then
-            echo "✅ .env.test found after download"
-          else
-            echo "⚠️  .env.test NOT found - will be recreated from secrets"
-          fi
-      
-      - name: Reset lockfiles
-        run: |
-          git checkout -- bun.lock
-          rm -f bun.lockb
-          rm -rf node_modules
-      
       - name: Install dependencies
         run: bun install
+
+      - name: Setup Prisma and Database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        run: |
+          bunx prisma migrate reset --force --skip-seed
+          bunx prisma generate
+
+      - name: Build for tests
+        run: bun run build
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+          SKIP_ENV_VALIDATION: true
 
       - name: Setup test environment
         env:
@@ -355,10 +308,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Step 3: Run E2E tests (Playwright)
+  # Run E2E tests (Playwright) in parallel
   test-e2e:
     name: E2E Tests (Playwright)
-    needs: build
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 30
     
@@ -384,43 +336,26 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      
-      - name: Prepare build directory
-        run: |
-          rm -rf .next
-          mkdir -p .next
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
-          path: .next
-      
-      - name: Verify downloaded artifacts
-        run: |
-          echo "📦 Contents of current directory (top-level):"
-          ls -lah
-          echo ""
-          echo "📦 Contents of .next directory:"
-          ls -lah .next
-          if [ -f .env.test ]; then
-            echo "✅ .env.test found after download"
-          else
-            echo "ℹ️  .env.test not bundled; will recreate from secrets"
-          fi
-      
-      - name: Reset lockfiles
-        run: |
-          git checkout -- bun.lock
-          rm -f bun.lockb
-          rm -rf node_modules
-      
       - name: Install dependencies
-        run: bun install 
-      
+        run: bun install
+
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps chromium
-      
+
+      - name: Setup Prisma and Database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        run: |
+          bunx prisma migrate reset --force --skip-seed
+          bunx prisma generate
+
+      - name: Build production
+        run: bun run build
+        env:
+          NODE_OPTIONS: '--max-old-space-size=8192'
+          SKIP_ENV_VALIDATION: true
+
       - name: Setup test environment
         env:
           # Use CI test database directly
@@ -530,10 +465,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Step 4: Run Synpress tests (crypto wallet E2E)
+  # Run Synpress tests (crypto wallet E2E) in parallel
   test-synpress:
     name: Synpress Tests (Wallet E2E)
-    needs: build
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 45
     
@@ -559,43 +493,26 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      
-      - name: Prepare build directory
-        run: |
-          rm -rf .next
-          mkdir -p .next
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
-          path: .next
-      
-      - name: Verify downloaded artifacts
-        run: |
-          echo "📦 Contents of current directory (top-level):"
-          ls -lah
-          echo ""
-          echo "📦 Contents of .next directory:"
-          ls -lah .next
-          if [ -f .env.test ]; then
-            echo "✅ .env.test found after download"
-          else
-            echo "ℹ️  .env.test not bundled; will recreate from secrets"
-          fi
-      
-      - name: Reset lockfiles
-        run: |
-          git checkout -- bun.lock
-          rm -f bun.lockb
-          rm -rf node_modules
-      
       - name: Install dependencies
-        run: bun install 
-      
+        run: bun install
+
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps chromium
-      
+
+      - name: Setup Prisma and Database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        run: |
+          bunx prisma migrate reset --force --skip-seed
+          bunx prisma generate
+
+      - name: Build production
+        run: bun run build
+        env:
+          NODE_OPTIONS: '--max-old-space-size=8192'
+          SKIP_ENV_VALIDATION: true
+
       - name: Setup test environment
         env:
           # Use CI test database directly
@@ -712,7 +629,7 @@ jobs:
   # Step 5: All tests must pass
   all-tests-passed:
     name: All Tests Passed
-    needs: [build, test-unit-integration, test-e2e, test-synpress]
+    needs: [build-and-check, test-unit-integration, test-e2e, test-synpress]
     runs-on: blacksmith-2vcpu-ubuntu-2404
     if: always()
     
