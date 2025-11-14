@@ -137,7 +137,7 @@ export class BabylonLLMClient {
       },
     ];
 
-    let response = await this.client.chat.completions.create({
+    const response = await this.client.chat.completions.create({
       model,
       messages,
       ...(useJsonFormat ? { response_format: useJsonFormat } : {}),

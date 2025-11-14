@@ -23,6 +23,7 @@ async function applyIndexes() {
     // Execute the SQL
     await prisma.$executeRawUnsafe(sql);
     
+    const beforeCount = 0; // Initial count before adding indexes
     const afterCount = 35; // We know we're adding approximately 35 indexes
     const added = afterCount;
     

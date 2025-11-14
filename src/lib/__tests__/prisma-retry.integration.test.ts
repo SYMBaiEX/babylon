@@ -4,7 +4,7 @@
  * Tests the actual retry proxy behavior with mocked Prisma operations
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import { createRetryProxy, withRetry, isRetryableError } from '../prisma-retry';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
@@ -66,7 +66,7 @@ describe('Prisma Retry Integration Tests', () => {
     it('should NOT retry InvalidArg errors', async () => {
       let attempts = 0;
       
-      const operation = vi.fn(async () => {
+      const operation = mock(async () => {
         attempts++;
         const error = new Error(
           'Invalid `prisma.$queryRaw()` invocation:\n\ndata did not match any variant of untagged enum JsonBody'
@@ -88,7 +88,7 @@ describe('Prisma Retry Integration Tests', () => {
     it('should NOT retry unique constraint violations', async () => {
       let attempts = 0;
       
-      const operation = vi.fn(async () => {
+      const operation = mock(async () => {
         attempts++;
         const error = new Error('Unique constraint failed on the fields: (`email`)');
         (error as Error & { code: string }).code = 'P2002';
@@ -107,7 +107,7 @@ describe('Prisma Retry Integration Tests', () => {
     it('should NOT retry record not found errors', async () => {
       let attempts = 0;
       
-      const operation = vi.fn(async () => {
+      const operation = mock(async () => {
         attempts++;
         const error = new Error('Record to update not found.');
         (error as Error & { code: string }).code = 'P2025';
@@ -125,7 +125,7 @@ describe('Prisma Retry Integration Tests', () => {
     it('SHOULD retry connection timeout errors', async () => {
       let attempts = 0;
       
-      const operation = vi.fn(async () => {
+      const operation = mock(async () => {
         attempts++;
         if (attempts < 3) {
           const error = new Error('Connection timeout');
@@ -149,7 +149,7 @@ describe('Prisma Retry Integration Tests', () => {
     it('SHOULD retry ETIMEDOUT network errors', async () => {
       let attempts = 0;
       
-      const operation = vi.fn(async () => {
+      const operation = mock(async () => {
         attempts++;
         if (attempts < 2) {
           throw new Error('ETIMEDOUT: Connection timed out');
@@ -169,7 +169,7 @@ describe('Prisma Retry Integration Tests', () => {
     it('SHOULD give up after max retries for retryable errors', async () => {
       let attempts = 0;
       
-      const operation = vi.fn(async () => {
+      const operation = mock(async () => {
         attempts++;
         const error = new Error('Connection timeout');
         (error as Error & { code: string }).code = 'P1002';
@@ -194,18 +194,18 @@ describe('Prisma Retry Integration Tests', () => {
     beforeEach(() => {
       mockClient = {
         user: {
-          findMany: vi.fn(async () => [{ id: '1', name: 'Test' }]),
-          create: vi.fn(async (args) => ({ id: '1', ...args })),
+          findMany: mock(async () => [{ id: '1', name: 'Test' }]),
+          create: mock(async (args: unknown) => ({ id: '1', ...args as Record<string, unknown> })),
         },
-        $transaction: vi.fn(async (callback) => {
+        $transaction: mock(async (callback: (txClient: MockPrismaClient) => Promise<unknown>) => {
           // Simulate transaction client
           const txClient = { ...mockClient };
           return await callback(txClient);
         }),
-        $executeRaw: vi.fn(async () => 1),
-        $queryRaw: vi.fn(async () => [{ result: 1 }]),
-        $connect: vi.fn(async () => undefined),
-        $disconnect: vi.fn(async () => undefined),
+        $executeRaw: mock(async () => 1),
+        $queryRaw: mock(async () => [{ result: 1 }]),
+        $connect: mock(async () => undefined),
+        $disconnect: mock(async () => undefined),
       };
     });
 
@@ -229,7 +229,7 @@ describe('Prisma Retry Integration Tests', () => {
       });
 
       // Spy on the original method
-      const transactionSpy = mockClient.$transaction as ReturnType<typeof vi.fn>;
+      const transactionSpy = mockClient.$transaction as ReturnType<typeof mock>;
 
       // Call $transaction
       await proxiedClient.$transaction(async () => {
@@ -246,7 +246,7 @@ describe('Prisma Retry Integration Tests', () => {
         initialDelayMs: 1,
       });
 
-      const executeRawSpy = mockClient.$executeRaw as ReturnType<typeof vi.fn>;
+      const executeRawSpy = mockClient.$executeRaw as ReturnType<typeof mock>;
 
       // Call $executeRaw
       await proxiedClient.$executeRaw(Prisma.sql`SELECT 1`);
@@ -261,7 +261,7 @@ describe('Prisma Retry Integration Tests', () => {
         initialDelayMs: 1,
       });
 
-      const queryRawSpy = mockClient.$queryRaw as ReturnType<typeof vi.fn>;
+      const queryRawSpy = mockClient.$queryRaw as ReturnType<typeof mock>;
 
       // Call $queryRaw
       await proxiedClient.$queryRaw(Prisma.sql`SELECT 1`);
@@ -273,13 +273,18 @@ describe('Prisma Retry Integration Tests', () => {
 
   describe('Transaction Context Flow', () => {
     it('should allow raw SQL in transaction callbacks', async () => {
+      type TxClient = {
+        $executeRaw: ReturnType<typeof mock>;
+        user: { findMany: ReturnType<typeof mock> };
+      };
+      
       const mockClient = {
-        $transaction: vi.fn(async (callback) => {
+        $transaction: mock(async (callback: (tx: TxClient) => Promise<unknown>) => {
           // Simulate transaction client with $executeRaw
-          const txClient = {
-            $executeRaw: vi.fn(async () => 1),
+          const txClient: TxClient = {
+            $executeRaw: mock(async () => 1),
             user: {
-              findMany: vi.fn(async () => []),
+              findMany: mock(async () => []),
             },
           };
           return await callback(txClient);
@@ -291,7 +296,7 @@ describe('Prisma Retry Integration Tests', () => {
       });
 
       // Execute transaction with raw SQL
-      const result = await proxiedClient.$transaction(async (tx: any) => {
+      const result = await proxiedClient.$transaction(async (tx: TxClient) => {
         // This should work without serialization issues
         await tx.$executeRaw(Prisma.sql`SELECT set_config('test', 'value', true)`);
         await tx.user.findMany();
@@ -304,13 +309,17 @@ describe('Prisma Retry Integration Tests', () => {
     it('should not retry InvalidArg from transaction raw SQL', async () => {
       let transactionAttempts = 0;
 
+      type TxClient = {
+        $executeRaw: ReturnType<typeof mock>;
+      };
+
       const mockClient = {
-        $transaction: vi.fn(async (callback) => {
+        $transaction: mock(async (callback: (tx: TxClient) => Promise<unknown>) => {
           transactionAttempts++;
-          const txClient = {
-            $executeRaw: vi.fn(async () => {
-              const error = new Error('Invalid query');
-              (error as any).code = 'InvalidArg';
+          const txClient: TxClient = {
+            $executeRaw: mock(async () => {
+              const error = new Error('Invalid query') as Error & { code: string };
+              error.code = 'InvalidArg';
               error.name = 'PrismaClientKnownRequestError';
               throw error;
             }),
@@ -325,7 +334,7 @@ describe('Prisma Retry Integration Tests', () => {
       });
 
       await expect(
-        proxiedClient.$transaction(async (tx: any) => {
+        proxiedClient.$transaction(async (tx: TxClient) => {
           await tx.$executeRaw(Prisma.sql`INVALID QUERY`);
         })
       ).rejects.toThrow('Invalid query');
@@ -338,15 +347,20 @@ describe('Prisma Retry Integration Tests', () => {
 
   describe('Real-world Scenarios', () => {
     it('should handle RLS context setting in transactions', async () => {
+      type TxClient = {
+        $executeRaw: ReturnType<typeof mock>;
+        position: { findMany: ReturnType<typeof mock> };
+      };
+
       const mockClient = {
-        $transaction: vi.fn(async (callback) => {
-          const txClient = {
-            $executeRaw: vi.fn(async (_query) => {
+        $transaction: mock(async (callback: (tx: TxClient) => Promise<unknown>) => {
+          const txClient: TxClient = {
+            $executeRaw: mock(async (_query: unknown) => {
               // Simulate successful RLS context setting
               return 1;
             }),
             position: {
-              findMany: vi.fn(async () => [
+              findMany: mock(async () => [
                 { id: '1', userId: 'user123', amount: 100 }
               ]),
             },
@@ -358,7 +372,7 @@ describe('Prisma Retry Integration Tests', () => {
       const proxiedClient = createRetryProxy(mockClient);
 
       // Simulate asUser pattern
-      const result = await proxiedClient.$transaction(async (tx: any) => {
+      const result = await proxiedClient.$transaction(async (tx: TxClient) => {
         // Set RLS context
         await tx.$executeRaw(
           Prisma.sql`SELECT set_config('app.current_user_id', ${'user123'}, true)`
@@ -367,7 +381,7 @@ describe('Prisma Retry Integration Tests', () => {
         // Query with RLS applied
         const positions = await tx.position.findMany();
         return positions;
-      });
+      }) as Array<{ id: string; userId: string; amount: number }>;
 
       expect(result).toHaveLength(1);
       expect(result[0]).toHaveProperty('userId', 'user123');
@@ -378,13 +392,13 @@ describe('Prisma Retry Integration Tests', () => {
 
       const mockClient = {
         user: {
-          create: vi.fn(async () => {
+          create: mock(async () => {
             attempts++;
             
             // First attempt: unique constraint violation (should not retry)
             if (attempts === 1) {
-              const error = new Error('Unique constraint failed');
-              (error as any).code = 'P2002';
+              const error = new Error('Unique constraint failed') as Error & { code: string };
+              error.code = 'P2002';
               error.name = 'PrismaClientKnownRequestError';
               throw error;
             }
@@ -414,7 +428,7 @@ describe('Prisma Retry Integration Tests', () => {
       // The important behavior (retry attempts) is tested in other tests
       let attempts = 0;
 
-      const operation = vi.fn(async () => {
+      const operation = mock(async () => {
         attempts++;
         if (attempts < 3) {
           throw new Error('ETIMEDOUT');
@@ -439,7 +453,7 @@ describe('Prisma Retry Integration Tests', () => {
     it('should handle Symbol property access on client', () => {
       const mockClient = {
         user: {
-          findMany: vi.fn(async () => []),
+          findMany: mock(async () => []),
         },
         [Symbol.for('test')]: 'symbolValue',
       };
@@ -452,7 +466,7 @@ describe('Prisma Retry Integration Tests', () => {
 
     it('should handle Symbol property access on model', () => {
       const mockModel = {
-        findMany: vi.fn(async () => []),
+        findMany: mock(async () => []),
         [Symbol.for('modelSymbol')]: 'modelSymbolValue',
       };
 
@@ -469,7 +483,7 @@ describe('Prisma Retry Integration Tests', () => {
     it('should handle non-object model properties', () => {
       const mockClient = {
         user: {
-          findMany: vi.fn(async () => []),
+          findMany: mock(async () => []),
         },
         someString: 'stringValue',
         someNumber: 42,
@@ -487,7 +501,7 @@ describe('Prisma Retry Integration Tests', () => {
     it('should handle non-function model properties', () => {
       const mockClient = {
         user: {
-          findMany: vi.fn(async () => []),
+          findMany: mock(async () => []),
           someProperty: 'propertyValue',
           someConfig: { setting: true },
         },
@@ -503,7 +517,7 @@ describe('Prisma Retry Integration Tests', () => {
     it('should handle undefined model', () => {
       const mockClient = {
         user: {
-          findMany: vi.fn(async () => []),
+          findMany: mock(async () => []),
         },
         undefinedModel: undefined,
       };
@@ -519,7 +533,7 @@ describe('Prisma Retry Integration Tests', () => {
     it('should throw on max retries with no error (edge case)', async () => {
       // This tests the "should never be reached" code path
       let attempts = 0;
-      const operation = vi.fn(async () => {
+      const operation = mock(async () => {
         attempts++;
         // Always throw retryable error
         throw new Error('ETIMEDOUT');
@@ -541,7 +555,7 @@ describe('Prisma Retry Integration Tests', () => {
       const delays: number[] = [];
       const startTimes: number[] = [];
 
-      const operation = vi.fn(async () => {
+      const operation = mock(async () => {
         const now = Date.now();
         if (attempts > 0) {
           const lastStartTime = startTimes[startTimes.length - 1];
@@ -572,7 +586,7 @@ describe('Prisma Retry Integration Tests', () => {
 
     it('should cap delay at maxDelayMs', async () => {
       let attempts = 0;
-      const operation = vi.fn(async () => {
+      const operation = mock(async () => {
         attempts++;
         if (attempts < 10) {
           throw new Error('ETIMEDOUT');
@@ -600,7 +614,7 @@ describe('Prisma Retry Integration Tests', () => {
 
     it('should handle error without code property', async () => {
       let attempts = 0;
-      const operation = vi.fn(async () => {
+      const operation = mock(async () => {
         attempts++;
         const error = new Error('Generic error');
         // No code property
@@ -617,7 +631,7 @@ describe('Prisma Retry Integration Tests', () => {
 
     it('should handle error with Symbol code property', async () => {
       let attempts = 0;
-      const operation = vi.fn(async () => {
+      const operation = mock(async () => {
         attempts++;
         const error = new Error('Symbol error') as Error & { code: symbol };
         error.code = Symbol('errorCode');

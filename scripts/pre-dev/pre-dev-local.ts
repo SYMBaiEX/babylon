@@ -12,7 +12,7 @@
 
 // @ts-ignore - bun global is available in bun runtime
 import { $ } from 'bun'
-import { existsSync, writeFileSync, readFileSync } from 'fs'
+import { existsSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { logger } from '../../src/lib/logger'
 import { validateEnvironment, printValidationResult } from '../../src/lib/deployment/env-detection'

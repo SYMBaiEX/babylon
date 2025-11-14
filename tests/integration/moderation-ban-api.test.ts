@@ -6,7 +6,7 @@
  * Tests the admin ban/unban API endpoints
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { prisma } from '@/lib/database-service';
 import { nanoid } from 'nanoid';
 

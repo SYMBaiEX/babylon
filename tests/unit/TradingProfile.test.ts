@@ -3,7 +3,35 @@
  * Tests all functionality without mocking
  */
 
-import { describe, test, expect } from 'bun:test'
+import { describe, test, expect, mock } from 'bun:test'
+
+mock.module('next/navigation', () => ({
+  useRouter: () => ({
+    push: mock(() => undefined),
+  }),
+}))
+
+mock.module('@/hooks/useAuth', () => ({
+  useAuth: () => ({
+    ready: true,
+    authenticated: false,
+    loadingProfile: false,
+    user: null,
+    wallet: undefined,
+    smartWalletAddress: undefined,
+    smartWalletReady: false,
+    needsOnboarding: false,
+    needsOnchain: false,
+    login: mock(() => undefined),
+    logout: mock(async () => undefined),
+    refresh: mock(async () => undefined),
+    getAccessToken: mock(async () => null),
+  }),
+}))
+
+mock.module('@/components/trades/TradesFeed', () => ({
+  TradesFeed: () => null,
+}))
 
 describe('TradingProfile Utility Functions', () => {
   // Helper function from component

@@ -23,10 +23,12 @@ async function controlGame(action: 'start' | 'pause') {
     // Create the game if it doesn't exist
     game = await prisma.game.create({
       data: {
+        id: 'continuous',
         isContinuous: true,
         isRunning: action === 'start',
         currentDay: 1,
         startedAt: action === 'start' ? new Date() : null,
+        updatedAt: new Date(),
       },
     });
     logger.info(`✅ Game created and ${action === 'start' ? 'started' : 'paused'}!`, { gameId: game.id }, 'Game Control');

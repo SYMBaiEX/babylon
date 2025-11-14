@@ -34,7 +34,8 @@ async function main() {
         reputationPoints: 1000,
         autonomousTrading: true,
         autonomousPosting: true,
-        autonomousCommenting: true
+        autonomousCommenting: true,
+        updatedAt: new Date(),
       }
     });
     console.log(`  ✅ Created test agent: ${testAgent.id}\n`);
@@ -210,7 +211,7 @@ async function main() {
   console.log(`  Average reward: ${stats._avg.totalReward?.toFixed(2)}`);
   console.log(`  Average duration: ${(stats._avg.durationMs / 1000).toFixed(1)}s`);
 
-  const llmCount = await prisma.llm_call_logs.count({
+  const llmCount = await prisma.llmCallLog.count({
     where: {
       trajectoryId: { in: createdTrajectories }
     }

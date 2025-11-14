@@ -5,7 +5,7 @@
  * Tests the complete trajectory recording and training flow
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { prisma } from '@/lib/prisma';
 import { trajectoryRecorder } from '../TrajectoryRecorder';
 import { AutomationPipeline } from '../AutomationPipeline';

@@ -10,7 +10,6 @@
 import 'dotenv/config';
 import { config } from 'dotenv';
 import { prisma } from '../src/lib/prisma';
-import { logger } from '../src/lib/logger';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';

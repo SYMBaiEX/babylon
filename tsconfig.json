@@ -88,6 +88,7 @@
     "next-env.d.ts",
     "src/**/*",
     "tests/**/*",
+    "scripts/**/*",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     ".next/dev/dev/types/**/*.ts"

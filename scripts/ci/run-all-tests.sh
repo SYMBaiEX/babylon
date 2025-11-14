@@ -73,7 +73,7 @@ echo ""
 echo "🎭 Step 7/7: Starting server and running E2E tests..."
 
 # Start the server in the background
-bun start &
+DEPLOYMENT_ENV=localnet NODE_ENV=production bun start &
 SERVER_PID=$!
 
 # Wait for server to be ready

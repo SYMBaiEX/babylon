@@ -12,7 +12,7 @@ import { generateSnowflakeId } from '@/lib/snowflake'
 import { createHttpA2AClient } from '@/lib/a2a/client'
 
 const SERVER_RUNNING = process.env.TEST_LIVE_SERVER === 'true'
-const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000'
+const BASE_URL = process.env.TEST_API_URL || 'http://localhost:3000'
 
 describe('A2A HTTP - Live Server Tests', () => {
   let testUserId: string

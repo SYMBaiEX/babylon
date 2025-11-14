@@ -152,6 +152,7 @@ async function main() {
     throw new Error('Failed to parse deployment addresses from output')
   }
 
+  try {
     logger.info('Contract addresses:', undefined, 'Script')
     logger.info(`  Diamond: ${addresses.diamond}`, undefined, 'Script')
     logger.info(`  DiamondCutFacet: ${addresses.diamondCutFacet}`, undefined, 'Script')

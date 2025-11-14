@@ -41,7 +41,7 @@ async function main() {
 
   const provider = new ethers.JsonRpcProvider(BASE_SEPOLIA_RPC_URL)
 
-  // Test Diamond contract
+  // Test Diamond (basic smoke test)
   if (validation.contracts.diamond) {
     const diamondContract = new ethers.Contract(
       validation.contracts.diamond,
@@ -49,11 +49,13 @@ async function main() {
       provider
     )
 
-    await diamondContract.getBalance(ethers.ZeroAddress).then(() => {
-      logger.info('✅ Diamond contract functional', undefined, 'Script')
-    }).catch((error: Error) => {
-      logger.warn('⚠️  Diamond smoke test failed', error, 'Script')
-    })
+    if (diamondContract && 'getBalance' in diamondContract) {
+      await diamondContract.getBalance(ethers.ZeroAddress).then(() => {
+        logger.info('✅ Diamond contract functional', undefined, 'Script')
+      }).catch((error: Error) => {
+        logger.warn('⚠️  Diamond smoke test failed', error, 'Script')
+      })
+    }
   }
 
   // Test Identity Registry
@@ -64,11 +66,13 @@ async function main() {
       provider
     )
 
-    await registryContract.identityCount().then((count: bigint) => {
-      logger.info(`✅ Identity Registry functional (${count} identities)`, undefined, 'Script')
-    }).catch((error: Error) => {
-      logger.warn('⚠️  Identity Registry smoke test failed', error, 'Script')
-    })
+    if (registryContract && 'identityCount' in registryContract) {
+      await registryContract.identityCount().then((count: bigint) => {
+        logger.info(`✅ Identity Registry functional (${count} identities)`, undefined, 'Script')
+      }).catch((error: Error) => {
+        logger.warn('⚠️  Identity Registry smoke test failed', error, 'Script')
+      })
+    }
   }
 
   // 3. Check Agent0 configuration

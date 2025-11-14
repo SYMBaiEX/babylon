@@ -13,7 +13,6 @@
 
 import { LoadTestSimulator, TEST_SCENARIOS } from '@/lib/testing/load-test-simulator';
 import { queryMonitor } from '@/lib/db/query-monitor';
-import { logger } from '@/lib/logger';
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -148,7 +147,6 @@ async function main() {
   console.log('═══════════════════════════════════════\n');
 
   // Assessment
-  const avgResponseTime = result.responseTime.mean;
   const p95ResponseTime = result.responseTime.p95;
   const successRate = result.throughput.successRate;
   const slowQueryRate = queryStats.totalQueries > 0 

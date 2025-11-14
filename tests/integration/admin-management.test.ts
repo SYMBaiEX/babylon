@@ -4,7 +4,7 @@
  * Tests for the admin promotion/demotion system
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { prisma } from '@/lib/database-service';
 import { v4 as uuidv4 } from 'uuid';
 

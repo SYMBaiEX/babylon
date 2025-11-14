@@ -179,7 +179,7 @@ export function getModelTokenLimit(model: string): number {
  */
 export function getSafeContextLimit(
   model: string,
-  outputTokens = 8000, // Kept for API compatibility, but input/output are separate
+  _outputTokens = 8000, // Kept for API compatibility, but input/output are separate
   safetyMargin = 0.1
 ): number {
   const inputLimit = getModelTokenLimit(model);

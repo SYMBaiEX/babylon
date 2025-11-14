@@ -28,7 +28,6 @@ function fixAffiliations() {
   
   for (const actor of data.actors) {
     if (actor.affiliations && Array.isArray(actor.affiliations)) {
-      const originalAffiliations = [...actor.affiliations];
       const fixedAffiliations: string[] = [];
       
       for (const aff of actor.affiliations) {

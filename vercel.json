@@ -1,20 +1,20 @@
 {
   "crons": [
     {
+      "path": "/api/cron/game-tick",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/training-check",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/training",
+      "schedule": "0 0 * * *"
     },
     {
       "path": "/api/cron/health-check",
       "schedule": "*/15 * * * *"
     }
-  ],
-  "env": {
-    "BLOB_READ_WRITE_TOKEN": "@blob_read_write_token",
-    "WANDB_API_KEY": "@wandb_api_key",
-    "WANDB_PROJECT": "babylon-training",
-    "CRON_SECRET": "@cron_secret",
-    "TRAINING_MIN_TRAJECTORIES": "100",
-    "TRAINING_INTERVAL_HOURS": "24"
-  }
+  ]
 }

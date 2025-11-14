@@ -9,8 +9,9 @@ import { describe, it, expect, beforeAll } from 'bun:test'
 import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
 
+const BASE_URL = process.env.TEST_API_URL || 'http://localhost:3000'
+
 describe('A2A HTTP API Integration', () => {
-  const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000'
   let testUserId: string
   let testMarketId: string
 

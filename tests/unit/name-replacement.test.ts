@@ -5,7 +5,7 @@
  * Tests all case variations and ensures no original names leak
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll } from 'bun:test';
 import { NameReplacer } from '../../scripts/name-replacer';
 import * as path from 'path';
 import * as fs from 'fs';

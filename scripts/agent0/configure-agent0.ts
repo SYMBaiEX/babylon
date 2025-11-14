@@ -130,7 +130,7 @@ async function main() {
 function getEnvValue(envContent: string, key: string): string | null {
   const regex = new RegExp(`^${key}=(.*)$`, 'm')
   const match = envContent.match(regex)
-  return match ? match[1].trim().replace(/['"]/g, '') : null
+  return match && match[1] ? match[1].trim().replace(/['"]/g, '') : null
 }
 
 main().catch(error => {

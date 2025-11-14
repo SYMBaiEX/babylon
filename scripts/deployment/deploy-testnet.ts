@@ -71,7 +71,7 @@ async function main() {
       output: process.stdout
     })
 
-    await new Promise<void>((resolve, reject) => {
+    await new Promise<void>((resolve) => {
       rl.question('Continue? (yes/no): ', (answer: string) => {
         rl.close()
         if (answer.toLowerCase() !== 'yes') {
@@ -104,6 +104,7 @@ async function main() {
     throw new Error('Failed to parse deployment addresses from output')
   }
 
+  try {
     logger.info('Contract addresses:', undefined, 'Script')
     logger.info(`  Diamond: ${addresses.diamond}`, undefined, 'Script')
     logger.info(`  DiamondCutFacet: ${addresses.diamondCutFacet}`, undefined, 'Script')

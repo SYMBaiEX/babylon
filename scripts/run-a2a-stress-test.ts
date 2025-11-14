@@ -13,7 +13,6 @@
 
 import { LoadTestSimulator, type LoadTestResult } from '@/lib/testing/load-test-simulator';
 import { A2A_TEST_SCENARIOS } from '@/lib/testing/a2a-load-test-scenarios';
-import { logger } from '@/lib/logger';
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -228,7 +227,6 @@ async function main() {
   console.log('  Assessment');
   console.log('═══════════════════════════════════════');
   
-  const avgResponseTime = result.responseTime.mean;
   const p95ResponseTime = result.responseTime.p95;
   const successRate = result.throughput.successRate;
   const rateLimitAnalysis = analyzeRateLimitErrors(result);

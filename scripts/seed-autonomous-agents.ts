@@ -6,7 +6,6 @@
 import 'dotenv/config';
 import { prisma } from '../src/lib/prisma';
 import { generateSnowflakeId } from '../src/lib/snowflake';
-import { logger } from '../src/lib/logger';
 
 const AGENT_TEMPLATES = [
   {
@@ -74,7 +73,7 @@ async function main() {
         continue;
       }
 
-      const agent = await prisma.user.create({
+      await prisma.user.create({
         data: {
           id: await generateSnowflakeId(),
           username: template.name.toLowerCase().replace(/\s+/g, '-'),

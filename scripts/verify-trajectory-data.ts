@@ -238,7 +238,7 @@ async function generateReport() {
   console.log(`  Avg reward: ${stats._avg.totalReward?.toFixed(2) || 0}`);
   console.log(`  Avg duration: ${(stats._avg.durationMs || 0) / 1000}s`);
 
-  const llmStats = await prisma.lLMCallLog.aggregate({
+  const llmStats = await prisma.llmCallLog.aggregate({
     where: {
       timestamp: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
     },

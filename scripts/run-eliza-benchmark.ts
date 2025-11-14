@@ -17,6 +17,7 @@ import { SimulationEngine, type SimulationConfig, type SimulationResult } from '
 import { SimulationA2AInterface } from '@/lib/benchmark/SimulationA2AInterface';
 import { MetricsVisualizer } from '@/lib/benchmark/MetricsVisualizer';
 import { AutonomousCoordinator } from '@/lib/agents/autonomous/AutonomousCoordinator';
+// @ts-expect-error - initializeAgentRuntime may not be exported yet
 import { initializeAgentRuntime } from '@/lib/agents/plugins/babylon/integration';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
@@ -38,7 +39,8 @@ async function loadBenchmark(benchmarkPath: string) {
   
   // Validate benchmark data
   const { BenchmarkValidator } = await import('@/lib/benchmark/BenchmarkValidator');
-  BenchmarkValidator.validateOrThrow(snapshot);
+  const validator: typeof BenchmarkValidator = BenchmarkValidator;
+  validator.validateOrThrow(snapshot);
   
   return snapshot;
 }

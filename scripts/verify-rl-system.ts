@@ -6,7 +6,7 @@
  * Tests all components, configurations, and integrations.
  */
 
-import { getRLModelConfig, isRLModelAvailable, logRLModelConfig } from '../src/lib/training/RLModelConfig';
+import { getRLModelConfig, isRLModelAvailable } from '../src/lib/training/RLModelConfig';
 import { getLatestRLModel, getModelForInference, shouldUseRLModel } from '../src/lib/training/WandbModelFetcher';
 import { automationPipeline } from '../src/lib/training/AutomationPipeline';
 import { prisma } from '../src/lib/prisma';

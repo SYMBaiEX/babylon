@@ -5,7 +5,7 @@
  * Tests the entire training pipeline from recording to export
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { prisma } from '@/lib/prisma';
 import { trajectoryRecorder } from '../TrajectoryRecorder';
 import { automationPipeline } from '../AutomationPipeline';

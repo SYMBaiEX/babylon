@@ -6,7 +6,7 @@
 
 import { prisma } from '../src/lib/prisma';
 import { trajectoryRecorder } from '../src/lib/training/TrajectoryRecorder';
-import { toARTTrajectory } from '../eliza/plugin-trajectory-logger/src/art-format';
+import { toARTTrajectory } from '../src/lib/agents/plugins/plugin-trajectory-logger/src/art-format';
 
 async function main() {
   console.log('\n🔍 TRAJECTORY SYSTEM VALIDATION\n');
@@ -131,7 +131,7 @@ async function main() {
         console.log(`     - Messages: ${artTraj.messages.length}`);
         console.log(`     - Reward: ${artTraj.reward}`);
         
-        artTraj.messages.forEach((msg, idx) => {
+        artTraj.messages.forEach((msg: { role: string; content: string }, idx: number) => {
           console.log(`     ${idx + 1}. [${msg.role}] ${msg.content.substring(0, 40)}...`);
         });
 

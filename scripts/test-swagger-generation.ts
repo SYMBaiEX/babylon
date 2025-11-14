@@ -9,11 +9,12 @@
 import { generateAutoSpec } from '../src/lib/swagger/auto-generator';
 import { generateOpenApiSpec } from '../src/lib/swagger/generator';
 
+async function main() {
 console.log('🔍 Testing Swagger Auto-Generation...\n');
 
 // Test auto-generation
 console.log('1. Testing auto-generator (swagger-jsdoc)...');
-const autoSpec = generateAutoSpec();
+const autoSpec = await generateAutoSpec() as any;
 console.log(`   ✅ Auto-generated spec successfully`);
 console.log(`   📊 Paths found: ${Object.keys(autoSpec.paths || {}).length}`);
 console.log(`   🏷️  Tags: ${(autoSpec.tags || []).map((t: { name: string }) => t.name).join(', ')}`);
@@ -22,7 +23,7 @@ console.log(`   🏷️  Tags: ${(autoSpec.tags || []).map((t: { name: string })
 const paths = Object.keys(autoSpec.paths || {});
 if (paths.length > 0) {
   console.log('\n   📍 Documented endpoints:');
-  paths.forEach(path => {
+  paths.forEach((path: string) => {
     const methods = Object.keys(autoSpec.paths[path]);
     console.log(`      ${methods.join(', ').toUpperCase()} ${path}`);
   });
@@ -61,4 +62,6 @@ if (autoSpec.paths['/api/health']) {
 }
 
 console.log('\n✨ Test complete!');
+}
 
+main();

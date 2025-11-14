@@ -102,8 +102,25 @@ export async function getCache<T>(
     const cached = await redis.get(fullKey);
     
     if (cached) {
-      logger.debug('Cache hit (Redis)', { key: fullKey }, 'CacheService');
-      return JSON.parse(cached as string) as T;
+      try {
+        // Check if cached value is empty or whitespace
+        const cachedStr = cached as string;
+        if (!cachedStr || cachedStr.trim() === '') {
+          logger.warn('Empty cached value in Redis', { key: fullKey }, 'CacheService');
+          return null;
+        }
+        
+        logger.debug('Cache hit (Redis)', { key: fullKey }, 'CacheService');
+        return JSON.parse(cachedStr) as T;
+      } catch (error) {
+        logger.error('Failed to parse cached value from Redis', { 
+          key: fullKey, 
+          error: error instanceof Error ? error.message : 'Unknown error',
+          preview: (cached as string).substring(0, 100)
+        }, 'CacheService');
+        // Return null to trigger a fresh fetch
+        return null;
+      }
     }
     
     logger.debug('Cache miss (Redis)', { key: fullKey }, 'CacheService');

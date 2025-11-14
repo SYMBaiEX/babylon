@@ -16,7 +16,6 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
 import { ethers } from 'ethers'
 import { execSync } from 'child_process'
 
@@ -211,9 +210,9 @@ async function checkRegistration() {
       console.log('\n⚠️  No registration found in database')
       console.log('   Run: bun run agent0:setup')
     }
-  }).catch(() => {
+  } catch (error) {
     console.log('⚠️  Database not available (this is OK for checking on-chain status)')
-  })
+  }
 }
 
 async function checkAgent0Config() {

@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+/// <reference types="bun-types" />
 /**
  * Local Contract Deployment Script
  * 
@@ -9,11 +10,11 @@
  */
 
 import { $ } from 'bun'
-import { writeFileSync } from 'fs'
 import { join } from 'path'
-import { logger } from '../../src/lib/logger'
-import type { DeploymentInfo, ContractAddresses } from '../../src/lib/deployment/validation'
+import { existsSync, readFileSync, writeFileSync } from 'fs'
+import type { ContractAddresses, DeploymentInfo } from '../../src/lib/deployment/validation'
 import { saveDeployment, updateEnvFile } from '../../src/lib/deployment/validation'
+import { logger } from '../../src/lib/logger'
 
 const ANVIL_RPC_URL = 'http://localhost:8545'
 const ANVIL_CHAIN_ID = 31337
@@ -119,9 +120,8 @@ async function main() {
 
     // 6. Also update .env if it exists (for convenience)
     const envPath = join(process.cwd(), '.env')
-    const fs = require('fs')
-    if (fs.existsSync(envPath)) {
-      let envContent = fs.readFileSync(envPath, 'utf-8')
+    if (existsSync(envPath)) {
+      let envContent = readFileSync(envPath, 'utf-8')
 
       const updates = {
         NEXT_PUBLIC_CHAIN_ID: ANVIL_CHAIN_ID.toString(),
@@ -148,7 +148,7 @@ async function main() {
         }
       }
 
-      fs.writeFileSync(envPath, envContent)
+      writeFileSync(envPath, envContent)
       logger.info('✅ Updated .env with contract addresses', undefined, 'Script')
     }
 

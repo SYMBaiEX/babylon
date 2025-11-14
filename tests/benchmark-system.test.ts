@@ -4,7 +4,7 @@
  * Comprehensive tests for the benchmarking and simulation system.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { BenchmarkDataGenerator, type BenchmarkConfig } from '@/lib/benchmark/BenchmarkDataGenerator';
 import { SimulationEngine, type SimulationConfig } from '@/lib/benchmark/SimulationEngine';
 import { SimulationA2AInterface } from '@/lib/benchmark/SimulationA2AInterface';

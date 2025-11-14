@@ -294,10 +294,12 @@ jobs:
 ### Mock A2A Client
 
 ```typescript
+import { mock } from 'bun:test';
+
 export function createMockA2AClient() {
   return {
     isConnected: () => true,
-    sendRequest: vi.fn(async (method, params) => {
+    sendRequest: mock(async (method, params) => {
       if (method === 'a2a.getBalance') {
         return { balance: 1000, reputationPoints: 500 }
       }
@@ -313,10 +315,12 @@ export function createMockA2AClient() {
 ### Mock Runtime
 
 ```typescript
+import { mock } from 'bun:test';
+
 export function createMockRuntime(agentId: string) {
   return {
     agentId,
-    useModel: vi.fn(async () => 'Test response'),
+    useModel: mock(async () => 'Test response'),
     character: {
       name: 'Test Agent',
       system: 'Test system'

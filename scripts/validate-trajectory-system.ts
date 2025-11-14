@@ -7,8 +7,8 @@
 
 import { prisma } from '../src/lib/prisma';
 import { trajectoryRecorder } from '../src/lib/training/TrajectoryRecorder';
-import { toARTTrajectory } from '../eliza/plugin-trajectory-logger/src/art-format';
-import { exportForOpenPipeART } from '../eliza/plugin-trajectory-logger/src/export';
+import { toARTTrajectory } from '../src/lib/agents/plugins/plugin-trajectory-logger/src/art-format';
+import { exportForOpenPipeART } from '../src/lib/agents/plugins/plugin-trajectory-logger/src/export';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -221,7 +221,7 @@ async function main() {
 
         // Show messages
         console.log('  Message structure:');
-        artTraj.messages.forEach((msg, idx) => {
+        artTraj.messages.forEach((msg: { role: string; content: string }, idx: number) => {
           console.log(`    ${idx + 1}. [${msg.role}] ${msg.content.substring(0, 60)}...`);
         });
 

@@ -7,7 +7,7 @@
  */
 
 // @ts-nocheck - Requires trajectory schema not yet available
-import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { describe, test, expect, beforeAll, afterAll, afterEach } from 'bun:test';
 import { AutomationPipeline } from '@/lib/training/AutomationPipeline';
 import { prisma } from '@/lib/prisma';
 import { trajectoryRecorder } from '@/lib/training/TrajectoryRecorder';

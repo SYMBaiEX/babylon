@@ -154,6 +154,8 @@ async function seedModerationTestUsers() {
     for (let i = 0; i < testUser.followersToCreate; i++) {
       const follower = reporterUsers[i % reporterUsers.length];
       
+      if (!follower) continue;
+      
       try {
         await prisma.follow.create({
           data: {
@@ -173,8 +175,12 @@ async function seedModerationTestUsers() {
     for (let i = 0; i < testUser.reportsToReceive; i++) {
       const reporter = reporterUsers[i % reporterUsers.length];
       
+      if (!reporter) continue;
+      
       const categories = ['spam', 'harassment', 'hate_speech', 'inappropriate', 'misinformation', 'violence', 'impersonation', 'copyright', 'other'];
       const category = categories[Math.floor(Math.random() * categories.length)];
+      
+      if (!category) continue;
       
       await prisma.report.create({
         data: {
@@ -196,6 +202,8 @@ async function seedModerationTestUsers() {
     for (let i = 0; i < testUser.blocksToReceive; i++) {
       const blocker = reporterUsers[i % reporterUsers.length];
       
+      if (!blocker) continue;
+      
       try {
         await prisma.userBlock.create({
           data: {
@@ -215,6 +223,8 @@ async function seedModerationTestUsers() {
     // Create mutes received
     for (let i = 0; i < testUser.mutesToReceive; i++) {
       const muter = reporterUsers[i % reporterUsers.length];
+      
+      if (!muter) continue;
       
       try {
         await prisma.userMute.create({

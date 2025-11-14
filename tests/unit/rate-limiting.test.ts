@@ -4,7 +4,7 @@
  * Tests for user-level rate limiting and duplicate detection
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'bun:test';
 import {
   checkRateLimit,
   RATE_LIMIT_CONFIGS,
@@ -211,7 +211,7 @@ describe('Rate Limiting', () => {
     });
 
     it('should use 1-minute windows for all actions', () => {
-      const oneMinute = 60 * 1000;
+      const oneMinute = 60_000;
 
       expect(RATE_LIMIT_CONFIGS.CREATE_POST.windowMs).toBe(oneMinute);
       expect(RATE_LIMIT_CONFIGS.CREATE_COMMENT.windowMs).toBe(oneMinute);

@@ -9,7 +9,6 @@ import type { NextRequest } from 'next/server';
 import { authenticate } from '@/lib/api/auth-middleware';
 import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
-import { prisma } from '@/lib/prisma';
 
 /**
  * GET /api/chats/unread-count

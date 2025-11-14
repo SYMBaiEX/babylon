@@ -52,6 +52,12 @@ async function checkAdmin(identifier: string) {
   }
 
   const userData = Array.isArray(user) ? user[0] : user
+  
+  if (!userData) {
+    console.error(`❌ User data not found: ${identifier}`)
+    process.exit(1)
+  }
+  
   console.log('\n✅ User found:')
   console.log('   ID:', userData.id)
   console.log('   Username:', userData.username)
@@ -87,6 +93,11 @@ async function grantAdmin(identifier: string) {
   }
 
   const user = users[0]
+  
+  if (!user) {
+    console.error(`❌ User not found: ${identifier}`)
+    process.exit(1)
+  }
 
   if (user.isActor) {
     console.error('❌ Cannot promote actors/NPCs to admin')

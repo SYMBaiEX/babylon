@@ -12,6 +12,7 @@
 import { prisma } from '../src/lib/prisma'
 import { logger } from '../src/lib/logger'
 import { generateSnowflakeId } from '../src/lib/snowflake'
+import { nanoid } from 'nanoid'
 
 const MIN_NEWS_ARTICLES = 10
 const MIN_TRENDING_TAGS = 5
@@ -149,10 +150,14 @@ async function initializeTrending() {
   // Create tags
   const createdTags = []
   for (const tagData of SAMPLE_TAGS) {
-    const tag = await prisma.tag.upsert({
+    const tag =     await prisma.tag.upsert({
       where: { name: tagData.name },
       update: {},
-      create: tagData,
+      create: {
+        id: nanoid(),
+        ...tagData,
+        updatedAt: new Date(),
+      },
     })
     createdTags.push(tag)
   }
@@ -188,7 +193,10 @@ async function initializeTrending() {
 
       // Random tag if no matches
       if (matchingTags.length === 0) {
-        matchingTags.push(SAMPLE_TAGS[Math.floor(Math.random() * SAMPLE_TAGS.length)].name)
+        const randomTag = SAMPLE_TAGS[Math.floor(Math.random() * SAMPLE_TAGS.length)]
+        if (randomTag) {
+          matchingTags.push(randomTag.name)
+        }
       }
 
       // Create links
@@ -208,6 +216,7 @@ async function initializeTrending() {
           if (!existing) {
             await prisma.postTag.create({
               data: {
+                id: nanoid(),
                 postId: post.id,
                 tagId: tag.id,
               },
@@ -232,14 +241,14 @@ async function initializeTrending() {
   // Get tag counts using aggregation instead of raw SQL
   const postTags = await prisma.postTag.findMany({
     where: {
-      post: {
+      Post: {
         timestamp: {
           gte: weekAgo,
         },
       },
     },
     include: {
-      tag: true,
+      Tag: true,
     },
   })
 
@@ -258,19 +267,25 @@ async function initializeTrending() {
 
   let trendingCreated = 0
   for (let i = 0; i < tagCounts.length; i++) {
-    const { tagId, count } = tagCounts[i]
+    const tagCount = tagCounts[i]
+    if (!tagCount) continue
+    
+    const { tagId, count } = tagCount
     const score = Number(count) * (10 - i) * (0.5 + Math.random())
+    
+    const randomTag = SAMPLE_TAGS[Math.floor(Math.random() * SAMPLE_TAGS.length)]
 
     await prisma.trendingTag.create({
       data: {
+        id: nanoid(),
         tagId,
         score,
         postCount: Number(count),
         rank: i + 1,
         windowStart: weekAgo,
         windowEnd: now,
-        relatedContext: i < 3 && Math.random() > 0.5 
-          ? `Trending with ${SAMPLE_TAGS[Math.floor(Math.random() * SAMPLE_TAGS.length)].displayName}` 
+        relatedContext: i < 3 && Math.random() > 0.5 && randomTag
+          ? `Trending with ${randomTag.displayName}` 
           : null,
       },
     }).catch(() => {
@@ -285,18 +300,22 @@ async function initializeTrending() {
     
     for (let i = trendingCreated; i < MIN_TRENDING_TAGS && i < createdTags.length; i++) {
       const tag = createdTags[i]
+      if (!tag) continue
+      
       const score = (MIN_TRENDING_TAGS - i) * 10 * Math.random()
+      const randomTag = SAMPLE_TAGS[Math.floor(Math.random() * SAMPLE_TAGS.length)]
       
       await prisma.trendingTag.create({
         data: {
+          id: nanoid(),
           tagId: tag.id,
           score,
           postCount: Math.floor(Math.random() * 20) + 5,
           rank: i + 1,
           windowStart: weekAgo,
           windowEnd: now,
-          relatedContext: Math.random() > 0.6
-            ? `Trending with ${SAMPLE_TAGS[Math.floor(Math.random() * SAMPLE_TAGS.length)].displayName}`
+          relatedContext: Math.random() > 0.6 && randomTag
+            ? `Trending with ${randomTag.displayName}`
             : null,
         },
       }).catch(() => {
@@ -348,6 +367,8 @@ async function initializeNews() {
     // Spread timestamps over last 24 hours
     const hoursAgo = Math.floor(Math.random() * 24)
     const timestamp = new Date(Date.now() - hoursAgo * 60 * 60 * 1000)
+
+    if (!article || !org) continue
 
     await prisma.post.create({
       data: {
