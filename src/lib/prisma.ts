@@ -118,27 +118,35 @@ function createPrismaClient() {
  * Get or create the base Prisma client
  */
 function getPrismaClient(): PrismaClient | null {
-  // Skip Prisma initialization during Next.js build time
-  if (isBuildTime) {
+  // Skip Prisma initialization during Next.js build time (but not during tests)
+  const isTestEnv = process.env.NODE_ENV === 'test' || process.env.BUN_ENV === 'test';
+  
+  if (isBuildTime && !isTestEnv) {
     if (!globalForPrisma.prisma) {
       console.log('[Prisma] Build time detected - skipping Prisma initialization');
     }
     return null;
   }
   
+  // In test environments, always try to initialize if DATABASE_URL is available
   if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = createPrismaClient();
-    
-    // Add connection lifecycle logging in development
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Prisma] Created new Prisma Client instance');
+    const databaseUrl = process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL;
+    // Create client if we have a database URL
+    // In test environments, we'll try again on first access if DATABASE_URL becomes available later
+    if (databaseUrl) {
+      globalForPrisma.prisma = createPrismaClient();
+      
+      // Add connection lifecycle logging in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Prisma] Created new Prisma Client instance');
+      }
     }
   }
   
-  return globalForPrisma.prisma;
+  return globalForPrisma.prisma || null;
 }
 
-// Get base Prisma client (will be null during build time)
+// Get base Prisma client (will be null during build time, but initialized in tests)
 const basePrismaClient = getPrismaClient();
 
 // Export base client for operations that need full type inference
@@ -146,21 +154,60 @@ const basePrismaClient = getPrismaClient();
 // During build time, this will be null but won't be called
 export const prismaBase = basePrismaClient as PrismaClient;
 
-// Wrap with retry logic and explicitly type as PrismaClient to preserve types through proxy
-// During build time, basePrismaClient is null, so we skip retry proxy creation
-export const prisma: PrismaClient = (basePrismaClient 
-  ? (globalForPrisma.prismaWithRetry ?? createRetryProxy(basePrismaClient, {
+// Lazy initialization wrapper for prisma that ensures client is created on first access
+// This is important for tests where DATABASE_URL might be set after module load
+function getPrismaWithRetry(): PrismaClient {
+  let client = getPrismaClient();
+  
+  // If client is still null, try one more time (for tests where DATABASE_URL is set late)
+  if (!client) {
+    const databaseUrl = process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL;
+    if (databaseUrl) {
+      globalForPrisma.prisma = createPrismaClient();
+      client = globalForPrisma.prisma;
+    }
+  }
+  
+  if (!client) {
+    throw new Error(
+      'Prisma Client is not initialized. ' +
+      'This can happen during Next.js build time or when DATABASE_URL is not set. ' +
+      'Make sure DATABASE_URL is set in your environment.'
+    );
+  }
+  
+  // Create retry proxy if not already created
+  if (!globalForPrisma.prismaWithRetry) {
+    globalForPrisma.prismaWithRetry = createRetryProxy(client, {
       maxRetries: 5,
       initialDelayMs: 100,
       maxDelayMs: 5000,
       jitter: true,
-    })) as PrismaClient
-  : null as unknown as PrismaClient // Type cast for build time
-);
-
-if (process.env.NODE_ENV !== 'production' && basePrismaClient) {
-  globalForPrisma.prismaWithRetry = prisma as ReturnType<typeof createRetryProxy<PrismaClient>>;
+    }) as ReturnType<typeof createRetryProxy<PrismaClient>>;
+  }
+  
+  return globalForPrisma.prismaWithRetry as unknown as PrismaClient;
 }
+
+// Create a Proxy that lazily initializes the Prisma client on first access
+// This ensures tests can access prisma even if DATABASE_URL is set after module load
+const prismaProxy = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    const client = getPrismaWithRetry();
+    return (client as any)[prop];
+  },
+  has(_target, prop) {
+    const client = getPrismaWithRetry();
+    return prop in client;
+  },
+  ownKeys(_target) {
+    const client = getPrismaWithRetry();
+    return Object.keys(client);
+  },
+});
+
+// Export prisma with lazy initialization
+export const prisma: PrismaClient = prismaProxy as PrismaClient;
 
 /**
  * Gracefully disconnect Prisma on process termination
