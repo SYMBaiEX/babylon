@@ -272,6 +272,10 @@ jobs:
           export DIRECT_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db"
           bunx prisma db push --skip-generate --accept-data-loss
           
+          # Regenerate Prisma client after schema push
+          echo "🔄 Regenerating Prisma client with latest schema..."
+          bunx prisma generate
+          
           # Verify tables were created
           echo "✅ Verifying database schema..."
           psql "$DATABASE_URL" -c "\dt" || echo "⚠️ Could not list tables"
@@ -433,6 +437,10 @@ jobs:
           export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db"
           export DIRECT_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db"
           bunx prisma db push --skip-generate --accept-data-loss
+          
+          # Regenerate Prisma client after schema push
+          echo "🔄 Regenerating Prisma client with latest schema..."
+          bunx prisma generate
           
           # Verify tables were created
           echo "✅ Verifying database schema..."
@@ -598,6 +606,10 @@ jobs:
           export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db"
           export DIRECT_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db"
           bunx prisma db push --skip-generate --accept-data-loss
+          
+          # Regenerate Prisma client after schema push
+          echo "🔄 Regenerating Prisma client with latest schema..."
+          bunx prisma generate
           
           # Verify tables were created
           echo "✅ Verifying database schema..."
