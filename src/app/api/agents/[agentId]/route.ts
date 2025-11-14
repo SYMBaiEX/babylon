@@ -1,9 +1,10 @@
 /**
  * Individual Agent Management API
  * 
- * @route GET /api/agents/[agentId] - Get agent details
+ * @route GET /api/agents/[agentId] - Get agent details (with ?owner=true for Agent0 owner)
  * @route PUT /api/agents/[agentId] - Update agent configuration
  * @route DELETE /api/agents/[agentId] - Delete agent
+ * @route POST /api/agents/[agentId]?action=transfer - Transfer Agent0 ownership
  * @access Authenticated (owner only)
  * 
  * @description
@@ -84,9 +85,11 @@
 
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { agentService } from '@/lib/agents/services/AgentService'
 import { logger } from '@/lib/logger'
 import { authenticateUser } from '@/lib/server-auth'
+import { getAgent0Client } from '@/agents/agent0/Agent0Client'
 
 export async function GET(
   req: NextRequest,
@@ -94,9 +97,25 @@ export async function GET(
 ) {
   const user = await authenticateUser(req)
   const { agentId } = await params
+  const { searchParams } = new URL(req.url)
 
   const agent = await agentService.getAgent(agentId, user.id)
   const performance = await agentService.getPerformance(agentId)
+
+  // Optionally include Agent0 owner information
+  let agent0Owner: string | undefined
+  let isAgent0Owner: boolean | undefined
+  if (searchParams.get('owner') === 'true' && agent!.agent0TokenId && process.env.AGENT0_ENABLED === 'true') {
+    try {
+      const agent0Client = getAgent0Client()
+      agent0Owner = await agent0Client.getAgentOwner(agent!.agent0TokenId)
+      if (agent!.walletAddress) {
+        isAgent0Owner = await agent0Client.isAgentOwner(agent!.agent0TokenId, agent!.walletAddress)
+      }
+    } catch (error) {
+      logger.warn('Failed to get Agent0 owner info', error, 'GET /api/agents/[agentId]')
+    }
+  }
 
   return NextResponse.json({
     success: true,
@@ -132,6 +151,8 @@ export async function GET(
       lastChatAt: agent!.agentLastChatAt?.toISOString(),
       walletAddress: agent!.walletAddress,
       agent0TokenId: agent!.agent0TokenId,
+      agent0Owner,
+      isAgent0Owner,
       onChainRegistered: agent!.onChainRegistered,
       createdAt: agent!.createdAt.toISOString(),
       updatedAt: agent!.updatedAt.toISOString()
@@ -199,3 +220,67 @@ export async function DELETE(
   })
 }
 
+const TransferSchema = z.object({
+  newOwner: z.string().regex(/^0x[a-fA-F0-9]{40}$/)
+})
+
+/**
+ * POST /api/agents/[agentId]?action=transfer
+ * Transfer Agent0 ownership
+ */
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ agentId: string }> }
+) {
+  try {
+    const user = await authenticateUser(req)
+    const { agentId } = await params
+    const { searchParams } = new URL(req.url)
+    const action = searchParams.get('action')
+
+    if (action === 'transfer') {
+      // Get agent to verify ownership and get tokenId
+      const agent = await agentService.getAgent(agentId, user.id)
+      
+      if (!agent!.agent0TokenId) {
+        return NextResponse.json({ error: 'Agent not registered on Agent0' }, { status: 400 })
+      }
+
+      if (process.env.AGENT0_ENABLED !== 'true') {
+        return NextResponse.json({ error: 'Agent0 not enabled' }, { status: 503 })
+      }
+
+      const payload = TransferSchema.safeParse(await req.json())
+      if (!payload.success) {
+        return NextResponse.json({ error: 'Invalid transfer payload' }, { status: 400 })
+      }
+
+      const agent0Client = getAgent0Client()
+      
+      // Verify ownership before transfer
+      if (agent!.walletAddress) {
+        const isOwner = await agent0Client.isAgentOwner(agent!.agent0TokenId, agent!.walletAddress)
+        if (!isOwner) {
+          return NextResponse.json({ error: 'Not agent owner' }, { status: 403 })
+        }
+      }
+
+      const result = await agent0Client.transferAgent({
+        tokenId: agent!.agent0TokenId,
+        newOwner: payload.data.newOwner
+      })
+
+      logger.info(`Agent transferred: ${agentId} to ${payload.data.newOwner}`, undefined, 'AgentsAPI')
+
+      return NextResponse.json({
+        success: true,
+        ...result
+      })
+    }
+
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+  } catch (error) {
+    console.error('Agent action failed', error)
+    return NextResponse.json({ error: 'Failed to perform action' }, { status: 500 })
+  }
+}

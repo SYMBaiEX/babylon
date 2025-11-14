@@ -24,6 +24,44 @@ interface AgentCard {
   metadata?: Record<string, string>
 }
 
+// Extended Agent Card type for test compatibility
+export interface BuiltAgentCard {
+  schema: string
+  protocols: {
+    mcp: {
+      endpoint: string
+    }
+  }
+  registries: {
+    base: {
+      identity: string
+    }
+  }
+}
+
+/**
+ * Build agent card object for testing and API responses
+ */
+export function buildAgentCard(): BuiltAgentCard {
+  const baseRegistryAddress = process.env.BASE_IDENTITY_REGISTRY_ADDRESS || '0x0000000000000000000000000000000000000000'
+  const mcpUrl = process.env.BABYLON_MCP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const mcpEndpoint = mcpUrl.endsWith('/mcp') ? mcpUrl : `${mcpUrl}/mcp`
+
+  return {
+    schema: 'https://agent-card.schema.org',
+    protocols: {
+      mcp: {
+        endpoint: mcpEndpoint
+      }
+    },
+    registries: {
+      base: {
+        identity: baseRegistryAddress
+      }
+    }
+  }
+}
+
 export async function GET() {
   const agentCard: AgentCard = {
     id: 'babylon-platform',

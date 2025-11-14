@@ -1494,3 +1494,56 @@ model SystemSettings {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+/// Coalition for agent coordination (Gap 15)
+model Coalition {
+  id           String            @id
+  name         String
+  strategy     String
+  targetMarket String
+  createdAt    DateTime          @default(now())
+  active       Boolean           @default(true)
+  members      CoalitionMember[]
+  
+  @@index([active])
+  @@index([targetMarket])
+}
+
+/// Coalition membership (Gap 15)
+model CoalitionMember {
+  id          String    @id
+  coalitionId String
+  agentId     String
+  role        String
+  joinedAt    DateTime  @default(now())
+  coalition   Coalition @relation(fields: [coalitionId], references: [id], onDelete: Cascade)
+  
+  @@index([coalitionId])
+  @@index([agentId])
+  @@index([joinedAt])
+}
+
+/// Agent lifecycle events (Gap 6)
+model AgentLifecycleEvent {
+  id        String   @id
+  agentId   String
+  eventType String
+  metadata  Json?
+  timestamp DateTime @default(now())
+  
+  @@index([agentId, timestamp(sort: Desc)])
+  @@index([eventType])
+  @@index([timestamp(sort: Desc)])
+}
+
+/// MCP context persistence (Gap 13)
+model MCPContext {
+  id             String   @id
+  agentId        String   @unique
+  history        Json // Tool execution history
+  state          Json // Current state
+  lastAccessedAt DateTime @default(now())
+  createdAt      DateTime @default(now())
+  
+  @@index([lastAccessedAt])
+}

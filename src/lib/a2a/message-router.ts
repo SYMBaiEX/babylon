@@ -216,15 +216,43 @@ export class MessageRouter {
       const tokenId = parseInt(agentInfo.agentId.replace('agent0-', ''), 10)
       
       if (!isNaN(tokenId)) {
+        // Prefer UnifiedDiscovery as it includes endpoint information from subgraph
+        if (this.unifiedDiscovery) {
+          const profile = await this.unifiedDiscovery.getAgent(agentInfo.agentId)
+          if (profile) {
+            return {
+              jsonrpc: '2.0',
+              result: profile as unknown as JsonRpcResult,
+              id: request.id
+            }
+          }
+        }
+        
+        // Fallback to Agent0Client if UnifiedDiscovery doesn't have it
         if (this.agent0Client) {
           const profile = await this.agent0Client.getAgentProfile(tokenId)
           if (profile) {
+            // Try to get endpoint from subgraph if available
+            let endpoint = ''
+            if (process.env.AGENT0_ENABLED === 'true') {
+              try {
+                const { SubgraphClient } = await import('@/agents/agent0/SubgraphClient')
+                const subgraphClient = new SubgraphClient()
+                if (subgraphClient.isAvailable()) {
+                  const subgraphAgent = await subgraphClient.getAgent(tokenId)
+                  endpoint = subgraphAgent.a2aEndpoint || ''
+                }
+              } catch {
+                // Subgraph not available or agent not found, use empty endpoint
+              }
+            }
+            
             const agentProfile: AgentProfile = {
               agentId: agentInfo.agentId,
               tokenId: profile.tokenId,
               address: profile.walletAddress,
               name: profile.name,
-              endpoint: profile.capabilities?.actions?.includes('a2a') ? '' : '',
+              endpoint: endpoint,
               capabilities: profile.capabilities ?? {
                 strategies: [],
                 markets: [],
@@ -246,17 +274,6 @@ export class MessageRouter {
             return {
               jsonrpc: '2.0',
               result: agentProfile as unknown as JsonRpcResult,
-              id: request.id
-            }
-          }
-        }
-        
-        if (this.unifiedDiscovery) {
-          const profile = await this.unifiedDiscovery.getAgent(agentInfo.agentId)
-          if (profile) {
-            return {
-              jsonrpc: '2.0',
-              result: profile as unknown as JsonRpcResult,
               id: request.id
             }
           }
@@ -1051,5 +1068,80 @@ export class MessageRouter {
     return Array.from(this.coalitions.values()).filter(
       c => c.active && c.members.includes(agentId)
     )
+  }
+  
+  /**
+   * Get all supported A2A methods
+   * Used for capability negotiation during handshake
+   */
+  getSupportedMethods(): string[] {
+    return [
+      // Discovery
+      'a2a.discover',
+      'a2a.getInfo',
+      
+      // Markets
+      'a2a.getMarketData',
+      'a2a.getMarketPrices',
+      'a2a.subscribeMarket',
+      'a2a.getPredictions',
+      'a2a.getPerpetuals',
+      'a2a.buyShares',
+      'a2a.sellShares',
+      'a2a.openPosition',
+      'a2a.closePosition',
+      'a2a.getPositions',
+      
+      // Social
+      'a2a.getFeed',
+      'a2a.getPost',
+      'a2a.createPost',
+      'a2a.deletePost',
+      'a2a.likePost',
+      'a2a.unlikePost',
+      'a2a.sharePost',
+      'a2a.getComments',
+      'a2a.createComment',
+      'a2a.deleteComment',
+      'a2a.likeComment',
+      
+      // User Management
+      'a2a.getUserProfile',
+      'a2a.updateProfile',
+      'a2a.getBalance',
+      'a2a.getUserPositions',
+      'a2a.getUserWallet',
+      'a2a.followUser',
+      'a2a.unfollowUser',
+      'a2a.getFollowers',
+      'a2a.getFollowing',
+      'a2a.searchUsers',
+      
+      // Pools
+      'a2a.getPools',
+      'a2a.getPoolInfo',
+      'a2a.depositToPool',
+      'a2a.withdrawFromPool',
+      'a2a.getPoolDeposits',
+      
+      // Coalitions
+      ...(this.config.enableCoalitions ? [
+        'a2a.proposeCoalition',
+        'a2a.joinCoalition',
+        'a2a.coalitionMessage',
+        'a2a.leaveCoalition'
+      ] : []),
+      
+      // Analysis
+      'a2a.shareAnalysis',
+      'a2a.requestAnalysis',
+      'a2a.getAnalyses',
+      
+      // Payments
+      ...(this.config.enableX402 ? [
+        'a2a.paymentRequest',
+        'a2a.paymentReceipt'
+      ] : [])
+    ]
   }
 }

@@ -102,16 +102,16 @@ export interface X402Manager {
     amount: string,
     service: string,
     metadata?: Record<string, string | number | boolean | null>
-  ): PaymentRequestResult;
+  ): Promise<PaymentRequestResult>;
   verifyPayment(verificationData: PaymentVerificationParams): Promise<PaymentVerificationResult>;
-  getPaymentRequest(requestId: string): PaymentRequestResult | null;
-  isPaymentVerified(requestId: string): boolean;
-  cancelPaymentRequest(requestId: string): boolean;
-  getPendingPayments(agentAddress: string): PaymentRequestResult[];
-  getStatistics(): {
-    totalPending: number;
-    totalVerified: number;
-    totalExpired: number;
-  };
+  getPaymentRequest(requestId: string): Promise<PaymentRequestResult | null>;
+  isPaymentVerified(requestId: string): Promise<boolean>;
+  cancelPaymentRequest(requestId: string): Promise<boolean>;
+  getPendingPayments(agentAddress?: string): Promise<PaymentRequestResult[]>;
+  getStatistics(): Promise<{
+    pending: number;
+    verified: number;
+    expired: number;
+  }>;
 }
 

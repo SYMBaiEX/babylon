@@ -29,8 +29,19 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Optional auth - registry is public
   await optionalAuth(request).catch(() => null)
 
-  // Initialize subgraph client for agent data
-  const subgraphClient = new SubgraphClient()
+  // Initialize subgraph client for agent data (only if Agent0 is enabled)
+  let subgraphClient: SubgraphClient | null = null
+  if (process.env.AGENT0_ENABLED === 'true') {
+    try {
+      subgraphClient = new SubgraphClient()
+      if (!subgraphClient.isAvailable()) {
+        subgraphClient = null
+      }
+    } catch (error) {
+      logger.warn('SubgraphClient initialization failed, continuing without Agent0 data', { error }, 'GET /api/registry/all')
+      subgraphClient = null
+    }
+  }
 
   // Fetch users from database
   const fetchUsers = async () => {
@@ -188,6 +199,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   const fetchAgents = async () => {
+    if (!subgraphClient) {
+      return []
+    }
     try {
       const agents = await subgraphClient.searchAgents({
         type: 'agent',
@@ -224,6 +238,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   const fetchApps = async () => {
+    if (!subgraphClient) {
+      return []
+    }
     try {
       const apps = await subgraphClient.getGamePlatforms({
         minTrustScore: 0

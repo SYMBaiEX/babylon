@@ -2,7 +2,8 @@
  * Agents Management API
  * 
  * @route POST /api/agents - Create new agent
- * @route GET /api/agents - List user's agents
+ * @route GET /api/agents - List user's agents or search by reputation
+ * @route GET /api/agents?searchBy=reputation - Search agents by reputation
  * @access Authenticated
  * 
  * @description
@@ -73,6 +74,8 @@ import { NextResponse } from 'next/server'
 import { agentService } from '@/lib/agents/services/AgentService'
 import { logger } from '@/lib/logger'
 import { authenticateUser } from '@/lib/server-auth'
+import { optionalAuth } from '@/lib/api/auth-middleware'
+import { getAgent0Client } from '@/agents/agent0/Agent0Client'
 
 export async function POST(req: NextRequest) {
   const user = await authenticateUser(req)
@@ -119,9 +122,54 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const user = await authenticateUser(req)
-  
   const { searchParams } = new URL(req.url)
+  const searchBy = searchParams.get('searchBy')
+
+  // Handle reputation-based search (public)
+  if (searchBy === 'reputation') {
+    await optionalAuth(req).catch(() => null)
+
+    if (process.env.AGENT0_ENABLED !== 'true') {
+      return NextResponse.json({ error: 'Agent0 not enabled' }, { status: 503 })
+    }
+
+    const agents = searchParams.get('agents')?.split(',').map(Number).filter(n => !isNaN(n))
+    const tags = searchParams.get('tags')?.split(',').filter(Boolean)
+    const reviewers = searchParams.get('reviewers')?.split(',').filter(Boolean)
+    const capabilities = searchParams.get('capabilities')?.split(',').filter(Boolean)
+    const skills = searchParams.get('skills')?.split(',').filter(Boolean)
+    const tasks = searchParams.get('tasks')?.split(',').filter(Boolean)
+    const names = searchParams.get('names')?.split(',').filter(Boolean)
+    const minAverageScore = searchParams.get('minAverageScore') ? parseFloat(searchParams.get('minAverageScore')!) : undefined
+    const includeRevoked = searchParams.get('includeRevoked') === 'true'
+    const pageSize = searchParams.get('pageSize') ? parseInt(searchParams.get('pageSize')!, 10) : undefined
+    const cursor = searchParams.get('cursor') || undefined
+    const sort = searchParams.get('sort')?.split(',').filter(Boolean)
+
+    const agent0Client = getAgent0Client()
+    const result = await agent0Client.searchAgentsByReputation({
+      agents,
+      tags,
+      reviewers,
+      capabilities,
+      skills,
+      tasks,
+      names,
+      minAverageScore,
+      includeRevoked,
+      pageSize,
+      cursor,
+      sort
+    })
+
+    return NextResponse.json({
+      success: true,
+      ...result
+    })
+  }
+
+  // Default: List user's agents (authenticated)
+  const user = await authenticateUser(req)
   const autonomousTrading = searchParams.get('autonomousTrading')
 
   const filters: { autonomousTrading?: boolean } = {}

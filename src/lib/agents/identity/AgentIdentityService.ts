@@ -56,6 +56,11 @@ export class AgentIdentityService {
     if (!agentUser || !agentUser.isAgent) throw new Error('Agent user not found')
     if (!agentUser.walletAddress) throw new Error('Agent must have wallet before Agent0 registration')
 
+    // Only register if Agent0 is enabled
+    if (process.env.AGENT0_ENABLED !== 'true') {
+      throw new Error('Agent0 registration is disabled. Set AGENT0_ENABLED=true to enable.')
+    }
+
     const agent0Client = getAgent0Client()
     const capabilities = {
       strategies: agentUser.agentTradingStrategy 
@@ -146,6 +151,12 @@ export class AgentIdentityService {
     const agent = await prisma.user.findUnique({ where: { id: agentUserId } })
     if (!agent || !agent.isAgent || !agent.agent0TokenId) {
       logger.debug(`Agent ${agentUserId} not found or not registered on Agent0`, undefined, 'AgentIdentityService');
+      return false;
+    }
+
+    // Only verify if Agent0 is enabled
+    if (process.env.AGENT0_ENABLED !== 'true') {
+      logger.debug(`Agent0 disabled, skipping verification for ${agentUserId}`, undefined, 'AgentIdentityService');
       return false;
     }
 

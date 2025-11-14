@@ -180,6 +180,16 @@ export class AgentWalletService {
     }
 
     // Step 2: Register via Agent0Client (handles signing and gas server-side)
+    // Only register with Agent0 if enabled
+    if (process.env.AGENT0_ENABLED !== 'true') {
+      logger.info(`Agent0 disabled, skipping on-chain registration for ${agentUserId}`, undefined, 'AgentWalletService')
+      return {
+        tokenId: 0,
+        txHash: '',
+        metadataCID: undefined
+      }
+    }
+    
     const agent0Client = getAgent0Client()
     
     const registration = await agent0Client.registerAgent({

@@ -40,7 +40,7 @@ export class UnifiedDiscoveryService implements IUnifiedDiscoveryService {
   async discoverAgents(filters: DiscoveryFilters): Promise<AgentProfile[]> {
     const results: AgentProfile[] = []
     
-    const localAgents = this.localRegistry.search({
+    const localAgents = await this.localRegistry.search({
       strategies: filters.strategies,
       minReputation: filters.minReputation
     })
@@ -70,13 +70,29 @@ export class UnifiedDiscoveryService implements IUnifiedDiscoveryService {
     agent0Data: SubgraphAgent,
     reputationBridge?: IReputationBridge | null
   ): Promise<AgentProfile> {
-    const parsed = JSON.parse(agent0Data.capabilities!)
-    const validation = CapabilitiesSchema.parse(parsed)
-    const capabilities = {
-      strategies: validation.strategies ?? [],
-      markets: validation.markets ?? [],
-      actions: validation.actions ?? [],
-      version: validation.version ?? '1.0.0',
+    // Safely parse capabilities
+    let capabilities = {
+      strategies: [] as string[],
+      markets: [] as string[],
+      actions: [] as string[],
+      version: '1.0.0',
+    }
+    
+    if (agent0Data.capabilities) {
+      try {
+        const parsed = JSON.parse(agent0Data.capabilities)
+        const validation = CapabilitiesSchema.safeParse(parsed)
+        if (validation.success) {
+          capabilities = {
+            strategies: validation.data.strategies ?? [],
+            markets: validation.data.markets ?? [],
+            actions: [],
+            version: validation.data.version ?? '1.0.0',
+          }
+        }
+      } catch {
+        // Invalid capabilities, use defaults
+      }
     }
     
     let reputation
@@ -91,12 +107,23 @@ export class UnifiedDiscoveryService implements IUnifiedDiscoveryService {
         profitLoss: aggregated.profitLoss,
         isBanned: aggregated.isBanned
       }
-    } else {
+    } else if (agent0Data.reputation) {
       reputation = {
-        totalBets: agent0Data.reputation!.totalBets,
-        winningBets: agent0Data.reputation!.winningBets,
-        accuracyScore: agent0Data.reputation!.accuracyScore / 100,
-        trustScore: agent0Data.reputation!.trustScore / 100,
+        totalBets: agent0Data.reputation.totalBets,
+        winningBets: agent0Data.reputation.winningBets,
+        accuracyScore: agent0Data.reputation.accuracyScore / 100,
+        trustScore: agent0Data.reputation.trustScore / 100,
+        totalVolume: '0',
+        profitLoss: 0,
+        isBanned: false
+      }
+    } else {
+      // Default reputation if none available
+      reputation = {
+        totalBets: 0,
+        winningBets: 0,
+        accuracyScore: 0,
+        trustScore: 0,
         totalVolume: '0',
         profitLoss: 0,
         isBanned: false
@@ -108,7 +135,7 @@ export class UnifiedDiscoveryService implements IUnifiedDiscoveryService {
       tokenId: agent0Data.tokenId,
       address: agent0Data.walletAddress,
       name: agent0Data.name,
-      endpoint: agent0Data.a2aEndpoint!,
+      endpoint: agent0Data.a2aEndpoint || '',
       capabilities,
       reputation,
       isActive: true
@@ -140,15 +167,15 @@ export class UnifiedDiscoveryService implements IUnifiedDiscoveryService {
   /**
    * Get agent by ID (searches both local and external)
    */
-  async getAgent(agentId: string): Promise<AgentProfile> {
+  async getAgent(agentId: string): Promise<AgentProfile | null> {
     if (agentId.startsWith('agent0-')) {
       const tokenId = parseInt(agentId.replace('agent0-', ''), 10)
       const agent0Data = await this.subgraphClient.getAgent(tokenId)
       return this.transformAgent0Profile(agent0Data, this.reputationBridge)
     }
     
-    const localAgent = this.localRegistry.getAgent(agentId)
-    return localAgent!.profile
+    const localAgent = await this.localRegistry.getAgent(agentId)
+    return localAgent?.profile || null
   }
 }
 

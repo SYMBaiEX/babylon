@@ -54,20 +54,32 @@ export interface SubgraphAgent {
 }
 
 export class SubgraphClient {
-  private client: GraphQLClient
+  private client: GraphQLClient | null = null
+  private subgraphUrl: string | null = null
 
   constructor() {
     const subgraphUrl = process.env.AGENT0_SUBGRAPH_URL
     
-    if (!subgraphUrl) {
-      throw new Error('AGENT0_SUBGRAPH_URL environment variable is required')
+    // Only initialize if Agent0 is enabled and subgraph URL is provided
+    // This allows the client to exist but be lazy-initialized
+    if (subgraphUrl) {
+      this.subgraphUrl = subgraphUrl
+      this.client = new GraphQLClient(subgraphUrl, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+    } else if (process.env.AGENT0_ENABLED === 'true') {
+      // Only throw if Agent0 is explicitly enabled but subgraph URL is missing
+      throw new Error('AGENT0_SUBGRAPH_URL environment variable is required when AGENT0_ENABLED=true')
     }
-    
-    this.client = new GraphQLClient(subgraphUrl, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
+    // Otherwise, client remains null and methods will handle gracefully
+  }
+  
+  private ensureClient(): void {
+    if (!this.client || !this.subgraphUrl) {
+      throw new Error('SubgraphClient not initialized. AGENT0_SUBGRAPH_URL is required when using Agent0 features.')
+    }
   }
 
   /**
@@ -99,6 +111,32 @@ export class SubgraphClient {
         : undefined
       : undefined
 
+    // Extract reputation from metadata if available
+    // The subgraph may store reputation data in metadata or we may need to calculate from totalFeedback
+    let reputation: SubgraphAgent['reputation'] = undefined
+    if (meta.reputation) {
+      try {
+        const repData = JSON.parse(meta.reputation)
+        reputation = {
+          totalBets: repData.totalBets || 0,
+          winningBets: repData.winningBets || 0,
+          trustScore: repData.trustScore || 0,
+          accuracyScore: repData.accuracyScore || 0
+        }
+      } catch {
+        // Invalid reputation data, leave as undefined
+      }
+    } else if (raw.totalFeedback > 0) {
+      // If we have feedback count but no explicit reputation, provide a basic structure
+      // Actual reputation calculation would need to query feedbacks separately
+      reputation = {
+        totalBets: raw.totalFeedback,
+        winningBets: 0,
+        trustScore: 0,
+        accuracyScore: 0
+      }
+    }
+
     return {
       id: raw.id,
       tokenId: parseInt(raw.agentId, 10),
@@ -109,7 +147,7 @@ export class SubgraphClient {
       mcpEndpoint: meta.mcpEndpoint,
       a2aEndpoint: meta.a2aEndpoint,
       capabilities,
-      reputation: undefined,
+      reputation,
       feedbacks: []
     }
   }
@@ -118,6 +156,8 @@ export class SubgraphClient {
    * Get agent by token ID
    */
   async getAgent(tokenId: number): Promise<SubgraphAgent> {
+    this.ensureClient()
+    
     const query = `
       query GetAgent($agentId: String!) {
         agents(where: { agentId: $agentId }) {
@@ -136,9 +176,13 @@ export class SubgraphClient {
       }
     `
     
-    const data = await this.client.request(query, { 
+    const data = await this.client!.request(query, { 
       agentId: tokenId.toString() 
     }) as { agents: RawSubgraphAgent[] }
+    
+    if (!data.agents || data.agents.length === 0) {
+      throw new Error(`Agent with tokenId ${tokenId} not found`)
+    }
     
     return this.transformAgent(data.agents[0]!)
   }
@@ -153,6 +197,8 @@ export class SubgraphClient {
     minTrustScore?: number
     limit?: number
   }): Promise<SubgraphAgent[]> {
+    this.ensureClient()
+    
     const limit = filters.limit || 100
     
     // Query all agents, we'll filter in-memory since metadata is key-value
@@ -178,7 +224,7 @@ export class SubgraphClient {
       }
     `
     
-    const data = await this.client.request(query, { limit }) as { agents: RawSubgraphAgent[] }
+    const data = await this.client!.request(query, { limit }) as { agents: RawSubgraphAgent[] }
     let results = data.agents.map(raw => this.transformAgent(raw))
     
     // Filter by type
@@ -186,21 +232,53 @@ export class SubgraphClient {
       results = results.filter(agent => agent.type === filters.type)
     }
     
+    // Filter by strategies - safely handle missing capabilities
     if (filters.strategies && filters.strategies.length > 0) {
       results = results.filter(agent => {
-        const caps = JSON.parse(agent.capabilities!)
-        const validation = CapabilitiesSchema.parse(caps)
-        const agentStrategies = validation.strategies ?? []
-        return filters.strategies!.some(s => agentStrategies.includes(s))
+        if (!agent.capabilities) {
+          return false
+        }
+        try {
+          const caps = JSON.parse(agent.capabilities)
+          const validation = CapabilitiesSchema.safeParse(caps)
+          if (!validation.success) {
+            return false
+          }
+          const agentStrategies = validation.data.strategies ?? []
+          return filters.strategies!.some(s => agentStrategies.includes(s))
+        } catch {
+          return false
+        }
       })
     }
     
+    // Filter by markets - safely handle missing capabilities
     if (filters.markets && filters.markets.length > 0) {
       results = results.filter(agent => {
-        const caps = JSON.parse(agent.capabilities!)
-        const validation = CapabilitiesSchema.parse(caps)
-        const agentMarkets = validation.markets ?? []
-        return filters.markets!.some(m => agentMarkets.includes(m))
+        if (!agent.capabilities) {
+          return false
+        }
+        try {
+          const caps = JSON.parse(agent.capabilities)
+          const validation = CapabilitiesSchema.safeParse(caps)
+          if (!validation.success) {
+            return false
+          }
+          const agentMarkets = validation.data.markets ?? []
+          return filters.markets!.some(m => agentMarkets.includes(m))
+        } catch {
+          return false
+        }
+      })
+    }
+    
+    // Filter by minTrustScore if reputation is available
+    if (filters.minTrustScore !== undefined) {
+      results = results.filter(agent => {
+        if (!agent.reputation) {
+          return false
+        }
+        return agent.reputation.trustScore >= filters.minTrustScore!
       })
     }
     
@@ -231,8 +309,16 @@ export class SubgraphClient {
     comment: string
     timestamp: number
   }>> {
+    this.ensureClient()
     const agent = await this.getAgent(tokenId)
-    return agent.feedbacks!
+    return agent.feedbacks || []
+  }
+  
+  /**
+   * Check if the subgraph client is available
+   */
+  isAvailable(): boolean {
+    return this.client !== null && this.subgraphUrl !== null
   }
 }
 

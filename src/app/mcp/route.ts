@@ -11,20 +11,32 @@ import { logger } from '@/lib/logger'
 import { verifyAgentSession } from '@/lib/auth/agent-auth'
 import { verifyMessage } from 'ethers'
 import { prisma } from '@/lib/database-service'
+import { getMCPToolRegistry } from '@/lib/mcp/tool-registry'
+import { verifyMCPToken } from '@/lib/auth/mcp-auth'
+import { getAgentLifecycleManager } from '@/lib/agents/lifecycle/AgentLifecycleManager'
+import { getCache, setCache } from '@/lib/cache-service'
+import { getProtocolBridge } from '@/lib/protocols/ProtocolBridge'
 
 /**
  * GET /mcp - Get MCP server info and available tools
+ * Uses dynamic tool registry for discoverability
  */
 export async function GET(request: NextRequest) {
   logger.debug('MCP endpoint accessed', { url: request.url }, 'MCP')
+  
+  // Get tools from registry
+  const toolRegistry = getMCPToolRegistry()
+  const tools = toolRegistry.getTools()
   
   // MCP server info endpoint
   return NextResponse.json({
     name: 'Babylon Prediction Markets',
     version: '1.0.0',
     description: 'Real-time prediction market game with autonomous AI agents',
+    protocols: ['mcp', 'a2a'],
     
-    tools: [
+    tools: tools.length > 0 ? tools : [
+      // Fallback to inline tools if registry is empty (shouldn't happen)
       {
         name: 'get_markets',
         description: 'Get all active prediction markets',
@@ -101,12 +113,68 @@ export async function GET(request: NextRequest) {
           }
         }
       }
+    ],
+    
+    // Gap 22: MCP Prompts
+    prompts: [
+      {
+        name: 'analyze_market',
+        description: 'Analyze a prediction market and provide insights',
+        arguments: [
+          { name: 'marketId', description: 'Market to analyze', required: true },
+          { name: 'depth', description: 'Analysis depth: basic, detailed, comprehensive', required: false }
+        ]
+      },
+      {
+        name: 'recommend_bet',
+        description: 'Get betting recommendation for a market',
+        arguments: [
+          { name: 'marketId', description: 'Market to analyze', required: true },
+          { name: 'riskTolerance', description: 'Risk tolerance: low, medium, high', required: false }
+        ]
+      },
+      {
+        name: 'summarize_feed',
+        description: 'Summarize recent activity in the feed',
+        arguments: [
+          { name: 'limit', description: 'Number of posts to summarize', required: false }
+        ]
+      }
+    ],
+    
+    // Gap 23: MCP Resources
+    resources: [
+      {
+        uri: 'babylon://markets',
+        name: 'Active Markets',
+        description: 'List of all active prediction markets',
+        mimeType: 'application/json'
+      },
+      {
+        uri: 'babylon://leaderboard',
+        name: 'Leaderboard',
+        description: 'Top performing agents and users',
+        mimeType: 'application/json'
+      },
+      {
+        uri: 'babylon://agents',
+        name: 'Agent Directory',
+        description: 'Registered agents in the network',
+        mimeType: 'application/json'
+      },
+      {
+        uri: 'babylon://feed',
+        name: 'Social Feed',
+        description: 'Latest posts and discussions',
+        mimeType: 'application/json'
+      }
     ]
   })
 }
 
 /**
  * POST /mcp - Execute MCP tool
+ * Enhanced with context persistence and caching
  */
 export async function POST(request: NextRequest) {
   const body = await request.json()
@@ -121,32 +189,105 @@ export async function POST(request: NextRequest) {
     )
   }
   
+  // Get protocol bridge
+  const protocolBridge = getProtocolBridge()
+  
+  // Check cache for read-only tools using existing cache-service
+  const cacheableTools = ['get_markets', 'get_market_data', 'query_feed', 'get_balance', 'get_positions']
+  if (cacheableTools.includes(tool)) {
+    const cacheKey = `mcp:${tool}:${JSON.stringify(args || {})}`
+    const cached = await getCache<Record<string, unknown>>(cacheKey, { 
+      namespace: 'mcp',
+      ttl: 30 // 30 seconds
+    })
+    if (cached) {
+      logger.debug(`Cache hit for ${tool}`, { agentId: agent.agentId }, 'MCP')
+      return NextResponse.json(cached)
+    }
+  }
+  
   // Execute tool
+  let result: NextResponse
   switch (tool) {
     case 'get_markets':
-      return await executeGetMarkets(args, agent)
+      result = await executeGetMarkets(args, agent)
+      break
     case 'place_bet':
-      return await executePlaceBet(agent, args)
+      result = await executePlaceBet(agent, args)
+      break
     case 'get_balance':
-      return await executeGetBalance(agent)
+      result = await executeGetBalance(agent)
+      break
     case 'get_positions':
-      return await executeGetPositions(agent)
+      result = await executeGetPositions(agent)
+      break
     case 'close_position':
-      return await executeClosePosition(agent, args)
+      result = await executeClosePosition(agent, args)
+      break
     case 'get_market_data':
-      return await executeGetMarketData(agent, args)
+      result = await executeGetMarketData(agent, args)
+      break
     case 'query_feed':
-      return await executeQueryFeed(agent, args)
+      result = await executeQueryFeed(agent, args)
+      break
     default:
       return NextResponse.json(
         { error: `Unknown tool: ${tool}` },
         { status: 400 }
       )
   }
+  
+  // Parse result for caching and context
+  const resultData = await result.json()
+  
+  // Cache result for read-only tools using existing cache-service
+  if (cacheableTools.includes(tool)) {
+    const cacheKey = `mcp:${tool}:${JSON.stringify(args || {})}`
+    await setCache(cacheKey, resultData, { 
+      namespace: 'mcp',
+      ttl: 30 // 30 seconds
+    })
+  }
+  
+  // Store execution in context using existing cache-service
+  const contextKey = `mcp:context:${agent.agentId}`
+  const existingContext = await getCache<{
+    history: Array<{ tool: string; args: Record<string, unknown>; result: unknown; timestamp: number }>
+    state: Record<string, unknown>
+  }>(contextKey, { namespace: 'mcp' }) || { history: [], state: {} }
+  
+  existingContext.history.push({
+    tool,
+    args: args || {},
+    result: resultData,
+    timestamp: Date.now()
+  })
+  
+  // Keep last 100 items
+  if (existingContext.history.length > 100) {
+    existingContext.history = existingContext.history.slice(-100)
+  }
+  
+  await setCache(contextKey, existingContext, {
+    namespace: 'mcp',
+    ttl: 3600 // 1 hour
+  })
+  
+  // Notify protocol bridge for cross-protocol sync
+  await protocolBridge.onMCPToolExecuted({
+    tool,
+    args: args || {},
+    result: resultData,
+    agentId: agent.agentId,
+    timestamp: Date.now()
+  })
+  
+  return NextResponse.json(resultData)
 }
 
 /**
  * Authenticate agent from MCP request
+ * Enhanced with JWT support (Gap 9)
  */
 async function authenticateAgent(auth: {
   agentId?: string
@@ -155,7 +296,25 @@ async function authenticateAgent(auth: {
   signature?: string
   timestamp?: number
 }): Promise<{ agentId: string; userId: string } | null> {
-  // Method 1: Session Token (from /api/agents/auth)
+  // Method 1: JWT Token (Gap 9 - preferred method)
+  if (auth.token && auth.token.startsWith('eyJ')) {
+    const decoded = verifyMCPToken(auth.token)
+    if (decoded) {
+      // Emit lifecycle event
+      const lifecycleManager = getAgentLifecycleManager()
+      await lifecycleManager.onAgentAuthenticatedMCP(decoded.agentId, decoded.userId)
+      
+      return {
+        agentId: decoded.agentId,
+        userId: decoded.userId
+      }
+    }
+    
+    logger.warn('Invalid or expired JWT token', undefined, 'MCP Auth')
+    return null
+  }
+  
+  // Method 2: Legacy Session Token (from /api/agents/auth)
   if (auth.token) {
     const session = await verifyAgentSession(auth.token)
     if (session) {
@@ -164,10 +323,16 @@ async function authenticateAgent(auth: {
         where: { username: session.agentId }
       })
       
-      return {
+      const result = {
         agentId: session.agentId,
         userId: user?.id || session.agentId
       }
+      
+      // Emit lifecycle event
+      const lifecycleManager = getAgentLifecycleManager()
+      await lifecycleManager.onAgentAuthenticatedMCP(result.agentId, result.userId)
+      
+      return result
     }
     
     logger.warn('Invalid or expired agent session token', undefined, 'MCP Auth')

@@ -600,49 +600,58 @@ export async function processOnchainRegistration({
     },
   })
 
-  if (user.isAgent) {
-    const agent0Client = new Agent0Client({
-      network: (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia',
-      rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_RPC_URL || '',
-      privateKey: DEPLOYER_PRIVATE_KEY,
-    })
+  if (user.isAgent && process.env.AGENT0_ENABLED === 'true') {
+    // Use AGENT0_RPC_URL if available, fall back to Base RPC
+    const rpcUrl = process.env.AGENT0_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_RPC_URL || ''
+    
+    if (!rpcUrl) {
+      logger.warn('Agent0 enabled but no RPC URL configured, skipping Agent0 registration', { agentId: user.userId }, 'OnboardingOnchain')
+    } else {
+      const agent0Client = new Agent0Client({
+        network: (process.env.AGENT0_NETWORK as 'sepolia' | 'mainnet') || 'sepolia',
+        rpcUrl,
+        privateKey: DEPLOYER_PRIVATE_KEY,
+      })
 
-    const agent0Result = await agent0Client.registerAgent({
-      name: username || dbUser.username || user.userId,
-      description: bio || `Autonomous AI agent: ${user.userId}`,
-      imageUrl: profileImageUrl ?? undefined,
-      walletAddress: registrationAddress,
-      a2aEndpoint: agentEndpoint,
-      capabilities: {
-        strategies: ['momentum'],
-        markets: ['prediction'],
-        actions: ['analyze'],
-        version: '1.0.0',
-      } as AgentCapabilities,
-    })
+      const agent0Result = await agent0Client.registerAgent({
+        name: username || dbUser.username || user.userId,
+        description: bio || `Autonomous AI agent: ${user.userId}`,
+        imageUrl: profileImageUrl ?? undefined,
+        walletAddress: registrationAddress,
+        a2aEndpoint: agentEndpoint,
+        capabilities: {
+          strategies: ['momentum'],
+          markets: ['prediction'],
+          actions: ['analyze'],
+          version: '1.0.0',
+        } as AgentCapabilities,
+      })
 
-    // Store Agent0 registration metadata
-    await prisma.user.update({
-      where: { id: dbUser.id },
-      data: {
+      // Store Agent0 registration metadata
+      await prisma.user.update({
+        where: { id: dbUser.id },
+        data: {
+          agent0TokenId: agent0Result.tokenId,
+          agent0MetadataCID: agent0Result.metadataCID ?? null,
+          agent0RegisteredAt: new Date(),
+        },
+      })
+
+      logger.info('Agent registered with Agent0', {
+        agentId: user.userId,
         agent0TokenId: agent0Result.tokenId,
-        agent0MetadataCID: agent0Result.metadataCID ?? null,
-        agent0RegisteredAt: new Date(),
-      },
-    })
+        metadataCID: agent0Result.metadataCID
+      }, 'OnboardingOnchain')
 
-    logger.info('Agent registered with Agent0', {
-      agentId: user.userId,
-      agent0TokenId: agent0Result.tokenId,
-      metadataCID: agent0Result.metadataCID
-    }, 'OnboardingOnchain')
-
-    // Sync on-chain reputation to local database
-    await syncAfterAgent0Registration(dbUser.id, agent0Result.tokenId)
-    logger.info('Agent0 reputation synced successfully', {
-      userId: dbUser.id,
-      agent0TokenId: agent0Result.tokenId
-    }, 'OnboardingOnchain')
+      // Sync on-chain reputation to local database
+      await syncAfterAgent0Registration(dbUser.id, agent0Result.tokenId)
+      logger.info('Agent0 reputation synced successfully', {
+        userId: dbUser.id,
+        agent0TokenId: agent0Result.tokenId
+      }, 'OnboardingOnchain')
+    }
+  } else if (user.isAgent) {
+    logger.info('Agent0 disabled, skipping Agent0 registration', { agentId: user.userId }, 'OnboardingOnchain')
   }
 
   const userWithBalance = await prisma.user.findUnique({

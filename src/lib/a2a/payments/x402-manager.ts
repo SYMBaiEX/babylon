@@ -9,6 +9,7 @@ import { JsonRpcProvider, type Provider, parseEther, formatEther, hexlify, rando
 import { z } from 'zod'
 import { PaymentRequestSchema, type PaymentRequest } from '@/types/a2a'
 import type { PaymentVerificationParams, PaymentVerificationResult } from '@/types/payments'
+import type { PaymentRequestResult } from '@/types/a2a-server'
 import { logger } from '@/lib/logger'
 import { redis, redisClientType } from '@/lib/redis'
 import type { Redis as UpstashRedis } from '@upstash/redis'
@@ -151,7 +152,7 @@ export class X402Manager {
     amount: string,
     service: string,
     metadata?: Record<string, string | number | boolean | null>
-  ): Promise<PaymentRequest> {
+  ): Promise<PaymentRequestResult> {
     // Validate amount meets minimum
     const amountBn = parseEther(formatEther(amount))
     const minAmountBn = parseEther(formatEther(this.config.minPaymentAmount))
@@ -273,7 +274,7 @@ export class X402Manager {
   /**
    * Get payment request details
    */
-  async getPaymentRequest(requestId: string): Promise<PaymentRequest | null> {
+  async getPaymentRequest(requestId: string): Promise<PaymentRequestResult | null> {
     const pending = await this.getPayment(requestId)
     return pending ? pending.request : null
   }
@@ -304,17 +305,26 @@ export class X402Manager {
   /**
    * Get all pending payments (for testing/debugging)
    */
-  async getPendingPayments(): Promise<PendingPayment[]> {
+  async getPendingPayments(agentAddress?: string): Promise<PaymentRequestResult[]> {
     if (!redis) return []
     const keys = await redis.keys(`${REDIS_PREFIX}*`)
     const payments = await Promise.all(keys.map(key => this.getPayment(key.replace(REDIS_PREFIX, ''))))
-    return payments.filter(p => p && !p.verified) as PendingPayment[]
+    const pending = payments.filter(p => p && !p.verified) as PendingPayment[]
+    // Filter by agentAddress if provided
+    const filtered = agentAddress 
+      ? pending.filter(p => p.request.from === agentAddress || p.request.to === agentAddress)
+      : pending
+    return filtered.map(p => p.request)
   }
 
   /**
    * Get statistics about payments (for testing/debugging)
    */
-  async getStatistics() {
+  async getStatistics(): Promise<{
+    pending: number;
+    verified: number;
+    expired: number;
+  }> {
     if (!redis) return { pending: 0, verified: 0, expired: 0 }
     const keys = await redis.keys(`${REDIS_PREFIX}*`)
     const payments = await Promise.all(keys.map(key => this.getPayment(key.replace(REDIS_PREFIX, ''))))

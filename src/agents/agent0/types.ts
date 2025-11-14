@@ -11,12 +11,50 @@ import type { AgentProfile, AgentCapabilities } from '@/types/a2a'
  * Defines the methods available on Agent0Client for external use
  */
 export interface IAgent0Client {
+  // Registration
   registerAgent(params: Agent0RegistrationParams): Promise<Agent0RegistrationResult>
   registerBabylonGame(): Promise<Agent0RegistrationResult>
+  updateAgentMetadata(params: Agent0UpdateMetadataParams): Promise<void>
+  
+  // Search & Discovery
   searchAgents(filters: Agent0SearchFilters): Promise<Agent0SearchResult[]>
-  submitFeedback(params: Agent0FeedbackParams): Promise<void>
+  searchAgentsByReputation(params: Agent0ReputationSearchParams): Promise<Agent0ReputationSearchResult>
   getAgentProfile(tokenId: number): Promise<Agent0AgentProfile | null>
+  
+  // Feedback - Write Operations
+  submitFeedback(params: Agent0FeedbackParams): Promise<Agent0Feedback>
+  signFeedbackAuth(params: Agent0FeedbackAuthParams): Promise<string>
+  appendFeedbackResponse(params: Agent0FeedbackResponseParams): Promise<string>
+  revokeFeedback(params: Agent0RevokeFeedbackParams): Promise<string>
+  
+  // Feedback - Read Operations
+  getFeedback(params: Agent0GetFeedbackParams): Promise<Agent0Feedback>
+  searchFeedback(params: Agent0SearchFeedbackParams): Promise<Agent0Feedback[]>
+  getReputationSummary(params: Agent0ReputationSummaryParams): Promise<Agent0ReputationSummary>
+  
+  // Agent Management
+  loadAgent(tokenId: number): Promise<unknown>
+  transferAgent(params: Agent0TransferParams): Promise<Agent0TransferResult>
+  isAgentOwner(tokenId: number, address: string): Promise<boolean>
+  getAgentOwner(tokenId: number): Promise<string>
+  
+  // Utility
   isAvailable(): boolean
+  getDefaultChainId(): number
+}
+
+/**
+ * Agent0 Update Metadata Parameters
+ */
+export interface Agent0UpdateMetadataParams {
+  tokenId: number
+  name?: string
+  description?: string
+  imageUrl?: string
+  mcpEndpoint?: string
+  a2aEndpoint?: string
+  capabilities?: AgentCapabilities
+  active?: boolean
 }
 
 /**
@@ -39,6 +77,8 @@ export interface Agent0RegistrationParams {
   mcpEndpoint?: string
   a2aEndpoint?: string
   capabilities: AgentCapabilities
+  operators?: string[]  // Gap 17: Operator support
+  trustModels?: string[]  // Gap 14: Trust model support
 }
 
 /**
@@ -95,12 +135,51 @@ export interface Agent0AgentProfile {
 
 /**
  * Agent0 Feedback Parameters
+ * Full SDK support for rich feedback categorization
  */
 export interface Agent0FeedbackParams {
   targetAgentId: number
-  rating: number  // -5 to +5
-  comment: string
+  rating: number  // -5 to +5, converted to 0-100 for SDK
+  comment?: string  // Feedback text
+  tags?: string[]  // Categorization tags (e.g., ['helpful', 'responsive'])
+  capability?: string  // Which capability was evaluated
+  name?: string  // Feedback name/title
+  skill?: string  // Which skill was evaluated
+  task?: string  // Which task was performed
+  context?: Record<string, unknown>  // Additional context metadata
+  proofOfPayment?: Record<string, unknown>  // Payment verification data
   transactionId?: string  // Optional local transaction/feedback ID for tracking
+}
+
+/**
+ * Agent0 Feedback Result
+ * Returned when reading feedback
+ */
+export interface Agent0Feedback {
+  id: [string, string, number]  // [agentId, clientAddress, feedbackIndex]
+  agentId: string
+  reviewer: string
+  score?: number
+  tags: string[]
+  text?: string
+  context?: Record<string, unknown>
+  proofOfPayment?: Record<string, unknown>
+  fileURI?: string
+  createdAt: number
+  answers: Array<Record<string, unknown>>
+  isRevoked: boolean
+  capability?: string
+  name?: string
+  skill?: string
+  task?: string
+}
+
+/**
+ * Agent0 Reputation Summary
+ */
+export interface Agent0ReputationSummary {
+  count: number
+  averageScore: number
 }
 
 /**
@@ -136,5 +215,110 @@ export interface AggregatedReputation {
  */
 export interface IReputationBridge {
   getAggregatedReputation(tokenId: number): Promise<AggregatedReputation>
+}
+
+/**
+ * Agent0 Feedback Auth Parameters
+ */
+export interface Agent0FeedbackAuthParams {
+  targetAgentId: number
+  clientAddress: string
+  indexLimit?: number
+  expiryHours?: number
+}
+
+/**
+ * Agent0 Feedback Response Parameters
+ */
+export interface Agent0FeedbackResponseParams {
+  targetAgentId: number
+  clientAddress: string
+  feedbackIndex: number
+  response: {
+    uri: string
+    hash: string
+  }
+}
+
+/**
+ * Agent0 Revoke Feedback Parameters
+ */
+export interface Agent0RevokeFeedbackParams {
+  targetAgentId: number
+  feedbackIndex: number
+}
+
+/**
+ * Agent0 Get Feedback Parameters
+ */
+export interface Agent0GetFeedbackParams {
+  targetAgentId: number
+  clientAddress: string
+  feedbackIndex: number
+}
+
+/**
+ * Agent0 Search Feedback Parameters
+ */
+export interface Agent0SearchFeedbackParams {
+  targetAgentId: number
+  tags?: string[]
+  capabilities?: string[]
+  skills?: string[]
+  minScore?: number
+  maxScore?: number
+}
+
+/**
+ * Agent0 Reputation Summary Parameters
+ */
+export interface Agent0ReputationSummaryParams {
+  targetAgentId: number
+  tag1?: string
+  tag2?: string
+}
+
+/**
+ * Agent0 Transfer Parameters
+ */
+export interface Agent0TransferParams {
+  tokenId: number
+  newOwner: string
+}
+
+/**
+ * Agent0 Transfer Result
+ */
+export interface Agent0TransferResult {
+  txHash: string
+  from: string
+  to: string
+  agentId: string
+}
+
+/**
+ * Agent0 Reputation Search Parameters
+ */
+export interface Agent0ReputationSearchParams {
+  agents?: number[]
+  tags?: string[]
+  reviewers?: string[]
+  capabilities?: string[]
+  skills?: string[]
+  tasks?: string[]
+  names?: string[]
+  minAverageScore?: number
+  includeRevoked?: boolean
+  pageSize?: number
+  cursor?: string
+  sort?: string[]
+}
+
+/**
+ * Agent0 Reputation Search Result
+ */
+export interface Agent0ReputationSearchResult {
+  items: Agent0SearchResult[]
+  nextCursor?: string
 }
 

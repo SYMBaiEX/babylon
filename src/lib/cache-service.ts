@@ -45,6 +45,9 @@ export const CACHE_KEYS = {
   MARKETS_LIST: 'markets:list',
   TRENDING_TAGS: 'trending:tags',
   WIDGET: 'widget',
+  MCP_TOOL: 'mcp:tool',  // MCP tool results
+  MCP_CONTEXT: 'mcp:context',  // MCP agent context
+  AGENT0_PROFILE: 'agent0:profile',  // Agent0 profiles
 } as const;
 
 // Default TTLs for different data types (in seconds)
@@ -58,16 +61,19 @@ export const DEFAULT_TTLS = {
   USER_BALANCE: 30, // 30 seconds
   MARKET: 60, // 1 minute
   MARKETS_LIST: 60, // 1 minute
+  MCP_TOOL: 30, // 30 seconds - MCP tool results
   
   // Moderate change frequency - medium TTL
   USER: 300, // 5 minutes
   TRENDING_TAGS: 300, // 5 minutes
   WIDGET: 300, // 5 minutes
+  AGENT0_PROFILE: 300, // 5 minutes - Agent0 profiles
   
   // Rarely changing data - long TTL
   ACTOR: 3600, // 1 hour
   ORGANIZATION: 3600, // 1 hour
   POSTS_BY_ACTOR: 120, // 2 minutes (actors post regularly)
+  MCP_CONTEXT: 3600, // 1 hour - MCP agent context
 } as const;
 
 /**
