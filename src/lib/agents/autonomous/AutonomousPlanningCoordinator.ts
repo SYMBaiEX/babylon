@@ -6,6 +6,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 import { logger } from '@/lib/logger'
 import type { IAgentRuntime } from '@elizaos/core'
 import { callGroqDirect } from '../llm/direct-groq'
@@ -152,14 +153,26 @@ export class AutonomousPlanningCoordinator {
     // Gather full planning context
     const context = await this.getPlanningContext(agentUserId)
     
+    // Convert agent to PlanningAgent (null -> undefined for optional fields)
+    const planningAgent: PlanningAgent = {
+      displayName: agent.displayName ?? 'Agent',
+      agentSystem: agent.agentSystem ?? undefined,
+      agentMaxActionsPerTick: agent.agentMaxActionsPerTick ?? undefined,
+      agentRiskTolerance: agent.agentRiskTolerance ?? undefined,
+      autonomousTrading: agent.autonomousTrading ?? undefined,
+      autonomousPosting: agent.autonomousPosting ?? undefined,
+      autonomousCommenting: agent.autonomousCommenting ?? undefined,
+      autonomousDMs: agent.autonomousDMs ?? undefined
+    }
+    
     // If no goals configured, use simplified planning
     if (context.goals.active.length === 0) {
       logger.info('No goals configured, using legacy single-action mode', undefined, 'PlanningCoordinator')
-      return this.generateSimplePlan(agent, context)
+      return this.generateSimplePlan(planningAgent, context)
     }
     
     // Build enhanced planning prompt
-    const prompt = this.buildPlanningPrompt(agent, context)
+    const prompt = this.buildPlanningPrompt(planningAgent, context)
     
     // Use LARGE model for complex multi-action planning
     const planResponse = await callGroqDirect({
@@ -174,7 +187,7 @@ export class AutonomousPlanningCoordinator {
     const plan = this.parseActionPlan(planResponse, context)
     
     // Validate against constraints
-    const validatedPlan = this.validatePlan(plan, agent, context.constraints)
+    const validatedPlan = this.validatePlan(plan, planningAgent, context.constraints)
     
     logger.info(`Generated plan with ${validatedPlan.totalActions} actions`, {
       agentId: agentUserId,
@@ -682,7 +695,7 @@ Your action plan (JSON only):`
           agentUserId,
           actionType: action.type,
           impact: action.estimatedImpact,
-          metadata: action.params as Record<string, unknown>
+          metadata: action.params as Prisma.InputJsonValue
         }
       })
       

@@ -1,4 +1,5 @@
 import type { Route, IAgentRuntime } from '@elizaos/core';
+import { AutonomousServiceType } from './types';
 
 interface RouteRequest {
   body?: Record<string, unknown>;
@@ -33,17 +34,18 @@ export const autonomyRoutes: Route[] = [
     handler: async (req: RouteRequest, res: RouteResponse, runtime: IAgentRuntime) => {
       void req; // Request currently unused but kept for signature compatibility
 
-      const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy');
+      const autonomyService = runtime.getService(AutonomousServiceType.AUTONOMOUS);
 
       if (!autonomyService) {
-        return res.status(503).json({
+        res.status(503).json({
           error: 'Autonomy service not available',
         });
+        return;
       }
 
-      const status = (autonomyService as AutonomyService).getStatus();
+      const status = (autonomyService as unknown as AutonomyService).getStatus();
 
-      return res.json({
+      res.json({
         success: true,
         data: {
           enabled: status.enabled,
@@ -64,19 +66,20 @@ export const autonomyRoutes: Route[] = [
     handler: async (req: RouteRequest, res: RouteResponse, runtime: IAgentRuntime) => {
       void req; // Request currently unused but kept for signature compatibility
 
-      const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy');
+      const autonomyService = runtime.getService(AutonomousServiceType.AUTONOMOUS);
 
       if (!autonomyService) {
-        return res.status(503).json({
+        res.status(503).json({
           success: false,
           error: 'Autonomy service not available',
         });
+        return;
       }
 
-      await (autonomyService as AutonomyService).enableAutonomy();
-      const status = (autonomyService as AutonomyService).getStatus();
+      await (autonomyService as unknown as AutonomyService).enableAutonomy();
+      const status = (autonomyService as unknown as AutonomyService).getStatus();
 
-      return res.json({
+      res.json({
         success: true,
         message: 'Autonomy enabled',
         data: {
@@ -94,19 +97,20 @@ export const autonomyRoutes: Route[] = [
     handler: async (req: RouteRequest, res: RouteResponse, runtime: IAgentRuntime) => {
       void req; // Request currently unused but kept for signature compatibility
 
-      const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy');
+      const autonomyService = runtime.getService(AutonomousServiceType.AUTONOMOUS);
 
       if (!autonomyService) {
-        return res.status(503).json({
+        res.status(503).json({
           success: false,
           error: 'Autonomy service not available',
         });
+        return;
       }
 
-      await (autonomyService as AutonomyService).disableAutonomy();
-      const status = (autonomyService as AutonomyService).getStatus();
+      await (autonomyService as unknown as AutonomyService).disableAutonomy();
+      const status = (autonomyService as unknown as AutonomyService).getStatus();
 
-      return res.json({
+      res.json({
         success: true,
         message: 'Autonomy disabled',
         data: {
@@ -124,26 +128,27 @@ export const autonomyRoutes: Route[] = [
     handler: async (req: RouteRequest, res: RouteResponse, runtime: IAgentRuntime) => {
       void req; // Request currently unused but kept for signature compatibility
 
-      const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy');
+      const autonomyService = runtime.getService(AutonomousServiceType.AUTONOMOUS);
 
       if (!autonomyService) {
-        return res.status(503).json({
+        res.status(503).json({
           success: false,
           error: 'Autonomy service not available',
         });
+        return;
       }
 
-      const currentStatus = (autonomyService as AutonomyService).getStatus();
+      const currentStatus = (autonomyService as unknown as AutonomyService).getStatus();
 
       if (currentStatus.enabled) {
-        await (autonomyService as AutonomyService).disableAutonomy();
+        await (autonomyService as unknown as AutonomyService).disableAutonomy();
       } else {
-        await (autonomyService as AutonomyService).enableAutonomy();
+        await (autonomyService as unknown as AutonomyService).enableAutonomy();
       }
 
-      const newStatus = (autonomyService as AutonomyService).getStatus();
+      const newStatus = (autonomyService as unknown as AutonomyService).getStatus();
 
-      return res.json({
+      res.json({
         success: true,
         message: newStatus.enabled ? 'Autonomy enabled' : 'Autonomy disabled',
         data: {
@@ -159,28 +164,30 @@ export const autonomyRoutes: Route[] = [
     path: '/autonomy/interval',
     type: 'POST',
     handler: async (req: RouteRequest, res: RouteResponse, runtime: IAgentRuntime) => {
-      const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy');
+      const autonomyService = runtime.getService(AutonomousServiceType.AUTONOMOUS);
 
       if (!autonomyService) {
-        return res.status(503).json({
+        res.status(503).json({
           success: false,
           error: 'Autonomy service not available',
         });
+        return;
       }
 
       const { interval } = req.body as { interval?: unknown };
 
       if (typeof interval !== 'number' || interval < 5000 || interval > 600000) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'Interval must be a number between 5000ms (5s) and 600000ms (10m)',
         });
+        return;
       }
 
-      (autonomyService as AutonomyService).setLoopInterval(interval);
-      const status = (autonomyService as AutonomyService).getStatus();
+      (autonomyService as unknown as AutonomyService).setLoopInterval(interval);
+      const status = (autonomyService as unknown as AutonomyService).getStatus();
 
-      return res.json({
+      res.json({
         success: true,
         message: 'Interval updated',
         data: {
