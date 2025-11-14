@@ -19,7 +19,7 @@ env:
 jobs:
   test-synpress:
     name: Synpress Tests (Wallet E2E)
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 45
 
     services:
