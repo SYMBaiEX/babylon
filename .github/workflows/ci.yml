@@ -296,11 +296,47 @@ jobs:
         run: bun test tests/unit/ --coverage
         continue-on-error: false
       
+      - name: Start Next.js dev server
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          PORT: 3000
+        run: |
+          echo "🚀 Starting Next.js dev server for integration tests..."
+          bun run dev:next-only > /tmp/next-server.log 2>&1 &
+          echo $! > /tmp/next-server.pid
+          echo "📝 Server PID: $(cat /tmp/next-server.pid)"
+          
+          # Wait for server to be ready (max 60s)
+          echo "⏳ Waiting for server to be ready..."
+          timeout 60 bash -c 'until curl -sf http://localhost:3000 > /dev/null 2>&1; do echo -n "."; sleep 1; done' || {
+            echo "❌ Server failed to start. Logs:"
+            cat /tmp/next-server.log
+            exit 1
+          }
+          echo ""
+          echo "✅ Next.js dev server is ready"
+      
       - name: Run Integration Tests
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          TEST_API_URL: http://localhost:3000
         run: bun test tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts
         continue-on-error: false
+      
+      - name: Stop Next.js dev server
+        if: always()
+        run: |
+          if [ -f /tmp/next-server.pid ]; then
+            echo "🛑 Stopping Next.js dev server..."
+            kill $(cat /tmp/next-server.pid) || true
+            rm /tmp/next-server.pid
+          fi
+          # Show last 50 lines of server logs if they exist
+          if [ -f /tmp/next-server.log ]; then
+            echo "📝 Server logs (last 50 lines):"
+            tail -50 /tmp/next-server.log
+          fi
       
       - name: Upload test results
         if: always()

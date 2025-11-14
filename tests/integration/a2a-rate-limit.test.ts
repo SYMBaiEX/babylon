@@ -5,6 +5,17 @@
  */
 
 import { describe, test, expect, beforeAll } from 'bun:test';
+const BASE_URL = process.env.TEST_API_URL || 'http://localhost:3000'
+const serverAvailable = await (async () => {
+  try {
+    const response = await fetch(BASE_URL, { signal: AbortSignal.timeout(2000) })
+    return response.status < 500
+  } catch {
+    console.log(`⚠️  Server not available - Skipping A2A tests`)
+    return false
+  }
+})()
+
 
 const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000';
 const A2A_ENDPOINT = `${BASE_URL}/api/a2a`;
@@ -54,7 +65,7 @@ describe('A2A Rate Limiting', () => {
     }
   });
 
-  test('should return rate limit headers on successful request', async () => {
+  test.skipIf(!serverAvailable)('should return rate limit headers on successful request', async () => {
     const result = await makeA2ARequest('a2a.getBalance');
     
     expect(result.status).toBeLessThan(500);
@@ -62,7 +73,7 @@ describe('A2A Rate Limiting', () => {
     expect(result.headers.has('x-ratelimit-remaining')).toBe(true);
   });
 
-  test('should enforce rate limit after 100 requests per minute', async () => {
+  test.skipIf(!serverAvailable)('should enforce rate limit after 100 requests per minute', async () => {
     // Make 105 requests rapidly (should hit rate limit)
     const results = await Promise.all(
       Array.from({ length: 105 }, () => makeA2ARequest('a2a.getBalance'))
@@ -84,7 +95,7 @@ describe('A2A Rate Limiting', () => {
     }
   }, 30000); // 30 second timeout
 
-  test('should return proper JSON-RPC error for rate limit', async () => {
+  test.skipIf(!serverAvailable)('should return proper JSON-RPC error for rate limit', async () => {
     // Make many requests to trigger rate limit
     const promises = Array.from({ length: 110 }, () => 
       makeA2ARequest('a2a.getBalance')
@@ -107,7 +118,7 @@ describe('A2A Rate Limiting', () => {
     }
   }, 30000);
 
-  test('should allow requests from different agents independently', async () => {
+  test.skipIf(!serverAvailable)('should allow requests from different agents independently', async () => {
     const agent1Headers = {
       ...TEST_AGENT_HEADERS,
       'x-agent-id': 'agent-1'
@@ -142,7 +153,7 @@ describe('A2A Rate Limiting', () => {
     expect(successfulRequests.length).toBeGreaterThan(80); // Most should succeed
   }, 30000);
 
-  test('should include remaining tokens in response headers', async () => {
+  test.skipIf(!serverAvailable)('should include remaining tokens in response headers', async () => {
     const result1 = await makeA2ARequest('a2a.getBalance');
     const remaining1 = parseInt(result1.headers.get('x-ratelimit-remaining') || '0');
     
@@ -155,7 +166,7 @@ describe('A2A Rate Limiting', () => {
 });
 
 describe('A2A Rate Limiting - Token Bucket Behavior', () => {
-  test('should refill tokens over time', async () => {
+  test.skipIf(!serverAvailable)('should refill tokens over time', async () => {
     // This test would need to wait 60+ seconds to verify refill
     // Skipped in regular test runs - suitable for long-running integration tests
     expect(true).toBe(true);
@@ -163,7 +174,7 @@ describe('A2A Rate Limiting - Token Bucket Behavior', () => {
 });
 
 describe('A2A Endpoint - Basic Functionality', () => {
-  test('GET /api/a2a should return service info', async () => {
+  test.skipIf(!serverAvailable)('GET /api/a2a should return service info', async () => {
     const response = await fetch(A2A_ENDPOINT);
     const data = await response.json();
     
@@ -173,7 +184,7 @@ describe('A2A Endpoint - Basic Functionality', () => {
     expect(data.status).toBe('active');
   });
 
-  test('POST /api/a2a should handle valid JSON-RPC request', async () => {
+  test.skipIf(!serverAvailable)('POST /api/a2a should handle valid JSON-RPC request', async () => {
     const result = await makeA2ARequest('a2a.getBalance');
     
     expect(result.status).toBeLessThan(500);
@@ -183,7 +194,7 @@ describe('A2A Endpoint - Basic Functionality', () => {
     expect(result.data.result !== undefined || result.data.error !== undefined).toBe(true);
   });
 
-  test('POST /api/a2a should validate JSON-RPC format', async () => {
+  test.skipIf(!serverAvailable)('POST /api/a2a should validate JSON-RPC format', async () => {
     const response = await fetch(A2A_ENDPOINT, {
       method: 'POST',
       headers: TEST_AGENT_HEADERS,

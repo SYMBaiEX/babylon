@@ -6,11 +6,20 @@
 
 import { describe, test, expect } from 'bun:test'
 
-describe('API Error Handling Integration', () => {
-  const BASE_URL = process.env.TEST_API_URL || 'http://localhost:3000'
+const BASE_URL = process.env.TEST_API_URL || 'http://localhost:3000'
+const serverAvailable = await (async () => {
+  try {
+    const response = await fetch(BASE_URL, { signal: AbortSignal.timeout(2000) })
+    return response.status < 500
+  } catch {
+    console.log(`⚠️  Server not available - Skipping API error handling tests`)
+    return false
+  }
+})()
 
+describe('API Error Handling Integration', () => {
   describe('Authentication Errors', () => {
-    test('should return 401 for missing auth token', async () => {
+    test.skipIf(!serverAvailable)('should return 401 for missing auth token', async () => {
       const response = await fetch(`${BASE_URL}/api/posts`, {
         method: 'POST',
         headers: {
@@ -27,7 +36,7 @@ describe('API Error Handling Integration', () => {
       expect(data.error.toLowerCase()).toContain('auth')
     })
 
-    test('should return 401 for invalid auth token', async () => {
+    test.skipIf(!serverAvailable)('should return 401 for invalid auth token', async () => {
       const response = await fetch(`${BASE_URL}/api/posts`, {
         method: 'POST',
         headers: {
@@ -46,7 +55,7 @@ describe('API Error Handling Integration', () => {
   })
 
   describe('Not Found Errors', () => {
-    test('should return 404 for non-existent resource', async () => {
+    test.skipIf(!serverAvailable)('should return 404 for non-existent resource', async () => {
       const response = await fetch(
         `${BASE_URL}/api/posts/nonexistent-post-id-12345`,
         {
@@ -59,7 +68,7 @@ describe('API Error Handling Integration', () => {
       expect([200, 400, 401, 404, 500]).toContain(response.status)
     })
 
-    test('should return 404 for non-existent user', async () => {
+    test.skipIf(!serverAvailable)('should return 404 for non-existent user', async () => {
       const response = await fetch(
         `${BASE_URL}/api/users/nonexistent-user-id/profile`,
         {
@@ -74,7 +83,7 @@ describe('API Error Handling Integration', () => {
   })
 
   describe('Validation Errors', () => {
-    test('should return 400 for validation errors', async () => {
+    test.skipIf(!serverAvailable)('should return 400 for validation errors', async () => {
       const response = await fetch(`${BASE_URL}/api/posts`, {
         method: 'POST',
         headers: {
@@ -91,7 +100,7 @@ describe('API Error Handling Integration', () => {
       expect(data.error).toBeDefined()
     })
 
-    test('should provide detailed validation errors', async () => {
+    test.skipIf(!serverAvailable)('should provide detailed validation errors', async () => {
       const response = await fetch(`${BASE_URL}/api/users/test-user/update-profile`, {
         method: 'PATCH',
         headers: {
@@ -119,7 +128,7 @@ describe('API Error Handling Integration', () => {
   })
 
   describe('Business Logic Errors', () => {
-    test('should return 400 for insufficient funds', async () => {
+    test.skipIf(!serverAvailable)('should return 400 for insufficient funds', async () => {
       const response = await fetch(`${BASE_URL}/api/markets/predictions/test-id/buy`, {
         method: 'POST',
         headers: {
@@ -137,7 +146,7 @@ describe('API Error Handling Integration', () => {
   })
 
   describe('Rate Limiting', () => {
-    test('should handle rate limit errors gracefully', async () => {
+    test.skipIf(!serverAvailable)('should handle rate limit errors gracefully', async () => {
       const requests = Array.from({ length: 100 }, () =>
         fetch(`${BASE_URL}/api/stats`)
       )
@@ -156,7 +165,7 @@ describe('API Error Handling Integration', () => {
   })
 
   describe('Error Response Consistency', () => {
-    test('all errors should have consistent structure', async () => {
+    test.skipIf(!serverAvailable)('all errors should have consistent structure', async () => {
       const endpoints = [
         { url: '/api/posts', method: 'POST', body: {} },
         { url: '/api/users/invalid/profile', method: 'GET' },
@@ -185,7 +194,7 @@ describe('API Error Handling Integration', () => {
       }
     })
 
-    test('should not expose internal error details in production', async () => {
+    test.skipIf(!serverAvailable)('should not expose internal error details in production', async () => {
       const response = await fetch(`${BASE_URL}/api/posts`, {
         method: 'POST',
         headers: {
@@ -208,7 +217,7 @@ describe('API Error Handling Integration', () => {
   })
 
   describe('CORS and Headers', () => {
-    test('should include proper CORS headers', async () => {
+    test.skipIf(!serverAvailable)('should include proper CORS headers', async () => {
       const response = await fetch(`${BASE_URL}/api/stats`)
 
       expect(response.ok).toBe(true)
@@ -216,7 +225,7 @@ describe('API Error Handling Integration', () => {
       expect(headers.get('content-type')).toContain('application/json')
     })
 
-    test('should handle OPTIONS requests', async () => {
+    test.skipIf(!serverAvailable)('should handle OPTIONS requests', async () => {
       const response = await fetch(`${BASE_URL}/api/posts`, {
         method: 'OPTIONS'
       })

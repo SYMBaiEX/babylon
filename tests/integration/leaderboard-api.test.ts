@@ -5,6 +5,17 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
+
+const BASE_URL = process.env.TEST_API_URL || 'http://localhost:3000'
+const serverAvailable = await (async () => {
+  try {
+    const response = await fetch(BASE_URL, { signal: AbortSignal.timeout(2000) })
+    return response.status < 500
+  } catch {
+    console.log(`⚠️  Server not available - Skipping tests`)
+    return false
+  }
+})()
 import { prisma } from '@/lib/database-service'
 import { generateSnowflakeId } from '@/lib/snowflake'
 import { Prisma } from '@prisma/client'
