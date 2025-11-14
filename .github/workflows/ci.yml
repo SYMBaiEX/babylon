@@ -114,11 +114,9 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
-          # Apply migrations without resetting (faster and safer for CI)
-          bunx prisma migrate deploy 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
+          # Force reset and apply migrations for clean test environment
+          bunx prisma migrate reset --force 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
           bunx prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
-          # Seed the database with test data
-          bunx prisma db seed 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || echo "Seeding failed - build will continue"
 
       - name: Clean stale .next types before typecheck
         run: rm -rf .next/types
@@ -190,11 +188,9 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
-          # Apply migrations without resetting (faster and safer for CI)
-          bunx prisma migrate deploy
+          # Force reset and apply migrations for clean test environment
+          bunx prisma migrate reset --force
           bunx prisma generate
-          # Seed the database with test data
-          bunx prisma db seed || echo "Seeding failed - some tests may fail"
 
       - name: Build for tests
         run: bun run build
@@ -353,11 +349,9 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
-          # Apply migrations without resetting (faster and safer for CI)
-          bunx prisma migrate deploy
+          # Force reset and apply migrations for clean test environment
+          bunx prisma migrate reset --force
           bunx prisma generate
-          # Seed the database with test data
-          bunx prisma db seed || echo "Seeding failed - some tests may fail"
 
       - name: Build production
         run: bun run build
@@ -513,11 +507,9 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
-          # Apply migrations without resetting (faster and safer for CI)
-          bunx prisma migrate deploy
+          # Force reset and apply migrations for clean test environment
+          bunx prisma migrate reset --force
           bunx prisma generate
-          # Seed the database with test data
-          bunx prisma db seed || echo "Seeding failed - some tests may fail"
 
       - name: Build production
         run: bun run build
