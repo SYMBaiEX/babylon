@@ -420,7 +420,8 @@ jobs:
       - name: Start production server
         run: |
           echo "🚀 Starting production server..."
-          bun run start > /tmp/prod-server.log 2>&1 &
+          bun scripts/validation/check-environment.ts
+          bunx --bun next start > /tmp/prod-server.log 2>&1 &
           echo $! > /tmp/prod-server.pid
           echo "📝 Server PID: $(cat /tmp/prod-server.pid)"
 
@@ -575,7 +576,8 @@ jobs:
       - name: Start production server
         run: |
           echo "🚀 Starting production server..."
-          bun run start > /tmp/prod-server.log 2>&1 &
+          bun scripts/validation/check-environment.ts
+          bunx --bun next start > /tmp/prod-server.log 2>&1 &
           echo $! > /tmp/prod-server.pid
           echo "📝 Server PID: $(cat /tmp/prod-server.pid)"
 
