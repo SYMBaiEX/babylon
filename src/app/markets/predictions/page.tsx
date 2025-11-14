@@ -17,6 +17,7 @@ import { CategoryPnLShareModal } from '@/components/markets/CategoryPnLShareModa
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { PredictionSparkline } from '@/components/markets/PredictionSparkline';
 
 import { cn } from '@/lib/utils';
 
@@ -61,6 +62,7 @@ export default function PredictionsPage() {
   // Data
   const [predictions, setPredictions] = useState<PredictionMarket[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sparklineData, setSparklineData] = useState<Record<string, Array<{ time: number; yesPrice: number }>>>({});
 
   const {
     data: _portfolioPnL,
@@ -112,7 +114,23 @@ export default function PredictionsPage() {
     );
     const predictionsData = await predictionsRes.json();
 
-    setPredictions(predictionsData.questions || []);
+    const fetchedPredictions: PredictionMarket[] = predictionsData.questions || [];
+    setPredictions(fetchedPredictions);
+
+    const now = Date.now();
+    setSparklineData((prev) => {
+      const next = { ...prev };
+      fetchedPredictions.forEach((prediction) => {
+        const id = prediction.id.toString();
+        const totalShares = (prediction.yesShares || 0) + (prediction.noShares || 0);
+        const yesProbability =
+          totalShares > 0 ? (prediction.yesShares || 0) / totalShares : 0.5;
+        if (!next[id] || next[id].length === 0) {
+          next[id] = [{ time: now, yesPrice: yesProbability }];
+        }
+      });
+      return next;
+    });
 
     if (isAuth && userId) {
       if (refreshPositionsRef.current) {
@@ -133,6 +151,20 @@ export default function PredictionsPage() {
     fetchData();
   }, [fetchData]);
 
+  const appendSparklinePoint = useCallback((marketId: string, yesPrice: number) => {
+    setSparklineData((prev) => {
+      const existing = prev[marketId] ?? [];
+      const nextPoints = [...existing, { time: Date.now(), yesPrice }];
+      while (nextPoints.length > 20) {
+        nextPoints.shift();
+      }
+      return {
+        ...prev,
+        [marketId]: nextPoints,
+      };
+    });
+  }, []);
+
   usePredictionMarketsSubscription({
     onTrade: (event) => {
       setPredictions((prev) =>
@@ -147,6 +179,10 @@ export default function PredictionsPage() {
           };
         })
       );
+      const totalShares = event.yesShares + event.noShares;
+      const yesProbability =
+        totalShares > 0 ? event.yesPrice : 0.5;
+      appendSparklinePoint(event.marketId, yesProbability);
     },
     onResolution: (event) => {
       setPredictions((prev) =>
@@ -161,6 +197,7 @@ export default function PredictionsPage() {
           };
         })
       );
+      appendSparklinePoint(event.marketId, event.yesPrice);
     },
   });
 
@@ -457,18 +494,25 @@ export default function PredictionsPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         <ArrowUpDown className="w-3 h-3" />
-                        {totalShares > 0 ? totalShares.toFixed(0) : '0'}
+              {totalShares > 0 ? totalShares.toFixed(0) : '0'}
+            </div>
+          </div>
+                    <div className="flex gap-2 items-center">
+                      <PredictionSparkline
+                        data={sparklineData[prediction.id.toString()] ?? []}
+                        width={80}
+                        height={28}
+                      />
+                      <div className="flex flex-col text-right">
+                        <span className="text-green-600 font-medium">
+                          {yesPrice}% YES
+                        </span>
+                        <span className="text-red-600 font-medium text-xs text-muted-foreground">
+                          {noPrice}% NO
+                        </span>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <div className="text-green-600 font-medium">
-                        {yesPrice}% YES
-                      </div>
-                      <div className="text-red-600 font-medium">
-                        {noPrice}% NO
-                      </div>
-                    </div>
-                  </div>
+          </div>
                   {hasPosition && prediction.userPosition && (
                     <div className="flex items-center gap-2 text-xs">
                       <span
