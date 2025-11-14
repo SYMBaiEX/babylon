@@ -2,7 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
 import { generateSnowflakeId } from '../../src/lib/snowflake'
 import { prisma } from '../../src/lib/database-service'
 
-const shouldSkipWaitlistTests = process.env.CI === 'true' || process.env.SKIP_WAITLIST_TESTS === 'true'
+// Skip only if explicitly requested or if database is not available
+const shouldSkipWaitlistTests = process.env.SKIP_WAITLIST_TESTS === 'true' || !process.env.DATABASE_URL
 type WaitlistServiceModule = typeof import('@/lib/services/waitlist-service')
 
 const describeWaitlistIntegration = shouldSkipWaitlistTests ? describe.skip : describe

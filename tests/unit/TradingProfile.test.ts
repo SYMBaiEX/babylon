@@ -5,10 +5,10 @@
 
 import { describe, test, expect, mock } from 'bun:test'
 
-// CI runners do not bundle the Next.js React runtime, so importing the full component fails there.
-// Skip the integration checks when running in CI (or when explicitly requested).
+// Skip only if explicitly requested or if database is not available
+// Note: Component tests may require Next.js runtime which might not be bundled in some environments
 const shouldSkipComponentIntegration =
-  process.env.CI === 'true' || process.env.SKIP_TRADING_PROFILE_COMPONENT_TESTS === 'true'
+  process.env.SKIP_TRADING_PROFILE_COMPONENT_TESTS === 'true' || !process.env.DATABASE_URL
 const describeComponentIntegration = shouldSkipComponentIntegration ? describe.skip : describe
 
 mock.module('next/navigation', () => ({
