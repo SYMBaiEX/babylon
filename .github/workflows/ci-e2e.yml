@@ -1,0 +1,167 @@
+name: CI - E2E
+
+on:
+  pull_request:
+    branches: [production, staging]
+  push:
+    branches: [production, staging]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_ENV: test
+  CI: true
+
+jobs:
+  test-e2e:
+    name: E2E Tests (Playwright)
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+
+      - name: Setup Prisma and Database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        run: |
+          # Generate Prisma client first, then reset database
+          bunx prisma generate
+          # Force reset, apply migrations, and seed database for tests
+          bunx prisma migrate reset --force --skip-generate
+          # Explicitly run seed to ensure test data is loaded
+          bunx prisma db seed || echo "Seeding failed - some tests may fail"
+
+      - name: Build production
+        run: bun run build
+        env:
+          NODE_OPTIONS: '--max-old-space-size=8192'
+          SKIP_ENV_VALIDATION: true
+
+      - name: Setup test environment
+        env:
+          # Use CI test database directly
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          # Pass secrets with correct names (not _VAR suffix)
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'test-secret-key' }}
+          PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID || '' }}
+          PRIVY_APP_SECRET: ${{ secrets.PRIVY_APP_SECRET || '' }}
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID || '' }}
+          PRIVY_TEST_EMAIL: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
+          PRIVY_TEST_PHONE: ${{ secrets.PRIVY_TEST_PHONE || '' }}
+          PRIVY_TEST_OTP: ${{ secrets.PRIVY_TEST_OTP || '' }}
+          PRIVY_TEST_PASSWORD: ${{ secrets.PRIVY_TEST_PASSWORD || '' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || '' }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY || '' }}
+          FAL_KEY: ${{ secrets.FAL_KEY || '' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET || 'test-cron-secret' }}
+          WALLET_SEED_PHRASE: ${{ secrets.WALLET_SEED_PHRASE || '' }}
+          WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD || '' }}
+        run: |
+          set -e
+          bash scripts/ci/prepare-env.sh
+          bunx prisma generate
+          
+          # Wait for postgres to be ready
+          echo "⏳ Waiting for PostgreSQL to be ready..."
+          timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
+          
+          # Explicitly set DATABASE_URL and push schema
+          echo "📊 Pushing database schema..."
+          export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db"
+          export DIRECT_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db"
+          bunx prisma db push --skip-generate --accept-data-loss
+          
+          # Regenerate Prisma client after schema push
+          echo "🔄 Regenerating Prisma client with latest schema..."
+          bunx prisma generate
+          
+          # Verify tables were created
+          echo "✅ Verifying database schema..."
+          psql "$DATABASE_URL" -c "\dt" || echo "⚠️ Could not list tables"
+
+      - name: Start production server
+        run: |
+          echo "🚀 Starting production server..."
+          bun scripts/validation/check-environment.ts
+          bunx --bun next start > /tmp/prod-server.log 2>&1 &
+          echo $! > /tmp/prod-server.pid
+          echo "📝 Server PID: $(cat /tmp/prod-server.pid)"
+
+          echo "⏳ Waiting for server to be ready..."
+          timeout 360 bash -c 'until curl -sf http://localhost:3000/api/health; do sleep 2; done' || {
+            echo "❌ Server failed to respond within 120s. Logs:"
+            if [ -f /tmp/prod-server.log ]; then
+              tail -n 200 /tmp/prod-server.log
+            else
+              echo "⚠️  No server log file found."
+            fi
+            exit 1
+          }
+          echo "✅ Production server is ready"
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          # Set DEPLOYMENT_ENV=localnet to skip strict testnet/mainnet validation in CI
+          DEPLOYMENT_ENV: localnet
+          # NODE_ENV=production required for Next.js production build
+          NODE_ENV: production
+          PORT: 3000
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+
+      - name: Run Playwright E2E tests
+        run: bunx playwright test tests/e2e --reporter=list,json
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+
+      - name: Stop production server
+        if: always()
+        run: |
+          if [ -f /tmp/prod-server.pid ]; then
+            PID=$(cat /tmp/prod-server.pid)
+            echo "🛑 Stopping production server (PID: $PID)..."
+            kill "$PID" || true
+            wait "$PID" || true
+            rm /tmp/prod-server.pid
+          else
+            echo "ℹ️  No production server PID file found."
+          fi
+
+          if [ -f /tmp/prod-server.log ]; then
+            echo "📝 Production server logs (last 100 lines):"
+            tail -n 100 /tmp/prod-server.log || true
+          else
+            echo "ℹ️  No production server log file found."
+          fi
+
+

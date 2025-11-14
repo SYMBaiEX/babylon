@@ -1,0 +1,176 @@
+name: CI - Unit & Integration
+
+on:
+  pull_request:
+    branches: [production, staging]
+  push:
+    branches: [production, staging]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_ENV: test
+  CI: true
+
+jobs:
+  test-unit-integration:
+    name: Unit & Integration Tests
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Setup Prisma and Database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        run: |
+          # Generate Prisma client first, then reset database
+          bunx prisma generate
+          # Force reset, apply migrations, and seed database for tests
+          bunx prisma migrate reset --force --skip-generate
+          # Explicitly run seed to ensure test data is loaded
+          bunx prisma db seed || echo "Seeding failed - some tests may fail"
+
+      - name: Build for tests
+        run: bun run build
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+          SKIP_ENV_VALIDATION: true
+
+      - name: Setup test environment
+        env:
+          # Use CI test database directly
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          # Pass secrets with correct names (not _VAR suffix)
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'test-secret-key' }}
+          PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID || '' }}
+          PRIVY_APP_SECRET: ${{ secrets.PRIVY_APP_SECRET || '' }}
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID || '' }}
+          PRIVY_TEST_EMAIL: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
+          PRIVY_TEST_PHONE: ${{ secrets.PRIVY_TEST_PHONE || '' }}
+          PRIVY_TEST_OTP: ${{ secrets.PRIVY_TEST_OTP || '' }}
+          PRIVY_TEST_PASSWORD: ${{ secrets.PRIVY_TEST_PASSWORD || '' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || '' }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY || '' }}
+          FAL_KEY: ${{ secrets.FAL_KEY || '' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET || 'test-cron-secret' }}
+          WALLET_SEED_PHRASE: ${{ secrets.WALLET_SEED_PHRASE || '' }}
+          WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD || '' }}
+          REDIS_URL: redis://localhost:6379
+        run: |
+          set -e
+
+          # Create .env.test file with the environment variables
+          bash scripts/ci/prepare-env.sh
+
+          # Wait for postgres to be ready
+          echo "⏳ Waiting for PostgreSQL to be ready..."
+          timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
+
+          # Wait for Redis to be ready (if applicable)
+          if [ -n "$REDIS_URL" ]; then
+            echo "⏳ Waiting for Redis to be ready..."
+            python3 scripts/ci/wait_for_redis.py --host localhost --port 6379 --timeout 30 --interval 1
+          fi
+
+          # Push schema to test database
+          echo "📊 Pushing database schema..."
+          bunx prisma db push --skip-generate --accept-data-loss
+
+          # Generate Prisma client with the schema
+          echo "🔄 Generating Prisma client..."
+          bunx prisma generate
+
+          # Verify tables were created
+          echo "✅ Verifying database schema..."
+          psql "$DATABASE_URL" -c "\dt" || echo "⚠️ Could not list tables"
+
+      - name: Run Unit Tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
+        run: bun test tests/unit/ --coverage
+        continue-on-error: false
+
+      - name: Start Next.js dev server
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          PORT: 3000
+        run: |
+          echo "🚀 Starting Next.js dev server for integration tests..."
+          SKIP_ENV_VALIDATION=1 bunx --bun next dev > /tmp/next-server.log 2>&1 &
+          echo $! > /tmp/next-server.pid
+          echo "📝 Server PID: $(cat /tmp/next-server.pid)"
+
+          # Wait for server to be ready (max 60s)
+          echo "⏳ Waiting for server to be ready..."
+          timeout 60 bash -c 'until curl -sf http://localhost:3000 > /dev/null 2>&1; do echo -n "."; sleep 1; done' || {
+            echo "❌ Server failed to start. Logs:"
+            cat /tmp/next-server.log
+            exit 1
+          }
+          echo ""
+          echo "✅ Next.js dev server is ready"
+
+      - name: Run Integration Tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
+          TEST_API_URL: http://localhost:3000
+        run: bun test tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts
+        continue-on-error: false
+
+      - name: Stop Next.js dev server
+        if: always()
+        run: |
+          if [ -f /tmp/next-server.pid ]; then
+            echo "🛑 Stopping Next.js dev server..."
+            kill $(cat /tmp/next-server.pid) || true
+            rm /tmp/next-server.pid
+          fi
+          # Show last 50 lines of server logs if they exist
+          if [ -f /tmp/next-server.log ]; then
+            echo "📝 Server logs (last 50 lines):"
+            tail -50 /tmp/next-server.log
+          fi
+
+
