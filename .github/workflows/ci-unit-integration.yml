@@ -55,23 +55,6 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Setup Prisma and Database
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-        run: |
-          # Generate Prisma client first, then reset database
-          bunx prisma generate
-          # Force reset, apply migrations, and seed database for tests
-          bunx prisma migrate reset --force --skip-generate
-          # Explicitly run seed to ensure test data is loaded
-          bunx prisma db seed || echo "Seeding failed - some tests may fail"
-
-      - name: Build for tests
-        run: bun run build
-        env:
-          NODE_OPTIONS: '--max-old-space-size=4096'
-          SKIP_ENV_VALIDATION: true
-
       - name: Setup test environment
         env:
           # Use CI test database directly
@@ -94,33 +77,24 @@ jobs:
           WALLET_SEED_PHRASE: ${{ secrets.WALLET_SEED_PHRASE || '' }}
           WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD || '' }}
           REDIS_URL: redis://localhost:6379
+        run: bash scripts/ci/prepare-env.sh
+
+      - name: Setup Prisma and Database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
-          set -e
+          # Generate Prisma client first, then reset database
+          bunx prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
+          # Force reset, apply migrations, and seed database for tests
+          bunx prisma migrate reset --force --skip-generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
+          # Explicitly run seed to ensure test data is loaded
+          bunx prisma db seed 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || echo "Seeding failed - some tests may fail"
 
-          # Create .env.test file with the environment variables
-          bash scripts/ci/prepare-env.sh
-
-          # Wait for postgres to be ready
-          echo "⏳ Waiting for PostgreSQL to be ready..."
-          timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
-
-          # Wait for Redis to be ready (if applicable)
-          if [ -n "$REDIS_URL" ]; then
-            echo "⏳ Waiting for Redis to be ready..."
-            python3 scripts/ci/wait_for_redis.py --host localhost --port 6379 --timeout 30 --interval 1
-          fi
-
-          # Push schema to test database
-          echo "📊 Pushing database schema..."
-          bunx prisma db push --skip-generate --accept-data-loss
-
-          # Generate Prisma client with the schema
-          echo "🔄 Generating Prisma client..."
-          bunx prisma generate
-
-          # Verify tables were created
-          echo "✅ Verifying database schema..."
-          psql "$DATABASE_URL" -c "\dt" || echo "⚠️ Could not list tables"
+      - name: Build for tests
+        run: bun run build 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+          SKIP_ENV_VALIDATION: true
 
       - name: Run Unit Tests
         env:

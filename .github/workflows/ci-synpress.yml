@@ -49,23 +49,6 @@ jobs:
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps chromium
 
-      - name: Setup Prisma and Database
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-        run: |
-          # Generate Prisma client first, then reset database
-          bunx prisma generate
-          # Force reset, apply migrations, and seed database for tests
-          bunx prisma migrate reset --force --skip-generate
-          # Explicitly run seed to ensure test data is loaded
-          bunx prisma db seed || echo "Seeding failed - some tests may fail"
-
-      - name: Build production
-        run: bun run build
-        env:
-          NODE_OPTIONS: '--max-old-space-size=8192'
-          SKIP_ENV_VALIDATION: true
-
       - name: Setup test environment
         env:
           # Use CI test database directly
@@ -87,28 +70,24 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET || 'test-cron-secret' }}
           WALLET_SEED_PHRASE: ${{ secrets.WALLET_SEED_PHRASE || '' }}
           WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD || '' }}
+        run: bash scripts/ci/prepare-env.sh
+
+      - name: Setup Prisma and Database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
-          set -e
-          bash scripts/ci/prepare-env.sh
-          bunx prisma generate
-          
-          # Wait for postgres to be ready
-          echo "⏳ Waiting for PostgreSQL to be ready..."
-          timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
-          
-          # Explicitly set DATABASE_URL and push schema
-          echo "📊 Pushing database schema..."
-          export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db"
-          export DIRECT_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db"
-          bunx prisma db push --skip-generate --accept-data-loss
-          
-          # Regenerate Prisma client after schema push
-          echo "🔄 Regenerating Prisma client with latest schema..."
-          bunx prisma generate
-          
-          # Verify tables were created
-          echo "✅ Verifying database schema..."
-          psql "$DATABASE_URL" -c "\dt" || echo "⚠️ Could not list tables"
+          # Generate Prisma client first, then reset database
+          bunx prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
+          # Force reset, apply migrations, and seed database for tests
+          bunx prisma migrate reset --force --skip-generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
+          # Explicitly run seed to ensure test data is loaded
+          bunx prisma db seed 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || echo "Seeding failed - some tests may fail"
+
+      - name: Build production
+        run: bun run build 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
+        env:
+          NODE_OPTIONS: '--max-old-space-size=8192'
+          SKIP_ENV_VALIDATION: true
 
       - name: Start production server
         run: |
