@@ -230,17 +230,24 @@ function createLazyPrismaProxy(): PrismaClient {
         // Return the property with proper type inference
         // TypeScript will preserve the exact type from PrismaClient[K]
         const value = client[prop];
-        if (value === undefined && typeof prop === 'string') {
-          // In test environments, provide better error messages
+        
+        // Check if value is undefined and prop is a string (likely a model name)
+        // This catches cases where Prisma models aren't initialized
+        if (value === undefined && typeof prop === 'string' && prop !== '$connect' && prop !== '$disconnect') {
           const isTestEnv = process.env.NODE_ENV === 'test' || process.env.BUN_ENV === 'test';
+          const databaseUrl = process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL;
+          
+          // In test environments, always throw with helpful error
           if (isTestEnv) {
             throw new Error(
               `Prisma model "${prop}" is undefined. ` +
-              `This usually means DATABASE_URL is not set or Prisma client failed to initialize. ` +
-              `DATABASE_URL=${process.env.DATABASE_URL ? 'set' : 'NOT SET'}`
+              `DATABASE_URL=${databaseUrl ? 'set' : 'NOT SET'}. ` +
+              `This usually means the Prisma client failed to initialize properly. ` +
+              `Check that DATABASE_URL is correct and the database is accessible.`
             );
           }
         }
+        
         return value;
       } catch (error) {
         // Re-throw with context if it's already an Error
