@@ -60,25 +60,6 @@ jobs:
         with:
           fetch-depth: 2
       
-      - name: Detect source code changes
-        id: changes
-        run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            FILES_CHANGED=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
-          else
-            FILES_CHANGED=$(git diff --name-only HEAD^ HEAD || echo "force-build")
-          fi
-          
-          echo "Files changed:"
-          echo "$FILES_CHANGED"
-          
-          if echo "$FILES_CHANGED" | grep -qE '\.(ts|tsx|js|jsx)$|prisma/schema\.prisma|package\.json|bun\.lock'; then
-            echo "source_changed=true" >> $GITHUB_OUTPUT
-            echo "✅ Source code changed - full build required"
-          else
-            echo "source_changed=false" >> $GITHUB_OUTPUT
-            echo "⚡ No source code changes - will attempt to use cache"
-          fi
       
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -103,37 +84,13 @@ jobs:
             .next
           key: ${{ runner.os }}-build-${{ hashFiles('**/bun.lock') }}-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', 'prisma/schema.prisma') }}
           restore-keys: |
-            ${{ steps.changes.outputs.source_changed == 'false' && format('{0}-build-{1}-', runner.os, hashFiles('**/bun.lock')) || '' }}
-
-      - name: Cache hit - prepare cached build
-        if: steps.cache-build.outputs.cache-hit == 'true'
-        env:
-          DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL || '' }}
-          NEXTAUTH_SECRET_VAR: ${{ secrets.NEXTAUTH_SECRET || '' }}
-          PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID || '' }}
-          PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET || '' }}
-          PRIVY_TEST_EMAIL_VAR: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
-          PRIVY_TEST_PASSWORD_VAR: ${{ secrets.PRIVY_TEST_PASSWORD || '' }}
-          ANTHROPIC_API_KEY_VAR: ${{ secrets.ANTHROPIC_API_KEY || '' }}
-          OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY || '' }}
-          GROQ_API_KEY_VAR: ${{ secrets.GROQ_API_KEY || '' }}
-          FAL_KEY_VAR: ${{ secrets.FAL_KEY || '' }}
-          CRON_SECRET_VAR: ${{ secrets.CRON_SECRET || '' }}
-          WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE || '' }}
-          WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD || '' }}
-        run: |
-          echo "⚡ Build cache hit detected. Skipping fresh build."
-          bash scripts/ci/prepare-env.sh
-          ls -lah .next || echo "⚠️  .next cache not found"
-          echo "Generating Prisma client for downstream jobs..."
-          bunx prisma generate
+            ${{ runner.os }}-build-${{ hashFiles('**/bun.lock') }}-
+            ${{ runner.os }}-build-
       
       - name: Install dependencies
-        if: steps.cache-build.outputs.cache-hit != 'true'
-        run: bun install 
+        run: bun install
       
       - name: Setup environment variables
-        if: steps.cache-build.outputs.cache-hit != 'true'
         env:
           DATABASE_URL_SECRET: ${{ secrets.DATABASE_URL || '' }}
           NEXTAUTH_SECRET_VAR: ${{ secrets.NEXTAUTH_SECRET || '' }}
@@ -151,19 +108,15 @@ jobs:
         run: bash scripts/ci/prepare-env.sh
       
       - name: Run Prisma Generate
-        if: steps.cache-build.outputs.cache-hit != 'true'
         run: bunx prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
       
       - name: Type Check
-        if: steps.cache-build.outputs.cache-hit != 'true'
         run: bun typecheck
       
       - name: Lint
-        if: steps.cache-build.outputs.cache-hit != 'true'
         run: bun lint
       
       - name: Build Production
-        if: steps.cache-build.outputs.cache-hit != 'true'
         run: bun run build 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
         env:
           NODE_OPTIONS: '--max-old-space-size=8192'
@@ -466,10 +419,22 @@ jobs:
       
       - name: Start production server
         run: |
-          bun start &
-          
-          # Wait for server to be ready
-          timeout 120 bash -c 'until curl -f http://localhost:3000/api/health; do sleep 2; done' || exit 1
+          echo "🚀 Starting production server..."
+          bun run start > /tmp/prod-server.log 2>&1 &
+          echo $! > /tmp/prod-server.pid
+          echo "📝 Server PID: $(cat /tmp/prod-server.pid)"
+
+          echo "⏳ Waiting for server to be ready..."
+          timeout 120 bash -c 'until curl -sf http://localhost:3000/api/health; do sleep 2; done' || {
+            echo "❌ Server failed to respond within 120s. Logs:"
+            if [ -f /tmp/prod-server.log ]; then
+              tail -n 200 /tmp/prod-server.log
+            else
+              echo "⚠️  No server log file found."
+            fi
+            exit 1
+          }
+          echo "✅ Production server is ready"
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           # Set DEPLOYMENT_ENV=localnet to skip strict testnet/mainnet validation in CI
@@ -484,6 +449,26 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           PLAYWRIGHT_BASE_URL: http://localhost:3000
+
+      - name: Stop production server
+        if: always()
+        run: |
+          if [ -f /tmp/prod-server.pid ]; then
+            PID=$(cat /tmp/prod-server.pid)
+            echo "🛑 Stopping production server (PID: $PID)..."
+            kill "$PID" || true
+            wait "$PID" || true
+            rm /tmp/prod-server.pid
+          else
+            echo "ℹ️  No production server PID file found."
+          fi
+
+          if [ -f /tmp/prod-server.log ]; then
+            echo "📝 Production server logs (last 100 lines):"
+            tail -n 100 /tmp/prod-server.log || true
+          else
+            echo "ℹ️  No production server log file found."
+          fi
       
       - name: Upload E2E test results
         if: always()
@@ -589,10 +574,22 @@ jobs:
       
       - name: Start production server
         run: |
-          bun start &
-          
-          # Wait for server to be ready
-          timeout 120 bash -c 'until curl -f http://localhost:3000/api/health; do sleep 2; done' || exit 1
+          echo "🚀 Starting production server..."
+          bun run start > /tmp/prod-server.log 2>&1 &
+          echo $! > /tmp/prod-server.pid
+          echo "📝 Server PID: $(cat /tmp/prod-server.pid)"
+
+          echo "⏳ Waiting for server to be ready..."
+          timeout 120 bash -c 'until curl -sf http://localhost:3000/api/health; do sleep 2; done' || {
+            echo "❌ Server failed to respond within 120s. Logs:"
+            if [ -f /tmp/prod-server.log ]; then
+              tail -n 200 /tmp/prod-server.log
+            else
+              echo "⚠️  No server log file found."
+            fi
+            exit 1
+          }
+          echo "✅ Production server is ready"
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           # Set DEPLOYMENT_ENV=localnet to skip strict testnet/mainnet validation in CI
@@ -611,6 +608,26 @@ jobs:
           WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD || '' }}
           PRIVY_TEST_EMAIL: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
           PRIVY_TEST_PASSWORD: ${{ secrets.PRIVY_TEST_PASSWORD || '' }}
+      
+      - name: Stop production server
+        if: always()
+        run: |
+          if [ -f /tmp/prod-server.pid ]; then
+            PID=$(cat /tmp/prod-server.pid)
+            echo "🛑 Stopping production server (PID: $PID)..."
+            kill "$PID" || true
+            wait "$PID" || true
+            rm /tmp/prod-server.pid
+          else
+            echo "ℹ️  No production server PID file found."
+          fi
+
+          if [ -f /tmp/prod-server.log ]; then
+            echo "📝 Production server logs (last 100 lines):"
+            tail -n 100 /tmp/prod-server.log || true
+          else
+            echo "ℹ️  No production server log file found."
+          fi
       
       - name: Upload Synpress test results
         if: always()
