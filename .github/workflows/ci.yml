@@ -169,13 +169,13 @@ jobs:
           NODE_OPTIONS: '--max-old-space-size=8192'
           SKIP_ENV_VALIDATION: true
       
-      - name: Verify .env.test exists before upload
+      - name: Verify build artifacts exist
         run: |
-          if [ -f .env.test ]; then
-            echo "✅ .env.test exists"
-            ls -lah .env.test
+          if [ -d .next ]; then
+            echo "✅ .next directory exists"
+            ls -lah .next | head -20
           else
-            echo "❌ .env.test does not exist"
+            echo "❌ .next directory does not exist"
             exit 1
           fi
       
