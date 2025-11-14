@@ -103,7 +103,7 @@ jobs:
             .next
           key: ${{ runner.os }}-build-${{ hashFiles('**/bun.lock') }}-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', 'prisma/schema.prisma') }}
           restore-keys: |
-            ${{ runner.os }}-build-${{ hashFiles('**/bun.lock') }}-
+            ${{ steps.changes.outputs.source_changed == 'false' && format('{0}-build-{1}-', runner.os, hashFiles('**/bun.lock')) || '' }}
 
       - name: Cache hit - prepare cached build
         if: steps.cache-build.outputs.cache-hit == 'true'
