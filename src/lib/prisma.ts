@@ -191,23 +191,42 @@ function getPrismaWithRetry(): PrismaClient {
 
 // Create a Proxy that lazily initializes the Prisma client on first access
 // This ensures tests can access prisma even if DATABASE_URL is set after module load
-const prismaProxy = new Proxy({} as PrismaClient, {
-  get(_target, prop: string | symbol) {
-    const client = getPrismaWithRetry();
-    return (client as unknown as Record<string | symbol, unknown>)[prop];
-  },
-  has(_target, prop: string | symbol) {
-    const client = getPrismaWithRetry();
-    return prop in client;
-  },
-  ownKeys(_target) {
-    const client = getPrismaWithRetry();
-    return Object.keys(client);
-  },
-});
+// The Proxy preserves full type information by properly typing the handler
+function createLazyPrismaProxy(): PrismaClient {
+  return new Proxy({} as PrismaClient, {
+    get<K extends keyof PrismaClient>(_target: PrismaClient, prop: K): PrismaClient[K] {
+      const client = getPrismaWithRetry();
+      // Return the property with proper type inference
+      // TypeScript will preserve the exact type from PrismaClient[K]
+      return client[prop];
+    },
+    set<K extends keyof PrismaClient>(_target: PrismaClient, prop: K, value: PrismaClient[K]): boolean {
+      // Allow property assignment for testing/mocking purposes
+      const client = getPrismaWithRetry();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (client as any)[prop] = value;
+      return true;
+    },
+    has(_target: PrismaClient, prop: string | symbol): boolean {
+      const client = getPrismaWithRetry();
+      return prop in client;
+    },
+    ownKeys(_target: PrismaClient): (string | symbol)[] {
+      const client = getPrismaWithRetry();
+      return Reflect.ownKeys(client);
+    },
+    getOwnPropertyDescriptor(_target: PrismaClient, prop: string | symbol): PropertyDescriptor | undefined {
+      const client = getPrismaWithRetry();
+      return Reflect.getOwnPropertyDescriptor(client, prop);
+    },
+  }) as PrismaClient;
+}
+
+const prismaProxy = createLazyPrismaProxy();
 
 // Export prisma with lazy initialization
-export const prisma: PrismaClient = prismaProxy as PrismaClient;
+// The Proxy preserves all PrismaClient types including compound unique constraints
+export const prisma: PrismaClient = prismaProxy;
 
 /**
  * Gracefully disconnect Prisma on process termination
