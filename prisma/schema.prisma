@@ -154,6 +154,45 @@ model AgentPerformanceMetrics {
   @@index([updatedAt(sort: Desc)])
 }
 
+model AgentGoal {
+  id              String            @id
+  agentUserId     String
+  type            String
+  name            String
+  description     String
+  target          Json?
+  priority        Int
+  status          String            @default("active")
+  progress        Float             @default(0)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime
+  completedAt     DateTime?
+  User            User              @relation(fields: [agentUserId], references: [id], onDelete: Cascade)
+  AgentGoalAction AgentGoalAction[]
+
+  @@index([agentUserId, status])
+  @@index([priority(sort: Desc)])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+}
+
+model AgentGoalAction {
+  id          String    @id
+  goalId      String
+  agentUserId String
+  actionType  String
+  actionId    String?
+  impact      Float
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+  Goal        AgentGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  User        User      @relation(fields: [agentUserId], references: [id], onDelete: Cascade)
+
+  @@index([goalId])
+  @@index([agentUserId, createdAt(sort: Desc)])
+  @@index([actionType])
+}
+
 model AgentPointsTransaction {
   id                                              String   @id
   type                                            String
@@ -733,11 +772,14 @@ model Post {
   deletedAt                             DateTime?
   commentOnPostId                       String?
   parentCommentId                       String?
+  originalPostId                        String?
   Comment                               Comment[]
   Post_Post_commentOnPostIdToPost       Post?      @relation("Post_commentOnPostIdToPost", fields: [commentOnPostId], references: [id], onDelete: Cascade)
   other_Post_Post_commentOnPostIdToPost Post[]     @relation("Post_commentOnPostIdToPost")
   Post_Post_parentCommentIdToPost       Post?      @relation("Post_parentCommentIdToPost", fields: [parentCommentId], references: [id], onDelete: Cascade)
   other_Post_Post_parentCommentIdToPost Post[]     @relation("Post_parentCommentIdToPost")
+  Post_Post_originalPostIdToPost        Post?      @relation("Post_originalPostIdToPost", fields: [originalPostId], references: [id], onDelete: SetNull)
+  other_Post_Post_originalPostIdToPost  Post[]     @relation("Post_originalPostIdToPost")
   PostTag                               PostTag[]
   Reaction                              Reaction[]
   Share                                 Share[]
@@ -748,6 +790,7 @@ model Post {
   @@index([deletedAt])
   @@index([gameId, dayNumber])
   @@index([parentCommentId])
+  @@index([originalPostId])
   @@index([timestamp(sort: Desc)])
   @@index([type, deletedAt, timestamp(sort: Desc)])
   @@index([type, timestamp(sort: Desc)])
@@ -1072,6 +1115,15 @@ model User {
   autonomousTrading                                                 Boolean                  @default(false)
   isAgent                                                           Boolean                  @default(false)
   managedBy                                                         String?
+  agentGoals                                                        Json?
+  agentDirectives                                                   Json?
+  agentConstraints                                                  Json?
+  agentPersonaPrompt                                                String?
+  agentPlanningHorizon                                              String                   @default("single")
+  agentRiskTolerance                                                String                   @default("medium")
+  agentMaxActionsPerTick                                            Int                      @default(3)
+  AgentGoal                                                         AgentGoal[]
+  AgentGoalAction                                                   AgentGoalAction[]
   AgentLog                                                          AgentLog[]
   AgentMessage                                                      AgentMessage[]
   AgentPerformanceMetrics                                           AgentPerformanceMetrics?
@@ -1493,4 +1545,111 @@ model SystemSettings {
   // Timestamps
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+/// World facts for game context - general information about the world state
+model WorldFact {
+  id          String   @id
+  category    String // 'crypto', 'politics', 'economy', 'technology', 'general'
+  key         String // 'bitcoin_price', 'eth_price', 'president', 'ai_state', 'eth_etf'
+  label       String // Human-readable label
+  value       String // The fact content (can be JSON for complex data)
+  source      String? // Where this fact came from
+  lastUpdated DateTime
+  isActive    Boolean  @default(true)
+  priority    Int      @default(0) // Higher priority facts shown first
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([category, key])
+  @@index([category, isActive])
+  @@index([priority(sort: Desc)])
+  @@index([lastUpdated(sort: Desc)])
+}
+
+/// RSS feed sources for pulling real news headlines
+model RSSFeedSource {
+  id          String        @id
+  name        String // 'New York Times', 'LA Times', etc.
+  feedUrl     String // RSS feed URL
+  category    String // 'news', 'tech', 'finance', etc.
+  isActive    Boolean       @default(true)
+  lastFetched DateTime?
+  fetchErrors Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  headlines   RSSHeadline[]
+
+  @@index([isActive, lastFetched])
+  @@index([category])
+}
+
+/// Real RSS headlines before transformation
+model RSSHeadline {
+  id             String          @id
+  sourceId       String
+  title          String
+  link           String?
+  publishedAt    DateTime
+  summary        String?
+  content        String?         @db.Text
+  rawData        Json? // Store full RSS item
+  fetchedAt      DateTime
+  source         RSSFeedSource   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  parodyHeadline ParodyHeadline?
+
+  @@index([sourceId, publishedAt(sort: Desc)])
+  @@index([publishedAt(sort: Desc)])
+}
+
+/// Parody headlines generated from real news
+model ParodyHeadline {
+  id                   String      @id
+  originalHeadlineId   String      @unique
+  originalTitle        String
+  originalSource       String
+  parodyTitle          String // Transformed with parody characters
+  parodyContent        String?     @db.Text
+  characterMappings    Json // Map of real name -> parody name used
+  organizationMappings Json // Map of real org -> parody org used
+  generatedAt          DateTime
+  isUsed               Boolean     @default(false) // Whether it's been injected into game context
+  usedAt               DateTime?
+  createdAt            DateTime    @default(now())
+  originalHeadline     RSSHeadline @relation(fields: [originalHeadlineId], references: [id], onDelete: Cascade)
+
+  @@index([isUsed, generatedAt(sort: Desc)])
+  @@index([generatedAt(sort: Desc)])
+}
+
+/// Character name mappings for find/replace (real -> parody)
+model CharacterMapping {
+  id         String   @id
+  realName   String   @unique // 'Elon Musk', 'Sam Altman', etc.
+  parodyName String // 'AIlon Musk', 'Sam AIltman', etc.
+  category   String // 'tech', 'politics', 'crypto', etc.
+  aliases    String[] // Alternative real names to search for
+  isActive   Boolean  @default(true)
+  priority   Int      @default(0) // Higher priority = replace first (for substring issues)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([category, isActive])
+  @@index([priority(sort: Desc)])
+}
+
+/// Organization name mappings for find/replace (real -> parody)
+model OrganizationMapping {
+  id         String   @id
+  realName   String   @unique // 'OpenAI', 'Meta', etc.
+  parodyName String // 'OpenLIE', 'Fakebook', etc.
+  category   String // 'tech', 'media', 'government', etc.
+  aliases    String[] // Alternative real names to search for
+  isActive   Boolean  @default(true)
+  priority   Int      @default(0) // Higher priority = replace first
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([category, isActive])
+  @@index([priority(sort: Desc)])
 }

@@ -344,10 +344,10 @@ export class ArticleGenerator {
       slantString = articleData.slant;
     } else if (articleData.slant && typeof articleData.slant === 'object') {
       // If slant is an object, try to extract the actual value or stringify it
-      if ('response' in articleData.slant && typeof (articleData.slant as any).response === 'object') {
+      if ('response' in articleData.slant && typeof (articleData.slant as Record<string, unknown>).response === 'object') {
         // If there's a nested response object, it's malformed - extract title or summary as fallback
-        const nestedResponse = (articleData.slant as any).response;
-        slantString = nestedResponse.slant || nestedResponse.title || undefined;
+        const nestedResponse = (articleData.slant as Record<string, unknown>).response as Record<string, unknown>;
+        slantString = (nestedResponse.slant as string) || (nestedResponse.title as string) || undefined;
       } else {
         // Try to extract a meaningful string representation
         slantString = JSON.stringify(articleData.slant);

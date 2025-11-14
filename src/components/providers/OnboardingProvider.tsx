@@ -47,6 +47,7 @@ export function OnboardingProvider({
     needsOnchain,
     loadingProfile,
     refresh,
+    logout,
   } = useAuth();
 
   const { user: privyUser } = usePrivy();
@@ -668,6 +669,7 @@ export function OnboardingProvider({
           onRetryOnchain={handleRetryOnchain}
           onSkipOnchain={handleSkipOnchain}
           onClose={handleClose}
+          onLogout={logout}
           user={user}
           importedData={importedProfileData}
         />

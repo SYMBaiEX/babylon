@@ -30,6 +30,7 @@ interface OnboardingModalProps {
   onRetryOnchain: () => Promise<void>
   onSkipOnchain: () => void
   onClose: () => void
+  onLogout?: () => Promise<void>
   user: {
     id?: string
     username?: string
@@ -74,6 +75,7 @@ export function OnboardingModal({
   onRetryOnchain,
   onSkipOnchain,
   onClose,
+  onLogout,
   user,
   importedData,
 }: OnboardingModalProps) {
@@ -491,27 +493,12 @@ export function OnboardingModal({
     reader.readAsDataURL(file)
   }
 
-  const handleSkip = () => {
-    if (stage !== 'PROFILE' || isSubmitting) return
-
-    const profilePayload: OnboardingProfilePayload = {
-      username: username || `user_${Math.random().toString(36).substring(2, 10)}`,
-      displayName: displayName || 'New User',
-      bio: bio || 'Just joined Babylon!',
-      profileImageUrl: resolveAssetUrl(uploadedProfileImage ?? `/assets/user-profiles/profile-${profilePictureIndex}.jpg`),
-      coverImageUrl: resolveAssetUrl(uploadedBanner ?? `/assets/user-banners/banner-${bannerIndex}.jpg`),
-    }
-
-    void onSubmitProfile(profilePayload)
-  }
-
   const canClose = !isSubmitting // Allow closing at any stage when not submitting
-  const canLogout = stage !== 'COMPLETED' && !isSubmitting
+  const canLogout = stage !== 'COMPLETED' && !isSubmitting && onLogout
 
-  const handleLogout = () => {
-    // Use Privy's logout
-    if (typeof window !== 'undefined' && window.location) {
-      window.location.href = '/api/auth/logout'
+  const handleLogout = async () => {
+    if (onLogout) {
+      await onLogout();
     }
   }
 

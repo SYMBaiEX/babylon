@@ -33,11 +33,17 @@ export const POST = withErrorHandling(async (
   // Authenticate user
   const authUser = await authenticate(request);
   const { userId } = UserIdParamSchema.parse(await context.params);
+  
+  // Check if the authenticated user has a database record
+  if (!authUser.dbUserId) {
+    throw new AuthorizationError('User profile not found. Please complete onboarding first.', 'share-verification', 'create');
+  }
+  
   const targetUser = await requireUserByIdentifier(userId, { id: true });
   const canonicalUserId = targetUser.id;
 
   // Verify user is verifying their own share
-  if (authUser.userId !== canonicalUserId) {
+  if (authUser.dbUserId !== canonicalUserId) {
     throw new AuthorizationError('You can only verify your own shares', 'share-verification', 'create');
   }
 

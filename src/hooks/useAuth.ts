@@ -404,11 +404,52 @@ export function useAuth(): UseAuthReturn {
   };
 
   const handleLogout = async () => {
+    // Call Privy's logout first to clear Privy state
     await logout();
+    
+    // Clear our app's auth state
     clearAuth();
+    
+    // Clear access token
     if (typeof window !== 'undefined') {
       window.__privyAccessToken = null;
+      
+      // Explicitly remove the persisted auth storage
+      // This ensures localStorage is cleared even if clearAuth() doesn't trigger storage update
+      localStorage.removeItem('babylon-auth');
+      
+      // Clear any Privy localStorage keys that might persist
+      // Privy's logout() should handle this, but we'll be thorough
+      const privyKeys = Object.keys(localStorage).filter(key => key.startsWith('privy:') || key.startsWith('privy-'));
+      privyKeys.forEach(key => {
+        try {
+          localStorage.removeItem(key);
+        } catch (error) {
+          logger.warn(`Failed to remove localStorage key: ${key}`, { error }, 'useAuth');
+        }
+      });
+      
+      // Clear session storage as well
+      const sessionPrivyKeys = Object.keys(sessionStorage).filter(key => key.startsWith('privy:') || key.startsWith('privy-'));
+      sessionPrivyKeys.forEach(key => {
+        try {
+          sessionStorage.removeItem(key);
+        } catch (error) {
+          logger.warn(`Failed to remove sessionStorage key: ${key}`, { error }, 'useAuth');
+        }
+      });
     }
+    
+    // Clear module-level state
+    linkedSocialUsers.clear();
+    lastSyncedWalletAddress = null;
+    globalFetchInFlight = null;
+    if (globalTokenRetryTimeout !== null) {
+      clearTimeout(globalTokenRetryTimeout);
+      globalTokenRetryTimeout = null;
+    }
+    
+    logger.info('User logged out and all auth state cleared', undefined, 'useAuth');
   };
 
   return {

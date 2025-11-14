@@ -27,6 +27,12 @@ export const GET = withErrorHandling(async (
   const authUser = await authenticate(request);
   const params = await context.params;
   const { userId } = UserIdParamSchema.parse(params);
+  
+  // Check if the authenticated user has a database record
+  if (!authUser.dbUserId) {
+    throw new NotFoundError('User', userId, 'User profile not found. Please complete onboarding first.');
+  }
+  
   const targetUser = await requireUserByIdentifier(userId, { id: true });
   const canonicalUserId = targetUser.id;
   
@@ -39,7 +45,7 @@ export const GET = withErrorHandling(async (
   ReferralQuerySchema.parse(queryParams);
 
   // Verify user is accessing their own referrals
-  if (authUser.userId !== canonicalUserId) {
+  if (authUser.dbUserId !== canonicalUserId) {
     throw new AuthorizationError('You can only access your own referrals', 'referrals', 'read');
   }
 

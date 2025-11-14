@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 
 export function PrivacyTab() {
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   const [isExporting, setIsExporting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
@@ -82,9 +82,11 @@ export function PrivacyTab() {
     toast.success('Account deleted successfully')
     logger.info('User deleted their account', undefined, 'PrivacyTab')
 
-    // Redirect to logout after a brief delay
-    setTimeout(() => {
-      window.location.href = '/api/auth/logout'
+    // Logout after a brief delay to show success message
+    setTimeout(async () => {
+      await logout()
+      // After logout, redirect to home page
+      window.location.href = '/'
     }, 2000)
     
     setIsDeleting(false)

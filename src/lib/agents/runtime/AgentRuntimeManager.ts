@@ -5,11 +5,12 @@
  * Each agent gets its own isolated runtime instance with its own character configuration.
  */
 
-import { AgentRuntime, type Character, type UUID } from '@elizaos/core'
+import { AgentRuntime, type Character, type UUID, type Plugin } from '@elizaos/core'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { groqPlugin } from '../plugins/groq'
 import { enhanceRuntimeWithBabylon } from '../plugins/babylon/integration'
+import { experiencePlugin } from '../plugins/plugin-experience'
 
 // Global runtime cache for warm container reuse
 const globalRuntimes = new Map<string, AgentRuntime>()
@@ -148,11 +149,14 @@ export class AgentRuntimeManager {
     // Initialize Groq plugin (no-op for this version)
     // groqPlugin.init requires runtime context in some versions
 
-    // Create runtime with groq plugin only (no SQL - we use Prisma)
+    // Create runtime with groq and experience plugins (no SQL - we use Prisma)
+    // Type cast plugins to ensure compatibility across different @elizaos/core versions
+    const plugins: Plugin[] = [groqPlugin as Plugin, experiencePlugin as Plugin]
+    
     const runtimeConfig = {
       character,
       agentId: agentUserId as UUID,
-      plugins: [groqPlugin],
+      plugins,
       settings: {
         ...character.settings,
         POSTGRES_URL: postgresUrl,

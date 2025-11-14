@@ -24,6 +24,7 @@ import { autonomousPostingService } from './AutonomousPostingService'
 import { autonomousCommentingService } from './AutonomousCommentingService'
 // import { autonomousDMService } from './AutonomousDMService' // Not used yet
 import { autonomousGroupChatService } from './AutonomousGroupChatService'
+import { autonomousPlanningCoordinator } from './AutonomousPlanningCoordinator'
 
 export interface AutonomousTickResult {
   success: boolean
@@ -35,14 +36,14 @@ export interface AutonomousTickResult {
     groupMessages: number
     engagements: number
   }
-  method: 'a2a' | 'database'
+  method: 'a2a' | 'database' | 'planning_coordinator'
   duration: number
 }
 
 export class AutonomousCoordinator {
   /**
    * Execute complete autonomous tick for an agent
-   * Coordinates all services and avoids duplication
+   * Now uses goal-oriented multi-action planning when goals are configured
    */
   async executeAutonomousTick(
     agentUserId: string,
@@ -74,12 +75,73 @@ export class AutonomousCoordinator {
         autonomousPosting: true,
         autonomousCommenting: true,
         autonomousDMs: true,
-        autonomousGroupChats: true
+        autonomousGroupChats: true,
+        agentPlanningHorizon: true,
+        agentGoals: true
       }
     })
 
     if (!agent || !agent.isAgent) {
       throw new Error('Agent not found or not an agent')
+    }
+    
+    // Check if agent has goals configured
+    const hasGoals = await prisma.agentGoal.count({
+      where: {
+        agentUserId,
+        status: 'active'
+      }
+    }) > 0
+    
+    // Use planning coordinator if agent has goals and multi-action planning enabled
+    if (hasGoals && agent.agentPlanningHorizon === 'multi') {
+      logger.info('Using goal-oriented planning coordinator', undefined, 'AutonomousCoordinator')
+      
+      try {
+        // Generate comprehensive action plan
+        const plan = await autonomousPlanningCoordinator.generateActionPlan(agentUserId, runtime)
+        
+        // Execute the plan
+        const executionResult = await autonomousPlanningCoordinator.executePlan(agentUserId, runtime, plan)
+        
+        // Map results to standard format
+        for (const actionResult of executionResult.results) {
+          if (actionResult.success) {
+            switch (actionResult.action.type) {
+              case 'trade':
+                result.actionsExecuted.trades++
+                break
+              case 'post':
+                result.actionsExecuted.posts++
+                break
+              case 'comment':
+              case 'respond':
+                result.actionsExecuted.comments++
+                break
+              case 'message':
+                result.actionsExecuted.messages++
+                break
+            }
+          }
+        }
+        
+        result.success = executionResult.successful > 0
+        result.method = 'planning_coordinator'
+        result.duration = Date.now() - startTime
+        
+        logger.info('Completed autonomous tick via planning coordinator', {
+          agentId: agentUserId,
+          planned: executionResult.planned,
+          executed: executionResult.executed,
+          successful: executionResult.successful,
+          duration: result.duration
+        }, 'AutonomousCoordinator')
+        
+        return result
+      } catch (error) {
+        logger.error('Planning coordinator failed, falling back to legacy mode', error, 'AutonomousCoordinator')
+        // Fall through to legacy mode
+      }
     }
 
     // Check if A2A client is connected

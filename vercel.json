@@ -5,6 +5,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/world-facts",
+      "schedule": "0 0 * * *"
+    },
+    {
       "path": "/api/cron/training-check",
       "schedule": "0 * * * *"
     },

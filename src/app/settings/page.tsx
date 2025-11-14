@@ -11,6 +11,7 @@ import { LoginButton } from '@/components/auth/LoginButton';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { PageContainer } from '@/components/shared/PageContainer';
 import { PrivacyTab } from '@/components/settings/PrivacyTab';
+import { SecurityTab } from '@/components/settings/SecurityTab';
 
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
@@ -225,7 +226,7 @@ export default function SettingsPage() {
 
   return (
     <PageContainer>
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto pb-24">
         {/* Header */}
         <div className="mb-8">
           <button
@@ -239,7 +240,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex gap-1 mb-8 border-b border-border">
+        <div className="flex gap-1 mb-8 border-b border-border overflow-x-auto">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -247,7 +248,7 @@ export default function SettingsPage() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-3 border-b-2 transition-all',
+                  'flex items-center gap-2 px-4 py-3 border-b-2 transition-all whitespace-nowrap',
                   activeTab === tab.id
                     ? 'border-[#0066FF] text-[#0066FF]'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -261,7 +262,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Tab Content */}
-        <div className="space-y-6">
+        <div className="space-y-6 pb-8">
           {activeTab === 'profile' && (
             <div className="space-y-6">
               <div>
@@ -449,40 +450,8 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {activeTab === 'security' && (
-            <div className="space-y-6">
-              <div className="px-4 py-3 bg-muted rounded-lg">
-                <h3 className="font-medium mb-2">Account Security</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Your account is secured with Privy authentication.
-                </p>
-                <button className="text-[#0066FF] hover:text-[#2952d9] text-sm font-medium">
-                  View Security Details →
-                </button>
-              </div>
-
-              <div className="px-4 py-3 bg-muted rounded-lg">
-                <h3 className="font-medium mb-2">Connected Wallets</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Manage your connected blockchain wallets.
-                </p>
-                <button className="text-[#0066FF] hover:text-[#2952d9] text-sm font-medium">
-                  Manage Wallets →
-                </button>
-              </div>
-
-              <div className="px-4 py-3 border border-red-500/20 bg-red-500/5 rounded-lg">
-                <h3 className="font-medium text-red-500 mb-2">Danger Zone</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Delete your account and all associated data. This action
-                  cannot be undone.
-                </p>
-                <button className="text-red-500 hover:text-red-600 text-sm font-medium">
-                  Delete Account →
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Security Tab */}
+          {activeTab === 'security' && <SecurityTab />}
 
           {/* Privacy Tab */}
           {activeTab === 'privacy' && <PrivacyTab />}

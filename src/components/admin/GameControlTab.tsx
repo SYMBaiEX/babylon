@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/shared/Skeleton'
+import { WorldFactsSection } from './WorldFactsSection'
 
 interface GameState {
   id: string
@@ -533,6 +534,9 @@ export function GameControlTab() {
           </div>
         </div>
       </div>
+
+      {/* World Facts Section */}
+      <WorldFactsSection />
     </div>
   )
 }

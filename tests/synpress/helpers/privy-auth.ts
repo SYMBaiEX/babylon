@@ -306,7 +306,26 @@ export async function logoutFromPrivy(page: Page): Promise<void> {
  * Check if user is authenticated
  */
 export async function isAuthenticated(page: Page): Promise<boolean> {
-  // Look for indicators of authentication
+  // First check localStorage for auth state
+  const hasAuthInStorage = await page.evaluate(() => {
+    const babylonAuth = localStorage.getItem('babylon-auth')
+    if (babylonAuth) {
+      try {
+        const parsed = JSON.parse(babylonAuth)
+        return !!parsed?.state?.user
+      } catch {
+        return false
+      }
+    }
+    return false
+  })
+  
+  // If we have auth in storage, user is likely authenticated
+  if (hasAuthInStorage) {
+    return true
+  }
+  
+  // Also check for UI indicators of authentication
   const authenticatedIndicators = [
     '[data-testid="user-profile"]',
     '[data-testid="user-menu"]',
@@ -316,7 +335,7 @@ export async function isAuthenticated(page: Page): Promise<boolean> {
   ]
   
   for (const selector of authenticatedIndicators) {
-    const isVisible = await page.locator(selector).isVisible({ timeout: 2000 })
+    const isVisible = await page.locator(selector).isVisible({ timeout: 2000 }).catch(() => false)
     if (isVisible) {
       return true
     }

@@ -23,6 +23,7 @@ import { calculateTrendingIfNeeded, calculateTrendingTags } from './services/tre
 import { generateSnowflakeId } from './snowflake';
 import type { ExecutionResult } from '@/types/market-decisions';
 import { getOracleService } from './oracle';
+import { worldFactsService } from './services/world-facts-service';
 
 export interface GameTickResult {
   postsCreated: number;
@@ -629,8 +630,8 @@ async function generateMixedPosts(
     return { posts: 0, articles: 0 };
   }
 
-  // Get actors (NPCs) and organizations in parallel
-  const [actors, organizations] = await Promise.all([
+  // Get actors (NPCs), organizations, and world facts in parallel
+  const [actors, organizations, worldFactsContext] = await Promise.all([
     prisma.actor.findMany({
       take: 15,
       orderBy: { reputationPoints: 'desc' },
@@ -639,6 +640,7 @@ async function generateMixedPosts(
       where: { type: 'media' },
       take: 5,
     }),
+    worldFactsService.generatePromptContext(),
   ]);
 
   if (actors.length === 0 && organizations.length === 0) {
@@ -716,6 +718,8 @@ async function generateMixedPosts(
         // Generate NPC post
         const prompt = `You are ${creator.name}. Write a brief social media post (max 200 chars) about this prediction market question: "${question.text}". Be opinionated and entertaining.
 
+${worldFactsContext}
+
 Return your response as XML in this exact format:
 <response>
   <post>your post content here</post>
@@ -762,6 +766,8 @@ Return your response as XML in this exact format:
         if (shouldCreateArticle) {
           // Generate organization article
           const prompt = `You are ${creator.name}, a news organization. Write a comprehensive news article about this prediction market: "${question.text}".
+
+${worldFactsContext}
 
 Provide:
 - "title": a compelling headline (max 100 characters)
@@ -824,6 +830,8 @@ Return your response as XML in this exact format:
         } else {
           // Generate regular post from news organization (announcement, quick update, etc.)
           const prompt = `You are ${creator.name}, a news organization. Post a brief social media update about this prediction market: "${question.text}".
+
+${worldFactsContext}
 
 This should be a SHORT social media post (max 200 characters), not a full article. Examples:
 - "Breaking: New developments in [topic]"
@@ -1390,6 +1398,9 @@ async function generateNewQuestions(
 ): Promise<number> {
   let questionsCreated = 0;
 
+  // Get world facts context once for all questions
+  const worldFactsContext = await worldFactsService.generatePromptContext();
+
   for (let i = 0; i < count; i++) {
     if (Date.now() > deadlineMs) {
       logger.warn(
@@ -1401,6 +1412,10 @@ async function generateNewQuestions(
     }
 
     const prompt = `Generate a single yes/no prediction market question about current events in tech, crypto, or politics. Make it specific and resolvable within 7 days. 
+
+${worldFactsContext}
+
+Use the world context above to make relevant, timely questions that reflect current reality (in our satirical universe).
 
 Return your response as XML in this exact format:
 <response>

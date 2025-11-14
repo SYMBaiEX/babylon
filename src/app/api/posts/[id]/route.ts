@@ -224,87 +224,109 @@ export const GET = withErrorHandling(async (
         const createdAtStr = (gamePost.createdAt || timestampStr) as string;
 
         // Parse repost metadata if this is a repost
-        const repostData = gamePost.content ? parseRepostContent(gamePost.content) : null;
+        const parsedRepostData = gamePost.content ? parseRepostContent(gamePost.content) : null;
         let repostMetadata = {};
         
-        if (repostData) {
-          // Look up original author by username (could be User, Actor, or Organization)
-          const originalAuthor = await asPublic(async (db) => {
-            const usr = await db.user.findUnique({
-              where: { username: repostData.originalAuthorUsername },
-              select: { id: true, username: true, displayName: true, profileImageUrl: true },
-            });
-            
-            if (usr) return usr;
-            
-            const act = await db.actor.findFirst({
-              where: { id: repostData.originalAuthorUsername },
-              select: { id: true, name: true, profileImageUrl: true },
-            });
-            
-            if (act) return act;
-            
-            const org = await db.organization.findFirst({
-              where: { id: repostData.originalAuthorUsername },
-              select: { id: true, name: true, imageUrl: true },
-            });
-            
-            return org;
-          });
+        const originalPostIdFromGame = (gamePost as any).originalPostId;
+        if (parsedRepostData || originalPostIdFromGame) {
+          // Try to get original author info
+          let originalAuthor = null;
+          let originalPostId = originalPostIdFromGame || null;
+          let effectiveRepostData = parsedRepostData;
           
-          if (originalAuthor) {
-            // Find the Share record for this repost to get the original post ID
-            const shareRecord = await asPublic(async (db) => {
-              return await db.share.findFirst({
-                where: { 
-                  userId: gamePost.authorId || '',
-                  Post: {
-                    authorId: originalAuthor.id
-                  }
-                },
-                orderBy: { createdAt: 'desc' },
-                select: { postId: true },
+          if (parsedRepostData) {
+            // Parse from content if available (fallback for old posts)
+            originalAuthor = await asPublic(async (db) => {
+              const usr = await db.user.findUnique({
+                where: { username: parsedRepostData.originalAuthorUsername },
+                select: { id: true, username: true, displayName: true, profileImageUrl: true },
+              });
+              
+              if (usr) return usr;
+              
+              const act = await db.actor.findFirst({
+                where: { id: parsedRepostData.originalAuthorUsername },
+                select: { id: true, name: true, profileImageUrl: true },
+              });
+              
+              if (act) return act;
+              
+              const org = await db.organization.findFirst({
+                where: { id: parsedRepostData.originalAuthorUsername },
+                select: { id: true, name: true, imageUrl: true },
+              });
+              
+              return org;
+            });
+          }
+          
+          // If we have originalPostId but no author info yet, fetch from original post
+          if (originalPostId && !originalAuthor) {
+            const originalPost = await asPublic(async (db) => {
+              return await db.post.findUnique({
+                where: { id: originalPostId },
+                select: { authorId: true, content: true },
               });
             });
             
-            let originalPostId = shareRecord?.postId || null;
-            
-            // If Share lookup failed, try to find the original post by content and author
-            if (!originalPostId && repostData.originalContent) {
-              const originalPost = await asPublic(async (db) => {
-                return await db.post.findFirst({
-                  where: {
-                    authorId: originalAuthor.id,
-                    content: repostData.originalContent,
-                    deletedAt: null,
-                  },
-                  orderBy: { timestamp: 'desc' },
-                  select: { id: true },
+            if (originalPost) {
+              // Fetch author details
+              originalAuthor = await asPublic(async (db) => {
+                const usr = await db.user.findUnique({
+                  where: { id: originalPost.authorId },
+                  select: { id: true, username: true, displayName: true, profileImageUrl: true },
                 });
+                
+                if (usr) return usr;
+                
+                const act = await db.actor.findUnique({
+                  where: { id: originalPost.authorId },
+                  select: { id: true, name: true, profileImageUrl: true },
+                });
+                
+                if (act) return act;
+                
+                const org = await db.organization.findUnique({
+                  where: { id: originalPost.authorId },
+                  select: { id: true, name: true, imageUrl: true },
+                });
+                
+                return org;
               });
-              originalPostId = originalPost?.id || null;
+              
+              // Create repostData with actual original content if not already set
+              if (!parsedRepostData && originalAuthor) {
+                effectiveRepostData = {
+                  isRepost: true,
+                  quoteComment: null,
+                  originalContent: originalPost.content,
+                  originalAuthorUsername: 'username' in originalAuthor ? originalAuthor.username! : originalPost.authorId,
+                };
+              }
             }
-            
+          }
+          
+          if (originalAuthor && effectiveRepostData) {
             repostMetadata = {
               isRepost: true,
-              quoteComment: repostData.quoteComment,
-              originalContent: repostData.originalContent,
+              quoteComment: effectiveRepostData.quoteComment,
+              originalContent: effectiveRepostData.originalContent,
               originalPostId: originalPostId,
               originalAuthorId: originalAuthor.id,
               originalAuthorName: 'name' in originalAuthor ? originalAuthor.name : originalAuthor.displayName,
               originalAuthorUsername: 'username' in originalAuthor ? originalAuthor.username : originalAuthor.id,
               originalAuthorProfileImageUrl: 'profileImageUrl' in originalAuthor ? originalAuthor.profileImageUrl : ('imageUrl' in originalAuthor ? originalAuthor.imageUrl : null),
             };
-          } else {
-            // Even if we can't find the original author, still mark as repost
+          } else if (effectiveRepostData) {
+            // Fallback if we can't find the original author
             repostMetadata = {
               isRepost: true,
-              quoteComment: repostData.quoteComment,
-              originalContent: repostData.originalContent,
-              originalPostId: null,
-              originalAuthorId: repostData.originalAuthorUsername,
-              originalAuthorName: repostData.originalAuthorUsername,
-              originalAuthorUsername: repostData.originalAuthorUsername,
+              quoteComment: effectiveRepostData.quoteComment,
+              originalContent: effectiveRepostData.originalContent,
+              originalPostId: originalPostId,
+              originalAuthorId: effectiveRepostData.originalAuthorUsername,
+              originalAuthorName: effectiveRepostData.originalAuthorUsername,
+              originalAuthorUsername: effectiveRepostData.originalAuthorUsername,
               originalAuthorProfileImageUrl: null,
             };
           }
@@ -694,4 +716,5 @@ export const DELETE = withErrorHandling(async (
     data: { id: postId, deletedAt: new Date().toISOString() },
   });
 });
+
 

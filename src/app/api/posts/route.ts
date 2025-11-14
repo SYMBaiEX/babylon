@@ -502,54 +502,80 @@ export const GET = withErrorHandling(async (request: Request) => {
       const timestamp = toISOStringSafe(post.timestamp)
       const createdAt = toISOStringSafe(post.createdAt)
       
-      const repostData = parseRepostContent(post.content!)
+      // Check if this is a repost by parsing content or checking originalPostId field
+      const parsedRepostData = parseRepostContent(post.content!)
       let repostMetadata = {}
       
-      if (repostData) {
-        const originalAuthor = await prisma.user.findUnique({
-          where: { username: repostData.originalAuthorUsername },
-          select: { id: true, username: true, displayName: true, profileImageUrl: true },
-        }) || await prisma.actor.findFirst({
-          where: { id: repostData.originalAuthorUsername },
-          select: { id: true, name: true, profileImageUrl: true },
-        }) || await prisma.organization.findFirst({
-          where: { id: repostData.originalAuthorUsername },
-          select: { id: true, name: true, imageUrl: true },
-        })
+      if (parsedRepostData || post.originalPostId) {
+        // Try to get original author info
+        let originalAuthor = null
+        let originalPostId = post.originalPostId || null
+        let effectiveRepostData = parsedRepostData
         
-        const shareRecord = await prisma.share.findFirst({
-          where: { 
-            userId: post.authorId!,
-            Post: {
-              authorId: originalAuthor!.id
+        if (parsedRepostData) {
+          // Parse from content if available (fallback for old posts)
+          originalAuthor = await prisma.user.findUnique({
+            where: { username: parsedRepostData.originalAuthorUsername },
+            select: { id: true, username: true, displayName: true, profileImageUrl: true },
+          }) || await prisma.actor.findFirst({
+            where: { id: parsedRepostData.originalAuthorUsername },
+            select: { id: true, name: true, profileImageUrl: true },
+          }) || await prisma.organization.findFirst({
+            where: { id: parsedRepostData.originalAuthorUsername },
+            select: { id: true, name: true, imageUrl: true },
+          })
+        }
+        
+        // If we have originalPostId but no author info yet, fetch from original post
+        if (originalPostId && !originalAuthor) {
+          const originalPost = await prisma.post.findUnique({
+            where: { id: originalPostId },
+            select: { authorId: true, content: true },
+          })
+          
+          if (originalPost) {
+            // Fetch author details
+            const [user, actor, org] = await Promise.all([
+              prisma.user.findUnique({
+                where: { id: originalPost.authorId },
+                select: { id: true, username: true, displayName: true, profileImageUrl: true },
+              }),
+              prisma.actor.findUnique({
+                where: { id: originalPost.authorId },
+                select: { id: true, name: true, profileImageUrl: true },
+              }),
+              prisma.organization.findUnique({
+                where: { id: originalPost.authorId },
+                select: { id: true, name: true, imageUrl: true },
+              }),
+            ])
+            
+            originalAuthor = user || actor || org
+            
+            // Create repostData with actual original content if not already set
+            if (!effectiveRepostData || !effectiveRepostData.originalContent) {
+              effectiveRepostData = {
+                ...(effectiveRepostData || {}),
+                isRepost: true,
+                quoteComment: effectiveRepostData?.quoteComment ?? null,
+                originalContent: originalPost.content,
+                originalAuthorUsername: user?.username || originalPost.authorId,
+              };
             }
-          },
-          orderBy: { createdAt: 'desc' },
-          select: { postId: true },
-        })
+          }
+        }
         
-        let originalPostId = shareRecord?.postId || null
-        
-        const originalPost = await prisma.post.findFirst({
-          where: {
-            authorId: originalAuthor!.id,
-            content: repostData.originalContent,
-            deletedAt: null,
-          },
-          orderBy: { timestamp: 'desc' },
-          select: { id: true },
-        })
-        originalPostId = originalPost?.id || null
-        
-        repostMetadata = {
-          isRepost: true,
-          quoteComment: repostData.quoteComment,
-          originalContent: repostData.originalContent,
-          originalPostId: originalPostId,
-          originalAuthorId: originalAuthor!.id,
-          originalAuthorName: 'name' in originalAuthor! ? originalAuthor!.name : originalAuthor!.displayName!,
-          originalAuthorUsername: 'username' in originalAuthor! ? originalAuthor!.username! : originalAuthor!.id,
-          originalAuthorProfileImageUrl: 'imageUrl' in originalAuthor! ? originalAuthor!.imageUrl : originalAuthor!.profileImageUrl,
+        if (originalAuthor && effectiveRepostData) {
+          repostMetadata = {
+            isRepost: true,
+            quoteComment: effectiveRepostData.quoteComment,
+            originalContent: effectiveRepostData.originalContent,
+            originalPostId: originalPostId,
+            originalAuthorId: originalAuthor.id,
+            originalAuthorName: 'name' in originalAuthor ? originalAuthor.name : originalAuthor.displayName!,
+            originalAuthorUsername: 'username' in originalAuthor ? originalAuthor.username! : originalAuthor.id,
+            originalAuthorProfileImageUrl: 'imageUrl' in originalAuthor ? originalAuthor.imageUrl : originalAuthor.profileImageUrl,
+          }
         }
       }
       

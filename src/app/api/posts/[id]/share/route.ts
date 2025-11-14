@@ -163,7 +163,7 @@ export const POST = withErrorHandling(async (
           content: repostContent,
           authorId: canonicalUserId, // Repost author is the user who shared
           timestamp: new Date(),
-          // originalPostId: postId, // Store reference to original post - temporarily removed
+          originalPostId: postId, // Store reference to original post
         },
       });
 

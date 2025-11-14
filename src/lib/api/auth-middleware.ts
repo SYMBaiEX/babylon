@@ -119,6 +119,22 @@ export async function authenticate(request: NextRequest): Promise<AuthenticatedU
 }
 
 /**
+ * Authenticate and require that the user has a database record
+ * Throws an error if the user hasn't completed onboarding
+ */
+export async function authenticateWithDbUser(request: NextRequest): Promise<AuthenticatedUser & { dbUserId: string }> {
+  const authUser = await authenticate(request);
+  
+  if (!authUser.dbUserId) {
+    const error = new Error('User profile not found. Please complete onboarding first.') as AuthenticationError;
+    error.code = 'AUTH_FAILED';
+    throw error;
+  }
+  
+  return authUser as AuthenticatedUser & { dbUserId: string };
+}
+
+/**
  * Optional authentication - returns user if authenticated, null otherwise
  */
 export async function optionalAuth(request: NextRequest): Promise<AuthenticatedUser | null> {

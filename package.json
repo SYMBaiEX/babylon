@@ -21,6 +21,8 @@
     "test:ci": "bash scripts/ci/run-all-tests.sh",
     "test:playwright": "playwright test tests/e2e",
     "test:synpress": "playwright test --config=synpress.config.ts",
+    "test:logout": "playwright test --config=synpress.config.ts tests/synpress/08-logout-verification.spec.ts",
+    "test:logout:headed": "playwright test --config=synpress.config.ts tests/synpress/08-logout-verification.spec.ts --headed",
     "lint": "eslint 'src/**/*.{ts,tsx}' --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "db:migrate": "prisma migrate dev",
@@ -157,6 +159,7 @@
     "viem": "^2.38.6",
     "wagmi": "^2.19.3",
     "ws": "^8.18.3",
+    "xml2js": "^0.6.2",
     "zod": "^4.1.12",
     "zustand": "^5.0.8"
   },

@@ -35,7 +35,13 @@ import {
   messagesProvider,
   notificationsProvider,
   dashboardProvider,
-  userWalletProvider
+  userWalletProvider,
+  headlinesProvider,
+  marketMoversProvider,
+  agentWalletProvider,
+  entityMentionsProvider,
+  trendingTopicsProvider,
+  goalsProvider
 } from './providers'
 
 // Import all actions
@@ -152,14 +158,20 @@ export const babylonPlugin: Plugin = {
   description: 'Babylon prediction market game integration for AI agents via A2A protocol. Provides comprehensive access to markets, trading, social features, and messaging through 74 A2A methods.',
   
   providers: [
+    goalsProvider, // Agent goals, directives, and constraints - highest priority context
     dashboardProvider, // Comprehensive context dashboard - always first
+    agentWalletProvider, // Agent's own complete wallet & investments
     marketsProvider,
+    marketMoversProvider, // Top gainers and losers
     portfolioProvider,
     feedProvider,
     trendingProvider,
+    trendingTopicsProvider, // Database-backed trending topics
+    headlinesProvider, // Recent news headlines
     messagesProvider,
     notificationsProvider,
-    userWalletProvider // Query any user's wallet and positions
+    userWalletProvider, // Query any user's wallet and positions
+    entityMentionsProvider // Detect and enrich entity mentions (users, companies, stocks)
   ],
   
   actions: [

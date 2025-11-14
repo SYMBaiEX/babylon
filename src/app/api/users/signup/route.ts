@@ -85,8 +85,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       const privyClient = getPrivyClient()
       const identityUser: PrivyUser = await privyClient.getUserFromIdToken(identityToken)
 
-      identityFarcasterUsername = identityUser.farcaster?.username
-      identityTwitterUsername = identityUser.twitter?.username
+      identityFarcasterUsername = identityUser.farcaster?.username ?? undefined
+      identityTwitterUsername = identityUser.twitter?.username ?? undefined
     } catch (error) {
       logger.warn(
         'Failed to decode identity token during signup',
