@@ -263,6 +263,12 @@ jobs:
             echo "⚠️  .env.test NOT found - will be recreated from secrets"
           fi
       
+      - name: Reset lockfiles
+        run: |
+          git checkout -- bun.lock
+          rm -f bun.lockb
+          rm -rf node_modules
+      
       - name: Install dependencies
         run: bun install --frozen-lockfile
       
@@ -413,6 +419,12 @@ jobs:
             echo "ℹ️  .env.test not bundled; will recreate from secrets"
           fi
       
+      - name: Reset lockfiles
+        run: |
+          git checkout -- bun.lock
+          rm -f bun.lockb
+          rm -rf node_modules
+      
       - name: Install dependencies
         run: bun install --frozen-lockfile
       
@@ -529,6 +541,12 @@ jobs:
           else
             echo "ℹ️  .env.test not bundled; will recreate from secrets"
           fi
+      
+      - name: Reset lockfiles
+        run: |
+          git checkout -- bun.lock
+          rm -f bun.lockb
+          rm -rf node_modules
       
       - name: Install dependencies
         run: bun install --frozen-lockfile
