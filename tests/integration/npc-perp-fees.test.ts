@@ -23,24 +23,25 @@ describe('NPC Perpetual Trading Fees', () => {
   let testActorId: string;
   let testOrgId: string;
   let testTicker: string;
+  let testOrgPrice: number;
 
   beforeEach(async () => {
-    // Create test organization with simple alphanumeric ID
-    const timestamp = Date.now().toString().slice(-6);
-    testOrgId = `TESTCO${timestamp}`;
-    testTicker = `TESTCO${timestamp}`;
-    
-    await prisma.organization.create({
-      data: {
-        id: testOrgId,
-        name: 'Test Company',
-        description: 'Test',
+    // Use an existing company from seed data instead of creating a new one
+    // This ensures the PerpetualsEngine has the market in its markets map
+    const existingCompany = await prisma.organization.findFirst({
+      where: {
         type: 'company',
-        initialPrice: 100,
-        currentPrice: 100,
-        updatedAt: new Date(),
-      },
+        currentPrice: { not: null }
+      }
     });
+    
+    if (!existingCompany) {
+      throw new Error('No company found in seed data - run seed script first');
+    }
+    
+    testOrgId = existingCompany.id;
+    testTicker = existingCompany.id; // Ticker is the org ID
+    testOrgPrice = existingCompany.currentPrice
 
     // Create test actor and pool
     testActorId = `test-actor-${Date.now()}`;
@@ -74,12 +75,11 @@ describe('NPC Perpetual Trading Fees', () => {
   });
 
   afterEach(async () => {
-    // Cleanup
+    // Cleanup (don't delete organization as it's from seed data)
     await prisma.nPCTrade.deleteMany({ where: { poolId: testPoolId } });
     await prisma.poolPosition.deleteMany({ where: { poolId: testPoolId } });
     await prisma.pool.deleteMany({ where: { id: testPoolId } });
     await prisma.actor.deleteMany({ where: { id: testActorId } });
-    await prisma.organization.deleteMany({ where: { id: testOrgId } });
   });
 
   it('should deduct 0.1% fee when NPC opens perp position', async () => {
@@ -217,7 +217,7 @@ describe('NPC Perpetual Trading Fees', () => {
     expect(npcTrade?.marketType).toBe('perp');
     expect(npcTrade?.ticker).toBe(testTicker);
     expect(npcTrade?.amount).toBe(1000);
-    expect(npcTrade?.price).toBe(100);
+    expect(npcTrade?.price).toBe(testOrgPrice);
   });
 
   it('should calculate correct liquidation price', async () => {
@@ -239,10 +239,11 @@ describe('NPC Perpetual Trading Fees', () => {
     });
     
     expect(dbPosition).toBeDefined();
-    expect(dbPosition?.entryPrice).toBe(100);
+    expect(dbPosition?.entryPrice).toBe(testOrgPrice);
     
-    // For long position at $100, liquidation at 80% (0.8 * 100 = 80)
-    expect(dbPosition?.liquidationPrice).toBe(80);
+    // For long position, liquidation at 80% of entry price
+    const expectedLiquidationPrice = testOrgPrice * 0.8;
+    expect(dbPosition?.liquidationPrice).toBe(expectedLiquidationPrice);
     expect(dbPosition?.closedAt).toBeNull();
   });
 });

@@ -255,6 +255,12 @@ describe('Oracle E2E Flow (Conditional - Requires Deployed Contracts)', () => {
 
 describe('Oracle Error Handling', () => {
   it('should handle missing commitment gracefully', async () => {
+    // Skip if oracle not configured
+    if (!process.env.NEXT_PUBLIC_BABYLON_ORACLE || !process.env.ORACLE_PRIVATE_KEY) {
+      console.log('⚠️  Skipping: Oracle not configured')
+      return
+    }
+
     const oracleService = getOracleService()
 
     let errorThrown = false
@@ -275,10 +281,16 @@ describe('Oracle Error Handling', () => {
   })
 
   it('should report unhealthy if oracle not deployed', async () => {
+    // Skip if oracle private key not configured
+    if (!process.env.ORACLE_PRIVATE_KEY) {
+      console.log('⚠️  Skipping: Oracle private key not configured')
+      return
+    }
+
     // Create oracle with invalid address
     const invalidOracle = new (await import('../../src/lib/oracle/oracle-service')).OracleService({
       oracleAddress: '0x0000000000000000000000000000000000000000',
-      privateKey: process.env.ORACLE_PRIVATE_KEY || '',
+      privateKey: process.env.ORACLE_PRIVATE_KEY,
       rpcUrl: 'http://localhost:8545',
       chainId: 31337,
     })
