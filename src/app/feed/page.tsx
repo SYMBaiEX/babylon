@@ -143,7 +143,6 @@ function FeedPageContent() {
     }
 
     try {
-      // Build URL with cursor instead of offset
       const url = requestCursor 
         ? `/api/posts?limit=${PAGE_SIZE}&cursor=${encodeURIComponent(requestCursor)}`
         : `/api/posts?limit=${PAGE_SIZE}`;
@@ -297,7 +296,7 @@ function FeedPageContent() {
       }
 
       const response = await fetch(
-        `/api/posts?following=true&userId=${user.id}&limit=${PAGE_SIZE}&offset=0`,
+        `/api/posts?following=true&userId=${user.id}&limit=${PAGE_SIZE}`,
         { headers }
       )
 
