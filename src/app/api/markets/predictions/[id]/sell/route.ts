@@ -138,13 +138,13 @@ export const POST = withErrorHandling(async (
       );
     }
 
-    const side = position.side ? 'yes' : 'no';
+    const sellSide: 'yes' | 'no' = position.side ? 'yes' : 'no';
 
     // Calculate proceeds using AMM with fees
     const calculation = PredictionPricing.calculateSellWithFees(
       Number(market.yesShares),
       Number(market.noShares),
-      side,
+      sellSide,
       shares
     );
 
@@ -156,7 +156,7 @@ export const POST = withErrorHandling(async (
       user.userId,
       netProceeds,
       'pred_sell',
-      `Sold ${shares} ${side.toUpperCase()} shares in: ${market.question}`,
+      `Sold ${shares} ${sellSide.toUpperCase()} shares in: ${market.question}`,
       marketId
     );
 
@@ -201,7 +201,7 @@ export const POST = withErrorHandling(async (
       positionClosed: remaining <= 0.01,
       calculation,
       updatedMarket,
-      sellSide: side,
+      sellSide,
     };
   });
 

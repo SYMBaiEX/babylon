@@ -28,6 +28,11 @@ interface PredictionMarket {
   scenario: number
   yesShares?: number
   noShares?: number
+  liquidity?: number
+  resolved?: boolean
+  resolution?: boolean | null
+  yesProbability?: number
+  noProbability?: number
   userPosition?: {
     id: string
     side: 'YES' | 'NO'
@@ -85,6 +90,45 @@ export default function PredictionDetailPage() {
     marketId ?? null,
     { seed: historySeed }
   )
+
+  const handleTradeEvent = useCallback((event: PredictionTradeSSE) => {
+    setMarket((prev) => {
+      if (!prev || prev.id.toString() !== event.marketId) {
+        return prev
+      }
+      return {
+        ...prev,
+        yesShares: event.yesShares,
+        noShares: event.noShares,
+        liquidity: event.liquidity ?? prev.liquidity,
+        yesProbability: event.yesPrice,
+        noProbability: event.noPrice,
+      }
+    })
+  }, [])
+
+  const handleResolutionEvent = useCallback((event: PredictionResolutionSSE) => {
+    setMarket((prev) => {
+      if (!prev || prev.id.toString() !== event.marketId) {
+        return prev
+      }
+      return {
+        ...prev,
+        resolved: true,
+        resolution: event.winningSide === 'yes',
+        yesShares: event.yesShares,
+        noShares: event.noShares,
+        liquidity: event.liquidity ?? prev.liquidity,
+        yesProbability: event.yesPrice,
+        noProbability: event.noPrice,
+      }
+    })
+  }, [])
+
+  usePredictionMarketStream(marketId ?? null, {
+    onTrade: handleTradeEvent,
+    onResolution: handleResolutionEvent,
+  })
 
   // Track market view
   useEffect(() => {
@@ -538,41 +582,3 @@ export default function PredictionDetailPage() {
     </PageContainer>
   )
 }
-  const handleTradeEvent = useCallback((event: PredictionTradeSSE) => {
-    setMarket((prev) => {
-      if (!prev || prev.id.toString() !== event.marketId) return prev
-      const yesShares = event.yesShares
-      const noShares = event.noShares
-      return {
-        ...prev,
-        yesShares,
-        noShares,
-        liquidity: event.liquidity ?? prev.liquidity,
-        yesProbability: event.yesPrice,
-        noProbability: event.noPrice,
-      }
-    })
-
-  }, [marketId])
-
-  const handleResolutionEvent = useCallback((event: PredictionResolutionSSE) => {
-    setMarket((prev) => {
-      if (!prev || prev.id.toString() !== event.marketId) return prev
-      return {
-        ...prev,
-        resolved: true,
-        resolution: event.winningSide === 'yes',
-        yesShares: event.yesShares,
-        noShares: event.noShares,
-        liquidity: event.liquidity ?? prev.liquidity,
-        yesProbability: event.yesPrice,
-        noProbability: event.noPrice,
-      }
-    })
-
-  }, [marketId])
-
-  usePredictionMarketStream(marketId ?? null, {
-    onTrade: handleTradeEvent,
-    onResolution: handleResolutionEvent,
-  })

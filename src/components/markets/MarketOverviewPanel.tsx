@@ -41,6 +41,13 @@ interface PredictionStat {
   resolved: boolean
 }
 
+interface PredictionQuestionSummary {
+  id: string | number
+  yesShares?: number | null
+  noShares?: number | null
+  status?: string | null
+}
+
 export function MarketOverviewPanel() {
   const [overview, setOverview] = useState<MarketOverview | null>(null)
   const [predictionStats, setPredictionStats] = useState<Record<string, PredictionStat>>({})
@@ -78,7 +85,7 @@ export function MarketOverviewPanel() {
 
       if (predictionsData.questions && Array.isArray(predictionsData.questions)) {
         const stats: Record<string, PredictionStat> = {}
-        predictionsData.questions.forEach((question: any) => {
+        ;(predictionsData.questions as PredictionQuestionSummary[]).forEach((question) => {
           stats[question.id.toString()] = {
             yesShares: Number(question.yesShares ?? 0),
             noShares: Number(question.noShares ?? 0),

@@ -60,7 +60,7 @@ export const POST = withErrorHandling(async (
   }
 
   // Execute trade with RLS
-  const { position, calculation } = await asUser(user, async (db) => {
+  const { position, calculation, market: updatedMarket } = await asUser(user, async (db) => {
     // Get or create market from question
     logger.info('Step 4: Looking up market/question', { marketId }, 'POST /api/markets/predictions/[id]/buy');
     
@@ -292,7 +292,7 @@ export const POST = withErrorHandling(async (
     noPrice: calculation.newNoPrice,
     yesShares: calculation.newYesShares,
     noShares: calculation.newNoShares,
-    liquidity: Number(updated.liquidity ?? 0),
+    liquidity: Number(updatedMarket.liquidity ?? 0),
     eventType: 'trade',
     source: 'user_trade',
   }).catch((error) => {
@@ -307,9 +307,9 @@ export const POST = withErrorHandling(async (
     marketId,
     yesPrice: calculation.newYesPrice,
     noPrice: calculation.newNoPrice,
-    yesShares: Number(updated.yesShares),
-    noShares: Number(updated.noShares),
-    liquidity: Number(updated.liquidity ?? 0),
+    yesShares: Number(updatedMarket.yesShares),
+    noShares: Number(updatedMarket.noShares),
+    liquidity: Number(updatedMarket.liquidity ?? 0),
     trade: {
       actorType: 'user',
       actorId: user.userId,

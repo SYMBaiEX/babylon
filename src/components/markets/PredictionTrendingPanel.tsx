@@ -15,6 +15,14 @@ interface PredictionSummary {
   resolutionDate?: string
 }
 
+interface PredictionQuestion {
+  id: string | number
+  text: string
+  yesShares?: number | null
+  noShares?: number | null
+  resolutionDate?: string | null
+}
+
 interface PredictionTrendingPanelProps {
   onMarketClick?: (marketId: string) => void
 }
@@ -30,12 +38,12 @@ export function PredictionTrendingPanel({ onMarketClick }: PredictionTrendingPan
       const data = await response.json()
       if (Array.isArray(data.questions)) {
         setMarkets(
-          data.questions.map((question: any) => ({
+          (data.questions as PredictionQuestion[]).map((question) => ({
             id: question.id.toString(),
             text: question.text,
             yesShares: Number(question.yesShares ?? 0),
             noShares: Number(question.noShares ?? 0),
-            resolutionDate: question.resolutionDate,
+            resolutionDate: question.resolutionDate ?? undefined,
           }))
         )
       }

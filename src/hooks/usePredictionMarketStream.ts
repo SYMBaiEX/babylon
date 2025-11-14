@@ -38,13 +38,13 @@ export interface PredictionResolutionSSE {
 
 type SSEPayload = PredictionTradeSSE | PredictionResolutionSSE;
 
-const isPredictionPayload = (data: Record<string, unknown>): data is SSEPayload => {
-  if (!data || typeof data !== 'object') return false;
-  const type = data.type;
+const isPredictionPayload = (data: unknown): data is SSEPayload => {
+  if (!data || typeof data !== 'object' || data === null) return false;
+  const type = (data as { type?: unknown }).type;
   if (type !== 'prediction_trade' && type !== 'prediction_resolution') {
     return false;
   }
-  return typeof data.marketId === 'string';
+  return typeof (data as { marketId?: unknown }).marketId === 'string';
 };
 
 interface UsePredictionMarketStreamOptions {
