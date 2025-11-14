@@ -279,7 +279,7 @@ jobs:
           PORT: 3000
         run: |
           echo "🚀 Starting Next.js dev server for integration tests..."
-          bun run dev:next-only > /tmp/next-server.log 2>&1 &
+          SKIP_ENV_VALIDATION=1 bunx --bun next dev > /tmp/next-server.log 2>&1 &
           echo $! > /tmp/next-server.pid
           echo "📝 Server PID: $(cat /tmp/next-server.pid)"
           
