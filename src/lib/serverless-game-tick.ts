@@ -9,6 +9,7 @@
  * ✅ Vercel-compatible: No filesystem access, completes in <60s
  */
 
+import { Prisma } from '@prisma/client';
 import { ArticleGenerator } from '@/engine/ArticleGenerator';
 import { MarketDecisionEngine } from '@/engine/MarketDecisionEngine';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
@@ -18,8 +19,10 @@ import { logger } from './logger';
 import { NPCInvestmentManager } from './npc/npc-investment-manager';
 import { prisma } from './prisma';
 import { MarketContextService } from './services/market-context-service';
+import { ReputationService } from './services/reputation-service';
 import { TradeExecutionService } from './services/trade-execution-service';
 import { calculateTrendingIfNeeded, calculateTrendingTags } from './services/trending-calculation-service';
+import { WalletService } from './services/wallet-service';
 import { generateSnowflakeId } from './snowflake';
 import type { ExecutionResult } from '@/types/market-decisions';
 import { getOracleService } from './oracle';
@@ -1513,45 +1516,172 @@ Return your response as XML in this exact format:
 /**
  * Resolve question payouts
  */
-async function resolveQuestionPayouts(questionNumber: number): Promise<void> {
+export async function resolveQuestionPayouts(questionNumber: number): Promise<void> {
   const question = await prisma.question.findFirst({
     where: { questionNumber },
   });
 
   if (!question) return;
 
-  // Find the market for this question (by matching question text)
-  const market = await prisma.market.findFirst({
-    where: { question: question.text },
-  });
+  const market =
+    (await prisma.market.findUnique({ where: { id: question.id } })) ||
+    (await prisma.market.findFirst({
+      where: { question: question.text },
+    }));
 
   if (!market) return;
 
-  // Get all positions for this market
-  const positions = await prisma.position.findMany({
-    where: {
-      marketId: market.id,
-    },
-  });
+  if (market.resolved) {
+    logger.info(
+      'Market already resolved, skipping payouts',
+      { marketId: market.id, questionNumber },
+      'GameTick'
+    );
+    return;
+  }
 
-  // Pay out winners
-  for (const position of positions) {
-    const isWinner =
-      (position.side === true && question.outcome) ||
-      (position.side === false && !question.outcome);
+  const winningSide = question.outcome;
+  const resolutionTimestamp = new Date();
 
-    if (isWinner) {
-      const payout = Number(position.shares) * 2; // Simplified: 2x payout for winners
+  const { positionUpdates, totalPayout } = await prisma.$transaction(async (tx) => {
+    const positions = await tx.position.findMany({
+      where: {
+        marketId: market.id,
+        status: { not: 'resolved' },
+      },
+    });
 
-      await prisma.user.update({
-        where: { id: position.userId },
+    const updates: Array<{
+      userId: string;
+      pnl: number;
+      positionId: string;
+    }> = [];
+
+    let payoutAccumulator = 0;
+
+    for (const position of positions) {
+      const shares = Number(position.shares ?? 0);
+      const avgPrice = Number(position.avgPrice ?? 0);
+      const costBasis = avgPrice * shares;
+      const didWin = position.side === winningSide;
+      const payout = didWin ? shares : 0;
+      const pnl = payout - costBasis;
+
+      if (didWin && payout > 0) {
+        await WalletService.credit(
+          position.userId,
+          payout,
+          'pred_resolve_win',
+          `Prediction market payout: ${market.question}`,
+          market.id,
+          tx
+        );
+        payoutAccumulator += payout;
+      }
+
+      await tx.position.update({
+        where: { id: position.id },
         data: {
-          virtualBalance: {
-            increment: payout,
-          },
+          shares: new Prisma.Decimal(0),
+          amount: new Prisma.Decimal(costBasis),
+          pnl: new Prisma.Decimal(pnl),
+          status: 'resolved',
+          outcome: didWin,
+          resolvedAt: resolutionTimestamp,
+          questionId: question.questionNumber,
         },
       });
+
+      updates.push({
+        userId: position.userId,
+        pnl,
+        positionId: position.id,
+      });
     }
+
+    const liquidityReduction = Math.min(
+      payoutAccumulator,
+      Number(market.liquidity ?? 0)
+    );
+
+    await tx.market.update({
+      where: { id: market.id },
+      data: {
+        resolved: true,
+        resolution: winningSide,
+        updatedAt: resolutionTimestamp,
+        liquidity:
+          liquidityReduction > 0
+            ? {
+                decrement: new Prisma.Decimal(liquidityReduction),
+              }
+            : undefined,
+      },
+    });
+
+    await tx.question.update({
+      where: { id: question.id },
+      data: {
+        status: 'resolved',
+        resolvedOutcome: winningSide,
+        updatedAt: resolutionTimestamp,
+      },
+    });
+
+    return {
+      positionUpdates: updates,
+      totalPayout: liquidityReduction,
+    };
+  });
+
+  for (const update of positionUpdates) {
+    if (update.pnl === 0) continue;
+    try {
+      await WalletService.recordPnL(
+        update.userId,
+        update.pnl,
+        'prediction_resolve',
+        market.id
+      );
+    } catch (error) {
+      logger.error(
+        'Failed to record PnL for resolved prediction position',
+        {
+          error: error instanceof Error ? error.message : String(error),
+          userId: update.userId,
+          positionId: update.positionId,
+        },
+        'GameTick'
+      );
+    }
+  }
+
+  try {
+    if (
+      process.env.NEXT_PUBLIC_REPUTATION_SYSTEM_BASE_SEPOLIA &&
+      process.env.DEPLOYER_PRIVATE_KEY &&
+      process.env.NEXT_PUBLIC_RPC_URL
+    ) {
+      await ReputationService.updateReputationForResolvedMarket({
+        marketId: market.id,
+        outcome: winningSide,
+      });
+    } else {
+      logger.warn(
+        'Skipping reputation update due to missing configuration',
+        { marketId: market.id },
+        'GameTick'
+      );
+    }
+  } catch (error) {
+    logger.error(
+      'Failed to push reputation update on-chain',
+      {
+        error: error instanceof Error ? error.message : String(error),
+        marketId: market.id,
+      },
+      'GameTick'
+    );
   }
 
   // Resolve market on-chain if onChainMarketId exists
@@ -1560,7 +1690,7 @@ async function resolveQuestionPayouts(questionNumber: number): Promise<void> {
     try {
       onChainResolutionTxHash = await resolveMarketOnChain(
         market.onChainMarketId,
-        question.outcome ? 1 : 0 // Binary market: true = 1, false = 0
+        winningSide ? 1 : 0 // Binary market: true = 1, false = 0
       );
     } catch (error) {
       logger.error(
@@ -1573,20 +1703,30 @@ async function resolveQuestionPayouts(questionNumber: number): Promise<void> {
         },
         'GameTick'
       );
-      // Continue with database resolution even if on-chain fails
     }
   }
 
-  // Mark market as resolved
-  await prisma.market.update({
-    where: { id: market.id },
-    data: {
-      resolved: true,
-      resolution: question.outcome,
-      onChainResolved: onChainResolutionTxHash !== null,
-      onChainResolutionTxHash: onChainResolutionTxHash,
+  if (onChainResolutionTxHash) {
+    await prisma.market.update({
+      where: { id: market.id },
+      data: {
+        onChainResolved: true,
+        onChainResolutionTxHash,
+      },
+    });
+  }
+
+  logger.info(
+    'Resolved prediction market payouts',
+    {
+      marketId: market.id,
+      questionNumber,
+      winningSide: winningSide ? 'YES' : 'NO',
+      totalPayout,
+      positionsSettled: positionUpdates.length,
     },
-  });
+    'GameTick'
+  );
 }
 
 /**
