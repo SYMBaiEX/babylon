@@ -109,7 +109,7 @@ export function WidgetSidebar() {
       ref={containerRef}
       className="hidden xl:flex flex-col w-96 flex-shrink-0"
     >
-      <div ref={innerRef} className="flex flex-col px-4 py-6 gap-6 mr-16">
+      <div ref={innerRef} className="flex flex-col px-4 py-6 gap-6 mr-28">
         <div className="flex-shrink-0">
           <EntitySearchAutocomplete
             value={searchQuery}
