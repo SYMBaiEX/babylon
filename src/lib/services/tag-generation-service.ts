@@ -6,7 +6,9 @@
  */
 
 import { logger } from '@/lib/logger'
-type OpenAIClient = import('openai').default
+import type OpenAI from 'openai'
+
+type OpenAIClient = OpenAI
 
 // Try Groq first, then OpenAI (Groq is faster and often more reliable)
 const apiKey = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY
