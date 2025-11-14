@@ -2,7 +2,7 @@ import type { Plugin } from '@elizaos/core';
 import { ExperienceService } from './service';
 import { experienceProvider } from './providers/experienceProvider';
 import { experienceEvaluator } from './evaluators/experienceEvaluator';
-import { IAgentRuntime } from '@elizaos/core';
+import type { IAgentRuntime } from '@elizaos/core';
 import { logger } from '@elizaos/core';
 import './types'; // Ensure module augmentation is loaded
 

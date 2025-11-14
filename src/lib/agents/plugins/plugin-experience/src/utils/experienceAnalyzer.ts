@@ -1,4 +1,5 @@
-import { Experience, ExperienceType, OutcomeType } from '../types.js';
+import type { Experience} from '../types.js';
+import { ExperienceType, OutcomeType } from '../types.js';
 
 export interface ExperienceAnalysis {
   isSignificant: boolean;

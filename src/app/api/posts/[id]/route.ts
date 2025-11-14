@@ -231,7 +231,7 @@ export const GET = withErrorHandling(async (
         if (parsedRepostData || originalPostIdFromGame) {
           // Try to get original author info
           let originalAuthor = null;
-          let originalPostId = originalPostIdFromGame || null;
+          const originalPostId = originalPostIdFromGame || null;
           let effectiveRepostData = parsedRepostData;
           
           if (parsedRepostData) {

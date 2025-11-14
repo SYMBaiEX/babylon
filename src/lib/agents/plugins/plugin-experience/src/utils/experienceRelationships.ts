@@ -1,4 +1,5 @@
-import { Experience, ExperienceType } from '../types';
+import type { Experience} from '../types';
+import { ExperienceType } from '../types';
 import { type UUID } from '@elizaos/core';
 
 export interface ExperienceChain {

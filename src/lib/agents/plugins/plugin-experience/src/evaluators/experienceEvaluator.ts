@@ -7,7 +7,7 @@ import {
   type HandlerCallback,
   ModelType,
 } from '@elizaos/core';
-import { ExperienceService } from '../service';
+import type { ExperienceService } from '../service';
 import { ExperienceType, OutcomeType } from '../types';
 
 type ExtractedExperience = {
