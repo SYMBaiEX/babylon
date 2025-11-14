@@ -19,6 +19,7 @@ import { FEE_CONFIG } from '@/lib/config/fees';
 import { trackServerEvent } from '@/lib/posthog/server';
 import { IdParamSchema } from '@/lib/validation/schemas';
 import { PredictionMarketEventService } from '@/lib/services/prediction-market-event-service';
+import { PredictionPriceHistoryService } from '@/lib/services/prediction-price-history-service';
 /**
  * POST /api/markets/predictions/[id]/sell
  * Sell shares from prediction market position
@@ -239,6 +240,19 @@ export const POST = withErrorHandling(async (
     remainingShares,
   }).catch((error) => {
     logger.warn('Failed to track prediction_sold event', { error });
+  });
+
+  await PredictionPriceHistoryService.recordSnapshot({
+    marketId,
+    yesPrice: calculation.newYesPrice,
+    noPrice: calculation.newNoPrice,
+    yesShares: calculation.newYesShares,
+    noShares: calculation.newNoShares,
+    liquidity: Number(updatedMarket.liquidity ?? 0),
+    eventType: 'trade',
+    source: 'user_trade',
+  }).catch((error) => {
+    logger.warn('Failed to record price history for prediction sell', { error, marketId }, 'POST /api/markets/predictions/[id]/sell');
   });
 
   await invalidateAfterPredictionTrade(marketId).catch((error) => {

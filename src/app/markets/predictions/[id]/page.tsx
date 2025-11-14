@@ -2,6 +2,8 @@
 
 import { PredictionPositionsList } from '@/components/markets/PredictionPositionsList'
 import { PredictionProbabilityChart } from '@/components/markets/PredictionProbabilityChart'
+import { usePredictionMarketStream } from '@/hooks/usePredictionMarketStream'
+import type { PredictionTradeSSE, PredictionResolutionSSE } from '@/hooks/usePredictionMarketStream'
 import { TradeConfirmationDialog, type BuyPredictionDetails } from '@/components/markets/TradeConfirmationDialog'
 import { AssetTradesFeed } from '@/components/markets/AssetTradesFeed'
 import { PageContainer } from '@/components/shared/PageContainer'
@@ -54,6 +56,7 @@ interface PricePoint {
   yesPrice: number
   noPrice: number
   volume: number
+  liquidity: number
 }
 
 export default function PredictionDetailPage() {
@@ -99,25 +102,49 @@ export default function PredictionDetailPage() {
     setMarket(foundMarket)
     setUserPosition(foundMarket.userPosition as PredictionPosition | null)
 
-    // Generate mock price history (you'll want to replace this with real data)
-    const now = Date.now()
-    const history: PricePoint[] = []
-    const yesShares = foundMarket.yesShares || 500
-    const noShares = foundMarket.noShares || 500
-    
-    for (let i = 100; i >= 0; i--) {
-      const time = now - (i * 60 * 60 * 1000) // 1 hour intervals
-      // Simulate some price movement
-      const variation = Math.sin(i / 10) * 0.1 + (Math.random() - 0.5) * 0.05
-      const totalShares = yesShares + noShares
-      const basePrice = totalShares === 0 ? 0.5 : yesShares / totalShares
-      const yesPrice = Math.max(0.1, Math.min(0.9, basePrice + variation))
-      const noPrice = 1 - yesPrice
-      const volume = Math.random() * 100
-      history.push({ time, yesPrice, noPrice, volume })
+    try {
+      const historyRes = await fetch(`/api/markets/predictions/${foundMarket.id}/history?limit=200`)
+      const historyJson = await historyRes.json()
+      if (historyRes.ok && Array.isArray(historyJson.history) && historyJson.history.length > 0) {
+        const parsedHistory: PricePoint[] = historyJson.history.map((point: any, index: number, arr: any[]) => {
+          const prevLiquidity = index > 0 ? Number(arr[index - 1].liquidity) : Number(point.liquidity)
+          const currentLiquidity = Number(point.liquidity)
+          return {
+            time: new Date(point.timestamp).getTime(),
+            yesPrice: point.yesPrice,
+            noPrice: point.noPrice,
+            volume: Math.max(0, Math.abs(currentLiquidity - prevLiquidity)),
+            liquidity: currentLiquidity,
+          }
+        })
+        setPriceHistory(parsedHistory)
+      } else {
+        const totalShares = (foundMarket.yesShares || 0) + (foundMarket.noShares || 0)
+        const yesPrice = totalShares === 0 ? 0.5 : (foundMarket.yesShares || 0) / totalShares
+        setPriceHistory([
+          {
+            time: Date.now(),
+            yesPrice,
+            noPrice: 1 - yesPrice,
+            volume: 0,
+            liquidity: foundMarket.liquidity ?? 0,
+          },
+        ])
+      }
+    } catch (error) {
+      console.error('Failed to fetch prediction price history', error)
+      const totalShares = (foundMarket.yesShares || 0) + (foundMarket.noShares || 0)
+      const yesPrice = totalShares === 0 ? 0.5 : (foundMarket.yesShares || 0) / totalShares
+      setPriceHistory([
+        {
+          time: Date.now(),
+          yesPrice,
+          noPrice: 1 - yesPrice,
+          volume: 0,
+          liquidity: foundMarket.liquidity ?? 0,
+        },
+      ])
     }
-    
-    setPriceHistory(history)
     setLoading(false)
   }, [marketId, router, authenticated, user?.id, from])
 
@@ -546,5 +573,80 @@ export default function PredictionDetailPage() {
     </PageContainer>
   )
 }
+  const handleTradeEvent = useCallback((event: PredictionTradeSSE) => {
+    setMarket((prev) => {
+      if (!prev || prev.id.toString() !== event.marketId) return prev
+      const yesShares = event.yesShares
+      const noShares = event.noShares
+      return {
+        ...prev,
+        yesShares,
+        noShares,
+        liquidity: event.liquidity ?? prev.liquidity,
+        yesProbability: event.yesPrice,
+        noProbability: event.noPrice,
+      }
+    })
 
+    const timestamp = new Date(event.trade.timestamp ?? new Date().toISOString()).getTime()
+    setPriceHistory((prev) => {
+      const baselineLiquidity = prev.length > 0 ? prev[prev.length - 1]!.liquidity : 0
+      const currentLiquidity = event.liquidity ?? baselineLiquidity
+      const lastLiquidity = prev.length > 0 ? prev[prev.length - 1]!.liquidity : currentLiquidity
+      const volume = Math.max(0, Math.abs(currentLiquidity - lastLiquidity))
+      const nextPoint: PricePoint = {
+        time: timestamp,
+        yesPrice: event.yesPrice,
+        noPrice: event.noPrice,
+        volume,
+        liquidity: currentLiquidity,
+      }
+      const next = [...prev, nextPoint]
+      if (next.length > 200) {
+        next.shift()
+      }
+      return next
+    })
+  }, [marketId])
 
+  const handleResolutionEvent = useCallback((event: PredictionResolutionSSE) => {
+    setMarket((prev) => {
+      if (!prev || prev.id.toString() !== event.marketId) return prev
+      return {
+        ...prev,
+        resolved: true,
+        resolution: event.winningSide === 'yes',
+        yesShares: event.yesShares,
+        noShares: event.noShares,
+        liquidity: event.liquidity ?? prev.liquidity,
+        yesProbability: event.yesPrice,
+        noProbability: event.noPrice,
+      }
+    })
+
+    const timestamp = new Date(event.timestamp).getTime()
+    setPriceHistory((prev) => {
+      const baselineLiquidity = prev.length > 0 ? prev[prev.length - 1]!.liquidity : 0
+      const liquidity = event.liquidity ?? baselineLiquidity
+      const lastLiquidity = prev.length > 0
+        ? prev[prev.length - 1]!.liquidity
+        : liquidity
+      const nextPoint: PricePoint = {
+        time: timestamp,
+        yesPrice: event.yesPrice,
+        noPrice: event.noPrice,
+        volume: Math.max(0, Math.abs(liquidity - lastLiquidity)),
+        liquidity,
+      }
+      const next = [...prev, nextPoint]
+      if (next.length > 200) {
+        next.shift()
+      }
+      return next
+    })
+  }, [marketId])
+
+  usePredictionMarketStream(marketId ?? null, {
+    onTrade: handleTradeEvent,
+    onResolution: handleResolutionEvent,
+  })

@@ -23,6 +23,8 @@ import { MarketContextService } from './services/market-context-service';
 import { ReputationService } from './services/reputation-service';
 import { TradeExecutionService } from './services/trade-execution-service';
 import { PredictionMarketEventService } from './services/prediction-market-event-service';
+import { PredictionPriceHistoryService } from './services/prediction-price-history-service';
+import { PredictionPricing } from '@/lib/prediction-pricing';
 import { calculateTrendingIfNeeded, calculateTrendingTags } from './services/trending-calculation-service';
 import { WalletService } from './services/wallet-service';
 import { generateSnowflakeId } from './snowflake';
@@ -1720,6 +1722,31 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
 
   const resolvedMarket = await prisma.market.findUnique({
     where: { id: market.id },
+  });
+
+  const resolvedYesShares = Number(resolvedMarket?.yesShares ?? market.yesShares ?? 0);
+  const resolvedNoShares = Number(resolvedMarket?.noShares ?? market.noShares ?? 0);
+  let yesPrice = 0.5;
+  let noPrice = 0.5;
+  if (resolvedYesShares + resolvedNoShares > 0) {
+    yesPrice = PredictionPricing.getCurrentPrice(resolvedYesShares, resolvedNoShares, 'yes');
+    noPrice = PredictionPricing.getCurrentPrice(resolvedYesShares, resolvedNoShares, 'no');
+  } else {
+    yesPrice = winningSide ? 1 : 0;
+    noPrice = winningSide ? 0 : 1;
+  }
+
+  await PredictionPriceHistoryService.recordSnapshot({
+    marketId: market.id,
+    yesPrice,
+    noPrice,
+    yesShares: resolvedYesShares,
+    noShares: resolvedNoShares,
+    liquidity: Number(resolvedMarket?.liquidity ?? 0),
+    eventType: 'resolution',
+    source: 'system',
+  }).catch((error) => {
+    logger.warn('Failed to record price history for resolution', { error, marketId: market.id }, 'GameTick');
   });
 
   await invalidateAfterPredictionTrade(market.id).catch((error) => {

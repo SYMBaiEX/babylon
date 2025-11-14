@@ -11,6 +11,7 @@ import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { generateSnowflakeId } from '@/lib/snowflake';
 import { PredictionMarketEventService } from '@/lib/services/prediction-market-event-service';
+import { PredictionPriceHistoryService } from '@/lib/services/prediction-price-history-service';
 import { FeeService } from '@/lib/services/fee-service';
 import { PredictionPricing } from '@/lib/prediction-pricing';
 
@@ -432,6 +433,19 @@ export class TradeExecutionService {
 
     const liquidityAfter = Number(market.liquidity ?? 0) + calculation.netAmount;
 
+    await PredictionPriceHistoryService.recordSnapshot({
+      marketId: decision.marketId!.toString(),
+      yesPrice: calculation.newYesPrice,
+      noPrice: calculation.newNoPrice,
+      yesShares: calculation.newYesShares,
+      noShares: calculation.newNoShares,
+      liquidity: liquidityAfter,
+      eventType: 'trade',
+      source: 'npc_trade',
+    }).catch((error) => {
+      logger.warn('Failed to record price history for NPC buy', { error, marketId: decision.marketId }, 'TradeExecutionService');
+    });
+
     await invalidateAfterPredictionTrade(decision.marketId).catch((error) => {
       logger.warn('Failed to invalidate cache after NPC prediction buy', { error, marketId: decision.marketId }, 'TradeExecutionService');
     });
@@ -594,6 +608,19 @@ export class TradeExecutionService {
             reason: decision.reasoning,
           },
         });
+      });
+
+      await PredictionPriceHistoryService.recordSnapshot({
+        marketId: position.marketId,
+        yesPrice: calculation.newYesPrice,
+        noPrice: calculation.newNoPrice,
+        yesShares: calculation.newYesShares,
+        noShares: calculation.newNoShares,
+        liquidity: liquidityAfter,
+        eventType: 'trade',
+        source: 'npc_trade',
+      }).catch((error) => {
+        logger.warn('Failed to record price history for NPC close', { error, marketId: position.marketId }, 'TradeExecutionService');
       });
 
       await invalidateAfterPredictionTrade(position.marketId).catch((error) => {
