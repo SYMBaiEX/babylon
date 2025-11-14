@@ -97,6 +97,8 @@ jobs:
           PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID || '' }}
           PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET || '' }}
           PRIVY_TEST_EMAIL_VAR: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
+          PRIVY_TEST_PHONE_VAR: ${{ secrets.PRIVY_TEST_PHONE || '' }}
+          PRIVY_TEST_OTP_VAR: ${{ secrets.PRIVY_TEST_OTP || '' }}
           PRIVY_TEST_PASSWORD_VAR: ${{ secrets.PRIVY_TEST_PASSWORD || '' }}
           ANTHROPIC_API_KEY_VAR: ${{ secrets.ANTHROPIC_API_KEY || '' }}
           OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY || '' }}
@@ -244,6 +246,8 @@ jobs:
           PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID || '' }}
           PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET || '' }}
           PRIVY_TEST_EMAIL_VAR: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
+          PRIVY_TEST_PHONE_VAR: ${{ secrets.PRIVY_TEST_PHONE || '' }}
+          PRIVY_TEST_OTP_VAR: ${{ secrets.PRIVY_TEST_OTP || '' }}
           PRIVY_TEST_PASSWORD_VAR: ${{ secrets.PRIVY_TEST_PASSWORD || '' }}
           ANTHROPIC_API_KEY_VAR: ${{ secrets.ANTHROPIC_API_KEY || '' }}
           OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY || '' }}
@@ -415,6 +419,8 @@ jobs:
           PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID || '' }}
           PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET || '' }}
           PRIVY_TEST_EMAIL_VAR: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
+          PRIVY_TEST_PHONE_VAR: ${{ secrets.PRIVY_TEST_PHONE || '' }}
+          PRIVY_TEST_OTP_VAR: ${{ secrets.PRIVY_TEST_OTP || '' }}
           PRIVY_TEST_PASSWORD_VAR: ${{ secrets.PRIVY_TEST_PASSWORD || '' }}
           ANTHROPIC_API_KEY_VAR: ${{ secrets.ANTHROPIC_API_KEY || '' }}
           OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY || '' }}
@@ -584,6 +590,8 @@ jobs:
           PRIVY_APP_ID_VAR: ${{ secrets.PRIVY_APP_ID || '' }}
           PRIVY_APP_SECRET_VAR: ${{ secrets.PRIVY_APP_SECRET || '' }}
           PRIVY_TEST_EMAIL_VAR: ${{ secrets.PRIVY_TEST_EMAIL || '' }}
+          PRIVY_TEST_PHONE_VAR: ${{ secrets.PRIVY_TEST_PHONE || '' }}
+          PRIVY_TEST_OTP_VAR: ${{ secrets.PRIVY_TEST_OTP || '' }}
           PRIVY_TEST_PASSWORD_VAR: ${{ secrets.PRIVY_TEST_PASSWORD || '' }}
           ANTHROPIC_API_KEY_VAR: ${{ secrets.ANTHROPIC_API_KEY || '' }}
           OPENAI_API_KEY_VAR: ${{ secrets.OPENAI_API_KEY || '' }}
