@@ -305,7 +305,6 @@ export function OnboardingModal({
             </button>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">Click arrows to browse or upload your own</p>
       </div>
 
       <div className="space-y-2">

@@ -133,16 +133,30 @@ async function main() {
       data: {
         id: await generateSnowflakeId(),
         isContinuous: true,
-        isRunning: true,
+        isRunning: true, // Game starts running by default
         currentDate: now,
         currentDay: 1,
         speed: 60000,
+        startedAt: now, // Set startedAt timestamp
         updatedAt: now,
       },
     });
-    logger.info('Game state initialized', undefined, 'Script');
+    logger.info('✅ Game state initialized (RUNNING)', undefined, 'Script');
   } else {
-    logger.info('Game state already exists', undefined, 'Script');
+    // If game exists but is paused, start it
+    if (!existingGame.isRunning) {
+      await prisma.game.update({
+        where: { id: existingGame.id },
+        data: {
+          isRunning: true,
+          startedAt: existingGame.startedAt || new Date(),
+          pausedAt: null,
+        },
+      });
+      logger.info('✅ Game state updated to RUNNING', undefined, 'Script');
+    } else {
+      logger.info('✅ Game state already exists and is RUNNING', undefined, 'Script');
+    }
   }
 
   // Initialize pools for actors with hasPool=true WITH CAPITAL

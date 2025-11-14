@@ -23,24 +23,34 @@ async function main() {
   let game = await prisma.game.findFirst({ where: { isContinuous: true } });
 
   if (!game) {
+    const now = new Date();
     logger.info('Creating game state...', undefined, 'Init');
     game = await prisma.game.create({
       data: {
         id: 'continuous',
         isContinuous: true,
-        isRunning: true,
-        currentDate: new Date(),
+        isRunning: true, // Start running by default
+        currentDate: now,
         currentDay: 1,
         speed: 60000,
-        updatedAt: new Date(),
+        startedAt: now, // Set startedAt timestamp
+        updatedAt: now,
       },
     });
+    logger.info('✅ Game created and started', undefined, 'Init');
   } else if (!game.isRunning) {
-    logger.info('Setting game to running...', undefined, 'Init');
+    logger.info('Game is paused. Starting it...', undefined, 'Init');
     await prisma.game.update({
       where: { id: game.id },
-      data: { isRunning: true },
+      data: { 
+        isRunning: true,
+        startedAt: game.startedAt || new Date(),
+        pausedAt: null,
+      },
     });
+    logger.info('✅ Game started', undefined, 'Init');
+  } else {
+    logger.info('✅ Game already running', undefined, 'Init');
   }
 
   logger.info('✅ Game state ready', undefined, 'Init');

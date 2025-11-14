@@ -76,19 +76,27 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const privyId = authUser.privyId ?? authUser.userId
   const walletAddress = authUser.walletAddress?.toLowerCase() ?? null
 
-  const privyClient = getPrivyClient()
-  const identityUser: PrivyUser = await privyClient.getUserFromIdToken(identityToken!)
+  // Fetch identity data from Privy if token provided
+  let identityFarcasterUsername: string | undefined
+  let identityTwitterUsername: string | undefined
 
-  logger.warn(
-    'Failed to decode identity token during signup',
-    undefined,
-    'POST /api/users/signup'
-  )
+  if (identityToken) {
+    try {
+      const privyClient = getPrivyClient()
+      const identityUser: PrivyUser = await privyClient.getUserFromIdToken(identityToken)
 
-  logger.info('Signup received no identity token; proceeding with provided payload only', undefined, 'POST /api/users/signup')
-
-  const identityFarcasterUsername = identityUser.farcaster!.username
-  const identityTwitterUsername = identityUser.twitter!.username
+      identityFarcasterUsername = identityUser.farcaster?.username
+      identityTwitterUsername = identityUser.twitter?.username
+    } catch (error) {
+      logger.warn(
+        'Failed to decode identity token during signup',
+        { error },
+        'POST /api/users/signup'
+      )
+    }
+  } else {
+    logger.info('Signup received no identity token; proceeding with provided payload only', undefined, 'POST /api/users/signup')
+  }
   
   // Check for imported social data from onboarding flow
   const importedTwitter = parsedProfile.importedFrom === 'twitter'

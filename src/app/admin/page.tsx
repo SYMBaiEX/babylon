@@ -12,15 +12,16 @@ import { GroupsTab } from '@/components/admin/GroupsTab'
 import { FeesTab } from '@/components/admin/FeesTab'
 import { AdminManagementTab } from '@/components/admin/AdminManagementTab'
 import { ReportsTab } from '@/components/admin/ReportsTab'
-import { Shield, Activity, Users, BarChart, Bell, MessageSquare, DollarSign, Layers, ShieldCheck, Flag, Sparkles, Database, Bot } from 'lucide-react'
+import { Shield, Activity, Users, BarChart, Bell, MessageSquare, DollarSign, Layers, ShieldCheck, Flag, Sparkles, Database, Bot, Gamepad2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { RegistryTab } from '@/components/admin/RegistryTab'
 import { AIModelsTab } from '@/components/admin/AIModelsTab'
 import { TrainingDataTab } from '@/components/admin/TrainingDataTab'
 import { AgentsTab } from '@/components/admin/AgentsTab'
+import { GameControlTab } from '@/components/admin/GameControlTab'
 
-type Tab = 'stats' | 'fees' | 'trades' | 'users' | 'registry' | 'groups' | 'notifications' | 'admins' | 'reports' | 'ai-models' | 'training-data' | 'agents'
+type Tab = 'stats' | 'game-control' | 'fees' | 'trades' | 'users' | 'registry' | 'groups' | 'notifications' | 'admins' | 'reports' | 'ai-models' | 'training-data' | 'agents'
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -94,6 +95,7 @@ export default function AdminDashboard() {
 
   const tabs = [
     { id: 'stats' as const, label: 'Dashboard', icon: BarChart },
+    { id: 'game-control' as const, label: 'Game Control', icon: Gamepad2 },
     { id: 'fees' as const, label: 'Fees', icon: DollarSign },
     { id: 'trades' as const, label: 'Trading Feed', icon: Activity },
     { id: 'users' as const, label: 'Users', icon: Users },
@@ -144,6 +146,7 @@ export default function AdminDashboard() {
       {/* Tab Content */}
       <div className="flex-1 overflow-auto">
         {activeTab === 'stats' && <StatsTab />}
+        {activeTab === 'game-control' && <GameControlTab />}
         {activeTab === 'fees' && <FeesTab />}
         {activeTab === 'trades' && <TradingFeedTab />}
         {activeTab === 'users' && <UserManagementTab />}

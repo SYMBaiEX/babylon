@@ -7,6 +7,7 @@ import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { findUserByIdentifier } from '@/lib/users/user-lookup';
 import { UserIdParamSchema } from '@/lib/validation/schemas';
+import { convertBalanceToStrings } from '@/lib/utils/decimal-converter';
 import type { NextRequest } from 'next/server';
 
 /**
@@ -76,17 +77,19 @@ export const GET = withErrorHandling(async (
     throw new BusinessLogicError('User balance not found', 'BALANCE_NOT_FOUND');
   }
 
-  const balanceInfo = {
-    balance: balanceData.virtualBalance.toString(),
-    totalDeposited: balanceData.totalDeposited.toString(),
-    totalWithdrawn: balanceData.totalWithdrawn.toString(),
-    lifetimePnL: balanceData.lifetimePnL.toString(),
-  };
+  // Safely convert balance fields to strings
+  // When data comes from cache, Decimal objects may be serialized as strings or numbers
+  const balanceInfo = convertBalanceToStrings({
+    virtualBalance: balanceData.virtualBalance,
+    totalDeposited: balanceData.totalDeposited,
+    totalWithdrawn: balanceData.totalWithdrawn,
+    lifetimePnL: balanceData.lifetimePnL,
+  });
 
-  logger.info('Balance fetched successfully (cached)', { userId: canonicalUserId, balance: balanceInfo.balance }, 'GET /api/users/[userId]/balance');
+  logger.info('Balance fetched successfully (cached)', { userId: canonicalUserId, balance: balanceInfo.virtualBalance }, 'GET /api/users/[userId]/balance');
 
   return successResponse({
-    balance: balanceInfo.balance,
+    balance: balanceInfo.virtualBalance,
     totalDeposited: balanceInfo.totalDeposited,
     totalWithdrawn: balanceInfo.totalWithdrawn,
     lifetimePnL: balanceInfo.lifetimePnL,

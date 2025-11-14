@@ -189,6 +189,22 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   return successResponse({
     notifications: notifications.map((n: typeof notifications[number]) => {
+      // Helper to safely convert any value to string (handles cached data)
+      const toSafeString = (value: unknown): string => {
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'string') return value;
+        if (typeof value === 'number') return String(value);
+        if (typeof value === 'boolean') return String(value);
+        if (typeof value === 'object' && 'toString' in value) {
+          try {
+            return (value as { toString: () => string }).toString();
+          } catch {
+            return String(value);
+          }
+        }
+        return String(value);
+      };
+
       // Handle createdAt safely - it could be Date (from DB/memory cache) or string (from Redis cache)
       let createdAtISO: string;
       if (n.createdAt instanceof Date) {
@@ -197,23 +213,27 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         createdAtISO = n.createdAt;
       } else {
         // Fallback: try to convert to Date then to ISO string
-        createdAtISO = new Date(n.createdAt).toISOString();
+        try {
+          createdAtISO = new Date(n.createdAt).toISOString();
+        } catch {
+          createdAtISO = new Date().toISOString();
+        }
       }
 
       return {
-        id: n.id,
-        type: n.type,
-        actorId: n.actorId,
+        id: toSafeString(n.id),
+        type: toSafeString(n.type),
+        actorId: toSafeString(n.actorId),
         actor: n.User_Notification_actorIdToUser ? {
-          id: n.User_Notification_actorIdToUser.id,
-          displayName: n.User_Notification_actorIdToUser.displayName,
-          username: n.User_Notification_actorIdToUser.username,
-          profileImageUrl: n.User_Notification_actorIdToUser.profileImageUrl,
+          id: toSafeString(n.User_Notification_actorIdToUser.id),
+          displayName: toSafeString(n.User_Notification_actorIdToUser.displayName),
+          username: toSafeString(n.User_Notification_actorIdToUser.username),
+          profileImageUrl: toSafeString(n.User_Notification_actorIdToUser.profileImageUrl),
         } : null,
-        postId: n.postId,
-        commentId: n.commentId,
-        message: n.message,
-        read: n.read,
+        postId: n.postId ? toSafeString(n.postId) : null,
+        commentId: n.commentId ? toSafeString(n.commentId) : null,
+        message: toSafeString(n.message),
+        read: Boolean(n.read),
         createdAt: createdAtISO,
       };
     }),
