@@ -192,11 +192,11 @@ function getPrismaWithRetry(): PrismaClient {
 // Create a Proxy that lazily initializes the Prisma client on first access
 // This ensures tests can access prisma even if DATABASE_URL is set after module load
 const prismaProxy = new Proxy({} as PrismaClient, {
-  get(_target, prop) {
+  get(_target, prop: string | symbol) {
     const client = getPrismaWithRetry();
-    return (client as any)[prop];
+    return (client as unknown as Record<string | symbol, unknown>)[prop];
   },
-  has(_target, prop) {
+  has(_target, prop: string | symbol) {
     const client = getPrismaWithRetry();
     return prop in client;
   },
