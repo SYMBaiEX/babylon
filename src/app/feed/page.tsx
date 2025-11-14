@@ -36,7 +36,7 @@ function FeedPageContent() {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
-  const [offset, setOffset] = useState(0)
+  const [cursor, setCursor] = useState<string | null>(null) // Cursor for pagination
   
   const [followingPosts, setFollowingPosts] = useState<FeedPost[]>([])
   const [loadingFollowing, setLoadingFollowing] = useState(false)
@@ -51,13 +51,13 @@ function FeedPageContent() {
   // Ref for scroll container (used by TradesFeed)
   const scrollContainerRefObject = useRef<HTMLDivElement | null>(null)
   
-  // Ref to track current posts for duplicate detection (avoids stale closure)
-  const postsRef = useRef<FeedPost[]>(posts)
+  // Ref to track loading state synchronously (prevents race conditions)
+  const loadingMoreRef = useRef(false)
   
   // Keep ref in sync with state
   useEffect(() => {
-    postsRef.current = posts
-  }, [posts])
+    loadingMoreRef.current = loadingMore
+  }, [loadingMore])
   
   // Smart banner frequency based on user referrals
   const calculateBannerInterval = () => {
@@ -126,109 +126,85 @@ function FeedPageContent() {
     }
   }, [registerOptimisticPostCallback, unregisterOptimisticPostCallback])
 
-  const fetchLatestPosts = useCallback(async (requestOffset: number, append = false, skipLoadingState = false) => {
+  const fetchLatestPosts = useCallback(async (requestCursor: string | null, append = false, skipLoadingState = false) => {
     if (tab !== 'latest') return
-    if (!skipLoadingState) {
-      if (append) setLoadingMore(true)
-      else setLoading(true)
-    }
-
-    const response = await fetch(`/api/posts?limit=${PAGE_SIZE}&offset=${requestOffset}`)
-    if (!response.ok) {
-      if (append) setHasMore(false)
-      setLoadingMore(false)
-      return
-    }
-
-    const data = await response.json()
-    const newPosts = data.posts as FeedPost[]
-    const total = data.total as number | undefined
-
-    // CRITICAL: Check for duplicates BEFORE any setState
-    // Use ref to get current posts (not stale closure)
-    const currentPosts = postsRef.current
-    const existingPostIds = new Set(currentPosts.map(p => p.id))
-    const duplicateCount = newPosts.filter(post => existingPostIds.has(post.id)).length
     
-    // If we're appending and ALL posts are duplicates, we've hit offset drift
-    // Retry with corrected offset BEFORE any state updates
-    if (append && duplicateCount === newPosts.length && duplicateCount > 0) {
-      console.log(`♻️ ALL ${duplicateCount} posts are duplicates! Retrying with offset ${requestOffset + duplicateCount}`)
-      setLoadingMore(false)
-      await fetchLatestPosts(requestOffset + duplicateCount, true, skipLoadingState)
+    // Guard against concurrent fetches (use ref for synchronous check)
+    if (append && loadingMoreRef.current) {
       return
     }
     
-    // If we have SOME duplicates (but not all), retry to get clean page
-    if (append && duplicateCount > newPosts.length / 2) {
-      console.log(`♻️ Found ${duplicateCount}/${newPosts.length} duplicates! Retrying with offset ${requestOffset + duplicateCount}`)
-      setLoadingMore(false)
-      await fetchLatestPosts(requestOffset + duplicateCount, true, skipLoadingState)
-      return
+    // Set loading states
+    if (append) {
+      setLoadingMore(true)
+      loadingMoreRef.current = true
+    } else if (!skipLoadingState) {
+      setLoading(true)
     }
 
-    // No significant duplicates - proceed with normal update
-    let uniqueAdded = 0
+    try {
+      // Build URL with cursor instead of offset
+      const url = requestCursor 
+        ? `/api/posts?limit=${PAGE_SIZE}&cursor=${encodeURIComponent(requestCursor)}`
+        : `/api/posts?limit=${PAGE_SIZE}`;
+      
+      const response = await fetch(url)
+      if (!response.ok) {
+        if (append) setHasMore(false)
+        return
+      }
 
-    setPosts(prev => {
-      const prevSize = prev.length
-      
-      const combined = append ? [...prev, ...newPosts] : [...newPosts, ...prev]
-      const unique = new Map<string, FeedPost>()
-      combined.forEach(post => {
-        unique.set(post.id, post)
-      })
+      const data = await response.json()
+      const newPosts = data.posts as FeedPost[]
+      const nextCursor = data.cursor as string | null
+      const hasMoreFromAPI = data.hasMore as boolean
 
-      const deduped = Array.from(unique.values()).sort((a, b) => {
-        const aTime = new Date(a.timestamp ?? 0).getTime()
-        const bTime = new Date(b.timestamp ?? 0).getTime()
-        return bTime - aTime
-      })
-      
-      uniqueAdded = deduped.length - prevSize
-      setOffset(deduped.length)
-      
-      return deduped
-    })
-    
-    // Clear local posts when refreshing (not appending) as they should now be in the API response
-    if (!append) {
-      setLocalPosts(prev => {
-        // Remove any local posts that are now in the API response
-        const newPostIds = new Set(newPosts.map(p => p.id))
-        const fiveMinutesAgo = Date.now() - 5 * 60 * 1000
+      // Simple approach: merge and deduplicate, let state handle it
+      setPosts(prev => {
+        const combined = append ? [...prev, ...newPosts] : newPosts
         
-        return prev.filter(localPost => {
-          // Remove if post is in API response
-          if (newPostIds.has(localPost.id)) return false
-          
-          // Remove if post is older than 5 minutes (likely failed to save)
-          const postTime = new Date(localPost.timestamp).getTime()
-          if (postTime < fiveMinutesAgo) return false
-          
-          return true
+        // Deduplicate by ID
+        const unique = new Map<string, FeedPost>()
+        combined.forEach(post => unique.set(post.id, post))
+        
+        // Sort by timestamp
+        const deduped = Array.from(unique.values()).sort((a, b) => {
+          const aTime = new Date(a.timestamp ?? 0).getTime()
+          const bTime = new Date(b.timestamp ?? 0).getTime()
+          return bTime - aTime
         })
+        
+        return deduped
       })
-    }
+      
+      // Update cursor for next page
+      setCursor(nextCursor)
+      
+      // Clear local posts when refreshing (they should now be in API response)
+      if (!append) {
+        setLocalPosts(prev => {
+          const newPostIds = new Set(newPosts.map(p => p.id))
+          const fiveMinutesAgo = Date.now() - 5 * 60 * 1000
+          
+          return prev.filter(localPost => {
+            if (newPostIds.has(localPost.id)) return false
+            const postTime = new Date(localPost.timestamp).getTime()
+            if (postTime < fiveMinutesAgo) return false
+            return true
+          })
+        })
+      }
 
-    if (append && uniqueAdded === 0) {
-      setLoadingMore(false)
-      return
-    }
-
-    const moreAvailable =
-      newPosts.length === PAGE_SIZE &&
-      (total === undefined || requestOffset + newPosts.length < total)
-
-    if (!append && newPosts.length === 0 && requestOffset === 0) {
-      setHasMore(false)
-    } else {
-      setHasMore(moreAvailable)
-    }
-
-    if (!skipLoadingState) {
-      if (append) setLoadingMore(false)
-      else setLoading(false)
+      // Update hasMore based on API response
+      setHasMore(hasMoreFromAPI && newPosts.length > 0)
+    } finally {
+      // Always reset loading states in finally block
+      if (append) {
+        setLoadingMore(false)
+        loadingMoreRef.current = false
+      } else if (!skipLoadingState) {
+        setLoading(false)
+      }
     }
   }, [tab])
 
@@ -236,7 +212,7 @@ function FeedPageContent() {
     if (tab !== 'latest' && tab !== 'trades') return
     if (tab === 'latest') {
       // Use skipLoadingState=true since pull-to-refresh shows its own loading indicator
-      await fetchLatestPosts(0, false, true)
+      await fetchLatestPosts(null, false, true) // Reset cursor on refresh
       // Also refresh widgets
       refreshWidgets()
     }
@@ -264,9 +240,9 @@ function FeedPageContent() {
   // Initial load and reset when switching to latest tab
   useEffect(() => {
     if (tab === 'latest') {
-      setOffset(0)
+      setCursor(null) // Reset cursor
       setHasMore(true)
-      fetchLatestPosts(0, false)
+      fetchLatestPosts(null, false) // Initial load with no cursor
     }
   }, [tab, fetchLatestPosts])
 
@@ -286,7 +262,7 @@ function FeedPageContent() {
           !loading &&
           !loadingMore
         ) {
-          void fetchLatestPosts(offset, true)
+          void fetchLatestPosts(cursor, true) // Use cursor for pagination
         }
       },
       { rootMargin: '200px' }
@@ -296,7 +272,7 @@ function FeedPageContent() {
     return () => {
       observer.disconnect()
     }
-  }, [tab, hasMore, loading, loadingMore, offset, fetchLatestPosts])
+  }, [tab, hasMore, loading, loadingMore, cursor, fetchLatestPosts])
 
   useEffect(() => {
     const fetchFollowingPosts = async () => {

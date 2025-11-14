@@ -55,11 +55,11 @@ export function LatestNewsPanel() {
     
     const data = await response.json()
     
-    logger.info('Articles API response:', { 
-      hasPosts: !!data.posts, 
-      count: data.posts?.length || 0,
-      firstPost: data.posts?.[0] 
-    }, 'LatestNewsPanel')
+    // logger.info('Articles API response:', { 
+    //   hasPosts: !!data.posts, 
+    //   count: data.posts?.length || 0,
+    //   firstPost: data.posts?.[0] 
+    // }, 'LatestNewsPanel')
     
     if (data.posts && Array.isArray(data.posts) && data.posts.length > 0) {
       // Transform posts to ArticleItem format
@@ -90,7 +90,7 @@ export function LatestNewsPanel() {
           biasScore: post.biasScore !== null ? post.biasScore : undefined,
         }))
       
-      logger.info('Articles processed:', { count: articlesData.length, articles: articlesData }, 'LatestNewsPanel')
+      // logger.info('Articles processed:', { count: articlesData.length, articles: articlesData }, 'LatestNewsPanel')
       setArticles(articlesData)
       setLatestNews(articlesData) // Cache the data
     } else {

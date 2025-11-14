@@ -218,21 +218,33 @@ class DatabaseService {
   }
 
   /**
-   * Get recent posts (paginated)
+   * Get recent posts with cursor-based pagination
    * Note: Not cached as this is real-time data that updates frequently
    * Filters out posts from test users (isTest = true)
+   * 
+   * @param limit - Number of posts to fetch
+   * @param cursor - Timestamp cursor (ISO string) for pagination. Posts older than this will be returned.
    */
-  async getRecentPosts(limit = 100, offset = 0) {
-    logger.debug('DatabaseService.getRecentPosts called', { limit, offset }, 'DatabaseService');
+  async getRecentPosts(limit = 100, cursor?: string) {
+    logger.debug('DatabaseService.getRecentPosts called', { limit, cursor }, 'DatabaseService');
+    
+    // Build where clause with cursor
+    const where: {
+      deletedAt: null;
+      timestamp?: { lt: Date };
+    } = {
+      deletedAt: null,
+    };
+    
+    if (cursor) {
+      where.timestamp = { lt: new Date(cursor) };
+    }
     
     // Get posts with author information to filter out test users
     // We need to check both User and Actor tables since authorId can reference either
     const allPosts = await prisma.post.findMany({
-      where: {
-        deletedAt: null, // Filter out deleted posts
-      },
+      where,
       take: limit * 2, // Fetch more than needed to account for filtering
-      skip: offset,
       orderBy: { timestamp: 'desc' },
     });
     
@@ -263,7 +275,7 @@ class DatabaseService {
     
     logger.info('DatabaseService.getRecentPosts completed', {
       limit,
-      offset,
+      cursor,
       postCount: posts.length,
       filteredTestPosts: allPosts.length - posts.length,
       firstPostId: posts[0]?.id,
@@ -274,11 +286,15 @@ class DatabaseService {
   }
 
   /**
-   * Get posts by actor
+   * Get posts by actor with cursor-based pagination
    * Filters out posts if the actor is a test user
+   * 
+   * @param authorId - Author ID (user or actor)
+   * @param limit - Number of posts to fetch
+   * @param cursor - Timestamp cursor (ISO string) for pagination
    */
-  async getPostsByActor(authorId: string, limit = 100) {
-    logger.debug('DatabaseService.getPostsByActor called', { authorId, limit }, 'DatabaseService');
+  async getPostsByActor(authorId: string, limit = 100, cursor?: string) {
+    logger.debug('DatabaseService.getPostsByActor called', { authorId, limit, cursor }, 'DatabaseService');
     
     // Check if this actor/user is a test user
     const [user, actor] = await Promise.all([
@@ -303,11 +319,22 @@ class DatabaseService {
       return [];
     }
     
+    // Build where clause with cursor
+    const where: {
+      authorId: string;
+      deletedAt: null;
+      timestamp?: { lt: Date };
+    } = {
+      authorId,
+      deletedAt: null,
+    };
+    
+    if (cursor) {
+      where.timestamp = { lt: new Date(cursor) };
+    }
+    
     const posts = await prisma.post.findMany({
-      where: { 
-        authorId,
-        deletedAt: null, // Filter out deleted posts
-      },
+      where,
       take: limit,
       orderBy: { timestamp: 'desc' },
     });
@@ -315,6 +342,7 @@ class DatabaseService {
     logger.info('DatabaseService.getPostsByActor completed', {
       authorId,
       limit,
+      cursor,
       postCount: posts.length,
     }, 'DatabaseService');
     
