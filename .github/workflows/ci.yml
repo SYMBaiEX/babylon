@@ -184,8 +184,10 @@ jobs:
         with:
           name: build-artifacts
           path: |
+            .next/**
             .next
           retention-days: 1
+          if-no-files-found: error
       
       - name: Build summary
         if: always()
