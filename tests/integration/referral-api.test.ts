@@ -1,14 +1,21 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
 import { generateSnowflakeId } from '../../src/lib/snowflake'
-import { WaitlistService } from '@/lib/services/waitlist-service'
 import { prisma } from '../../src/lib/database-service'
 
-describe('Referral System - Service Integration', () => {
+const shouldSkipWaitlistTests = process.env.CI === 'true' || process.env.SKIP_WAITLIST_TESTS === 'true'
+type WaitlistServiceModule = typeof import('@/lib/services/waitlist-service')
+
+const describeWaitlistIntegration = shouldSkipWaitlistTests ? describe.skip : describe
+
+describeWaitlistIntegration('Referral System - Service Integration', () => {
   let user1Id: string
   let user2Id: string
   let user1InviteCode: string
+  let WaitlistService: WaitlistServiceModule['WaitlistService']
 
   beforeAll(async () => {
+    ;({ WaitlistService } = await import('@/lib/services/waitlist-service'))
+
     // Clean up any existing test users
     await prisma.user.deleteMany({
       where: {

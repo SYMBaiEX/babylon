@@ -1,5 +1,3 @@
-import { withSentryConfig } from '@sentry/nextjs'
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -71,8 +69,7 @@ const nextConfig = {
   },
 }
 
-// Wrap Next.js config with Sentry
-export default withSentryConfig(nextConfig, {
+const sentryWebpackPluginOptions = {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 
@@ -106,4 +103,21 @@ export default withSentryConfig(nextConfig, {
   // https://docs.sentry.io/product/crons/
   // https://vercel.com/docs/cron-jobs
   automaticVercelMonitors: true,
-});
+};
+
+let resolvedConfig = nextConfig;
+
+try {
+  const { withSentryConfig } = await import('@sentry/nextjs');
+  resolvedConfig = withSentryConfig(nextConfig, sentryWebpackPluginOptions);
+} catch (error) {
+  const shouldLog = process.env.CI || process.env.NODE_ENV !== 'production';
+  if (shouldLog) {
+    console.warn(
+      '[next.config.mjs] Sentry integration disabled. Falling back to base config.',
+      error instanceof Error ? error.message : error
+    );
+  }
+}
+
+export default resolvedConfig;
