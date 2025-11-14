@@ -130,7 +130,7 @@ jobs:
       
       - name: Install dependencies
         if: steps.cache-build.outputs.cache-hit != 'true'
-        run: bun install --frozen-lockfile
+        run: bun install 
       
       - name: Setup environment variables
         if: steps.cache-build.outputs.cache-hit != 'true'
@@ -270,7 +270,7 @@ jobs:
           rm -rf node_modules
       
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install 
       
       - name: Setup test environment
         env:
@@ -426,7 +426,7 @@ jobs:
           rm -rf node_modules
       
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install 
       
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps chromium
@@ -549,7 +549,7 @@ jobs:
           rm -rf node_modules
       
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install 
       
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps chromium
