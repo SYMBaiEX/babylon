@@ -197,15 +197,24 @@ jobs:
         with:
           bun-version: latest
       
+      - name: Prepare build directory
+        run: |
+          rm -rf .next
+          mkdir -p .next
+
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts
+          path: .next
       
       - name: Verify downloaded artifacts
         run: |
-          echo "📦 Contents of current directory:"
+          echo "📦 Contents of current directory (top-level):"
           ls -lah
+          echo ""
+          echo "📦 Contents of .next directory:"
+          ls -lah .next
           echo ""
           echo "📦 Looking for .env.test:"
           find . -name ".env.test" -type f || echo "No .env.test found"
@@ -279,7 +288,7 @@ jobs:
           PORT: 3000
         run: |
           echo "🚀 Starting Next.js dev server for integration tests..."
-          bun run dev:next-only > /tmp/next-server.log 2>&1 &
+          SKIP_ENV_VALIDATION=1 bunx --bun next dev > /tmp/next-server.log 2>&1 &
           echo $! > /tmp/next-server.pid
           echo "📝 Server PID: $(cat /tmp/next-server.pid)"
           
@@ -356,15 +365,24 @@ jobs:
         with:
           bun-version: latest
       
+      - name: Prepare build directory
+        run: |
+          rm -rf .next
+          mkdir -p .next
+
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts
+          path: .next
       
       - name: Verify downloaded artifacts
         run: |
-          echo "📦 Contents of current directory:"
+          echo "📦 Contents of current directory (top-level):"
           ls -lah
+          echo ""
+          echo "📦 Contents of .next directory:"
+          ls -lah .next
           if [ -f .env.test ]; then
             echo "✅ .env.test found after download"
           else
@@ -512,15 +530,24 @@ jobs:
         with:
           bun-version: latest
       
+      - name: Prepare build directory
+        run: |
+          rm -rf .next
+          mkdir -p .next
+
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts
+          path: .next
       
       - name: Verify downloaded artifacts
         run: |
-          echo "📦 Contents of current directory:"
+          echo "📦 Contents of current directory (top-level):"
           ls -lah
+          echo ""
+          echo "📦 Contents of .next directory:"
+          ls -lah .next
           if [ -f .env.test ]; then
             echo "✅ .env.test found after download"
           else
