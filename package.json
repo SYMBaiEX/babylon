@@ -5,6 +5,7 @@
   "scripts": {
     "postinstall": "prisma generate",
     "dev": "bun run scripts/pre-dev/pre-dev-local.ts && concurrently -n \"next,cron\" -c \"cyan,magenta\" \"bunx next dev\" \"bun run scripts/local-cron-simulator.ts\"",
+    "dev:next-only": "SKIP_ENV_VALIDATION=1 bunx next dev",
     "dev:testnet": "DEPLOYMENT_ENV=testnet bun run scripts/pre-dev/pre-dev-testnet.ts && concurrently -n \"next,cron\" -c \"cyan,magenta\" \"bunx next dev\" \"bun run scripts/local-cron-simulator.ts\"",
     "build": "prisma generate && NODE_OPTIONS='--max-old-space-size=8192' bunx next build --webpack",
     "start": "bun run scripts/validation/check-environment.ts && bunx next start",
