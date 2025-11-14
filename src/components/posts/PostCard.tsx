@@ -79,14 +79,22 @@ export const PostCard = memo(function PostCard({
   const diffMs = now.getTime() - postDate.getTime();
   const diffMinutes = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
 
   let timeAgo: string;
-  if (diffMinutes < 1) timeAgo = 'Just now';
-  else if (diffMinutes < 60) timeAgo = `${diffMinutes}m ago`;
-  else if (diffHours < 24) timeAgo = `${diffHours}h ago`;
-  else if (diffDays < 7) timeAgo = `${diffDays}d ago`;
-  else timeAgo = postDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (diffMinutes < 1) {
+    timeAgo = 'Just now';
+  } else if (diffMinutes < 60) {
+    timeAgo = `${diffMinutes}m ago`;
+  } else if (diffHours < 24) {
+    timeAgo = `${diffHours}h ago`;
+  } else {
+    // Show date for posts older than 24 hours
+    timeAgo = postDate.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: postDate.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+    });
+  }
 
   const initialInteractions: PostInteraction = {
     postId: post.id,
