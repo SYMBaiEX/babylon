@@ -10,6 +10,7 @@
  * - Automatic connection cleanup and timeout handling
  * - Detailed error logging
  * 
+ * 
  * Serverless Best Practices:
  * - Limits connection pool size to prevent exhaustion
  * - Aggressive connection timeout to release stale connections

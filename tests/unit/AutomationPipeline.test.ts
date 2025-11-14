@@ -9,30 +9,42 @@ import { AutomationPipeline, type AutomationConfig } from '@/lib/training/Automa
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 
-// Store original methods
-const originalPrisma = {
-  trajectory: {
-    count: prisma.trajectory.count.bind(prisma.trajectory),
-    groupBy: prisma.trajectory.groupBy.bind(prisma.trajectory),
-    findMany: prisma.trajectory.findMany.bind(prisma.trajectory),
-    updateMany: prisma.trajectory.updateMany.bind(prisma.trajectory),
-  },
-  trainingBatch: {
-    create: prisma.trainingBatch.create.bind(prisma.trainingBatch),
-    findUnique: prisma.trainingBatch.findUnique.bind(prisma.trainingBatch),
-    findFirst: prisma.trainingBatch.findFirst.bind(prisma.trainingBatch),
-    count: prisma.trainingBatch.count.bind(prisma.trainingBatch),
-  },
-  trainedModel: {
-    findFirst: prisma.trainedModel.findFirst.bind(prisma.trainedModel),
-    create: prisma.trainedModel.create.bind(prisma.trainedModel),
-    count: prisma.trainedModel.count.bind(prisma.trainedModel),
-  },
-  user: {
-    count: prisma.user.count.bind(prisma.user),
-  },
-  $queryRaw: prisma.$queryRaw.bind(prisma),
-};
+// Get original methods lazily to avoid issues with Prisma initialization
+function getOriginalPrisma() {
+  try {
+    // Only bind if Prisma models are available
+    if (!prisma.trajectory || !prisma.trainingBatch || !prisma.trainedModel || !prisma.user) {
+      return null;
+    }
+
+    return {
+      trajectory: {
+        count: prisma.trajectory.count.bind(prisma.trajectory),
+        groupBy: prisma.trajectory.groupBy.bind(prisma.trajectory),
+        findMany: prisma.trajectory.findMany.bind(prisma.trajectory),
+        updateMany: prisma.trajectory.updateMany.bind(prisma.trajectory),
+      },
+      trainingBatch: {
+        create: prisma.trainingBatch.create.bind(prisma.trainingBatch),
+        findUnique: prisma.trainingBatch.findUnique.bind(prisma.trainingBatch),
+        findFirst: prisma.trainingBatch.findFirst.bind(prisma.trainingBatch),
+        count: prisma.trainingBatch.count.bind(prisma.trainingBatch),
+      },
+      trainedModel: {
+        findFirst: prisma.trainedModel.findFirst.bind(prisma.trainedModel),
+        create: prisma.trainedModel.create.bind(prisma.trainedModel),
+        count: prisma.trainedModel.count.bind(prisma.trainedModel),
+      },
+      user: {
+        count: prisma.user.count.bind(prisma.user),
+      },
+      $queryRaw: prisma.$queryRaw.bind(prisma),
+    };
+  } catch (error) {
+    // If Prisma isn't initialized, return null
+    return null;
+  }
+}
 
 const originalLogger = {
   info: logger.info.bind(logger),
@@ -89,13 +101,16 @@ describe('AutomationPipeline - Unit Tests', () => {
   });
 
   afterEach(() => {
-    // Restore original methods
-    Object.assign(prisma.trajectory, originalPrisma.trajectory);
-    Object.assign(prisma.trainingBatch, originalPrisma.trainingBatch);
-    Object.assign(prisma.trainedModel, originalPrisma.trainedModel);
-    Object.assign(prisma.user, originalPrisma.user);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (prisma as any).$queryRaw = originalPrisma.$queryRaw;
+    // Restore original methods if they were captured
+    const originalPrisma = getOriginalPrisma();
+    if (originalPrisma) {
+      Object.assign(prisma.trajectory, originalPrisma.trajectory);
+      Object.assign(prisma.trainingBatch, originalPrisma.trainingBatch);
+      Object.assign(prisma.trainedModel, originalPrisma.trainedModel);
+      Object.assign(prisma.user, originalPrisma.user);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (prisma as any).$queryRaw = originalPrisma.$queryRaw;
+    }
     Object.assign(logger, originalLogger);
   });
 
