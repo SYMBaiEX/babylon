@@ -158,11 +158,6 @@ async function main() {
     logger.info('', undefined, 'Script')
     logger.info('You can now start the dev server:', undefined, 'Script')
     logger.info('  bun run dev', undefined, 'Script')
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    logger.error('❌ Deployment failed:', errorMessage, 'Script')
-    process.exit(1)
-  }
 }
 
 /**

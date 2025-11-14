@@ -44,5 +44,5 @@ test-empty
 .rl-training-status
 dev-server.log
 dev-server.pid
-./benchmarks
+benchmarks/
 __pycache__
