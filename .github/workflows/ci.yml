@@ -248,7 +248,6 @@ jobs:
           # Use CI test database directly
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-          REDIS_URL: redis://localhost:6379
           # Pass secrets with correct names (not _VAR suffix)
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'test-secret-key' }}
           PRIVY_APP_ID: ${{ secrets.PRIVY_APP_ID || '' }}
