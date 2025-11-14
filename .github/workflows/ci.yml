@@ -110,6 +110,9 @@ jobs:
       - name: Run Prisma Generate
         run: bunx prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
       
+      - name: Clean stale .next types before typecheck
+        run: rm -rf .next/types
+      
       - name: Type Check
         run: bun typecheck
       
