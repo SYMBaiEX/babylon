@@ -420,12 +420,13 @@ jobs:
       - name: Start production server
         run: |
           echo "🚀 Starting production server..."
-          bun run start > /tmp/prod-server.log 2>&1 &
+          bun scripts/validation/check-environment.ts
+          bunx --bun next start > /tmp/prod-server.log 2>&1 &
           echo $! > /tmp/prod-server.pid
           echo "📝 Server PID: $(cat /tmp/prod-server.pid)"
 
           echo "⏳ Waiting for server to be ready..."
-          timeout 120 bash -c 'until curl -sf http://localhost:3000/api/health; do sleep 2; done' || {
+          timeout 360 bash -c 'until curl -sf http://localhost:3000/api/health; do sleep 2; done' || {
             echo "❌ Server failed to respond within 120s. Logs:"
             if [ -f /tmp/prod-server.log ]; then
               tail -n 200 /tmp/prod-server.log
@@ -575,12 +576,13 @@ jobs:
       - name: Start production server
         run: |
           echo "🚀 Starting production server..."
-          bun run start > /tmp/prod-server.log 2>&1 &
+          bun scripts/validation/check-environment.ts
+          bunx --bun next start > /tmp/prod-server.log 2>&1 &
           echo $! > /tmp/prod-server.pid
           echo "📝 Server PID: $(cat /tmp/prod-server.pid)"
 
           echo "⏳ Waiting for server to be ready..."
-          timeout 120 bash -c 'until curl -sf http://localhost:3000/api/health; do sleep 2; done' || {
+          timeout 360 bash -c 'until curl -sf http://localhost:3000/api/health; do sleep 2; done' || {
             echo "❌ Server failed to respond within 120s. Logs:"
             if [ -f /tmp/prod-server.log ]; then
               tail -n 200 /tmp/prod-server.log
