@@ -157,33 +157,63 @@ export const prismaBase = basePrismaClient as PrismaClient;
 // Lazy initialization wrapper for prisma that ensures client is created on first access
 // This is important for tests where DATABASE_URL might be set after module load
 function getPrismaWithRetry(): PrismaClient {
+  const isTestEnv = process.env.NODE_ENV === 'test' || process.env.BUN_ENV === 'test';
   let client = getPrismaClient();
   
-  // If client is still null, try one more time (for tests where DATABASE_URL is set late)
+  // In test environments, be more aggressive about checking DATABASE_URL
+  // This handles cases where DATABASE_URL is set after module load (common in CI)
   if (!client) {
     const databaseUrl = process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL;
     if (databaseUrl) {
       globalForPrisma.prisma = createPrismaClient();
       client = globalForPrisma.prisma;
+    } else if (isTestEnv) {
+      // In test environments, provide a more helpful error message
+      const envVars = Object.keys(process.env)
+        .filter(key => key.includes('DATABASE') || key.includes('DB'))
+        .join(', ');
+      throw new Error(
+        'Prisma Client is not initialized in test environment. ' +
+        `DATABASE_URL is not set. Available env vars: ${envVars || 'none'}. ` +
+        'Make sure DATABASE_URL is set before running tests.'
+      );
     }
   }
   
   if (!client) {
+    // Only throw for non-test environments (build time, etc.)
+    if (!isTestEnv) {
+      throw new Error(
+        'Prisma Client is not initialized. ' +
+        'This can happen during Next.js build time or when DATABASE_URL is not set. ' +
+        'Make sure DATABASE_URL is set in your environment.'
+      );
+    }
+    // In test environments, we should have caught this above, but double-check
     throw new Error(
-      'Prisma Client is not initialized. ' +
-      'This can happen during Next.js build time or when DATABASE_URL is not set. ' +
-      'Make sure DATABASE_URL is set in your environment.'
+      'Prisma Client is not initialized in test environment. ' +
+      'This should not happen - DATABASE_URL should be set before tests run.'
     );
   }
   
   // Create retry proxy if not already created
+  // In test environments, use fewer retries to fail fast and avoid masking real issues
   if (!globalForPrisma.prismaWithRetry) {
-    globalForPrisma.prismaWithRetry = createRetryProxy(client, {
-      maxRetries: 5,
-      initialDelayMs: 100,
-      maxDelayMs: 5000,
-      jitter: true,
-    }) as ReturnType<typeof createRetryProxy<PrismaClient>>;
+    const retryOptions = isTestEnv
+      ? {
+          maxRetries: 2, // Fail fast in tests
+          initialDelayMs: 50,
+          maxDelayMs: 500,
+          jitter: false, // Deterministic in tests
+        }
+      : {
+          maxRetries: 5,
+          initialDelayMs: 100,
+          maxDelayMs: 5000,
+          jitter: true,
+        };
+    
+    globalForPrisma.prismaWithRetry = createRetryProxy(client, retryOptions) as ReturnType<typeof createRetryProxy<PrismaClient>>;
   }
   
   return globalForPrisma.prismaWithRetry as unknown as PrismaClient;
@@ -195,10 +225,30 @@ function getPrismaWithRetry(): PrismaClient {
 function createLazyPrismaProxy(): PrismaClient {
   return new Proxy({} as PrismaClient, {
     get<K extends keyof PrismaClient>(_target: PrismaClient, prop: K): PrismaClient[K] {
-      const client = getPrismaWithRetry();
-      // Return the property with proper type inference
-      // TypeScript will preserve the exact type from PrismaClient[K]
-      return client[prop];
+      try {
+        const client = getPrismaWithRetry();
+        // Return the property with proper type inference
+        // TypeScript will preserve the exact type from PrismaClient[K]
+        const value = client[prop];
+        if (value === undefined && typeof prop === 'string') {
+          // In test environments, provide better error messages
+          const isTestEnv = process.env.NODE_ENV === 'test' || process.env.BUN_ENV === 'test';
+          if (isTestEnv) {
+            throw new Error(
+              `Prisma model "${prop}" is undefined. ` +
+              `This usually means DATABASE_URL is not set or Prisma client failed to initialize. ` +
+              `DATABASE_URL=${process.env.DATABASE_URL ? 'set' : 'NOT SET'}`
+            );
+          }
+        }
+        return value;
+      } catch (error) {
+        // Re-throw with context if it's already an Error
+        if (error instanceof Error) {
+          throw error;
+        }
+        throw new Error(`Failed to access Prisma property "${String(prop)}": ${error}`);
+      }
     },
     set<K extends keyof PrismaClient>(_target: PrismaClient, prop: K, value: PrismaClient[K]): boolean {
       // Allow property assignment for testing/mocking purposes

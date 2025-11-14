@@ -1,0 +1,34 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "Running pre-commit checks..."
+
+# Run TypeScript typecheck
+bun run typecheck
+if [ $? -ne 0 ]; then
+  echo "❌ Typecheck failed. Fix errors before committing."
+  exit 1
+fi
+
+# Run linting
+bun run lint
+if [ $? -ne 0 ]; then
+  echo "❌ Linting failed. Fix issues before committing."
+  exit 1
+fi
+
+# Run unit and integration tests
+bun run test
+if [ $? -ne 0 ]; then
+  echo "❌ Tests failed. Fix failing tests before committing."
+  exit 1
+fi
+
+# Run build
+bun run build
+if [ $? -ne 0 ]; then
+  echo "❌ Build failed. Fix build errors before committing."
+  exit 1
+fi
+
+echo "✅ All pre-commit checks passed!"
