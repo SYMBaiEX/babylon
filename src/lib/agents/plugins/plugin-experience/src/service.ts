@@ -4,8 +4,6 @@ import {
   type ServiceTypeName,
   logger,
   type UUID,
-  type Memory,
-  createUniqueUuid,
   ModelType,
 } from '@elizaos/core';
 import {
@@ -14,11 +12,9 @@ import {
   type ExperienceAnalysis,
   ExperienceType,
   OutcomeType,
-  type ExperienceEvent,
   ExperienceServiceType,
 } from './types';
 import { v4 as uuidv4 } from 'uuid';
-import { analyzeExperience, detectPatterns } from './utils/experienceAnalyzer';
 import { ConfidenceDecayManager } from './utils/confidenceDecay';
 import { ExperienceRelationshipManager } from './utils/experienceRelationships';
 
@@ -352,9 +348,11 @@ export class ExperienceService extends Service {
     let normB = 0;
 
     for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
+      const valueA = a[i] ?? 0;
+      const valueB = b[i] ?? 0;
+      dotProduct += valueA * valueB;
+      normA += valueA * valueA;
+      normB += valueB * valueB;
     }
 
     if (normA === 0 || normB === 0) return 0;
@@ -405,8 +403,9 @@ export class ExperienceService extends Service {
       if (exp.outcome === OutcomeType.NEGATIVE && exp.learning.includes('instead')) {
         // Extract alternative from learning
         const match = exp.learning.match(/instead\s+(.+?)(?:\.|$)/i);
-        if (match) {
-          alternatives.add(match[1].trim());
+        const alternative = match?.[1]?.trim();
+        if (alternative) {
+          alternatives.add(alternative);
         }
       }
     }
@@ -443,12 +442,12 @@ export class ExperienceService extends Service {
         failureTypes.set(key, (failureTypes.get(key) || 0) + 1);
       });
 
-    if (failureTypes.size > 0) {
-      const mostCommonFailure = Array.from(failureTypes.entries()).sort((a, b) => b[1] - a[1])[0];
+      if (failureTypes.size > 0) {
+        const mostCommonFailure = Array.from(failureTypes.entries()).sort((a, b) => b[1] - a[1])[0];
 
-      if (mostCommonFailure[1] > 1) {
-        recommendations.push(`Address recurring issue: ${mostCommonFailure[0]}`);
-      }
+        if (mostCommonFailure && mostCommonFailure[1] > 1) {
+          recommendations.push(`Address recurring issue: ${mostCommonFailure[0]}`);
+        }
     }
 
     // Add domain-specific recommendations

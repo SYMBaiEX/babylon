@@ -7,13 +7,12 @@
  * - Proper originalPostId tracking
  */
 
-import { describe, test, expect, beforeEach } from '@jest/globals';
+import { describe, test, expect } from 'bun:test';
 
 describe('Quote Post Functionality', () => {
   describe('Repost Content Format', () => {
     test('should format simple repost correctly', () => {
       const originalContent = 'This is the original post';
-      const originalAuthorUsername = 'testuser';
       
       const repostContent = originalContent;
       

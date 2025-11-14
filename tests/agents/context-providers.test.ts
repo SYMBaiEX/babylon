@@ -15,6 +15,13 @@ import type { AgentRuntime } from '@elizaos/core'
 describe('Agent Context Providers', () => {
   let testAgentId: string
   let runtime: AgentRuntime
+  
+  // Mock state for provider calls
+  const mockState = {
+    values: {},
+    data: {},
+    text: ''
+  }
 
   beforeAll(async () => {
     // Create test agent
@@ -131,7 +138,7 @@ describe('Agent Context Providers', () => {
         userId: testAgentId,
         agentId: testAgentId,
         content: { text: 'Get headlines' }
-      } as any, undefined)
+      } as any, mockState)
       
       expect(result.text).toBeDefined()
       expect(typeof result.text).toBe('string')
@@ -158,7 +165,8 @@ describe('Agent Context Providers', () => {
           type: 'company',
           description: 'A test company that gained value',
           currentPrice: 150,
-          initialPrice: 100
+          initialPrice: 100,
+          updatedAt: new Date()
         }
       })
       
@@ -169,7 +177,8 @@ describe('Agent Context Providers', () => {
           type: 'company',
           description: 'A test company that lost value',
           currentPrice: 50,
-          initialPrice: 100
+          initialPrice: 100,
+          updatedAt: new Date()
         }
       })
       
@@ -177,7 +186,7 @@ describe('Agent Context Providers', () => {
         userId: testAgentId,
         agentId: testAgentId,
         content: { text: 'Get market movers' }
-      } as any, undefined)
+      } as any, mockState)
       
       expect(result.text).toBeDefined()
       expect(result.text).toContain('GAINERS')
@@ -201,15 +210,16 @@ describe('Agent Context Providers', () => {
         userId: testAgentId,
         agentId: testAgentId,
         content: { text: 'Show my wallet' }
-      } as any, undefined)
+      } as any, mockState)
       
       expect(result.text).toBeDefined()
       expect(result.text).toContain('Your Wallet')
       expect(result.text).toContain('BALANCES')
       expect(result.data).toBeDefined()
-      expect(result.data?.balances).toBeDefined()
-      expect(result.data?.balances.virtualBalance).toBe(10000)
-      expect(result.data?.balances.reputationPoints).toBe(1000)
+      const balances = result.data?.balances as any
+      expect(balances).toBeDefined()
+      expect(balances.virtualBalance).toBe(10000)
+      expect(balances.reputationPoints).toBe(1000)
     })
   })
 
@@ -227,7 +237,8 @@ describe('Agent Context Providers', () => {
           type: 'company',
           description: 'Technology company',
           currentPrice: 180,
-          initialPrice: 150
+          initialPrice: 150,
+          updatedAt: new Date()
         }
       })
       
@@ -235,7 +246,7 @@ describe('Agent Context Providers', () => {
         userId: testAgentId,
         agentId: testAgentId,
         content: { text: 'What do you think about $AAPL and Apple Inc?' }
-      } as any, undefined)
+      } as any, mockState)
       
       expect(result.text).toBeDefined()
       if (result.text) {
@@ -272,7 +283,7 @@ describe('Agent Context Providers', () => {
         userId: testAgentId,
         agentId: testAgentId,
         content: { text: 'Have you talked to @testuser123?' }
-      } as any, undefined)
+      } as any, mockState)
       
       expect(result.text).toBeDefined()
       if (result.text) {
@@ -293,7 +304,7 @@ describe('Agent Context Providers', () => {
         userId: testAgentId,
         agentId: testAgentId,
         content: { text: 'What is trending?' }
-      } as any, undefined)
+      } as any, mockState)
       
       expect(result.text).toBeDefined()
       expect(typeof result.text).toBe('string')
@@ -329,7 +340,7 @@ describe('Agent Context Providers', () => {
       
       for (const provider of runtime.providers) {
         try {
-          const result = await provider.get(runtime, message, undefined)
+          const result = await provider.get(runtime, message, mockState)
           if (result.text) {
             contexts.push(result.text)
           }

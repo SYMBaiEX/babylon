@@ -10,7 +10,7 @@ import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { groqPlugin } from '../plugins/groq'
 import { enhanceRuntimeWithBabylon } from '../plugins/babylon/integration'
-import { experiencePlugin } from '../plugins/plugin-experience'
+import { experiencePlugin } from '../plugins/plugin-experience/src'
 
 // Global runtime cache for warm container reuse
 const globalRuntimes = new Map<string, AgentRuntime>()

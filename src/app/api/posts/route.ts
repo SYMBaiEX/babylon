@@ -509,7 +509,7 @@ export const GET = withErrorHandling(async (request: Request) => {
       if (parsedRepostData || post.originalPostId) {
         // Try to get original author info
         let originalAuthor = null
-        let originalPostId = post.originalPostId || null
+        const originalPostId = post.originalPostId || null
         let effectiveRepostData = parsedRepostData
         
         if (parsedRepostData) {

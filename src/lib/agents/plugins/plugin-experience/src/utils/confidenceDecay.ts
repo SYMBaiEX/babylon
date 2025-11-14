@@ -1,4 +1,4 @@
-import { Experience } from '../types';
+import type { Experience } from '../types';
 
 export interface DecayConfig {
   halfLife: number; // Time in milliseconds for confidence to decay by half

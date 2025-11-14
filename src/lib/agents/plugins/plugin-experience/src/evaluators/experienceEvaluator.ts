@@ -5,11 +5,18 @@ import {
   type State,
   logger,
   type HandlerCallback,
-  type ProviderResult,
   ModelType,
 } from '@elizaos/core';
-import { ExperienceService } from '../service';
+import type { ExperienceService } from '../service';
 import { ExperienceType, OutcomeType } from '../types';
+
+type ExtractedExperience = {
+  type?: string;
+  learning?: string;
+  context?: string;
+  confidence?: number;
+  reasoning?: string;
+};
 
 export const experienceEvaluator: Evaluator = {
   name: 'EXPERIENCE_EVALUATOR',
@@ -58,6 +65,8 @@ export const experienceEvaluator: Evaluator = {
   ],
 
   async validate(runtime: IAgentRuntime, message: Memory, state?: State): Promise<boolean> {
+    void state; // State currently unused during validation
+
     // Only run every 10 messages and only on agent messages
     if (message.entityId !== runtime.agentId) {
       return false;
@@ -91,6 +100,11 @@ export const experienceEvaluator: Evaluator = {
     callback?: HandlerCallback,
     responses?: Memory[]
   ): Promise<void> {
+    void message; // Message currently unused within evaluator handler
+    void options; // Options reserved for future evaluator configuration
+    void callback; // Callback not required for evaluator flow
+    void responses; // Responses not utilized in current evaluator logic
+
     const experienceService = runtime.getService('EXPERIENCE') as ExperienceService;
 
     if (!experienceService) {
@@ -107,7 +121,7 @@ export const experienceEvaluator: Evaluator = {
 
     // Combine recent messages into analysis context
     const conversationContext = recentMessages
-      .map((m) => m.content.text)
+      .map((m: Memory) => m.content.text)
       .filter(Boolean)
       .join(' ');
 
@@ -152,26 +166,34 @@ Return empty array [] if no novel experiences found.`;
       prompt: extractionPrompt,
     });
 
-    let experiences: any[] = [];
+    let experiences: ExtractedExperience[] = [];
     const jsonMatch = response.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
-      experiences = JSON.parse(jsonMatch[0]);
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (Array.isArray(parsed)) {
+        experiences = parsed.filter((item): item is ExtractedExperience => {
+          return item && typeof item === 'object';
+        });
+      }
     }
 
     // Record each novel experience
+    const experienceTypeMap: Record<string, ExperienceType> = {
+      DISCOVERY: ExperienceType.DISCOVERY,
+      CORRECTION: ExperienceType.CORRECTION,
+      SUCCESS: ExperienceType.SUCCESS,
+      LEARNING: ExperienceType.LEARNING,
+    };
+
     for (const exp of experiences.slice(0, 3)) {
       // Max 3 experiences per extraction
       if (!exp.learning || !exp.confidence || exp.confidence < 0.6) {
         continue;
       }
 
-      const experienceType =
-        {
-          DISCOVERY: ExperienceType.DISCOVERY,
-          CORRECTION: ExperienceType.CORRECTION,
-          SUCCESS: ExperienceType.SUCCESS,
-          LEARNING: ExperienceType.LEARNING,
-        }[exp.type] || ExperienceType.LEARNING;
+      const normalizedType = typeof exp.type === 'string' ? exp.type.toUpperCase() : '';
+      const experienceType = experienceTypeMap[normalizedType] ?? ExperienceType.LEARNING;
+      const experienceTag = experienceType;
 
       await experienceService.recordExperience({
         type: experienceType,
@@ -182,7 +204,7 @@ Return empty array [] if no novel experiences found.`;
         result: exp.learning,
         learning: sanitizeContext(exp.learning),
         domain: detectDomain(exp.learning),
-        tags: ['extracted', 'novel', exp.type.toLowerCase()],
+        tags: ['extracted', 'novel', experienceTag],
         confidence: Math.min(exp.confidence, 0.9), // Cap confidence
         importance: 0.8, // High importance for extracted experiences
       });

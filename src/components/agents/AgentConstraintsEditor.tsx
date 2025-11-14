@@ -261,11 +261,11 @@ export function AgentConstraintsEditor({
                       checked={constraints.trading.allowedMarketTypes.includes('prediction')}
                       onCheckedChange={(checked) => {
                         const types = checked
-                          ? [...constraints.trading.allowedMarketTypes, 'prediction']
+                          ? [...constraints.trading.allowedMarketTypes, 'prediction' as const]
                           : constraints.trading.allowedMarketTypes.filter(t => t !== 'prediction')
                         setConstraints({
                           ...constraints,
-                          trading: { ...constraints.trading, allowedMarketTypes: types as any }
+                          trading: { ...constraints.trading, allowedMarketTypes: types as ('prediction' | 'perp')[] }
                         })
                       }}
                     />
@@ -276,11 +276,11 @@ export function AgentConstraintsEditor({
                       checked={constraints.trading.allowedMarketTypes.includes('perp')}
                       onCheckedChange={(checked) => {
                         const types = checked
-                          ? [...constraints.trading.allowedMarketTypes, 'perp']
+                          ? [...constraints.trading.allowedMarketTypes, 'perp' as const]
                           : constraints.trading.allowedMarketTypes.filter(t => t !== 'perp')
                         setConstraints({
                           ...constraints,
-                          trading: { ...constraints.trading, allowedMarketTypes: types as any }
+                          trading: { ...constraints.trading, allowedMarketTypes: types as ('prediction' | 'perp')[] }
                         })
                       }}
                     />

@@ -83,7 +83,7 @@ export class AutonomyService extends Service {
         worldId,
         agentId: this.runtime.agentId,
         source: 'autonomy-plugin',
-        type: 'AUTONOMOUS' as any,
+        type: 'AUTONOMOUS' as string,
         metadata: {
           source: 'autonomy-plugin',
           description: 'Room for autonomous agent thinking',
@@ -228,7 +228,7 @@ export class AutonomyService extends Service {
           m.entityId === agentEntity.id &&
           m.content?.text &&
           m.content?.metadata &&
-          (m.content.metadata as any)?.isAutonomous === true
+          (m.content.metadata as Record<string, unknown>)?.isAutonomous === true
       )
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
 

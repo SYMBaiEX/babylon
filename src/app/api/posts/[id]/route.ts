@@ -227,11 +227,11 @@ export const GET = withErrorHandling(async (
         const parsedRepostData = gamePost.content ? parseRepostContent(gamePost.content) : null;
         let repostMetadata = {};
         
-        const originalPostIdFromGame = (gamePost as any).originalPostId;
+        const originalPostIdFromGame = 'originalPostId' in gamePost ? (gamePost as Record<string, unknown>).originalPostId as string | undefined : undefined;
         if (parsedRepostData || originalPostIdFromGame) {
           // Try to get original author info
           let originalAuthor = null;
-          let originalPostId = originalPostIdFromGame || null;
+          const originalPostId = originalPostIdFromGame || null;
           let effectiveRepostData = parsedRepostData;
           
           if (parsedRepostData) {

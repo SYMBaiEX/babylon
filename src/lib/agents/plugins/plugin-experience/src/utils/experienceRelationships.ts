@@ -1,4 +1,5 @@
-import { Experience, ExperienceType } from '../types';
+import type { Experience} from '../types';
+import { ExperienceType } from '../types';
 import { type UUID } from '@elizaos/core';
 
 export interface ExperienceChain {
@@ -13,12 +14,11 @@ export interface ExperienceRelationship {
   toId: string;
   type: 'causes' | 'contradicts' | 'supports' | 'supersedes' | 'related';
   strength: number; // 0-1
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export class ExperienceRelationshipManager {
   private relationships: Map<string, ExperienceRelationship[]> = new Map();
-  private chains: Map<string, ExperienceChain> = new Map();
 
   addRelationship(relationship: ExperienceRelationship): void {
     const { fromId } = relationship;
@@ -45,6 +45,9 @@ export class ExperienceRelationshipManager {
     // Look for sequences where success follows hypothesis
     for (let i = 0; i < sorted.length - 1; i++) {
       const current = sorted[i];
+      if (!current) {
+        continue;
+      }
 
       if (current.type === ExperienceType.HYPOTHESIS) {
         const chain: string[] = [current.id];
@@ -53,6 +56,10 @@ export class ExperienceRelationshipManager {
         // Look for related experiences
         while (j < sorted.length) {
           const next = sorted[j];
+          if (!next) {
+            j++;
+            continue;
+          }
 
           // Check if next experience validates or contradicts the hypothesis
           if (next.relatedExperiences?.includes(current.id) || this.isRelated(current, next)) {
