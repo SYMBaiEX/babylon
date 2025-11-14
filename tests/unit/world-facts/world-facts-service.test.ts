@@ -167,12 +167,16 @@ describe('WorldFactsService', () => {
       'Test Value'
     );
 
-    const promptContext = await worldFactsService.generatePromptContext();
-
-    expect(promptContext).toBeDefined();
-    expect(typeof promptContext).toBe('string');
-    expect(promptContext).toContain('WORLD CONTEXT');
-    expect(promptContext).toContain('Date/Time:');
+    // Generate context without headlines to avoid LLM requirement
+    const context = await worldFactsService.generateWorldContext(false);
+    
+    expect(context).toBeDefined();
+    expect(context.timestamp).toBeDefined();
+    expect(typeof context.crypto).toBe('string');
+    expect(typeof context.politics).toBe('string');
+    expect(typeof context.economy).toBe('string');
+    expect(typeof context.technology).toBe('string');
+    expect(typeof context.general).toBe('string');
   });
 
   test('should bulk update facts', async () => {
