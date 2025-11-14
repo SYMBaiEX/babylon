@@ -26,6 +26,7 @@ interface OnboardingModalProps {
   stage: 'PROFILE' | 'ONCHAIN' | 'COMPLETED'
   isSubmitting: boolean
   error?: string | null
+  isWalletReady: boolean
   onSubmitProfile: (payload: OnboardingProfilePayload) => Promise<void>
   onRetryOnchain: () => Promise<void>
   onSkipOnchain: () => void
@@ -71,6 +72,7 @@ export function OnboardingModal({
   stage,
   isSubmitting,
   error,
+  isWalletReady,
   onSubmitProfile,
   onRetryOnchain,
   onSkipOnchain,
@@ -660,14 +662,19 @@ export function OnboardingModal({
                       Wallet: {user.walletAddress.slice(0, 6)}...{user.walletAddress.slice(-4)}
                     </p>
                   )}
+                  {!isWalletReady && (
+                    <p className="text-xs text-amber-500 max-w-md">
+                      Preparing your Babylon smart wallet. We&apos;ll continue automatically once it&apos;s ready.
+                    </p>
+                  )}
                   <div className="flex flex-col gap-2 mt-4 w-full max-w-xs">
                     <button
                       type="button"
                       className="w-full px-4 py-2 bg-[#0066FF] text-primary-foreground rounded-lg disabled:opacity-50 hover:bg-[#0066FF]/90"
                       onClick={onRetryOnchain}
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || !isWalletReady}
                     >
-                      Register On-Chain
+                      {isWalletReady ? 'Register On-Chain' : 'Preparing Wallet...'}
                     </button>
                     <button
                       type="button"

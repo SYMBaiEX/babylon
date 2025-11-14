@@ -26,15 +26,6 @@ import { clearReferralCode, getReferralCode } from './ReferralCaptureProvider';
 
 type OnboardingStage = 'PROFILE' | 'ONCHAIN' | 'COMPLETED';
 
-function extractErrorMessage(error: Error | { message: string } | string): string {
-  if (typeof error === 'string') return error;
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
-    return error.message;
-  }
-  return 'Unknown error';
-}
-
 export function OnboardingProvider({
   children,
 }: {
@@ -67,6 +58,9 @@ export function OnboardingProvider({
     useState<ImportedProfileData | null>(null);
   const [hasProgressedPastSocialImport, setHasProgressedPastSocialImport] =
     useState(false);
+  const [pendingOnchainSubmission, setPendingOnchainSubmission] =
+    useState<OnboardingProfilePayload | null>(null);
+  const [onchainReferralCode, setOnchainReferralCode] = useState<string | null>(null);
   
   // Delay modal display to prevent flickering
   const [isReadyToShow, setIsReadyToShow] = useState(false);
@@ -159,6 +153,8 @@ export function OnboardingProvider({
       setUserDismissed(false); // Reset dismissed state on logout
       setImportedProfileData(null);
       setHasProgressedPastSocialImport(false);
+      setPendingOnchainSubmission(null);
+      setOnchainReferralCode(null);
       return;
     }
 
@@ -509,6 +505,33 @@ export function OnboardingProvider({
     ]
   );
 
+  useEffect(() => {
+    if (
+      stage !== 'ONCHAIN' ||
+      !pendingOnchainSubmission ||
+      !smartWalletReady ||
+      !smartWalletAddress ||
+      isSubmitting
+    ) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+    void submitOnchain(pendingOnchainSubmission, onchainReferralCode).finally(() => {
+      setPendingOnchainSubmission(null);
+      setIsSubmitting(false);
+    });
+  }, [
+    stage,
+    pendingOnchainSubmission,
+    smartWalletReady,
+    smartWalletAddress,
+    isSubmitting,
+    submitOnchain,
+    onchainReferralCode,
+  ]);
+
   const handleProfileSubmit = useCallback(
     async (payload: OnboardingProfilePayload) => {
       setIsSubmitting(true);
@@ -578,13 +601,12 @@ export function OnboardingProvider({
 
       clearReferralCode();
       setSubmittedProfile(payload);
+      setOnchainReferralCode(referralCode ?? null);
+      setPendingOnchainSubmission({ ...payload });
       setStage('ONCHAIN');
-
-      await submitOnchain(payload, referralCode);
       setIsSubmitting(false);
     },
     [
-      submitOnchain,
       user,
       setUser,
       setNeedsOnboarding,
@@ -596,20 +618,11 @@ export function OnboardingProvider({
 
   const handleRetryOnchain = useCallback(async () => {
     if (!submittedProfile) return;
-    setIsSubmitting(true);
     setError(null);
 
-    await submitOnchain(submittedProfile, getReferralCode()).catch((rawError: Error) => {
-      const message = extractErrorMessage(rawError);
-      setError(message);
-      logger.error(
-        'Failed to retry on-chain onboarding',
-        { error: rawError.message },
-        'OnboardingProvider'
-      );
-    });
-    setIsSubmitting(false);
-  }, [submittedProfile, submitOnchain]);
+    setOnchainReferralCode((prev) => prev ?? getReferralCode());
+    setPendingOnchainSubmission({ ...submittedProfile });
+  }, [submittedProfile]);
 
   const handleSkipOnchain = useCallback(() => {
     logger.info(
@@ -623,6 +636,8 @@ export function OnboardingProvider({
     setSubmittedProfile(null);
     setError(null);
     setImportedProfileData(null);
+    setPendingOnchainSubmission(null);
+    setOnchainReferralCode(null);
   }, [user, setNeedsOnchain]);
 
   const handleClose = useCallback(() => {
@@ -643,6 +658,8 @@ export function OnboardingProvider({
     setError(null);
     setImportedProfileData(null);
     setHasProgressedPastSocialImport(false);
+    setPendingOnchainSubmission(null);
+    setOnchainReferralCode(null);
 
     // Clear onboarding flags so modal doesn't keep reappearing
     setNeedsOnboarding(false);
@@ -665,6 +682,7 @@ export function OnboardingProvider({
           stage={stage}
           isSubmitting={isSubmitting}
           error={error}
+          isWalletReady={Boolean(smartWalletReady && smartWalletAddress)}
           onSubmitProfile={handleProfileSubmit}
           onRetryOnchain={handleRetryOnchain}
           onSkipOnchain={handleSkipOnchain}
