@@ -6,7 +6,7 @@
  */
 
 import { logger } from '@/lib/logger'
-import OpenAI from 'openai'
+type OpenAIClient = import('openai').default
 
 // Try Groq first, then OpenAI (Groq is faster and often more reliable)
 const apiKey = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY
@@ -15,17 +15,35 @@ const baseURL = process.env.GROQ_API_KEY
   : 'https://api.openai.com/v1'
 
 // Lazy initialization - only create client when needed and API key is available
-let openaiClient: OpenAI | null = null
-function getOpenAIClient(): OpenAI | null {
+let openaiClient: OpenAIClient | null = null
+let openaiImportAttempted = false
+
+async function getOpenAIClient(): Promise<OpenAIClient | null> {
   if (!apiKey) {
     return null // No API key configured
   }
-  if (!openaiClient) {
-    openaiClient = new OpenAI({
-      apiKey,
-      baseURL,
-    })
+  if (openaiClient) {
+    return openaiClient
   }
+
+  if (!openaiImportAttempted) {
+    openaiImportAttempted = true
+    try {
+      const { default: OpenAI } = await import('openai')
+      openaiClient = new OpenAI({
+        apiKey,
+        baseURL,
+      })
+    } catch (error) {
+      logger.warn(
+        'OpenAI SDK not available, tag generation disabled',
+        { error },
+        'TagGenerationService'
+      )
+      openaiClient = null
+    }
+  }
+
   return openaiClient
 }
 
@@ -39,7 +57,7 @@ export interface GeneratedTag {
  * Generate 1-3 organic tags from post content
  */
 export async function generateTagsFromPost(content: string): Promise<GeneratedTag[]> {
-  const openai = getOpenAIClient()
+  const openai = await getOpenAIClient()
   
   // If no API key configured, return empty tags (graceful degradation)
   if (!openai) {
