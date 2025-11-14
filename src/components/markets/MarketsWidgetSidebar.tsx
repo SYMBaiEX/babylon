@@ -2,6 +2,7 @@
 
 import { MarketOverviewPanel } from './MarketOverviewPanel'
 import { TopMoversPanel } from './TopMoversPanel'
+import { PredictionTrendingPanel } from './PredictionTrendingPanel'
 
 interface MarketsWidgetSidebarProps {
   onMarketClick?: (market: {
@@ -23,9 +24,10 @@ interface MarketsWidgetSidebarProps {
     maxLeverage?: number
     minOrderSize?: number
   }) => void
+  onPredictionClick?: (marketId: string) => void
 }
 
-export function MarketsWidgetSidebar({ onMarketClick }: MarketsWidgetSidebarProps) {
+export function MarketsWidgetSidebar({ onMarketClick, onPredictionClick }: MarketsWidgetSidebarProps) {
   return (
     <div className="hidden xl:flex flex-col w-96 shrink-0 overflow-y-auto bg-sidebar p-4 gap-4">
       {/* Top: Market Overview */}
@@ -37,7 +39,11 @@ export function MarketsWidgetSidebar({ onMarketClick }: MarketsWidgetSidebarProp
       <div className="flex-1 flex flex-col min-h-[200px]">
         <TopMoversPanel onMarketClick={onMarketClick} />
       </div>
+
+      {/* Bottom: Prediction Markets */}
+      <div className="flex-1 flex flex-col min-h-[200px]">
+        <PredictionTrendingPanel onMarketClick={onPredictionClick} />
+      </div>
     </div>
   )
 }
-

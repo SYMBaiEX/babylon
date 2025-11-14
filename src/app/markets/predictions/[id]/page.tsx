@@ -12,7 +12,8 @@ import { PredictionPricing, calculateExpectedPayout } from '@/lib/prediction-pri
 import { cn } from '@/lib/utils'
 import { ArrowLeft, CheckCircle, Clock, Info, TrendingUp, Users, XCircle } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { usePredictionHistory } from '@/hooks/usePredictionHistory'
 import { toast } from 'sonner'
 import { Skeleton } from '@/components/shared/Skeleton'
 import { useMarketTracking } from '@/hooks/usePostHog'
@@ -51,14 +52,6 @@ interface PredictionPosition {
   resolution?: boolean | null
 }
 
-interface PricePoint {
-  time: number
-  yesPrice: number
-  noPrice: number
-  volume: number
-  liquidity: number
-}
-
 export default function PredictionDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -69,7 +62,6 @@ export default function PredictionDetailPage() {
   const from = searchParams.get('from')
 
   const [market, setMarket] = useState<PredictionMarket | null>(null)
-  const [priceHistory, setPriceHistory] = useState<PricePoint[]>([])
   const [loading, setLoading] = useState(true)
   const [side, setSide] = useState<'yes' | 'no'>('yes')
   const [amount, setAmount] = useState('10')
@@ -77,6 +69,22 @@ export default function PredictionDetailPage() {
   const [userPosition, setUserPosition] = useState<PredictionPosition | null>(null)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const pageContainerRef = useRef<HTMLDivElement | null>(null)
+
+  const historySeed = useMemo(
+    () =>
+      market
+        ? {
+            yesShares: market.yesShares ?? 0,
+            noShares: market.noShares ?? 0,
+            liquidity: market.liquidity ?? 0,
+          }
+        : undefined,
+    [market?.yesShares, market?.noShares, market?.liquidity]
+  )
+  const { history: priceHistory } = usePredictionHistory(
+    marketId ?? null,
+    { seed: historySeed }
+  )
 
   // Track market view
   useEffect(() => {
@@ -102,49 +110,6 @@ export default function PredictionDetailPage() {
     setMarket(foundMarket)
     setUserPosition(foundMarket.userPosition as PredictionPosition | null)
 
-    try {
-      const historyRes = await fetch(`/api/markets/predictions/${foundMarket.id}/history?limit=200`)
-      const historyJson = await historyRes.json()
-      if (historyRes.ok && Array.isArray(historyJson.history) && historyJson.history.length > 0) {
-        const parsedHistory: PricePoint[] = historyJson.history.map((point: any, index: number, arr: any[]) => {
-          const prevLiquidity = index > 0 ? Number(arr[index - 1].liquidity) : Number(point.liquidity)
-          const currentLiquidity = Number(point.liquidity)
-          return {
-            time: new Date(point.timestamp).getTime(),
-            yesPrice: point.yesPrice,
-            noPrice: point.noPrice,
-            volume: Math.max(0, Math.abs(currentLiquidity - prevLiquidity)),
-            liquidity: currentLiquidity,
-          }
-        })
-        setPriceHistory(parsedHistory)
-      } else {
-        const totalShares = (foundMarket.yesShares || 0) + (foundMarket.noShares || 0)
-        const yesPrice = totalShares === 0 ? 0.5 : (foundMarket.yesShares || 0) / totalShares
-        setPriceHistory([
-          {
-            time: Date.now(),
-            yesPrice,
-            noPrice: 1 - yesPrice,
-            volume: 0,
-            liquidity: foundMarket.liquidity ?? 0,
-          },
-        ])
-      }
-    } catch (error) {
-      console.error('Failed to fetch prediction price history', error)
-      const totalShares = (foundMarket.yesShares || 0) + (foundMarket.noShares || 0)
-      const yesPrice = totalShares === 0 ? 0.5 : (foundMarket.yesShares || 0) / totalShares
-      setPriceHistory([
-        {
-          time: Date.now(),
-          yesPrice,
-          noPrice: 1 - yesPrice,
-          volume: 0,
-          liquidity: foundMarket.liquidity ?? 0,
-        },
-      ])
-    }
     setLoading(false)
   }, [marketId, router, authenticated, user?.id, from])
 
@@ -588,25 +553,6 @@ export default function PredictionDetailPage() {
       }
     })
 
-    const timestamp = new Date(event.trade.timestamp ?? new Date().toISOString()).getTime()
-    setPriceHistory((prev) => {
-      const baselineLiquidity = prev.length > 0 ? prev[prev.length - 1]!.liquidity : 0
-      const currentLiquidity = event.liquidity ?? baselineLiquidity
-      const lastLiquidity = prev.length > 0 ? prev[prev.length - 1]!.liquidity : currentLiquidity
-      const volume = Math.max(0, Math.abs(currentLiquidity - lastLiquidity))
-      const nextPoint: PricePoint = {
-        time: timestamp,
-        yesPrice: event.yesPrice,
-        noPrice: event.noPrice,
-        volume,
-        liquidity: currentLiquidity,
-      }
-      const next = [...prev, nextPoint]
-      if (next.length > 200) {
-        next.shift()
-      }
-      return next
-    })
   }, [marketId])
 
   const handleResolutionEvent = useCallback((event: PredictionResolutionSSE) => {
@@ -624,26 +570,6 @@ export default function PredictionDetailPage() {
       }
     })
 
-    const timestamp = new Date(event.timestamp).getTime()
-    setPriceHistory((prev) => {
-      const baselineLiquidity = prev.length > 0 ? prev[prev.length - 1]!.liquidity : 0
-      const liquidity = event.liquidity ?? baselineLiquidity
-      const lastLiquidity = prev.length > 0
-        ? prev[prev.length - 1]!.liquidity
-        : liquidity
-      const nextPoint: PricePoint = {
-        time: timestamp,
-        yesPrice: event.yesPrice,
-        noPrice: event.noPrice,
-        volume: Math.max(0, Math.abs(liquidity - lastLiquidity)),
-        liquidity,
-      }
-      const next = [...prev, nextPoint]
-      if (next.length > 200) {
-        next.shift()
-      }
-      return next
-    })
   }, [marketId])
 
   usePredictionMarketStream(marketId ?? null, {

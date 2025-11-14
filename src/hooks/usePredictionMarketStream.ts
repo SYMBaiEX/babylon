@@ -70,3 +70,17 @@ export function usePredictionMarketStream(
     }
   });
 }
+
+export function usePredictionMarketsSubscription(
+  { onTrade, onResolution }: UsePredictionMarketStreamOptions = {}
+) {
+  useSSEChannel('markets', (data) => {
+    if (!isPredictionPayload(data)) return;
+
+    if (data.type === 'prediction_trade') {
+      onTrade?.(data as PredictionTradeSSE);
+    } else if (data.type === 'prediction_resolution') {
+      onResolution?.(data as PredictionResolutionSSE);
+    }
+  });
+}

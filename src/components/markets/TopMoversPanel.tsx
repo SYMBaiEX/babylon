@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { TrendingUp, TrendingDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/shared/Skeleton'
+import { usePredictionMarketsSubscription } from '@/hooks/usePredictionMarketStream'
 
 interface TopMover {
   ticker: string
@@ -40,7 +41,7 @@ export function TopMoversPanel({ onMarketClick }: TopMoversPanelProps) {
       const response = await fetch('/api/markets/perps')
       const data = await response.json()
       if (data.markets && Array.isArray(data.markets)) {
-        const markets = data.markets.map((m: {
+        const markets: TopMover[] = data.markets.map((m: {
           ticker: string
           name: string
           currentPrice?: number
@@ -88,6 +89,32 @@ export function TopMoversPanel({ onMarketClick }: TopMoversPanelProps) {
   }, [])
 
   const formatPrice = (p: number) => `$${p.toFixed(2)}`
+
+  usePredictionMarketsSubscription({
+    onTrade: (event) => {
+      const probability = event.yesPrice * 100
+      setTopGainers((prev) =>
+        prev.map((market) =>
+          market.organizationId === event.marketId
+            ? {
+                ...market,
+                currentPrice: probability,
+              }
+            : market
+        )
+      )
+      setTopLosers((prev) =>
+        prev.map((market) =>
+          market.organizationId === event.marketId
+            ? {
+                ...market,
+                currentPrice: probability,
+              }
+            : market
+        )
+      )
+    },
+  })
 
   return (
     <div className="bg-sidebar rounded-2xl px-4 py-3 flex-1 flex flex-col">
@@ -175,4 +202,3 @@ export function TopMoversPanel({ onMarketClick }: TopMoversPanelProps) {
     </div>
   )
 }
-

@@ -1021,8 +1021,10 @@ export default function MarketsPage() {
         {/* Widget Sidebar */}
         <MarketsWidgetSidebar
           onMarketClick={(market) => {
-            // Navigate with dashboard source tracking
             router.push(`/markets/perps/${market.ticker}?from=dashboard`);
+          }}
+          onPredictionClick={(marketId) => {
+            router.push(`/markets/predictions/${marketId}?from=dashboard`);
           }}
         />
       </div>

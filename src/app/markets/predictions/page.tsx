@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { usePortfolioPnL } from '@/hooks/usePortfolioPnL';
 import { useUserPositions } from '@/hooks/useUserPositions';
+import { usePredictionMarketsSubscription } from '@/hooks/usePredictionMarketStream';
 
 interface PredictionMarket {
   id: number | string;
@@ -131,6 +132,37 @@ export default function PredictionsPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  usePredictionMarketsSubscription({
+    onTrade: (event) => {
+      setPredictions((prev) =>
+        prev.map((market) => {
+          if (market.id.toString() !== event.marketId) return market;
+          return {
+            ...market,
+            yesShares: event.yesShares,
+            noShares: event.noShares,
+            status: 'active',
+            resolvedOutcome: undefined,
+          };
+        })
+      );
+    },
+    onResolution: (event) => {
+      setPredictions((prev) =>
+        prev.map((market) => {
+          if (market.id.toString() !== event.marketId) return market;
+          return {
+            ...market,
+            yesShares: event.yesShares,
+            noShares: event.noShares,
+            status: 'resolved',
+            resolvedOutcome: event.winningSide === 'yes',
+          };
+        })
+      );
+    },
+  });
 
   const filteredPredictions = predictions.filter(
     (p) =>
@@ -530,4 +562,3 @@ export default function PredictionsPage() {
     </PageContainer>
   );
 }
-
