@@ -7,14 +7,32 @@
 import { logger } from '@/lib/logger'
 import OpenAI from 'openai'
 
-// Prioritize Groq (faster and more reliable for this use case)
-const useGroq = !!process.env.GROQ_API_KEY
-const openai = new OpenAI({
-  apiKey: process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: useGroq
-    ? 'https://api.groq.com/openai/v1'
-    : 'https://api.openai.com/v1',
-})
+// Lazy initialization to avoid build-time errors when API keys aren't available
+let openaiClient: OpenAI | null = null
+
+function getOpenAIClient(): OpenAI | null {
+  if (openaiClient) {
+    return openaiClient
+  }
+
+  const groqKey = process.env.GROQ_API_KEY
+  const openaiKey = process.env.OPENAI_API_KEY
+
+  // Return null if no API keys available (build time or missing config)
+  if (!groqKey && !openaiKey) {
+    return null
+  }
+
+  const useGroq = !!groqKey
+  openaiClient = new OpenAI({
+    apiKey: groqKey || openaiKey,
+    baseURL: useGroq
+      ? 'https://api.groq.com/openai/v1'
+      : 'https://api.openai.com/v1',
+  })
+
+  return openaiClient
+}
 
 /**
  * Generate a one-sentence summary for a trending tag based on recent posts
@@ -26,12 +44,23 @@ export async function generateTrendingSummary(
 ): Promise<string> {
   // Combine recent posts for context
   const context = recentPosts.slice(0, 3).join(' | ')
-  
+
   // If no context, return a generic summary
   if (!context || context.trim().length === 0) {
     return `Trending topic in ${category || 'general'} discussions`
   }
-  
+
+  // Get OpenAI client (may be null during build or if keys not configured)
+  const client = getOpenAIClient()
+  if (!client) {
+    // Fallback for build time or when API keys aren't available
+    logger.debug('OpenAI client not available, using fallback summary', {
+      tag: tagDisplayName,
+    }, 'TrendingSummaryService')
+    return `Active discussions about ${tagDisplayName}${category ? ` in ${category}` : ''}`
+  }
+
+  const useGroq = !!process.env.GROQ_API_KEY
   const prompt = `Generate a ONE SENTENCE summary for the trending topic "${tagDisplayName}" (Category: ${category || 'General'}).
 
 Recent posts about this topic:
@@ -51,7 +80,7 @@ Examples:
 
 One sentence summary:`
 
-  const response = await openai.chat.completions.create({
+  const response = await client.chat.completions.create({
     model: useGroq ? 'llama-3.1-8b-instant' : 'gpt-4o-mini',  // 130k in/out, no restrictions
     messages: [
       {
@@ -71,7 +100,7 @@ One sentence summary:`
     .replace(/^["']|["']$/g, '')
     .replace(/\.$/, '')
     .trim()
-  
+
   if (!cleanSummary.endsWith('.') && !cleanSummary.endsWith('!') && !cleanSummary.endsWith('?')) {
     cleanSummary += '.'
   }
