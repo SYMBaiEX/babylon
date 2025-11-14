@@ -58,7 +58,7 @@ export async function GET(_request: NextRequest) {
       : '❌ Database connection failed',
     checks,
     nextSteps: checks.databaseConnection.includes('✅')
-      ? ['✅ Everything looks good! You can use /debug/start and /debug/pause']
+      ? ['✅ Everything looks good! Database is connected and ready.']
       : [
           'Check DATABASE_URL in Vercel environment variables',
           'Verify database is accessible from Vercel servers',
