@@ -10,6 +10,8 @@
     "build": "prisma generate && NODE_OPTIONS='--max-old-space-size=8192' bunx next build --webpack",
     "start": "bun run scripts/validation/check-environment.ts && bunx next start",
     "test": "bun test tests/unit/ tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts src/lib/__tests__/",
+    "test:unit": "bun test tests/unit/ --preload ./tests/unit/preload.ts",
+    "test:integration": "bun test tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts",
     "test:retry": "bun test src/lib/__tests__/prisma-retry.integration.test.ts",
     "test:a2a": "bun test src/a2a/tests/",
     "test:a2a:unit": "bun test ./src/a2a/tests/integration/points-service-integration.test.ts",
