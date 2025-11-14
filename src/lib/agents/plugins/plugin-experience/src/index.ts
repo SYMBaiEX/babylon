@@ -18,6 +18,8 @@ export const experiencePlugin: Plugin = {
   evaluators: [experienceEvaluator],
 
   init: async (config: Record<string, any>, runtime: IAgentRuntime) => {
+    void runtime; // Runtime currently unused during initialization
+
     logger.info('[ExperiencePlugin] Initializing self-learning experience system');
 
     const maxExperiences = config.maxExperiences || 10000;

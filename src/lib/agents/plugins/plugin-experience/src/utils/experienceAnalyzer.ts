@@ -26,13 +26,19 @@ export async function analyzeExperience(
   // Check for contradictions with previous experiences
   const contradictions = findContradictions(partialExperience, recentExperiences);
   if (contradictions.length > 0) {
+    const firstContradiction = contradictions[0];
+    if (firstContradiction) {
+      const currentResult = partialExperience.result ?? 'unknown result';
+      const previousResult = firstContradiction.result ?? 'unknown result';
+
     return {
       isSignificant: true,
-      learning: `New outcome contradicts previous experience: ${partialExperience.result} vs ${contradictions[0].result}`,
+        learning: `New outcome contradicts previous experience: ${currentResult} vs ${previousResult}`,
       confidence: 0.8,
       relatedExperiences: contradictions.map((e) => e.id),
       actionableInsights: ['Update strategy based on new information'],
     };
+    }
   }
 
   // Check if this is a first-time action
@@ -203,7 +209,12 @@ export async function detectPatterns(experiences: Experience[]): Promise<
     const recentLearning = learningExperiences.slice(0, 10);
     const timeDiffs: number[] = [];
     for (let i = 1; i < recentLearning.length; i++) {
-      timeDiffs.push(recentLearning[i - 1].createdAt - recentLearning[i].createdAt);
+      const previous = recentLearning[i - 1];
+      const current = recentLearning[i];
+      if (!previous || !current) {
+        continue;
+      }
+      timeDiffs.push(previous.createdAt - current.createdAt);
     }
     const avgTimeBetweenLearning = timeDiffs.reduce((a, b) => a + b, 0) / timeDiffs.length;
 

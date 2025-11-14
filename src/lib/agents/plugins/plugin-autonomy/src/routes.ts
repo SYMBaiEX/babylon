@@ -8,6 +8,8 @@ export const autonomyRoutes: Route[] = [
     path: '/autonomy/status',
     type: 'GET',
     handler: async (req: any, res: any, runtime: any) => {
+      void req; // Request currently unused but kept for signature compatibility
+
       const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy');
 
       if (!autonomyService) {
@@ -37,6 +39,8 @@ export const autonomyRoutes: Route[] = [
     path: '/autonomy/enable',
     type: 'POST',
     handler: async (req: any, res: any, runtime: any) => {
+      void req; // Request currently unused but kept for signature compatibility
+
       const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy');
 
       if (!autonomyService) {
@@ -65,6 +69,8 @@ export const autonomyRoutes: Route[] = [
     path: '/autonomy/disable',
     type: 'POST',
     handler: async (req: any, res: any, runtime: any) => {
+      void req; // Request currently unused but kept for signature compatibility
+
       const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy');
 
       if (!autonomyService) {
@@ -93,6 +99,8 @@ export const autonomyRoutes: Route[] = [
     path: '/autonomy/toggle',
     type: 'POST',
     handler: async (req: any, res: any, runtime: any) => {
+      void req; // Request currently unused but kept for signature compatibility
+
       const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy');
 
       if (!autonomyService) {

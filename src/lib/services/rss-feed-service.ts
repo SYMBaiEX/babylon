@@ -10,8 +10,21 @@
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { generateSnowflakeId } from '@/lib/snowflake';
-import type { RSSFeedSource, RSSHeadline } from '@prisma/client';
+import type { Prisma, RSSHeadline } from '@prisma/client';
 import { parseStringPromise } from 'xml2js';
+
+type Xml2JsFeed = {
+  rss?: {
+    channel?: Array<{
+      title?: string[];
+      item?: Record<string, unknown>[];
+    }>;
+  };
+  feed?: {
+    title?: string[];
+    entry?: Record<string, unknown>[];
+  };
+};
 
 export interface RSSFeedItem {
   title: string;
@@ -63,10 +76,10 @@ export class RSSFeedService {
         }
 
         const xmlText = await response.text();
-        const parsed = await parseStringPromise(xmlText);
+        const parsed = (await parseStringPromise(xmlText)) as Xml2JsFeed;
 
       // Handle RSS 2.0 format
-      if (parsed.rss?.channel) {
+      if (parsed.rss?.channel?.[0]) {
         const channel = parsed.rss.channel[0];
         return {
           title: channel.title?.[0] || 'Unknown Feed',
@@ -172,7 +185,7 @@ export class RSSFeedService {
               publishedAt,
               summary: item.description || null,
               content: item.content || null,
-              rawData: item as unknown as Record<string, unknown>,
+              rawData: item as unknown as Prisma.InputJsonValue,
               fetchedAt: new Date(),
             },
           });

@@ -14,6 +14,8 @@ export const experienceProvider: Provider = {
     message: Memory,
     state?: State
   ): Promise<{ text?: string; data?: any }> {
+    void state; // State currently unused in provider lookup
+
     const experienceService = runtime.getService('EXPERIENCE') as ExperienceService;
 
     if (!experienceService) {

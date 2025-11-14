@@ -1,6 +1,4 @@
-import { defineConfig } from 'tsup';
-
-export default defineConfig({
+const config = {
   entry: ['src/index.ts'],
   outDir: 'dist',
   tsconfig: './tsconfig.build.json', // Use build-specific tsconfig
@@ -17,4 +15,6 @@ export default defineConfig({
     '@elizaos/core',
     'zod',
   ],
-});
+};
+
+export default config;

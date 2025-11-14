@@ -95,6 +95,9 @@ export const sendToAdminAction: Action = {
     options?: { [key: string]: unknown },
     callback?: HandlerCallback
   ): Promise<ActionResult> => {
+    void state; // State is currently unused but preserved for future compatibility
+    void options; // Options currently unused but retained for API parity
+
     // Double-check we're in autonomous context
     const autonomyService = runtime.getService('autonomy');
     if (!autonomyService) {
@@ -124,8 +127,6 @@ export const sendToAdminAction: Action = {
       };
     }
 
-    const _adminUUID = asUUID(adminUserId);
-
     // Find the most recent room where admin and agent have communicated
     // Note: Since we can't directly query by entityId, use a fallback approach
     const adminMessages = await runtime.getMemories({
@@ -135,9 +136,10 @@ export const sendToAdminAction: Action = {
     });
 
     let targetRoomId: UUID;
-    if (adminMessages && adminMessages.length > 0) {
+    const latestAdminMessage = adminMessages?.[adminMessages.length - 1];
+    if (latestAdminMessage?.roomId) {
       // Use the room from the most recent admin message
-      targetRoomId = adminMessages[adminMessages.length - 1].roomId!;
+      targetRoomId = latestAdminMessage.roomId;
     } else {
       // No existing conversation, use agent's primary room
       targetRoomId = runtime.agentId; // Fallback to agent's default room

@@ -6,8 +6,6 @@
  */
 
 import { $ } from 'bun';
-import { buildConfig } from './build.config';
-
 async function build() {
   console.log('🏗️  Building package...');
 
