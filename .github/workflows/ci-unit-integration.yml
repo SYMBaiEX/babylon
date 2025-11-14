@@ -83,18 +83,29 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
-          # Generate Prisma client first, then reset database
-          bunx prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
-          # Force reset, apply migrations, and seed database for tests
-          bunx prisma migrate reset --force --skip-generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
-          # Explicitly run seed to ensure test data is loaded
-          bunx prisma db seed 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || echo "Seeding failed - some tests may fail"
+          # Generate Prisma client first
+          echo "🔧 Generating Prisma client..."
+          bunx prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+          
+          # Force reset and apply migrations
+          echo "🗄️ Resetting database and applying migrations..."
+          bunx prisma migrate reset --force --skip-generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+          
+          # Run seed to ensure test data is loaded
+          echo "🌱 Seeding database..."
+          bunx prisma db seed 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+          
+          echo "✅ Database setup complete"
 
       - name: Build for tests
-        run: bun run build 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
         env:
           NODE_OPTIONS: '--max-old-space-size=4096'
           SKIP_ENV_VALIDATION: true
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+        run: |
+          echo "🏗️ Building project for tests..."
+          bun run build 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g'
+          echo "✅ Build complete"
 
       - name: Run Unit Tests
         env:
