@@ -377,25 +377,22 @@ function FeedPageContent() {
   // Removed early loading return to prevent layout shifts - loading state is handled inline
 
   return (
-    <PageContainer noPadding className="flex flex-col h-full w-full overflow-hidden">
-      {/* Single responsive layout */}
-      <div className="flex flex-1 min-h-0">
+    <PageContainer noPadding className="flex flex-col w-full !overflow-visible">
+      {/* Wrapper for pull-to-refresh ref */}
+      <div ref={scrollContainerRef} className="relative flex flex-1">
         {/* Feed area - responsive width and borders */}
         <div className="flex-1 flex flex-col min-w-0 lg:border-l lg:border-r border-[rgba(120,120,120,0.5)]">
           {/* Header with tabs - responsive positioning and padding */}
           <div className="sticky top-0 z-10 bg-background shadow-sm flex-shrink-0">
-            <div className="px-3 sm:px-4 lg:px-6 py-2 lg:py-4">
+            <div className="px-3 sm:px-4 lg:px-6">
               <div className="flex items-center justify-between lg:mb-3">
                 <FeedToggle activeTab={tab} onTabChange={setTab} />
               </div>
             </div>
           </div>
 
-          {/* Feed content - Scrollable container with pull-to-refresh */}
-          <div 
-            ref={scrollContainerRef}
-            className="flex-1 bg-background overflow-y-auto overflow-x-hidden"
-          >
+          {/* Feed content - No internal scroll, let page scroll naturally */}
+          <div className="flex-1 bg-background">
             {/* Content wrapper - responsive padding and max-width */}
             <div className="w-full px-4 lg:px-6 lg:max-w-[700px] lg:mx-auto">
               {/* Pull to refresh indicator */}
