@@ -4,6 +4,7 @@
  */
 
 import { authenticate } from '@/lib/api/auth-middleware';
+import { invalidateAfterPredictionTrade } from '@/lib/cache/trade-cache-invalidation';
 import { FEE_CONFIG } from '@/lib/config/fees';
 import { asUser } from '@/lib/db/context';
 import { BusinessLogicError, InsufficientFundsError, NotFoundError } from '@/lib/errors';
@@ -11,6 +12,7 @@ import { successResponse, withErrorHandling } from '@/lib/errors/error-handler';
 import { logger } from '@/lib/logger';
 import { trackServerEvent } from '@/lib/posthog/server';
 import { PredictionPricing } from '@/lib/prediction-pricing';
+import { PredictionMarketEventService } from '@/lib/services/prediction-market-event-service';
 import { FeeService } from '@/lib/services/fee-service';
 import { WalletService } from '@/lib/services/wallet-service';
 import { generateSnowflakeId } from '@/lib/snowflake';
@@ -283,6 +285,30 @@ export const POST = withErrorHandling(async (
     logger.warn('Failed to track prediction_bought event', { error });
   });
 
+  await invalidateAfterPredictionTrade(marketId).catch((error) => {
+    logger.warn('Failed to invalidate prediction trades cache after buy', { error, marketId }, 'POST /api/markets/predictions/[id]/buy');
+  });
+
+  PredictionMarketEventService.emitTradeUpdate({
+    marketId,
+    yesPrice: calculation.newYesPrice,
+    noPrice: calculation.newNoPrice,
+    yesShares: Number(updated.yesShares),
+    noShares: Number(updated.noShares),
+    liquidity: Number(updated.liquidity ?? 0),
+    trade: {
+      actorType: 'user',
+      actorId: user.userId,
+      action: 'buy',
+      side,
+      shares: calculation.sharesBought,
+      amount,
+      price: calculation.avgPrice,
+      source: 'user_trade',
+      timestamp: new Date().toISOString(),
+    },
+  });
+
   return successResponse(
     {
       position: {
@@ -307,4 +333,3 @@ export const POST = withErrorHandling(async (
     201
   );
 });
-

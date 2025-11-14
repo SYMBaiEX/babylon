@@ -6,6 +6,7 @@
 import type { NextRequest } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { authenticate } from '@/lib/api/auth-middleware';
+import { invalidateAfterPredictionTrade } from '@/lib/cache/trade-cache-invalidation';
 import { asUser } from '@/lib/db/context';
 import { withErrorHandling, successResponse } from '@/lib/errors/error-handler';
 import { NotFoundError, BusinessLogicError } from '@/lib/errors';
@@ -17,6 +18,7 @@ import { FeeService } from '@/lib/services/fee-service';
 import { FEE_CONFIG } from '@/lib/config/fees';
 import { trackServerEvent } from '@/lib/posthog/server';
 import { IdParamSchema } from '@/lib/validation/schemas';
+import { PredictionMarketEventService } from '@/lib/services/prediction-market-event-service';
 /**
  * POST /api/markets/predictions/[id]/sell
  * Sell shares from prediction market position
@@ -36,7 +38,7 @@ export const POST = withErrorHandling(async (
   const { shares } = PredictionMarketSellSchema.parse(body);
 
   // Execute sell with RLS
-  const { grossProceeds, netProceeds, pnl, remainingShares, positionClosed, calculation } = await asUser(user, async (db) => {
+  const { grossProceeds, netProceeds, pnl, remainingShares, positionClosed, calculation, updatedMarket, sellSide } = await asUser(user, async (db) => {
     // Get or find market
     let market = await db.market.findUnique({
       where: { id: marketId },
@@ -158,7 +160,7 @@ export const POST = withErrorHandling(async (
     );
 
     // Update market shares (use gross proceeds for liquidity)
-    await db.market.update({
+    const updatedMarket = await db.market.update({
       where: { id: marketId },
       data: {
         yesShares: new Prisma.Decimal(calculation.newYesShares),
@@ -196,7 +198,9 @@ export const POST = withErrorHandling(async (
       pnl: profitLoss, 
       remainingShares: remaining, 
       positionClosed: remaining <= 0.01,
-      calculation 
+      calculation,
+      updatedMarket,
+      sellSide: side,
     };
   });
 
@@ -235,6 +239,30 @@ export const POST = withErrorHandling(async (
     remainingShares,
   }).catch((error) => {
     logger.warn('Failed to track prediction_sold event', { error });
+  });
+
+  await invalidateAfterPredictionTrade(marketId).catch((error) => {
+    logger.warn('Failed to invalidate prediction trades cache after sell', { error, marketId }, 'POST /api/markets/predictions/[id]/sell');
+  });
+
+  PredictionMarketEventService.emitTradeUpdate({
+    marketId,
+    yesPrice: calculation.newYesPrice,
+    noPrice: calculation.newNoPrice,
+    yesShares: Number(updatedMarket.yesShares),
+    noShares: Number(updatedMarket.noShares),
+    liquidity: Number(updatedMarket.liquidity ?? 0),
+    trade: {
+      actorType: 'user',
+      actorId: user.userId,
+      action: 'sell',
+      side: sellSide,
+      shares,
+      amount: netProceeds,
+      price: calculation.avgPrice,
+      source: 'user_trade',
+      timestamp: new Date().toISOString(),
+    },
   });
 
   return successResponse({

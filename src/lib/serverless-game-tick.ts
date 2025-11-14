@@ -11,6 +11,7 @@
 
 import { Prisma } from '@prisma/client';
 import { ArticleGenerator } from '@/engine/ArticleGenerator';
+import { invalidateAfterPredictionTrade } from '@/lib/cache/trade-cache-invalidation';
 import { MarketDecisionEngine } from '@/engine/MarketDecisionEngine';
 import { BabylonLLMClient } from '@/generator/llm/openai-client';
 import type { ActorTier, WorldEvent } from '@/shared/types';
@@ -21,6 +22,7 @@ import { prisma } from './prisma';
 import { MarketContextService } from './services/market-context-service';
 import { ReputationService } from './services/reputation-service';
 import { TradeExecutionService } from './services/trade-execution-service';
+import { PredictionMarketEventService } from './services/prediction-market-event-service';
 import { calculateTrendingIfNeeded, calculateTrendingTags } from './services/trending-calculation-service';
 import { WalletService } from './services/wallet-service';
 import { generateSnowflakeId } from './snowflake';
@@ -1715,6 +1717,24 @@ export async function resolveQuestionPayouts(questionNumber: number): Promise<vo
       },
     });
   }
+
+  const resolvedMarket = await prisma.market.findUnique({
+    where: { id: market.id },
+  });
+
+  await invalidateAfterPredictionTrade(market.id).catch((error) => {
+    logger.warn('Failed to invalidate prediction cache after resolution', { error, marketId: market.id }, 'GameTick');
+  });
+
+  PredictionMarketEventService.emitResolution({
+    marketId: market.id,
+    winningSide: winningSide ? 'yes' : 'no',
+    yesShares: Number(resolvedMarket?.yesShares ?? market.yesShares ?? 0),
+    noShares: Number(resolvedMarket?.noShares ?? market.noShares ?? 0),
+    liquidity: Number(resolvedMarket?.liquidity ?? 0),
+    totalPayout,
+    timestamp: resolutionTimestamp.toISOString(),
+  });
 
   logger.info(
     'Resolved prediction market payouts',

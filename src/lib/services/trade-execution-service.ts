@@ -6,9 +6,11 @@
  */
 import { Prisma } from '@prisma/client';
 
+import { invalidateAfterPredictionTrade } from '@/lib/cache/trade-cache-invalidation';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { generateSnowflakeId } from '@/lib/snowflake';
+import { PredictionMarketEventService } from '@/lib/services/prediction-market-event-service';
 import { FeeService } from '@/lib/services/fee-service';
 import { PredictionPricing } from '@/lib/prediction-pricing';
 
@@ -336,6 +338,7 @@ export class TradeExecutionService {
     }
 
     const side = decision.action === 'buy_yes' ? 'YES' : 'NO';
+    const sideLabel: 'yes' | 'no' = side === 'YES' ? 'yes' : 'no';
 
     const calculation = PredictionPricing.calculateBuyWithFees(
       Number(market.yesShares),
@@ -427,6 +430,32 @@ export class TradeExecutionService {
       return pos;
     });
 
+    const liquidityAfter = Number(market.liquidity ?? 0) + calculation.netAmount;
+
+    await invalidateAfterPredictionTrade(decision.marketId).catch((error) => {
+      logger.warn('Failed to invalidate cache after NPC prediction buy', { error, marketId: decision.marketId }, 'TradeExecutionService');
+    });
+
+    PredictionMarketEventService.emitTradeUpdate({
+      marketId: decision.marketId!.toString(),
+      yesPrice: calculation.newYesPrice,
+      noPrice: calculation.newNoPrice,
+      yesShares: calculation.newYesShares,
+      noShares: calculation.newNoShares,
+      liquidity: liquidityAfter,
+      trade: {
+        actorType: 'npc',
+        actorId: decision.npcId,
+        action: 'buy',
+        side: sideLabel,
+        shares: calculation.sharesBought,
+        amount: calculation.netAmount,
+        price: entryPrice,
+        source: 'npc_trade',
+        timestamp: new Date().toISOString(),
+      },
+    });
+
     return {
       npcId: decision.npcId,
       npcName: decision.npcName,
@@ -512,6 +541,11 @@ export class TradeExecutionService {
       const postTradePrice =
         (side === 'YES' ? calculation.newYesPrice : calculation.newNoPrice) * 100;
       const realizedPnL = netProceeds - position.size;
+      const liquidityAfter = Math.max(
+        0,
+        Number(market.liquidity ?? 0) - grossProceeds
+      );
+      const sideLabel: 'yes' | 'no' = side === 'YES' ? 'yes' : 'no';
 
       await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.poolPosition.update({
@@ -560,6 +594,30 @@ export class TradeExecutionService {
             reason: decision.reasoning,
           },
         });
+      });
+
+      await invalidateAfterPredictionTrade(position.marketId).catch((error) => {
+        logger.warn('Failed to invalidate cache after NPC prediction close', { error, marketId: position.marketId }, 'TradeExecutionService');
+      });
+
+      PredictionMarketEventService.emitTradeUpdate({
+        marketId: position.marketId,
+        yesPrice: calculation.newYesPrice,
+        noPrice: calculation.newNoPrice,
+        yesShares: calculation.newYesShares,
+        noShares: calculation.newNoShares,
+        liquidity: liquidityAfter,
+        trade: {
+          actorType: 'npc',
+          actorId: decision.npcId,
+          action: 'sell',
+          side: sideLabel,
+          shares,
+          amount: netProceeds,
+          price: calculation.avgPrice,
+          source: 'npc_trade',
+          timestamp: now.toISOString(),
+        },
       });
 
       return {
