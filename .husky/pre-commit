@@ -17,11 +17,16 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# Run unit and integration tests
-bun run test
-if [ $? -ne 0 ]; then
-  echo "❌ Tests failed. Fix failing tests before committing."
-  exit 1
+# Run unit and integration tests (only if DATABASE_URL is set)
+if [ -n "$DATABASE_URL" ] || [ -n "$PRISMA_DATABASE_URL" ]; then
+  echo "Running tests (DATABASE_URL detected)..."
+  bun run test
+  if [ $? -ne 0 ]; then
+    echo "❌ Tests failed. Fix failing tests before committing."
+    exit 1
+  fi
+else
+  echo "⚠️  Skipping tests (DATABASE_URL not set). Tests will run in CI."
 fi
 
 # Run build
