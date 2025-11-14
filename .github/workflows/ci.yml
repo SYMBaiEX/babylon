@@ -299,21 +299,7 @@ jobs:
           
           # Wait for Redis to be ready
           echo "⏳ Waiting for Redis to be ready..."
-          redis_ready=false
-          for attempt in {1..30}; do
-            if curl --silent --max-time 2 redis://localhost:6379/PING | grep -q PONG; then
-              redis_ready=true
-              break
-            fi
-            sleep 1
-          done
-
-          if [ "$redis_ready" != true ]; then
-            echo "❌ Redis did not become ready within 30 seconds"
-            exit 1
-          fi
-
-          echo "✅ Redis is ready"
+          python3 scripts/ci/wait_for_redis.py --host localhost --port 6379 --timeout 30 --interval 1
           
           # Explicitly set DATABASE_URL and push schema
           echo "📊 Pushing database schema..."
