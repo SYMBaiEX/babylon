@@ -5,23 +5,13 @@
  * Tests ALL A2A JSON-RPC methods work correctly
  */
 
-const BASE_URL = process.env.TEST_API_URL || 'http://localhost:3000'
-const serverAvailable = await (async () => {
-  try {
-    const response = await fetch(BASE_URL, { signal: AbortSignal.timeout(2000) })
-    return response.status < 500
-  } catch {
-    console.log(`⚠️  Server not available - Skipping A2A tests`)
-    return false
-  }
-})()
-
 import { describe, it, expect, beforeAll } from 'bun:test'
 import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
 
+const BASE_URL = process.env.TEST_API_URL || 'http://localhost:3000'
+
 describe('A2A HTTP API Integration', () => {
-  const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000'
   let testUserId: string
   let testMarketId: string
 

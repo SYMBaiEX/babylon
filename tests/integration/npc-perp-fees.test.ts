@@ -21,7 +21,6 @@ describe('NPC Perpetual Trading Fees', () => {
   let executionService: TradeExecutionService;
   let testPoolId: string;
   let testActorId: string;
-  let testOrgId: string;
   let testTicker: string;
   let testOrgPrice: number;
 
@@ -35,11 +34,10 @@ describe('NPC Perpetual Trading Fees', () => {
       }
     });
     
-    if (!existingCompany) {
+    if (!existingCompany || !existingCompany.currentPrice) {
       throw new Error('No company found in seed data - run seed script first');
     }
     
-    testOrgId = existingCompany.id;
     testTicker = existingCompany.id; // Ticker is the org ID
     testOrgPrice = existingCompany.currentPrice
 
