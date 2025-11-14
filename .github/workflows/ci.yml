@@ -225,6 +225,15 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
     
     steps:
       - uses: actions/checkout@v4
@@ -271,6 +280,7 @@ jobs:
           CRON_SECRET_VAR: ${{ secrets.CRON_SECRET || '' }}
           WALLET_SEED_PHRASE_VAR: ${{ secrets.WALLET_SEED_PHRASE || '' }}
           WALLET_PASSWORD_VAR: ${{ secrets.WALLET_PASSWORD || '' }}
+          REDIS_URL: redis://localhost:6379
         run: |
           set -e
           bash scripts/ci/prepare-env.sh
@@ -279,6 +289,11 @@ jobs:
           # Wait for postgres to be ready
           echo "⏳ Waiting for PostgreSQL to be ready..."
           timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
+          
+          # Wait for Redis to be ready
+          echo "⏳ Waiting for Redis to be ready..."
+          timeout 30 bash -c 'until redis-cli -h localhost -p 6379 ping | grep -q PONG; do sleep 1; done'
+          echo "✅ Redis is ready"
           
           # Explicitly set DATABASE_URL and push schema
           echo "📊 Pushing database schema..."
@@ -293,12 +308,14 @@ jobs:
       - name: Run Unit Tests
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
         run: bun test tests/unit/ --coverage
         continue-on-error: false
       
       - name: Start Next.js dev server
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
           NEXT_PUBLIC_APP_URL: http://localhost:3000
           PORT: 3000
         run: |
@@ -320,6 +337,7 @@ jobs:
       - name: Run Integration Tests
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
           TEST_API_URL: http://localhost:3000
         run: bun test tests/integration/ tests/deployment/ tests/markets-pnl-sharing.test.ts
         continue-on-error: false
