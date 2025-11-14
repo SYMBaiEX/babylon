@@ -8,9 +8,6 @@ import { characterMappingService } from '@/lib/services/character-mapping-servic
 import { generateSnowflakeId } from '@/lib/snowflake';
 
 describe('CharacterMappingService', () => {
-  const testCharacterId = 'test-char-' + Date.now();
-  const testOrgId = 'test-org-' + Date.now();
-
   beforeEach(async () => {
     // Create test character mapping
     await prisma.characterMapping.create({

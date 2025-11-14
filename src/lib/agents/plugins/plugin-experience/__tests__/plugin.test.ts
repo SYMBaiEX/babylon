@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { experiencePlugin } from '../src/index';
 
 describe('Experience Plugin Tests', () => {

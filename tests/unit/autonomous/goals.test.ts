@@ -4,10 +4,9 @@
  * Tests for goal creation, progress tracking, and management
  */
 
-import { describe, test, expect, beforeEach, afterEach } from '@jest/globals'
+import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { prisma } from '@/lib/prisma'
 import { generateSnowflakeId } from '@/lib/snowflake'
-import type { AgentGoal } from '@/lib/agents/types/goals'
 
 describe('Agent Goals System', () => {
   let testAgentId: string
@@ -26,7 +25,8 @@ describe('Agent Goals System', () => {
         virtualBalance: 10000,
         totalDeposited: 10000,
         profileComplete: true,
-        hasUsername: true
+        hasUsername: true,
+        updatedAt: new Date()
       }
     })
     
@@ -47,7 +47,8 @@ describe('Agent Goals System', () => {
         totalDeposited: 0,
         reputationPoints: 0,
         profileComplete: true,
-        hasUsername: true
+        hasUsername: true,
+        updatedAt: new Date()
       }
     })
   })
@@ -78,7 +79,8 @@ describe('Agent Goals System', () => {
           },
           priority: 10,
           status: 'active',
-          progress: 0
+          progress: 0,
+          updatedAt: new Date()
         }
       })
       
@@ -106,7 +108,8 @@ describe('Agent Goals System', () => {
           description: 'Increase engagement and followers',
           priority: 8,
           status: 'active',
-          progress: 0
+          progress: 0,
+          updatedAt: new Date()
         }
       })
       
@@ -128,7 +131,8 @@ describe('Agent Goals System', () => {
           description: 'Test',
           priority: 15,  // API should reject this
           status: 'active',
-          progress: 0
+          progress: 0,
+          updatedAt: new Date()
         }
       })
       
@@ -149,7 +153,8 @@ describe('Agent Goals System', () => {
           description: 'Test goal for progress',
           priority: 5,
           status: 'active',
-          progress: 0
+          progress: 0,
+          updatedAt: new Date()
         }
       })
     })
@@ -214,32 +219,34 @@ describe('Agent Goals System', () => {
         await generateSnowflakeId()
       ]
       
-      testGoalId = ids[0] // For cleanup
+      testGoalId = ids[0]! // For cleanup
       
       await prisma.agentGoal.createMany({
         data: [
           {
-            id: ids[0],
+            id: ids[0]!,
             agentUserId: testAgentId,
             type: 'trading',
             name: 'High Priority Goal',
             description: 'Test',
             priority: 10,
             status: 'active',
-            progress: 0.3
+            progress: 0.3,
+            updatedAt: new Date()
           },
           {
-            id: ids[1],
+            id: ids[1]!,
             agentUserId: testAgentId,
             type: 'social',
             name: 'Medium Priority Goal',
             description: 'Test',
             priority: 5,
             status: 'active',
-            progress: 0.7
+            progress: 0.7,
+            updatedAt: new Date()
           },
           {
-            id: ids[2],
+            id: ids[2]!,
             agentUserId: testAgentId,
             type: 'custom',
             name: 'Completed Goal',
@@ -247,7 +254,8 @@ describe('Agent Goals System', () => {
             priority: 8,
             status: 'completed',
             progress: 1.0,
-            completedAt: new Date()
+            completedAt: new Date(),
+            updatedAt: new Date()
           }
         ]
       })
@@ -270,8 +278,8 @@ describe('Agent Goals System', () => {
       })
       
       expect(goals.length).toBe(2)
-      expect(goals[0].priority).toBeGreaterThanOrEqual(goals[1].priority)
-      expect(goals[0].name).toBe('High Priority Goal')
+      expect(goals[0]!.priority).toBeGreaterThanOrEqual(goals[1]!.priority)
+      expect(goals[0]!.name).toBe('High Priority Goal')
     })
     
     test('should get completed goals', async () => {
@@ -283,37 +291,37 @@ describe('Agent Goals System', () => {
       })
       
       expect(completed.length).toBe(1)
-      expect(completed[0].name).toBe('Completed Goal')
-      expect(completed[0].progress).toBe(1.0)
+      expect(completed[0]!.name).toBe('Completed Goal')
+      expect(completed[0]!.progress).toBe(1.0)
     })
   })
 })
 
 describe('Planning Context', () => {
   // TODO: Add tests for planning context gathering
-  test.todo('should gather comprehensive planning context')
-  test.todo('should include active goals')
-  test.todo('should include directives')
-  test.todo('should include constraints')
-  test.todo('should include portfolio data')
-  test.todo('should include pending interactions')
+  test.todo('should gather comprehensive planning context', () => {})
+  test.todo('should include active goals', () => {})
+  test.todo('should include directives', () => {})
+  test.todo('should include constraints', () => {})
+  test.todo('should include portfolio data', () => {})
+  test.todo('should include pending interactions', () => {})
 })
 
 describe('Action Plan Generation', () => {
   // TODO: Add tests for plan generation
-  test.todo('should generate multi-action plan')
-  test.todo('should respect max actions constraint')
-  test.todo('should prioritize by goal priority')
-  test.todo('should filter by enabled capabilities')
-  test.todo('should validate against directives')
+  test.todo('should generate multi-action plan', () => {})
+  test.todo('should respect max actions constraint', () => {})
+  test.todo('should prioritize by goal priority', () => {})
+  test.todo('should filter by enabled capabilities', () => {})
+  test.todo('should validate against directives', () => {})
 })
 
 describe('Action Plan Execution', () => {
   // TODO: Add tests for plan execution
-  test.todo('should execute actions in priority order')
-  test.todo('should update goal progress after action')
-  test.todo('should record goal actions')
-  test.todo('should handle action failures gracefully')
-  test.todo('should complete goals at 100% progress')
+  test.todo('should execute actions in priority order', () => {})
+  test.todo('should update goal progress after action', () => {})
+  test.todo('should record goal actions', () => {})
+  test.todo('should handle action failures gracefully', () => {})
+  test.todo('should complete goals at 100% progress', () => {})
 })
 

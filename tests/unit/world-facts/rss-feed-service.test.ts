@@ -123,10 +123,13 @@ describe('RSSFeedService', () => {
 
     // Mock fetch for this test
     const originalFetch = global.fetch;
-    global.fetch = async () => ({
-      ok: true,
-      text: async () => rssXml,
-    }) as Response;
+    global.fetch = Object.assign(
+      async () => ({
+        ok: true,
+        text: async () => rssXml,
+      }) as Response,
+      { preconnect: originalFetch.preconnect }
+    );
 
     try {
       const feed = await rssFeedService.fetchFeed('https://example.com/test.xml');
@@ -144,11 +147,14 @@ describe('RSSFeedService', () => {
   test('should handle fetch errors gracefully', async () => {
     // Mock fetch to fail
     const originalFetch = global.fetch;
-    global.fetch = async () => ({
-      ok: false,
-      status: 404,
-      statusText: 'Not Found',
-    }) as Response;
+    global.fetch = Object.assign(
+      async () => ({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+      }) as Response,
+      { preconnect: originalFetch.preconnect }
+    );
 
     try {
       await expect(

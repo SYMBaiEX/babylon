@@ -3,7 +3,7 @@
  * Tests the fix for the error: "User not found: did:privy:cmhyl4q360160jm0cbhzltoyn"
  */
 
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'bun:test';
 import { NextRequest } from 'next/server';
 import { authenticate, authenticateWithDbUser } from '@/lib/api/auth-middleware';
 import { NotFoundError } from '@/lib/errors/base.errors';
@@ -43,8 +43,7 @@ describe('User Not Found Handling', () => {
   describe('authenticate()', () => {
     it('should return Privy DID when user does not exist in database', async () => {
       const { prisma } = await import('@/lib/database-service');
-      // @ts-expect-error - mocking prisma
-      prisma.user.findUnique = vi.fn().mockResolvedValue(null);
+      prisma.user.findUnique = vi.fn().mockResolvedValue(null) as any;
 
       const request = new NextRequest('https://babylon.market/api/test', {
         headers: {
@@ -62,7 +61,6 @@ describe('User Not Found Handling', () => {
 
     it('should return database user ID when user exists in database', async () => {
       const { prisma } = await import('@/lib/database-service');
-      // @ts-expect-error - mocking prisma
       prisma.user.findUnique = vi.fn().mockResolvedValue({
         id: 'db-user-123',
         walletAddress: '0x1234567890123456789012345678901234567890',
@@ -87,8 +85,7 @@ describe('User Not Found Handling', () => {
   describe('authenticateWithDbUser()', () => {
     it('should throw error when user does not exist in database', async () => {
       const { prisma } = await import('@/lib/database-service');
-      // @ts-expect-error - mocking prisma
-      prisma.user.findUnique = vi.fn().mockResolvedValue(null);
+      prisma.user.findUnique = vi.fn().mockResolvedValue(null) as any;
 
       const request = new NextRequest('https://babylon.market/api/test', {
         headers: {
@@ -103,7 +100,6 @@ describe('User Not Found Handling', () => {
 
     it('should return user with dbUserId when user exists in database', async () => {
       const { prisma } = await import('@/lib/database-service');
-      // @ts-expect-error - mocking prisma
       prisma.user.findUnique = vi.fn().mockResolvedValue({
         id: 'db-user-123',
         walletAddress: '0x1234567890123456789012345678901234567890',

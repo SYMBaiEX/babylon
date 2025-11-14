@@ -38,7 +38,7 @@ describe('Autonomy Plugin Tests', () => {
         updateAgentCalls.push({ agentId, updates });
         return true;
       },
-      getMemories: async (params: any) => [],
+      getMemories: async (_params: any) => [],
       createMemory: async () => 'test-memory-id' as UUID,
       createRoom: async () => {},
       getRoom: async () => null,
