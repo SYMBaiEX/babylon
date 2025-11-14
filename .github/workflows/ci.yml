@@ -299,7 +299,20 @@ jobs:
           
           # Wait for Redis to be ready
           echo "⏳ Waiting for Redis to be ready..."
-          timeout 30 bash -c 'until redis-cli -h localhost -p 6379 ping | grep -q PONG; do sleep 1; done'
+          redis_ready=false
+          for attempt in {1..30}; do
+            if curl --silent --max-time 2 redis://localhost:6379/PING | grep -q PONG; then
+              redis_ready=true
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$redis_ready" != true ]; then
+            echo "❌ Redis did not become ready within 30 seconds"
+            exit 1
+          fi
+
           echo "✅ Redis is ready"
           
           # Explicitly set DATABASE_URL and push schema
