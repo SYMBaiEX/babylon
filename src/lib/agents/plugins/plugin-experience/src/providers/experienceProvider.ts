@@ -13,7 +13,7 @@ export const experienceProvider: Provider = {
     runtime: IAgentRuntime,
     message: Memory,
     state?: State
-  ): Promise<{ text?: string; data?: any }> {
+  ): Promise<{ text?: string; data?: Record<string, unknown> }> {
     void state; // State currently unused in provider lookup
 
     const experienceService = runtime.getService('EXPERIENCE') as ExperienceService;

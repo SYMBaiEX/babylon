@@ -10,6 +10,10 @@ import {
 } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
 
+interface AutonomyService {
+  getAutonomousRoomId?: () => string | undefined;
+}
+
 /**
  * Send to Admin Action - allows agent to send messages to admin from autonomous context
  * Only available in autonomous room to prevent misuse
@@ -58,7 +62,7 @@ export const sendToAdminAction: Action = {
       return false; // Service not available
     }
 
-    const autonomousRoomId = (autonomyService as any).getAutonomousRoomId?.();
+    const autonomousRoomId = (autonomyService as AutonomyService).getAutonomousRoomId?.();
     if (!autonomousRoomId || message.roomId !== autonomousRoomId) {
       return false; // Not in autonomous context
     }
@@ -108,7 +112,7 @@ export const sendToAdminAction: Action = {
       };
     }
 
-    const autonomousRoomId = (autonomyService as any).getAutonomousRoomId?.();
+    const autonomousRoomId = (autonomyService as AutonomyService).getAutonomousRoomId?.();
     if (!autonomousRoomId || message.roomId !== autonomousRoomId) {
       return {
         success: false,

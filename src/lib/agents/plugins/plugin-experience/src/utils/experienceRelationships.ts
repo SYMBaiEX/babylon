@@ -14,7 +14,7 @@ export interface ExperienceRelationship {
   toId: string;
   type: 'causes' | 'contradicts' | 'supports' | 'supersedes' | 'related';
   strength: number; // 0-1
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export class ExperienceRelationshipManager {

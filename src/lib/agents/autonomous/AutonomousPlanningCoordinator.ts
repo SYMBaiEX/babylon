@@ -16,6 +16,22 @@ import { autonomousBatchResponseService } from './AutonomousBatchResponseService
 import { generateSnowflakeId } from '@/lib/snowflake'
 
 /**
+ * Agent interface for planning
+ */
+interface PlanningAgent {
+  agentSystem?: string;
+  displayName: string;
+  agentDirectives?: unknown;
+  agentConstraints?: unknown;
+  agentMaxActionsPerTick?: number;
+  agentRiskTolerance?: string;
+  autonomousTrading?: boolean;
+  autonomousPosting?: boolean;
+  autonomousCommenting?: boolean;
+  autonomousDMs?: boolean;
+}
+
+/**
  * Planned action definition
  */
 export interface PlannedAction {
@@ -275,7 +291,7 @@ export class AutonomousPlanningCoordinator {
   /**
    * Build comprehensive planning prompt
    */
-  private buildPlanningPrompt(agent: any, context: PlanningContext): string {
+  private buildPlanningPrompt(agent: PlanningAgent, context: PlanningContext): string {
     const goalsText = context.goals.active.length > 0
       ? context.goals.active.map((g, i) => {
           const targetInfo = g.target
@@ -436,7 +452,7 @@ Your action plan (JSON only):`
    */
   private validatePlan(
     plan: ActionPlan,
-    agent: any,
+    agent: PlanningAgent,
     constraints: AgentConstraints | null
   ): ActionPlan {
     let validActions = [...plan.actions]
@@ -475,7 +491,7 @@ Your action plan (JSON only):`
   /**
    * Generate simple plan for agents without goals (legacy mode)
    */
-  private generateSimplePlan(agent: any, context: PlanningContext): ActionPlan {
+  private generateSimplePlan(agent: PlanningAgent, context: PlanningContext): ActionPlan {
     const actions: PlannedAction[] = []
     
     // Respond to pending interactions (priority 1)
@@ -666,7 +682,7 @@ Your action plan (JSON only):`
           agentUserId,
           actionType: action.type,
           impact: action.estimatedImpact,
-          metadata: action.params as any
+          metadata: action.params as Record<string, unknown>
         }
       })
       
