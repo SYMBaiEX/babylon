@@ -146,8 +146,9 @@ function getPrismaClient(): PrismaClient | null {
   return globalForPrisma.prisma || null;
 }
 
-// Don't initialize at module load time - let the lazy proxy handle it
-const basePrismaClient = null as PrismaClient | null;
+// Get base Prisma client (will be null during build time)
+// Try to initialize if we have DATABASE_URL, otherwise the proxy will handle it
+const basePrismaClient = getPrismaClient();
 
 // Export base client for operations that need full type inference
 // (e.g., when retry proxy loses type information for complex union types)
