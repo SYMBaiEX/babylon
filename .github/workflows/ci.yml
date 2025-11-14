@@ -114,9 +114,12 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
-          # Force reset and apply migrations for clean test environment
-          bunx prisma migrate reset --force 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
+          # Generate Prisma client first, then reset database
           bunx prisma generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
+          # Force reset, apply migrations, and seed database for tests
+          bunx prisma migrate reset --force --skip-generate 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || true
+          # Explicitly run seed to ensure test data is loaded
+          bunx prisma db seed 2>&1 | sed -E 's/(Datasource|ep-soft-wildflower|neondb|@[^[:space:]]*\.neon\.tech)/[REDACTED]/g' || echo "Seeding failed - some tests may fail"
 
       - name: Clean stale .next types before typecheck
         run: rm -rf .next/types
@@ -188,9 +191,12 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
-          # Force reset and apply migrations for clean test environment
-          bunx prisma migrate reset --force
+          # Generate Prisma client first, then reset database
           bunx prisma generate
+          # Force reset, apply migrations, and seed database for tests
+          bunx prisma migrate reset --force --skip-generate
+          # Explicitly run seed to ensure test data is loaded
+          bunx prisma db seed || echo "Seeding failed - some tests may fail"
 
       - name: Build for tests
         run: bun run build
@@ -349,9 +355,12 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
-          # Force reset and apply migrations for clean test environment
-          bunx prisma migrate reset --force
+          # Generate Prisma client first, then reset database
           bunx prisma generate
+          # Force reset, apply migrations, and seed database for tests
+          bunx prisma migrate reset --force --skip-generate
+          # Explicitly run seed to ensure test data is loaded
+          bunx prisma db seed || echo "Seeding failed - some tests may fail"
 
       - name: Build production
         run: bun run build
@@ -507,9 +516,12 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
-          # Force reset and apply migrations for clean test environment
-          bunx prisma migrate reset --force
+          # Generate Prisma client first, then reset database
           bunx prisma generate
+          # Force reset, apply migrations, and seed database for tests
+          bunx prisma migrate reset --force --skip-generate
+          # Explicitly run seed to ensure test data is loaded
+          bunx prisma db seed || echo "Seeding failed - some tests may fail"
 
       - name: Build production
         run: bun run build
