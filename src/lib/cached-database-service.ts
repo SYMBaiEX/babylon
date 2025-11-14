@@ -25,14 +25,17 @@ import type { Post } from '@prisma/client';
  */
 class CachedDatabaseService {
   /**
-   * Get recent posts with caching (cursor-based pagination)
+   * Get recent posts with caching (cursor-based or offset-based pagination)
    */
-  async getRecentPosts(limit = 100, cursor?: string): Promise<Post[]> {
-    const cacheKey = `${limit}:${cursor || 'initial'}`;
+  async getRecentPosts(limit = 100, cursorOrOffset?: string | number): Promise<Post[]> {
+    const isCursor = typeof cursorOrOffset === 'string';
+    const cacheKey = isCursor 
+      ? `${limit}:cursor:${cursorOrOffset}`
+      : `${limit}:offset:${cursorOrOffset || 0}`;
     
     return getCacheOrFetch(
       cacheKey,
-      () => db.getRecentPosts(limit, cursor),
+      () => db.getRecentPosts(limit, cursorOrOffset),
       {
         namespace: CACHE_KEYS.POSTS_LIST,
         ttl: DEFAULT_TTLS.POSTS_LIST,
@@ -41,14 +44,17 @@ class CachedDatabaseService {
   }
 
   /**
-   * Get posts by actor with caching (cursor-based pagination)
+   * Get posts by actor with caching (cursor-based or offset-based pagination)
    */
-  async getPostsByActor(authorId: string, limit = 100, cursor?: string): Promise<Post[]> {
-    const cacheKey = `${authorId}:${limit}:${cursor || 'initial'}`;
+  async getPostsByActor(authorId: string, limit = 100, cursorOrOffset?: string | number): Promise<Post[]> {
+    const isCursor = typeof cursorOrOffset === 'string';
+    const cacheKey = isCursor 
+      ? `${authorId}:${limit}:cursor:${cursorOrOffset}`
+      : `${authorId}:${limit}:offset:${cursorOrOffset || 0}`;
     
     return getCacheOrFetch(
       cacheKey,
-      () => db.getPostsByActor(authorId, limit, cursor),
+      () => db.getPostsByActor(authorId, limit, cursorOrOffset),
       {
         namespace: CACHE_KEYS.POSTS_BY_ACTOR,
         ttl: DEFAULT_TTLS.POSTS_BY_ACTOR,
@@ -57,17 +63,19 @@ class CachedDatabaseService {
   }
 
   /**
-   * Get posts for following feed with caching (cursor-based pagination)
+   * Get posts for following feed with caching (cursor-based or offset-based pagination)
    * Filters out posts from test users
    */
   async getPostsForFollowing(
     userId: string,
     followedIds: string[],
     limit = 100,
-    cursor?: string
+    cursorOrOffset?: string | number
   ): Promise<Post[]> {
-    // Cache key based on user and pagination
-    const cacheKey = `${userId}:${limit}:${cursor || 'initial'}`;
+    const isCursor = typeof cursorOrOffset === 'string';
+    const cacheKey = isCursor 
+      ? `${userId}:${limit}:cursor:${cursorOrOffset}`
+      : `${userId}:${limit}:offset:${cursorOrOffset || 0}`;
     
     return getCacheOrFetch(
       cacheKey,
@@ -92,7 +100,10 @@ class CachedDatabaseService {
         // Remove test users from followedIds
         const nonTestFollowedIds = followedIds.filter(id => !testAuthorIds.has(id));
         
-        // Build where clause with cursor
+        const cursor = isCursor ? (cursorOrOffset as string) : undefined;
+        const offset = !isCursor && typeof cursorOrOffset === 'number' ? cursorOrOffset : 0;
+        
+        // Build where clause with cursor or use offset
         const where: {
           authorId: { in: string[] };
           deletedAt: null;
@@ -113,6 +124,7 @@ class CachedDatabaseService {
             timestamp: 'desc',
           },
           take: limit,
+          skip: cursor ? 0 : offset, // Only use skip if using offset pagination
         });
         
         return posts;

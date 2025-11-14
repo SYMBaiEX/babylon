@@ -218,17 +218,21 @@ class DatabaseService {
   }
 
   /**
-   * Get recent posts with cursor-based pagination
+   * Get recent posts with cursor-based or offset-based pagination
    * Note: Not cached as this is real-time data that updates frequently
    * Filters out posts from test users (isTest = true)
    * 
    * @param limit - Number of posts to fetch
-   * @param cursor - Timestamp cursor (ISO string) for pagination. Posts older than this will be returned.
+   * @param cursorOrOffset - Cursor (ISO string) for cursor-based pagination, or offset (number) for legacy offset pagination
    */
-  async getRecentPosts(limit = 100, cursor?: string) {
-    logger.debug('DatabaseService.getRecentPosts called', { limit, cursor }, 'DatabaseService');
+  async getRecentPosts(limit = 100, cursorOrOffset?: string | number) {
+    const isCursor = typeof cursorOrOffset === 'string';
+    const cursor = isCursor ? cursorOrOffset : undefined;
+    const offset = !isCursor && typeof cursorOrOffset === 'number' ? cursorOrOffset : 0;
     
-    // Build where clause with cursor
+    logger.debug('DatabaseService.getRecentPosts called', { limit, cursor, offset }, 'DatabaseService');
+    
+    // Build where clause with cursor or use offset
     const where: {
       deletedAt: null;
       timestamp?: { lt: Date };
@@ -245,6 +249,7 @@ class DatabaseService {
     const allPosts = await prisma.post.findMany({
       where,
       take: limit * 2, // Fetch more than needed to account for filtering
+      skip: cursor ? 0 : offset, // Only use skip if using offset pagination
       orderBy: { timestamp: 'desc' },
     });
     
@@ -276,6 +281,7 @@ class DatabaseService {
     logger.info('DatabaseService.getRecentPosts completed', {
       limit,
       cursor,
+      offset,
       postCount: posts.length,
       filteredTestPosts: allPosts.length - posts.length,
       firstPostId: posts[0]?.id,
@@ -286,15 +292,19 @@ class DatabaseService {
   }
 
   /**
-   * Get posts by actor with cursor-based pagination
+   * Get posts by actor with cursor-based or offset-based pagination
    * Filters out posts if the actor is a test user
    * 
    * @param authorId - Author ID (user or actor)
    * @param limit - Number of posts to fetch
-   * @param cursor - Timestamp cursor (ISO string) for pagination
+   * @param cursorOrOffset - Cursor (ISO string) for cursor-based pagination, or offset (number) for legacy offset pagination
    */
-  async getPostsByActor(authorId: string, limit = 100, cursor?: string) {
-    logger.debug('DatabaseService.getPostsByActor called', { authorId, limit, cursor }, 'DatabaseService');
+  async getPostsByActor(authorId: string, limit = 100, cursorOrOffset?: string | number) {
+    const isCursor = typeof cursorOrOffset === 'string';
+    const cursor = isCursor ? cursorOrOffset : undefined;
+    const offset = !isCursor && typeof cursorOrOffset === 'number' ? cursorOrOffset : 0;
+    
+    logger.debug('DatabaseService.getPostsByActor called', { authorId, limit, cursor, offset }, 'DatabaseService');
     
     // Check if this actor/user is a test user
     const [user, actor] = await Promise.all([
@@ -319,7 +329,7 @@ class DatabaseService {
       return [];
     }
     
-    // Build where clause with cursor
+    // Build where clause with cursor or use offset
     const where: {
       authorId: string;
       deletedAt: null;
@@ -336,6 +346,7 @@ class DatabaseService {
     const posts = await prisma.post.findMany({
       where,
       take: limit,
+      skip: cursor ? 0 : offset, // Only use skip if using offset pagination
       orderBy: { timestamp: 'desc' },
     });
     
@@ -343,6 +354,7 @@ class DatabaseService {
       authorId,
       limit,
       cursor,
+      offset,
       postCount: posts.length,
     }, 'DatabaseService');
     
