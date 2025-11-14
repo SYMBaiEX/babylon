@@ -14,11 +14,23 @@ env:
   NODE_ENV: test
   CI: true
 
+# Maximum performance with Blacksmith runners:
+# Runners:
+# - Build: blacksmith-8vcpu-ubuntu-2404 (fastest compilation, type checking, linting)
+# - Unit/Integration: blacksmith-2vcpu-ubuntu-2404 (optimized for test execution)
+# - E2E & Synpress: blacksmith-8vcpu-ubuntu-2404 (Playwright benefits from high CPU)
+# - All jobs: 2x faster bare metal gaming CPUs with highest single-core performance
+# Cache (automatic optimizations):
+# - 4x faster cache downloads (colocated in same datacenter)
+# - Existing actions/cache@v4 automatically accelerated (node_modules, .next)
+# - Docker pull cache for postgres:15 service images (automatic)
+# - 25GB free cache storage per repo/week (2.5x GitHub's 10GB limit)
+
 jobs:
   # Step 1: Build production bundle
   build:
     name: Build Production
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 20
     
     services:
@@ -194,7 +206,7 @@ jobs:
   test-unit-integration:
     name: Unit & Integration Tests
     needs: build
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 15
     
     services:
@@ -300,7 +312,7 @@ jobs:
   test-e2e:
     name: E2E Tests (Playwright)
     needs: build
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 30
     
     services:
@@ -414,7 +426,7 @@ jobs:
   test-synpress:
     name: Synpress Tests (Wallet E2E)
     needs: build
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 45
     
     services:
@@ -532,7 +544,7 @@ jobs:
   all-tests-passed:
     name: All Tests Passed
     needs: [build, test-unit-integration, test-e2e, test-synpress]
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     if: always()
     
     steps:
