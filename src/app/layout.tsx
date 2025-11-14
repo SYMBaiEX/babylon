@@ -100,9 +100,7 @@ export default function RootLayout({
 
             {/* Main Content Area - Scrollable content with pull-to-refresh */}
             <main className="flex-1 min-h-screen w-full pt-14 pb-14 md:pt-0 md:pb-0 bg-background">
-              {/* <div className="h-[calc(100vh-7rem)] md:h-auto w-full overflow-y-auto overscroll-contain"> */}
-                {children}
-              {/* </div> */}
+              {children}
             </main>
 
             {/* Mobile Bottom Navigation - Fixed, not affected by pull-to-refresh */}
